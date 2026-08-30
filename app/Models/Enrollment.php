@@ -27,9 +27,29 @@ class Enrollment extends Model
 
     public const OutcomeCancelled = 'Cancelled';
 
+    public const OutcomeCancelledByLearner = 'CancelledByLearner';
+
+    public const OutcomeCancelledByRegistrar = 'CancelledByRegistrar';
+
     public const OutcomeNotEnrolled = 'NotEnrolled';
 
     public const OutcomeOfficiallyEnrolled = 'OfficiallyEnrolled';
+
+    /** @return list<string> */
+    public static function cancelledOutcomes(): array
+    {
+        return [
+            self::OutcomeCancelledByLearner,
+            self::OutcomeCancelledByRegistrar,
+            self::OutcomeCancelled,
+        ];
+    }
+
+    /** @return list<string> */
+    public static function reopenableOutcomes(): array
+    {
+        return [...self::cancelledOutcomes(), self::OutcomeNotEnrolled];
+    }
 
     /** @use HasFactory<EnrollmentFactory> */
     use HasFactory;
@@ -114,6 +134,12 @@ class Enrollment extends Model
         return $this->hasMany(RegistrationProposalVersion::class);
     }
 
+    /** @return HasMany<RegistrationIdentityConfirmationVersion, $this> */
+    public function identityConfirmationVersions(): HasMany
+    {
+        return $this->hasMany(RegistrationIdentityConfirmationVersion::class);
+    }
+
     /** @return HasOne<TermAccount, $this> */
     public function termAccount(): HasOne
     {
@@ -130,6 +156,12 @@ class Enrollment extends Model
     public function studentProfile(): BelongsTo
     {
         return $this->belongsTo(StudentProfile::class);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function finalizer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'finalized_by');
     }
 
     /** @return BelongsTo<Term, $this> */

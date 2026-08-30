@@ -136,20 +136,14 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
         $this->assertArrayNotHasKey('lis_status', $dashboard['enrollment']['current']);
 
         $this->assertTrue($cor['available']);
-        $this->assertSame(
-            'Recorded curriculum version #'.$fixture['profile']->curriculum_version_id,
-            $cor['state']['curriculum_level'],
-        );
+        $this->assertSame('1, 3', $cor['state']['curriculum_level']);
         $this->assertSame(
             'Published timetable version #'.$fixture['timetable']->id,
             $cor['state']['course_delivery_mix'],
         );
-        $this->assertStringContainsString('Curriculum Level', $print);
-        $this->assertStringContainsString(
-            'Recorded curriculum version #'.$fixture['profile']->curriculum_version_id,
-            $print,
-        );
-        $this->assertStringContainsString('Course Delivery Mix', $print);
+        $this->assertStringContainsString('Curriculum Version', $print);
+        $this->assertStringContainsString('Represented level', $print);
+        $this->assertStringContainsString('Timetable source', $print);
         $this->assertStringNotContainsString('Student Modality', $print);
     }
 
@@ -161,6 +155,14 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ListEnrollments::class)
+            ->assertSee('Ready to prepare')
+            ->assertSee('Waiting for learner')
+            ->assertSee('Placement and shortages')
+            ->assertSee('Finance pending')
+            ->assertSee('Ready to finalize')
+            ->assertSee('Adjustments and Drops')
+            ->assertSee('Official and history')
+            ->set('activeTab', 'official_history')
             ->assertTableFilterExists('term')
             ->assertTableFilterExists('program')
             ->filterTable('term', $target['term']->id)
@@ -360,6 +362,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
                 'program_id' => $program->id,
                 'program_code' => $program->code,
                 'curriculum_version_id' => $profile->curriculum_version_id,
+                'represented_curriculum_levels' => array_values(array_unique(array_column($levelsAndModalities, 0))),
                 'term_label' => $term->label,
                 'published_timetable_version_id' => $timetable->id,
                 'courses' => [],

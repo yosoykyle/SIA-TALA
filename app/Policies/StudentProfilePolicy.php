@@ -13,7 +13,6 @@ class StudentProfilePolicy
             User::StaffRoleRegistrar,
             User::StaffRoleAcademicHead,
             User::StaffRoleAccounting,
-            User::StaffRoleSystemSuperAdmin,
         ])
             || $user->can('manage-student-profiles')
             || $user->can('approve-documents');
@@ -29,13 +28,13 @@ class StudentProfilePolicy
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])
+        return $user->hasRole(User::StaffRoleRegistrar)
             || $user->can('manage-student-profiles');
     }
 
     public function update(User $user, StudentProfile $studentProfile): bool
     {
-        return $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])
+        return $user->hasRole(User::StaffRoleRegistrar)
             || $user->can('manage-student-profiles');
     }
 

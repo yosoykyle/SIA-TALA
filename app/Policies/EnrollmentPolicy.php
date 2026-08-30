@@ -13,7 +13,6 @@ class EnrollmentPolicy
             User::StaffRoleRegistrar,
             User::StaffRoleAccounting,
             User::StaffRoleAcademicHead,
-            User::StaffRoleSystemSuperAdmin,
         ]) || $this->canAny($user, [
             'approve-documents',
             'evaluate-transferees',
@@ -78,26 +77,17 @@ class EnrollmentPolicy
 
     public function confirmPlacement(User $user, Enrollment $enrollment): bool
     {
-        return $user->canAuthenticate() && $user->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleSystemSuperAdmin,
-        ]);
+        return $user->canAuthenticate() && $user->hasRole(User::StaffRoleRegistrar);
     }
 
     public function refreshGates(User $user, Enrollment $enrollment): bool
     {
-        return $user->canAuthenticate() && $user->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleSystemSuperAdmin,
-        ]);
+        return $user->canAuthenticate() && $user->hasRole(User::StaffRoleRegistrar);
     }
 
     public function officiallyEnroll(User $user, Enrollment $enrollment): bool
     {
-        return $user->canAuthenticate() && $user->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleSystemSuperAdmin,
-        ]);
+        return $user->canAuthenticate() && $user->hasRole(User::StaffRoleRegistrar);
     }
 
     /**

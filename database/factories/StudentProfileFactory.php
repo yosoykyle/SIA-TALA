@@ -17,6 +17,7 @@ class StudentProfileFactory extends Factory
             'user_id' => User::factory(),
             'applicant_intake_id' => null,
             'student_number' => 'SIA-'.now()->year.'-'.fake()->unique()->numerify('####'),
+            'entry_term_id' => null,
             'first_name' => fake()->firstName(),
             'middle_name' => fake()->optional()->firstName(),
             'last_name' => fake()->lastName(),

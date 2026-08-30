@@ -11,7 +11,6 @@ use App\Actions\Enrollment\StartEnrollment;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Student\Pages\Enrollment as StudentEnrollmentPage;
-use App\Models\CalendarEvent;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
@@ -25,6 +24,8 @@ use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -85,28 +86,28 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->assertSame(0, EnrollmentSeatReservation::query()->count());
     }
 
-    public function test_enrollment_window_uses_the_active_institution_calendar_event(): void
+    public function test_enrollment_window_uses_the_active_exact_term_calendar_package(): void
     {
         $term = Term::factory()->create();
         $evaluatedAt = CarbonImmutable::parse('2026-08-05 10:00:00', config('app.timezone'));
-        $window = CalendarEvent::factory()->for($term)->create([
-            'event_type' => CalendarEvent::TypeWindow,
-            'scope_type' => CalendarEvent::ScopeInstitution,
-            'process_key' => CalendarEvent::ProcessEnrollment,
-            'start_at' => $evaluatedAt->subDay(),
-            'end_at' => $evaluatedAt->addDays(5),
-            'day_of_week' => null,
-            'starts_at' => null,
-            'ends_at' => null,
-            'blocks_scheduling' => false,
-            'state' => CalendarEvent::StateActive,
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => $evaluatedAt,
+        ]);
+        $window = TermCalendarWindow::factory()->for($package, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeEnrollment,
+            'opens_on' => $evaluatedAt->subDay()->toDateString(),
+            'closes_on' => $evaluatedAt->addDays(5)->toDateString(),
+            'cutoff_at' => '17:00:00',
         ]);
 
         $service = app(CalendarPhaseGateService::class);
         $service->assertEnrollmentWindowOpen($term->id, $evaluatedAt);
 
         $this->assertTrue($service->enrollmentWindow($term->id, $evaluatedAt)->is($window));
-        $this->assertTrue($service->enrollmentDeadline($term->id, $evaluatedAt)->equalTo($window->end_at));
+        $this->assertTrue($service->enrollmentDeadline($term->id, $evaluatedAt)->equalTo(
+            CarbonImmutable::parse($window->closes_on->toDateString().' 17:00:00', config('app.timezone')),
+        ));
     }
 
     public function test_missing_and_closed_enrollment_windows_have_distinct_blockers(): void
@@ -123,17 +124,15 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             $this->assertStringContainsString('not configured', $exception->getMessage());
         }
 
-        CalendarEvent::factory()->for($term)->create([
-            'event_type' => CalendarEvent::TypeWindow,
-            'scope_type' => CalendarEvent::ScopeInstitution,
-            'process_key' => CalendarEvent::ProcessEnrollment,
-            'start_at' => $evaluatedAt->subDays(5),
-            'end_at' => $evaluatedAt->subDay(),
-            'day_of_week' => null,
-            'starts_at' => null,
-            'ends_at' => null,
-            'blocks_scheduling' => false,
-            'state' => CalendarEvent::StateActive,
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => $evaluatedAt->subWeek(),
+        ]);
+        TermCalendarWindow::factory()->for($package, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeEnrollment,
+            'opens_on' => $evaluatedAt->subDays(5)->toDateString(),
+            'closes_on' => $evaluatedAt->subDay()->toDateString(),
+            'cutoff_at' => '17:00:00',
         ]);
 
         try {
@@ -312,17 +311,15 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
 
         foreach (['missing', 'closed'] as $windowState) {
             if ($windowState === 'closed') {
-                CalendarEvent::factory()->for($term)->create([
-                    'event_type' => CalendarEvent::TypeWindow,
-                    'scope_type' => CalendarEvent::ScopeInstitution,
-                    'process_key' => CalendarEvent::ProcessEnrollment,
-                    'start_at' => now()->subWeek(),
-                    'end_at' => now()->subDay(),
-                    'day_of_week' => null,
-                    'starts_at' => null,
-                    'ends_at' => null,
-                    'blocks_scheduling' => false,
-                    'state' => CalendarEvent::StateActive,
+                $package = TermCalendarPackage::factory()->for($term)->create([
+                    'state' => TermCalendarPackage::StateActive,
+                    'activated_at' => now()->subWeek(),
+                ]);
+                TermCalendarWindow::factory()->for($package, 'package')->create([
+                    'window_type' => TermCalendarWindow::TypeEnrollment,
+                    'opens_on' => now()->subWeek()->toDateString(),
+                    'closes_on' => now()->subDay()->toDateString(),
+                    'cutoff_at' => '17:00:00',
                 ]);
             }
 
@@ -356,7 +353,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ]);
         $firstSection = $this->publishedSectionFor($term, $profile, dayOfWeek: 1);
         $secondSection = $this->publishedSectionFor($term, $profile, dayOfWeek: 2);
-        $window = $this->openEnrollmentWindow($term);
+        $this->openEnrollmentWindow($term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $proposals = app(EnrollmentProposalService::class);
         $placement = app(EnrollmentPlacementService::class);
@@ -374,7 +371,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->where('is_active', true)
             ->count());
         $this->assertSame(
-            [$window->end_at->toDateTimeString()],
+            [app(CalendarPhaseGateService::class)->enrollmentDeadline($term->id)->toDateTimeString()],
             EnrollmentSeatReservation::query()
                 ->whereBelongsTo($enrollment)
                 ->pluck('deadline')
@@ -678,11 +675,13 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             'section_id' => $replacementSection->id,
         ]);
 
-        $window = $this->openEnrollmentWindow($term);
+        $this->openEnrollmentWindow($term);
         $summary = $placement->replace($enrollment, $replacementSection->id, $registrar);
 
         $this->assertSame($replacementSection->id, $summary['reservation']->section_id);
-        $this->assertTrue($summary['reservation']->deadline->equalTo($window->end_at));
+        $this->assertTrue($summary['reservation']->deadline->equalTo(
+            app(CalendarPhaseGateService::class)->enrollmentDeadline($term->id),
+        ));
         $this->assertDatabaseHas('enrollment_seat_reservations', [
             'enrollment_id' => $enrollment->id,
             'section_id' => $firstSection->id,
@@ -1021,7 +1020,6 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->callAction('startContinuingEnrollment', data: [
                 'student_profile_id' => $profile->id,
                 'term_id' => $term->id,
-                'selection_basis' => Enrollment::SelectionStandardCurriculum,
                 'start_method' => 'RegistrarAssisted',
                 'authority_reference' => 'SYN-ASSISTED-REGISTRATION-001',
             ])
@@ -1047,7 +1045,6 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->callAction('startContinuingEnrollment', data: [
                 'student_profile_id' => $profile->id,
                 'term_id' => $term->id,
-                'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
                 'start_method' => 'LateAuthority',
                 'authority_reference' => 'SYN-LATE-START-UI-001',
             ])
@@ -1088,7 +1085,6 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->callAction('startContinuingEnrollment', data: [
                 'student_profile_id' => $profile->id,
                 'term_id' => $term->id,
-                'selection_basis' => Enrollment::SelectionStandardCurriculum,
                 'start_method' => 'RegistrarAssisted',
                 'authority_reference' => 'SYN-ASSISTED-REGISTRATION-003',
             ])
@@ -1121,7 +1117,6 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->callAction('startContinuingEnrollment', data: [
                 'student_profile_id' => $profile->id,
                 'term_id' => $term->id,
-                'selection_basis' => Enrollment::SelectionStandardCurriculum,
                 'start_method' => 'RegistrarAssisted',
                 'authority_reference' => 'SYN-ASSISTED-REGISTRATION-004',
             ])
@@ -1261,19 +1256,22 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         return Livewire::test(StudentEnrollmentPage::class);
     }
 
-    private function openEnrollmentWindow(Term $term): CalendarEvent
+    private function openEnrollmentWindow(Term $term): TermCalendarWindow
     {
-        return CalendarEvent::factory()->for($term)->create([
-            'event_type' => CalendarEvent::TypeWindow,
-            'scope_type' => CalendarEvent::ScopeInstitution,
-            'process_key' => CalendarEvent::ProcessEnrollment,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addWeek(),
-            'day_of_week' => null,
-            'starts_at' => null,
-            'ends_at' => null,
-            'blocks_scheduling' => false,
-            'state' => CalendarEvent::StateActive,
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'administrative_starts_on' => now()->subMonth()->toDateString(),
+            'administrative_ends_on' => now()->addMonths(6)->toDateString(),
+            'classes_start_on' => now()->toDateString(),
+            'classes_end_on' => now()->addMonths(5)->toDateString(),
+            'activated_at' => now(),
+        ]);
+
+        return TermCalendarWindow::factory()->for($package, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeEnrollment,
+            'opens_on' => now()->subDay()->toDateString(),
+            'closes_on' => now()->addWeek()->toDateString(),
+            'cutoff_at' => '23:59:59',
         ]);
     }
 

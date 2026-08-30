@@ -2,6 +2,7 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationPlacementValidator;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
@@ -21,6 +22,8 @@ class CreateAssessmentFromPublishedFeePlan
     public function __construct(
         private readonly RegistrationPlacementValidator $placementValidator,
         private readonly DecimalMoney $money,
+        private readonly RegistrationNotificationLedger $notifications,
+        private readonly EnrollmentPaymentRequirementProjection $paymentRequirement,
     ) {}
 
     public function execute(Enrollment $enrollment, User $actor): Assessment
@@ -89,7 +92,10 @@ class CreateAssessmentFromPublishedFeePlan
             ->first();
 
         if ($existing instanceof Assessment && hash_equals((string) $existing->content_hash, $contentHash)) {
-            return $existing->load(['lines', 'obligations', 'termAccount']);
+            $existing = $existing->load(['lines', 'obligations', 'termAccount']);
+            $this->notifyIfActionRequired($existing);
+
+            return $existing;
         }
 
         $version = ((int) Assessment::query()->where('enrollment_id', $enrollment->id)->lockForUpdate()->max('version')) + 1;
@@ -142,6 +148,17 @@ class CreateAssessmentFromPublishedFeePlan
         }
         $account->update(['state' => TermAccount::StateOpen]);
 
-        return $assessment->load(['lines', 'obligations', 'termAccount']);
+        $assessment = $assessment->load(['lines', 'obligations', 'termAccount']);
+        $this->notifyIfActionRequired($assessment);
+
+        return $assessment;
+    }
+
+    private function notifyIfActionRequired(Assessment $assessment): void
+    {
+        $assessment->loadMissing('enrollment');
+        if ($this->paymentRequirement->forEnrollment($assessment->enrollment)['state'] === 'ActionNeeded') {
+            $this->notifications->recordPaymentActionRequired($assessment);
+        }
     }
 }

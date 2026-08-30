@@ -4,6 +4,7 @@ namespace App\Actions\Calendar;
 
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use Carbon\CarbonImmutable;
 
 final class TermCalendarPackageReadinessService
@@ -46,13 +47,26 @@ final class TermCalendarPackageReadinessService
             $blockers[] = $this->blocker('faculty_availability_deadline_invalid', 'Teaching resources', 'Registrar', 'The Faculty availability deadline is outside the approved planning interval.', 'Place the deadline within the administrative start and class-start bounds.', 'Correct the Draft package and retry activation.');
         }
 
-        foreach (['Enrollment', 'ExaminationPeriod', 'GradeEntry'] as $windowType) {
+        foreach ([TermCalendarWindow::TypeEnrollment, TermCalendarWindow::TypeExaminationPeriod, TermCalendarWindow::TypeGradeEntry] as $windowType) {
             $window = $package->windows->firstWhere('window_type', $windowType);
 
             if ($window === null
                 || CarbonImmutable::parse((string) $window->closes_on)
                     ->lt(CarbonImmutable::parse((string) $window->opens_on))) {
                 $blockers[] = $this->blocker('window_'.strtolower($windowType).'_invalid', 'Operational windows', 'Registrar', "The {$windowType} window is missing or invalid.", "Record a valid {$windowType} window.", 'Correct the Draft package and retry activation.');
+            }
+        }
+
+        foreach ($package->windows as $window) {
+            $opensOn = CarbonImmutable::parse((string) $window->opens_on);
+            $closesOn = CarbonImmutable::parse((string) $window->closes_on);
+
+            if (! array_key_exists($window->window_type, TermCalendarWindow::typeOptions())
+                || $closesOn->lt($opensOn)
+                || $opensOn->lt($administrativeStartsOn)
+                || $closesOn->gt($administrativeEndsOn)) {
+                $blockers[] = $this->blocker('operational_window_invalid', 'Operational windows', 'Registrar', 'An operational window has an unsupported type or falls outside the exact-Term administrative bounds.', 'Correct the affected window without inferring dates from another Term.', 'Retain the Draft package until every window is valid.');
+                break;
             }
         }
 

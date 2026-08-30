@@ -8,12 +8,15 @@ use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Models\AdmissionApplication;
 use App\Models\Enrollment;
+use App\Models\EnrollmentSeatReservation;
 use App\Models\FinanceExport;
 use App\Models\OperationalEvent;
 use App\Models\PaymentAttempt;
 use App\Models\PaymentEvidenceVersion;
+use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
@@ -33,12 +36,60 @@ class ListEnrollments extends ListRecords
 
     public function getTitle(): string
     {
-        return $this->isAccounting() ? 'Student Accounts' : parent::getTitle();
+        if ($this->isAccounting()) {
+            return 'Student Accounts';
+        }
+
+        return $this->isRegistrar() ? 'Students & Enrollment' : parent::getTitle();
     }
 
     /** @return array<string, Tab> */
     public function getTabs(): array
     {
+        if ($this->isRegistrar()) {
+            return [
+                'ready_to_prepare' => Tab::make('Ready to prepare')->modifyQueryUsing(
+                    fn (Builder $query): Builder => $query
+                        ->where('canonical_outcome', Enrollment::OutcomeInProgress)
+                        ->whereDoesntHave('currentProposalVersion'),
+                ),
+                'waiting_for_learner' => Tab::make('Waiting for learner')->modifyQueryUsing(
+                    fn (Builder $query): Builder => $query->whereHas(
+                        'currentProposalVersion',
+                        fn (Builder $query): Builder => $query->where('state', RegistrationProposalVersion::StateIssued),
+                    ),
+                ),
+                'placement_shortages' => Tab::make('Placement and shortages')->modifyQueryUsing(
+                    fn (Builder $query): Builder => $query->whereHas(
+                        'seatReservations',
+                        fn (Builder $query): Builder => $query->whereIn('status', [EnrollmentSeatReservation::StatusPending, EnrollmentSeatReservation::StatusReleased]),
+                    ),
+                ),
+                'finance_pending' => Tab::make('Finance pending')->modifyQueryUsing(
+                    fn (Builder $query): Builder => $query->where('canonical_outcome', Enrollment::OutcomeInProgress)
+                        ->where(function (Builder $query): void {
+                            $query->whereDoesntHave('termAccount')
+                                ->orWhereHas('termAccount', fn (Builder $query): Builder => $query->where('state', '!=', TermAccount::StateCleared));
+                        }),
+                ),
+                'ready_to_finalize' => Tab::make('Ready to finalize')->modifyQueryUsing(
+                    fn (Builder $query): Builder => $query
+                        ->where('canonical_outcome', Enrollment::OutcomeInProgress)
+                        ->whereHas('currentProposalVersion', fn (Builder $query): Builder => $query->where('state', RegistrationProposalVersion::StateConfirmed))
+                        ->whereHas('termAccount', fn (Builder $query): Builder => $query->where('state', TermAccount::StateCleared)),
+                ),
+                'adjustments_drops' => Tab::make('Adjustments and Drops')->modifyQueryUsing(
+                    fn (Builder $query): Builder => $query->where(function (Builder $query): void {
+                        $query->whereHas('proposalVersions', fn (Builder $query): Builder => $query->where('purpose', RegistrationProposalVersion::PurposeAdjustment))
+                            ->orWhereHas('courseEnrollments', fn (Builder $query): Builder => $query->where('status', 'dropped'));
+                    }),
+                ),
+                'official_history' => Tab::make('Official and history')->modifyQueryUsing(
+                    fn (Builder $query): Builder => $query->where('canonical_outcome', '!=', Enrollment::OutcomeInProgress),
+                ),
+            ];
+        }
+
         if (! $this->isAccounting()) {
             return [];
         }
@@ -146,10 +197,7 @@ class ListEnrollments extends ListRecords
                 ->icon('heroicon-o-plus-circle')
                 ->labeledFrom('md')
                 ->tooltip('Start continuing enrollment')
-                ->visible(fn (): bool => auth()->user()?->hasAnyRole([
-                    User::StaffRoleRegistrar,
-                    User::StaffRoleSystemSuperAdmin,
-                ]) ?? false)
+                ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
                 ->schema([
                     Select::make('student_profile_id')
                         ->label('Student')
@@ -177,21 +225,12 @@ class ListEnrollments extends ListRecords
                             ->mapWithKeys(fn (Term $term): array => [$term->id => $term->label])
                             ->all())
                         ->required(),
-                    Select::make('selection_basis')
-                        ->label('Registration basis')
-                        ->options([
-                            Enrollment::SelectionStandardCurriculum => 'Standard Curriculum',
-                            Enrollment::SelectionIndividuallyAdvised => 'Individually Advised',
-                        ])
-                        ->default(Enrollment::SelectionStandardCurriculum)
-                        ->required(),
                     Select::make('start_method')
                         ->label('Start authority')
                         ->options([
                             'RegistrarAssisted' => 'Registrar-assisted within the registration window',
                             'LateAuthority' => 'Authorized late start outside the registration window',
                         ])
-                        ->default('RegistrarAssisted')
                         ->required(),
                     TextInput::make('authority_reference')
                         ->label('Assisted or late authority reference')
@@ -215,7 +254,6 @@ class ListEnrollments extends ListRecords
                             $profile,
                             $term,
                             $actor,
-                            (string) $data['selection_basis'],
                             (string) $data['start_method'],
                             (string) $data['authority_reference'],
                         );
@@ -249,6 +287,11 @@ class ListEnrollments extends ListRecords
     private function isAccounting(): bool
     {
         return auth()->user()?->hasRole(User::StaffRoleAccounting) ?? false;
+    }
+
+    private function isRegistrar(): bool
+    {
+        return auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false;
     }
 
     /** @return Collection<int, AdmissionApplication> */

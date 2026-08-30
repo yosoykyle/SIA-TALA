@@ -79,6 +79,32 @@ class OperationalEvent extends Model
 
     public const TypeOfficialEnrollmentEmail = 'official_enrollment_email';
 
+    public const TypeEnrollmentWindowEmail = 'enrollment_window_email';
+
+    public const TypeRegistrationProposalEmail = 'registration_proposal_email';
+
+    public const TypeRegistrationPaymentActionEmail = 'registration_payment_action_email';
+
+    public const TypeRegistrationCaseExpiryEmail = 'registration_case_expiry_email';
+
+    public const TypeRegistrationAdjustmentEmail = 'registration_adjustment_email';
+
+    public const TypeCourseDropEmail = 'course_drop_email';
+
+    /** @return list<string> */
+    public static function registrationNotificationTypes(): array
+    {
+        return [
+            self::TypeEnrollmentWindowEmail,
+            self::TypeRegistrationProposalEmail,
+            self::TypeRegistrationPaymentActionEmail,
+            self::TypeOfficialEnrollmentEmail,
+            self::TypeRegistrationCaseExpiryEmail,
+            self::TypeRegistrationAdjustmentEmail,
+            self::TypeCourseDropEmail,
+        ];
+    }
+
     public const TypeAcademicRecordUpdatedEmail = 'academic_record_updated_email';
 
     public const StatusPending = 'PENDING';

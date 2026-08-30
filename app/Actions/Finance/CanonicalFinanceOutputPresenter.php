@@ -17,8 +17,7 @@ class CanonicalFinanceOutputPresenter
         $assessment->loadMissing(['termAccount.credentialUser', 'enrollment.studentProfile.program', 'termAccount.term']);
         $isAccounting = $actor->hasRole(User::StaffRoleAccounting);
         abort_unless($assessment->termAccount !== null && ($isAccounting
-            || ((int) $assessment->termAccount->credential_user_id === (int) $actor->id
-                && $assessment->state === Assessment::StateActive)), 403);
+            || (int) $assessment->termAccount->credential_user_id === (int) $actor->id), 403);
         $position = $this->projection->forAccount($assessment->termAccount);
 
         return [
@@ -39,15 +38,33 @@ class CanonicalFinanceOutputPresenter
     /** @return array<string, mixed> */
     public function acknowledgement(Payment $payment, User $actor): array
     {
-        $payment->loadMissing(['termAccount.credentialUser', 'termAccount.term', 'allocations.assessmentObligation']);
+        $payment->loadMissing([
+            'termAccount.credentialUser',
+            'termAccount.term',
+            'allocations.assessmentObligation',
+            'reversal',
+            'paymentEvidenceVersion',
+        ]);
         abort_unless($payment->state === Payment::StatePosted && $payment->termAccount !== null
             && ($actor->hasRole(User::StaffRoleAccounting) || (int) $payment->termAccount->credential_user_id === (int) $actor->id), 403);
+
+        $hasSuccessorEvidence = $payment->paymentEvidenceVersion !== null
+            && $payment->paymentEvidenceVersion->newQuery()
+                ->where('supersedes_version_id', $payment->paymentEvidenceVersion->id)
+                ->exists();
+        $postingStatus = match (true) {
+            $payment->reversal instanceof Payment => 'Reversed',
+            $hasSuccessorEvidence => 'Superseded evidence',
+            default => 'Posted',
+        };
 
         return [
             'payment' => $payment,
             'generated_at' => CarbonImmutable::now(config('app.timezone')),
             'owner' => $payment->termAccount->credentialUser->getFilamentName(),
             'term' => $payment->termAccount->term->label,
+            'posting_status' => $postingStatus,
+            'reversal' => $payment->reversal,
             'allocations' => $payment->allocations->map(fn ($allocation): array => [
                 'target' => $allocation->assessmentObligation->label,
                 'amount' => (string) $allocation->amount,

@@ -19,7 +19,7 @@ class CancelRegistrationCase
         }
 
         if ((int) $enrollment->credential_user_id !== (int) $actor->id
-            && ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            && ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only the learner or authorized Registrar may cancel this Registration Case.');
         }
 
@@ -38,7 +38,7 @@ class CancelRegistrationCase
                 throw ValidationException::withMessages(['case' => 'Official enrollment requires the controlled withdrawal or drop journey.']);
             }
 
-            if ($locked->canonical_outcome === Enrollment::OutcomeCancelled) {
+            if (in_array($locked->canonical_outcome, Enrollment::cancelledOutcomes(), true)) {
                 return $locked;
             }
 
@@ -49,6 +49,9 @@ class CancelRegistrationCase
                 ]);
             }
 
+            $outcome = $learnerIsActor
+                ? Enrollment::OutcomeCancelledByLearner
+                : Enrollment::OutcomeCancelledByRegistrar;
             $from = $locked->canonical_outcome;
             EnrollmentSeatReservation::query()
                 ->where('enrollment_id', $locked->id)
@@ -56,13 +59,13 @@ class CancelRegistrationCase
                 ->lockForUpdate()
                 ->update(['status' => EnrollmentSeatReservation::StatusReleased, 'released_at' => now()]);
             $locked->update([
-                'canonical_outcome' => Enrollment::OutcomeCancelled,
+                'canonical_outcome' => $outcome,
                 'status' => 'cancelled',
                 'cancelled_at' => now(),
                 'status_reason' => $reason,
                 'lock_version' => $locked->lock_version + 1,
             ]);
-            $this->record($locked, $actor, 'Cancelled', $from, Enrollment::OutcomeCancelled, $reason);
+            $this->record($locked, $actor, $outcome, $from, $outcome, $reason);
 
             return $locked->refresh();
         }, attempts: 3);

@@ -134,9 +134,9 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource', 'TranscriptRequestResource',
             ]],
             'system super admin' => ['role' => User::StaffRoleSystemSuperAdmin, 'allowed' => [
-                'Dashboard', 'EnrollmentResource', 'FaqEntryResource', 'GovernanceAudit',
+                'Dashboard', 'FaqEntryResource', 'GovernanceAudit',
                 'PublicContent', 'PublicNoticeResource',
-                'StudentLifecycleChangeResource', 'StudentProfileResource',
+                'StudentLifecycleChangeResource',
                 'SystemHealth', 'UserResource',
             ]],
         ];

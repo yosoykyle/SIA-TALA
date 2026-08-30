@@ -37,7 +37,7 @@
 
                 <x-filament::section
                     heading="Current proposal"
-                    description="This is the complete version you are being asked to confirm. Official course registrations are created only after finalization."
+                    :description="'Why these subjects: the Registrar applied '.str($enrollment->selection_basis)->headline().' to your assigned Curriculum Version and exact Term. Official course registrations are created only after finalization.'"
                     icon="heroicon-o-document-check"
                 >
                     @if ($proposal && $proposal->items->isNotEmpty())
@@ -62,6 +62,20 @@
                                             <td class="px-4 py-3 tabular-nums">{{ $item->units_snapshot }}</td>
                                             <td class="px-4 py-3">{{ str($item->reservation?->status ?? 'Not placed')->headline() }}</td>
                                         </tr>
+                                        @if (($item->meeting_snapshot ?? []) !== [])
+                                            <tr>
+                                                <td colspan="4" class="px-4 pb-4 text-xs text-gray-600 dark:text-gray-300">
+                                                    @foreach ($item->meeting_snapshot as $meeting)
+                                                        {{ \App\Models\SectionMeeting::dayOptions()[(int) $meeting['day_of_week']] ?? 'Day not recorded' }}
+                                                        {{ substr((string) $meeting['starts_at'], 0, 5) }}–{{ substr((string) $meeting['ends_at'], 0, 5) }}
+                                                        · {{ $meeting['room_label'] ?? 'Room not recorded' }}
+                                                        · {{ $meeting['faculty_name'] ?? 'Faculty not recorded' }}{{ ! $loop->last ? '; ' : '' }}
+                                                    @endforeach
+                                                </td>
+                                            </tr>
+                                        @elseif ($item->scheduling_treatment_snapshot === \App\Models\CourseSpecification::SchedulingExternallyArranged)
+                                            <tr><td colspan="4" class="px-4 pb-4 text-xs text-gray-600 dark:text-gray-300">Approved no-meeting treatment: externally arranged.</td></tr>
+                                        @endif
                                     @endforeach
                                 </tbody>
                             </table>
@@ -92,18 +106,20 @@
 
             <x-filament::section
                 heading="Five checkpoints"
-                description="Each item is derived from current source records."
+                description="Each item names its authoritative source, responsible owner, consequence, and recovery."
                 icon="heroicon-o-list-bullet"
             >
                 <ol class="space-y-4">
-                    @foreach ([
-                        ['Identity and Term', $readiness['identity'], 'Registrar resolves the authoritative learner source.'],
-                        ['Current proposal', $readiness['proposal'], 'Registrar prepares and issues the proposal.'],
-                        ['Your confirmation', $readiness['confirmation'], 'Review and confirm the issued version.'],
-                        ['Protected placement', $readiness['placement'], 'Registrar resolves capacity, conflict, or deadline changes.'],
-                        ['Accounting clearance', $readiness['finance'], 'Accounting resolves the current requirement.'],
-                    ] as [$label, $ready, $recovery])
-                        <li class="rounded-xl bg-gray-50 p-4 dark:bg-white/5">
+                    @php($checkpointRows = [
+                        ['Student eligibility', $readiness['eligibility'] && $readiness['identity'], 'Admissions/Student record', 'Registrar', 'Registration cannot proceed without a current eligible identity source.', 'Contact the Registrar if the source is not current.'],
+                        ['Confirmed proposed subjects', $readiness['confirmation'], 'Registration Proposal version '.($proposal?->version ?? 'not prepared'), 'Learner', 'Unconfirmed subjects cannot become official registrations.', 'Review and confirm the current issued proposal.'],
+                        ['Valid class placement', $readiness['placement'], 'Published Timetable and reservations', 'Registrar', 'Unresolved capacity or conflict blocks finalization.', 'The Registrar must resolve the listed placement blocker.'],
+                        ['Accounting clearance', $readiness['finance'], 'Enrollment Payment Requirement', 'Accounting', 'An unsatisfied exact requirement blocks finalization.', 'Use the current Finance handoff or contact Accounting.'],
+                        ['Registrar finalization', $enrollment->canonical_outcome === \App\Models\Enrollment::OutcomeOfficiallyEnrolled, 'Registration Case '.$enrollment->case_reference, 'Registrar', 'Only atomic finalization creates Official Enrollment and COR.', $readiness['ready'] ? 'All checkpoints are ready for Registrar finalization.' : 'Resolve the earlier checkpoint shown above.'],
+                    ])
+                    @php($currentCheckpoint = collect($checkpointRows)->search(fn ($row) => ! $row[1]))
+                    @foreach ($checkpointRows as $index => [$label, $ready, $source, $owner, $consequence, $recovery])
+                        <li class="rounded-xl bg-gray-50 p-4 dark:bg-white/5" @if ($currentCheckpoint === $index) aria-current="step" @endif>
                             <div class="flex items-start gap-3">
                                 <x-filament::icon
                                     :icon="$ready ? 'heroicon-o-check-circle' : 'heroicon-o-clock'"
@@ -111,7 +127,8 @@
                                 />
                                 <div>
                                     <p class="font-semibold text-gray-950 dark:text-white">{{ $label }}</p>
-                                    <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ $ready ? 'Ready' : $recovery }}</p>
+                                    <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ $ready ? 'Verified from '.$source.'.' : $recovery }}</p>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Owner: {{ $owner }} · As of {{ $enrollment->updated_at?->timezone(config('app.display_timezone'))->format('M d, Y g:i A') }} · {{ $consequence }}</p>
                                 </div>
                             </div>
                         </li>
@@ -119,5 +136,22 @@
                 </ol>
             </x-filament::section>
         </div>
+
+        @if ($corHistory !== [])
+            <x-filament::section
+                heading="COR versions"
+                description="Immutable current, historical, and superseded versions are ordered newest first. Current finance remains in Student Finance and the SOA."
+                icon="heroicon-o-document-duplicate"
+            >
+                <div class="space-y-3">
+                    @foreach ($corHistory as $corVersion)
+                        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl ring-1 ring-gray-950/10 p-4 dark:ring-white/10">
+                            <p><strong>{{ $corVersion['term'] }} · COR version {{ $corVersion['version'] }}</strong><br><span class="text-sm text-gray-600 dark:text-gray-300">{{ $corVersion['status'] }}</span></p>
+                            <x-filament::button :href="$corVersion['url']" tag="a" target="_blank" size="sm" icon="heroicon-o-printer">Open COR</x-filament::button>
+                        </div>
+                    @endforeach
+                </div>
+            </x-filament::section>
+        @endif
     @endif
 </x-filament-panels::page>

@@ -92,7 +92,8 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             ->assertSee('Registration Case')
             ->assertSee('Five finalization checkpoints')
             ->assertSee('Accounting clearance')
-            ->assertSee('Current proposal and protected placement')
+            ->assertSee('Proposal and confirmation')
+            ->assertSee('Eligibility, placement, and shortage')
             ->assertSee('Official result and history');
     }
 

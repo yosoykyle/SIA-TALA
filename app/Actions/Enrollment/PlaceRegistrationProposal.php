@@ -25,7 +25,7 @@ class PlaceRegistrationProposal
     public function execute(RegistrationProposalVersion $proposal, User $actor, ?\DateTimeInterface $expectedDeadline = null): RegistrationProposalVersion
     {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may place a Registration Proposal.');
         }
 

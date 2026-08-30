@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Finance\FinanceEvidenceService;
+use App\Actions\Finance\ReversePaymentPosting;
 use App\Filament\Student\Pages\Finance;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
@@ -115,13 +116,14 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
             ->assertSee('not an official receipt or tax document');
     }
 
-    public function test_student_blocked_from_superseded_soa_but_accounting_allowed(): void
+    public function test_student_and_accounting_can_access_a_superseded_soa_as_historical(): void
     {
         $fixture = $this->financeFixture(['assessment_state' => Assessment::StateSuperseded]);
 
         $this->actingAs($fixture['student'])
             ->get(route('finance.statement', $fixture['assessment']))
-            ->assertForbidden();
+            ->assertOk()
+            ->assertSee('Historical');
 
         $this->actingAs($this->accountingUser())
             ->get(route('finance.statement', $fixture['assessment']))
@@ -172,6 +174,26 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
 
         $this->assertTrue($finance['available']);
         $this->assertSame('Payment Rejected', $finance['summary']['payment_status']);
+    }
+
+    public function test_reversed_payment_acknowledgement_remains_reproducible_and_clearly_labelled(): void
+    {
+        $fixture = $this->financeFixture();
+        $accounting = $this->accountingUser();
+
+        app(ReversePaymentPosting::class)->execute(
+            $fixture['payment'],
+            $accounting,
+            'REVERSAL-AUTH-001',
+            'Verified duplicate posting.',
+        );
+
+        $this->actingAs($fixture['student'])
+            ->get(route('finance.payments.acknowledgement', $fixture['payment']))
+            ->assertOk()
+            ->assertSee('Reversed')
+            ->assertSee('REVERSAL-AUTH-001')
+            ->assertSee('Verified duplicate posting.');
     }
 
     /**

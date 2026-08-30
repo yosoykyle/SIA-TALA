@@ -1,6 +1,6 @@
 <x-official-output-layout
     title="Payment Acknowledgment"
-    context="Verified TALA Posting"
+    :context="$acknowledgement['posting_status'].' · Verified TALA Posting'"
     :subtitle="$acknowledgement['term']"
     :generated-at="\App\Support\DisplayDateTime::format($acknowledgement['generated_at'], 'M d, Y h:i A')"
 >
@@ -12,7 +12,12 @@
         <tr><th>Actual Verified Amount</th><td>PHP {{ number_format((float) $acknowledgement['payment']->amount, 2) }}</td></tr>
         <tr><th>Paid</th><td>{{ \App\Support\DisplayDateTime::format($acknowledgement['payment']->paid_at, 'M d, Y h:i A') }}</td></tr>
         <tr><th>Verified</th><td>{{ \App\Support\DisplayDateTime::format($acknowledgement['payment']->verified_at, 'M d, Y h:i A') }}</td></tr>
-        <tr><th>Posting State</th><td>{{ $acknowledgement['payment']->state }}</td></tr>
+        <tr><th>Posting State</th><td>{{ $acknowledgement['posting_status'] }}</td></tr>
+        @if ($acknowledgement['reversal'] !== null)
+            <tr><th>Reversal Reference</th><td>{{ $acknowledgement['reversal']->provider_reference }}</td></tr>
+            <tr><th>Reversal Authority</th><td>{{ $acknowledgement['reversal']->reversal_authority_reference }}</td></tr>
+            <tr><th>Reversal Reason</th><td>{{ $acknowledgement['reversal']->reversal_reason }}</td></tr>
+        @endif
     </tbody></table></div>
 
     <h2>Obligation Effects</h2>

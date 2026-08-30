@@ -21,6 +21,8 @@ class OfficialEnrollmentMail extends Mailable implements ShouldQueue
 
     public bool $failOnTimeout = true;
 
+    public string $operationalEventType = OperationalEvent::TypeOfficialEnrollmentEmail;
+
     public function __construct(
         public int $operationalEventId,
         public string $recipientName,

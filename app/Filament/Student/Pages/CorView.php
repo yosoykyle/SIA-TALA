@@ -51,6 +51,7 @@ class CorView extends Page
                             ->badge()
                             ->color(fn (string $state): string => $state === 'Available' ? 'success' : 'warning'),
                         TextEntry::make('term')->label('Term'),
+                        TextEntry::make('version_status')->label('Version')->badge(),
                         TextEntry::make('notice')
                             ->label('Notice')
                             ->columnSpanFull(),
@@ -65,8 +66,8 @@ class CorView extends Page
                         TextEntry::make('curriculum_level')->label('Curriculum Level'),
                         TextEntry::make('registration_date')->label('Registration Date'),
                         TextEntry::make('course_delivery_mix')->label('Course Delivery Mix'),
-                        TextEntry::make('payment_status')->label('Payment Status'),
-                        TextEntry::make('balance')->label('Balance'),
+                        TextEntry::make('selection_basis')->label('Selection Basis'),
+                        TextEntry::make('payment_status')->label('Clearance at Issue'),
                     ])
                     ->columns(['default' => 1, 'sm' => 2, 'xl' => 4]),
                 Section::make('Current Enrolled Subjects')
@@ -87,25 +88,6 @@ class CorView extends Page
                                 TextEntry::make('room')->label('Room'),
                                 TextEntry::make('instructor')->label('Instructor'),
                                 TextEntry::make('modality')->label('Modality')->badge(),
-                            ])
-                            ->columns(['default' => 1, 'sm' => 2, 'lg' => 3])
-                            ->columnSpanFull(),
-                    ])
-                    ->columns(1),
-                Section::make('Installment Schedule')
-                    ->visible(fn (): bool => ($this->cor['available'] ?? false) === true
-                        && (bool) ($this->cor['state']['installment_applicable'] ?? false))
-                    ->schema([
-                        RepeatableEntry::make('installment_rows')
-                            ->label('Installments')
-                            ->schema([
-                                TextEntry::make('number')->label('No.'),
-                                TextEntry::make('category')->label('Category'),
-                                TextEntry::make('due_date')->label('Due Date'),
-                                TextEntry::make('amount')->label('Amount'),
-                                TextEntry::make('reference')->label('Receipt No. / Reference'),
-                                TextEntry::make('date_paid')->label('Date Paid'),
-                                TextEntry::make('remaining_balance')->label('Remaining'),
                             ])
                             ->columns(['default' => 1, 'sm' => 2, 'lg' => 3])
                             ->columnSpanFull(),

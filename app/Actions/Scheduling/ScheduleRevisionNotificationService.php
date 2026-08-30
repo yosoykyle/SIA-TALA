@@ -60,7 +60,7 @@ final class ScheduleRevisionNotificationService
 
         foreach ($recipients as $recipient) {
             $recipientEvents = new EloquentCollection(array_values($eventsByRecipient['events'][(int) $recipient->id]));
-            $payload = $this->payload($recipientEvents, $roomLabels, $facultyLabels);
+            $payload = $this->payload($recipientEvents, $roomLabels, $facultyLabels, $recipient);
             $externalId = "schedule-revision:{$eventSetHash}:user:{$recipient->id}";
             $deliveryEvent = OperationalEvent::query()->firstOrCreate(
                 [
@@ -249,14 +249,40 @@ final class ScheduleRevisionNotificationService
      * @param  array<int, string>  $facultyLabels
      * @return array<string, mixed>
      */
-    private function payload(EloquentCollection $events, array $roomLabels, array $facultyLabels): array
+    private function payload(EloquentCollection $events, array $roomLabels, array $facultyLabels, User $recipient): array
     {
         $events = $events->sortBy('id')->values();
+        $sectionIds = $events
+            ->map(fn (ScheduleRevisionEvent $event): int => (int) $event->sectionMeeting?->schedulingDemand?->sectionDeliveryGroup?->section_id)
+            ->filter()
+            ->unique()
+            ->values();
+        $enrollmentContexts = CourseEnrollment::query()
+            ->with('enrollment.currentCorVersion')
+            ->whereIn('section_id', $sectionIds)
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->whereHas('enrollment', fn ($query) => $query->where('credential_user_id', $recipient->id))
+            ->get()
+            ->pluck('enrollment')
+            ->filter()
+            ->unique('id')
+            ->map(fn ($enrollment): array => [
+                'enrollment_id' => (int) $enrollment->id,
+                'cor_version_id' => $enrollment->current_cor_version_id,
+                'enrollment_url' => route('filament.student.pages.enrollment'),
+                'cor_url' => $enrollment->current_cor_version_id !== null
+                    ? route('cor.print', ['enrollment' => $enrollment->id])
+                    : null,
+            ])
+            ->values()
+            ->all();
 
         return [
             'revision_event_ids' => $events->modelKeys(),
             'change_types' => $events->pluck('change_type')->unique()->values()->all(),
             'effective_date' => $events->pluck('effective_date')->filter()->sort()->first()?->toDateString(),
+            'affected_enrollments' => $enrollmentContexts,
             'changes' => $events->map(function (ScheduleRevisionEvent $event) use ($roomLabels, $facultyLabels): array {
                 $meeting = $event->sectionMeeting;
                 $demand = $meeting?->schedulingDemand;

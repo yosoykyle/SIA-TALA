@@ -19,6 +19,14 @@ The Registrar Office changed one or more assignments in your current published s
 | Modality | {{ $change['before']['modality'] }} | {{ $change['after']['modality'] }} |
 @endforeach
 
+@if ($affectedEnrollments !== [])
+<x-mail::button :url="$affectedEnrollments[0]['enrollment_url']">
+Review Enrollment and Current Schedule
+</x-mail::button>
+
+Your current COR remains available from Enrollment. If the revision requires a Registrar placement decision, TALA will show that recovery path rather than changing your enrollment silently.
+@endif
+
 Sign in to TALA and open **Schedule** before attending your next class. The Student Hub shows the current published schedule. If an assignment appears incorrect, contact the Registrar Office.
 
 Regards,<br>

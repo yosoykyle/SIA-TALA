@@ -6,6 +6,7 @@ use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Enrollment\ApplyRegistrationAdjustment;
 use App\Actions\Enrollment\CancelRegistrationCase;
+use App\Actions\Enrollment\ConfirmRegistrationIdentity;
 use App\Actions\Enrollment\ConfirmRegistrationProposal;
 use App\Actions\Enrollment\FinalizeOfficialEnrollment;
 use App\Actions\Enrollment\IssueRegistrationProposal;
@@ -40,9 +41,9 @@ use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationSubmissionVersion;
 use App\Models\ApprovedCoverage;
 use App\Models\Assessment;
-use App\Models\CalendarEvent;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
+use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
@@ -61,6 +62,8 @@ use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -68,6 +71,7 @@ use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -102,6 +106,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $accounting = $this->staff(User::StaffRoleAccounting);
 
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        app(ConfirmRegistrationIdentity::class)->execute($case, $application->user);
 
         $this->assertNull($case->student_profile_id);
         $this->assertFalse($application->user->hasRole('student'));
@@ -160,6 +165,9 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame(0, StudentScheduleBinding::query()->count());
         $this->assertSame(1, $official->corVersions()->count());
         Mail::assertQueued(OfficialEnrollmentMail::class);
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationProposalEmail)->count());
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationPaymentActionEmail)->count());
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeOfficialEnrollmentEmail)->count());
 
         $corBefore = app(BuildCorOutput::class)->forEnrollment($official, $application->user);
         $section->update(['code' => 'CHANGED-AFTER-FINALIZATION']);
@@ -169,6 +177,68 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame($corBefore['state'], $corAfter['state']);
         $this->assertSame('1000.00', $corAfter['fees'][0]['amount']);
         $this->assertSame($timetable->id, $corAfter['schedule_version']);
+    }
+
+    public function test_changed_identity_source_requires_reconfirmation_and_activates_from_the_confirmed_snapshot(): void
+    {
+        [$case, $application, , $registrar] = $this->caseReadyForFinalization();
+        $firstConfirmation = $case->identityConfirmationVersions()->sole();
+
+        $application->update([
+            'phone' => '09171234567',
+            'lrn' => '123456789012',
+        ]);
+
+        $this->assertFalse(app(RegistrationReadinessQuery::class)->for($case->fresh())['identity']);
+
+        try {
+            app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
+            $this->fail('Changed source identity facts must require an explicit successor confirmation.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('readiness', $exception->errors());
+        }
+
+        $successor = app(ConfirmRegistrationIdentity::class)->execute($case->fresh(), $application->user);
+        $official = app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
+
+        $this->assertSame(2, $case->identityConfirmationVersions()->count());
+        $this->assertSame($firstConfirmation->id, $successor->supersedes_version_id);
+        $this->assertSame('09171234567', $official->studentProfile->phone);
+        $this->assertSame('123456789012', $official->studentProfile->prior_identifier);
+        $this->assertSame($successor->id, data_get($official->currentCorVersion->snapshot, 'identity_confirmation_version_id'));
+    }
+
+    public function test_approved_no_meeting_course_places_and_finalizes_without_inventing_a_recurring_schedule(): void
+    {
+        [$application, $term] = $this->readyApplicant();
+        [$section] = $this->publishedOffering($application, $term);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $specification = $section->termOffering->curriculumEntry->courseSpecification;
+        $specification->update(['scheduling_treatment' => CourseSpecification::SchedulingExternallyArranged]);
+        PublishedTimetableMeeting::query()->where('section_id', $section->id)->delete();
+
+        $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        app(ConfirmRegistrationIdentity::class)->execute($case, $application->user);
+        $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
+        app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
+        app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
+        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+        $plan = $this->createFeePlanDraft(
+            $application->program,
+            $term,
+            [['code' => 'NO-PAYMENT', 'label' => 'Explicit no-payment authority', 'amount' => '0.00']],
+            $accounting,
+        );
+        $this->publishFeePlan($plan, $accounting, 'Synthetic no-payment authority');
+        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $official = app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
+        $output = app(BuildCorOutput::class)->forEnrollment($official, $application->user);
+
+        $this->assertSame(CourseSpecification::SchedulingExternallyArranged, $proposal->items()->sole()->scheduling_treatment_snapshot);
+        $this->assertSame([], $proposal->items()->sole()->meeting_snapshot);
+        $this->assertSame('No recurring meeting', $output['subjects'][0]['day']);
+        $this->assertSame('Externally arranged', $output['subjects'][0]['modality']);
     }
 
     public function test_unavailable_assessment_never_falls_back_to_zero_and_fee_plan_publication_is_versioned(): void
@@ -216,6 +286,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame('PublishedFeePlan', $assessment->assessment_basis);
         $this->assertSame('Cleared', app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case->fresh())['state']);
         $this->assertSame('NoPaymentRequired', app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case->fresh())['basis']);
+        $this->assertSame(0, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationPaymentActionEmail)->count());
     }
 
     public function test_cancel_reopen_and_stale_proposal_paths_are_fail_closed(): void
@@ -251,10 +322,10 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
         $cancelled = app(CancelRegistrationCase::class)->execute($case, $application->user, 'Learner cancelled before confirmation.');
-        CalendarEvent::query()
-            ->where('term_id', $term->id)
-            ->where('process_key', CalendarEvent::ProcessEnrollment)
-            ->update(['end_at' => now()->subMinute()]);
+        TermCalendarWindow::query()
+            ->whereHas('package', fn ($query) => $query->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive))
+            ->where('window_type', TermCalendarWindow::TypeEnrollment)
+            ->update(['closes_on' => now()->subDay()->toDateString()]);
 
         try {
             app(ReopenRegistrationCase::class)->execute(
@@ -366,7 +437,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             'Registrar recorded post-confirmation cancellation.',
         );
 
-        $this->assertSame(Enrollment::OutcomeCancelled, $cancelled->canonical_outcome);
+        $this->assertSame(Enrollment::OutcomeCancelledByRegistrar, $cancelled->canonical_outcome);
         $this->assertSame(
             EnrollmentSeatReservation::StatusReleased,
             $proposal->items()->firstOrFail()->reservation()->value('status'),
@@ -390,7 +461,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertDatabaseHas('enrollments', [
             'credential_user_id' => $application->user_id,
             'term_id' => $term->id,
-            'canonical_outcome' => Enrollment::OutcomeCancelled,
+            'canonical_outcome' => Enrollment::OutcomeCancelledByLearner,
         ]);
     }
 
@@ -482,23 +553,18 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
     public function test_continuing_student_uses_the_same_exact_term_case_with_controlled_selection_and_late_authority(): void
     {
-        $profile = StudentProfile::factory()->create();
+        $profile = StudentProfile::factory()->create(['academic_standing' => StudentProfile::StandingIrregular]);
         $profile->user->update(['status' => User::StatusActive]);
         $profile->user->assignRole('student');
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create(['state' => Term::StateActive]);
-        CalendarEvent::factory()->for($term)->create([
-            'process_key' => CalendarEvent::ProcessEnrollment,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
-        ]);
+        $this->openTermCalendarPackage($term);
 
         try {
             app(StartRegistrationCase::class)->forContinuingStudent(
                 $profile,
                 $term,
                 $profile->user,
-                Enrollment::SelectionIndividuallyAdvised,
                 'RegistrarAssisted',
                 'FORGED-ASSISTED-START',
             );
@@ -506,17 +572,10 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         } catch (AuthorizationException) {
             $this->assertSame(0, Enrollment::query()->where('credential_user_id', $profile->user_id)->count());
         }
-        CalendarEvent::factory()->for($term)->create([
-            'process_key' => CalendarEvent::ProcessEnrollment,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
-        ]);
-
         $case = app(StartRegistrationCase::class)->forContinuingStudent(
             $profile,
             $term,
             $registrar,
-            Enrollment::SelectionIndividuallyAdvised,
             'RegistrarAssisted',
             'SYN-ASSISTED-001',
         );
@@ -533,7 +592,6 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $profile,
             $lateTerm,
             $registrar,
-            Enrollment::SelectionStandardCurriculum,
             'LateAuthority',
             'SYN-LATE-001',
         );
@@ -544,24 +602,19 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
     public function test_continuing_student_finalization_reuses_the_permanent_identity_and_number(): void
     {
-        $profile = StudentProfile::factory()->create();
+        $profile = StudentProfile::factory()->create(['academic_standing' => StudentProfile::StandingIrregular]);
         $profile->user->update(['status' => User::StatusActive]);
         $profile->user->assignRole('student');
         $studentNumber = $profile->student_number;
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $accounting = $this->staff(User::StaffRoleAccounting);
         $term = Term::factory()->create(['state' => Term::StateActive]);
-        CalendarEvent::factory()->for($term)->create([
-            'process_key' => CalendarEvent::ProcessEnrollment,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
-        ]);
+        $this->openTermCalendarPackage($term);
         [$section] = $this->publishedOfferingForProgram($profile->program, $term, $profile->curriculumVersion);
         $case = app(StartRegistrationCase::class)->forContinuingStudent(
             $profile,
             $term,
             $registrar,
-            Enrollment::SelectionIndividuallyAdvised,
             'RegistrarAssisted',
             'SYN-CONTINUING-001',
         );
@@ -596,22 +649,17 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
     public function test_continuing_proposal_uses_the_recorded_curriculum_and_released_result_rules(): void
     {
-        $profile = StudentProfile::factory()->create();
+        $profile = StudentProfile::factory()->create(['academic_standing' => StudentProfile::StandingIrregular]);
         $profile->user->update(['status' => User::StatusActive]);
         $profile->user->assignRole('student');
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create(['state' => Term::StateActive]);
-        CalendarEvent::factory()->for($term)->create([
-            'process_key' => CalendarEvent::ProcessEnrollment,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
-        ]);
+        $this->openTermCalendarPackage($term);
         [$section] = $this->publishedOfferingForProgram($profile->program, $term, $profile->curriculumVersion);
         $case = app(StartRegistrationCase::class)->forContinuingStudent(
             $profile,
             $term,
             $registrar,
-            Enrollment::SelectionIndividuallyAdvised,
             'RegistrarAssisted',
             'SYN-ELIGIBILITY-001',
         );
@@ -632,7 +680,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
     public function test_failed_finalization_creates_no_partial_student_registration_cor_or_number(): void
     {
-        [$application, $term] = $this->readyApplicant();
+        [$application, $term] = $this->readyApplicant(AdmissionApplication::PathTransferee);
         [$section] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
@@ -742,7 +790,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
     public function test_proposal_supersession_preserves_source_and_confirmation_history(): void
     {
-        [$application, $term] = $this->readyApplicant();
+        [$application, $term] = $this->readyApplicant(AdmissionApplication::PathTransferee);
         [$section, $timetable] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $accounting = $this->staff(User::StaffRoleAccounting);
@@ -750,7 +798,6 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $application,
             $term,
             $application->user,
-            Enrollment::SelectionIndividuallyAdvised,
         );
         $first = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
         app(IssueRegistrationProposal::class)->execute($first, $registrar);
@@ -795,7 +842,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
     public function test_expiry_releases_capacity_once_and_returns_the_case_to_actionable_placement(): void
     {
-        [$application, $term] = $this->readyApplicant();
+        [$application, $term] = $this->readyApplicant(AdmissionApplication::PathTransferee);
         [$section] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
@@ -813,6 +860,31 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame(0, $second);
         $this->assertSame('released', $reservation->fresh()->status);
         $this->assertFalse(app(RegistrationReadinessQuery::class)->for($case->fresh())['placement']);
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationCaseExpiryEmail)->count());
+    }
+
+    public function test_final_cutoff_records_not_enrolled_once_and_preserves_the_same_case_for_authorized_reopening(): void
+    {
+        [$application, $term] = $this->readyApplicant();
+        $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        TermCalendarWindow::query()
+            ->whereHas('package', fn ($query) => $query
+                ->where('term_id', $term->id)
+                ->where('state', TermCalendarPackage::StateActive))
+            ->where('window_type', TermCalendarWindow::TypeEnrollment)
+            ->update(['closes_on' => now()->subDay()->toDateString()]);
+
+        app(ReleaseExpiredEnrollmentReservations::class)->execute();
+        app(ReleaseExpiredEnrollmentReservations::class)->execute();
+
+        $this->assertSame(Enrollment::OutcomeNotEnrolled, $case->fresh()->canonical_outcome);
+        $this->assertSame('not_enrolled', $case->fresh()->status);
+        $this->assertSame(1, $case->registrationEvents()->where('event_type', Enrollment::OutcomeNotEnrolled)->count());
+        $this->assertSame(1, OperationalEvent::query()
+            ->where('event_type', OperationalEvent::TypeRegistrationCaseExpiryEmail)
+            ->where('related_record_type', Enrollment::class)
+            ->where('related_record_id', $case->id)
+            ->count());
     }
 
     public function test_capacity_shortage_saves_no_partial_placement_and_recovers_through_a_successor_proposal(): void
@@ -933,13 +1005,13 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $this->assertArrayHasKey('proposal', $exception->errors());
         }
 
-        $this->assertSame(Enrollment::OutcomeCancelled, $case->fresh()->canonical_outcome);
+        $this->assertSame(Enrollment::OutcomeCancelledByLearner, $case->fresh()->canonical_outcome);
         $this->assertSame(0, $proposal->confirmation()->count());
     }
 
     public function test_manual_payment_and_approved_coverage_produce_a_mixed_exact_obligation_clearance(): void
     {
-        [$application, $term] = $this->readyApplicant();
+        [$application, $term] = $this->readyApplicant(AdmissionApplication::PathTransferee);
         [$section] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $accounting = $this->staff(User::StaffRoleAccounting);
@@ -947,7 +1019,6 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $application,
             $term,
             $application->user,
-            Enrollment::SelectionIndividuallyAdvised,
         );
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
@@ -1078,6 +1149,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             requestedVersion: $historicalVersion,
         );
         $this->assertSame(1, $historicalOutput['summary']['cor_version']);
+        $this->assertSame('Superseded', $historicalOutput['summary']['document_status']);
         $this->actingAs($application->user)
             ->get(route('cor.print', ['enrollment' => $official, 'version' => 1]))
             ->assertOk();
@@ -1104,6 +1176,30 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame('Open', $official->termAccount->fresh()->state);
         $this->assertSame($application->user_id, $official->credential_user_id);
         $this->assertSame($term->id, $official->term_id);
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationAdjustmentEmail)->count());
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeCourseDropEmail)->count());
+    }
+
+    public function test_continuing_student_window_notification_is_idempotent_for_the_exact_calendar_window(): void
+    {
+        [$official] = $this->officialEnrollment();
+        $eligible = StudentProfile::factory()->create([
+            'lifecycle_status' => StudentProfile::LifecycleActive,
+        ]);
+        $eligible->user->update(['status' => User::StatusActive]);
+        $eligible->user->assignRole('student');
+
+        Artisan::call('enrollment:dispatch-window-notifications');
+        Artisan::call('enrollment:dispatch-window-notifications');
+
+        $this->assertSame(1, OperationalEvent::query()
+            ->where('event_type', OperationalEvent::TypeEnrollmentWindowEmail)
+            ->where('user_id', $eligible->user_id)
+            ->count());
+        $this->assertSame(0, OperationalEvent::query()
+            ->where('event_type', OperationalEvent::TypeEnrollmentWindowEmail)
+            ->where('user_id', $official->credential_user_id)
+            ->count());
     }
 
     public function test_all_four_authorized_individual_assessment_categories_preserve_versioned_authority(): void
@@ -1237,10 +1333,10 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
     {
         [$official, , $term, , , $registrar] = $this->officialEnrollment(withSecondCourse: true);
         $course = $official->courseEnrollments()->where('is_current', true)->firstOrFail();
-        CalendarEvent::query()
-            ->where('term_id', $term->id)
-            ->where('process_key', CalendarEvent::ProcessAddDropAdjustment)
-            ->update(['end_at' => now()->subMinute()]);
+        TermCalendarWindow::query()
+            ->whereHas('package', fn ($query) => $query->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive))
+            ->where('window_type', TermCalendarWindow::TypeCourseDrop)
+            ->update(['closes_on' => now()->subDay()->toDateString()]);
 
         try {
             app(RecordCourseDrop::class)->execute(
@@ -1252,7 +1348,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             );
             $this->fail('A closed adjustment window must reject an ordinary Course Drop.');
         } catch (CalendarGateViolation $exception) {
-            $this->assertSame('add_drop_adjustment_window', $exception->gate);
+            $this->assertSame('course_drop_window', $exception->gate);
         }
         $this->assertTrue($course->fresh()->is_current);
 
@@ -1338,7 +1434,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
         $this->assertSame(Enrollment::OutcomeOfficiallyEnrolled, $official->canonical_outcome);
         $this->assertSame(OperationalEvent::StatusFailed, $event->status);
-        Mail::assertNothingQueued();
+        Mail::assertNotQueued(OfficialEnrollmentMail::class);
 
         $application->user->update([
             'email' => 'applicant@example.test',
@@ -1349,8 +1445,8 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->test(StudentEnrollmentPage::class);
         $component
             ->assertOk()
-            ->assertActionVisible('resendOfficialEnrollmentEmail')
-            ->callAction('resendOfficialEnrollmentEmail')
+            ->assertActionVisible('resendRegistrationEmail')
+            ->callAction('resendRegistrationEmail')
             ->assertNotified('Enrollment email queued again');
 
         $this->assertSame(OperationalEvent::StatusPending, $event->fresh()->status);
@@ -1358,23 +1454,15 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
     }
 
     /** @return array{AdmissionApplication, Term} */
-    private function readyApplicant(): array
+    private function readyApplicant(string $applicationPath = AdmissionApplication::PathFirstYear): array
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
-        CalendarEvent::factory()->for($term)->create([
-            'process_key' => CalendarEvent::ProcessEnrollment,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addMonth(),
-        ]);
-        CalendarEvent::factory()->for($term)->create([
-            'process_key' => CalendarEvent::ProcessAddDropAdjustment,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addMonth(),
-        ]);
+        $this->openTermCalendarPackage($term);
         $cycle = AdmissionCycle::factory()->for($term)->create();
         $application = AdmissionApplication::factory()->for($cycle, 'admissionCycle')->create([
             'term_id' => $term->id,
             'application_state' => AdmissionApplication::StateAdmitted,
+            'application_path' => $applicationPath,
         ]);
         $application->user->update(['status' => User::StatusActive]);
         $application->user->assignRole('applicant');
@@ -1389,6 +1477,29 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         AdmissionDecision::factory()->admitted()->for($application, 'application')->create();
 
         return [$application->refresh(), $term];
+    }
+
+    private function openTermCalendarPackage(Term $term): TermCalendarPackage
+    {
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'administrative_starts_on' => now()->subMonth()->toDateString(),
+            'administrative_ends_on' => now()->addMonths(6)->toDateString(),
+            'classes_start_on' => now()->toDateString(),
+            'classes_end_on' => now()->addMonths(5)->toDateString(),
+            'activated_at' => now(),
+        ]);
+
+        foreach ([TermCalendarWindow::TypeEnrollment, TermCalendarWindow::TypeEnrollmentAdjustment, TermCalendarWindow::TypeCourseDrop] as $type) {
+            TermCalendarWindow::factory()->for($package, 'package')->create([
+                'window_type' => $type,
+                'opens_on' => now()->subDay()->toDateString(),
+                'closes_on' => now()->addMonth()->toDateString(),
+                'cutoff_at' => '23:59:59',
+            ]);
+        }
+
+        return $package;
     }
 
     /** @return array{Section, PublishedTimetableVersion, CurriculumVersion} */
@@ -1443,6 +1554,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $accounting = $this->staff(User::StaffRoleAccounting);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        app(ConfirmRegistrationIdentity::class)->execute($case, $application->user);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, $sectionIds, $case->lock_version);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
@@ -1509,6 +1621,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $accounting = $this->staff(User::StaffRoleAccounting);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        app(ConfirmRegistrationIdentity::class)->execute($case, $application->user);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);

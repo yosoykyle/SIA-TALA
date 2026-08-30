@@ -40,6 +40,8 @@ use App\Models\PublishedTimetableVersion;
 use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -77,10 +79,19 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
             'state' => Term::StateActive,
             'default_max_units' => 99,
         ]);
-        CalendarEvent::factory()->for($term)->create([
-            'process_key' => CalendarEvent::ProcessEnrollment,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addMonth(),
+        $calendarPackage = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'administrative_starts_on' => now()->subMonth()->toDateString(),
+            'administrative_ends_on' => now()->addMonths(3)->toDateString(),
+            'classes_start_on' => now()->toDateString(),
+            'classes_end_on' => now()->addMonths(2)->toDateString(),
+            'activated_at' => now(),
+        ]);
+        TermCalendarWindow::factory()->for($calendarPackage, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeEnrollment,
+            'opens_on' => now()->subDay()->toDateString(),
+            'closes_on' => now()->addMonth()->toDateString(),
+            'cutoff_at' => '23:59:59',
         ]);
         CalendarEvent::factory()->for($term)->create([
             'process_key' => 'grade_entry',

@@ -3,6 +3,7 @@
 namespace App\Actions\Enrollment;
 
 use App\Models\CourseEnrollment;
+use App\Models\CourseSpecification;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
@@ -107,8 +108,15 @@ class RegistrationPlacementValidator
                 ->map(fn (array $meeting): array => $this->meetingIdentity($meeting));
             $current = $currentMeetings
                 ->map(fn (PublishedTimetableMeeting $meeting): array => $this->meetingIdentity($meeting->toArray()));
+            $schedulingTreatment = $item->termOffering?->curriculumEntry?->courseSpecification?->scheduling_treatment;
+            $scheduleMatches = $item->scheduling_treatment_snapshot === $schedulingTreatment
+                && match ($schedulingTreatment) {
+                    CourseSpecification::SchedulingRecurring => $current->isNotEmpty() && $snapshot->all() === $current->all(),
+                    CourseSpecification::SchedulingExternallyArranged => $current->isEmpty() && $snapshot->isEmpty(),
+                    default => false,
+                };
 
-            if ($current->isEmpty() || $snapshot->all() !== $current->all()) {
+            if (! $scheduleMatches) {
                 throw ValidationException::withMessages(['timetable' => 'A protected Class Offering no longer matches the confirmed timetable snapshot.']);
             }
 

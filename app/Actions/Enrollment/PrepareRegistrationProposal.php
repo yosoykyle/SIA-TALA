@@ -3,6 +3,8 @@
 namespace App\Actions\Enrollment;
 
 use App\Models\Assessment;
+use App\Models\CourseComponent;
+use App\Models\CourseSpecification;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
@@ -37,7 +39,7 @@ class PrepareRegistrationProposal
         ?string $curriculumPosition = null,
     ): RegistrationProposalVersion {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may prepare a Registration Proposal.');
         }
 
@@ -77,7 +79,10 @@ class PrepareRegistrationProposal
             }
 
             $sections = Section::query()
-                ->with('termOffering.curriculumEntry.courseSpecification.course')
+                ->with([
+                    'termOffering.curriculumEntry.courseSpecification.course',
+                    'termOffering.curriculumEntry.courseSpecification.components',
+                ])
                 ->whereIn('id', $sectionIds)
                 ->lockForUpdate()
                 ->get()
@@ -102,12 +107,19 @@ class PrepareRegistrationProposal
                     ->orderBy('meeting_sequence')
                     ->get();
 
+                $schedulingTreatment = $specification?->scheduling_treatment;
+                $hasApprovedSchedule = match ($schedulingTreatment) {
+                    CourseSpecification::SchedulingRecurring => $meetings->isNotEmpty(),
+                    CourseSpecification::SchedulingExternallyArranged => $meetings->isEmpty(),
+                    default => false,
+                };
+
                 if (! $section instanceof Section || ! $offering instanceof TermOffering
                     || (int) $offering->term_id !== (int) $locked->term_id
                     || $offering->state !== TermOffering::StateScheduled
                     || $section->state !== Section::StateOpen
-                    || $meetings->isEmpty() || $specification === null || $course === null) {
-                    throw ValidationException::withMessages(['sections' => 'Every item must be an active exact-Term Class Offering in the current Published Timetable.']);
+                    || ! $hasApprovedSchedule || $specification === null || $course === null) {
+                    throw ValidationException::withMessages(['sections' => 'Every item must be an active exact-Term Class Offering with its approved scheduling treatment in the current Published Timetable.']);
                 }
 
                 $curriculumIds->push((int) $offering->curriculumEntry->curriculum_version_id);
@@ -118,6 +130,15 @@ class PrepareRegistrationProposal
                     'units_snapshot' => $specification->credit_units,
                     'course_code_snapshot' => $course->code,
                     'course_title_snapshot' => $specification->title,
+                    'scheduling_treatment_snapshot' => $schedulingTreatment,
+                    'contact_hours_snapshot' => [
+                        'lecture' => number_format((float) $specification->components
+                            ->where('component_type', CourseComponent::TypeLecture)
+                            ->sum('weekly_contact_hours'), 2, '.', ''),
+                        'laboratory' => number_format((float) $specification->components
+                            ->where('component_type', CourseComponent::TypeLaboratory)
+                            ->sum('weekly_contact_hours'), 2, '.', ''),
+                    ],
                     'meeting_snapshot' => $meetings->map(fn ($meeting): array => [
                         'id' => $meeting->id,
                         'meeting_sequence' => $meeting->meeting_sequence,

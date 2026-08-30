@@ -5,7 +5,9 @@ namespace App\Filament\Applicant\Pages;
 use App\Actions\Admissions\AdmissionNotificationLedger;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
 use App\Actions\Enrollment\CancelRegistrationCase;
+use App\Actions\Enrollment\ConfirmRegistrationIdentity;
 use App\Actions\Enrollment\ConfirmRegistrationProposal;
+use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Finance\StudentTermAccountPresenter;
 use App\Actions\Finance\SubmitPaymentEvidence;
@@ -77,17 +79,9 @@ class Dashboard extends BaseDashboard implements HasTable
                         && ! $this->registrationCase() instanceof Enrollment
                         && app(ReadyApplicantProjectionQuery::class)->forApplication($application)['ready'];
                 })
-                ->schema([
-                    Select::make('selection_basis')
-                        ->label('Registration basis')
-                        ->options([
-                            Enrollment::SelectionStandardCurriculum => 'Standard Curriculum',
-                            Enrollment::SelectionIndividuallyAdvised => 'Individually Advised',
-                        ])
-                        ->default(Enrollment::SelectionStandardCurriculum)
-                        ->required(),
-                ])
-                ->action(function (array $data): void {
+                ->requiresConfirmation()
+                ->modalDescription('TALA will derive the registration basis from the authoritative Application source and create one exact-Term Registration Case.')
+                ->action(function (): void {
                     $application = $this->currentApplication();
                     $applicant = Auth::user();
                     abort_unless($application instanceof AdmissionApplication && $applicant instanceof User, 404);
@@ -96,7 +90,6 @@ class Dashboard extends BaseDashboard implements HasTable
                         $application,
                         Term::query()->findOrFail($application->term_id),
                         $applicant,
-                        (string) $data['selection_basis'],
                     );
                     Notification::make()
                         ->title('Enrollment started')
@@ -122,6 +115,33 @@ class Dashboard extends BaseDashboard implements HasTable
                     Notification::make()
                         ->title('Enrollment proposal confirmed')
                         ->body('The Registrar can now protect the complete placement. Any material revision requires a new confirmation.')
+                        ->success()
+                        ->send();
+                }),
+            Action::make('confirmRegistrationIdentity')
+                ->label('Confirm identity and contact details')
+                ->icon('heroicon-o-identification')
+                ->color('info')
+                ->requiresConfirmation()
+                ->modalHeading('Confirm identity and contact details')
+                ->modalDescription('Confirm that the identity and contact facts in your admitted Application remain current. This creates an attributable version for first enrollment; it does not create or alter your Student record by itself.')
+                ->visible(function (): bool {
+                    $case = $this->registrationCase();
+                    $application = $this->currentApplication();
+
+                    return $case instanceof Enrollment
+                        && $application instanceof AdmissionApplication
+                        && app(ConfirmRegistrationIdentity::class)->latestMatching($case, $application) === null;
+                })
+                ->action(function (): void {
+                    $case = $this->registrationCase();
+                    $applicant = Auth::user();
+                    abort_unless($case instanceof Enrollment && $applicant instanceof User, 404);
+
+                    app(ConfirmRegistrationIdentity::class)->execute($case, $applicant);
+                    Notification::make()
+                        ->title('Identity details confirmed')
+                        ->body('This confirmed version will be checked again before Official Enrollment. If the source changes, you will need to reconfirm it.')
                         ->success()
                         ->send();
                 }),
@@ -380,7 +400,7 @@ class Dashboard extends BaseDashboard implements HasTable
             ->first();
     }
 
-    private function registrationCase(): ?Enrollment
+    public function registrationCase(): ?Enrollment
     {
         $application = $this->currentApplication();
         if (! $application instanceof AdmissionApplication) {
@@ -393,6 +413,14 @@ class Dashboard extends BaseDashboard implements HasTable
             ->where('credential_user_id', $application->user_id)
             ->where('term_id', $application->term_id)
             ->first();
+    }
+
+    /** @return array<string, mixed>|null */
+    public function registrationReadiness(): ?array
+    {
+        $case = $this->registrationCase();
+
+        return $case instanceof Enrollment ? app(RegistrationReadinessQuery::class)->for($case) : null;
     }
 
     private function registrationProposalSummary(): string

@@ -6,7 +6,9 @@ use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Models\Assessment;
 use App\Models\CorVersion;
+use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
+use App\Models\CourseSpecification;
 use App\Models\Enrollment;
 use App\Models\EnrollmentAdjustment;
 use App\Models\EnrollmentSeatReservation;
@@ -32,6 +34,7 @@ class ApplyRegistrationAdjustment
         private readonly CalendarPhaseGateService $calendar,
         private readonly RegistrationAcademicEligibilityQuery $eligibility,
         private readonly StudentUnitLoadService $unitLoad,
+        private readonly RegistrationNotificationLedger $notifications,
     ) {}
 
     public function execute(
@@ -45,14 +48,14 @@ class ApplyRegistrationAdjustment
         ?RegistrationAdjustmentFinanceConfirmation $financialConfirmation = null,
     ): EnrollmentAdjustment {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may apply an enrollment adjustment.');
         }
         if (! in_array($financialEffect, ['Increase', RegistrationAdjustmentFinanceConfirmation::EffectNoAdditionalCost], true)) {
             throw ValidationException::withMessages(['financial_effect' => 'Record the approved financial-effect classification.']);
         }
 
-        return DB::transaction(function () use ($enrollment, $adjustmentProposal, $actor, $financialEffect, $authorityReference, $successorAssessment, $lateAuthority, $financialConfirmation): EnrollmentAdjustment {
+        $adjustment = DB::transaction(function () use ($enrollment, $adjustmentProposal, $actor, $financialEffect, $authorityReference, $successorAssessment, $lateAuthority, $financialConfirmation): EnrollmentAdjustment {
             $locked = Enrollment::query()
                 ->with(['studentProfile.curriculumVersion', 'termAccount'])
                 ->whereKey($enrollment->id)
@@ -102,13 +105,16 @@ class ApplyRegistrationAdjustment
             $beforeCourse = $change['before'];
             $afterItem = $change['after'];
             $replacement = Section::query()
-                ->with('termOffering.curriculumEntry.courseSpecification.course')
+                ->with([
+                    'termOffering.curriculumEntry.courseSpecification.course',
+                    'termOffering.curriculumEntry.courseSpecification.components',
+                ])
                 ->whereKey($afterItem->section_id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
             if (! $late instanceof RegistrationLateAuthority) {
-                $this->calendar->assertAddDropAdjustmentWindowOpen((int) $locked->term_id);
+                $this->calendar->assertEnrollmentAdjustmentWindowOpen((int) $locked->term_id);
             }
             if ($late instanceof RegistrationLateAuthority
                 && ((int) $late->enrollment_id !== (int) $locked->id
@@ -134,13 +140,20 @@ class ApplyRegistrationAdjustment
             $this->unitLoad->assertProposalPermitted($locked, $proposal, lockForUpdate: true);
 
             $replacementMeetings = PublishedTimetableMeeting::query()
+                ->with(['faculty', 'room'])
                 ->where('published_timetable_version_id', $timetable->id)
                 ->where('section_id', $replacement->id)
                 ->orderBy('meeting_sequence')
                 ->lockForUpdate()
                 ->get();
-            if ($replacementMeetings->isEmpty()) {
-                throw ValidationException::withMessages(['section' => 'The adjustment must use a current published Class Offering.']);
+            $replacementSpecification = $replacement->termOffering->curriculumEntry->courseSpecification;
+            $hasApprovedSchedule = match ($replacementSpecification->scheduling_treatment) {
+                CourseSpecification::SchedulingRecurring => $replacementMeetings->isNotEmpty(),
+                CourseSpecification::SchedulingExternallyArranged => $replacementMeetings->isEmpty(),
+                default => false,
+            };
+            if (! $hasApprovedSchedule) {
+                throw ValidationException::withMessages(['section' => 'The adjustment must use the approved recurring or no-meeting treatment from the current Published Timetable.']);
             }
 
             $occupiedQuery = CourseEnrollment::query()
@@ -267,13 +280,23 @@ class ApplyRegistrationAdjustment
                 'course_code' => $course->code,
                 'course_title' => $specification->title,
                 'units' => $specification->credit_units,
+                'scheduling_treatment' => $specification->scheduling_treatment,
+                'contact_hours' => [
+                    'lecture' => number_format((float) $specification->components
+                        ->where('component_type', CourseComponent::TypeLecture)
+                        ->sum('weekly_contact_hours'), 2, '.', ''),
+                    'laboratory' => number_format((float) $specification->components
+                        ->where('component_type', CourseComponent::TypeLaboratory)
+                        ->sum('weekly_contact_hours'), 2, '.', ''),
+                ],
                 'meetings' => $replacementMeetings->map(fn (PublishedTimetableMeeting $meeting): array => [
                     'day_of_week' => $meeting->day_of_week,
                     'starts_at' => $meeting->starts_at,
                     'ends_at' => $meeting->ends_at,
                     'modality' => $meeting->modality,
-                    'location_label' => $meeting->location_label,
+                    'room_label' => $meeting->room_id !== null ? $meeting->room->name : $meeting->location_label,
                     'faculty_user_id' => $meeting->faculty_user_id,
+                    'faculty_name' => $meeting->faculty?->getFilamentName(),
                     'room_id' => $meeting->room_id,
                 ])->all(),
             ];
@@ -286,6 +309,8 @@ class ApplyRegistrationAdjustment
             $assessmentId = $successorAssessment instanceof Assessment ? $successorAssessment->id : $currentCor->assessment_id;
             $snapshot['assessment_id'] = $assessmentId;
             $snapshot['published_timetable_version_id'] = $timetable->id;
+            $snapshot['issued_by_user_id'] = $actor->id;
+            $snapshot['issued_by_name'] = $actor->getFilamentName();
             $snapshot['issued_at'] = now()->toIso8601String();
             $successor = CorVersion::query()->create([
                 'enrollment_id' => $locked->id,
@@ -303,6 +328,9 @@ class ApplyRegistrationAdjustment
 
             return $adjustment;
         }, attempts: 3);
+        $this->notifications->recordAdjustment($adjustment);
+
+        return $adjustment;
     }
 
     /**

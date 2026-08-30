@@ -133,6 +133,12 @@ class Payment extends Model
         return $this->hasMany(PaymentAllocation::class);
     }
 
+    /** @return HasOne<Payment, $this> */
+    public function reversal(): HasOne
+    {
+        return $this->hasOne(self::class, 'reverses_payment_id');
+    }
+
     public function verifier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'verified_by');

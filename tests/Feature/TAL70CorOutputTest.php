@@ -92,12 +92,12 @@ final class TAL70CorOutputTest extends TestCase
         $this->actingAs($student)
             ->get(route('cor.print', $enrollment))
             ->assertOk()
-            ->assertSee('Registration Form / Certificate of Registration')
+            ->assertSee('Certificate of Registration')
             ->assertSee($fixture['course_code'])
-            ->assertSee('Course Delivery Mix')
-            ->assertSee('Modality')
+            ->assertSee('Timetable source')
+            ->assertSee('Mode')
             ->assertSee('Face-to-Face')
-            ->assertSee('PHP 4500.00');
+            ->assertSee('PHP 4,500.00');
 
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => BuildCorOutput::OutputType,
@@ -291,7 +291,7 @@ final class TAL70CorOutputTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_registrar_and_accounting_can_print_from_source_enrollment_context(): void
+    public function test_registrar_can_print_cor_while_accounting_remains_in_finance_outputs(): void
     {
         $fixture = $this->officialCorFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
@@ -304,15 +304,14 @@ final class TAL70CorOutputTest extends TestCase
 
         $this->actingAs($accounting)
             ->get(route('cor.print', $fixture['enrollment']))
-            ->assertOk()
-            ->assertSee('Accounting Copy');
+            ->assertForbidden();
 
         $this->assertDatabaseHas('output_access_logs', [
             'actor_user_id' => $registrar->id,
             'action' => BuildCorOutput::ActionPrint,
             'copy_context' => BuildCorOutput::CopyRegistrar,
         ]);
-        $this->assertDatabaseHas('output_access_logs', [
+        $this->assertDatabaseMissing('output_access_logs', [
             'actor_user_id' => $accounting->id,
             'action' => BuildCorOutput::ActionPrint,
             'copy_context' => BuildCorOutput::CopyAccounting,

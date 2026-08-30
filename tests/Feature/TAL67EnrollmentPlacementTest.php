@@ -113,18 +113,21 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $this->assertSame(0, DB::table('output_access_logs')->count());
     }
 
-    public function test_system_super_admin_can_confirm_placement(): void
+    public function test_system_super_admin_cannot_confirm_registrar_owned_placement(): void
     {
         $systemSuperAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
         $term = Term::factory()->create();
         $enrollment = Enrollment::factory()->for($term)->create();
         $section = $this->publishedPlacement($term)['section'];
 
-        $this->assertTrue(Gate::forUser($systemSuperAdmin)->allows('confirmPlacement', $enrollment));
+        $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('confirmPlacement', $enrollment));
 
-        $this->placement->confirm($enrollment, $section->id, $systemSuperAdmin);
-
-        $this->assertSame($systemSuperAdmin->id, EnrollmentSeatReservation::query()->sole()->registrar_user_id);
+        try {
+            $this->placement->confirm($enrollment, $section->id, $systemSuperAdmin);
+            $this->fail('System Administration must not inherit Registrar placement authority.');
+        } catch (AuthorizationException) {
+            $this->assertSame(0, EnrollmentSeatReservation::query()->count());
+        }
     }
 
     public function test_non_active_lifecycle_status_blocks_placement_before_schedule_and_seat_effects(): void

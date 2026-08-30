@@ -20,13 +20,13 @@ class StartRegistrationCase
     public function __construct(
         private readonly ReadyApplicantProjectionQuery $readyApplicants,
         private readonly CalendarPhaseGateService $calendarPhaseGate,
+        private readonly RegistrationSelectionBasisResolver $selectionBasisResolver,
     ) {}
 
     public function forReadyApplicant(
         AdmissionApplication $application,
         Term $term,
         User $actor,
-        string $selectionBasis = Enrollment::SelectionStandardCurriculum,
         string $startMethod = 'SelfService',
         ?string $authorityReference = null,
     ): Enrollment {
@@ -35,7 +35,7 @@ class StartRegistrationCase
         }
 
         if ((int) $application->user_id !== (int) $actor->id
-            && ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            && ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only the Applicant or authorized Registrar may start this Registration Case.');
         }
 
@@ -49,7 +49,7 @@ class StartRegistrationCase
             credentialUser: $application->user()->firstOrFail(),
             term: $term,
             actor: $actor,
-            selectionBasis: $selectionBasis,
+            selectionBasis: $this->selectionBasisResolver->forApplicant($application),
             startMethod: $startMethod,
             application: $application,
             studentProfile: null,
@@ -61,7 +61,6 @@ class StartRegistrationCase
         StudentProfile $studentProfile,
         Term $term,
         User $actor,
-        string $selectionBasis = Enrollment::SelectionStandardCurriculum,
         string $startMethod = 'SelfService',
         ?string $authorityReference = null,
     ): Enrollment {
@@ -70,7 +69,7 @@ class StartRegistrationCase
         }
 
         if ((int) $studentProfile->user_id !== (int) $actor->id
-            && ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            && ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only the Student or authorized Registrar may start this Registration Case.');
         }
 
@@ -82,7 +81,7 @@ class StartRegistrationCase
             credentialUser: $studentProfile->user()->firstOrFail(),
             term: $term,
             actor: $actor,
-            selectionBasis: $selectionBasis,
+            selectionBasis: $this->selectionBasisResolver->forContinuingStudent($studentProfile),
             startMethod: $startMethod,
             application: null,
             studentProfile: $studentProfile,
@@ -100,14 +99,7 @@ class StartRegistrationCase
         ?StudentProfile $studentProfile,
         ?string $authorityReference,
     ): Enrollment {
-        $actorIsRegistrar = $actor->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleSystemSuperAdmin,
-        ]);
-
-        if (! in_array($selectionBasis, [Enrollment::SelectionStandardCurriculum, Enrollment::SelectionIndividuallyAdvised], true)) {
-            throw ValidationException::withMessages(['selection_basis' => 'Select an approved registration basis.']);
-        }
+        $actorIsRegistrar = $actor->hasRole(User::StaffRoleRegistrar);
 
         if (! in_array($startMethod, ['SelfService', 'RegistrarAssisted', 'LateAuthority'], true)) {
             throw ValidationException::withMessages(['start_method' => 'Select an approved start method.']);

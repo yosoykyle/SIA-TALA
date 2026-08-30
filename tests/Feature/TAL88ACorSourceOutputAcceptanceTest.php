@@ -86,7 +86,7 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
         $this->assertSame(0, DB::table('output_access_logs')->count());
     }
 
-    public function test_cor_totals_align_with_source_units_fees_and_ledger_balance(): void
+    public function test_cor_totals_use_immutable_units_and_assessment_categories_without_live_ledger_values(): void
     {
         $fixture = $this->officialCorFixture();
 
@@ -103,9 +103,9 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
         $fees = collect($output['fees']);
         $this->assertSame('9000.00', $fees->firstWhere('label', 'Tuition Fee')['amount']);
         $this->assertSame('9000.00', $fees->firstWhere('label', 'Total Fees')['amount']);
-        $this->assertSame('2000.00', $fees->firstWhere('label', 'Down Payment')['amount']);
-        $this->assertSame('4500.00', $fees->firstWhere('label', 'Posted Payments')['amount']);
-        $this->assertSame('4500.00', $fees->firstWhere('label', 'Balance')['amount']);
+        $this->assertNull($fees->firstWhere('label', 'Down Payment'));
+        $this->assertNull($fees->firstWhere('label', 'Posted Payments'));
+        $this->assertNull($fees->firstWhere('label', 'Balance'));
     }
 
     public function test_dropped_subject_is_excluded_from_current_cor_subject_list(): void
@@ -169,6 +169,50 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
         $this->assertTrue($output['available']);
         $this->assertFalse($output['installment']['applicable']);
         $this->assertSame([], $output['installment']['rows']);
+    }
+
+    public function test_historical_external_course_snapshot_remains_visible_without_inventing_a_meeting(): void
+    {
+        $fixture = $this->officialCorFixture();
+        $current = $fixture['enrollment']->currentCorVersion;
+        $snapshot = $current->snapshot;
+        $snapshot['courses'][] = [
+            'course_enrollment_id' => 999999,
+            'course_code' => 'PRACTICUM',
+            'course_title' => 'Externally Arranged Practicum',
+            'units' => '3.00',
+            'section_code' => 'EXT-1',
+            'scheduling_treatment' => 'ExternallyArranged',
+            'contact_hours' => ['lecture' => '0.00', 'laboratory' => '3.00'],
+            'meetings' => [],
+        ];
+        $successor = CorVersion::query()->create([
+            'enrollment_id' => $fixture['enrollment']->id,
+            'supersedes_version_id' => $current->id,
+            'version' => 2,
+            'registration_proposal_version_id' => $current->registration_proposal_version_id,
+            'assessment_id' => $current->assessment_id,
+            'published_timetable_version_id' => $current->published_timetable_version_id,
+            'snapshot' => $snapshot,
+            'content_hash' => hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR)),
+            'issued_by' => $this->staff(User::StaffRoleRegistrar)->id,
+            'issued_at' => now(),
+        ]);
+        $fixture['enrollment']->update(['current_cor_version_id' => $successor->id]);
+
+        $currentOutput = app(BuildCorOutput::class)->forStudent($fixture['student']);
+        $external = collect($currentOutput['subjects'])->firstWhere('subject_code', 'PRACTICUM');
+        $historicalOutput = app(BuildCorOutput::class)->forEnrollment(
+            $fixture['enrollment']->fresh(),
+            $fixture['student'],
+            requestedVersion: $current,
+        );
+
+        $this->assertSame('Current', $currentOutput['summary']['document_status']);
+        $this->assertSame('Superseded', $historicalOutput['summary']['document_status']);
+        $this->assertSame('No recurring meeting', $external['day']);
+        $this->assertSame('Externally arranged', $external['room']);
+        $this->assertSame('3.00', $external['laboratory_hours']);
     }
 
     private function addAssessmentInstallmentRows(Assessment $assessment): void

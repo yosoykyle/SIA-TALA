@@ -3,7 +3,7 @@
 
 Hello {{ $recipientName }},
 
-The Registrar finalized your enrollment for **{{ $termLabel }}**. Your current class schedule and immutable Certificate of Registration are available in TALA.
+The Registrar finalized your enrollment for **{{ $termLabel }}**. Your Student workspace is active on the same account, and your current class schedule and immutable Certificate of Registration are available in TALA.
 
 <x-mail::button :url="$corUrl">
 View Current COR

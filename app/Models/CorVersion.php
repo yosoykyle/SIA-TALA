@@ -12,6 +12,7 @@ use LogicException;
 /**
  * @property array<string, mixed> $snapshot
  * @property Carbon|null $issued_at
+ * @property int $version
  */
 class CorVersion extends Model
 {

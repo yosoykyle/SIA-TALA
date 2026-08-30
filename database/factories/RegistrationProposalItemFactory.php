@@ -28,6 +28,8 @@ class RegistrationProposalItemFactory extends Factory
             'units_snapshot' => '3.00',
             'course_code_snapshot' => strtoupper(fake()->bothify('SUBJ-###')),
             'course_title_snapshot' => fake()->words(4, true),
+            'scheduling_treatment_snapshot' => 'Recurring',
+            'contact_hours_snapshot' => ['lecture' => '3.00', 'laboratory' => '0.00'],
             'meeting_snapshot' => [],
         ];
     }

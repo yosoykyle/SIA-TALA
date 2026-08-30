@@ -109,7 +109,9 @@ class EnrollmentsTable
                     ->options([
                         Enrollment::OutcomeInProgress => 'In Progress',
                         Enrollment::OutcomeOfficiallyEnrolled => 'Officially Enrolled',
-                        Enrollment::OutcomeCancelled => 'Cancelled',
+                        Enrollment::OutcomeCancelledByLearner => 'Cancelled by Learner',
+                        Enrollment::OutcomeCancelledByRegistrar => 'Cancelled by Registrar',
+                        Enrollment::OutcomeCancelled => 'Cancelled (legacy)',
                         Enrollment::OutcomeNotEnrolled => 'Not Enrolled',
                     ]),
                 SelectFilter::make('context')
@@ -141,8 +143,8 @@ class EnrollmentsTable
             return 'Officially enrolled';
         }
 
-        if ($enrollment->canonical_outcome === Enrollment::OutcomeCancelled) {
-            return 'Cancelled';
+        if (in_array($enrollment->canonical_outcome, Enrollment::cancelledOutcomes(), true)) {
+            return str((string) $enrollment->canonical_outcome)->headline()->toString();
         }
 
         if ($enrollment->canonical_outcome === Enrollment::OutcomeNotEnrolled) {

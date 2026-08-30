@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property Carbon|null $deadline
+ * @property Carbon|null $released_at
  */
 class EnrollmentSeatReservation extends Model
 {

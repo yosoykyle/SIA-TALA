@@ -17,7 +17,10 @@ use Illuminate\Validation\ValidationException;
 
 class RecordCourseDrop
 {
-    public function __construct(private readonly CalendarPhaseGateService $calendar) {}
+    public function __construct(
+        private readonly CalendarPhaseGateService $calendar,
+        private readonly RegistrationNotificationLedger $notifications,
+    ) {}
 
     public function execute(
         Enrollment $enrollment,
@@ -28,11 +31,11 @@ class RecordCourseDrop
         ?RegistrationLateAuthority $lateAuthority = null,
     ): CourseDropRecord {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may record a Course Drop.');
         }
 
-        return DB::transaction(function () use ($enrollment, $course, $actor, $reason, $authorityReference, $lateAuthority): CourseDropRecord {
+        $drop = DB::transaction(function () use ($enrollment, $course, $actor, $reason, $authorityReference, $lateAuthority): CourseDropRecord {
             $lockedEnrollment = Enrollment::query()->whereKey($enrollment->id)->lockForUpdate()->firstOrFail();
             $lockedCourse = CourseEnrollment::query()->whereKey($course->id)->lockForUpdate()->firstOrFail();
             $currentCor = CorVersion::query()->whereKey($lockedEnrollment->current_cor_version_id)->lockForUpdate()->first();
@@ -41,7 +44,7 @@ class RecordCourseDrop
                 ? RegistrationLateAuthority::query()->whereKey($lateAuthority->id)->lockForUpdate()->first()
                 : null;
             if (! $late instanceof RegistrationLateAuthority) {
-                $this->calendar->assertAddDropAdjustmentWindowOpen((int) $lockedEnrollment->term_id);
+                $this->calendar->assertCourseDropWindowOpen((int) $lockedEnrollment->term_id);
             }
 
             if ($lockedEnrollment->canonical_outcome !== Enrollment::OutcomeOfficiallyEnrolled
@@ -103,6 +106,8 @@ class RecordCourseDrop
             $snapshot = $currentCor->snapshot;
             $snapshot['courses'] = collect($snapshot['courses'] ?? [])->reject(fn (array $row): bool => (int) $row['course_enrollment_id'] === (int) $lockedCourse->id)->values()->all();
             $snapshot['change'] = ['type' => 'CourseDrop', 'record_id' => $record->id, 'finance_state' => 'AccountingReviewPending'];
+            $snapshot['issued_by_user_id'] = $actor->id;
+            $snapshot['issued_by_name'] = $actor->getFilamentName();
             $snapshot['issued_at'] = now()->toIso8601String();
             $successor = CorVersion::query()->create([
                 'enrollment_id' => $lockedEnrollment->id,
@@ -120,5 +125,8 @@ class RecordCourseDrop
 
             return $record;
         }, attempts: 3);
+        $this->notifications->recordCourseDrop($drop);
+
+        return $drop;
     }
 }

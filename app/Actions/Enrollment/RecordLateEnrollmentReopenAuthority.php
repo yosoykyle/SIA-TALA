@@ -20,7 +20,7 @@ class RecordLateEnrollmentReopenAuthority
         string $reason,
     ): RegistrationCaseEvent {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may record late-enrollment reopen authority.');
         }
 
@@ -29,7 +29,7 @@ class RecordLateEnrollmentReopenAuthority
             $authorityReference = trim($authorityReference);
             $reason = trim($reason);
 
-            if (! in_array($locked->canonical_outcome, [Enrollment::OutcomeCancelled, Enrollment::OutcomeNotEnrolled], true)
+            if (! in_array($locked->canonical_outcome, Enrollment::reopenableOutcomes(), true)
                 || $authorityReference === ''
                 || $reason === '') {
                 throw ValidationException::withMessages([

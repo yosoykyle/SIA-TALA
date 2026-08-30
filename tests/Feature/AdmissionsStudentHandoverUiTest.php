@@ -205,7 +205,7 @@ class AdmissionsStudentHandoverUiTest extends TestCase
     }
 
     #[Test]
-    public function student_can_view_profile_and_edit_self_service_fields(): void
+    public function student_profile_is_a_read_only_official_projection_with_correction_guidance(): void
     {
         $student = User::factory()->create(['status' => User::StatusActive]);
         $student->assignRole('student');
@@ -218,16 +218,11 @@ class AdmissionsStudentHandoverUiTest extends TestCase
         $this->actingAs($student);
 
         Livewire::test(StudentProfilePage::class)
-            ->assertFormExists()
-            ->fillForm([
-                'email' => 'updatedemail@example.com',
-                'phone' => '09179999999',
-            ])
-            ->call('saveProfile')
-            ->assertHasNoFormErrors();
+            ->assertSee('Official Student Record')
+            ->assertSee('Correction guidance')
+            ->assertDontSee('Save Contact Details');
 
         $studentProfile->refresh();
-        $this->assertEquals('updatedemail@example.com', $studentProfile->email);
-        $this->assertEquals('09179999999', $studentProfile->phone);
+        $this->assertEquals('09170000000', $studentProfile->phone);
     }
 }

@@ -841,7 +841,7 @@ class ViewEnrollment extends ViewRecord
         return Action::make('resolveImpactReview')
             ->label('Resolve source-impact review')
             ->icon('heroicon-o-clipboard-document-check')
-            ->visible(fn (): bool => $this->actor()->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleRegistrar)
                 && $this->openImpactReviewOptions() !== [])
             ->schema([
                 Select::make('event_id')->options(fn (): array => $this->openImpactReviewOptions())->live()->required(),
@@ -1185,7 +1185,7 @@ class ViewEnrollment extends ViewRecord
         return Action::make('reopenCase')
             ->label('Reopen registration case')
             ->icon('heroicon-o-arrow-uturn-left')
-            ->visible(fn (): bool => in_array($this->getRecord()->canonical_outcome, [Enrollment::OutcomeCancelled, Enrollment::OutcomeNotEnrolled], true)
+            ->visible(fn (): bool => in_array($this->getRecord()->canonical_outcome, Enrollment::reopenableOutcomes(), true)
                 && $this->actor()->can('confirmPlacement', $this->getRecord()))
             ->schema([
                 Textarea::make('reason')->required()->maxLength(2000),
@@ -1225,7 +1225,7 @@ class ViewEnrollment extends ViewRecord
         return Action::make('recordLateReopenAuthority')
             ->label('Record late-enrollment reopen authority')
             ->icon('heroicon-o-shield-check')
-            ->visible(fn (): bool => in_array($this->getRecord()->canonical_outcome, [Enrollment::OutcomeCancelled, Enrollment::OutcomeNotEnrolled], true)
+            ->visible(fn (): bool => in_array($this->getRecord()->canonical_outcome, Enrollment::reopenableOutcomes(), true)
                 && $this->actor()->can('confirmPlacement', $this->getRecord()))
             ->schema([
                 TextInput::make('authority_reference')->required()->maxLength(255),

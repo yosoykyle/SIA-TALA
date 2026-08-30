@@ -21,14 +21,27 @@
             </section>
         @endforeach
 
-        <form wire:submit="saveProfile" class="space-y-4">
-            {{ $this->form }}
+        <x-filament::section
+            heading="Correction guidance"
+            description="This page is a read-only projection of the official Student record."
+            icon="heroicon-o-information-circle"
+        >
+            <p class="text-sm text-gray-600 dark:text-gray-300">
+                Contact the Registrar to record a factual correction with authority, evidence, reason, effective time, and append-only history. Issued COR and TOR versions are never rewritten.
+            </p>
+        </x-filament::section>
 
-            <div class="tala-action-block">
-                <x-filament::button type="submit" icon="heroicon-m-check">
-                    Save Contact Details
-                </x-filament::button>
-            </div>
-        </form>
+        @if ($correctionHistory !== [])
+            <x-filament::section heading="Recorded correction history" collapsible>
+                <ol class="space-y-3">
+                    @foreach ($correctionHistory as $event)
+                        <li>
+                            <p class="font-medium text-gray-950 dark:text-white">{{ $event['event'] }}</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-300">Effective {{ $event['effective_at'] }} · {{ $event['reason'] }}</p>
+                        </li>
+                    @endforeach
+                </ol>
+            </x-filament::section>
+        @endif
     </div>
 </x-filament-panels::page>

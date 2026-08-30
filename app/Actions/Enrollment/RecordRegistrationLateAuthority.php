@@ -29,7 +29,7 @@ class RecordRegistrationLateAuthority
         string $sourceAcademicDecision,
     ): RegistrationLateAuthority {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may record late registration authority.');
         }
 

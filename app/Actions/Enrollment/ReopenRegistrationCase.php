@@ -34,7 +34,7 @@ class ReopenRegistrationCase
         ?RegistrationCaseEvent $lateAuthority = null,
     ): Enrollment {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may reopen a Registration Case.');
         }
 
@@ -53,7 +53,7 @@ class ReopenRegistrationCase
                 throw ValidationException::withMessages(['case' => 'The Registration Case changed. Refresh before reopening.']);
             }
 
-            if (! in_array($locked->canonical_outcome, [Enrollment::OutcomeCancelled, Enrollment::OutcomeNotEnrolled], true)) {
+            if (! in_array($locked->canonical_outcome, Enrollment::reopenableOutcomes(), true)) {
                 throw ValidationException::withMessages(['case' => 'Only a cancelled or not-enrolled case may be reopened.']);
             }
 

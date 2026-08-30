@@ -127,16 +127,31 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
             'rule_version' => 'tal-87b-test',
         ]);
 
-        foreach ([$registrar, $academicHead, $accounting, $systemSuperAdmin] as $viewer) {
+        foreach ([$registrar, $academicHead, $accounting] as $viewer) {
             $this->assertTrue(Gate::forUser($viewer)->allows('view', $enrollment));
         }
 
+        $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('view', $enrollment));
         $this->assertFalse(Gate::forUser($faculty)->allows('view', $enrollment));
 
         Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
             ->assertSee('Registration Case')
             ->assertSee('Five finalization checkpoints')
+            ->assertSeeInOrder([
+                'State, owner, and next action',
+                'Identity, Program, Curriculum, and exact Term',
+                'Academic basis',
+                'Proposal and confirmation',
+                'Eligibility, placement, and shortage',
+                'Finance requirement',
+                'Registrar finalization',
+                'Official result and history',
+            ])
+            ->assertSee('Student eligibility')
+            ->assertSee('Confirmed proposed subjects')
+            ->assertSee('Valid class placement')
+            ->assertSee('Accounting clearance')
             ->assertDontSee('Enrollment Gate Review');
 
         foreach ([$academicHead, $accounting] as $viewer) {

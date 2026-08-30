@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Filament\Resources\StudentProfiles\Pages\EditStudentProfile;
 use App\Filament\Student\Pages\Profile as StudentProfilePage;
 use App\Models\StudentProfile;
+use App\Models\StudentProfileEvent;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -34,7 +35,7 @@ class TAL93CProfileUpdateAlignmentTest extends TestCase
     }
 
     #[Test]
-    public function registrar_admin_override_updates_locked_identity_fields_and_writes_audit_log(): void
+    public function registrar_records_an_attributable_append_only_factual_correction(): void
     {
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
@@ -52,28 +53,40 @@ class TAL93CProfileUpdateAlignmentTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(EditStudentProfile::class, ['record' => $studentProfile->getRouteKey()])
-            ->fillForm([
+            ->callAction('recordCorrection', data: [
+                'first_name' => 'Juan',
+                'middle_name' => $studentProfile->middle_name,
                 'last_name' => 'Dela Cruz',
                 'birth_date' => '2005-05-15',
                 'prior_identifier' => '123456789012',
+                'email' => $studentProfile->email,
+                'phone' => $studentProfile->phone,
+                'address' => $studentProfile->address,
+                'entry_term_id' => $studentProfile->entry_term_id,
+                'authority_reference' => 'Registrar correction ticket RC-2026-001',
+                'reason' => 'Corrected against the authenticated admission record.',
             ])
-            ->call('save')
-            ->assertHasNoFormErrors();
+            ->assertHasNoFormErrors()
+            ->assertNotified('Student Profile correction recorded');
 
         $studentProfile->refresh();
         $this->assertSame('Dela Cruz', $studentProfile->last_name);
         $this->assertSame('2005-05-15', $studentProfile->birth_date->format('Y-m-d'));
         $this->assertSame('123456789012', $studentProfile->prior_identifier);
 
-        $this->assertDatabaseHas('activity_log', [
-            'event' => 'student_profile_updated',
-            'subject_id' => $studentProfile->id,
-            'causer_id' => $registrar->id,
-        ]);
+        $event = StudentProfileEvent::query()->sole();
+        $this->assertSame($studentProfile->id, $event->student_profile_id);
+        $this->assertSame(StudentProfileEvent::TypeCorrection, $event->event_type);
+        $this->assertSame('Registrar correction ticket RC-2026-001', $event->authority_reference);
+        $this->assertSame(['last_name', 'birth_date', 'prior_identifier'], $event->changed_fields);
+        $this->assertSame($registrar->id, $event->actor_id);
+
+        $this->expectException(\LogicException::class);
+        $event->update(['reason' => 'History cannot be rewritten.']);
     }
 
     #[Test]
-    public function student_self_service_update_writes_audit_log(): void
+    public function student_profile_projection_does_not_offer_a_self_service_write_path(): void
     {
         $student = User::factory()->create(['status' => User::StatusActive]);
         $student->assignRole('student');
@@ -82,21 +95,24 @@ class TAL93CProfileUpdateAlignmentTest extends TestCase
             'user_id' => $student->id,
             'phone' => '09170000000',
         ]);
+        StudentProfileEvent::factory()->for($studentProfile)->create([
+            'reason' => 'Corrected against the authenticated Registrar record.',
+            'effective_at' => '2026-08-29 10:00:00',
+        ]);
 
         $this->actingAs($student);
 
         Livewire::test(StudentProfilePage::class)
-            ->assertFormExists()
-            ->fillForm([
-                'phone' => '09179999999',
-            ])
-            ->call('saveProfile')
-            ->assertHasNoFormErrors();
+            ->assertSee('Official Student Record')
+            ->assertSee('Correction guidance')
+            ->assertSee('Recorded correction history')
+            ->assertSee('Corrected against the authenticated Registrar record.')
+            ->assertDontSee('Save Contact Details');
 
         $studentProfile->refresh();
-        $this->assertSame('09179999999', $studentProfile->phone);
+        $this->assertSame('09170000000', $studentProfile->phone);
 
-        $this->assertDatabaseHas('activity_log', [
+        $this->assertDatabaseMissing('activity_log', [
             'event' => 'student_profile_self_service_update',
             'subject_id' => $studentProfile->id,
             'causer_id' => $student->id,

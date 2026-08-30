@@ -103,6 +103,7 @@ class StudentProfile extends Model
         'user_id',
         'applicant_intake_id',
         'student_number',
+        'entry_term_id',
         'first_name',
         'middle_name',
         'last_name',
@@ -133,6 +134,18 @@ class StudentProfile extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return BelongsTo<Term, $this> */
+    public function entryTerm(): BelongsTo
+    {
+        return $this->belongsTo(Term::class, 'entry_term_id');
+    }
+
+    /** @return HasMany<StudentProfileEvent, $this> */
+    public function profileEvents(): HasMany
+    {
+        return $this->hasMany(StudentProfileEvent::class);
     }
 
     /** @return BelongsTo<ApplicantIntake, $this> */

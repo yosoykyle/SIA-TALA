@@ -78,7 +78,13 @@ class BuildCorOutput
             return $this->unavailable('This enrollment is not officially enrolled yet.');
         }
 
-        if ($enrollment->studentProfile->blocksCurrentCorByLifecycle()) {
+        $currentEnrollment = $this->currentOfficialEnrollment($enrollment->studentProfile);
+        $isCurrentEnrollment = $currentEnrollment instanceof Enrollment && $currentEnrollment->is($enrollment);
+        $isCurrentVersion = $requestedVersion === null
+            || (int) $enrollment->current_cor_version_id === (int) $requestedVersion->id;
+        $isCurrentDocument = $isCurrentEnrollment && $isCurrentVersion;
+
+        if ($isCurrentDocument && $enrollment->studentProfile->blocksCurrentCorByLifecycle()) {
             return $this->unavailable(sprintf(
                 'Your current COR is unavailable while your student lifecycle status is %s. Please contact the Registrar Office for the next step.',
                 StudentProfile::lifecycleStatusLabel($enrollment->studentProfile->lifecycle_status),
@@ -87,7 +93,7 @@ class BuildCorOutput
 
         $activeHolds = $this->blockingCorHolds($enrollment);
 
-        if ($activeHolds->isNotEmpty() && $this->actorOwnsEnrollment($actor, $enrollment)) {
+        if ($isCurrentDocument && $activeHolds->isNotEmpty() && $this->actorOwnsEnrollment($actor, $enrollment)) {
             $message = $activeHolds
                 ->map(fn (Hold $hold): ?string => $hold->studentFacingMessage())
                 ->filter()
@@ -167,46 +173,69 @@ class BuildCorOutput
     {
         $snapshot = $corVersion->snapshot;
         $subjects = collect($snapshot['courses'] ?? [])->flatMap(function (array $course) use ($snapshot): array {
-            return collect($course['meetings'] ?? [])->map(function (array $meeting) use ($course, $snapshot): array {
+            $meetings = collect($course['meetings'] ?? []);
+            if ($meetings->isEmpty()) {
+                $meetings = collect([[]]);
+            }
+
+            return $meetings->map(function (array $meeting) use ($course, $snapshot): array {
                 $day = match ((int) ($meeting['day_of_week'] ?? 0)) {
                     1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday',
-                    5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday', default => 'Not recorded',
+                    5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday', default => 'No recurring meeting',
                 };
+                $startsAt = substr((string) ($meeting['starts_at'] ?? ''), 0, 5);
+                $endsAt = substr((string) ($meeting['ends_at'] ?? ''), 0, 5);
+                $isExternallyArranged = ($course['scheduling_treatment'] ?? null) === 'ExternallyArranged';
 
                 return [
-                    'course_enrollment_id' => $course['course_enrollment_id'],
-                    'subject_code' => $course['course_code'],
-                    'subject_description' => $course['course_title'],
-                    'units' => $course['units'],
-                    'lecture_hours' => '0.00',
-                    'laboratory_hours' => '0.00',
-                    'section' => (string) ($course['section_code'] ?? $course['section_id']),
+                    'course_enrollment_id' => $course['course_enrollment_id'] ?? null,
+                    'subject_code' => $course['course_code'] ?? 'Not recorded',
+                    'subject_description' => $course['course_title'] ?? 'Not recorded',
+                    'units' => $course['units'] ?? 'Not recorded',
+                    'lecture_hours' => data_get($course, 'contact_hours.lecture', 'Not recorded'),
+                    'laboratory_hours' => data_get($course, 'contact_hours.laboratory', 'Not recorded'),
+                    'section' => (string) ($course['section_code'] ?? $course['section_id'] ?? 'Not recorded'),
                     'day' => $day,
-                    'time' => substr((string) ($meeting['starts_at'] ?? ''), 0, 5).' - '.substr((string) ($meeting['ends_at'] ?? ''), 0, 5),
-                    'room' => $meeting['room_label'] ?? 'Online / TBA',
-                    'instructor' => $meeting['faculty_name'] ?? 'Not recorded',
-                    'modality' => $meeting['modality'] ?? 'Not recorded',
-                    'schedule_version' => $snapshot['published_timetable_version_id'],
+                    'time' => $startsAt !== '' && $endsAt !== '' ? "{$startsAt} - {$endsAt}" : 'Not applicable',
+                    'room' => $meeting['room_label'] ?? ($isExternallyArranged ? 'Externally arranged' : 'Not recorded'),
+                    'instructor' => $meeting['faculty_name'] ?? ($isExternallyArranged ? 'Externally arranged' : 'Not recorded'),
+                    'modality' => $meeting['modality'] ?? ($isExternallyArranged ? 'Externally arranged' : 'Not recorded'),
+                    'scheduling_treatment' => $course['scheduling_treatment'] ?? 'Not recorded',
+                    'schedule_version' => $snapshot['published_timetable_version_id'] ?? null,
                 ];
             })->all();
         })->values()->all();
         $totalUnits = collect($snapshot['courses'] ?? [])->sum(fn (array $course): float => (float) ($course['units'] ?? 0));
+        $currentEnrollment = $this->currentOfficialEnrollment($enrollment->studentProfile);
+        $isCurrentEnrollment = $currentEnrollment instanceof Enrollment && $currentEnrollment->is($enrollment);
+        $versionStatus = match (true) {
+            $isCurrentEnrollment && (int) $enrollment->current_cor_version_id === (int) $corVersion->id => 'Current',
+            (int) $enrollment->current_cor_version_id !== (int) $corVersion->id => 'Superseded',
+            default => 'Historical',
+        };
+        $financeSatisfaction = data_get($snapshot, 'finance_satisfaction.state', 'Satisfied at finalization');
+        $curriculumLevels = collect($snapshot['represented_curriculum_levels'] ?? [])->filter()->implode(', ');
+        $fees = collect($snapshot['fees'] ?? [])
+            ->reject(fn (array $fee): bool => in_array(strtolower((string) ($fee['label'] ?? '')), [
+                'balance', 'down payment', 'posted payments', 'payment history',
+            ], true))
+            ->values()
+            ->all();
         $state = [
             'availability_status' => 'Available',
-            'notice' => 'This immutable COR version is available for print or browser save-as-PDF.',
-            'student_number' => $snapshot['student_number'],
-            'student_name' => $snapshot['student_name'],
-            'program' => (string) ($snapshot['program_code'] ?? $snapshot['program_name'] ?? $snapshot['program_id']),
-            'curriculum_level' => 'Recorded curriculum version #'.$snapshot['curriculum_version_id'],
-            'term' => $snapshot['term_label'],
+            'notice' => "This immutable COR version is labelled {$versionStatus} and is available for print or browser save-as-PDF.",
+            'version_status' => $versionStatus,
+            'student_number' => $snapshot['student_number'] ?? 'Not recorded',
+            'student_name' => $snapshot['student_name'] ?? 'Not recorded',
+            'program' => (string) ($snapshot['program_code'] ?? $snapshot['program_name'] ?? $snapshot['program_id'] ?? 'Not recorded'),
+            'curriculum_level' => $curriculumLevels !== '' ? $curriculumLevels : 'Not recorded',
+            'term' => $snapshot['term_label'] ?? 'Not recorded',
             'registration_date' => $corVersion->issued_at?->toFormattedDateString(),
-            'payment_status' => 'Cleared at finalization',
-            'course_delivery_mix' => 'Published timetable version #'.$snapshot['published_timetable_version_id'],
+            'payment_status' => $financeSatisfaction,
+            'course_delivery_mix' => 'Published timetable version #'.($snapshot['published_timetable_version_id'] ?? 'not recorded'),
+            'selection_basis' => $snapshot['selection_basis'] ?? 'Not recorded',
             'total_units' => number_format($totalUnits, 2, '.', ''),
-            'balance' => 'PHP 0.00',
             'subjects' => $subjects,
-            'installment_applicable' => false,
-            'installment_rows' => [],
         ];
 
         return [
@@ -218,27 +247,33 @@ class BuildCorOutput
             'term' => $enrollment->term,
             'copy_context' => $copyContext,
             'generated_at' => $corVersion->issued_at,
-            'schedule_version' => $snapshot['published_timetable_version_id'],
+            'schedule_version' => $snapshot['published_timetable_version_id'] ?? null,
             'subjects' => $subjects,
-            'fees' => $snapshot['fees'] ?? [],
+            'fees' => $fees,
             'installment' => ['applicable' => false, 'rows' => []],
             'summary' => [
                 'enrollment_id' => $enrollment->id,
                 'cor_version_id' => $corVersion->id,
                 'cor_version' => $corVersion->version,
-                'student_number' => $snapshot['student_number'],
-                'student_name' => $snapshot['student_name'],
-                'prior_identifier' => $enrollment->studentProfile?->prior_identifier,
-                'program' => (string) ($snapshot['program_code'] ?? $snapshot['program_name'] ?? $snapshot['program_id']),
-                'curriculum_level' => 'Recorded curriculum version #'.$snapshot['curriculum_version_id'],
-                'term' => $snapshot['term_label'],
+                'document_status' => $versionStatus,
+                'student_number' => $snapshot['student_number'] ?? 'Not recorded',
+                'student_name' => $snapshot['student_name'] ?? 'Not recorded',
+                'program' => (string) ($snapshot['program_code'] ?? $snapshot['program_name'] ?? $snapshot['program_id'] ?? 'Not recorded'),
+                'curriculum_version' => isset($snapshot['curriculum_version_id']) ? '#'.$snapshot['curriculum_version_id'] : 'Not recorded',
+                'curriculum_levels' => $curriculumLevels !== '' ? $curriculumLevels : 'Not recorded',
+                'selection_basis' => $snapshot['selection_basis'] ?? 'Not recorded',
+                'term' => $snapshot['term_label'] ?? 'Not recorded',
                 'registration_date' => $corVersion->issued_at?->toFormattedDateString(),
-                'payment_status' => 'Cleared at finalization',
-                'course_delivery_mix' => 'Published timetable version #'.$snapshot['published_timetable_version_id'],
+                'payment_status' => $financeSatisfaction,
+                'assessment_reference' => isset($snapshot['assessment_id']) ? 'Assessment #'.$snapshot['assessment_id'] : 'Not recorded',
+                'assessment_total' => $snapshot['assessment_total'] ?? null,
+                'term_account_reference' => isset($snapshot['term_account_id']) ? 'Term Account #'.$snapshot['term_account_id'] : 'Not recorded',
+                'course_delivery_mix' => 'Published timetable version #'.($snapshot['published_timetable_version_id'] ?? 'not recorded'),
                 'total_units' => number_format($totalUnits, 2, '.', ''),
-                'balance' => '0.00',
                 'status' => 'Available',
                 'notice' => $state['notice'],
+                'issued_by' => $snapshot['issued_by_name'] ?? 'Not recorded',
+                'issued_at' => $snapshot['issued_at'] ?? $corVersion->issued_at?->toIso8601String(),
             ],
             'state' => $state,
         ];
@@ -253,7 +288,7 @@ class BuildCorOutput
     private function actorCanAccess(User $actor, Enrollment $enrollment): bool
     {
         return $this->actorOwnsEnrollment($actor, $enrollment)
-            || $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAccounting]);
+            || $actor->hasRole(User::StaffRoleRegistrar);
     }
 
     private function actorOwnsEnrollment(User $actor, Enrollment $enrollment): bool
@@ -290,11 +325,11 @@ class BuildCorOutput
                 'payment_status' => 'Not available',
                 'course_delivery_mix' => 'Not available',
                 'total_units' => '0.00',
-                'balance' => 'PHP 0.00',
                 'subjects' => [],
                 'installment_applicable' => false,
                 'installment_rows' => [],
             ],
+            'installment' => ['applicable' => false, 'rows' => []],
         ];
     }
 }

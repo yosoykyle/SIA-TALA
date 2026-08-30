@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use LogicException;
 
 /**
+ * @property array<string, string>|null $contact_hours_snapshot
  * @property array<int, array<string, mixed>> $meeting_snapshot
  */
 class RegistrationProposalItem extends Model
@@ -19,12 +20,18 @@ class RegistrationProposalItem extends Model
 
     protected $fillable = [
         'registration_proposal_version_id', 'sequence', 'term_offering_id', 'section_id',
-        'units_snapshot', 'course_code_snapshot', 'course_title_snapshot', 'meeting_snapshot',
+        'units_snapshot', 'course_code_snapshot', 'course_title_snapshot', 'scheduling_treatment_snapshot',
+        'contact_hours_snapshot', 'meeting_snapshot',
     ];
 
     protected function casts(): array
     {
-        return ['sequence' => 'integer', 'units_snapshot' => 'decimal:2', 'meeting_snapshot' => 'array'];
+        return [
+            'sequence' => 'integer',
+            'units_snapshot' => 'decimal:2',
+            'contact_hours_snapshot' => 'array',
+            'meeting_snapshot' => 'array',
+        ];
     }
 
     /** @return BelongsTo<RegistrationProposalVersion, $this> */

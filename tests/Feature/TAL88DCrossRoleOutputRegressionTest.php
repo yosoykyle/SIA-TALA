@@ -73,8 +73,7 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
 
         $this->actingAs($accounting)
             ->get(route('cor.print', $fixture['enrollment']))
-            ->assertOk()
-            ->assertSee('Accounting Copy');
+            ->assertForbidden();
 
         $logCount = DB::table('output_access_logs')->count();
 
@@ -104,7 +103,7 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
             'action' => BuildCorOutput::ActionPrint,
             'copy_context' => BuildCorOutput::CopyRegistrar,
         ]);
-        $this->assertDatabaseHas('output_access_logs', [
+        $this->assertDatabaseMissing('output_access_logs', [
             'output_type' => BuildCorOutput::OutputType,
             'source_record_type' => Enrollment::class,
             'source_record_id' => $fixture['enrollment']->id,

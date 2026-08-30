@@ -26,6 +26,9 @@ class ScheduleRevisionMail extends Mailable implements ShouldQueue
     /** @var list<array<string, mixed>> */
     public array $scheduleChanges;
 
+    /** @var list<array<string, mixed>> */
+    public array $affectedEnrollments;
+
     /**
      * @param  array<string, mixed>  $revisionPayload
      */
@@ -35,6 +38,7 @@ class ScheduleRevisionMail extends Mailable implements ShouldQueue
         array $revisionPayload,
     ) {
         $this->scheduleChanges = $revisionPayload['changes'] ?? [];
+        $this->affectedEnrollments = $revisionPayload['affected_enrollments'] ?? [];
         $this->afterCommit();
     }
 

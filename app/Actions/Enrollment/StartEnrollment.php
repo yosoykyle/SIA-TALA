@@ -46,11 +46,8 @@ class StartEnrollment
         string $studentType,
         User $actor,
     ): Enrollment {
-        if (! $actor->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleSystemSuperAdmin,
-        ])) {
-            throw new AuthorizationException('Only Registrar or System Super Admin staff may start a continuing enrollment.');
+        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
+            throw new AuthorizationException('Only Registrar staff may start a continuing enrollment.');
         }
 
         $this->calendarPhaseGate->assertEnrollmentWindowOpen($term->id);

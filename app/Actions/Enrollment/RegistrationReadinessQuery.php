@@ -21,6 +21,7 @@ class RegistrationReadinessQuery
         private readonly RegistrationPlacementValidator $placementValidator,
         private readonly RegistrationShortageProjection $shortages,
         private readonly StudentUnitLoadService $unitLoad,
+        private readonly ConfirmRegistrationIdentity $identityConfirmations,
     ) {}
 
     /**
@@ -52,6 +53,9 @@ class RegistrationReadinessQuery
         $shortages = $this->shortages->for($enrollment);
         $eligibilityReady = $this->authoritativeEligibilityIsCurrent($enrollment, $proposal)
             && ! $this->hasUnresolvedImpactReview($enrollment);
+        $identityReady = $enrollment->studentProfile instanceof StudentProfile
+            || ($enrollment->admissionApplication !== null
+                && $this->identityConfirmations->latestMatching($enrollment, $enrollment->admissionApplication) !== null);
         $blockers = [];
 
         if (! $proposalReady) {
@@ -72,6 +76,9 @@ class RegistrationReadinessQuery
         if (! $eligibilityReady) {
             $blockers[] = 'Current academic eligibility or source-impact review';
         }
+        if (! $identityReady) {
+            $blockers[] = 'Current learner-confirmed identity and contact source';
+        }
 
         return [
             'ready' => $blockers === [],
@@ -79,7 +86,7 @@ class RegistrationReadinessQuery
             'confirmation' => $proposal?->confirmation !== null,
             'placement' => $placementReady,
             'finance' => $finance['state'] === 'Cleared',
-            'identity' => $eligibilityReady,
+            'identity' => $identityReady,
             'eligibility' => $eligibilityReady,
             'shortages' => $shortages,
             'blockers' => $blockers,

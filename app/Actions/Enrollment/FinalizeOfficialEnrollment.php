@@ -7,6 +7,7 @@ use App\Models\CorVersion;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
+use App\Models\RegistrationIdentityConfirmationVersion;
 use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -23,6 +24,7 @@ class FinalizeOfficialEnrollment
         private readonly RegistrationPlacementValidator $placementValidator,
         private readonly AllocateStudentNumber $studentNumbers,
         private readonly RegistrationNotificationLedger $notifications,
+        private readonly ConfirmRegistrationIdentity $identityConfirmations,
     ) {}
 
     public function execute(
@@ -83,7 +85,21 @@ class FinalizeOfficialEnrollment
                 throw ValidationException::withMessages(['readiness' => 'Official enrollment is blocked by: '.implode(', ', $readiness['blockers']).'.']);
             }
 
-            $studentProfile = $this->activateStudent($locked, $proposal, $recordedAt);
+            $identityConfirmation = null;
+            if (! ($locked->studentProfile instanceof StudentProfile)) {
+                if ($locked->admissionApplication === null) {
+                    throw ValidationException::withMessages(['identity' => 'A first Student activation requires the admitted Application source.']);
+                }
+
+                $identityConfirmation = $this->identityConfirmations->latestMatching($locked, $locked->admissionApplication);
+                if (! $identityConfirmation instanceof RegistrationIdentityConfirmationVersion) {
+                    throw ValidationException::withMessages([
+                        'identity' => 'The learner must confirm the current identity and contact source before Official Enrollment.',
+                    ]);
+                }
+            }
+
+            $studentProfile = $this->activateStudent($locked, $proposal, $recordedAt, $identityConfirmation);
             $studentProfile->loadMissing('program');
             $officialCourses = [];
 
@@ -126,6 +142,8 @@ class FinalizeOfficialEnrollment
                     'course_code' => $item->course_code_snapshot,
                     'course_title' => $item->course_title_snapshot,
                     'units' => $item->units_snapshot,
+                    'scheduling_treatment' => $item->scheduling_treatment_snapshot,
+                    'contact_hours' => $item->contact_hours_snapshot,
                     'meetings' => $item->meeting_snapshot,
                 ];
             }
@@ -138,17 +156,33 @@ class FinalizeOfficialEnrollment
                 'program_code' => $studentProfile->program?->code,
                 'program_name' => $studentProfile->program?->name,
                 'curriculum_version_id' => $studentProfile->curriculum_version_id,
+                'represented_curriculum_levels' => array_filter([
+                    data_get($proposal->source_snapshot, 'unit_load.year_level'),
+                ]),
                 'term_id' => $locked->term_id,
                 'term_label' => $locked->term?->label,
                 'proposal_version_id' => $proposal->id,
+                'selection_basis' => $locked->selection_basis,
+                'identity_confirmation_version_id' => $identityConfirmation?->id,
+                'identity_source_hash' => $identityConfirmation?->source_hash,
                 'published_timetable_version_id' => $proposal->published_timetable_version_id,
                 'assessment_id' => $assessment->id,
                 'assessment_total' => $assessment->total,
+                'term_account_id' => $assessment->term_account_id,
+                'finance_satisfaction' => [
+                    'state' => 'Satisfied at finalization',
+                    'source' => 'EnrollmentPaymentRequirementProjection',
+                    'assessment_id' => $assessment->id,
+                    'assessment_version' => $assessment->version,
+                    'recorded_at' => $recordedAt->toIso8601String(),
+                ],
                 'fees' => $assessment->lines()->orderBy('id')->get()->map(fn ($line): array => [
                     'label' => $line->description_snapshot,
                     'amount' => $line->amount,
                 ])->all(),
                 'courses' => $officialCourses,
+                'issued_by_user_id' => $actor->id,
+                'issued_by_name' => $actor->getFilamentName(),
                 'issued_at' => $recordedAt->toIso8601String(),
             ];
             $cor = CorVersion::query()->firstOrCreate(
@@ -189,6 +223,7 @@ class FinalizeOfficialEnrollment
         Enrollment $enrollment,
         RegistrationProposalVersion $proposal,
         CarbonImmutable $recordedAt,
+        ?RegistrationIdentityConfirmationVersion $identityConfirmation,
     ): StudentProfile {
         $existing = StudentProfile::query()->where('user_id', $enrollment->credential_user_id)->lockForUpdate()->first();
         if ($existing instanceof StudentProfile) {
@@ -200,23 +235,29 @@ class FinalizeOfficialEnrollment
             throw ValidationException::withMessages(['identity' => 'A first Student activation requires the admitted Application source.']);
         }
 
+        if (! $identityConfirmation instanceof RegistrationIdentityConfirmationVersion) {
+            throw ValidationException::withMessages(['identity' => 'The current identity confirmation snapshot is required.']);
+        }
+        $identity = $identityConfirmation->identity_snapshot;
+
         $studentNumber = $this->studentNumbers->execute((int) $recordedAt->format('Y'));
         $profile = StudentProfile::query()->create([
             'user_id' => $enrollment->credential_user_id,
             'applicant_intake_id' => $application->id,
             'student_number' => $studentNumber,
-            'first_name' => $application->first_name,
-            'middle_name' => $application->middle_name,
-            'last_name' => $application->last_name,
-            'birth_date' => $application->birth_date,
-            'prior_identifier' => $application->lrn ?: $application->prior_college_identifier,
+            'entry_term_id' => $enrollment->term_id,
+            'first_name' => $identity['first_name'],
+            'middle_name' => $identity['middle_name'],
+            'last_name' => $identity['last_name'],
+            'birth_date' => $identity['birth_date'],
+            'prior_identifier' => $identity['prior_identifier'],
             'program_id' => $application->program_id,
             'curriculum_version_id' => $proposal->curriculum_version_id,
             'lifecycle_status' => StudentProfile::LifecycleActive,
             'academic_standing' => StudentProfile::StandingNotYetEvaluated,
-            'email' => $application->email,
-            'phone' => $application->phone,
-            'address' => collect([$application->current_city_municipality, $application->current_province])->filter()->implode(', '),
+            'email' => $identity['email'],
+            'phone' => $identity['phone'],
+            'address' => $identity['address'],
         ]);
 
         Role::findOrCreate('student', 'web');

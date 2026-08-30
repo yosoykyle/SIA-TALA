@@ -31,7 +31,7 @@ class CorPrintController extends Controller
             $enrollment,
             $actor,
             $copyContext,
-            studentCurrentOnly: $requestedVersion === null,
+            studentCurrentOnly: false,
             requestedVersion: $requestedVersion,
         );
 

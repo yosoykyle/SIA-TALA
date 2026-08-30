@@ -4,7 +4,7 @@
     'generatedAt' => null,
     'subtitle' => null,
     'pageOrientation' => 'portrait',
-    'pageMargin' => '14mm',
+    'pageMargin' => '12mm',
     'logoSrc' => null,
 ])
 

@@ -7,9 +7,14 @@ use Illuminate\Support\Facades\DB;
 
 class ReleaseExpiredEnrollmentReservations
 {
+    public function __construct(
+        private readonly RegistrationNotificationLedger $notifications,
+        private readonly ExpireRegistrationCasesAtFinalCutoff $caseExpiry,
+    ) {}
+
     public function execute(): int
     {
-        $released = 0;
+        $released = $this->caseExpiry->execute();
 
         EnrollmentSeatReservation::query()
             ->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())
@@ -24,6 +29,7 @@ class ReleaseExpiredEnrollmentReservations
                         if (in_array($locked->status, EnrollmentSeatReservation::capacityHoldingStatuses(), true)
                             && $locked->deadline?->isPast()) {
                             $locked->update(['status' => EnrollmentSeatReservation::StatusReleased, 'released_at' => now(), 'lock_version' => $locked->lock_version + 1]);
+                            $this->notifications->recordReservationRelease($locked->refresh());
                             $released++;
                         }
                     }, attempts: 3);

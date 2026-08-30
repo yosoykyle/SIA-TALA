@@ -83,11 +83,6 @@ class FinanceEvidenceService
         abort_unless($enrollment instanceof Enrollment, 404);
         abort_unless($this->actorCanAccessAssessment($actor, $assessment), 403);
 
-        // Students may view only their current active SOA; Accounting may view historical assessments (PRD 8.9.3 rules 4-5).
-        if (! $actor->canProcessPayments() && $assessment->state !== Assessment::StateActive) {
-            abort(403, 'Only the current active Statement of Account is available.');
-        }
-
         $ledgerEntries = $this->ledgerEntries($assessment);
         $payments = $this->payments($assessment);
         $paymentAttempts = $this->paymentAttempts($assessment);

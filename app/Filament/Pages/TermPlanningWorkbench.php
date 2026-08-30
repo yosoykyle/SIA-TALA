@@ -21,6 +21,7 @@ use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\TermCohort;
 use App\Models\User;
 use BackedEnum;
@@ -131,11 +132,7 @@ final class TermPlanningWorkbench extends Page
                 DatePicker::make('authority_date')->required(),
                 TextInput::make('special_term_schedule_basis')->maxLength(255),
                 Repeater::make('windows')->schema([
-                    Select::make('window_type')->options([
-                        'Enrollment' => 'Enrollment',
-                        'ExaminationPeriod' => 'Examination Period',
-                        'GradeEntry' => 'Grade Entry',
-                    ])->required(),
+                    Select::make('window_type')->options(TermCalendarWindow::typeOptions())->required(),
                     DatePicker::make('opens_on')->required(),
                     DatePicker::make('closes_on')->required()->afterOrEqual('opens_on'),
                     TimePicker::make('cutoff_at')->timezone((string) config('app.timezone'))->seconds(false),

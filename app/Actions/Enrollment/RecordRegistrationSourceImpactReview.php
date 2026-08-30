@@ -59,7 +59,7 @@ class RecordRegistrationSourceImpactReview
         string $outcome,
     ): RegistrationCaseEvent {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may resolve a registration impact review.');
         }
 
@@ -109,7 +109,6 @@ class RecordRegistrationSourceImpactReview
         if (! $actor->canAuthenticate() || ! $actor->hasAnyRole([
             User::StaffRoleRegistrar,
             User::StaffRoleAcademicHead,
-            User::StaffRoleSystemSuperAdmin,
         ])) {
             throw new AuthorizationException('Only an authorized academic owner may record a source-impact review.');
         }

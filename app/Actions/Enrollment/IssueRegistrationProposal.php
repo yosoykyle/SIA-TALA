@@ -11,16 +11,19 @@ use Illuminate\Validation\ValidationException;
 
 class IssueRegistrationProposal
 {
-    public function __construct(private readonly StudentUnitLoadService $unitLoad) {}
+    public function __construct(
+        private readonly StudentUnitLoadService $unitLoad,
+        private readonly RegistrationNotificationLedger $notifications,
+    ) {}
 
     public function execute(RegistrationProposalVersion $proposal, User $actor): RegistrationProposalVersion
     {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may issue a Registration Proposal.');
         }
 
-        return DB::transaction(function () use ($proposal, $actor): RegistrationProposalVersion {
+        $issued = DB::transaction(function () use ($proposal, $actor): RegistrationProposalVersion {
             $locked = RegistrationProposalVersion::query()->with('items')->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
             $enrollment = Enrollment::query()->whereKey($locked->enrollment_id)->lockForUpdate()->firstOrFail();
 
@@ -43,5 +46,8 @@ class IssueRegistrationProposal
 
             return $locked->refresh();
         }, attempts: 3);
+        $this->notifications->recordProposalReady($issued);
+
+        return $issued;
     }
 }

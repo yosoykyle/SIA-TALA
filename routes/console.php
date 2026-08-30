@@ -11,3 +11,8 @@ Artisan::command('inspire', function () {
 Schedule::command('enrollment:release-expired-reservations')
     ->hourly()
     ->withoutOverlapping();
+
+Schedule::command('enrollment:dispatch-window-notifications')
+    ->dailyAt('08:00')
+    ->timezone(config('app.timezone'))
+    ->withoutOverlapping();

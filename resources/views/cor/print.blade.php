@@ -1,305 +1,87 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Certificate of Registration</title>
-    <style>
-        :root {
-            color: #111827;
-            font-family: Arial, sans-serif;
-            font-size: 13px;
-        }
+<x-official-output-layout
+    title="Certificate of Registration"
+    :context="str($cor['copy_context'])->replace('_', ' ')->headline().' · '.$cor['summary']['document_status'].' · Version '.$cor['summary']['cor_version']"
+    :subtitle="$cor['summary']['term']"
+    :generated-at="\App\Support\DisplayDateTime::format($cor['generated_at'], 'M d, Y h:i A')"
+    :logo-src="asset('images/brand/servitech-crest.webp')"
+    page-margin="12mm"
+>
+    <section class="finance-grid" aria-label="Registration identity and authority">
+        <div><strong>Student No.:</strong> {{ $cor['summary']['student_number'] }}</div>
+        <div><strong>Legal name:</strong> {{ $cor['summary']['student_name'] }}</div>
+        <div><strong>Program:</strong> {{ $cor['summary']['program'] }}</div>
+        <div><strong>Curriculum Version:</strong> {{ $cor['summary']['curriculum_version'] }}</div>
+        <div><strong>Represented level:</strong> {{ $cor['summary']['curriculum_levels'] }}</div>
+        <div><strong>Selection basis:</strong> {{ str($cor['summary']['selection_basis'])->headline() }}</div>
+        <div><strong>Registration date:</strong> {{ $cor['summary']['registration_date'] }}</div>
+        <div><strong>Total units:</strong> {{ $cor['summary']['total_units'] }}</div>
+        <div><strong>Timetable source:</strong> {{ $cor['summary']['course_delivery_mix'] }}</div>
+        <div><strong>Assessment source:</strong> {{ $cor['summary']['assessment_reference'] }}</div>
+        <div><strong>Term Account:</strong> {{ $cor['summary']['term_account_reference'] }}</div>
+        <div><strong>Clearance at issue:</strong> {{ $cor['summary']['payment_status'] }}</div>
+        <div><strong>Recorded authority:</strong> {{ $cor['summary']['issued_by'] }}</div>
+        <div><strong>Recorded at:</strong> {{ \App\Support\DisplayDateTime::format(\Carbon\CarbonImmutable::parse($cor['summary']['issued_at']), 'M d, Y h:i A') }}</div>
+    </section>
 
-        body {
-            margin: 0;
-            background: #f3f4f6;
-        }
-
-        .page {
-            max-width: 960px;
-            margin: 24px auto;
-            padding: 32px;
-            background: #ffffff;
-            border: 1px solid #d1d5db;
-        }
-
-        .header,
-        .summary-grid,
-        .signature-grid {
-            display: grid;
-            gap: 12px;
-        }
-
-        .header {
-            grid-template-columns: 96px 1fr 180px;
-            align-items: center;
-            border-bottom: 2px solid #111827;
-            padding-bottom: 16px;
-        }
-
-        .logo {
-            height: 72px;
-            border: 1px solid #9ca3af;
-            display: grid;
-            place-items: center;
-            font-weight: 700;
-        }
-
-        h1,
-        h2,
-        p {
-            margin: 0;
-        }
-
-        h1 {
-            font-size: 20px;
-            text-transform: uppercase;
-            letter-spacing: .04em;
-        }
-
-        h2 {
-            margin-top: 22px;
-            margin-bottom: 10px;
-            font-size: 14px;
-            text-transform: uppercase;
-            border-bottom: 1px solid #d1d5db;
-            padding-bottom: 4px;
-        }
-
-        .copy-box {
-            border: 1px solid #111827;
-            padding: 10px;
-            text-align: center;
-            font-weight: 700;
-        }
-
-        .summary-grid {
-            grid-template-columns: repeat(4, 1fr);
-        }
-
-        .field {
-            border: 1px solid #d1d5db;
-            padding: 8px;
-            min-height: 42px;
-        }
-
-        .label {
-            display: block;
-            color: #4b5563;
-            font-size: 10px;
-            text-transform: uppercase;
-        }
-
-        .value {
-            display: block;
-            margin-top: 3px;
-            font-weight: 700;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th,
-        td {
-            border: 1px solid #9ca3af;
-            padding: 6px;
-            text-align: left;
-            vertical-align: top;
-        }
-
-        th {
-            background: #e5e7eb;
-            font-size: 11px;
-            text-transform: uppercase;
-        }
-
-        .right {
-            text-align: right;
-        }
-
-        .signature-grid {
-            grid-template-columns: repeat(4, 1fr);
-            margin-top: 36px;
-        }
-
-        .signature {
-            border-top: 1px solid #111827;
-            padding-top: 6px;
-            text-align: center;
-            min-height: 48px;
-        }
-
-        .toolbar {
-            max-width: 960px;
-            margin: 24px auto 0;
-            text-align: right;
-        }
-
-        .toolbar button {
-            border: 0;
-            border-radius: 6px;
-            background: #1d4ed8;
-            color: #ffffff;
-            cursor: pointer;
-            font-weight: 700;
-            padding: 10px 14px;
-        }
-
-        @media print {
-            body {
-                background: #ffffff;
-            }
-
-            .toolbar {
-                display: none;
-            }
-
-            .page {
-                border: 0;
-                margin: 0;
-                max-width: none;
-                padding: 0;
-            }
-
-            @page {
-                margin: 14mm;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="toolbar">
-        <button type="button" onclick="window.print()">Print / Save as PDF</button>
-    </div>
-
-    <main class="page">
-        <header class="header">
-            <div class="logo">SIA</div>
-            <div>
-                <p><strong>{{ config('institution.name') }}</strong></p>
-                @if (filled(config('institution.address')))
-                    <p>{{ config('institution.address') }}</p>
-                @endif
-                <h1>Registration Form / Certificate of Registration</h1>
-                <p>Generated {{ \App\Support\DisplayDateTime::format($cor['generated_at'], 'M d, Y h:i A') }}</p>
-            </div>
-            <div class="copy-box">{{ str($cor['copy_context'])->replace('_', ' ')->headline() }}</div>
-        </header>
-
-        <h2>Student Information</h2>
-        <section class="summary-grid">
-            @foreach ([
-                'Student No.' => $cor['summary']['student_number'],
-                'LRN / Prior ID' => $cor['summary']['prior_identifier'] ?? '-',
-                'Full Name' => $cor['summary']['student_name'],
-                'Program' => $cor['summary']['program'],
-                'Curriculum Level' => $cor['summary']['curriculum_level'],
-                'Term' => $cor['summary']['term'],
-                'Registration Date' => $cor['summary']['registration_date'],
-                'Course Delivery Mix' => $cor['summary']['course_delivery_mix'],
-                'Payment Status' => $cor['summary']['payment_status'],
-                'Total Units' => $cor['summary']['total_units'],
-                'Balance' => 'PHP '.$cor['summary']['balance'],
-                'Schedule Version' => $cor['schedule_version'] ?? '-',
-            ] as $label => $value)
-                <div class="field">
-                    <span class="label">{{ $label }}</span>
-                    <span class="value">{{ $value }}</span>
-                </div>
-            @endforeach
-        </section>
-
-        <h2>Class Schedule / Subjects</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Subject Code</th>
-                    <th>Description</th>
-                    <th>Units</th>
-                    <th>Lec Hrs</th>
-                    <th>Lab Hrs</th>
-                    <th>Section</th>
-                    <th>Day</th>
-                    <th>Time</th>
-                    <th>Room</th>
-                    <th>Instructor</th>
-                    <th>Modality</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($cor['subjects'] as $subject)
-                    <tr>
-                        <td>{{ $subject['subject_code'] }}</td>
-                        <td>{{ $subject['subject_description'] }}</td>
-                        <td class="right">{{ $subject['units'] }}</td>
-                        <td class="right">{{ $subject['lecture_hours'] }}</td>
-                        <td class="right">{{ $subject['laboratory_hours'] }}</td>
-                        <td>{{ $subject['section'] }}</td>
-                        <td>{{ $subject['day'] }}</td>
-                        <td>{{ $subject['time'] }}</td>
-                        <td>{{ $subject['room'] }}</td>
-                        <td>{{ $subject['instructor'] }}</td>
-                        <td>{{ $subject['modality'] }}</td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="11">No enrolled subjects are available for this COR.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-
-        <h2>Computation of Fees</h2>
-        <table>
-            <tbody>
-                @foreach ($cor['fees'] as $fee)
-                    <tr>
-                        <th>{{ $fee['label'] }}</th>
-                        <td class="right">PHP {{ $fee['amount'] }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-
-        @if (($cor['installment']['applicable'] ?? false) === true)
-            <h2>Installment Schedule</h2>
+    <section>
+        <h2 class="finance-heading">Official courses and class schedule</h2>
+        <div class="official-output-table">
             <table>
                 <thead>
                     <tr>
-                        <th>Installment No.</th>
-                        <th>Category</th>
-                        <th>Due Date</th>
-                        <th>Amount</th>
-                        <th>Receipt No. / Reference</th>
-                        <th>Date Paid</th>
-                        <th>Remaining Balance</th>
+                        <th>Course</th>
+                        <th>Title</th>
+                        <th>Units</th>
+                        <th>Contact hours</th>
+                        <th>Class</th>
+                        <th>Schedule</th>
+                        <th>Room</th>
+                        <th>Faculty</th>
+                        <th>Mode</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($cor['installment']['rows'] as $installment)
+                    @forelse ($cor['subjects'] as $subject)
                         <tr>
-                            <td class="right">{{ $installment['number'] }}</td>
-                            <td>{{ $installment['category'] }}</td>
-                            <td>{{ $installment['due_date'] }}</td>
-                            <td class="right">PHP {{ $installment['amount'] }}</td>
-                            <td>{{ $installment['reference'] }}</td>
-                            <td>{{ $installment['date_paid'] }}</td>
-                            <td class="right">PHP {{ $installment['remaining_balance'] }}</td>
+                            <td>{{ $subject['subject_code'] }}</td>
+                            <td>{{ $subject['subject_description'] }}</td>
+                            <td>{{ $subject['units'] }}</td>
+                            <td>Lecture {{ $subject['lecture_hours'] }}; Laboratory {{ $subject['laboratory_hours'] }}</td>
+                            <td>{{ $subject['section'] }}</td>
+                            <td>{{ $subject['day'] }}<br>{{ $subject['time'] }}</td>
+                            <td>{{ $subject['room'] }}</td>
+                            <td>{{ $subject['instructor'] }}</td>
+                            <td>{{ $subject['modality'] }}</td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr><td colspan="9">No official course snapshot is recorded for this version.</td></tr>
+                    @endforelse
                 </tbody>
             </table>
-        @endif
+        </div>
+    </section>
 
-        <section class="signature-grid">
-            <div class="signature">Encoded / Enlisted By</div>
-            <div class="signature">Evaluated By / Registrar</div>
-            <div class="signature">Assessed By / Accounting</div>
-            <div class="signature">Approved By / School Administrator</div>
-        </section>
-    </main>
-</body>
-</html>
+    <section>
+        <h2 class="finance-heading">Assessment at finalization</h2>
+        <p>
+            <strong>Total assessed:</strong>
+            {{ $cor['summary']['assessment_total'] !== null ? 'PHP '.number_format((float) $cor['summary']['assessment_total'], 2) : 'Not recorded' }}
+        </p>
+        <div class="official-output-table">
+            <table>
+                <thead><tr><th>Category</th><th>Amount</th></tr></thead>
+                <tbody>
+                    @forelse ($cor['fees'] as $fee)
+                        <tr><td>{{ $fee['label'] }}</td><td>PHP {{ number_format((float) $fee['amount'], 2) }}</td></tr>
+                    @empty
+                        <tr><td colspan="2">No assessment-category snapshot was recorded for this version.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div class="official-output-notice">
+            This COR records assessment and clearance only as they stood at finalization. Current balances, later payments,
+            receipts, reversals, and future installments remain in Student Finance and the authenticated Statement of Account.
+        </div>
+    </section>
+</x-official-output-layout>

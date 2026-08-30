@@ -169,7 +169,7 @@ class StudentHubTest extends TestCase
     }
 
     #[Test]
-    public function student_profile_page_updates_only_allowed_self_service_fields()
+    public function student_profile_page_exposes_official_values_without_self_service_mutation()
     {
         $student = User::factory()->create([
             'status' => User::StatusActive,
@@ -192,22 +192,16 @@ class StudentHubTest extends TestCase
             ->test(Profile::class)
             ->assertSee('Official Student Record')
             ->assertSee('SIA-2026-8399')
-            ->set('data.phone', '09171234567')
-            ->set('data.email', 'new.student@example.test')
-            ->set('data.address', '123 New Street, Manila')
-            ->set('data.emergency_contact_name', 'New Guardian')
-            ->set('data.emergency_contact_phone', '09177654321')
-            ->set('data.first_name', 'Changed')
-            ->call('saveProfile')
-            ->assertNotified('Profile contact details saved');
+            ->assertSee('Correction guidance')
+            ->assertDontSee('Save Contact Details');
 
         $profile->refresh();
 
-        $this->assertSame('09171234567', $profile->phone);
-        $this->assertSame('new.student@example.test', $profile->email);
-        $this->assertSame('123 New Street, Manila', $profile->address);
-        $this->assertSame('New Guardian', $profile->emergency_contact_name);
-        $this->assertSame('09177654321', $profile->emergency_contact_phone);
+        $this->assertSame('09170000000', $profile->phone);
+        $this->assertSame('old.student@example.test', $profile->email);
+        $this->assertSame('Old Address', $profile->address);
+        $this->assertSame('Old Guardian', $profile->emergency_contact_name);
+        $this->assertSame('09171111111', $profile->emergency_contact_phone);
         $this->assertSame('Locked', $profile->first_name);
         $this->assertSame('SIA-2026-8399', $profile->student_number);
     }

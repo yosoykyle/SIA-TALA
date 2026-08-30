@@ -126,6 +126,39 @@
                 @endif
             </x-filament::section>
 
+            @php($registrationCase = $this->registrationCase())
+            @php($registrationReadiness = $this->registrationReadiness())
+            @if ($registrationCase && $registrationReadiness)
+                <x-filament::section
+                    heading="Enrollment checkpoints"
+                    :description="($registrationCase->term?->label ?? 'Exact Term').' · '.$registrationCase->case_reference"
+                    icon="heroicon-o-clipboard-document-check"
+                >
+                    @php($proposal = $registrationCase->currentProposalVersion)
+                    @php($checkpointRows = [
+                        ['Student eligibility', $registrationReadiness['eligibility'] && $registrationReadiness['identity'], 'Admissions and confirmed identity/contact source', 'Registrar', 'A stale or blocked source prevents the next enrollment action.', 'Contact the Registrar so the owning source can be corrected; no local override is created.'],
+                        ['Confirmed proposed subjects', $registrationReadiness['confirmation'], 'Registration Proposal version '.($proposal?->version ?? 'not prepared'), 'Learner', 'Unconfirmed or superseded subjects cannot be placed or finalized.', 'Review and confirm the current issued proposal, or use attributable Registrar-assisted confirmation.'],
+                        ['Valid class placement', $registrationReadiness['placement'], 'Published Timetable and reservations', 'Registrar', 'Only an affected course remains blocked; no waitlist or silent move is created.', 'The Registrar resolves the named prerequisite, class, capacity, conflict, or timetable-source blocker.'],
+                        ['Accounting clearance', $registrationReadiness['finance'], 'Enrollment Payment Requirement', 'Accounting', 'Unavailable or unsatisfied current requirements block finalization only.', 'Accounting records the current assessment and valid payment or coverage result.'],
+                        ['Registrar finalization', $registrationCase->canonical_outcome === \App\Models\Enrollment::OutcomeOfficiallyEnrolled, 'Atomic Registration Case result', 'Registrar', 'No Student activation, official roster, or COR exists until the transaction commits.', $registrationReadiness['ready'] ? 'All prior checkpoints are ready for Registrar finalization.' : 'Resolve the earlier named checkpoint, refresh current evidence, and retry.'],
+                    ])
+                    @php($currentCheckpoint = collect($checkpointRows)->search(fn ($row) => ! $row[1]))
+                    <ol class="grid gap-3 lg:grid-cols-5">
+                        @foreach ($checkpointRows as $index => [$label, $ready, $source, $owner, $consequence, $recovery])
+                            <li class="rounded-xl bg-gray-50 p-4 dark:bg-white/5" @if ($currentCheckpoint === $index) aria-current="step" @endif>
+                                <p class="font-semibold text-gray-950 dark:text-white">{{ $index + 1 }}. {{ $label }}</p>
+                                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ $ready ? 'Verified' : 'Action required' }} · Owner: {{ $owner }}</p>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Source: {{ $source }} · As of {{ $registrationCase->updated_at?->timezone(config('app.display_timezone'))->format('M d, Y g:i A') }}</p>
+                                <p class="mt-2 text-xs text-gray-600 dark:text-gray-300">{{ $consequence }} {{ $recovery }}</p>
+                            </li>
+                        @endforeach
+                    </ol>
+                    <p class="mt-4 text-sm text-gray-600 dark:text-gray-300">
+                        Selection basis: {{ str($registrationCase->selection_basis)->headline() }}. The authoritative Application source determines this basis; you do not choose it.
+                    </p>
+                </x-filament::section>
+            @endif
+
             <x-filament::section>
                 <x-slot name="heading">What happens next</x-slot>
                 <p>The Registrar reviews preliminary evidence, resolves any private identity warning, records an immutable admission decision, and then records official credential outcomes. Readiness appears automatically only when all current authoritative conditions pass.</p>

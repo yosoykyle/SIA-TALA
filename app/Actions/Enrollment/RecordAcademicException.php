@@ -29,7 +29,7 @@ class RecordAcademicException
      */
     public function record(Enrollment $enrollment, array $data, User $actor, ?CarbonImmutable $recordedAt = null): EnrollmentException
     {
-        if (! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin])) {
+        if (! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead])) {
             throw new AuthorizationException('Only authorized Registrar or Academic Head staff may record approved academic exceptions.');
         }
 
@@ -118,7 +118,6 @@ class RecordAcademicException
         return collect([
             User::StaffRoleRegistrar,
             User::StaffRoleAcademicHead,
-            User::StaffRoleSystemSuperAdmin,
         ])->first(fn (string $role): bool => $actor->hasRole($role)) ?? 'unknown';
     }
 }

@@ -38,13 +38,13 @@ final class SchemaConformanceTest extends TestCase
         'pending_email_changes',
         'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances',
         'public_notices', 'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
-        'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_late_authorities',
+        'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_identity_confirmation_versions', 'registration_late_authorities',
         'registration_proposal_confirmations', 'registration_proposal_items', 'registration_proposal_versions',
         'room_features', 'rooms', 'schedule_revision_events', 'schedule_runs',
         'scheduling_commitments', 'scheduling_demands', 'section_delivery_groups', 'section_meetings',
         'section_term_cohort', 'sections',
         'staff_access_profiles', 'staff_invitations',
-        'student_lifecycle_changes', 'student_number_sequences', 'student_profiles', 'student_schedule_bindings',
+        'student_lifecycle_changes', 'student_number_sequences', 'student_profile_events', 'student_profiles', 'student_schedule_bindings',
         'system_settings', 'term_accounts', 'term_average_labels', 'term_calendar_packages', 'term_calendar_windows', 'term_cohorts',
         'term_dated_exceptions', 'term_offerings', 'term_teaching_grid_rows', 'terms', 'transcript_issuance_events', 'transcript_requests', 'transcript_snapshots',
         'timetable_revisions',
@@ -68,9 +68,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(125, self::APPLICATION_TABLES);
+        $this->assertCount(127, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(143, $actual);
+        $this->assertCount(145, $actual);
         $this->assertSame($expected, $actual);
     }
 
@@ -93,6 +93,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertColumns('grade_outcome_events', ['grade_roster_row_id', 'previous_value', 'new_value', 'previous_category', 'new_category']);
         $this->assertColumns('holds', ['hold_type', 'reason', 'staff_only_reason', 'student_message', 'resolution_requirement']);
         $this->assertColumns('public_notices', ['title', 'message', 'state', 'display_order', 'root_id', 'previous_version_id', 'version', 'revision', 'ever_published', 'published_at', 'published_by', 'visible_from', 'visible_until']);
+        $this->assertColumns('registration_identity_confirmation_versions', ['enrollment_id', 'supersedes_version_id', 'version', 'source_hash', 'identity_snapshot', 'confirmed_by', 'confirmed_at']);
+        $this->assertColumns('student_profile_events', ['student_profile_id', 'event_type', 'authority_reference', 'reason', 'effective_at', 'before_snapshot', 'after_snapshot', 'actor_id']);
         $this->assertColumns('faq_entries', ['question', 'answer', 'category', 'sort_order', 'root_id', 'previous_version_id', 'version', 'revision', 'ever_published', 'published_at', 'published_by']);
 
         $this->assertFalse(Schema::hasColumn('student_profiles', 'current_balance'));

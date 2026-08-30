@@ -62,7 +62,8 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $this->assertFalse(StudentLifecycleChangeResource::canCreate());
-        $this->assertEmpty(Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])->instance()->getCachedHeaderActions());
+        Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
+            ->assertForbidden();
         Livewire::test(ListStudentLifecycleChanges::class)
             ->assertActionHidden(TestAction::make('apply')->table($change))
             ->assertActionHidden(TestAction::make('cancel')->table($change));

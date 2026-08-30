@@ -64,16 +64,17 @@ class StudentProfileResource extends Resource
     {
         return $schema->components([
             Section::make('Official Student Profile')->schema([
-                TextInput::make('student_number')->disabled()->dehydrated(),
-                TextInput::make('first_name')->required()->maxLength(255),
-                TextInput::make('middle_name')->maxLength(255),
-                TextInput::make('last_name')->required()->maxLength(255),
-                DatePicker::make('birth_date')->label('Date of Birth')->native(false)->displayFormat('M d, Y'),
-                TextInput::make('prior_identifier')->label('LRN / Prior-Education Identifier')->maxLength(255),
-                Select::make('program_id')->relationship('program', 'name')->required()->searchable()->preload(),
-                Select::make('curriculum_version_id')->relationship('curriculumVersion', 'name')->required()->searchable()->preload(),
-                TextInput::make('email')->email()->maxLength(255),
-                TextInput::make('phone')->maxLength(255),
+                TextInput::make('student_number')->disabled(),
+                Select::make('entry_term_id')->label('Entry Term')->relationship('entryTerm', 'label')->disabled(),
+                TextInput::make('first_name')->disabled(),
+                TextInput::make('middle_name')->disabled(),
+                TextInput::make('last_name')->disabled(),
+                DatePicker::make('birth_date')->label('Date of Birth')->native(false)->displayFormat('M d, Y')->disabled(),
+                TextInput::make('prior_identifier')->label('LRN / Prior-Education Identifier')->disabled(),
+                Select::make('program_id')->relationship('program', 'name')->disabled(),
+                Select::make('curriculum_version_id')->relationship('curriculumVersion', 'name')->disabled(),
+                TextInput::make('email')->disabled(),
+                TextInput::make('phone')->disabled(),
             ])->columns(2),
         ]);
     }
@@ -469,7 +470,7 @@ class StudentProfileResource extends Resource
             return 'Official registrations, schedule, and immutable COR are available.';
         }
 
-        if (in_array($enrollment->canonical_outcome, [Enrollment::OutcomeCancelled, Enrollment::OutcomeNotEnrolled], true)) {
+        if (in_array($enrollment->canonical_outcome, Enrollment::reopenableOutcomes(), true)) {
             return 'Registrar reviews the preserved case history and any authorized same-case recovery.';
         }
 

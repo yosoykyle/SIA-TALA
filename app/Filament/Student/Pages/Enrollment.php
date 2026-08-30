@@ -55,14 +55,6 @@ class Enrollment extends Page
                         ->options(Term::query()->orderByDesc('starts_on')->pluck('label', 'id'))
                         ->required()
                         ->searchable(),
-                    Select::make('selection_basis')
-                        ->label('Registration basis')
-                        ->options([
-                            EnrollmentRecord::SelectionStandardCurriculum => 'Standard Curriculum',
-                            EnrollmentRecord::SelectionIndividuallyAdvised => 'Individually Advised',
-                        ])
-                        ->default(EnrollmentRecord::SelectionStandardCurriculum)
-                        ->required(),
                 ])
                 ->action(function (array $data): void {
                     $user = $this->actor();
@@ -73,7 +65,6 @@ class Enrollment extends Page
                             $profile,
                             Term::query()->findOrFail($data['term_id']),
                             $user,
-                            $data['selection_basis'],
                         );
                         Notification::make()->title('Registration started')->body('The Registrar can now prepare the exact-Term proposal.')->success()->send();
                     } catch (Throwable $exception) {
@@ -106,7 +97,13 @@ class Enrollment extends Page
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
                 ->requiresConfirmation()
-                ->visible(fn (): bool => $this->currentEnrollment()?->canonical_outcome === EnrollmentRecord::OutcomeInProgress)
+                ->visible(function (): bool {
+                    $enrollment = $this->currentEnrollment();
+
+                    return $enrollment instanceof EnrollmentRecord
+                        && $enrollment->canonical_outcome === EnrollmentRecord::OutcomeInProgress
+                        && $enrollment->currentProposalVersion?->confirmation === null;
+                })
                 ->schema([Textarea::make('reason')->required()->maxLength(2000)])
                 ->action(function (array $data): void {
                     $enrollment = $this->currentEnrollment();
@@ -175,13 +172,13 @@ class Enrollment extends Page
                 ->icon('heroicon-o-document-text')
                 ->url(CorView::getUrl(panel: 'student'))
                 ->visible(fn (): bool => $this->currentEnrollment()?->current_cor_version_id !== null),
-            Action::make('resendOfficialEnrollmentEmail')
-                ->label('Resend enrollment email')
+            Action::make('resendRegistrationEmail')
+                ->label('Resend failed update')
                 ->icon('heroicon-o-arrow-path')
                 ->requiresConfirmation()
-                ->visible(fn (): bool => $this->failedOfficialEnrollmentNotification() instanceof OperationalEvent)
+                ->visible(fn (): bool => $this->failedRegistrationNotification() instanceof OperationalEvent)
                 ->action(function (): void {
-                    $event = $this->failedOfficialEnrollmentNotification();
+                    $event = $this->failedRegistrationNotification();
                     if (! $event instanceof OperationalEvent) {
                         return;
                     }
@@ -208,7 +205,38 @@ class Enrollment extends Page
             'enrollment' => $enrollment,
             'readiness' => $readiness,
             'proposal' => $enrollment?->currentProposalVersion?->loadMissing(['items.section', 'items.reservation', 'confirmation']),
+            'corHistory' => $this->corHistory($enrollment),
         ];
+    }
+
+    /**
+     * @return list<array{enrollment_id: int, term: string, version: int, status: 'Current'|'Historical'|'Superseded', url: string}>
+     */
+    private function corHistory(?EnrollmentRecord $currentEnrollment): array
+    {
+        $history = [];
+        $enrollments = EnrollmentRecord::query()
+            ->with(['term', 'corVersions'])
+            ->where('credential_user_id', $this->actor()->id)
+            ->whereHas('corVersions')
+            ->latest('officially_enrolled_at')
+            ->get();
+
+        foreach ($enrollments as $enrollment) {
+            foreach ($enrollment->corVersions->sortByDesc('version') as $version) {
+                $history[] = [
+                    'enrollment_id' => $enrollment->id,
+                    'term' => $enrollment->term->label ?? 'Term not recorded',
+                    'version' => (int) $version->version,
+                    'status' => (int) $enrollment->current_cor_version_id === (int) $version->id
+                        ? ($enrollment->is($currentEnrollment) ? 'Current' : 'Historical')
+                        : 'Superseded',
+                    'url' => route('cor.print', ['enrollment' => $enrollment->id, 'version' => $version->version]),
+                ];
+            }
+        }
+
+        return $history;
     }
 
     private function currentEnrollment(): ?EnrollmentRecord
@@ -235,16 +263,15 @@ class Enrollment extends Page
         return $actor;
     }
 
-    private function failedOfficialEnrollmentNotification(): ?OperationalEvent
+    private function failedRegistrationNotification(): ?OperationalEvent
     {
         $enrollment = $this->currentEnrollment();
 
         return $enrollment instanceof EnrollmentRecord
             ? OperationalEvent::query()
                 ->where('event_domain', OperationalEvent::DomainNotifications)
-                ->where('event_type', OperationalEvent::TypeOfficialEnrollmentEmail)
-                ->where('related_record_type', EnrollmentRecord::class)
-                ->where('related_record_id', $enrollment->id)
+                ->whereIn('event_type', OperationalEvent::registrationNotificationTypes())
+                ->where('user_id', $this->actor()->id)
                 ->where('status', OperationalEvent::StatusFailed)
                 ->latest('id')
                 ->first()

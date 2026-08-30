@@ -28,7 +28,7 @@ class ResolveTimetableRevisionRegistrationImpact
         string $evidenceReference,
     ): RegistrationCaseEvent {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may resolve a timetable-registration impact.');
         }
 
@@ -97,7 +97,7 @@ class ResolveTimetableRevisionRegistrationImpact
             }
 
             if ($outcome === self::OutcomeCaseCancelled
-                && ! in_array($lockedEnrollment->canonical_outcome, [Enrollment::OutcomeCancelled, Enrollment::OutcomeNotEnrolled], true)) {
+                && ! in_array($lockedEnrollment->canonical_outcome, Enrollment::reopenableOutcomes(), true)) {
                 throw ValidationException::withMessages([
                     'outcome' => 'Case-cancelled resolution requires the Registration Case to be terminal first.',
                 ]);

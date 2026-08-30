@@ -29,7 +29,7 @@ class ConfirmRegistrationProposal
         }
 
         if ($assistedBy !== null && (! $assistedBy->canAuthenticate()
-            || ! $assistedBy->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin]))) {
+            || ! $assistedBy->hasRole(User::StaffRoleRegistrar))) {
             throw new AuthorizationException('Assisted confirmation requires authorized Registrar staff.');
         }
 
