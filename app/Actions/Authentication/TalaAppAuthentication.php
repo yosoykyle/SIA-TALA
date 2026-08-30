@@ -10,6 +10,22 @@ use Filament\Facades\Filament;
 
 class TalaAppAuthentication extends AppAuthentication
 {
+    public function generateQrCodeDataUri(#[\SensitiveParameter] string $secret): string
+    {
+        $dataUri = parent::generateQrCodeDataUri($secret);
+        $svgPrefix = 'data:image/svg+xml;base64,';
+
+        if (! str_starts_with($dataUri, $svgPrefix)) {
+            return $dataUri;
+        }
+
+        $decoded = base64_decode(substr($dataUri, strlen($svgPrefix)), strict: true);
+
+        return is_string($decoded) && str_starts_with($decoded, $svgPrefix)
+            ? $decoded
+            : $dataUri;
+    }
+
     /** @param array<string>|null $codes */
     public function saveRecoveryCodes(HasAppAuthenticationRecovery $user, #[\SensitiveParameter] ?array $codes): void
     {

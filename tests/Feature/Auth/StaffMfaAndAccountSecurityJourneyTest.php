@@ -69,6 +69,26 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         ]);
     }
 
+    public function test_mfa_setup_qr_code_is_a_single_valid_svg_data_uri(): void
+    {
+        $staff = User::factory()->create(['email' => 'mfa-qr-fixture@example.test']);
+        $staff->assignRole(User::StaffRoleFaculty);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($staff);
+
+        $provider = app(TalaAppAuthentication::class)->recoverable();
+        $dataUri = $provider->generateQrCodeDataUri($provider->generateSecret());
+        $prefix = 'data:image/svg+xml;base64,';
+
+        $this->assertStringStartsWith($prefix, $dataUri);
+
+        $svg = base64_decode(substr($dataUri, strlen($prefix)), strict: true);
+
+        $this->assertIsString($svg);
+        $this->assertStringContainsString('<svg', $svg);
+        $this->assertStringNotContainsString('data:image/', $svg);
+    }
+
     public function test_authorized_reset_removes_factor_codes_and_sessions_then_requires_reenrollment(): void
     {
         $actor = User::factory()->create(['password' => Hash::make('administrator password')]);
