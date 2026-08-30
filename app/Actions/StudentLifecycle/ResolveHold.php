@@ -2,6 +2,7 @@
 
 namespace App\Actions\StudentLifecycle;
 
+use App\Actions\Completion\CompletionReadinessProjection;
 use App\Models\Hold;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -10,6 +11,8 @@ use RuntimeException;
 
 class ResolveHold
 {
+    public function __construct(private readonly CompletionReadinessProjection $completionReadiness) {}
+
     public function execute(Hold $hold, User $actor, string $evidence): Hold
     {
         if (! $this->authorized($hold, $actor)) {
@@ -44,6 +47,8 @@ class ResolveHold
                     'status_after' => Hold::StatusResolved,
                 ])
                 ->log('Hold resolved');
+
+            $this->completionReadiness->persist($locked->studentProfile, $actor);
 
             return $locked->refresh();
         }, attempts: 3);

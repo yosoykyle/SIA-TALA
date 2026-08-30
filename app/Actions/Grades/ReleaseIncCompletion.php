@@ -3,6 +3,7 @@
 namespace App\Actions\Grades;
 
 use App\Actions\Academics\AcademicRecordNotificationService;
+use App\Actions\Completion\CompletionReadinessProjection;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRosterRow;
 use App\Models\IncCompletionSubmission;
@@ -19,6 +20,7 @@ class ReleaseIncCompletion
         private readonly IncDeadlineService $deadlines,
         private readonly OpenRegistrationImpactReviewsForGradeOutcome $impactReviews,
         private readonly AcademicRecordNotificationService $notifications,
+        private readonly CompletionReadinessProjection $completionReadiness,
     ) {}
 
     public function execute(IncCompletionSubmission $submission, User $registrar, string $authorityReference): GradeOutcomeEvent
@@ -90,6 +92,10 @@ class ReleaseIncCompletion
             ]);
             $this->impactReviews->execute($row, $event, $registrar);
             $this->notifications->recordAfterCommit($event, 'An INC completion result');
+            $student = $row->courseEnrollment?->enrollment?->studentProfile;
+            if ($student !== null) {
+                $this->completionReadiness->persist($student, $registrar);
+            }
 
             return $event;
         }, attempts: 3);

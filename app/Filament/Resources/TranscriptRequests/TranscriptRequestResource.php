@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class TranscriptRequestResource extends Resource
 {
@@ -34,13 +35,22 @@ class TranscriptRequestResource extends Resource
         return auth()->user()?->hasAnyRole([
             User::StaffRoleRegistrar,
             User::StaffRoleAccounting,
-            User::StaffRoleAcademicHead,
         ]) ?? false;
     }
 
     public static function canCreate(): bool
     {
         return false;
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with([
+            'studentProfile',
+            'clearances',
+            'events',
+            'snapshots.events',
+        ]);
     }
 
     public static function infolist(Schema $schema): Schema

@@ -6,6 +6,7 @@ use Database\Factories\TranscriptSnapshotFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -44,5 +45,11 @@ class TranscriptSnapshot extends Model
     public function conferral(): BelongsTo
     {
         return $this->belongsTo(DegreeConferral::class, 'degree_conferral_id');
+    }
+
+    /** @return HasMany<TranscriptIssuanceEvent, $this> */
+    public function events(): HasMany
+    {
+        return $this->hasMany(TranscriptIssuanceEvent::class);
     }
 }

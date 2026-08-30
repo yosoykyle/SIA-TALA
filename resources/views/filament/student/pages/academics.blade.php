@@ -44,16 +44,31 @@
             <x-filament::section>
                 <x-slot name="heading">Completion readiness</x-slot>
                 <x-slot name="description">Applying records your intent. Only Registrar can record conferral after every current source is ready.</x-slot>
-                <p class="text-xl font-semibold">{{ str($completion['state'])->headline() }}</p>
+                <p class="text-xl font-semibold" aria-live="polite">{{ str($completion['state'])->headline() }}</p>
                 @if ($completion['blockers'] !== [])
+                    @php
+                        $leadCompletionBlockers = array_slice($completion['blockers'], 0, 3);
+                        $remainingCompletionBlockers = array_slice($completion['blockers'], 3);
+                    @endphp
                     <div class="mt-4 space-y-3" aria-label="Completion blockers">
-                        @foreach ($completion['blockers'] as $blocker)
-                            <div class="rounded-lg border border-warning-300 bg-warning-50 p-3 dark:border-warning-700 dark:bg-warning-950">
-                                <p class="font-medium">{{ $blocker['reason'] }}</p>
-                                <p class="text-sm">Responsible: {{ $blocker['owner'] }}</p>
-                                <p class="text-sm">Next step: {{ $blocker['recovery'] }}</p>
-                            </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">
+                            Showing {{ count($leadCompletionBlockers) }} of {{ count($completion['blockers']) }} named blockers. Each item identifies its source, consequence, responsible office, and safe next step.
+                        </p>
+                        @foreach ($leadCompletionBlockers as $blocker)
+                            <x-completion-blocker :$blocker />
                         @endforeach
+                        @if ($remainingCompletionBlockers !== [])
+                            <details class="rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-white/5">
+                                <summary class="cursor-pointer px-4 py-3 font-medium text-primary-700 marker:text-gray-500 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 dark:text-primary-300 dark:hover:bg-white/5">
+                                    Review remaining {{ count($remainingCompletionBlockers) }} blockers
+                                </summary>
+                                <div class="space-y-3 border-t border-gray-200 p-4 dark:border-white/10">
+                                    @foreach ($remainingCompletionBlockers as $blocker)
+                                        <x-completion-blocker :$blocker />
+                                    @endforeach
+                                </div>
+                            </details>
+                        @endif
                     </div>
                 @endif
                 <div class="mt-4 grid gap-4 lg:grid-cols-2">

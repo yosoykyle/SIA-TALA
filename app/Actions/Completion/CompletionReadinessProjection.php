@@ -13,6 +13,7 @@ use App\Models\GraduationApplication;
 use App\Models\Hold;
 use App\Models\StudentProfile;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class CompletionReadinessProjection
 {
@@ -29,6 +30,7 @@ class CompletionReadinessProjection
     public function __construct(
         private readonly CurriculumEvaluation $curriculum,
         private readonly OfficialCourseResultProjection $results,
+        private readonly CompletionNotificationService $notifications,
     ) {}
 
     /** @return array{state: string, blockers: list<array{source: string, owner: string, reason: string, recovery: string}>, source_snapshot: array<string, mixed>, source_fingerprint: string, application: GraduationApplication|null, conferral: DegreeConferral|null} */
@@ -52,12 +54,18 @@ class CompletionReadinessProjection
             ->first();
 
         $blockers = [];
-        if (! $finalTermEnrollment instanceof Enrollment && ! $conferral instanceof DegreeConferral) {
+        $hasInProgressRequirement = false;
+        if ($application instanceof GraduationApplication
+            && (int) $application->curriculum_version_id !== (int) $student->curriculum_version_id) {
             $blockers[] = [
-                'source' => 'OfficialEnrollment',
+                'code' => 'graduation-application:curriculum-changed',
+                'source' => 'GraduationApplication',
+                'source_ref' => (string) $application->id,
+                'source_as_of' => $application->updated_at?->toIso8601String(),
                 'owner' => 'Registrar',
-                'reason' => 'Final-term official enrollment is not recorded.',
-                'recovery' => 'Registrar verifies and records the authoritative final-term enrollment source.',
+                'reason' => 'The active Graduation Application belongs to an earlier Curriculum Version.',
+                'consequence' => 'Conferral cannot proceed from a Graduation Application whose completion scope no longer matches the Student record.',
+                'recovery' => 'Registrar reviews the curriculum change and records the authorized application successor.',
             ];
         }
         foreach ($curriculum['required'] as $row) {
@@ -67,21 +75,46 @@ class CompletionReadinessProjection
 
             $code = $row['curriculum_entry']->courseSpecification?->course->code ?? 'Curriculum requirement';
             $owner = $row['status'] === 'In progress' ? 'Registrar and Faculty' : 'Registrar';
+            $hasInProgressRequirement = $hasInProgressRequirement || $row['status'] === 'In progress';
             $blockers[] = [
+                'code' => "curriculum-entry:{$row['curriculum_entry']->id}:{$row['status']}",
                 'source' => 'CurriculumEvaluation',
+                'source_ref' => (string) $row['curriculum_entry']->id,
+                'source_as_of' => $row['curriculum_entry']->updated_at?->toIso8601String(),
                 'owner' => $owner,
                 'reason' => "{$code}: {$row['status']}",
+                'consequence' => $row['status'] === 'In progress'
+                    ? 'Conferral must wait for the current official result.'
+                    : 'The graduation application cannot proceed while this curriculum requirement is unresolved.',
                 'recovery' => $row['status'] === 'In progress'
                     ? 'Complete the current official course and wait for Registrar release.'
                     : 'Resolve the named curriculum deficiency through Registrar advising.',
             ];
         }
 
-        if ($results->contains(fn (array $result): bool => $result['result'] === 'INC')) {
+        if ($hasInProgressRequirement && ! $finalTermEnrollment instanceof Enrollment && ! $conferral instanceof DegreeConferral) {
             $blockers[] = [
+                'code' => 'official-enrollment:final-term-missing',
+                'source' => 'OfficialEnrollment',
+                'source_ref' => null,
+                'source_as_of' => $student->curriculumVersion?->updated_at?->toIso8601String(),
+                'owner' => 'Registrar',
+                'reason' => 'Final-term official enrollment is not recorded.',
+                'consequence' => 'In-progress completion evidence cannot support a graduation application without its exact official enrollment context.',
+                'recovery' => 'Registrar verifies and records the authoritative final-term enrollment source.',
+            ];
+        }
+
+        $incompleteResult = $results->first(fn (array $result): bool => $result['result'] === 'INC');
+        if (is_array($incompleteResult)) {
+            $blockers[] = [
+                'code' => 'official-result:inc-unresolved',
                 'source' => 'OfficialCourseResultProjection',
+                'source_ref' => (string) data_get($incompleteResult, 'event.id'),
+                'source_as_of' => data_get($incompleteResult, 'event.released_at')?->toIso8601String(),
                 'owner' => 'Registrar and designated Faculty',
                 'reason' => 'An official INC remains unresolved.',
+                'consequence' => 'Conferral remains unavailable while the official INC is unresolved.',
                 'recovery' => 'Complete the authorized INC path or retake the course when completion is closed.',
             ];
         }
@@ -101,9 +134,13 @@ class CompletionReadinessProjection
 
             if (! $competent) {
                 $blockers[] = [
+                    'code' => "external-competency:{$requirement->id}:not-competent",
                     'source' => "ExternalCompetencyRequirement:{$requirement->requirement_code}",
+                    'source_ref' => (string) $requirement->id,
+                    'source_as_of' => $requirement->updated_at?->toIso8601String(),
                     'owner' => 'External assessor and Registrar',
                     'reason' => "Required competency {$requirement->qualification_label} is not yet verified as competent.",
+                    'consequence' => 'The graduation application cannot proceed until the required external competency is verified.',
                     'recovery' => 'Registrar records the verified external result against the active requirement.',
                 ];
             }
@@ -116,18 +153,26 @@ class CompletionReadinessProjection
             ->get()
             ->each(function (Hold $hold) use (&$blockers): void {
                 $blockers[] = [
+                    'code' => "hold:{$hold->id}:graduation-eligibility",
                     'source' => "Hold:{$hold->id}",
+                    'source_ref' => (string) $hold->id,
+                    'source_as_of' => $hold->updated_at?->toIso8601String(),
                     'owner' => $hold->studentFacingOfficeLabel(),
                     'reason' => $hold->studentFacingMessage() ?? 'A named completion clearance is unresolved.',
+                    'consequence' => 'The graduation application cannot proceed while this named completion clearance is unresolved.',
                     'recovery' => $hold->resolution_requirement ?: 'Use the authorized hold-resolution path.',
                 ];
             });
+
+        $blockers = collect($blockers)->sortBy('code')->values()->all();
+        $hardBlockers = collect($blockers)->reject(fn (array $blocker): bool => str_starts_with($blocker['code'], 'curriculum-entry:')
+            && str_ends_with($blocker['code'], ':In progress'));
 
         $state = match (true) {
             $conferral instanceof DegreeConferral => self::Conferred,
             $application instanceof GraduationApplication && $blockers !== [] => self::AwaitingResultsOrClearance,
             $application instanceof GraduationApplication => self::ReadyForConferral,
-            $blockers !== [] && ! collect($blockers)->every(fn (array $blocker): bool => str_contains($blocker['reason'], 'In progress')) => self::NotEligible,
+            $hardBlockers->isNotEmpty() => self::NotEligible,
             default => self::EligibleToApply,
         };
 
@@ -156,29 +201,43 @@ class CompletionReadinessProjection
         ];
     }
 
-    public function persist(StudentProfile $student, ?User $actor = null): CompletionReadinessVersion
-    {
-        $projection = $this->forStudent($student);
-        $previous = CompletionReadinessVersion::query()
-            ->where('student_profile_id', $student->id)
-            ->latest('version')->first();
+    public function persist(
+        StudentProfile $student,
+        ?User $actor = null,
+        string $cause = 'source-change',
+    ): CompletionReadinessVersion {
+        return DB::transaction(function () use ($student, $actor, $cause): CompletionReadinessVersion {
+            $lockedStudent = StudentProfile::query()->lockForUpdate()->findOrFail($student->id);
+            $projection = $this->forStudent($lockedStudent);
+            $previous = CompletionReadinessVersion::query()
+                ->where('student_profile_id', $lockedStudent->id)
+                ->latest('version')
+                ->lockForUpdate()
+                ->first();
 
-        if ($previous?->source_fingerprint === $projection['source_fingerprint']
-            && $previous->state === $projection['state']) {
-            return $previous;
-        }
+            if ($previous?->source_fingerprint === $projection['source_fingerprint']
+                && $previous->state === $projection['state']) {
+                return $previous;
+            }
 
-        return CompletionReadinessVersion::query()->create([
-            'student_profile_id' => $student->id,
-            'graduation_application_id' => $projection['application']?->id,
-            'version' => ((int) $previous?->version) + 1,
-            'supersedes_readiness_id' => $previous?->id,
-            'state' => $projection['state'],
-            'source_fingerprint' => $projection['source_fingerprint'],
-            'source_snapshot' => $projection['source_snapshot'],
-            'blockers' => $projection['blockers'],
-            'generated_by' => $actor?->id,
-            'generated_at' => now(),
-        ]);
+            $readiness = CompletionReadinessVersion::query()->create([
+                'student_profile_id' => $lockedStudent->id,
+                'graduation_application_id' => $projection['application']?->id,
+                'version' => ((int) $previous?->version) + 1,
+                'supersedes_readiness_id' => $previous?->id,
+                'state' => $projection['state'],
+                'source_fingerprint' => $projection['source_fingerprint'],
+                'source_snapshot' => $projection['source_snapshot'],
+                'blockers' => $projection['blockers'],
+                'generated_by' => $actor?->id,
+                'generated_at' => now(),
+            ]);
+
+            if ($cause === 'source-change') {
+                $this->notifications->reserveReadinessAfterCommit($readiness, $previous);
+            }
+
+            return $readiness;
+        }, attempts: 3);
     }
 }

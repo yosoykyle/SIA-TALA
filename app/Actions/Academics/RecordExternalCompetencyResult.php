@@ -2,6 +2,7 @@
 
 namespace App\Actions\Academics;
 
+use App\Actions\Completion\CompletionReadinessProjection;
 use App\Models\ExternalCompetencyRequirement;
 use App\Models\ExternalCompetencyResult;
 use App\Models\StudentProfile;
@@ -13,6 +14,8 @@ use RuntimeException;
 
 class RecordExternalCompetencyResult
 {
+    public function __construct(private readonly CompletionReadinessProjection $completionReadiness) {}
+
     public function execute(
         ExternalCompetencyRequirement $requirement,
         StudentProfile $student,
@@ -124,6 +127,7 @@ class RecordExternalCompetencyResult
             ]);
 
             $current?->update(['is_current' => false]);
+            $this->completionReadiness->persist($student, $registrar);
 
             return $result;
         }, attempts: 3);

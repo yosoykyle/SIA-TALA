@@ -248,6 +248,17 @@
                 padding: 0;
             }
 
+            tr,
+            .official-output-context,
+            .official-output-identity,
+            .official-output-notice {
+                break-inside: avoid;
+            }
+
+            h2 {
+                break-after: avoid;
+            }
+
             @page {
                 size: A4 {{ $pageOrientation }};
                 margin: {{ $pageMargin }};
@@ -255,6 +266,12 @@
                 @bottom-center {
                     content: "Page " counter(page) " of " counter(pages);
                     font-size: 10px;
+                }
+
+                @bottom-left {
+                    content: "{{ strtoupper((string) $context) }}";
+                    font-size: 10px;
+                    font-weight: 700;
                 }
             }
         }

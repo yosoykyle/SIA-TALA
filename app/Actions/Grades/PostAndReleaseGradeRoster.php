@@ -3,6 +3,7 @@
 namespace App\Actions\Grades;
 
 use App\Actions\Academics\AcademicRecordNotificationService;
+use App\Actions\Completion\CompletionReadinessProjection;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterVersion;
@@ -18,6 +19,7 @@ class PostAndReleaseGradeRoster
         private readonly FinalResultPolicy $policy,
         private readonly OpenRegistrationImpactReviewsForGradeOutcome $impactReviews,
         private readonly AcademicRecordNotificationService $notifications,
+        private readonly CompletionReadinessProjection $completionReadiness,
     ) {}
 
     public function execute(GradeRoster $roster, User $actor, string $authority = 'Registrar Post & Release'): GradeRoster
@@ -51,6 +53,7 @@ class PostAndReleaseGradeRoster
                 throw new RuntimeException('The submitted roster is stale; synchronize and resubmit before release.');
             }
 
+            $affectedStudents = collect();
             foreach ($version->rows as $versionRow) {
                 $row = $locked->rows->firstWhere('id', $versionRow->grade_roster_row_id);
 
@@ -91,6 +94,10 @@ class PostAndReleaseGradeRoster
 
                 $this->impactReviews->execute($row, $outcomeEvent, $actor);
                 $this->notifications->recordAfterCommit($outcomeEvent, 'An official course result');
+                $student = $row->courseEnrollment?->enrollment?->studentProfile;
+                if ($student !== null) {
+                    $affectedStudents->put($student->id, $student);
+                }
             }
 
             $version->update([
@@ -108,6 +115,8 @@ class PostAndReleaseGradeRoster
                 'released_by' => $actor->id,
                 'released_at' => now(),
             ]);
+
+            $affectedStudents->each(fn ($student) => $this->completionReadiness->persist($student, $actor));
 
             return $locked->fresh(['rows.outcomeEvents']);
         }, attempts: 3);

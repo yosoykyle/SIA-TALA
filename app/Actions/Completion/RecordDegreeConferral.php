@@ -2,7 +2,6 @@
 
 namespace App\Actions\Completion;
 
-use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Models\DegreeConferral;
 use App\Models\GraduationApplication;
@@ -20,7 +19,7 @@ class RecordDegreeConferral
     public function __construct(
         private readonly CompletionReadinessProjection $readiness,
         private readonly CurriculumEvaluation $curriculum,
-        private readonly AcademicRecordNotificationService $notifications,
+        private readonly CompletionNotificationService $notifications,
     ) {}
 
     public function execute(
@@ -49,7 +48,19 @@ class RecordDegreeConferral
                 ->whereNotNull('active_scope_key')
                 ->lockForUpdate()->first();
             if ($existing instanceof DegreeConferral) {
-                return $existing;
+                $requestedDate = $conferredOn instanceof CarbonInterface
+                    ? CarbonImmutable::instance($conferredOn)->toDateString()
+                    : CarbonImmutable::parse($conferredOn, config('app.timezone'))->toDateString();
+                $sameRequest = $existing->degree_name === trim($degreeName)
+                    && $existing->conferred_on->toDateString() === $requestedDate
+                    && $existing->authority_reference === trim($authorityReference)
+                    && $existing->honor_text === (filled($honorText) ? trim((string) $honorText) : null)
+                    && $existing->honor_authority_reference === (filled($honorAuthorityReference) ? trim((string) $honorAuthorityReference) : null);
+                if ($sameRequest) {
+                    return $existing;
+                }
+
+                throw ValidationException::withMessages(['conferral' => 'A different current conferral already exists. Use the authorized correction workflow.']);
             }
 
             $projection = $this->readiness->forStudent($locked);
@@ -57,7 +68,13 @@ class RecordDegreeConferral
                 || ! $projection['application'] instanceof GraduationApplication) {
                 throw ValidationException::withMessages(['conferral' => 'Current completion sources are not ready for conferral.']);
             }
-            $readiness = $this->readiness->persist($locked, $actor);
+            if (blank($locked->student_number)
+                || blank($locked->first_name)
+                || blank($locked->last_name)
+                || (int) $projection['application']->curriculum_version_id !== (int) $locked->curriculum_version_id) {
+                throw ValidationException::withMessages(['conferral' => 'Conferral requires a continuous Student identity, Program, Curriculum Version, account, and matching Graduation Application.']);
+            }
+            $readiness = $this->readiness->persist($locked, $actor, 'conferral-precheck');
             $evaluation = $this->curriculum->forStudent($locked);
             $date = $conferredOn instanceof CarbonInterface
                 ? CarbonImmutable::instance($conferredOn)
@@ -81,7 +98,7 @@ class RecordDegreeConferral
                 'recorded_by' => $actor->id,
                 'recorded_at' => now(),
             ]);
-            $change = StudentLifecycleChange::query()->create([
+            StudentLifecycleChange::query()->create([
                 'student_profile_id' => $locked->id,
                 'term_id' => $projection['application']->term_id,
                 'type' => StudentLifecycleChange::TypeCompletion,
@@ -99,7 +116,8 @@ class RecordDegreeConferral
                 'state' => StudentLifecycleChange::StateApplied,
             ]);
             $locked->update(['lifecycle_status' => StudentProfile::LifecycleCompleted]);
-            $this->notifications->recordLifecycleAfterCommit($change);
+            $this->readiness->persist($locked, $actor, 'conferral');
+            $this->notifications->reserveConferralAfterCommit($conferral);
 
             return $conferral;
         }, attempts: 3);

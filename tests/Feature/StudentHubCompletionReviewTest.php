@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Student\Pages\Completion;
 use App\Models\GraduationReviewBatch;
 use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
@@ -11,6 +10,7 @@ use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -46,9 +46,7 @@ final class StudentHubCompletionReviewTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        $this->assertFalse(Completion::shouldRegisterNavigation());
-        $this->assertFalse(Completion::canAccess());
-        $this->get(route('filament.student.pages.completion'))->assertForbidden();
+        $this->assertFalse(Route::has('filament.student.pages.completion'));
         $this->assertDatabaseHas('graduation_snapshots', [
             'graduation_review_member_id' => $member->id,
             'made_visible_at' => null,
@@ -86,9 +84,7 @@ final class StudentHubCompletionReviewTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        $this->assertFalse(Completion::shouldRegisterNavigation());
-        $this->assertFalse(Completion::canAccess());
-        $this->get(route('filament.student.pages.completion'))->assertForbidden();
+        $this->assertFalse(Route::has('filament.student.pages.completion'));
         $this->assertSame(2, $member->snapshots()->count());
         $this->assertSame(1, $otherMember->snapshots()->count());
     }

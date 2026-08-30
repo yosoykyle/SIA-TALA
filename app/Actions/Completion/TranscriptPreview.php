@@ -187,7 +187,7 @@ class TranscriptPreview
             'request_source_fingerprint' => $request->source_fingerprint,
             'clearance_id' => $request->currentClearance()?->id,
             'academic_event_ids' => collect($academicYears)->flatten(1)->pluck('attempt_event_id')->filter()->values()->all(),
-            'content' => collect($content)->except('request')->all(),
+            'content' => collect($content)->except(['request', 'status'])->all(),
         ];
         $content['source_fingerprint'] = hash('sha256', json_encode($fingerprintSource, JSON_THROW_ON_ERROR));
 

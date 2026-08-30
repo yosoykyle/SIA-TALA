@@ -11,6 +11,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Group;
@@ -157,6 +158,21 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
             '/(?:TAL-?96|MIDDLE|test_tala_db|synthetic|acceptance fixture)/i',
             $visibleFixtureText,
         );
+    }
+
+    #[Test]
+    public function student_academics_progressively_discloses_large_completion_blocker_sets(): void
+    {
+        $student = User::query()->where('email', 'student.demo@example.test')->sole();
+
+        $this->actingAs($student);
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+
+        $this->get(route('filament.student.pages.academics'))
+            ->assertOk()
+            ->assertSee('Showing 3 of 53 named blockers.')
+            ->assertSee('Review remaining 50 blockers')
+            ->assertSee('Each item identifies its source, consequence, responsible office, and safe next step.');
     }
 
     private function presentationTerm(): Term

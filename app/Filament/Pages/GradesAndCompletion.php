@@ -217,8 +217,8 @@ class GradesAndCompletion extends Page
             ],
             'completion-tor' => [
                 'title' => 'Completion & TOR',
-                'description' => 'Preserved Slice 6 destination for completion, conferral, and TALA Standard TOR work. It is not counted as Slice 5 completion.',
-                'action' => 'Open Completion & TOR',
+                'description' => 'Review source-owned completion blockers, record immutable conferral, and manage request-bound TALA Standard TOR lifecycle evidence.',
+                'action' => 'Open completion workbench',
                 'url' => CompletionAndTor::getUrl(),
                 'icon' => 'heroicon-o-document-text',
             ],

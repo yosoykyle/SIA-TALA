@@ -4,6 +4,7 @@ namespace App\Filament\Resources\TranscriptRequests\Pages;
 
 use App\Actions\Completion\IssueTranscript;
 use App\Actions\Completion\ReplaceTranscript;
+use App\Actions\Completion\TranscriptLifecycleProjection;
 use App\Actions\Completion\VoidTranscript;
 use App\Actions\Finance\RecordOfficialOutputPaymentClearance;
 use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
@@ -58,7 +59,19 @@ class ViewTranscriptRequest extends ViewRecord
                 ->icon('heroicon-o-eye')
                 ->url(fn (): string => route('transcripts.preview', $this->request()))
                 ->openUrlInNewTab()
-                ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false),
+                ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+                    && $this->request()->snapshots()->doesntExist()),
+            Action::make('previewReplacement')
+                ->label('Preview replacement')
+                ->icon('heroicon-o-eye')
+                ->url(fn (): string => route('transcripts.preview', [
+                    'transcriptRequest' => $this->request(),
+                    'operation' => 'replacement',
+                    'predecessor' => $this->latestSnapshotOrFail()->id,
+                ]))
+                ->openUrlInNewTab()
+                ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+                    && $this->latestSnapshotIsVoided()),
             Action::make('issue')
                 ->label('Issue TOR')
                 ->icon('heroicon-o-document-check')
@@ -73,7 +86,8 @@ class ViewTranscriptRequest extends ViewRecord
                         ->required(),
                     TextInput::make('authority_reference')->required()->maxLength(255),
                 ])
-                ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+                ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+                    && $this->request()->snapshots()->doesntExist())
                 ->action(function (array $data): void {
                     $actor = auth()->user();
                     abort_unless($actor instanceof User, 403);
@@ -82,7 +96,6 @@ class ViewTranscriptRequest extends ViewRecord
                             $this->request(),
                             $actor,
                             (string) $data['authority_reference'],
-                            (string) $data['expected_reference'],
                         );
                         $this->redirect(route('transcript-snapshots.show', $snapshot));
                     } catch (Throwable $exception) {
@@ -100,7 +113,8 @@ class ViewTranscriptRequest extends ViewRecord
                     TextInput::make('authority_reference')->required()->maxLength(255),
                     Textarea::make('reason')->required()->maxLength(1000),
                 ])
-                ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false) && $this->latestSnapshot() !== null)
+                ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+                    && $this->currentSnapshot() !== null)
                 ->action(function (array $data): void {
                     $actor = auth()->user();
                     abort_unless($actor instanceof User, 403);
@@ -116,7 +130,8 @@ class ViewTranscriptRequest extends ViewRecord
                     TextInput::make('authority_reference')->required()->maxLength(255),
                     Textarea::make('reason')->required()->maxLength(1000),
                 ])
-                ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false) && $this->latestSnapshot() !== null)
+                ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+                    && $this->latestSnapshotIsVoided())
                 ->action(function (array $data): void {
                     $actor = auth()->user();
                     abort_unless($actor instanceof User, 403);
@@ -151,6 +166,21 @@ class ViewTranscriptRequest extends ViewRecord
         $snapshot = $this->request()->snapshots()->latest('version')->firstOrFail();
 
         return $snapshot;
+    }
+
+    private function currentSnapshot(): ?TranscriptSnapshot
+    {
+        return app(TranscriptLifecycleProjection::class)->currentSnapshot(
+            $this->request()->load(['snapshots.events', 'events']),
+        );
+    }
+
+    private function latestSnapshotIsVoided(): bool
+    {
+        $snapshot = $this->latestSnapshot();
+
+        return $snapshot instanceof TranscriptSnapshot
+            && app(TranscriptLifecycleProjection::class)->statusForSnapshot($snapshot) === 'Voided';
     }
 
     private function nextTorReference(): string

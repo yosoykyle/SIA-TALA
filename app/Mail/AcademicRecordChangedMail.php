@@ -36,7 +36,11 @@ class AcademicRecordChangedMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your TALA academic record was updated',
+            subject: match ($this->operationalEventType) {
+                OperationalEvent::TypeCompletionRequiresActionEmail => 'Completion requires action',
+                OperationalEvent::TypeConferralRecordedEmail => 'Conferral recorded',
+                default => 'Your TALA academic record was updated',
+            },
         );
     }
 

@@ -8,16 +8,28 @@ use App\Models\TranscriptSnapshot;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Throwable;
 
 class TranscriptSnapshotController extends Controller
 {
     public function __invoke(Request $request, TranscriptSnapshot $snapshot): Response
     {
         $actor = $request->user();
-        abort_unless($actor instanceof User && $actor->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleAcademicHead,
-        ]), 403);
+        if (! $actor instanceof User || ! $actor->hasRole(User::StaffRoleRegistrar)) {
+            $this->recordOutcome($snapshot, $actor, 'denied', 'denied');
+            abort(403);
+        }
+
+        try {
+            return $this->renderSnapshot($snapshot, $actor);
+        } catch (Throwable $exception) {
+            $this->recordOutcome($snapshot, $actor, 'view_failed', 'failed');
+            throw $exception;
+        }
+    }
+
+    private function renderSnapshot(TranscriptSnapshot $snapshot, User $actor): Response
+    {
 
         $snapshot->loadMissing('request');
         $latestEvent = TranscriptIssuanceEvent::query()
@@ -51,7 +63,7 @@ class TranscriptSnapshotController extends Controller
             'source_record_id' => $snapshot->id,
             'student_profile_id' => $snapshot->request->student_profile_id,
             'actor_user_id' => $actor->id,
-            'actor_role' => $actor->hasRole(User::StaffRoleRegistrar) ? User::StaffRoleRegistrar : User::StaffRoleAcademicHead,
+            'actor_role' => User::StaffRoleRegistrar,
             'action' => 'view',
             'copy_context' => 'official-transcript-history',
             'row_count' => collect($content['academic_years'])->flatten(1)->count(),
@@ -63,5 +75,30 @@ class TranscriptSnapshotController extends Controller
         ]);
 
         return $response;
+    }
+
+    private function recordOutcome(
+        TranscriptSnapshot $snapshot,
+        ?User $actor,
+        string $action,
+        string $status,
+    ): void {
+        $snapshot->loadMissing('request');
+        OutputAccessLog::query()->create([
+            'output_type' => 'TALA_STANDARD_TOR',
+            'source_record_type' => TranscriptSnapshot::class,
+            'source_record_id' => $snapshot->id,
+            'student_profile_id' => $snapshot->request->student_profile_id,
+            'actor_user_id' => $actor?->id,
+            'actor_role' => $actor?->roles()->value('name') ?? 'unauthenticated',
+            'action' => $action,
+            'copy_context' => 'official-transcript-history',
+            'row_count' => 0,
+            'purpose' => 'Record a denied or failed TALA Standard TOR snapshot access outcome.',
+            'sensitivity' => 'restricted',
+            'request_context' => ['transcript_snapshot_id' => $snapshot->id, 'reference' => $snapshot->reference],
+            'status' => $status,
+            'occurred_at' => now(),
+        ]);
     }
 }

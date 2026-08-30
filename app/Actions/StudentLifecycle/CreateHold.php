@@ -2,6 +2,7 @@
 
 namespace App\Actions\StudentLifecycle;
 
+use App\Actions\Completion\CompletionReadinessProjection;
 use App\Models\Hold;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -11,6 +12,8 @@ use RuntimeException;
 
 class CreateHold
 {
+    public function __construct(private readonly CompletionReadinessProjection $completionReadiness) {}
+
     public function execute(StudentProfile $studentProfile, array $data, User $actor): Hold
     {
         $holdType = (string) ($data['hold_type'] ?? '');
@@ -45,6 +48,8 @@ class CreateHold
                     'status_after' => $hold->status,
                 ])
                 ->log('Hold created');
+
+            $this->completionReadiness->persist($studentProfile, $actor);
 
             return $hold;
         }, attempts: 3);

@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Actions\Completion\CompletionReadinessProjection;
 use App\Filament\Pages\CompletionAndTor;
 use App\Filament\Student\Pages\Academics;
-use App\Filament\Student\Pages\Completion;
 use App\Models\GraduationReviewBatch;
 use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
@@ -14,6 +13,7 @@ use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -44,7 +44,7 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
         $this->assertTrue(Academics::canAccess());
-        $this->assertFalse(Completion::canAccess());
+        $this->assertFalse(Route::has('filament.student.pages.completion'));
     }
 
     #[Test]

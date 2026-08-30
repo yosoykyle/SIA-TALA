@@ -3,6 +3,7 @@
 namespace App\Filament\Student\Pages;
 
 use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\ExaminationPeriodProjection;
@@ -14,6 +15,7 @@ use App\Actions\Completion\WithdrawGraduationApplication;
 use App\Models\Enrollment;
 use App\Models\ExternalCompetencyResult;
 use App\Models\GraduationApplication;
+use App\Models\OperationalEvent;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -48,6 +50,21 @@ class Academics extends Page
         $application = $projection['application'];
 
         return [
+            Action::make('resendCompletionUpdate')
+                ->label('Resend failed completion update')
+                ->icon('heroicon-o-paper-airplane')
+                ->color('warning')
+                ->requiresConfirmation()
+                ->modalDescription('This retries only the failed completion email. Your application, readiness, conferral, and academic record will not change.')
+                ->visible($this->failedCompletionNotification() instanceof OperationalEvent)
+                ->action(function (): void {
+                    $event = $this->failedCompletionNotification();
+                    if (! $event instanceof OperationalEvent) {
+                        return;
+                    }
+                    app(AcademicRecordNotificationService::class)->resend($event, $this->actor());
+                    Notification::make()->title('Completion update queued again')->success()->send();
+                }),
             Action::make('applyForGraduation')
                 ->label('Apply for graduation')
                 ->icon('heroicon-o-academic-cap')
@@ -133,5 +150,25 @@ class Academics extends Page
         abort_unless($actor instanceof User, 403);
 
         return $actor;
+    }
+
+    private function failedCompletionNotification(): ?OperationalEvent
+    {
+        $user = auth()->user();
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        $event = OperationalEvent::query()
+            ->where('user_id', $user->id)
+            ->whereIn('event_type', [
+                OperationalEvent::TypeCompletionRequiresActionEmail,
+                OperationalEvent::TypeConferralRecordedEmail,
+            ])
+            ->where('status', OperationalEvent::StatusFailed)
+            ->latest('occurred_at')
+            ->first();
+
+        return $event instanceof OperationalEvent ? $event : null;
     }
 }

@@ -1,5 +1,5 @@
 <x-official-output-layout
-    title="Transcript of Records"
+    title="TRANSCRIPT OF RECORDS"
     :subtitle="$document['template_version'].' · Request '.$request->external_request_reference.' · Due '.$request->due_on->format('F j, Y')"
     :context="strtoupper($status)"
     :generated-at="$document['generated_at']"

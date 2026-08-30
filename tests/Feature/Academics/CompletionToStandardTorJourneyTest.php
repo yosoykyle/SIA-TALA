@@ -23,6 +23,7 @@ use App\Models\CalendarEvent;
 use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
+use App\Models\DegreeConferral;
 use App\Models\Enrollment;
 use App\Models\ExternalCompetencyRequirement;
 use App\Models\ExternalCompetencyResult;
@@ -134,14 +135,15 @@ class CompletionToStandardTorJourneyTest extends TestCase
             'student_profile_id' => $fixture['student']->id,
             'type' => 'COMPLETION',
         ]);
-        $this->assertSame(3, OperationalEvent::query()
+        $this->assertSame(0, OperationalEvent::query()
             ->where('related_record_type', GraduationApplication::class)
             ->count());
         $this->assertSame(1, OperationalEvent::query()
-            ->where('related_record_type', StudentLifecycleChange::class)
+            ->where('related_record_type', DegreeConferral::class)
             ->count());
         Mail::assertQueued(AcademicRecordChangedMail::class, function (AcademicRecordChangedMail $mail): bool {
-            return $mail->attachments() === []
+            return $mail->operationalEventType === OperationalEvent::TypeConferralRecordedEmail
+                && $mail->attachments() === []
                 && ! str_contains($mail->changeLabel, 'Bachelor')
                 && ! str_contains($mail->changeLabel, '2.00');
         });
@@ -258,9 +260,9 @@ class CompletionToStandardTorJourneyTest extends TestCase
                 $request,
                 $fixture['registrar'],
                 'SYNTH-ISSUANCE-AUTHORITY',
-                'TOR-STALE-REFERENCE',
+                'STALE-PREVIEW-CONFIRMATION',
             );
-            $this->fail('A stale resulting reference must create no official transcript artifact.');
+            $this->fail('A stale preview confirmation must create no official transcript artifact.');
         } catch (ValidationException) {
             $this->assertDatabaseCount('transcript_snapshots', 0);
             $this->assertDatabaseCount('transcript_issuance_events', 0);
@@ -293,6 +295,11 @@ class CompletionToStandardTorJourneyTest extends TestCase
         }
 
         $void = app(VoidTranscript::class)->execute($snapshot, $fixture['registrar'], 'SYNTH-VOID-AUTHORITY', 'Incorrect signatory placement.');
+        $this->actingAs($fixture['registrar'])->get(route('transcripts.preview', [
+            'transcriptRequest' => $request,
+            'operation' => 'replacement',
+            'predecessor' => $snapshot->id,
+        ]))->assertOk();
         $replacement = app(ReplaceTranscript::class)->execute($snapshot, $fixture['registrar'], 'SYNTH-REPLACEMENT-AUTHORITY', 'Issue the corrected successor.');
         $this->assertSame($snapshot->id, $replacement->supersedes_snapshot_id);
         $this->assertSame($void->id, TranscriptIssuanceEvent::query()->where('transcript_snapshot_id', $replacement->id)->sole()->predecessor_event_id);

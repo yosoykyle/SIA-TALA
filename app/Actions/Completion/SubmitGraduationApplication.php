@@ -14,7 +14,6 @@ class SubmitGraduationApplication
 {
     public function __construct(
         private readonly CompletionReadinessProjection $readiness,
-        private readonly CompletionNotificationService $notifications,
     ) {}
 
     public function execute(StudentProfile $student, User $actor): GraduationApplication
@@ -43,10 +42,6 @@ class SubmitGraduationApplication
                 ->where('student_profile_id', $locked->id)
                 ->whereNotNull('officially_enrolled_at')
                 ->latest('term_id')->first()?->term_id;
-            if ($term === null) {
-                throw ValidationException::withMessages(['graduation' => 'Registrar must establish the final-term enrollment source before application.']);
-            }
-
             $previous = GraduationApplication::query()
                 ->where('student_profile_id', $locked->id)
                 ->where('curriculum_version_id', $locked->curriculum_version_id)
@@ -64,8 +59,7 @@ class SubmitGraduationApplication
                 'applied_at' => now(),
             ]);
 
-            $this->readiness->persist($locked, $actor);
-            $this->notifications->recordAfterCommit($application, 'Graduation application received');
+            $this->readiness->persist($locked, $actor, 'application');
 
             return $application;
         }, attempts: 3);

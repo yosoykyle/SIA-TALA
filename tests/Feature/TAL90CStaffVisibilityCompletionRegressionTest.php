@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Filament\Resources\GraduationReviewBatches\Pages\EditGraduationReviewBatch;
 use App\Filament\Resources\GraduationReviewBatches\Pages\ViewGraduationReviewBatch;
 use App\Filament\Resources\GraduationReviewBatches\RelationManagers\MembersRelationManager;
-use App\Filament\Student\Pages\Completion;
 use App\Models\GraduationReviewBatch;
 use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
@@ -14,6 +13,7 @@ use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
@@ -149,9 +149,7 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        $this->assertFalse(Completion::shouldRegisterNavigation());
-        $this->assertFalse(Completion::canAccess());
-        $this->get(route('filament.student.pages.completion'))->assertForbidden();
+        $this->assertFalse(Route::has('filament.student.pages.completion'));
         $this->assertDatabaseHas('graduation_review_members', [
             'id' => $member->id,
             'is_active' => false,
@@ -179,9 +177,7 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        $this->assertFalse(Completion::shouldRegisterNavigation());
-        $this->assertFalse(Completion::canAccess());
-        $this->get(route('filament.student.pages.completion'))->assertForbidden();
+        $this->assertFalse(Route::has('filament.student.pages.completion'));
         $this->assertDatabaseHas('graduation_snapshots', [
             'graduation_review_member_id' => $member->id,
             'result_status' => 'Blocked: Pending Grade',

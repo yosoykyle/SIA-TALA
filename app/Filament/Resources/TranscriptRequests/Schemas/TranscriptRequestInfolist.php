@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TranscriptRequests\Schemas;
 
+use App\Actions\Completion\TranscriptLifecycleProjection;
 use App\Models\TranscriptRequest;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -25,7 +26,10 @@ class TranscriptRequestInfolist
                     TextEntry::make('requested_on')->date(),
                     TextEntry::make('due_on')->label('30-day service target')->date(),
                     TextEntry::make('clearance_state')->label('Accounting clearance')->state(fn (TranscriptRequest $record): string => $record->clearanceState())->badge(),
-                    TextEntry::make('state')->badge(),
+                    TextEntry::make('lifecycle_state')
+                        ->label('TOR state')
+                        ->state(fn (TranscriptRequest $record): string => app(TranscriptLifecycleProjection::class)->statusForRequest($record))
+                        ->badge(),
                     TextEntry::make('template_version'),
                     TextEntry::make('signatory_name'),
                     TextEntry::make('signatory_title'),

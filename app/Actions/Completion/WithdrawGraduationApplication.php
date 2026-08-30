@@ -13,7 +13,6 @@ class WithdrawGraduationApplication
 {
     public function __construct(
         private readonly CompletionReadinessProjection $readiness,
-        private readonly CompletionNotificationService $notifications,
     ) {}
 
     public function execute(GraduationApplication $application, User $actor, string $reason): GraduationApplication
@@ -38,8 +37,7 @@ class WithdrawGraduationApplication
                 'withdrawal_reason' => trim($reason),
             ]);
             $student = StudentProfile::query()->findOrFail($locked->student_profile_id);
-            $this->readiness->persist($student, $actor);
-            $this->notifications->recordAfterCommit($locked, 'Graduation application withdrawn');
+            $this->readiness->persist($student, $actor, 'withdrawal');
 
             return $locked->fresh();
         }, attempts: 3);

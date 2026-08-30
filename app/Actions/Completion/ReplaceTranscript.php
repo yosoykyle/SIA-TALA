@@ -4,6 +4,7 @@ namespace App\Actions\Completion;
 
 use App\Models\OutputAccessLog;
 use App\Models\TranscriptIssuanceEvent;
+use App\Models\TranscriptRequest;
 use App\Models\TranscriptSnapshot;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -12,10 +13,19 @@ use Illuminate\Validation\ValidationException;
 
 class ReplaceTranscript
 {
-    public function __construct(private readonly TranscriptPreview $preview) {}
+    public function __construct(
+        private readonly TranscriptPreview $preview,
+        private readonly TranscriptPreviewConfirmation $confirmations,
+        private readonly TranscriptLifecycleProjection $lifecycle,
+    ) {}
 
-    public function execute(TranscriptSnapshot $predecessor, User $actor, string $authorityReference, string $reason): TranscriptSnapshot
-    {
+    public function execute(
+        TranscriptSnapshot $predecessor,
+        User $actor,
+        string $authorityReference,
+        string $reason,
+        ?string $previewConfirmation = null,
+    ): TranscriptSnapshot {
         if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff may replace an issued TOR.');
         }
@@ -23,8 +33,32 @@ class ReplaceTranscript
             throw ValidationException::withMessages(['replacement' => 'Replacement authority and reason are required.']);
         }
 
-        return DB::transaction(function () use ($predecessor, $actor, $authorityReference, $reason): TranscriptSnapshot {
+        return DB::transaction(function () use ($predecessor, $actor, $authorityReference, $reason, $previewConfirmation): TranscriptSnapshot {
+            $request = TranscriptRequest::query()
+                ->with(['snapshots.events', 'events', 'clearances'])
+                ->lockForUpdate()
+                ->findOrFail($predecessor->transcript_request_id);
             $locked = TranscriptSnapshot::query()->with('request')->lockForUpdate()->findOrFail($predecessor->id);
+            $confirmation = $previewConfirmation
+                ?? $this->confirmations->latestFor($actor, $request, TranscriptPreviewConfirmation::OperationReplacement);
+            if (! is_string($confirmation)) {
+                throw ValidationException::withMessages(['preview' => 'Preview the replacement TOR and review it before confirming replacement.']);
+            }
+            $completed = $this->confirmations->completedSnapshot(
+                $confirmation,
+                $actor,
+                $request,
+                TranscriptPreviewConfirmation::OperationReplacement,
+            );
+            if ($completed instanceof TranscriptSnapshot) {
+                $replacementEvent = $completed->events()->where('type', TranscriptIssuanceEvent::TypeReplacement)->sole();
+                if ($replacementEvent->authority_reference === trim($authorityReference)
+                    && $replacementEvent->reason === trim($reason)) {
+                    return $completed;
+                }
+
+                throw ValidationException::withMessages(['replacement' => 'This completed preview confirmation belongs to a different replacement authority or reason.']);
+            }
             $voidEvent = TranscriptIssuanceEvent::query()
                 ->where('transcript_snapshot_id', $locked->id)
                 ->where('type', TranscriptIssuanceEvent::TypeVoided)
@@ -37,11 +71,31 @@ class ReplaceTranscript
                 ->where('predecessor_event_id', $voidEvent->id)
                 ->where('type', TranscriptIssuanceEvent::TypeReplacement)->first();
             if ($existingEvent?->transcript_snapshot_id) {
-                return TranscriptSnapshot::query()->findOrFail($existingEvent->transcript_snapshot_id);
+                if ($existingEvent->authority_reference === trim($authorityReference)
+                    && $existingEvent->reason === trim($reason)) {
+                    return TranscriptSnapshot::query()->findOrFail($existingEvent->transcript_snapshot_id);
+                }
+
+                throw ValidationException::withMessages(['replacement' => 'A different replacement already exists for this void event.']);
             }
-            $content = $this->preview->forRequest($locked->request, TranscriptIssuanceEvent::TypeReplacement);
+            if ($this->lifecycle->statusForSnapshot($locked) !== TranscriptIssuanceEvent::TypeVoided) {
+                throw ValidationException::withMessages(['replacement' => 'Only the current voided predecessor may be replaced.']);
+            }
+            if ($this->lifecycle->currentSnapshot($request) instanceof TranscriptSnapshot) {
+                throw ValidationException::withMessages(['replacement' => 'This request already has a current TOR. Refresh its lifecycle before retrying.']);
+            }
+            $content = $this->preview->forRequest($request, TranscriptIssuanceEvent::TypeReplacement);
             $version = ((int) TranscriptSnapshot::query()->where('transcript_request_id', $locked->transcript_request_id)->max('version')) + 1;
             $reference = sprintf('TOR-%s-%06d-V%d', now()->format('Y'), $locked->transcript_request_id, $version);
+            $this->confirmations->validate(
+                $confirmation,
+                $request,
+                $actor,
+                TranscriptPreviewConfirmation::OperationReplacement,
+                $content['source_fingerprint'],
+                $reference,
+                $locked,
+            );
             $issuedAt = now();
             $content['document'] = [
                 'reference' => $reference,
@@ -84,6 +138,7 @@ class ReplaceTranscript
                 'sensitivity' => 'restricted', 'request_context' => ['predecessor_snapshot_id' => $locked->id],
                 'status' => 'completed', 'occurred_at' => now(),
             ]);
+            $this->confirmations->complete($confirmation, $replacement);
 
             return $replacement;
         }, attempts: 3);

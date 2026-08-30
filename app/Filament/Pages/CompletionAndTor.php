@@ -20,10 +20,18 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Throwable;
 
-class CompletionAndTor extends Page
+class CompletionAndTor extends Page implements HasTable
 {
+    use InteractsWithTable;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-text';
 
     protected static bool $shouldRegisterNavigation = false;
@@ -31,6 +39,9 @@ class CompletionAndTor extends Page
     protected static ?string $title = 'Completion & TOR';
 
     protected string $view = 'filament.pages.completion-and-tor';
+
+    /** @var array<int, array<string, mixed>> */
+    private array $readinessCache = [];
 
     public static function canAccess(): bool
     {
@@ -159,25 +170,80 @@ class CompletionAndTor extends Page
         ];
     }
 
+    public function table(Table $table): Table
+    {
+        return $table
+            ->query(StudentProfile::query()
+                ->whereHas('graduationApplications')
+                ->with(['program', 'graduationApplications', 'completionReadinessVersions', 'degreeConferrals']))
+            ->columns([
+                TextColumn::make('student_number')
+                    ->label('Student')
+                    ->description(fn (StudentProfile $record): string => collect([$record->last_name, $record->first_name])->filter()->implode(', '))
+                    ->searchable(['student_number', 'last_name', 'first_name'])
+                    ->sortable(),
+                TextColumn::make('program.name')->label('Program')->wrap()->sortable(),
+                TextColumn::make('completion_state')
+                    ->label('Readiness')
+                    ->state(fn (StudentProfile $record): string => str($this->projection($record)['state'])->headline()->toString())
+                    ->description(function (StudentProfile $record): string {
+                        $blocker = collect($this->projection($record)['blockers'])->first();
+
+                        return is_array($blocker)
+                            ? "Owner: {$blocker['owner']} · {$blocker['recovery']}"
+                            : 'No current completion blocker.';
+                    })
+                    ->badge()
+                    ->wrap(),
+                TextColumn::make('application_state')
+                    ->label('Application')
+                    ->state(fn (StudentProfile $record): string => ($application = $this->projection($record)['application']) instanceof GraduationApplication
+                        ? "Active · v{$application->version}"
+                        : 'No active application')
+                    ->wrap(),
+                TextColumn::make('conferral_state')
+                    ->label('Conferral')
+                    ->state(fn (StudentProfile $record): string => ($conferral = $this->projection($record)['conferral']) instanceof DegreeConferral
+                        ? $conferral->degree_name
+                        : 'Not recorded')
+                    ->description(fn (StudentProfile $record): ?string => ($conferral = $this->projection($record)['conferral']) instanceof DegreeConferral
+                        ? $conferral->conferred_on->format('M j, Y')
+                        : null)
+                    ->wrap(),
+            ])
+            ->filters([
+                SelectFilter::make('readiness')
+                    ->options(collect([
+                        CompletionReadinessProjection::NotEligible,
+                        CompletionReadinessProjection::EligibleToApply,
+                        CompletionReadinessProjection::AwaitingResultsOrClearance,
+                        CompletionReadinessProjection::ReadyForConferral,
+                        CompletionReadinessProjection::Conferred,
+                    ])->mapWithKeys(fn (string $state): array => [$state => str($state)->headline()->toString()])->all())
+                    ->query(fn (Builder $query, array $data): Builder => filled($data['value'] ?? null)
+                        ? $query->whereHas('completionReadinessVersions', fn (Builder $versions): Builder => $versions
+                            ->where('state', $data['value'])
+                            ->whereRaw('version = (select max(current_readiness.version) from completion_readiness_versions as current_readiness where current_readiness.student_profile_id = completion_readiness_versions.student_profile_id)'))
+                        : $query),
+            ])
+            ->defaultSort('last_name')
+            ->stackedOnMobile()
+            ->emptyStateHeading('No completion applications yet')
+            ->emptyStateDescription('Students appear after they deliberately submit a graduation application from Student Academics.')
+            ->emptyStateIcon('heroicon-o-academic-cap');
+    }
+
     /** @return array<string, mixed> */
+    private function projection(StudentProfile $student): array
+    {
+        return $this->readinessCache[$student->id]
+            ??= app(CompletionReadinessProjection::class)->forStudent($student);
+    }
+
+    /** @return array{torRequestsUrl: string} */
     protected function getViewData(): array
     {
-        $students = StudentProfile::query()
-            ->whereHas('graduationApplications')
-            ->with(['program', 'graduationApplications', 'completionReadinessVersions', 'degreeConferrals'])
-            ->orderBy('last_name')
-            ->limit(100)
-            ->get();
-
-        return [
-            'completionRows' => $students->map(function (StudentProfile $student): array {
-                $projection = app(CompletionReadinessProjection::class)->forStudent($student);
-
-                return ['student' => $student, ...$projection];
-            }),
-            'torRequestsUrl' => TranscriptRequestResource::getUrl('index'),
-            'isRegistrar' => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false,
-        ];
+        return ['torRequestsUrl' => TranscriptRequestResource::getUrl('index')];
     }
 
     /** @return array<int, string> */

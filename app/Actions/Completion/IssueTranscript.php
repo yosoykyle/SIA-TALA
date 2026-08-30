@@ -13,10 +13,18 @@ use Illuminate\Validation\ValidationException;
 
 class IssueTranscript
 {
-    public function __construct(private readonly TranscriptPreview $preview) {}
+    public function __construct(
+        private readonly TranscriptPreview $preview,
+        private readonly TranscriptPreviewConfirmation $confirmations,
+        private readonly TranscriptLifecycleProjection $lifecycle,
+    ) {}
 
-    public function execute(TranscriptRequest $request, User $actor, string $authorityReference, ?string $expectedReference = null): TranscriptSnapshot
-    {
+    public function execute(
+        TranscriptRequest $request,
+        User $actor,
+        string $authorityReference,
+        ?string $previewConfirmation = null,
+    ): TranscriptSnapshot {
         if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff may issue the official TOR.');
         }
@@ -24,23 +32,44 @@ class IssueTranscript
             throw ValidationException::withMessages(['issuance' => 'Issuance authority is required.']);
         }
 
-        return DB::transaction(function () use ($request, $actor, $authorityReference, $expectedReference): TranscriptSnapshot {
-            $locked = TranscriptRequest::query()->lockForUpdate()->findOrFail($request->id);
-            $content = $this->preview->forRequest($locked, TranscriptSnapshot::StatusIssued);
-
-            $existing = TranscriptSnapshot::query()
-                ->where('transcript_request_id', $locked->id)
-                ->where('source_fingerprint', $content['source_fingerprint'])
-                ->lockForUpdate()->first();
-            if ($existing instanceof TranscriptSnapshot) {
-                return $existing;
+        return DB::transaction(function () use ($request, $actor, $authorityReference, $previewConfirmation): TranscriptSnapshot {
+            $locked = TranscriptRequest::query()
+                ->with(['snapshots.events', 'events', 'clearances'])
+                ->lockForUpdate()
+                ->findOrFail($request->id);
+            $confirmation = $previewConfirmation
+                ?? $this->confirmations->latestFor($actor, $locked, TranscriptPreviewConfirmation::OperationIssue);
+            if (! is_string($confirmation)) {
+                throw ValidationException::withMessages(['preview' => 'Preview the current TOR and review it before confirming issuance.']);
             }
+            $completed = $this->confirmations->completedSnapshot(
+                $confirmation,
+                $actor,
+                $locked,
+                TranscriptPreviewConfirmation::OperationIssue,
+            );
+            if ($completed instanceof TranscriptSnapshot) {
+                $issuedEvent = $completed->events()->where('type', TranscriptIssuanceEvent::TypeIssued)->sole();
+                if ($issuedEvent->authority_reference === trim($authorityReference)) {
+                    return $completed;
+                }
 
+                throw ValidationException::withMessages(['issuance' => 'This completed preview confirmation belongs to a different issuance authority.']);
+            }
+            if ($this->lifecycle->currentSnapshot($locked) instanceof TranscriptSnapshot) {
+                throw ValidationException::withMessages(['issuance' => 'This request already has a current TOR. Use the authorized void and replacement lifecycle.']);
+            }
+            $content = $this->preview->forRequest($locked, TranscriptSnapshot::StatusIssued);
             $version = ((int) TranscriptSnapshot::query()->where('transcript_request_id', $locked->id)->max('version')) + 1;
             $reference = sprintf('TOR-%s-%06d-V%d', now()->format('Y'), $locked->id, $version);
-            if ($expectedReference !== null && ! hash_equals($reference, $expectedReference)) {
-                throw ValidationException::withMessages(['issuance' => 'The resulting TOR reference changed. Refresh the request before confirming issuance.']);
-            }
+            $this->confirmations->validate(
+                $confirmation,
+                $locked,
+                $actor,
+                TranscriptPreviewConfirmation::OperationIssue,
+                $content['source_fingerprint'],
+                $reference,
+            );
             $issuedAt = now();
             $content['document'] = [
                 'reference' => $reference,
@@ -87,6 +116,7 @@ class IssueTranscript
                 'occurred_at' => now(),
             ]);
             $locked->update(['state' => TranscriptRequest::StateIssued]);
+            $this->confirmations->complete($confirmation, $snapshot);
 
             return $snapshot;
         }, attempts: 3);

@@ -125,6 +125,10 @@ class OperationalEvent extends Model
 
     public const TypeAcademicProgressLifecycleEmail = 'academic_progress_lifecycle_email';
 
+    public const TypeCompletionRequiresActionEmail = 'completion_requires_action_email';
+
+    public const TypeConferralRecordedEmail = 'conferral_recorded_email';
+
     public const TypeLifecycleAccountingReview = 'lifecycle_accounting_review';
 
     /** @return list<string> */
@@ -140,6 +144,8 @@ class OperationalEvent extends Model
             self::TypeIncResolvedEmail,
             self::TypeGradeCorrectionReleasedEmail,
             self::TypeAcademicProgressLifecycleEmail,
+            self::TypeCompletionRequiresActionEmail,
+            self::TypeConferralRecordedEmail,
         ];
     }
 

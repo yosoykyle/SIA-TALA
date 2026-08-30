@@ -2,6 +2,7 @@
 
 namespace App\Actions\StudentLifecycle;
 
+use App\Actions\Completion\CompletionReadinessProjection;
 use App\Models\Hold;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -10,6 +11,8 @@ use RuntimeException;
 
 class WaiveHold
 {
+    public function __construct(private readonly CompletionReadinessProjection $completionReadiness) {}
+
     public function execute(Hold $hold, User $actor, string $authority, string $reason): Hold
     {
         if (! Hold::officeOwnsType($actor, (string) $hold->hold_type)) {
@@ -50,6 +53,8 @@ class WaiveHold
                     'status_after' => Hold::StatusWaived,
                 ])
                 ->log('Hold waived');
+
+            $this->completionReadiness->persist($locked->studentProfile, $actor);
 
             return $locked->refresh();
         }, attempts: 3);

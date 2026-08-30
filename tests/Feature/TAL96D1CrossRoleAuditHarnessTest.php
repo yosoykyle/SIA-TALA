@@ -10,6 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 final class TAL96D1CrossRoleAuditHarnessTest extends TestCase
@@ -94,10 +95,12 @@ final class TAL96D1CrossRoleAuditHarnessTest extends TestCase
                 ->assertOk();
         }
 
+        $this->assertFalse(Route::has('filament.student.pages.completion'));
+
         $this->followingRedirects()
             ->actingAs($student)
-            ->get(route('filament.student.pages.completion'))
-            ->assertForbidden();
+            ->get(route('filament.student.pages.academics'))
+            ->assertOk();
     }
 
     /**

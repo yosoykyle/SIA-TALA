@@ -36,13 +36,24 @@ class RecordTranscriptRequest
         if (! $validSeal) {
             throw ValidationException::withMessages(['seal' => 'Provide a private seal image with checksum or a seal-placement instruction.']);
         }
+        $date = $requestedOn instanceof CarbonInterface
+            ? CarbonImmutable::instance($requestedOn)
+            : CarbonImmutable::parse($requestedOn, config('app.timezone'));
 
-        return DB::transaction(function () use ($conferral, $actor, $requestReference, $requestedOn, $signatoryName, $signatoryTitle, $sealInputType, $sealPath, $sealChecksum, $sealPlacementInstruction): TranscriptRequest {
+        return DB::transaction(function () use ($conferral, $actor, $requestReference, $date, $signatoryName, $signatoryTitle, $sealInputType, $sealPath, $sealChecksum, $sealPlacementInstruction): TranscriptRequest {
             $locked = DegreeConferral::query()->lockForUpdate()->findOrFail($conferral->id);
             $existing = TranscriptRequest::query()->where('external_request_reference', trim($requestReference))->lockForUpdate()->first();
             if ($existing instanceof TranscriptRequest) {
-                if ((int) $existing->degree_conferral_id !== (int) $locked->id) {
-                    throw ValidationException::withMessages(['request' => 'That external request reference belongs to another transcript request.']);
+                $sameRequest = (int) $existing->degree_conferral_id === (int) $locked->id
+                    && (string) $existing->getRawOriginal('requested_on') === $date->toDateString()
+                    && $existing->signatory_name === trim($signatoryName)
+                    && $existing->signatory_title === trim($signatoryTitle)
+                    && $existing->seal_input_type === $sealInputType
+                    && $existing->seal_path === $sealPath
+                    && $existing->seal_checksum === $sealChecksum
+                    && $existing->seal_placement_instruction === $sealPlacementInstruction;
+                if (! $sameRequest) {
+                    throw ValidationException::withMessages(['request' => 'That external request reference already identifies a different TOR request.']);
                 }
 
                 return $existing;
@@ -50,10 +61,11 @@ class RecordTranscriptRequest
             if ($locked->active_scope_key === null) {
                 throw ValidationException::withMessages(['request' => 'A new TOR request requires the current conferral record.']);
             }
-            $date = $requestedOn instanceof CarbonInterface
-                ? CarbonImmutable::instance($requestedOn)
-                : CarbonImmutable::parse($requestedOn, config('app.timezone'));
-            $previous = TranscriptRequest::query()->where('student_profile_id', $locked->student_profile_id)->latest('version')->first();
+            $previous = TranscriptRequest::query()
+                ->where('student_profile_id', $locked->student_profile_id)
+                ->latest('version')
+                ->lockForUpdate()
+                ->first();
             $source = [
                 'degree_conferral_id' => $locked->id,
                 'conferral_fingerprint' => $locked->source_fingerprint,

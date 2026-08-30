@@ -2,7 +2,6 @@
 
 namespace App\Actions\Completion;
 
-use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Models\DegreeConferral;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
@@ -17,7 +16,6 @@ class CorrectDegreeConferral
 {
     public function __construct(
         private readonly SupersedeTranscriptSnapshots $transcriptSupersession,
-        private readonly AcademicRecordNotificationService $notifications,
     ) {}
 
     public function execute(
@@ -82,7 +80,7 @@ class CorrectDegreeConferral
                 'recorded_by' => $actor->id,
                 'recorded_at' => now(),
             ]);
-            $change = StudentLifecycleChange::query()->create([
+            StudentLifecycleChange::query()->create([
                 'student_profile_id' => $student->id,
                 'term_id' => $locked->application->term_id,
                 'type' => StudentLifecycleChange::TypeCompletion,
@@ -100,7 +98,6 @@ class CorrectDegreeConferral
                 'state' => StudentLifecycleChange::StateApplied,
             ]);
             $this->transcriptSupersession->execute($student, $actor, $authorityReference, $reason);
-            $this->notifications->recordLifecycleAfterCommit($change);
 
             return $successor;
         }, attempts: 3);

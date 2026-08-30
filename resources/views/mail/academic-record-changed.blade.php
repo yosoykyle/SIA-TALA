@@ -1,9 +1,9 @@
 <x-mail::message>
-# Academic record updated
+# {{ $changeLabel }}
 
 Hello {{ $recipientName }},
 
-{{ $changeLabel }} is now available in your authenticated TALA Student Academics page.
+Current details and the safe next action are available in your authenticated TALA Student Academics page.
 
 For privacy, this email does not include grade values or attachments.
 
