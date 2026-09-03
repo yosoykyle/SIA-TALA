@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          colors="true"
 >
     <testsuites>
@@ -19,6 +19,8 @@
     </source>
     <php>
         <ini name="memory_limit" value="1024M"/>
+        <env name="APP_BASE_PATH" value="c:\C SCHOOL\1st_SEM_Resources\Fundamentals_of_Research\GROUP\ACTIVITIES\SIA-TALA-slice-7" force="true"/>
+        <server name="APP_BASE_PATH" value="c:\C SCHOOL\1st_SEM_Resources\Fundamentals_of_Research\GROUP\ACTIVITIES\SIA-TALA-slice-7" force="true"/>
         <env name="APP_ENV" value="testing" force="true"/>
         <server name="APP_ENV" value="testing" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>

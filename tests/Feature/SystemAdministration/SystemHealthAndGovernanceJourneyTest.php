@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\SystemAdministration;
 
+use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Actions\SystemAdministration\OperationalEvidenceRecorder;
 use App\Actions\SystemAdministration\SystemHealthPresenter;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
@@ -101,7 +103,7 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
             SystemHealthPresenter::Unknown,
         ])->values()->all());
         $this->assertSame(
-            ['Unknown'],
+            [SystemHealthPresenter::NotRecentlyChecked],
             $rows->only(['primary-host-backups', 'provider-dashboards', 'independent-provider', 'physical-custody'])->pluck('status')->unique()->values()->all(),
         );
         $this->assertTrue($rows->every(fn (array $row): bool => filled($row['evidence']) && filled($row['as_of']) && filled($row['next_action'])));
@@ -441,6 +443,42 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     }
 
     #[Test]
+    public function output_access_evidence_with_lowercase_generated_status_normalizes_to_recorded(): void
+    {
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $log = OutputAccessLog::query()->create([
+            'output_type' => 'certificate_of_registration',
+            'source_record_type' => 'registration_case',
+            'source_record_id' => 1,
+            'actor_user_id' => $admin->getKey(),
+            'actor_role' => User::StaffRoleSystemSuperAdmin,
+            'action' => 'PRINT',
+            'request_context' => ['channel' => 'web'],
+            'stored_file_reference' => 'cor_001.pdf',
+            'status' => 'generated',
+            'occurred_at' => now(),
+        ]);
+
+        $projection = app(GovernanceEvidenceProjection::class);
+        $paginated = $projection->paginate(GovernanceEvidenceProjection::OutputAccess, 1, 25, null, []);
+        $items = collect($paginated->items());
+
+        $logItem = $items->firstWhere('reference_id', 'output:'.$log->getKey());
+        $this->assertNotNull($logItem);
+        $this->assertSame('Recorded', $logItem['status']);
+        $this->assertNotSame('Attention', $logItem['status']);
+        $this->assertSame('Certificate Of Registration', $logItem['type']);
+
+        $this->actingAs($admin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(GovernanceAudit::class)
+            ->call('setActiveTab', GovernanceEvidenceProjection::OutputAccess)
+            ->assertSee('Certificate Of Registration')
+            ->assertSee('Recorded');
+    }
+
+    #[Test]
     public function governance_projection_filters_and_orders_direct_evidence_deterministically(): void
     {
         $first = $this->staff(User::StaffRoleSystemSuperAdmin);
@@ -588,6 +626,44 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         ] as $privateValue) {
             $this->assertStringNotContainsString($privateValue, $html);
         }
+    }
+
+    #[Test]
+    public function governance_tab_navigation_has_accessible_wai_aria_attributes(): void
+    {
+        $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $html = Livewire::test(GovernanceAudit::class)->html();
+
+        $this->assertStringContainsString('role="tablist"', $html);
+        $this->assertStringContainsString('aria-label="Governance evidence views"', $html);
+        $this->assertStringContainsString('role="tab"', $html);
+        $this->assertStringContainsString('aria-controls="tabpanel-governance"', $html);
+        $this->assertStringContainsString('aria-selected="true"', $html);
+        $this->assertStringContainsString('role="tabpanel"', $html);
+        $this->assertStringContainsString('id="tabpanel-governance"', $html);
+    }
+
+    #[Test]
+    public function governance_privacy_tab_contains_canonical_disposal_notice(): void
+    {
+        $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(GovernanceAudit::class)
+            ->call('setActiveTab', GovernanceEvidenceProjection::PrivacyRetention)
+            ->assertSee("Automatic record disposal is not available in TALA. Follow the institution's approved privacy and records procedure.", escape: false);
+    }
+
+    #[Test]
+    public function billing_slip_artifacts_and_routes_are_completely_retired(): void
+    {
+        $this->assertFalse(Route::has('finance.billing-slip'));
+        $this->assertFalse(file_exists(app_path('Http/Controllers/BillingSlipController.php')));
+        $this->assertFalse(file_exists(resource_path('views/finance/billing-slip.blade.php')));
+        $this->assertFalse(view()->exists('finance.billing-slip'));
+        $this->assertFalse(method_exists(FinanceEvidenceService::class, 'billingSlip'));
     }
 
     private function staff(string $role): User

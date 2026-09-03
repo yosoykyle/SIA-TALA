@@ -1,0 +1,10 @@
+{
+    "out001": "/outputs/applications/1/acknowledgment/1",
+    "out002": "/outputs/schedules/timetable/1",
+    "out003": "/outputs/cor/1",
+    "out004": "/outputs/academics/unofficial-record/1",
+    "out005": "/outputs/academics/transcript/1",
+    "out006": "/outputs/finance/statement/1",
+    "out007": "/outputs/finance/payment-acknowledgement/1?print=1",
+    "classRoster": "/outputs/grade-rosters/1/print"
+}

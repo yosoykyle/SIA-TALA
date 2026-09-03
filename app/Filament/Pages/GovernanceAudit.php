@@ -5,7 +5,9 @@ namespace App\Filament\Pages;
 use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Models\User;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -14,6 +16,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use Livewire\Attributes\Url;
 use UnitEnum;
 
@@ -65,11 +68,21 @@ class GovernanceAudit extends Page implements HasTable
 
     public function setActiveTab(string $tab): void
     {
+        abort_unless(static::canAccess(), 403);
         abort_unless(array_key_exists($tab, GovernanceEvidenceProjection::tabs()), 404);
 
         $this->activeTab = $tab;
         $this->tableFilters = [];
         $this->resetTable();
+    }
+
+    public function getTableRecordKey(Model|array $record): string
+    {
+        if (is_array($record)) {
+            return (string) ($record['reference_id'] ?? $record['key'] ?? '');
+        }
+
+        return (string) $record->getKey();
     }
 
     public function table(Table $table): Table
@@ -97,10 +110,33 @@ class GovernanceAudit extends Page implements HasTable
                     ->wrap(),
                 TextColumn::make('status')
                     ->badge()
-                    ->color(fn (string $state): string => $state === 'Attention' ? 'warning' : 'gray'),
+                    ->color(fn (string $state): string => match ($state) {
+                        'Recorded' => 'success',
+                        'Pending' => 'info',
+                        'Attention', 'Needs attention' => 'warning',
+                        'No artifact' => 'gray',
+                        default => 'gray',
+                    }),
                 TextColumn::make('summary')
                     ->label('Allowlisted detail')
                     ->wrap(),
+            ])
+            ->recordActions([
+                Action::make('viewDetails')
+                    ->label('View detail')
+                    ->icon(Heroicon::OutlinedEye)
+                    ->slideOver()
+                    ->modalHeading(fn (array $record): string => "Evidence Detail: {$record['reference_id']}")
+                    ->modalDescription('Safe allowlisted governance projection. Sensitive credentials and raw payloads are withheld.')
+                    ->infolist(fn (array $record): array => [
+                        TextEntry::make('reference_id')->label('Reference ID'),
+                        TextEntry::make('occurred_at')->label('Date and time'),
+                        TextEntry::make('actor')->label('Actor'),
+                        TextEntry::make('type')->label('Event type'),
+                        TextEntry::make('source')->label('Evidence source'),
+                        TextEntry::make('status')->label('Status / Outcome'),
+                        TextEntry::make('summary')->label('Summary'),
+                    ]),
             ])
             ->filters([
                 SelectFilter::make('actor')

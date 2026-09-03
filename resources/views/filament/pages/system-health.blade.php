@@ -14,10 +14,10 @@
             </div>
         @endif
 
-        <x-filament::section>
-            <x-slot name="heading">Evidence boundary</x-slot>
+        <x-filament::section collapsible collapsed>
+            <x-slot name="heading">Evidence boundary and technical targets</x-slot>
             <x-slot name="description">
-                System Health reports bounded local evidence. External provider, custody, SLA, backup, and recovery facts remain Unknown until separately verified.
+                System Health reports bounded local evidence. External provider, custody, SLA, backup, and recovery facts remain Not recently checked until separately verified.
             </x-slot>
 
             <dl class="grid gap-4 text-sm sm:grid-cols-2">

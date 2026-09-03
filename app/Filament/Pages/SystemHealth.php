@@ -80,15 +80,21 @@ class SystemHealth extends Page implements HasTable
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         SystemHealthPresenter::Available => 'success',
-                        SystemHealthPresenter::Attention => 'warning',
+                        SystemHealthPresenter::NeedsAttention => 'warning',
                         SystemHealthPresenter::Unavailable => 'danger',
                         default => 'gray',
                     }),
                 TextColumn::make('evidence')
                     ->label('Safe local evidence')
                     ->wrap(),
+                TextColumn::make('evidence_source')
+                    ->label('Evidence source')
+                    ->wrap(),
                 TextColumn::make('as_of')
                     ->label('As of')
+                    ->wrap(),
+                TextColumn::make('responsible_owner')
+                    ->label('Responsible owner')
                     ->wrap(),
                 TextColumn::make('next_action')
                     ->label('Safe next action')
@@ -122,6 +128,8 @@ class SystemHealth extends Page implements HasTable
 
     private function refreshLocalEvidence(): void
     {
+        abort_unless(static::canAccess(), 403);
+
         try {
             $this->capture = $this->health()->capture();
             $this->captureStale = false;
@@ -136,6 +144,8 @@ class SystemHealth extends Page implements HasTable
 
     private function sendTestEmail(): void
     {
+        abort_unless(static::canAccess(), 403);
+
         $actor = $this->actor();
         $key = 'tala:system-health:mail-self-test:'.$actor->getKey();
 

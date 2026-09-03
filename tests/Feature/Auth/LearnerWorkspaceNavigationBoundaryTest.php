@@ -29,6 +29,13 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         }
     }
 
+    protected function tearDown(): void
+    {
+        Filament::setCurrentPanel(null);
+
+        parent::tearDown();
+    }
+
     public function test_applicant_workspace_navigation_contains_only_applicant_surfaces(): void
     {
         $applicant = $this->userWithRole('applicant', User::StatusActive);
