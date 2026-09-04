@@ -2,20 +2,20 @@
 
 This is the non-authoritative operator companion to the [TALA Orchestrator Protocol](TALA-Orchestrator-Protocol.md). Use it to choose the next action and copy a prompt. The protocol governs any conflict.
 
-## Choose the mode
+## Choose the boundary
 
-Codex Plan mode is an application mode. `Plan #NN` is a TALA workflow command; one does not activate the other.
+The workflow operates across three explicit permission boundaries: `READ_ONLY`, `LOCAL_EXECUTION`, and `COMPLETION_AND_PUBLISH`.
 
-| Action | Codex mode | Effect |
+| Action | Permission boundary | Effect |
 | --- | --- | --- |
-| Draft a coordination map or Issue | Plan mode | Read-only draft |
-| `Plan #NN` | Plan mode | Read-only implementation plan |
-| Re-anchor | Current mode | Read-only reconstruction, then resume the existing boundary |
-| Create or update an approved Issue | Default mode | Explicit GitHub write only |
-| `Complete #NN` | Default mode | Implement, verify, and create one local commit |
-| `Publish #NN` | Default mode | Push approved solo work or open a PR |
-| Final integrated audit | Plan mode | Read-only cycle audit |
-| Merge a PR or close coordination | Default mode | Separate explicit authorization |
+| Draft a coordination map or Issue | `READ_ONLY` | Read-only draft |
+| `Plan #NN` | `READ_ONLY` | Read-only implementation plan |
+| Re-anchor | Current boundary | Read-only reconstruction, then resume the existing boundary |
+| Create or update an approved Issue | `LOCAL_EXECUTION` / External write | Explicit GitHub write only |
+| `Complete #NN` | `LOCAL_EXECUTION` $\rightarrow$ Complete | Implement, verify, and create one local commit |
+| `Publish #NN` | `COMPLETION_AND_PUBLISH` | Push approved solo work or open a PR |
+| Final integrated audit | `READ_ONLY` | Read-only cycle audit |
+| Merge a PR or close coordination | Explicit authorization | Separate explicit authorization |
 
 ## One-screen route
 
@@ -40,7 +40,7 @@ Final integrated audit -> remediate gaps or authorize coordination closure
 
 Use one coordination Issue for the complete approved implementation cycle. It is the delivery map, not permission to code.
 
-In Plan mode:
+Under a READ_ONLY boundary:
 
 ```text
 Draft the TALA coordination map for the current approved implementation cycle.
@@ -53,7 +53,7 @@ final-audit conditions, and first recommended slice.
 Read-only. Do not create or modify anything.
 ```
 
-After accepting the draft, switch to Default mode:
+After accepting the draft, authorize Issue creation:
 
 ```text
 Create the approved coordination-only GitHub Issue exactly from the accepted
@@ -67,7 +67,7 @@ Keep that map until its cycle passes the final audit and is separately closed. C
 
 ### 1. Derive
 
-In Plan mode:
+Under a READ_ONLY boundary:
 
 ```text
 Derive the next eligible journey-complete implementation Issue from the
@@ -90,7 +90,7 @@ Derivation chooses **what work is next**. It does not decide the implementation.
 
 ### 2. Create
 
-After accepting the draft, switch to Default mode:
+After accepting the draft, authorize Issue creation:
 
 ```text
 Create the approved tracked Issue exactly from the accepted draft.
@@ -113,7 +113,7 @@ Project automation adds an open `implementation` Issue as `Todo`.
 Plan #NN
 ```
 
-Use Plan mode. The plan decides **how the accepted Issue will be implemented**. It reads authority, live implementation, and qualified sources when needed, challenges material choices and alternatives, and makes no edits or external writes.
+Operate under a READ_ONLY boundary. The plan decides **how the accepted Issue will be implemented**. It reads authority, live implementation, and qualified sources when needed, challenges material choices and alternatives, and makes no edits or external writes.
 
 For architecture, security, migrations, integrations, parallel seams, hard-to-reverse choices, or weak evidence, optionally request a second read-only review:
 
@@ -132,7 +132,7 @@ Before accepting a draft or plan, confirm that you understand what will be built
 
 ### 4. Complete
 
-After accepting the plan, exit Plan mode:
+After accepting the plan, authorize execution:
 
 ```text
 Complete #NN
@@ -196,7 +196,7 @@ Read-only. Do not create Issues, branches, Project changes, or other writes.
 
 When planner and implementer differ, put the accepted plan or concise execution handoff in or durably link it from the owning Issue. Include only material task-specific environment, skill, or tool prerequisites; generic project guidance stays in `AGENTS.md` and `CONTRIBUTING.md`.
 
-A fresh Codex task is recommended when the owner or Issue changes, but it is optional. Whether the task is new or existing, anchor it to one assigned Issue. The Issue branch, isolated workspace/database, and PR provide parallel isolation. In the assigned developer's Codex task, use Default mode:
+A fresh agent session is recommended when the owner or Issue changes, but it is optional. Whether the task is new or existing, anchor it to one assigned Issue. The Issue branch, isolated workspace/database, and PR provide parallel isolation. In the assigned developer's session:
 
 ```text
 Complete #NN as the assigned implementation owner.
@@ -231,7 +231,7 @@ State the target and external effect plainly. Never infer permission to commit, 
 
 ## Compaction and re-anchoring
 
-The protocol requires re-anchoring after compaction or resumption; it is not a guaranteed Codex product hook. Stay in the current mode, reconstruct the last proven checkpoint from recent original messages and durable live evidence, then continue only within the existing permission boundary.
+The protocol requires re-anchoring after compaction or resumption; it is an agent operational rule across all environments. Reconstruct the last proven checkpoint from recent original messages and durable live evidence, then continue only within the existing permission boundary.
 
 Use this fallback when the agent appears confused:
 
@@ -256,15 +256,15 @@ Compaction never expands authority.
 | Status | Meaning | Set by |
 | --- | --- | --- |
 | `Todo` | Approved implementation Issue exists but is inactive | GitHub automation |
-| `In Progress` | Implementation, open-PR review, or coordination is active | Codex or authorized coordination setup |
+| `In Progress` | Implementation, open-PR review, or coordination is active | The agent or authorized coordination setup |
 | `Done` | Work completed its approved publication or merge path | GitHub automation after closure or linked merge |
-| `Canceled` | Work intentionally stopped or superseded with a recorded reason | Codex after explicit authorization |
+| `Canceled` | Work intentionally stopped or superseded with a recorded reason | The agent after explicit authorization |
 
 Do not create another Project status or a local shadow queue.
 
 ## Finish the coordination cycle
 
-When all accepted journeys appear covered, use Plan mode:
+When all accepted journeys appear covered, operate under a READ_ONLY boundary:
 
 ```text
 Perform the final integrated acceptance audit for coordination Issue #NN.
