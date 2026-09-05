@@ -1,10 +1,17 @@
 <?php
 
+use Illuminate\Contracts\Console\Kernel;
+
 if (! defined('LARAVEL_START')) {
     define('LARAVEL_START', microtime(true));
     require_once __DIR__.'/../../vendor/autoload.php';
     $app = require_once __DIR__.'/../../bootstrap/app.php';
     $app->make(Kernel::class)->bootstrap();
+}
+
+$targetDb = (string) config('database.connections.'.config('database.default').'.database');
+if (! str_contains($targetDb, 'test') && app()->environment() !== 'testing' && env('ALLOW_BROWSER_SEED') !== 'true') {
+    throw new RuntimeException("Refusing to seed fixtures into non-testing database: {$targetDb}");
 }
 
 use App\Models\AdmissionApplication;
@@ -38,12 +45,15 @@ use App\Models\TermAccount;
 use App\Models\TermOffering;
 use App\Models\TranscriptRequest;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Fortify\Fortify;
 use Spatie\Permission\Models\Role;
 
 echo "Seeding browser qualification data...\n";
+
+(new DatabaseSeeder)->run();
 
 // 1. Roles & Users
 $roleUsers = [
@@ -226,6 +236,8 @@ if ($reqSet->state !== AdmissionRequirementSet::StatePublished) {
         ['admission_requirement_set_id' => $reqSet->id, 'label' => 'Form 138 (Report Card)'],
         [
             'code' => 'FORM-138',
+            'authority_reference' => 'REG-REQ-2026',
+            'purpose' => 'Academic eligibility verification.',
             'due_stage' => 'submission',
             'official_submission_method' => 'physical_copy',
             'applicant_instructions' => 'Submit original report card.',
@@ -423,7 +435,6 @@ if (! $section) {
 
 use App\Models\PublishedTimetableMeeting;
 use App\Models\Room;
-use Illuminate\Contracts\Console\Kernel;
 
 $room = Room::firstOrCreate(
     ['code' => 'RM-101'],

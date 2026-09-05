@@ -1,6 +1,16 @@
-const { chromium } = require('C:/Users/HUAWEI/AppData/Roaming/npm/node_modules/@playwright/mcp/node_modules/playwright');
+let chromium;
+try {
+    chromium = require('playwright').chromium;
+} catch {
+    try {
+        chromium = require('C:/Users/HUAWEI/AppData/Roaming/npm/node_modules/@playwright/mcp/node_modules/playwright').chromium;
+    } catch {
+        chromium = require('@playwright/test').chromium;
+    }
+}
 const { execSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:8008';
 const CHROME_PATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
@@ -37,10 +47,11 @@ const results = {
 };
 
 (async () => {
-    const browser = await chromium.launch({
-        headless: true,
-        executablePath: CHROME_PATH
-    });
+    const launchOptions = { headless: true };
+    if (process.env.CHROME_PATH || fs.existsSync(CHROME_PATH)) {
+        launchOptions.executablePath = process.env.CHROME_PATH || CHROME_PATH;
+    }
+    const browser = await chromium.launch(launchOptions);
 
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -57,7 +68,7 @@ const results = {
         console.log('1. Testing SYS-003: System Health');
         console.log('========================================');
         await page.goto(`${BASE_URL}/admin/system-health`, { waitUntil: 'networkidle' });
-        
+
         // A. Badges check
         const badgeTexts = await page.$$eval('.fi-badge', els => els.map(e => e.textContent.trim()));
         const uniqueBadges = [...new Set(badgeTexts)];

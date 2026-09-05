@@ -2,36 +2,43 @@
     <div
         class="space-y-6"
         x-data="{
-            active: @js($activeTab),
+            selected: @js($activeTab),
+            focused: @js($activeTab),
             tabs: @js(array_keys($this->tabs)),
             focusNext(current) {
                 let index = this.tabs.indexOf(current);
                 let next = this.tabs[(index + 1) % this.tabs.length];
-                this.select(next, false);
+                this.focusTab(next);
             },
             focusPrev(current) {
                 let index = this.tabs.indexOf(current);
                 let prev = this.tabs[(index - 1 + this.tabs.length) % this.tabs.length];
-                this.select(prev, false);
+                this.focusTab(prev);
             },
             focusFirst() {
-                this.select(this.tabs[0], false);
+                this.focusTab(this.tabs[0]);
             },
             focusLast() {
-                this.select(this.tabs[this.tabs.length - 1], false);
+                this.focusTab(this.tabs[this.tabs.length - 1]);
             },
-            select(key, triggerLivewire = false) {
-                this.active = key;
-                if (triggerLivewire) {
-                    $wire.call('setActiveTab', key);
-                }
+            focusTab(key) {
+                this.focused = key;
+                this.$nextTick(() => {
+                    let el = document.getElementById('tab-' + key);
+                    if (el) el.focus();
+                });
+            },
+            selectTab(key) {
+                this.focused = key;
+                this.selected = key;
+                $wire.call('setActiveTab', key);
                 this.$nextTick(() => {
                     let el = document.getElementById('tab-' + key);
                     if (el) el.focus();
                 });
             }
         }"
-        x-init="$watch('$wire.activeTab', value => { if (value) active = value; })"
+        x-init="$watch('$wire.activeTab', value => { if (value) { selected = value; focused = value; } })"
     >
         <div
             class="flex gap-2 overflow-x-auto rounded-xl border border-gray-200 bg-white p-2 dark:border-white/10 dark:bg-gray-900"
@@ -44,18 +51,18 @@
                     id="tab-{{ $key }}"
                     role="tab"
                     aria-controls="tabpanel-governance"
-                    :aria-selected="active === '{{ $key }}' ? 'true' : 'false'"
+                    :aria-selected="selected === '{{ $key }}' ? 'true' : 'false'"
                     aria-selected="{{ $activeTab === $key ? 'true' : 'false' }}"
-                    :tabindex="active === '{{ $key }}' ? '0' : '-1'"
+                    :tabindex="focused === '{{ $key }}' ? '0' : '-1'"
                     tabindex="{{ $activeTab === $key ? '0' : '-1' }}"
-                    @click="select('{{ $key }}', true)"
-                    @keydown.enter.prevent="select('{{ $key }}', true)"
-                    @keydown.space.prevent="select('{{ $key }}', true)"
+                    @click="selectTab('{{ $key }}')"
+                    @keydown.enter.prevent="selectTab('{{ $key }}')"
+                    @keydown.space.prevent="selectTab('{{ $key }}')"
                     @keydown.arrow-right.prevent="focusNext('{{ $key }}')"
                     @keydown.arrow-left.prevent="focusPrev('{{ $key }}')"
                     @keydown.home.prevent="focusFirst()"
                     @keydown.end.prevent="focusLast()"
-                    :class="active === '{{ $key }}' ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5'"
+                    :class="selected === '{{ $key }}' ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5'"
                     class="min-h-11 shrink-0 rounded-lg px-4 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
                 >
                     {{ $label }}
@@ -66,7 +73,7 @@
         <div
             id="tabpanel-governance"
             role="tabpanel"
-            :aria-labelledby="'tab-' + active"
+            :aria-labelledby="'tab-' + selected"
             aria-labelledby="tab-{{ $activeTab }}"
             tabindex="0"
             class="focus:outline-none"

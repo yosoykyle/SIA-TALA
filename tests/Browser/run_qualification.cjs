@@ -1,4 +1,13 @@
-const { chromium } = require('C:/Users/HUAWEI/AppData/Roaming/npm/node_modules/@playwright/mcp/node_modules/playwright');
+let chromium;
+try {
+    chromium = require('playwright').chromium;
+} catch {
+    try {
+        chromium = require('C:/Users/HUAWEI/AppData/Roaming/npm/node_modules/@playwright/mcp/node_modules/playwright').chromium;
+    } catch {
+        chromium = require('@playwright/test').chromium;
+    }
+}
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -38,10 +47,11 @@ async function loginAsAdmin(page) {
 }
 
 (async () => {
-    const browser = await chromium.launch({
-        headless: true,
-        executablePath: CHROME_PATH
-    });
+    const launchOptions = { headless: true };
+    if (process.env.CHROME_PATH || fs.existsSync(CHROME_PATH)) {
+        launchOptions.executablePath = process.env.CHROME_PATH || CHROME_PATH;
+    }
+    const browser = await chromium.launch(launchOptions);
 
     try {
         const context = await browser.newContext();
@@ -53,7 +63,7 @@ async function loginAsAdmin(page) {
         console.log('\n--- Testing SYS-003: System Health ---');
         await page.goto(`${BASE_URL}/admin/system-health`, { waitUntil: 'networkidle' });
         console.log('System Health URL:', page.url());
-        
+
         // Assert title
         const healthTitle = await page.title();
         console.log('Page Title:', healthTitle);

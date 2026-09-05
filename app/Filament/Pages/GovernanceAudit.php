@@ -132,6 +132,8 @@ class GovernanceAudit extends Page implements HasTable
                         TextEntry::make('reference_id')->label('Reference ID'),
                         TextEntry::make('occurred_at')->label('Date and time'),
                         TextEntry::make('actor')->label('Actor'),
+                        TextEntry::make('actor_role')->label('Actor role'),
+                        TextEntry::make('affected_record')->label('Affected record'),
                         TextEntry::make('type')->label('Event type'),
                         TextEntry::make('source')->label('Evidence source'),
                         TextEntry::make('status')->label('Status / Outcome'),

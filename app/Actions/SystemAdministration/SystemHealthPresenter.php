@@ -200,7 +200,11 @@ class SystemHealthPresenter
             return $this->row('solver', 'Scheduling solver', self::NeedsAttention, 'The latest schedule run failed or requires Registrar review.', $evidenceSource, $latest->updated_at, $responsibleOwner, 'Open Term Planning and follow the recorded recovery path.', $technicalDetails);
         }
 
-        if ($latest instanceof ScheduleGenerationRun) {
+        if (in_array($latest?->status, [ScheduleGenerationRun::StatusQueued, ScheduleGenerationRun::StatusDispatching], true)) {
+            return $this->row('solver', 'Scheduling solver', self::NeedsAttention, 'A schedule generation run is queued or dispatching; solver output is not yet accepted.', $evidenceSource, $latest->updated_at, $responsibleOwner, 'Monitor the schedule generation run in Term Planning until completion.', $technicalDetails);
+        }
+
+        if (in_array($latest?->status, [ScheduleGenerationRun::StatusUnderReview, ScheduleGenerationRun::StatusPublished, ScheduleGenerationRun::StatusSuperseded], true)) {
             return $this->row('solver', 'Scheduling solver', self::Available, 'The latest Laravel-accepted solver result is recorded.', $evidenceSource, $latest->updated_at, $responsibleOwner, 'No action is required; Cloud provider status remains separately unknown.', $technicalDetails);
         }
 
