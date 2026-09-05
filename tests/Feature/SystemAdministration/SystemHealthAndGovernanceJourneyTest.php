@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\SystemAdministration;
 
+use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Actions\SystemAdministration\OperationalEvidenceRecorder;
 use App\Actions\SystemAdministration\SystemHealthPresenter;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
@@ -101,7 +103,7 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
             SystemHealthPresenter::Unknown,
         ])->values()->all());
         $this->assertSame(
-            ['Unknown'],
+            [SystemHealthPresenter::NotRecentlyChecked],
             $rows->only(['primary-host-backups', 'provider-dashboards', 'independent-provider', 'physical-custody'])->pluck('status')->unique()->values()->all(),
         );
         $this->assertTrue($rows->every(fn (array $row): bool => filled($row['evidence']) && filled($row['as_of']) && filled($row['next_action'])));
@@ -277,6 +279,7 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     #[Test]
     public function backup_health_distinguishes_missing_current_overdue_and_failed_evidence(): void
     {
+        OperationalEvent::query()->where('integration', OperationalEvent::IntegrationBackup)->delete();
         Config::set('tala_operations.backup_overdue_after_hours');
         $presenter = app(SystemHealthPresenter::class);
 
@@ -441,6 +444,42 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     }
 
     #[Test]
+    public function output_access_evidence_with_lowercase_generated_status_normalizes_to_recorded(): void
+    {
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $log = OutputAccessLog::query()->create([
+            'output_type' => 'certificate_of_registration',
+            'source_record_type' => 'registration_case',
+            'source_record_id' => 1,
+            'actor_user_id' => $admin->getKey(),
+            'actor_role' => User::StaffRoleSystemSuperAdmin,
+            'action' => 'PRINT',
+            'request_context' => ['channel' => 'web'],
+            'stored_file_reference' => 'cor_001.pdf',
+            'status' => 'generated',
+            'occurred_at' => now(),
+        ]);
+
+        $projection = app(GovernanceEvidenceProjection::class);
+        $paginated = $projection->paginate(GovernanceEvidenceProjection::OutputAccess, 1, 25, null, []);
+        $items = collect($paginated->items());
+
+        $logItem = $items->firstWhere('reference_id', 'output:'.$log->getKey());
+        $this->assertNotNull($logItem);
+        $this->assertSame('Recorded', $logItem['status']);
+        $this->assertNotSame('Attention', $logItem['status']);
+        $this->assertSame('Certificate Of Registration', $logItem['type']);
+
+        $this->actingAs($admin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(GovernanceAudit::class)
+            ->call('setActiveTab', GovernanceEvidenceProjection::OutputAccess)
+            ->assertSee('Certificate Of Registration')
+            ->assertSee('Recorded');
+    }
+
+    #[Test]
     public function governance_projection_filters_and_orders_direct_evidence_deterministically(): void
     {
         $first = $this->staff(User::StaffRoleSystemSuperAdmin);
@@ -494,6 +533,62 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         $this->assertCount(1, $filteredItems);
         $this->assertSame($first->getKey(), $filteredItems[0]['actor_id']);
         $this->assertSame('Created', $filteredItems[0]['type']);
+    }
+
+    #[Test]
+    public function explicit_allowlist_excludes_unknown_operational_and_activity_events(): void
+    {
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+
+        // Unknown activity and operational events
+        DB::table('activity_log')->insert([
+            'log_name' => 'default',
+            'description' => 'unknown activity',
+            'event' => 'uncataloged_custom_activity',
+            'causer_type' => User::class,
+            'causer_id' => $admin->getKey(),
+            'properties' => '{}',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $unknownOperational = OperationalEvent::factory()->create([
+            'event_domain' => OperationalEvent::DomainOperations,
+            'event_type' => 'uncataloged_operational_event',
+            'user_id' => $admin->getKey(),
+            'occurred_at' => now(),
+        ]);
+
+        // Known allowlisted operational events
+        $knownMailSelfTest = OperationalEvent::factory()->create([
+            'event_domain' => OperationalEvent::DomainNotifications,
+            'event_type' => 'mail_self_test_accepted',
+            'user_id' => $admin->getKey(),
+            'occurred_at' => now(),
+        ]);
+
+        $knownBackup = OperationalEvent::factory()->create([
+            'event_domain' => OperationalEvent::DomainOperations,
+            'event_type' => 'backup_completed',
+            'user_id' => $admin->getKey(),
+            'occurred_at' => now(),
+        ]);
+
+        $projection = app(GovernanceEvidenceProjection::class);
+
+        // Verify Institutional Changes excludes unknown activity
+        $institutionalPage = $projection->paginate(GovernanceEvidenceProjection::InstitutionalChanges, 1, 50, null, []);
+        $institutionalTypes = collect($institutionalPage->items())->pluck('type')->all();
+        $this->assertNotContains('Uncataloged Custom Activity', $institutionalTypes);
+
+        // Verify System Events excludes unknown operational events
+        $systemEventsPage = $projection->paginate(GovernanceEvidenceProjection::SystemEvents, 1, 50, null, []);
+        $systemEventReferences = collect($systemEventsPage->items())->pluck('reference_id')->all();
+        $this->assertNotContains('operational:'.$unknownOperational->getKey(), $systemEventReferences);
+
+        // Verify System Events includes known operational events
+        $this->assertContains('operational:'.$knownMailSelfTest->getKey(), $systemEventReferences);
+        $this->assertContains('operational:'.$knownBackup->getKey(), $systemEventReferences);
     }
 
     #[Test]
@@ -588,6 +683,44 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         ] as $privateValue) {
             $this->assertStringNotContainsString($privateValue, $html);
         }
+    }
+
+    #[Test]
+    public function governance_tab_navigation_has_accessible_wai_aria_attributes(): void
+    {
+        $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $html = Livewire::test(GovernanceAudit::class)->html();
+
+        $this->assertStringContainsString('role="tablist"', $html);
+        $this->assertStringContainsString('aria-label="Governance evidence views"', $html);
+        $this->assertStringContainsString('role="tab"', $html);
+        $this->assertStringContainsString('aria-controls="tabpanel-governance"', $html);
+        $this->assertStringContainsString('aria-selected="true"', $html);
+        $this->assertStringContainsString('role="tabpanel"', $html);
+        $this->assertStringContainsString('id="tabpanel-governance"', $html);
+    }
+
+    #[Test]
+    public function governance_privacy_tab_contains_canonical_disposal_notice(): void
+    {
+        $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(GovernanceAudit::class)
+            ->call('setActiveTab', GovernanceEvidenceProjection::PrivacyRetention)
+            ->assertSee("Automatic record disposal is not available in TALA. Follow the institution's approved privacy and records procedure.", escape: false);
+    }
+
+    #[Test]
+    public function billing_slip_artifacts_and_routes_are_completely_retired(): void
+    {
+        $this->assertFalse(Route::has('finance.billing-slip'));
+        $this->assertFalse(file_exists(app_path('Http/Controllers/BillingSlipController.php')));
+        $this->assertFalse(file_exists(resource_path('views/finance/billing-slip.blade.php')));
+        $this->assertFalse(view()->exists('finance.billing-slip'));
+        $this->assertFalse(method_exists(FinanceEvidenceService::class, 'billingSlip'));
     }
 
     private function staff(string $role): User

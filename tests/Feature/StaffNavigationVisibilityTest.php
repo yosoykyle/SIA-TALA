@@ -20,6 +20,7 @@ class StaffNavigationVisibilityTest extends TestCase
     {
         parent::setUp();
 
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
         $this->seed(DatabaseSeeder::class);
 
         foreach (User::staffRoleNames() as $role) {

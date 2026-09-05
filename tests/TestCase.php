@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use LogicException;
@@ -10,7 +11,9 @@ abstract class TestCase extends BaseTestCase
 {
     public function createApplication(): Application
     {
-        $application = parent::createApplication();
+        $application = require __DIR__.'/../bootstrap/app.php';
+
+        $application->make(Kernel::class)->bootstrap();
 
         if ($application->environment() !== 'testing'
             || $application['config']->get('database.default') !== 'mysql'
