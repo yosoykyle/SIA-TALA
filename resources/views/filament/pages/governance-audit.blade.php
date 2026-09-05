@@ -63,7 +63,7 @@
                     @keydown.home.prevent="focusFirst()"
                     @keydown.end.prevent="focusLast()"
                     :class="selected === '{{ $key }}' ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5'"
-                    class="min-h-11 shrink-0 rounded-lg px-4 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+                    class="{{ $activeTab === $key ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5' }} min-h-11 shrink-0 rounded-lg px-4 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
                 >
                     {{ $label }}
                 </button>

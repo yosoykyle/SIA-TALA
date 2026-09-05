@@ -207,12 +207,42 @@ const ledger = {};
         console.log(`[SYS-004] Roving focus: Right->"${activeAfterRight}", End->"${activeAfterEnd}", Home->"${activeAfterHome}" -> ${rovingPassed ? 'PASS' : 'FAIL'}`);
         ledger.sys004_roving_focus = rovingPassed ? 'PASS' : 'FAIL';
 
+        // 2B.1 Physical keyboard Enter / Space tab activation
+        console.log('[SYS-004] Testing physical keyboard Enter and Space tab activation...');
+        await page.keyboard.press('ArrowRight'); // Focuses System Events
+        await page.waitForTimeout(200);
+        await page.keyboard.press('Enter'); // Activates System Events
+        await page.waitForFunction(() => {
+            const btn = document.getElementById('tab-system-events');
+            return btn && btn.getAttribute('aria-selected') === 'true';
+        }, { timeout: 8000 });
+        const systemEventsActive = await page.$eval('#tab-system-events', el => el.getAttribute('aria-selected') === 'true');
+
+        await page.keyboard.press('ArrowRight'); // Focuses Output and Export Access
+        await page.waitForTimeout(200);
+        await page.keyboard.press('Space'); // Activates Output and Export Access
+        await page.waitForFunction(() => {
+            const btn = document.getElementById('tab-output-access');
+            return btn && btn.getAttribute('aria-selected') === 'true';
+        }, { timeout: 8000 });
+        const outputAccessActive = await page.$eval('#tab-output-access', el => el.getAttribute('aria-selected') === 'true');
+        await page.keyboard.press('Home'); // Focuses Institutional Changes
+        await page.waitForTimeout(200);
+        await page.keyboard.press('Enter'); // Re-activates Institutional Changes
+        await page.waitForFunction(() => {
+            const btn = document.getElementById('tab-institutional-changes');
+            return btn && btn.getAttribute('aria-selected') === 'true';
+        }, { timeout: 8000 });
+
+        const keyboardActivationPassed = systemEventsActive && outputAccessActive;
+        console.log(`[SYS-004] Keyboard Enter/Space tab activation: ${keyboardActivationPassed ? 'PASS' : 'FAIL'}`);
+
         // 2C. Slide-Over Detail View & Escape key focus restoration
         console.log('[SYS-004] Testing slide-over detail view and Escape close...');
-        const viewDetailBtn = await page.waitForSelector('button:has-text("View detail")', { state: 'visible', timeout: 5000 });
+        const viewDetailBtn = await page.waitForSelector('button:has-text("View detail")', { state: 'visible', timeout: 8000 });
         await viewDetailBtn.click({ force: true });
 
-        const dialog = await page.waitForSelector('.fi-modal-open', { state: 'attached', timeout: 8000 }).catch(() => null);
+        const dialog = await page.waitForSelector('.fi-modal-open, .fi-modal-window, [role="dialog"]', { state: 'attached', timeout: 8000 }).catch(() => null);
         const hasDialog = !!dialog;
         console.log('[SYS-004] Slide-over modal open (attached):', hasDialog);
 
@@ -221,9 +251,9 @@ const ledger = {};
         console.log('[SYS-004] Modal presents allowlisted safe fields:', hasAllowlistedFields);
 
         await page.keyboard.press('Escape');
-        await page.waitForSelector('.fi-modal-open', { state: 'detached', timeout: 5000 }).catch(() => {});
+        await page.waitForSelector('.fi-modal-open, .fi-modal-window, [role="dialog"]', { state: 'detached', timeout: 5000 }).catch(() => {});
         await page.waitForTimeout(500);
-        const dialogAfterEscape = await page.$('.fi-modal-open');
+        const dialogAfterEscape = await page.$('.fi-modal-open, .fi-modal-window, [role="dialog"]');
         const closedCleanly = !dialogAfterEscape;
         console.log('[SYS-004] Modal closed via Escape key:', closedCleanly);
         ledger.sys004_slide_over = (hasDialog && hasAllowlistedFields && closedCleanly) ? 'PASS' : 'FAIL';
@@ -241,7 +271,7 @@ const ledger = {};
         const tabindex = await page.$eval('#tab-privacy-retention', el => el.getAttribute('tabindex'));
         const labelledBy = await page.$eval('#tabpanel-governance', el => el.getAttribute('aria-labelledby'));
         console.log(`[SYS-004] After click: aria-selected="${isSelected}", tabindex="${tabindex}", labelledBy="${labelledBy}"`);
-        const ariaSyncPassed = (isSelected === 'true' && tabindex === '0' && labelledBy === 'tab-privacy-retention');
+        const ariaSyncPassed = (isSelected === 'true' && tabindex === '0' && labelledBy === 'tab-privacy-retention' && keyboardActivationPassed);
         ledger.sys004_wai_aria_click_sync = ariaSyncPassed ? 'PASS' : 'FAIL';
 
         await page.locator('text=Automatic record disposal is not available in TALA').waitFor({ timeout: 10000 });
@@ -280,18 +310,37 @@ const ledger = {};
             }
         }
 
-        // Mobile drawer open/close test at 390x844
-        await page.setViewportSize({ width: 390, height: 844 });
-        await page.goto(`${BASE_URL}/admin/system-health`, { waitUntil: 'networkidle' });
-        const mobileNavBtn = await page.$('button[x-on\\:click*="openSidebar"], button[aria-label*="sidebar" i], .fi-topbar button:has(svg)');
+        // Mobile drawer open/close test across both System Health and Governance Audit
         let mobileDrawerPassed = true;
-        if (mobileNavBtn) {
-            await mobileNavBtn.click();
-            await page.waitForTimeout(500);
-            const drawerOpen = await page.$('.fi-sidebar-open, .fi-sidebar.open, [x-show*="sidebarOpen"]');
-            console.log('[Viewport] Mobile sidebar drawer open attempt:', !!drawerOpen);
-            await page.keyboard.press('Escape');
-            await page.waitForTimeout(500);
+        for (const testPath of testPages) {
+            for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 800 }]) {
+                await page.setViewportSize(vp);
+                await page.goto(`${BASE_URL}${testPath}`, { waitUntil: 'networkidle' });
+                const mobileNavBtn = await page.$('.fi-topbar-open-sidebar-btn, button[x-on\\:click*="openSidebar"], button[aria-label*="sidebar" i], .fi-topbar button:has(svg)');
+                if (!mobileNavBtn) {
+                    console.error(`[Viewport] Mobile sidebar toggle button not found on ${testPath} at ${vp.width}x${vp.height}`);
+                    mobileDrawerPassed = false;
+                    continue;
+                }
+                await mobileNavBtn.click();
+                await page.waitForTimeout(600);
+                const isDrawerOpen = await page.evaluate(() => {
+                    const host = document.querySelector('.tala-sidebar-host');
+                    const isOpenState = window.Alpine?.$store?.sidebar?.isOpen;
+                    return !!isOpenState || (host && host.getAttribute('role') === 'dialog');
+                });
+                console.log(`[Viewport: ${testPath} ${vp.width}x${vp.height}] Mobile drawer open: ${isDrawerOpen}`);
+                if (!isDrawerOpen) mobileDrawerPassed = false;
+
+                await page.keyboard.press('Escape');
+                await page.waitForTimeout(600);
+                const isDrawerClosed = await page.evaluate(() => {
+                    const isOpenState = window.Alpine?.$store?.sidebar?.isOpen;
+                    return isOpenState === false || !isOpenState;
+                });
+                console.log(`[Viewport: ${testPath} ${vp.width}x${vp.height}] Mobile drawer closed: ${isDrawerClosed}`);
+                if (!isDrawerClosed) mobileDrawerPassed = false;
+            }
         }
         ledger.responsive_viewports_and_zoom = (allViewportsPassed && mobileDrawerPassed) ? 'PASS' : 'FAIL';
 
@@ -327,7 +376,6 @@ const ledger = {};
         const persistedTheme = await page.evaluate(() => localStorage.getItem('theme'));
         console.log(`[Theme] Persisted theme after reload: "${persistedTheme}"`);
         const themePersisted = (persistedTheme === 'dark');
-        ledger.theme_persistence = (isDark && themePersisted && isLight) ? 'PASS' : 'FAIL';
 
         // 4C: System Mode Emulation check
         await page.evaluate(() => {
@@ -335,9 +383,15 @@ const ledger = {};
         });
         await page.emulateMedia({ colorScheme: 'dark' });
         await page.waitForTimeout(300);
+        const sysDarkMatches = await page.evaluate(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
         await page.emulateMedia({ colorScheme: 'light' });
         await page.waitForTimeout(300);
-        console.log('[Theme] System colorScheme dark/light emulation evaluated cleanly.');
+        const sysLightMatches = await page.evaluate(() => window.matchMedia('(prefers-color-scheme: light)').matches);
+        const themeSettingPersisted = await page.evaluate(() => localStorage.getItem('theme') === 'system');
+        const systemModePassed = (sysDarkMatches && sysLightMatches && themeSettingPersisted);
+        console.log(`[Theme] System colorScheme dark/light emulation evaluated cleanly: ${systemModePassed ? 'PASS' : 'FAIL'}`);
+
+        ledger.theme_persistence = (isDark && themePersisted && isLight && systemModePassed) ? 'PASS' : 'FAIL';
 
         // 4D: Accessibility Emulations (Reduced Motion, Forced Colors)
         console.log('[A11y] Testing reduced motion and forced colors emulation...');
@@ -358,8 +412,10 @@ const ledger = {};
         await page.goto(`${BASE_URL}/admin/governance-audit`, { waitUntil: 'networkidle' });
         const liveElementsCount = await page.$$eval('[aria-live], [role="status"], [role="alert"], [aria-atomic]', els => els.length);
         console.log(`[A11y] Found ${liveElementsCount} live-region / status / alert / atomic accessibility elements.`);
+        const hasLiveElements = liveElementsCount > 0;
+        console.log(`[A11y] Live region elements verified present (> 0): ${hasLiveElements}`);
 
-        ledger.accessibility_emulations_and_semantics = (reducedMotionOk && forcedColorsOk && liveElementsCount >= 0) ? 'PASS' : 'FAIL';
+        ledger.accessibility_emulations_and_semantics = (reducedMotionOk && forcedColorsOk && hasLiveElements) ? 'PASS' : 'FAIL';
 
         // Revert to Light theme
         await page.evaluate(() => {
@@ -449,10 +505,20 @@ const ledger = {};
                 return false;
             });
 
-            const passed = (status === 200 && toolbarDisplay === 'none' && hasNotice && hasBreakAvoid);
+            const isMonochromeBg = (bodyBg === 'rgb(255, 255, 255)' || bodyBg === 'rgba(0, 0, 0, 0)' || bodyBg === 'transparent');
+            const hasMultipage = await regPage.evaluate(() => {
+                const thead = document.querySelector('thead');
+                if (thead && window.getComputedStyle(thead).display === 'table-header-group') return true;
+                const styles = Array.from(document.querySelectorAll('style')).map(s => s.textContent).join('\n');
+                if (styles.includes('table-header-group') || styles.includes('break-after') || styles.includes('@page')) return true;
+                return false;
+            });
+
+            const passed = (status === 200 && toolbarDisplay === 'none' && hasNotice && hasBreakAvoid && isMonochromeBg && hasMultipage);
             console.log(`  - ${out.id} Status: ${status} (expected 200)`);
             console.log(`  - ${out.id} Toolbar (${out.toolbarSelector}) display: "${toolbarDisplay}" (expected "none")`);
-            console.log(`  - ${out.id} Body bg: "${bodyBg}"`);
+            console.log(`  - ${out.id} Body bg: "${bodyBg}" (monochrome verified: ${isMonochromeBg})`);
+            console.log(`  - ${out.id} Multipage contract present: ${hasMultipage}`);
             console.log(`  - ${out.id} Break-inside avoid rule present: ${hasBreakAvoid}`);
             console.log(`  - ${out.id} Statutory notice present: ${hasNotice}`);
             console.log(`  - ${out.id} Result: ${passed ? 'PASS' : 'FAIL'}`);
@@ -522,10 +588,20 @@ const ledger = {};
                 return false;
             });
 
-            const passed = (status === 200 && toolbarDisplay === 'none' && hasNotice && hasBreakAvoid);
+            const isMonochromeBg = (bodyBg === 'rgb(255, 255, 255)' || bodyBg === 'rgba(0, 0, 0, 0)' || bodyBg === 'transparent');
+            const hasMultipage = await stuPage.evaluate(() => {
+                const thead = document.querySelector('thead');
+                if (thead && window.getComputedStyle(thead).display === 'table-header-group') return true;
+                const styles = Array.from(document.querySelectorAll('style')).map(s => s.textContent).join('\n');
+                if (styles.includes('table-header-group') || styles.includes('break-after') || styles.includes('@page')) return true;
+                return false;
+            });
+
+            const passed = (status === 200 && toolbarDisplay === 'none' && hasNotice && hasBreakAvoid && isMonochromeBg && hasMultipage);
             console.log(`  - ${out.id} Status: ${status} (expected 200)`);
             console.log(`  - ${out.id} Toolbar (${out.toolbarSelector}) display: "${toolbarDisplay}" (expected "none")`);
-            console.log(`  - ${out.id} Body bg: "${bodyBg}"`);
+            console.log(`  - ${out.id} Body bg: "${bodyBg}" (monochrome verified: ${isMonochromeBg})`);
+            console.log(`  - ${out.id} Multipage contract present: ${hasMultipage}`);
             console.log(`  - ${out.id} Break-inside avoid rule present: ${hasBreakAvoid}`);
             console.log(`  - ${out.id} Statutory notice present: ${hasNotice}`);
             console.log(`  - ${out.id} Result: ${passed ? 'PASS' : 'FAIL'}`);

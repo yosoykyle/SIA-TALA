@@ -279,6 +279,7 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     #[Test]
     public function backup_health_distinguishes_missing_current_overdue_and_failed_evidence(): void
     {
+        OperationalEvent::query()->where('integration', OperationalEvent::IntegrationBackup)->delete();
         Config::set('tala_operations.backup_overdue_after_hours');
         $presenter = app(SystemHealthPresenter::class);
 
@@ -532,6 +533,62 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         $this->assertCount(1, $filteredItems);
         $this->assertSame($first->getKey(), $filteredItems[0]['actor_id']);
         $this->assertSame('Created', $filteredItems[0]['type']);
+    }
+
+    #[Test]
+    public function explicit_allowlist_excludes_unknown_operational_and_activity_events(): void
+    {
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+
+        // Unknown activity and operational events
+        DB::table('activity_log')->insert([
+            'log_name' => 'default',
+            'description' => 'unknown activity',
+            'event' => 'uncataloged_custom_activity',
+            'causer_type' => User::class,
+            'causer_id' => $admin->getKey(),
+            'properties' => '{}',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $unknownOperational = OperationalEvent::factory()->create([
+            'event_domain' => OperationalEvent::DomainOperations,
+            'event_type' => 'uncataloged_operational_event',
+            'user_id' => $admin->getKey(),
+            'occurred_at' => now(),
+        ]);
+
+        // Known allowlisted operational events
+        $knownMailSelfTest = OperationalEvent::factory()->create([
+            'event_domain' => OperationalEvent::DomainNotifications,
+            'event_type' => 'mail_self_test_accepted',
+            'user_id' => $admin->getKey(),
+            'occurred_at' => now(),
+        ]);
+
+        $knownBackup = OperationalEvent::factory()->create([
+            'event_domain' => OperationalEvent::DomainOperations,
+            'event_type' => 'backup_completed',
+            'user_id' => $admin->getKey(),
+            'occurred_at' => now(),
+        ]);
+
+        $projection = app(GovernanceEvidenceProjection::class);
+
+        // Verify Institutional Changes excludes unknown activity
+        $institutionalPage = $projection->paginate(GovernanceEvidenceProjection::InstitutionalChanges, 1, 50, null, []);
+        $institutionalTypes = collect($institutionalPage->items())->pluck('type')->all();
+        $this->assertNotContains('Uncataloged Custom Activity', $institutionalTypes);
+
+        // Verify System Events excludes unknown operational events
+        $systemEventsPage = $projection->paginate(GovernanceEvidenceProjection::SystemEvents, 1, 50, null, []);
+        $systemEventReferences = collect($systemEventsPage->items())->pluck('reference_id')->all();
+        $this->assertNotContains('operational:'.$unknownOperational->getKey(), $systemEventReferences);
+
+        // Verify System Events includes known operational events
+        $this->assertContains('operational:'.$knownMailSelfTest->getKey(), $systemEventReferences);
+        $this->assertContains('operational:'.$knownBackup->getKey(), $systemEventReferences);
     }
 
     #[Test]

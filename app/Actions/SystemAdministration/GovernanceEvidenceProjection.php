@@ -2,7 +2,6 @@
 
 namespace App\Actions\SystemAdministration;
 
-use App\Models\OperationalEvent;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -246,8 +245,7 @@ class GovernanceEvidenceProjection
             ->leftJoin('users as actor_user', 'actor_user.id', '=', 'event.user_id')
             ->where(function (Builder $query): void {
                 $query->whereIn('event.event_type', self::systemOperationalEvents())
-                    ->orWhere('event.event_type', 'like', 'paymongo_%')
-                    ->orWhereIn('event.event_domain', [OperationalEvent::DomainOperations, OperationalEvent::DomainIntegration]);
+                    ->orWhere('event.event_type', 'like', 'paymongo_%');
             })
             ->selectRaw("event.id AS sort_id, CONCAT('operational:', event.id) AS reference_id, event.occurred_at AS occurred_at, event.user_id AS actor_id, COALESCE(NULLIF(actor_user.name, ''), 'System') AS actor, 'System / Integration' AS actor_role, CASE WHEN event.related_record_type IS NOT NULL AND event.related_record_id IS NOT NULL THEN CONCAT(REPLACE(event.related_record_type, 'App\\\\Models\\\\', ''), ' #', event.related_record_id) ELSE CONCAT('Integration: ', COALESCE(event.integration, 'system')) END AS affected_record, event.event_type AS type, 'Operational event' AS source, CASE WHEN event.status = 'PROCESSED' THEN 'Recorded' WHEN event.status IN ('FAILED', 'REVIEW_REQUIRED') THEN 'Attention' ELSE 'Pending' END AS status, 'A classified operational event was recorded.' AS summary");
 
@@ -307,6 +305,8 @@ class GovernanceEvidenceProjection
         return [
             'backup_evidence_recorded',
             'restore_evidence_recorded',
+            'backup_completed',
+            'restore_completed',
             'solver_dispatch_attempt',
             'integration_failure',
             'safe_fixture_event',
@@ -317,6 +317,9 @@ class GovernanceEvidenceProjection
             'payment.paid',
             'checkout.recovered',
             'payment_intent.payment_successful',
+            'send.webhook',
+            'mail_self_test_accepted',
+            'mail_self_test_failed',
             'test_email_sent',
             'test_email_failed',
             'staff_invitation_email',
@@ -326,6 +329,13 @@ class GovernanceEvidenceProjection
             'payment_posted_email',
             'applicant_action_required_email',
             'applicant_approved_email',
+            'admission_application_submitted',
+            'admission_application_resubmitted',
+            'admission_correction_requested',
+            'admission_application_admitted',
+            'admission_application_not_admitted',
+            'admission_ready_for_enrollment',
+            'admission_application_withdrawn',
             'official_enrollment_email',
             'lifecycle_accounting_review',
             'enrollment_window_email',

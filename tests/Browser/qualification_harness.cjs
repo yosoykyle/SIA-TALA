@@ -114,7 +114,7 @@ const results = {
             console.log('[SYS-003] Triggering "Send self-test email" action...');
             await selfTestBtn.click();
             await page.waitForTimeout(600);
-            
+
             // Check modal confirmation button
             const confirmBtn = await page.$('.fi-modal button:has-text("Send self-test")') || await page.$('.fi-modal button[type="submit"]');
             if (confirmBtn) {
@@ -314,7 +314,7 @@ const results = {
         console.log('\n========================================');
         console.log('5. Testing Print Layout Simulation (@media print)');
         console.log('========================================');
-        
+
         // Emulate print media
         await page.emulateMedia({ media: 'print' });
         console.log('[Print] Emulated media: print');
