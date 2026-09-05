@@ -2,20 +2,20 @@
 
 This is the non-authoritative operator companion to the [TALA Orchestrator Protocol](TALA-Orchestrator-Protocol.md). Use it to choose the next action and copy a prompt. The protocol governs any conflict.
 
-## Choose the mode
+## Choose the boundary
 
-Codex Plan mode is an application mode. `Plan #NN` is a TALA workflow command; one does not activate the other.
+The workflow operates across three explicit permission boundaries: `READ_ONLY`, `LOCAL_EXECUTION`, and `COMPLETION_AND_PUBLISH`.
 
-| Action | Codex mode | Effect |
+| Action | Permission boundary | Effect |
 | --- | --- | --- |
-| Draft a coordination map or Issue | Plan mode | Read-only draft |
-| `Plan #NN` | Plan mode | Read-only implementation plan |
-| Re-anchor | Current mode | Read-only reconstruction, then resume the existing boundary |
-| Create or update an approved Issue | Default mode | Explicit GitHub write only |
-| `Complete #NN` | Default mode | Implement, verify, and create one local commit |
-| `Publish #NN` | Default mode | Push approved solo work or open a PR |
-| Final integrated audit | Plan mode | Read-only cycle audit |
-| Merge a PR or close coordination | Default mode | Separate explicit authorization |
+| Draft a coordination map or Issue | `READ_ONLY` | Read-only draft |
+| `Plan #NN` | `READ_ONLY` | Read-only implementation plan |
+| Re-anchor | Current boundary | Read-only reconstruction, then resume the existing boundary |
+| Create or update an approved Issue | `LOCAL_EXECUTION` / External write | Explicit GitHub write only |
+| `Complete #NN` | `LOCAL_EXECUTION` $\rightarrow$ Complete | Implement, verify, and create one local commit |
+| `Publish #NN` | `COMPLETION_AND_PUBLISH` | Push approved solo work or open a PR |
+| Final integrated audit | `READ_ONLY` | Read-only cycle audit |
+| Merge a PR or close coordination | Explicit authorization | Separate explicit authorization |
 
 ## One-screen route
 
@@ -40,25 +40,34 @@ Final integrated audit -> remediate gaps or authorize coordination closure
 
 Use one coordination Issue for the complete approved implementation cycle. It is the delivery map, not permission to code.
 
-In Plan mode:
+Under a READ_ONLY boundary:
 
-```text
-Draft the TALA coordination map for the current approved implementation cycle.
-
-Read AGENTS.md, the TALA Orchestrator Protocol, canonical product documents,
-current GitHub Issues and Project statuses, open PRs, and Git state. Include the
-high-level journey map, dependencies, capacity assumptions, completion and
-final-audit conditions, and first recommended slice.
-
-Read-only. Do not create or modify anything.
+```xml
+<tala_action action="coordinate_draft">
+  <boundary>READ_ONLY</boundary>
+  <objective>Draft TALA coordination map for the current approved implementation cycle</objective>
+  <instructions>
+    Read AGENTS.md, the TALA Orchestrator Protocol, canonical product documents,
+    current GitHub Issues and Project statuses, open PRs, and Git state. Include the
+    high-level journey map, dependencies, capacity assumptions, completion and
+    final-audit conditions, and first recommended slice.
+  </instructions>
+  <constraints>Read-only. Do not create or modify anything.</constraints>
+</tala_action>
 ```
 
-After accepting the draft, switch to Default mode:
+After accepting the draft, authorize Issue creation:
 
-```text
-Create the approved coordination-only GitHub Issue exactly from the accepted
-draft. Do not create an implementation Issue, modify files, begin coding,
-commit, publish, merge, or deploy.
+```xml
+<tala_action action="coordinate_create">
+  <boundary>LOCAL_EXECUTION</boundary>
+  <objective>Create approved coordination-only GitHub Issue</objective>
+  <instructions>
+    Create the approved coordination-only GitHub Issue exactly from the accepted
+    draft. Apply label "coordination" and track in TALA Development as In Progress.
+  </instructions>
+  <constraints>Do not create an implementation Issue, modify files, begin coding, commit, publish, merge, or deploy.</constraints>
+</tala_action>
 ```
 
 Keep that map until its cycle passes the final audit and is separately closed. Completing one slice does not create another coordination Issue.
@@ -67,63 +76,85 @@ Keep that map until its cycle passes the final audit and is separately closed. C
 
 ### 1. Derive
 
-In Plan mode:
+Under a READ_ONLY boundary:
 
-```text
-Derive the next eligible journey-complete implementation Issue from the
-approved TALA coordination map.
+```xml
+<tala_action action="derive">
+  <boundary>READ_ONLY</boundary>
+  <objective>Derive next eligible journey-complete implementation Issue</objective>
+  <instructions>
+    Inspect the coordination Issue, live Issues and Project, open PRs, relevant
+    authority, implementation, and Git state. Exclude completed, canceled, active,
+    duplicate, and dependency-blocked work. Run the protocol's operability and
+    feasibility check, then explain why this is the next dependency-ready slice.
 
-Inspect the coordination Issue, live Issues and Project, open PRs, relevant
-authority, implementation, and Git state. Exclude completed, canceled, active,
-duplicate, and dependency-blocked work. Run the protocol's operability and
-feasibility check, then explain why this is the next dependency-ready slice.
-
-Draft the outcome, owner, authority and UI IDs, scope, dependencies, material
-implementation order, acceptance criteria, verification and browser scenarios,
-exclusions, and stop conditions. Self-review it as the leanest acceptance-
-complete contract and correct unsupported choices or contradictions.
-
-Read-only. Draft the Issue only; do not create it.
+    Draft the outcome, owner, authority and UI IDs, scope, dependencies, material
+    implementation order, acceptance criteria, verification and browser scenarios,
+    exclusions, and stop conditions. Self-review it as the leanest acceptance-
+    complete contract and correct unsupported choices or contradictions.
+  </instructions>
+  <constraints>Read-only. Draft the Issue only; do not create it.</constraints>
+</tala_action>
 ```
 
 Derivation chooses **what work is next**. It does not decide the implementation.
 
 ### 2. Create
 
-After accepting the draft, switch to Default mode:
+After accepting the draft, authorize Issue creation:
 
-```text
-Create the approved tracked Issue exactly from the accepted draft.
+```xml
+<tala_action action="create_issue">
+  <boundary>LOCAL_EXECUTION</boundary>
+  <objective>Create approved tracked Issue</objective>
+  <instructions>
+    Create the approved tracked Issue exactly from the accepted draft.
 
-If coordination-derived, attach its active coordination Issue as the native
-parent. Apply the approved label, owner, and separate dependency links. If
-genuinely standalone, keep it parentless and record why no coordination owns it.
+    If coordination-derived, attach its active coordination Issue as the native
+    parent. Apply the approved label ("implementation"), owner, and separate dependency links. If
+    genuinely standalone, keep it parentless and record why no coordination owns it.
 
-After creation, verify the live parent classification, label, owner, dependency
-links, and Project status. Stop if any recorded state is missing or incorrect.
-
-Do not plan, implement, create a branch, commit, publish, merge, or deploy.
+    After creation, verify the live parent classification, label, owner, dependency
+    links, and Project status (Todo via automation). Stop if any recorded state is missing or incorrect.
+  </instructions>
+  <constraints>Do not plan, implement, create a branch, commit, publish, merge, or deploy.</constraints>
+</tala_action>
 ```
 
 Project automation adds an open `implementation` Issue as `Todo`.
 
 ### 3. Plan
 
-```text
-Plan #NN
+```xml
+<tala_action action="plan" issue="NN">
+  <boundary>READ_ONLY</boundary>
+  <objective>Formulate decision-complete implementation plan for #NN</objective>
+  <instructions>
+    Read the named GitHub Issue, relevant Git authority, current implementation, and qualified sources.
+    Produce a decision-complete plan identifying canonical UI inventory IDs, hierarchy, component disposition,
+    states, responsive behavior, keyboard and screen-reader accessibility, and browser verification scenarios.
+  </instructions>
+  <constraints>Read-only. Make no local edits, commits, or external writes.</constraints>
+</tala_action>
 ```
 
-Use Plan mode. The plan decides **how the accepted Issue will be implemented**. It reads authority, live implementation, and qualified sources when needed, challenges material choices and alternatives, and makes no edits or external writes.
+*(Natural-language shorthand `Plan #NN` remains valid).*
+
+Operate under a READ_ONLY boundary. The plan decides **how the accepted Issue will be implemented**. It reads authority, live implementation, and qualified sources when needed, challenges material choices and alternatives, and makes no edits or external writes.
 
 For architecture, security, migrations, integrations, parallel seams, hard-to-reverse choices, or weak evidence, optionally request a second read-only review:
 
-```text
-Independently review the proposed derivation or Plan #NN before I accept it.
-
-Re-anchor from its authority and live implementation, Git, and GitHub evidence.
-Challenge scope, dependencies, choices, alternatives, verification, preservation,
-and cleanup. Report concrete defects or state that no material objection remains.
-Do not change anything.
+```xml
+<tala_action action="review" target="derivation|plan" issue="NN">
+  <boundary>READ_ONLY</boundary>
+  <objective>Independently review proposed derivation or Plan #NN</objective>
+  <instructions>
+    Re-anchor from its authority and live implementation, Git, and GitHub evidence.
+    Challenge scope, dependencies, choices, alternatives, verification, preservation,
+    and cleanup. Report concrete defects or state that no material objection remains.
+  </instructions>
+  <constraints>Read-only. Do not change anything.</constraints>
+</tala_action>
 ```
 
 This review is optional and is not a fourth command.
@@ -132,11 +163,23 @@ Before accepting a draft or plan, confirm that you understand what will be built
 
 ### 4. Complete
 
-After accepting the plan, exit Plan mode:
+After accepting the plan, authorize execution:
 
-```text
-Complete #NN
+```xml
+<tala_action action="complete" issue="NN">
+  <boundary>LOCAL_EXECUTION</boundary>
+  <objective>Execute and complete #NN</objective>
+  <instructions>
+    Mark Issue #NN In Progress in GitHub Project.
+    Implement bounded plan, maintain acceptance coverage map, run non-destructive verification in project environment,
+    remediate in-scope failures, clean intended diff, build criterion-by-criterion acceptance ledger (all Verified),
+    and create ONE bounded local commit.
+  </instructions>
+  <constraints>Do not push, open PR, merge, deploy, or touch unrelated files.</constraints>
+</tala_action>
 ```
+
+*(Natural-language shorthand `Complete #NN` remains valid).*
 
 This marks the Issue `In Progress`, implements the bounded plan, verifies and remediates in-scope failures, cleans the intended diff, and creates one local commit. It never pushes, merges, or deploys.
 
@@ -148,9 +191,21 @@ Before success, classify every criterion as `Verified`, `Partial`, or `Unverifie
 
 ### 5. Publish
 
-```text
-Publish #NN
+```xml
+<tala_action action="publish" issue="NN" mode="solo|concurrent">
+  <boundary>COMPLETION_AND_PUBLISH</boundary>
+  <objective>Publish #NN</objective>
+  <instructions>
+    Revalidate all-Verified acceptance ledger and verify clean diff.
+    - Solo mode (main): Freshly verify and push accepted commit range directly to origin/main.
+    - Concurrent mode: Push Issue branch and open PR containing "Closes #NN".
+    Verify required CI checks pass for exact published commit or PR head before closing or updating Issue.
+  </instructions>
+  <constraints>Never force-push, never merge PR without separate explicit authorization, never deploy.</constraints>
+</tala_action>
 ```
+
+*(Natural-language shorthand `Publish #NN` remains valid).*
 
 - Solo: freshly verify and push the accepted commit range from the primary `main` checkout.
 - Concurrent: push the Issue branch and open one PR containing `Closes #NN`.
@@ -159,14 +214,16 @@ Keep the Issue `In Progress` until required CI passes for the exact published co
 
 If CI fails, diagnose first:
 
-```text
-Re-anchor and diagnose the failed Publish #NN verification.
-
-Inspect the owning Issue, published commit, failed TALA CI run, and any existing
-branch or PR. Report the exact cause and smallest correction.
-
-Read-only. Do not create replacement tracked work, edit files, merge, close,
-or deploy.
+```xml
+<tala_action action="diagnose" issue="NN">
+  <boundary>READ_ONLY</boundary>
+  <objective>Diagnose failed Publish #NN verification</objective>
+  <instructions>
+    Inspect the owning Issue, published commit, failed TALA CI run, and any existing
+    branch or PR. Report the exact cause and smallest correction.
+  </instructions>
+  <constraints>Read-only. Do not create replacement tracked work, edit files, merge, close, or deploy.</constraints>
+</tala_action>
 ```
 
 After the diagnosis is accepted:
@@ -178,40 +235,48 @@ After the diagnosis is accepted:
 
 Before activating a second implementation Issue, verify required PR CI and protection of `main`. Derive no more independent Issues than the stated owner capacity.
 
-```text
-For this derivation batch, we are working with one additional developer.
-
-Developer:
-GitHub username: [username]
-Available for: [work area]
-Capacity: one active Issue
-
-Derive the next parallel-safe TALA implementation Issue batch from the approved
-coordination map. Verify dependency readiness, ownership, shared seams, workspace
-isolation, CI, and main protection. Return fewer drafts when safe concurrency
-cannot be proven; keep each draft journey-complete.
-
-Read-only. Do not create Issues, branches, Project changes, or other writes.
+```xml
+<tala_action action="derive_batch">
+  <boundary>READ_ONLY</boundary>
+  <objective>Derive next parallel-safe TALA implementation Issue batch</objective>
+  <developer>
+    <username>[username]</username>
+    <work_area>[work area]</work_area>
+    <capacity>one active Issue</capacity>
+  </developer>
+  <instructions>
+    Derive the next parallel-safe TALA implementation Issue batch from the approved
+    coordination map. Verify dependency readiness, ownership, shared seams, workspace
+    isolation, CI, and main protection. Return fewer drafts when safe concurrency
+    cannot be proven; keep each draft journey-complete.
+  </instructions>
+  <constraints>Read-only. Do not create Issues, branches, Project changes, or other writes.</constraints>
+</tala_action>
 ```
 
 When planner and implementer differ, put the accepted plan or concise execution handoff in or durably link it from the owning Issue. Include only material task-specific environment, skill, or tool prerequisites; generic project guidance stays in `AGENTS.md` and `CONTRIBUTING.md`.
 
-A fresh Codex task is recommended when the owner or Issue changes, but it is optional. Whether the task is new or existing, anchor it to one assigned Issue. The Issue branch, isolated workspace/database, and PR provide parallel isolation. In the assigned developer's Codex task, use Default mode:
+A fresh agent session is recommended when the owner or Issue changes, but it is optional. Whether the task is new or existing, anchor it to one assigned Issue. The Issue branch, isolated workspace/database, and PR provide parallel isolation. In the assigned developer's session:
 
-```text
-Complete #NN as the assigned implementation owner.
+```xml
+<tala_action action="complete" issue="NN" role="implementer">
+  <boundary>LOCAL_EXECUTION</boundary>
+  <objective>Complete #NN as assigned implementation owner</objective>
+  <instructions>
+    You are the implementer for this Issue, not the primary TALA orchestrator.
+    Read AGENTS.md, the protocol, the owning Issue's body and relevant durable
+    comments, and the accepted plan or handoff. Re-anchor from live Git and GitHub
+    state. Verify assignment, dependencies, workspace isolation, and any material
+    task-specific environment, skill, or tool prerequisite. Then create or switch
+    to the Issue branch from accepted, up-to-date main. Remain within this Issue's
+    scope; stop and report if a required prerequisite is unavailable.
 
-You are the implementer for this Issue, not the primary TALA orchestrator.
-Read AGENTS.md, the protocol, the owning Issue's body and relevant durable
-comments, and the accepted plan or handoff. Re-anchor from live Git and GitHub
-state. Verify assignment, dependencies, workspace isolation, and any material
-task-specific environment, skill, or tool prerequisite. Then create or switch
-to the Issue branch from accepted, up-to-date main. Remain within this Issue's
-scope; stop and report if a required prerequisite is unavailable.
-
-Use applicable project skills and tools. Do not derive or reorder other work,
-modify coordination, work directly on main, publish, merge, or deploy. Finish
-only through the verified bounded local commit.
+    Use applicable project skills and tools. Do not derive or reorder other work,
+    modify coordination, work directly on main, publish, merge, or deploy. Finish
+    only through the verified bounded local commit.
+  </instructions>
+  <constraints>Do not modify coordination, work directly on main, publish, merge, or deploy.</constraints>
+</tala_action>
 ```
 
 Use one owner, Issue-specific branch, PR, and isolated workspace/database per active Issue. Dependent work waits for its prerequisite PR to merge unless an explicit stacked-branch plan is approved. Open PR review remains `In Progress`; merge requires separate authorization.
@@ -231,22 +296,23 @@ State the target and external effect plainly. Never infer permission to commit, 
 
 ## Compaction and re-anchoring
 
-The protocol requires re-anchoring after compaction or resumption; it is not a guaranteed Codex product hook. Stay in the current mode, reconstruct the last proven checkpoint from recent original messages and durable live evidence, then continue only within the existing permission boundary.
+The protocol requires re-anchoring after compaction or resumption; it is an agent operational rule across all environments. Reconstruct the last proven checkpoint from recent original messages and durable live evidence, then continue only within the existing permission boundary.
 
 Use this fallback when the agent appears confused:
 
-```text
-Re-anchor and continue the currently authorized TALA task.
-
-Active boundary: [Plan #NN, Complete #NN, Publish #NN, or untracked task]
-Previous task: [task ID if available]
-
-Determine what completed, what is running, what remains, and the current
-authorization from recent original messages and durable live evidence. For a
-named Issue, include its relevant durable comments and linked plan or handoff.
-Continue from the last proven checkpoint. Do not repeat completed mutations,
-broaden scope, publish, merge, deploy, or begin another Issue. Stop if material
-state cannot be proven safely.
+```xml
+<tala_action action="reanchor">
+  <boundary>CURRENT_BOUNDARY</boundary>
+  <active_task>[Plan #NN | Complete #NN | Publish #NN | untracked task]</active_task>
+  <previous_task_id>[task ID if available]</previous_task_id>
+  <instructions>
+    Determine what completed, what is running, what remains, and the current
+    authorization from recent original messages and durable live evidence. For a
+    named Issue, include its relevant durable comments and linked plan or handoff.
+    Continue from the last proven checkpoint. Stop if material state cannot be proven safely.
+  </instructions>
+  <constraints>Do not repeat completed mutations, broaden scope, publish, merge, deploy, or begin another Issue. Continue only within existing authorized boundary.</constraints>
+</tala_action>
 ```
 
 Compaction never expands authority.
@@ -256,26 +322,28 @@ Compaction never expands authority.
 | Status | Meaning | Set by |
 | --- | --- | --- |
 | `Todo` | Approved implementation Issue exists but is inactive | GitHub automation |
-| `In Progress` | Implementation, open-PR review, or coordination is active | Codex or authorized coordination setup |
+| `In Progress` | Implementation, open-PR review, or coordination is active | The agent or authorized coordination setup |
 | `Done` | Work completed its approved publication or merge path | GitHub automation after closure or linked merge |
-| `Canceled` | Work intentionally stopped or superseded with a recorded reason | Codex after explicit authorization |
+| `Canceled` | Work intentionally stopped or superseded with a recorded reason | The agent after explicit authorization |
 
 Do not create another Project status or a local shadow queue.
 
 ## Finish the coordination cycle
 
-When all accepted journeys appear covered, use Plan mode:
+When all accepted journeys appear covered, operate under a READ_ONLY boundary:
 
-```text
-Perform the final integrated acceptance audit for coordination Issue #NN.
-
-Read the coordination map, linked Issues, Project statuses, merged PRs or
-published commits, canonical authority, current main, and current automated and
-browser evidence. Verify journey coverage, dependencies, cross-role behavior,
-outputs, state transitions, and required canonical coverage.
-
-Read-only. Do not close or modify coordination, create Issues, change files,
-commit, publish, merge, or deploy.
+```xml
+<tala_action action="audit" issue="NN">
+  <boundary>READ_ONLY</boundary>
+  <objective>Final integrated acceptance audit for coordination Issue #NN</objective>
+  <instructions>
+    Read the coordination map, linked Issues, Project statuses, merged PRs or
+    published commits, canonical authority, current main, and current automated and
+    browser evidence. Verify journey coverage, dependencies, cross-role behavior,
+    outputs, state transitions, and required canonical coverage.
+  </instructions>
+  <constraints>Read-only. Do not close or modify coordination, create Issues, change files, commit, publish, merge, or deploy.</constraints>
+</tala_action>
 ```
 
 If a required gap exists, return it to the normal Issue loop. If the audit passes, separately authorize coordination closure. Start a successor coordination Issue only for materially new approved work after closure.

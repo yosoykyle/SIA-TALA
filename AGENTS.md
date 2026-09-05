@@ -438,31 +438,66 @@ livewire(ListUsers::class)
 
 </laravel-boost-guidelines>
 
-<TALA-Orchestrator-Protocol>
+<TALA_ORCHESTRATOR_ROUTER>
+<!-- TALA Workflow Router: Governs agent execution boundaries, domain authorities, and lifecycle state across all environments -->
 
-## TALA Workflow Router
+<authorities>
+<!-- Orthogonal Domain Authorities: Each authority owns a distinct aspect of the project -->
+1. Product Behavior & Policies: PRD modules (`00_Project_Documents/prd_modules/`).
+2. User Interface & Role Surfaces: UI Surface Blueprint (`00_Project_Documents/ui_surface_blueprint.md`).
+3. System Architecture & Boundaries: Architecture Specification (`00_Project_Documents/architecture_specification.md`).
+4. Working Technical Reality: Passing test suites, live codebase, and active schema.
+5. Task Scope & Acceptance: The active GitHub Issue (or direct user prompt for untracked work).
+6. Workflow Governance & Boundaries: TALA Orchestrator Protocol (`00_Project_Documents/TALA-Orchestrator-Protocol.md`) and this Router.
+7. Framework & Ecosystem Standards: The `<laravel-boost-guidelines>` block above.
 
-Use the detailed protocol at `00_Project_Documents/TALA-Orchestrator-Protocol.md` for tracked GitHub Issues and for complex, ambiguous, high-risk, long-running, split, delegated, resumed, completion, or publication work. Clear direct work uses this router plus the minimum relevant authority and implementation files.
+*Conflict Resolution: If canonical documentation conflicts with proven, passing code, report the discrepancy before modifying working code. PRDs own product behavior; UI blueprint owns UI/roles; architecture owns deployment/integration boundaries; GitHub Issue owns task scope/status but never overrides product authority; GitHub Projects is a view, not a second task database.*
+</authorities>
 
-Use `00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md` as the non-authoritative quick reference for choosing the next workflow action and Codex mode; the detailed protocol governs any conflict.
+<workflow_boundaries>
+<!-- Positive-Paired Boundary Constraints: Every task operates within one explicit boundary -->
 
-Use `CONTRIBUTING.md` for first-time clone, contributor, and tool-readiness setup. It is operational guidance and cannot override this file, the detailed protocol, an owning Issue, or canonical product authority.
+<boundary name="READ_ONLY" triggers="Plan #NN, Review, Audit, Diagnosis, Derive">
+  <allowed>Read files, inspect git state, run read-only database queries, formulate implementation plans, draft issue contracts.</allowed>
+  <prohibited>No file modifications, no code generation into workspace, no git commits, no branch creation, no git push, no issue creation or mutations.</prohibited>
+</boundary>
 
-### Default behavior
+<boundary name="LOCAL_EXECUTION" triggers="Implement, Fix, Change, Proceed">
+  <allowed>Bounded edits to in-scope files, running tests, fixing in-scope failures, code formatting (Pint).</allowed>
+  <prohibited>No git commit, no git push, no branch creation, no PR creation, no deployment, no file edits outside in-scope target files.</prohibited>
+</boundary>
 
-- Review, diagnosis, and planning are read-only unless the user also requests a change.
-- A clear request to implement, fix, change, build, or proceed authorizes bounded local edits, proportionate verification in the project's configured environment, and automatic remediation of in-scope failures.
-- Preserve aligned code and unrelated work. Patch proven gaps; do not broad-restart.
-- After compaction or resumption, re-anchor tracked and untracked work from recent original messages and available durable evidence before making changes or claiming completion. Read further backward or ask the user only when a material objective, decision, state, or permission remains unclear.
-- PRDs own product behavior, the UI blueprint owns surfaces and roles, and architecture owns integration boundaries. A GitHub Issue owns its tracked task scope and live status but never overrides product authority; the linked GitHub Project is only a view of issues. Code, tests, commits, and PRs are evidence.
-- Stop only for a material authority or product decision, destructive action, dependency, credential, cost, deployment, external write, material scope expansion, or unauthorized delegation.
-- Never infer permission to commit, publish, deploy, or mutate an external system outside the explicit workflow boundary. Testing configuration belongs to the project, not this workflow.
+<boundary name="COMPLETION_AND_PUBLISH" triggers="Complete #NN, Publish #NN, Commit">
+  <allowed>
+    - Complete: Requires passing verification and an all-Verified criterion ledger; creates exactly ONE bounded local commit.
+    - Publish (Solo Work on main): Pushes accepted commit range directly to origin/main after fresh CI/test preflight.
+    - Publish (Concurrent Work): Pushes issue branch and opens PR containing "Closes #NN".
+  </allowed>
+  <prohibited>Never force-push, never merge PRs without separate explicit authorization, never deploy, never mutate unrelated issues.</prohibited>
+</boundary>
+</workflow_boundaries>
 
-### Workflow boundaries
+<github_projects_v2_automation>
+<!-- Alignment with GitHub Projects v2 ("TALA Development") lifecycle statuses -->
+- `Todo`: Newly created issues labeled `implementation` are automatically added to `Todo` by GitHub Project workflow automation.
+- `In Progress`: Set by the agent when `Complete #NN` begins, when a coordination cycle is active, or while an open PR is under review.
+- `Done`: Set automatically by GitHub Project automation upon issue closure or linked PR merge.
+- `Canceled`: Set by the agent only upon explicit, authorized abandonment or supersession with recorded rationale.
+*Prohibition: Do not create custom statuses (e.g., 'In Review') or local shadow task queues. GitHub Projects is an issue view, not a second task database.*
+</github_projects_v2_automation>
 
-- `Plan #NN` — read the named GitHub Issue and produce a plan; no edits or external writes.
-- `Complete #NN` — mark the issue In Progress, implement, research when needed, verify, clean up, and create one bounded local commit; do not publish or close the issue.
-- `Publish #NN` — after fresh verification, push directly for approved solo work or open a branch PR containing `Closes #NN`; close the issue only when the code is on GitHub or the PR merges.
+<task_modes>
+- Tracked Work (`#NN`): Read named GitHub Issue. Transitions through Todo -> In Progress -> Done.
+- Clear Direct Work (Untracked): Solo work operates directly on primary checkout (`main`) without creating extra branches, worktrees, or GitHub Issues. Follows the same 3 permission boundaries above.
+- Compaction & Resumption: Re-anchor from recent messages, live git state, and issue comments before acting. Continue only within the authorized boundary.
+</task_modes>
 
-Natural-language equivalents count when target, scope, and external effect are unambiguous. Clear work without an issue number remains valid and skips GitHub task mutations. Frozen Linear and local tracker files are history only. Cleanup never updates memory unless the user explicitly requests it.
-</TALA-Orchestrator-Protocol>
+<human_gates>
+Stop and ask confirmation ONLY for:
+- Destructive or hard-to-reverse operations.
+- Adding new package dependencies, credentials, or cloud infrastructure costs.
+- Structural architecture pivots that contradict established domain boundaries.
+- Spawning background subagents (single worker by default).
+- Merging pull requests or deploying to production.
+</human_gates>
+</TALA_ORCHESTRATOR_ROUTER>

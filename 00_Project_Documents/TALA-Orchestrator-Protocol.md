@@ -29,25 +29,88 @@ When sources materially conflict, stop and present the conflict rather than sile
 
 ## 3. Operating model
 
+### Boundary state machine
+
+The workflow transitions through three explicit permission boundaries:
+
+| Boundary | Triggers / Shorthand | Live Project Status | Allowed Operations (Positive Rules) | Prohibited Operations (Constraints) | Exit / Transition Condition |
+| --- | --- | --- | --- | --- | --- |
+| `READ_ONLY` | `Plan #NN`, `review`, `audit`, `diagnose`, `derive` | `Todo` / Unchanged | Read files, inspect Git/GitHub state, run read-only database queries, formulate plans, draft derivation contracts | No workspace edits, no commits, no branch creation, no push, no external mutations | User acceptance of draft or plan |
+| `LOCAL_EXECUTION` | `Complete #NN`, `implement`, `fix`, `change`, `proceed` | Transitions to `In Progress` | Bounded file edits, running tests, fixing in-scope failures, code formatting (Pint), establishing coverage ledger, creating ONE local commit | No push, no PR creation, no merge, no deployment, no file edits outside in-scope target files | All acceptance criteria `Verified` + 1 clean local commit |
+| `COMPLETION_AND_PUBLISH` | `Publish #NN`, `commit and push` | `In Progress` $\rightarrow$ `Done` (via automation) | Solo: push accepted commit range directly to `origin/main` after CI preflight. Concurrent: push branch and open PR with `Closes #NN`. Post evidence record. | Never force-push, never merge PR without separate explicit authorization, never deploy | CI passes on GitHub; Issue closed (solo) or PR merged (concurrent) |
+
 ### Issue derivation
 
 Issue derivation is read-only. It drafts work but never creates an Issue, changes the Project, or mutates GitHub. For coordination-derived work, start from the approved coordination Issue that owns the accepted delivery order, then inspect current Issues and Project statuses, open pull requests, live Git state, and the minimum relevant canonical authority and implementation evidence.
 
-Before drafting any tracked Issue, classify it as coordination-derived or standalone. Coordination-derived implementation work requires its active coordination Issue as a native parent. A genuinely standalone tracked Issue may remain parentless only when no active coordination owns its intended outcome, and its body states that reason. If the work belongs to or materially changes an active coordination map, or the classification is uncertain, stop for the appropriate derivation or authorized map correction instead of treating it as standalone. Clear work without an Issue remains valid under the normal boundaries and has no Project status.
+#### 1. Classification
+Before drafting any tracked Issue, classify it:
 
-Exclude work that is completed, canceled, already active, duplicated, or blocked by an unmet dependency. From the remaining dependency frontier, recommend the smallest journey-complete vertical slice that best unlocks the critical path. If materially different slices are equally eligible, present the alternatives and recommend one with rationale instead of silently choosing.
+| Classification | Parent Relationship | Live Project Status | When Allowed | Mandatory Body Record |
+| --- | --- | --- | --- | --- |
+| **Coordination-derived** | Native sub-Issue of active coordination Issue | Added as `Todo` via automation | Default for implementation cycle work | Cites active coordination Issue & journey slice |
+| **Standalone** | Parentless (no native parent) | Added as `Todo` via automation | Only when no active coordination owns outcome | Explicit rationale why no coordination owns it |
+| **Untracked / Direct** | None | None (no Project item) | Clear direct solo work on `main` | Direct prompt scope |
 
-By default, derivation recommends one Issue. When the user explicitly declares more than one available implementation owner and requests a parallel-safe batch, it may draft no more Issues than the stated total active-Issue capacity. Select only mutually independent, journey-complete work from the dependency frontier; identify the proposed owner and the dependency, shared-seam, and isolation evidence for each candidate; and return fewer drafts than capacity when safe concurrency cannot be proven. The batch remains read-only and does not activate work.
+*Rule:* If the work belongs to or materially changes an active coordination map, or the classification is uncertain, stop for the appropriate derivation or authorized map correction instead of treating it as standalone. Clear work without an Issue remains valid under the normal boundaries and has no Project status.
 
-Before drafting, perform a bounded operability and feasibility check of the owning journey: ordinary, correction, recovery, late, and reopening paths; human versus automatic mutations; downstream role and projection propagation; external-integration capability; and any canonical or supporting artifact that must remain consistent. A substantive contradiction, missing ordinary workflow, or infeasible assumption stops derivation for evidence and a targeted authority correction; it does not reopen unrelated PRDs.
+#### 2. Derivation Eligibility Filter
+Apply the exclusion filter to the active delivery map:
+- [ ] **Exclude completed work**: Already marked `Done`.
+- [ ] **Exclude canceled work**: Abandoned or superseded with recorded rationale.
+- [ ] **Exclude currently active work**: Under active planning or implementation.
+- [ ] **Exclude duplicate work**: Already tracked elsewhere.
+- [ ] **Exclude dependency-blocked work**: Prerequisite work is not yet merged/complete.
+- [ ] **Select candidate**: Recommend the smallest journey-complete vertical slice from the dependency frontier that best unlocks the critical path. If materially different slices are equally eligible, present alternatives with rationale.
 
-Every derived draft identifies its intended outcome, accountable owner, relevant authority and UI inventory IDs, bounded scope, dependencies, material implementation order, acceptance criteria, verification and applicable browser scenarios, exclusions, and stop conditions. If the coordination Issue is missing, stale, or materially conflicts with current authority or delivery state, stop at a read-only recommendation rather than inventing the order.
+*Parallel derivation batch:* When the user explicitly declares more than one available implementation owner and requests a parallel-safe batch, draft no more Issues than the stated total active-Issue capacity. Select only mutually independent, journey-complete work from the dependency frontier; identify proposed owner, dependency readiness, shared-seam ownership, and workspace isolation for each candidate. Return fewer drafts than capacity when safe concurrency cannot be proven. The batch remains read-only and does not activate work.
 
-Before presenting a derived draft, self-review it against live evidence and the Issue/Plan boundary. It must be the leanest acceptance-complete contract: reference rather than restate governing authority, preserve proven aligned implementation by default, express required outcomes instead of speculative schema, component, or method choices, and prescribe an implementation choice only when current evidence proves it necessary. Resolve correctable defects before presentation. Revise the same draft when only its quality or precision changes; derive again only when the selected outcome, scope, dependencies, or governing authority materially changes. End by stating the exact next action and Codex mode.
+#### 3. Bounded Operability & Feasibility Pre-Checklist
+Before drafting, verify the owning journey across:
+- [ ] **Workflow Paths**: Ordinary, correction, recovery, late, and reopening paths.
+- [ ] **Mutation Actors**: Human versus automatic system mutations.
+- [ ] **State Propagation**: Downstream role views and projection updates.
+- [ ] **Integration Capability**: External-integration capability and technical boundaries.
+- [ ] **Artifact Consistency**: Canonical PRDs, UI blueprint, and architecture remain consistent.
 
-Creating the approved draft is a separate explicit external write. For coordination-derived implementation work, that authorization creates the Issue with the `implementation` label, assigns the approved owner, attaches it as a native sub-Issue of the active coordination Issue, and establishes approved dependency links separately. For standalone tracked work, create the parentless Issue only from its accepted contract and record why no active coordination owns it.
+*Stop condition:* A substantive contradiction, missing ordinary workflow, or infeasible assumption stops derivation for evidence and a targeted authority correction; it does not reopen unrelated PRDs.
 
-After creating any tracked Issue, re-read its live Issue and Project state and verify the intended parent classification, label, owner, dependency links, and Project status. Project automation adds an open `implementation` Issue to `TALA Development` as `Todo`; the user does not need to request those two Project mutations separately. Missing or incorrect recorded state stops before `Plan #NN` or `Complete #NN` for an explicitly authorized correction. Issue creation does not authorize planning, coding, a branch, a commit, publication, or merge.
+#### 4. Lean Acceptance Contract Checklist
+Every derived draft must identify:
+- [ ] **Intended Outcome**: Clear business and user goal.
+- [ ] **Accountable Owner**: Assigned GitHub username.
+- [ ] **Governing Authority & UI IDs**: Cites relevant PRD and canonical UI inventory IDs from `ui_surface_blueprint.md`.
+- [ ] **Bounded Scope**: Exact changes required, plus explicit out-of-scope exclusions.
+- [ ] **Dependencies & Order**: Upstream prerequisites and material implementation order.
+- [ ] **Acceptance Criteria**: Testable, unambiguous conditions of satisfaction.
+- [ ] **Verification & Scenarios**: Unit/feature tests and applicable browser acceptance scenarios.
+- [ ] **Stop Conditions**: Explicit conditions requiring pausing and user consultation.
+
+If the coordination Issue is missing, stale, or materially conflicts with current authority or delivery state, stop at a read-only recommendation rather than inventing the order.
+
+#### 5. Pre-Presentation Self-Review
+Before presenting the draft to the user:
+- [ ] References rather than restates governing authority.
+- [ ] Preserves proven aligned implementation by default.
+- [ ] Expresses required outcomes instead of speculative schema, component, or method choices.
+- [ ] Prescribes an implementation choice only when current evidence proves it necessary.
+- [ ] States the exact next action and permission boundary.
+
+Revise the same draft when only its quality or precision changes; derive again only when the selected outcome, scope, dependencies, or governing authority materially changes. End by stating the exact next action and permission boundary.
+
+#### 6. Creation & Post-Creation Verification
+Creating the approved draft is a separate explicit external write.
+- **Coordination-derived**: Authorization creates the Issue with the `implementation` label, assigns the approved owner, attaches it as a native sub-Issue of the active coordination Issue, and establishes approved dependency links separately.
+- **Standalone**: Create the parentless Issue only from its accepted contract and record why no active coordination owns it.
+
+*Post-Creation Verification Checklist:*
+- [ ] Parent link verified on live issue (for coordination-derived).
+- [ ] Label `implementation` verified.
+- [ ] Assigned owner verified.
+- [ ] Dependency links verified.
+- [ ] GitHub Project item exists in `TALA Development` with status `Todo` (added automatically via Project v2 automation).
+
+Missing or incorrect recorded state stops before `Plan #NN` or `Complete #NN` for an explicitly authorized correction. Issue creation does not authorize planning, coding, a branch, a commit, publication, or merge.
 
 ### Plan
 
@@ -57,37 +120,44 @@ A useful plan states the goal, bounded scope, relevant authorities and surfaces,
 
 Before presenting the plan, challenge each material implementation decision against governing authority, current implementation evidence, applicable qualified sources, reasonable alternatives and trade-offs, verification, and cleanup. Resolve correctable contradictions, unsupported assumptions, and premature choices; surface any remaining material decision to the user instead of guessing. Present the best-supported decision-complete plan with concise rationale, without claiming universal optimality.
 
+#### UI-Bearing Slice Completeness Checklist
 For a UI-bearing vertical slice, the plan and any developer handoff derived from it must explicitly identify:
-
-- Canonical UI inventory IDs from `ui_surface_blueprint.md`.
-- Workspace and navigation entry.
-- Information and action hierarchy.
-- Component disposition: Filament core, installed compatible dependency, focused TALA custom, or purposeful exclusion.
-- Reusable current components.
-- Loading, empty, validation, stale or concurrent, failure, and inaccessible states.
-- Responsive transformation.
-- Keyboard and screen-reader behavior.
-- Print or other output effects when applicable.
-- Browser acceptance scenarios.
+- [ ] **Canonical UI inventory IDs**: From `ui_surface_blueprint.md`.
+- [ ] **Navigation & Workspace Entry**: Entry point and route.
+- [ ] **Information & Action Hierarchy**: Primary content, primary action, secondary actions.
+- [ ] **Component Disposition**: Filament core, installed compatible dependency, focused TALA custom, or purposeful exclusion.
+- [ ] **Reusable Current Components**: Existing components leveraged without duplication.
+- [ ] **UI States**: Loading, empty, validation, stale/concurrent, failure, and inaccessible states.
+- [ ] **Responsive Transformation**: Desktop, tablet, mobile layouts.
+- [ ] **Accessibility**: Keyboard navigation and screen-reader behavior.
+- [ ] **Output Effects**: Print or external document generation when applicable.
+- [ ] **Browser Acceptance Scenarios**: Step-by-step verification flows.
 
 This is a planning and handoff completeness contract. It does not require high-fidelity mockups for every state, reopen settled PRDs, map each inventory row to a separate route, or introduce new plugins or components.
 
-A planning request without an issue number works the same way but has no GitHub task mutation. Accepting a plan does not itself authorize implementation while Codex remains in Plan mode.
+A planning request without an issue number works the same way but has no GitHub task mutation. Accepting a plan does not itself authorize implementation while remaining under a read-only boundary.
 
 ### Complete
 
-`Complete #NN` explicitly authorizes Codex to mark the named issue `In Progress` and then:
+`Complete #NN` explicitly authorizes the agent to mark the named issue `In Progress` and execute the following bounded workflow:
 
-1. Inspect the relevant authority and current implementation.
-2. Before material implementation, establish a working coverage map for every owning-Issue acceptance criterion. Reuse the accepted Plan where it already supplies the mapping; connect each criterion to its applicable governing authority, required domain behavior and ordering, human and automatic actions, UI or output reachability, and proportionate positive, negative, boundary, recovery, stale or concurrent, integration, browser, companion-artifact, external-action, and stop-condition evidence. Maintain the map as implementation decisions or findings change. A passing main journey, aggregate tests, or related code never proves criterion coverage by itself.
-3. Research when existing authority is insufficient, conflicting, time-sensitive, security-critical, or likely wrong.
-4. Make bounded local changes.
-5. Run proportionate non-destructive verification in the configured project environment.
-6. Remediate and re-check in-scope failures.
-7. Inspect and clean the intended diff without touching unrelated work.
-8. Build a criterion-by-criterion acceptance ledger for the owning Issue. Classify every acceptance criterion as `Verified`, `Partial`, or `Unverified` and cite current attributable evidence; automated or browser results may support entries but never auto-satisfy a semantic criterion.
-9. Create one bounded local commit after verification evidence is current. Use a clear subject that identifies the bounded outcome; add a concise body only when important rationale, constraints, exclusions, or consequences are not apparent from the subject, owning Issue, and diff. Reference the owning Issue when applicable.
-10. Report the result, evidence, exclusions, remaining risk, and publication boundary.
+1. **Inspect Authority**: Inspect relevant authority and current implementation.
+2. **Establish Coverage Map**: Before material implementation, establish a working coverage map for every owning-Issue acceptance criterion. Connect each criterion to its applicable governing authority, required domain behavior and ordering, human and automatic actions, UI or output reachability, and proportionate positive, negative, boundary, recovery, stale or concurrent, integration, browser, companion-artifact, external-action, and stop-condition evidence. Reuse the accepted Plan where it already supplies the mapping; maintain the map as findings change. A passing main journey, aggregate tests, or related code never proves criterion coverage by itself.
+3. **Targeted Research**: Research official or institutional sources when existing authority is insufficient, conflicting, time-sensitive, security-critical, or likely wrong.
+4. **Bounded Local Edits**: Make bounded local changes strictly to in-scope files.
+5. **Proportionate Verification**: Run proportionate non-destructive verification in the configured project environment.
+6. **Remediate In-Scope Failures**: Remediate and re-check in-scope failures.
+7. **Clean Diff**: Inspect and clean the intended diff without touching unrelated work.
+8. **Build Acceptance Ledger**: Classify every acceptance criterion into the ledger:
+
+| Criterion Status | Definition | Implication for Complete |
+| --- | --- | --- |
+| `Verified` | Proved with current attributable automated or browser evidence | Required for all criteria to succeed |
+| `Partial` | Partially implemented or missing evidence for edge/negative paths | Blocks Complete; keeps Issue `In Progress` |
+| `Unverified` | Unchecked, failing, or inferred without direct evidence | Blocks Complete; keeps Issue `In Progress` |
+
+9. **Create One Local Commit**: Create exactly one bounded local commit after verification evidence is current. Use a clear subject that identifies the bounded outcome; add a concise body only when important rationale, constraints, exclusions, or consequences are not apparent from the subject, owning Issue, and diff. Reference the owning Issue when applicable.
+10. **Report Results**: Report changed scope, verification evidence, untouched exclusions, remaining risks, and the next action requiring authorization.
 
 Complete leaves the issue open and its project item short of `Done`. It never authorizes a push, pull request, merge, deployment, destructive operation, dependency, credential, external cost, public-access change, or material scope expansion.
 
@@ -99,11 +169,14 @@ A clear task without an issue number remains valid. A request to implement, fix,
 
 `Publish #NN` is a separate external-write boundary. It first requires current verification, intended-diff evidence, and an all-`Verified` acceptance ledger.
 
+| Mode | Target | Preflight Requirements | Core Actions | Final Project Transition |
+| --- | --- | --- | --- | --- |
+| **Solo Work** | `origin/main` | Clean diff, all criteria `Verified`, local tests passing | Inspect commits ahead of `origin/main`; push accepted range directly to `origin/main`; await required CI checks; post durable evidence record; close Issue | GitHub Project automation sets item to `Done` upon Issue closure |
+| **Concurrent Work** | Feature Branch & PR | Clean diff, all criteria `Verified`, local tests passing | Push Issue branch; open PR with `Closes #NN`; await required CI checks | PR review remains `In Progress`; merge requires separate explicit authorization and triggers `Done` via Project automation |
+
 After the source is on GitHub, every required CI check for the exact published commit or pull-request head must succeed. Immediately before an authorized solo closure or separately authorized concurrent merge, re-fetch the owning Issue and Project state, revalidate that every criterion remains `Verified`, update only evidence-backed acceptance checkboxes, and post a compact durable evidence record. Closure or merge happens last. Any failed gate keeps the Issue `In Progress`; never tick a semantic criterion merely because tests passed.
 
-- For approved solo work on `main`, inspect every commit ahead of `origin/main`, push only when the entire range is explicitly accepted, then complete the required CI and closure preflight above before closing the Issue; the configured Project workflow sets its item to `Done`.
-- For concurrent work, push the Issue-specific branch and open one pull request containing `Closes #NN`. Open pull-request review remains `In Progress`.
-- `Publish #NN` may open that pull request but never authorizes merge. Merge requires separate explicit authorization and fresh evidence that acceptance criteria, automated and applicable browser verification, resolved review, bounded diff, integrated dependencies, and sufficient currency with `main` are satisfied.
+- `Publish #NN` may open a pull request for concurrent work but never authorizes merge. Merge requires separate explicit authorization and fresh evidence that acceptance criteria, automated and applicable browser verification, resolved review, bounded diff, integrated dependencies, and sufficient currency with `main` are satisfied.
 - After an authorized merge, the linked issue closes and the configured Project workflow sets its item to `Done`; the merged branch may be deleted, and dependent branches refresh from `main` before continuing.
 - Publishing never authorizes deployment, public-access changes, or movement of unrelated issues unless explicitly included.
 
@@ -137,11 +210,11 @@ The cycle is complete only when every accepted high-level journey is covered by 
 
 When planner and implementer differ, the accepted plan or a concise execution handoff must be posted in or durably linked from the owning GitHub Issue before coding begins under an authorized assignment or `Complete #NN` boundary. Read the Issue body, relevant durable comments, and linked plan or handoff together. The handoff identifies relevant authority, bounded scope, accountable ownership, dependencies, material implementation order, verification, exclusions, stop conditions, and any task-specific environment, skill, or tool prerequisite whose absence would block implementation or acceptance. Do not repeat generic project guidance or every available tool.
 
-The public `TALA Development` GitHub Project provides an `All Work` table and a status-grouped `Board`. It uses exactly `Todo`, `In Progress`, `Done`, and `Canceled`. An open Issue labeled `implementation` is automatically added and set to `Todo`; closing the Issue or merging its linked pull request sets it to `Done`. Codex sets `In Progress` when `Complete #NN` begins and sets `Canceled` only after an explicit intentional stop, supersession, or not-planned decision with a recorded reason. Open pull-request review remains `In Progress`. The active `coordination` Issue remains `In Progress` until the separately authorized final closure sets it to `Done`. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
+The public `TALA Development` GitHub Project provides an `All Work` table and a status-grouped `Board`. It uses exactly `Todo`, `In Progress`, `Done`, and `Canceled`. An open Issue labeled `implementation` is automatically added and set to `Todo`; closing the Issue or merging its linked pull request sets it to `Done`. The agent sets `In Progress` when `Complete #NN` begins and sets `Canceled` only after an explicit intentional stop, supersession, or not-planned decision with a recorded reason. Open pull-request review remains `In Progress`. The active `coordination` Issue remains `In Progress` until the separately authorized final closure sets it to `Done`. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
 
 The approved solo direct-`main` publication path remains valid while only one implementation Issue is active. For solo work, use the existing primary `main` checkout. Do not create a branch, clone, or worktree unless the user explicitly requests isolation or the accepted plan demonstrates that isolation is necessary. Before a second implementation Issue becomes active concurrently, verify that pull-request CI and protection of `main` are configured and working. Parallel work requires pull requests, successful required checks, and resolved review conversations, with force-pushes and branch deletion blocked. Recording this gate does not authorize CI, repository-rule, or GitHub configuration changes.
 
-A fresh Codex task is recommended when the implementation owner or Issue changes, but it is not a parallel-safety requirement. Any Codex task used for concurrent implementation must be explicitly anchored to one assigned Issue. The Issue-specific branch, isolated workspace and database, and pull request are the durable isolation boundaries; conversation history is not.
+A fresh agent session is recommended when the implementation owner or Issue changes, but it is not a parallel-safety requirement. Any agent session used for concurrent implementation must be explicitly anchored to one assigned Issue. The Issue-specific branch, isolated workspace and database, and pull request are the durable isolation boundaries; conversation history is not.
 
 Concurrent development starts isolated: one accountable owner, one Issue-specific branch from accepted and up-to-date `main`, one pull request, and no unrelated Issues on that branch. Under an authorized `Complete #NN`, creating or switching to that local Issue branch is an ordinary setup step; pushing it remains part of `Publish #NN`. Do not share a mutable workspace or database unless isolation is proven. Record dependency order and shared-seam ownership before coding. Dependent work waits until the prerequisite Issue's pull request merges into `main` unless an explicit stacked-branch plan is approved.
 
