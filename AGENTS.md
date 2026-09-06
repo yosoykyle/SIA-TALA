@@ -497,7 +497,6 @@ Stop and ask confirmation ONLY for:
 - Destructive or hard-to-reverse operations.
 - Adding new package dependencies, credentials, or cloud infrastructure costs.
 - Structural architecture pivots that contradict established domain boundaries.
-- Spawning background subagents (single worker by default).
 - Merging pull requests or deploying to production.
 </human_gates>
 </TALA_ORCHESTRATOR_ROUTER>

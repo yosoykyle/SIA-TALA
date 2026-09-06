@@ -192,7 +192,6 @@ Stop and ask only when safe progress requires one of these:
 - A new dependency, credential, external cost, deployment, or public-access change.
 - An external write outside the explicitly named Complete or Publish action.
 - A material expansion beyond the requested scope.
-- Delegation or subagent use that the user has not authorized.
 
 Do not manufacture a gate for reading files, inspecting logs, editing in-scope local files, running configured tests or checks, fixing an in-scope defect, or recording a non-material discovery.
 
@@ -234,20 +233,7 @@ Memory may help recall prior reasoning but never replaces live Git authority or 
 - Prefer current aligned code, then native Laravel and Filament features, then an established compatible pattern or installed component, and finally focused custom code. Adding a dependency remains a human gate.
 - Record an authority-backed deferral as a separate GitHub Issue only when the user authorizes that external write. Discard ideas with no authority or purposeful MVP role.
 
-## 7. Delegation
-
-Delegate only when the user explicitly requests it or approves a plan that includes it. Use one accountable worker and at most one active subagent by default on the primary workstation. Do not nest subagents. Split work only when tasks are genuinely independent and their files and shared resources do not conflict. A second concurrent subagent requires separate explicit authorization and must stop if local responsiveness degrades.
-
-Give each worker a narrow goal, exact owned files or surfaces, relevant authority, verification expectation, exclusions, and stop conditions. Workers do not commit, publish, deploy, mutate issues, expand scope, or start another issue unless explicitly authorized.
-
-The primary remains responsible for final judgment. A worker returns only:
-
-1. Outcome and changed files.
-2. Verification performed and results.
-3. Exclusions, risks, or blockers.
-4. Any material discovery requiring a decision.
-
-## 8. Verification and handoff
+## 7. Verification and handoff
 
 Verification is part of Complete, not a separate user command. Match it to risk:
 
@@ -261,7 +247,7 @@ Passing tests are evidence, not the whole acceptance decision. Inspect authority
 
 Every completed local task reports changed scope, verification evidence, untouched exclusions, remaining risks, and the next action requiring authorization. Do not repeat unchanged evidence or narrate internal ceremony.
 
-## 9. Authority corrections and decision records
+## 8. Authority corrections and decision records
 
 Product behavior stays in the PRDs, UI blueprint, and architecture specification. If implementation reveals a substantive authority error, present the evidence and proposed correction for approval before depending on it. Trivial wording or consistency fixes may be corrected within an already authorized documentation scope.
 
