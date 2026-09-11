@@ -1,0 +1,16 @@
+
+> build
+> vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+
+/fonts/tala/outfit-latin.woff2 referenced in /fonts/tala/outfit-latin.woff2 didn't resolve at build time, it will remain unchanged to be resolved at runtime
+✓ 3 modules transformed.
+rendering chunks...
+computing gzip size...
+public/build/manifest.json                0.56 kB │ gzip:  0.21 kB
+public/build/assets/app-BNQl2pOK.css     42.84 kB │ gzip:  8.24 kB
+public/build/assets/theme-WOg5eySP.css  633.21 kB │ gzip: 67.43 kB
+public/build/assets/app-CZZ8GwHN.js       0.05 kB │ gzip:  0.07 kB
+✓ built in 6.73s

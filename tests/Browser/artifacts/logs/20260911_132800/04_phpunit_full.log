@@ -1,0 +1,1649 @@
+
+   PASS  Tests\Unit\ExampleTest
+  ✓ that true is true                                                                                            0.26s
+
+   PASS  Tests\Unit\PaymentStatusResolverTest
+  ✓ returns no active assessment when assessment is missing                                                      0.12s
+  ✓ full paid when balance is not positive
+  ✓ payment under review from attempt takes priority over pending                                                0.03s
+  ✓ payment under review from payment evidence
+  ✓ payment pending when only a pending attempt exists
+  ✓ payment rejected when latest attempt failed and nothing posted
+  ✓ unpaid when nothing posted and no relevant attempts
+  ✓ installment when partially posted with a due schedule row
+  ✓ partially paid when posted without a due schedule row
+  ✓ failed attempt does not override posted progress
+
+   PASS  Tests\Unit\TAL65CloudRunSchedulingSolverClientTest
+  ✓ cloud run driver posts tal94 v2 snapshot with configured id token auth                                       3.48s
+
+   PASS  Tests\Unit\TAL94E1SchedulingSolverTransportTest
+  ✓ solver phase timing header is strictly allowlisted                                                           0.08s
+  ✓ local http driver resolves in testing environment                                                            0.07s
+  ✓ local http probe and solve use loopback without authorization                                                0.07s
+  ✓ local http rejects endpoints outside the exact loopback boundary with data set "remote h t t p s"            0.11s
+  ✓ local http rejects endpoints outside the exact loopback boundary with data set "loopback h t t p s"          0.11s
+  ✓ local http rejects endpoints outside the exact loopback boundary with data set "private network host"        0.08s
+  ✓ local http rejects endpoints outside the exact loopback boundary with data set "nearby loopback address"     0.09s
+  ✓ local http rejects endpoints outside the exact loopback boundary with data set "credential-bearing u r l"    0.08s
+  ✓ local http rejects endpoints outside the exact loopback boundary with data set "path-bearing u r l"          0.09s
+  ✓ local http rejects endpoints outside the exact loopback boundary with data set "query-bearing u r l"         0.10s
+  ✓ local http rejects endpoints outside the exact loopback boundary with data set "fragment-bearing u r l"      0.08s
+  ✓ local http is rejected outside local or testing environments                                                 0.07s
+  ✓ local http failed solve is sent only once                                                                    0.13s
+  ✓ local http classifies retryable and permanent http failures with data set "request timeout"                  0.12s
+  ✓ local http classifies retryable and permanent http failures with data set "rate limited"                     0.07s
+  ✓ local http classifies retryable and permanent http failures with data set "service unavailable"              0.08s
+  ✓ local http classifies retryable and permanent http failures with data set "bad request"                      0.07s
+  ✓ local http classifies retryable and permanent http failures with data set "unauthorized"                     0.09s
+  ✓ local http classifies retryable and permanent http failures with data set "unprocessable response"           0.08s
+  ✓ local http connection and malformed response failures are classified without nested retries                  0.24s
+  ✓ cloud run credential failure is permanent and redacted                                                       0.07s
+  ✓ cloud run probe uses health endpoint and id token                                                            0.07s
+  ✓ scheduler configuration has no toggle that can disable cloud run iam                                         0.07s
+  ✓ exact budget exhaustion code is retryable and redacted                                                       0.07s
+
+   PASS  Tests\Unit\TAL96D2CSchedulingFacultyCapacityAssessmentTest
+  ✓ it constructs a deterministic qualification aware load assignment                                            0.01s
+  ✓ it reports qualification gaps and load ceiling failures
+  ✓ it finds the first sufficient roster without calling it a proven minimum
+
+   PASS  Tests\Unit\TAL96D5E1B1FixtureTruthTest
+  ✓ current catalog uses the approved 23 third year rows
+  ✓ canonical manifest has one unambiguous current dataset                                                       0.02s
+  ✓ manifest records source subtotal discrepancies without inventing a course
+
+   PASS  Tests\Feature\AcademicProgressionServiceTest
+  ✓ it evaluates grouped prerequisites ordered minimums transfer credit and scoped exceptions                    1.83s
+  ✓ current enrollment satisfies only corequisites and internal numeric shift credit can satisfy prerequisites   0.21s
+  ✓ it separates back subjects from active pending and incomplete blockers                                       0.21s
+  ✓ it recommends completion candidate when all required requirements are completed                              0.21s
+  ✓ current out of curriculum enrollment recommends irregular standing                                           0.16s
+  ✓ registrar confirmation is audited and does not happen during evaluation                                      0.36s
+  ✓ non registrar cannot confirm academic standing                                                               0.15s
+  ✓ standing confirmation requires a valid standing and reason                                                   0.11s
+
+   PASS  Tests\Feature\AcademicScheduling\AcademicAuthorityToPublishedTimetableJourneyTest
+  ✓ complete authority to publication journey preserves correction recovery and projections                     76.29s
+  ✓ program authority activation is failed first attributable and effective dated                                0.25s
+  ✓ exact terms activate independently after failed first calendar readiness                                     0.17s
+  ✓ special term never activates from an invented default schedule                                               0.15s
+  ✓ published timetable revision creates a complete immutable successor                                          0.29s
+  ✓ canonical workbenches are connected and academic head is read only                                           9.84s
+  ✓ term planning defaults only to one unambiguous active package                                                0.21s
+  ✓ candidate acceptance and rejection are attributable non official decisions                                   0.17s
+  ✓ coordinated slice three fixture materializes the actual synthetic workload                                   4.32s
+  ✓ late faculty availability correction is attributable and stales the candidate                                0.23s
+  ✓ faculty owns the native exact term availability journey                                                      4.60s
+  ✓ successful faculty availability request records transport evidence                                           6.94s
+
+   PASS  Tests\Feature\AcademicScheduling\Slice3ConformanceGapsTest
+  ✓ demand generation preserves two by ninety meeting pattern                                                    0.17s
+  ✓ verification stub preserves every meeting sequence                                                           0.15s
+  ✓ class confirmation rejects cross term and nonpositive cohorts without partial sync                           0.15s
+  ✓ regular and authority backed additional classes use cohort relationships for sharing                         0.23s
+  ✓ section commitment is demand scoped and dated exceptions are not recurring blocks                            0.16s
+  ✓ latest faculty declaration projects deterministic hard calendar blocks                                       0.17s
+  ✓ repair request captures the complete source preview and blocks a duplicate active run                        0.25s
+  ✓ legacy published backfill is idempotent and preserves version succession                                     0.17s
+  ✓ scheduling treatment backfill derives only component backed legacy rows                                      0.14s
+  ✓ direct revision cannot remove a meeting outside whole section cancellation                                   0.21s
+
+   WARN  Tests\Feature\AcademicScheduling\TimetableV2LoopbackContractTest
+  - timetable v2 source round trips through the temporary loopback service → Set TALA_SLICE3_LOOPBACK_URL only…  0.87s
+
+   PASS  Tests\Feature\Academics\CompletionToStandardTorJourneyTest
+  ✓ readiness application and conferral use current attributable sources                                         1.55s
+  ✓ tor request clearance preview issuance void and replacement are request bound                                1.29s
+
+   PASS  Tests\Feature\Academics\HumanCenteredCompletionAndTorAcceptanceTest
+  ✓ fully credited completion is eligible without inventing a final term                                         0.41s
+  ✓ completion notification ledger records only actionable blocker deltas                                        0.51s
+  ✓ issuance and replacement require current attributable preview bindings                                       0.67s
+
+   PASS  Tests\Feature\Academics\OfficialRosterToStudentAcademicsJourneyTest
+  ✓ final result contract is exact and no meeting roster releases atomically                                     0.59s
+  ✓ returned rows and membership changes preserve submitted versions                                             0.34s
+  ✓ incomplete submission and designated faculty replacement fail closed                                         0.26s
+  ✓ inc completion amendment and correction append successors                                                    0.73s
+  ✓ averages exclude pe and external competency supersedes without grade effect                                  0.92s
+  ✓ cumulative gwa retains retake attempts excludes nstp and rounds half up once                                 0.74s
+  ✓ readiness academic effect and authorized decision successors are deterministic                               0.53s
+  ✓ all owning roles receive the same exact term examination period projection                                   3.78s
+  ✓ roster and unofficial outputs are current private logged and formula safe                                    0.82s
+  ✓ successful academic mail records transport and attempt evidence                                              0.24s
+  ✓ academic record mail is value free resendable and cannot roll back release                                   0.24s
+
+   PASS  Tests\Feature\AdmissionsStudentHandoverUiTest
+  ✓ registrar can view student profiles list and details                                                         7.53s
+  ✓ student cannot access registrar student profiles                                                             0.14s
+  ✓ accounting can record financial holds on student profile                                                     0.54s
+  ✓ registrar can verify and reject checklist items                                                              1.75s
+  ✓ registrar can resolve duplicate profiles                                                                     0.28s
+  ✓ student profile is a read only official projection with correction guidance                                  0.42s
+
+   PASS  Tests\Feature\Admissions\AdmissionApplicationDomainActionsTest
+  ✓ applicant can save and discard only an open unsubmitted canonical draft                                      0.15s
+  ✓ partial draft steps allow missing program path and minor guardian completion until submit                    0.16s
+  ✓ first submission revalidates under lock and preserves an immutable version                                   0.36s
+  ✓ supported paths credentials and age branches submit without invented profiles with data set "adult senior h… 0.16s
+  ✓ supported paths credentials and age branches submit without invented profiles with data set "adult a l s a&… 0.15s
+  ✓ supported paths credentials and age branches submit without invented profiles with data set "minor p e p t…  0.15s
+  ✓ supported paths credentials and age branches submit without invented profiles with data set "adult transfer… 0.16s
+  ✓ submission idempotently creates private exact identity and verified lrn warnings                             0.19s
+
+   PASS  Tests\Feature\Admissions\AdmissionCycleCorrectionBoundaryJourneyTest
+  ✓ legacy cycles are backfilled without changing public closing                                                 0.12s
+  ✓ new corrections use the separate inclusive boundary                                                          0.21s
+  ✓ publication readiness requires ordered public and correction boundaries                                      0.14s
+  ✓ expired boundary blocks only new issuance and preserves active correction                                    0.34s
+  ✓ public and correction boundaries change independently with history                                           0.33s
+  ✓ unauthorized boundary change creates no partial mutation                                                     0.25s
+  ✓ public availability ignores the correction boundary                                                          0.27s
+  ✓ registrar and applicant surfaces distinguish boundaries due and overdue recovery                             4.38s
+
+   PASS  Tests\Feature\Admissions\AdmissionCycleDomainActionsTest
+  ✓ publication is failed first and reports owned recovery for each blocker                                      0.31s
+  ✓ cycle publication and later date or cancellation changes append history                                      0.27s
+  ✓ complete requirement versions publish and replacements stay in same cycle and path                           0.24s
+  ✓ requirement set publication requires the path core credential and non core only exceptions                   0.21s
+  ✓ cycle readiness fails closed for an unclassified published requirement version                               0.20s
+
+   PASS  Tests\Feature\Admissions\AdmissionEvidenceNotificationServicesTest
+  ✓ private evidence validates file content preserves versions and authorizes reads                              0.76s
+  ✓ private evidence path tampering is rejected                                                                  0.25s
+  ✓ notification ledger is idempotent and supports one claim per authorized retry                                0.17s
+
+   PASS  Tests\Feature\Admissions\AdmissionReviewReadinessActionsTest
+  ✓ correction reopens only named scope and resubmission closes the request                                      0.24s
+  ✓ identity decision credential reversal and ready projection remain append only                                0.36s
+  ✓ withdrawal and reopening stop after clinic four registration exists                                          0.17s
+
+   PASS  Tests\Feature\Admissions\AdmissionTransactionalMailTest
+  ✓ each authorized admissions trigger queues one after commit safe workspace message                            0.15s
+  ✓ delivery failure preserves domain state and authorized resend is idempotent                                  0.13s
+  ✓ successful transport records delivery outcome                                                                0.11s
+
+   PASS  Tests\Feature\Admissions\AdmissionsAcceptanceSeederTest
+  ✓ coordinated synthetic cycle is complete published and idempotent                                             0.64s
+  ✓ complete client acceptance baseline includes the canonical admissions cycle                                  5.06s
+
+   PASS  Tests\Feature\Admissions\ApplicationAdmissionDomainFoundationTest
+  ✓ canonical applications share the existing table without reinterpreting legacy rows                           0.13s
+  ✓ cycles and published requirement versions have restrictive versioned foundations                             0.15s
+  ✓ application history relationships are append only and use fixed vocabulary                                   0.16s
+  ✓ document evidence supports canonical versions without breaking legacy checklists                             0.19s
+
+   PASS  Tests\Feature\Admissions\ApplicationToReadinessJourneyTest
+  ✓ applicant account status is independent from application progress                                            0.14s
+  ✓ legacy intake and generic requirement policy resources are not registered                                    0.10s
+  ✓ five step applicant page submits one versioned application without creating student records                  0.59s
+  ✓ applicant can retry only a failed admissions update without changing application state                       2.41s
+  ✓ version bound acknowledgment is owner only and records access                                                0.51s
+  ✓ acknowledgment render failure does not record false success                                                 13.01s
+
+   PASS  Tests\Feature\Admissions\HumanCenteredSlice2AcceptanceTest
+  ✓ effective requirement resolution rejects stale submission and keeps corrections version bound                0.35s
+  ✓ evidence correction is canonicalized and legacy id keys still allow replacement and resubmission             0.50s
+  ✓ assisted entry is attributable applicant owned draft only and unsupported scope creates nothing              0.22s
+  ✓ native wizard announces progress and assisted page withholds submission                                      1.17s
+  ✓ first step partial draft persists without premature completion requirements                                  0.30s
+  ✓ scope changes bind the current requirement set and initialize dynamic evidence state                         1.35s
+
+   PASS  Tests\Feature\ApplicantIntakeSubmissionTest
+  ✓ canonical application accepts a partial draft without inventing missing facts                                0.21s
+  ✓ one account can own only one application in the same cycle                                                   0.20s
+  ✓ submission creates an immutable version without student handover                                             0.27s
+
+   PASS  Tests\Feature\ApplicantWorkspaceTest
+  ✓ guest is redirected to applicant login                                                                       0.27s
+  ✓ non applicant roles are forbidden from applicant workspace                                                   0.21s
+  ✓ verified applicant can access the bounded empty workspace                                                    0.39s
+  ✓ requirements empty state explains its version boundary and links to application                              0.24s
+  ✓ application page exposes the five step journey and partial draft action                                      0.14s
+  ✓ draft has no version bound requirement set yet                                                               0.19s
+  ✓ submitted application projects status and separate preliminary and official requirements                     0.39s
+
+   PASS  Tests\Feature\Auth\ApplicantAccountEntryJourneyTest
+  ✓ open admissions exposes registration without an invented mail readiness toggle                               0.87s
+  ✓ open entry exposes project approved support and single page public information                               0.13s
+  ✓ missing admission cycle keeps existing applicant sign in available                                           0.11s
+  ✓ ready entry creates only one minimal unverified applicant account                                            0.25s
+  ✓ account creation requires privacy acknowledgement                                                            0.13s
+  ✓ account creation enforces the approved password length bounds                                                0.12s
+  ✓ duplicate account creation uses non disclosing feedback                                                      0.11s
+  ✓ database unique race uses non disclosing feedback without creating a duplicate                               0.22s
+  ✓ compromised password is rejected without creating an account                                                 0.16s
+  ✓ compromised password provider failure degrades safely                                                        0.17s
+  ✓ account creation rechecks readiness after the entry page was loaded                                          0.13s
+  ✓ parallel fortify registration endpoint is disabled                                                           0.14s
+  ✓ filament registration uses only the minimal account fields                                                   0.75s
+  ✓ registration validation errors have an announced focusable summary                                           0.35s
+  ✓ resending verification supersedes the previous link and success clears the nonce                             0.45s
+  ✓ reused verification link gives an already verified applicant a safe workspace action                         0.17s
+  ✓ expired and malformed verification links preserve a recovery action                                          0.18s
+  ✓ immediate verification dispatch failure preserves the account for recovery                                   0.11s
+  ✓ verification prompt resends once per minute without exposing the nonce                                       0.14s
+
+   PASS  Tests\Feature\Auth\Clinic1ContextualAccessJourneyTest
+  ✓ single context routes directly and selected entry never grants access                                        0.12s
+  ✓ each staff context enters its first canonical destination with data set " registrar"                         0.11s
+  ✓ each staff context enters its first canonical destination with data set " accounting"                        0.12s
+  ✓ each staff context enters its first canonical destination with data set " faculty"                           0.12s
+  ✓ each staff context enters its first canonical destination with data set " academic head"                     0.12s
+  ✓ each staff context enters its first canonical destination with data set " system administrator"              0.11s
+  ✓ multi role account chooses one context without merging staff authority                                       0.13s
+  ✓ completed applicant context is omitted after student activation but active journey is kept                   0.13s
+  ✓ revoked context cannot be reused from session                                                                0.11s
+  ✓ wrong context credentials recover to the authorized workspace without role disclosure                        0.47s
+  ✓ wrong entry explanation is shown once in the authorized workspace                                            0.58s
+  ✓ matching entry does not show a wrong entry explanation                                                       0.51s
+  ✓ wrong entry explanation is available in the workspace chooser                                                0.94s
+  ✓ fortify login explains an unavailable entry after authentication                                             0.44s
+  ✓ failed authentication does not explain or disclose an available context                                      0.59s
+  ✓ generic staff entry clears a previously requested learner context                                            0.13s
+
+   PASS  Tests\Feature\Auth\EmailVerificationBoundaryTest
+  ✓ unverified valid users are allowed to reach only their panel verification prompt with data set "registrar s… 0.16s
+  ✓ unverified valid users are allowed to reach only their panel verification prompt with data set "applicant w… 0.13s
+  ✓ unverified valid users are allowed to reach only their panel verification prompt with data set "student hub… 0.13s
+  ✓ login response sends unverified users to their panel verification prompt with data set "registrar staff wor… 0.11s
+  ✓ login response sends unverified users to their panel verification prompt with data set "applicant workspace… 0.11s
+  ✓ login response sends unverified users to their panel verification prompt with data set "student hub"         0.12s
+  ✓ applicant registration response sends unverified applicant to applicant verification prompt                  0.13s
+  ✓ verified valid users can reach their panel dashboard with data set "verified registrar staff workspace"      0.51s
+  ✓ verified valid users can reach their panel dashboard with data set "verified applicant workspace"            0.19s
+  ✓ verified valid users can reach their panel dashboard with data set "verified student hub"                    0.35s
+
+   PASS  Tests\Feature\Auth\LearnerWorkspaceNavigationBoundaryTest
+  ✓ applicant workspace navigation contains only applicant surfaces                                              0.10s
+  ✓ student hub navigation contains only student surfaces once                                                   0.11s
+  ✓ each staff context has only its canonical top level destinations with data set " registrar"                  0.22s
+  ✓ each staff context has only its canonical top level destinations with data set " accounting"                 0.33s
+  ✓ each staff context has only its canonical top level destinations with data set " faculty"                    0.28s
+  ✓ each staff context has only its canonical top level destinations with data set " academic head"              0.28s
+  ✓ each staff context has only its canonical top level destinations with data set " system administrator"       0.25s
+  ✓ removed primary entries keep their required contextual recovery paths                                        0.51s
+  ✓ applicant dashboard does not render staff workspace surfaces                                                 0.22s
+  ✓ student hub dashboard does not render staff workspace surfaces                                               0.19s
+
+   PASS  Tests\Feature\Auth\PanelAccessBoundaryTest
+  ✓ canonical roles can access only their authorized panel with data set "registrar can access staff workspace"  0.11s
+  ✓ canonical roles can access only their authorized panel with data set "accounting can access staff workspace… 0.10s
+  ✓ canonical roles can access only their authorized panel with data set "faculty can access staff workspace"    0.11s
+  ✓ canonical roles can access only their authorized panel with data set "academic head can access staff worksp… 0.12s
+  ✓ canonical roles can access only their authorized panel with data set "system super admin can access staff w… 0.12s
+  ✓ canonical roles can access only their authorized panel with data set "student can access student hub"        0.11s
+  ✓ canonical roles can access only their authorized panel with data set "active applicant can access applicant… 0.10s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "guest-equivalent no-ro… 0.10s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "student cannot access…  0.08s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "applicant cannot acces… 0.10s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "registrar cannot acces… 0.14s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "registrar cannot acces… 0.14s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "student cannot access…  0.12s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "applicant cannot acces… 0.12s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "active student without… 0.11s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "inactive registrar can… 0.10s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "archived registrar can… 0.11s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "inactive student canno… 0.11s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "archived student canno… 0.10s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "inactive applicant can… 0.11s
+  ✓ wrong role inactive archived or unverified users cannot access panels with data set "archived applicant can… 0.12s
+  ✓ guests are redirected to the matching panel login with data set "guest staff workspace"                      0.09s
+  ✓ guests are redirected to the matching panel login with data set "guest applicant workspace"                  0.10s
+  ✓ guests are redirected to the matching panel login with data set "guest student hub"                          0.11s
+  ✓ authenticated users without panel access are forbidden with data set "student request to staff workspace"    0.11s
+  ✓ authenticated users without panel access are forbidden with data set "applicant request to staff workspace"  0.10s
+  ✓ authenticated users without panel access are forbidden with data set "registrar request to applicant worksp… 0.15s
+  ✓ authenticated users without panel access are forbidden with data set "registrar request to student hub"      0.18s
+  ✓ authenticated users without panel access are forbidden with data set "inactive applicant request to applica… 0.16s
+  ✓ authenticated users without panel access are forbidden with data set "archived student request to student h… 0.14s
+  ✓ authenticated users without panel access are forbidden with data set "active student request to student hub… 0.16s
+
+   PASS  Tests\Feature\Auth\RoleAwareLoginLandingTest
+  ✓ staff cannot bypass contextual filament mfa through the headless fortify login                               0.30s
+  ✓ verified canonical roles redirect to their workspace after login with data set "student lands in student hu… 0.16s
+  ✓ verified canonical roles redirect to their workspace after login with data set "active applicant lands in a… 0.19s
+  ✓ verified canonical roles land on their dashboard shell with data set "registrar sees staff dashboard shell"  0.25s
+  ✓ verified canonical roles land on their dashboard shell with data set "applicant sees applicant workspace da… 0.21s
+  ✓ verified canonical roles land on their dashboard shell with data set "student sees student hub dashboard"    0.20s
+  ✓ active verified user without a canonical role cannot authenticate                                            0.11s
+
+   PASS  Tests\Feature\Auth\SharedAccessPresentationTest
+  ✓ workspace choice has a shared appearance and an empty state recovery                                         0.10s
+  ✓ staff activation retains native password fields with associated guidance                                     0.24s
+  ✓ server failure rendering does not require authentication data or compiled assets                             0.33s
+
+   PASS  Tests\Feature\Auth\StaffInvitationActivationJourneyTest
+  ✓ new staff is invited without an administrator created password                                               0.14s
+  ✓ existing verified account is reused without changing its password                                            0.12s
+  ✓ resend supersedes old link and new link activates once                                                       0.55s
+  ✓ resend is throttled and expired or malformed links have one safe recovery action                             0.16s
+  ✓ dispatch failure does not reverse the invitation and records safe recovery evidence                          0.14s
+
+   PASS  Tests\Feature\Auth\StaffMfaAndAccountSecurityJourneyTest
+  ✓ app authentication uses encrypted columns and single use recovery codes                                      0.33s
+  ✓ mfa setup qr code is a single valid image data uri                                                           1.07s
+  ✓ mfa qr code normalization removes only a duplicate svg data uri layer                                        0.12s
+  ✓ authorized reset removes factor codes and sessions then requires reenrollment                                0.93s
+  ✓ staff capable accounts use stricter session policy                                                           0.11s
+  ✓ mfa reset rejects an incorrect actor password without change                                                 0.13s
+  ✓ completed password recovery invalidates existing sessions                                                    0.20s
+  ✓ staff without mfa is sent to setup while learner only account is not                                         0.23s
+  ✓ staff mfa gate applies in every authorized panel and valid totp is accepted                                  0.18s
+  ✓ contextual login accepts one recovery code and rejects its reuse                                             0.97s
+  ✓ recovery code input keeps the native on blur binding                                                         0.09s
+  ✓ login and mfa failures are limited to five per normalized account and ip                                     2.88s
+  ✓ account security is reachable from every workspace                                                           0.89s
+  ✓ learner email change keeps the old address and alerts both addresses until verification                      0.57s
+
+   PASS  Tests\Feature\Auth\WorkspaceAuthenticationEligibilityTest
+  ✓ active applicant can authenticate and reach applicant workspace with data set "active applicant"             0.21s
+  ✓ inactive or archived users cannot authenticate with data set "inactive applicant"                            0.17s
+  ✓ inactive or archived users cannot authenticate with data set "archived applicant"                            0.18s
+  ✓ inactive or archived users cannot authenticate with data set "inactive student"                              0.20s
+  ✓ inactive or archived users cannot authenticate with data set "archived student"                              0.17s
+  ✓ inactive or archived users cannot authenticate with data set "inactive registrar"                            0.14s
+  ✓ inactive or archived users cannot authenticate with data set "archived registrar"                            0.14s
+  ✓ active student can authenticate and reach student hub                                                        0.18s
+  ✓ active verified staff must use the contextual filament entry                                                 0.19s
+
+   PASS  Tests\Feature\Database\SchemaConformanceTest
+  ✓ exact clean mvp table inventory is present                                                                   0.12s
+  ✓ critical source ownership columns are conformant                                                             0.25s
+  ✓ critical foreign keys and history preserving delete rules exist                                              0.20s
+  ✓ uniqueness indexes checks and money precision match contract                                                 0.11s
+  ✓ foundation seeder creates the canonical roles and permissions                                                0.22s
+
+   PASS  Tests\Feature\DuplicateProfileResolutionTest
+  ✓ authorization verification                                                                                   0.13s
+  ✓ validation integrity                                                                                         0.12s
+  ✓ linked duplicate resolution success flow                                                                     0.13s
+  ✓ not duplicate keep separate flow                                                                             0.15s
+  ✓ global scope isolation                                                                                       0.15s
+  ✓ student hub login prevention                                                                                 0.12s
+  ✓ primary profile cannot be already merged                                                                     0.12s
+
+   PASS  Tests\Feature\Enrollment\CanonicalSpecialTermJourneyTest
+  ✓ canonical special term journey is exact authorized and isolated                                              3.20s
+
+   PASS  Tests\Feature\Enrollment\RegistrationToOfficialEnrollmentJourneyTest
+  ✓ ready applicant reaches official enrollment and immutable cor without early student identity                 0.67s
+  ✓ changed identity source requires reconfirmation and activates from the confirmed snapshot                    0.60s
+  ✓ approved no meeting course places and finalizes without inventing a recurring schedule                       0.45s
+  ✓ unavailable assessment never falls back to zero and fee plan publication is versioned                        0.54s
+  ✓ cancel reopen and stale proposal paths are fail closed                                                       0.29s
+  ✓ after cutoff reopen requires exact unused authority for the same case                                        0.23s
+  ✓ standard curriculum requires the complete exact term offering set                                            0.35s
+  ✓ learner self cancellation stops at confirmation and registrar releases capacity                              0.42s
+  ✓ applicant can cancel an unconfirmed case from the owned workspace                                            0.82s
+  ✓ overlapping current timetable placement fails without partial reservations                                   0.24s
+  ✓ registration case backfill is idempotent and stops on ambiguous legacy status                                0.11s
+  ✓ student number allocation is unique across two first finalizations                                           0.70s
+  ✓ continuing student uses the same exact term case with controlled selection and late authority                0.13s
+  ✓ continuing student finalization reuses the permanent identity and number                                     0.51s
+  ✓ continuing proposal uses the recorded curriculum and released result rules                                   0.29s
+  ✓ failed finalization creates no partial student registration cor or number                                    0.36s
+  ✓ assessment requires current confirmed placement and individual authority                                     0.39s
+  ✓ unresolved source impact and stale placement block atomic finalization                                       0.93s
+  ✓ proposal supersession preserves source and confirmation history                                              0.32s
+  ✓ expiry releases capacity once and returns the case to actionable placement                                   0.28s
+  ✓ final cutoff records not enrolled once and preserves the same case for authorized reopening                  0.15s
+  ✓ capacity shortage saves no partial placement and recovers through a successor proposal                       0.36s
+  ✓ inactive cross owner cross term and stale actions are denied without partial state                           0.23s
+  ✓ cancelled case rejects late confirmation without partial state                                               0.24s
+  ✓ manual payment and approved coverage produce a mixed exact obligation clearance                              0.41s
+  ✓ official adjustment and drop create successors without mutating prior cor                                    1.23s
+  ✓ continuing student window notification is idempotent for the exact calendar window                           0.58s
+  ✓ all four authorized individual assessment categories preserve versioned authority                            0.57s
+  ✓ cost increase adjustment requires the same case current cleared successor assessment                         0.58s
+  ✓ learner confirmed adjustment can add one newly eligible course atomically                                    0.53s
+  ✓ adjustment window and exact late authority are enforced without boolean bypass                               1.08s
+  ✓ source impact review is idempotent and never changes official course or cor history                          0.61s
+  ✓ notification failure preserves official enrollment and authorized resend queues once                         1.62s
+
+   PASS  Tests\Feature\FilamentRegistrationStabilizationTest
+  ✓ stale admin surfaces are deferred from route registration with data set "admission readiness dashboard page… 0.09s
+  ✓ stale admin surfaces are deferred from route registration with data set "admission capacity plans"           0.08s
+  ✓ stale admin surfaces are deferred from route registration with data set "admission offerings"                0.08s
+  ✓ stale admin surfaces are deferred from route registration with data set "cor verifications"                  0.08s
+  ✓ stale admin surfaces are deferred from route registration with data set "curricula"                          0.07s
+  ✓ stale admin surfaces are deferred from route registration with data set "delivery patterns"                  0.11s
+  ✓ stale admin surfaces are deferred from route registration with data set "document requirement items"         0.11s
+  ✓ stale admin surfaces are deferred from route registration with data set "document uploads"                   0.10s
+  ✓ stale admin surfaces are deferred from route registration with data set "enrollment subjects"                0.12s
+  ✓ stale admin surfaces are deferred from route registration with data set "faculty subject eligibilities"      0.12s
+  ✓ stale admin surfaces are deferred from route registration with data set "fee templates"                      0.12s
+  ✓ stale admin surfaces are deferred from route registration with data set "grade corrections"                  0.14s
+  ✓ stale admin surfaces are deferred from route registration with data set "grades"                             0.11s
+  ✓ stale admin surfaces are deferred from route registration with data set "grade submission packages"          0.11s
+  ✓ stale admin surfaces are deferred from route registration with data set "installment policies"               0.12s
+  ✓ stale admin surfaces are deferred from route registration with data set "installment policy milestones"      0.14s
+  ✓ stale admin surfaces are deferred from route registration with data set "promissory notes"                   0.12s
+  ✓ stale admin surfaces are deferred from route registration with data set "subjects"                           0.13s
+  ✓ accepted panel and foundation routes remain registered with data set "admin login"                           0.15s
+  ✓ accepted panel and foundation routes remain registered with data set "applicant login"                       0.17s
+  ✓ accepted panel and foundation routes remain registered with data set "applicant registration"                0.22s
+  ✓ accepted panel and foundation routes remain registered with data set "student login"                         0.15s
+  ✓ accepted panel and foundation routes remain registered with data set "admin users"                           0.09s
+  ✓ accepted panel and foundation routes remain registered with data set "system health"                         0.08s
+  ✓ accepted panel and foundation routes remain registered with data set "governance and audit"                  0.08s
+  ✓ accepted panel and foundation routes remain registered with data set "faq entries"                           0.08s
+  ✓ accepted panel and foundation routes remain registered with data set "public notices"                        0.08s
+  ✓ accepted panel and foundation routes remain registered with data set "legacy faq recovery"                   0.07s
+  ✓ accepted panel and foundation routes remain registered with data set "scheduling blocks"                     0.08s
+  ✓ accepted panel and foundation routes remain registered with data set "schedule generation runs"              0.09s
+  ✓ roles and permissions route is retired                                                                       0.08s
+
+   PASS  Tests\Feature\Finance\ExactDuePayMongoJourneyTest
+  ✓ checkout commits one exact due snapshot before the provider call                                             0.29s
+  ✓ one term account cannot hold competing active attempts                                                       0.18s
+  ✓ a changed snapshot requires provider confirmed retirement before a successor                                 0.19s
+  ✓ readiness is fail closed for configuration alumni and active attempts                                        0.15s
+  ✓ readiness rejects zero due and stale assessment authority                                                    0.14s
+
+   PASS  Tests\Feature\Finance\StudentAccountsWorkbenchAcceptanceTest
+  ✓ accounting has one student accounts workbench with three separate tabs                                       0.64s
+  ✓ account status export uses the fixed private contract and records no rows without a file                     0.23s
+  ✓ verified payments export is fixed to one selected account and current filters                                0.32s
+
+   PASS  Tests\Feature\Finance\TermAccountToVerifiedManualPaymentJourneyTest
+  ✓ fee plan uses independent reconciled obligations with due dates                                              0.26s
+  ✓ current due excludes later obligations until their due time                                                  0.22s
+  ✓ verified actual amount is applied oldest due first and retry is idempotent                                   0.24s
+  ✓ payment notification is after commit and duplicate safe for the account owner                                0.20s
+  ✓ notification queue failure does not roll back the financial posting                                          0.15s
+  ✓ excess verified amount remains an exception without partial posting                                          0.17s
+  ✓ coverage is bounded and reversal restores the exact due                                                      0.21s
+  ✓ payment reversal is append only and restores exact obligation effects                                        0.26s
+  ✓ contextual export is private bounded and spreadsheet safe                                                    0.24s
+  ✓ tor payment clearance is request specific versioned and not global                                           0.17s
+  ✓ private payment evidence is versioned and submission never posts money                                       0.21s
+  ✓ soa and acknowledgement use canonical state and record access                                                0.61s
+  ✓ coverage supersession preserves history and revalidates the bound                                            0.18s
+  ✓ legacy finance routes and generic reports are unreachable while manual payment remains visible               0.33s
+
+   PASS  Tests\Feature\GraduationEligibilitySnapshotServiceTest
+  ✓ it creates immutable complete and ready for review versions without program length assumptions               0.38s
+  ✓ it maps all blocker categories to the highest priority result                                                0.31s
+  ✓ it includes credits exceptions and clearance blockers with source references                                 0.28s
+
+   PASS  Tests\Feature\GraduationReviewBatchFilamentTest
+  ✓ legacy batch resource and mutation routes are not registered                                                 0.14s
+  ✓ historical batch member and snapshot rows remain preserved and readable by policy                            0.23s
+
+   PASS  Tests\Feature\HoldEvaluationServiceTest
+  ✓ exact accommodation effects bypass only the named financial workflow                                         0.19s
+  ✓ source owned create resolve waive expire and most restrictive evaluation are auditable                       0.31s
+  ✓ waiver authorization respects hold type office ownership                                                     0.23s
+  ✓ student facing message never falls back to private staff reason                                              0.13s
+
+   PASS  Tests\Feature\HumanCenteredSharedThemeTest
+  ✓ authentication keeps landmarks recovery and context without staff remember device                            0.36s
+  ✓ closed applicant entry does not offer an unavailable registration action                                     0.23s
+  ✓ every panel preserves native system theme and collapsible navigation                                         0.09s
+  ✓ contextual login keeps native auth designer layouts and tracked media with data set " applicant"             0.21s
+  ✓ contextual login keeps native auth designer layouts and tracked media with data set " student"               0.17s
+  ✓ contextual login keeps native auth designer layouts and tracked media with data set " staff"                 0.15s
+  ✓ recovery and other auth states inherit the same panel layout with data set " applicant"                      0.13s
+  ✓ recovery and other auth states inherit the same panel layout with data set " student"                        0.10s
+  ✓ recovery and other auth states inherit the same panel layout with data set " staff"                          0.11s
+  ✓ public gateway initializes and follows the system color scheme                                               0.11s
+  ✓ public arrival keeps the accepted admission and connected journey hierarchy                                  0.07s
+  ✓ forced colors and reduced motion preserve native operability                                                 0.07s
+  ✓ native control boundaries use the shared contrast tokens                                                     0.07s
+  ✓ native sidebar keeps collapsed names and hides the closed mobile drawer                                      0.07s
+  ✓ panel skip link and action modals restore keyboard focus                                                     0.07s
+  ✓ public content has flat notices and faq tabs                                                                 0.07s
+  ✓ native action modals connect their existing heading to the dialog                                            0.07s
+  ✓ auth media is small and missing media uses the native fallback with data set " applicant"                    0.07s
+  ✓ auth media is small and missing media uses the native fallback with data set " student"                      0.09s
+  ✓ auth media is small and missing media uses the native fallback with data set " staff"                        0.10s
+
+   PASS  Tests\Feature\PublicGatewayProjectionTest
+  ✓ missing and unavailable admissions are not reported as closed                                                0.20s
+  ✓ active programs are not all presented as accepting                                                           0.21s
+  ✓ gateway uses canonical order and current public terminology                                                  0.20s
+  ✓ future and closed cycles keep existing account entry                                                         0.23s
+
+   PASS  Tests\Feature\PublicLandingAndFilamentAuthTest
+  ✓ public landing page renders with filament auth ctas                                                          0.19s
+  ✓ public fortify auth view routes are not exposed                                                              0.19s
+  ✓ filament panel auth routes render                                                                            0.40s
+  ✓ role filament panels share the admin primary color                                                           0.10s
+  ✓ applicant filament registration assigns applicant role                                                       0.12s
+
+   PASS  Tests\Feature\RegistrarApplicantIntakeQueueTest
+  ✓ authorized registrar sees submitted applications but not private drafts                                      0.26s
+  ✓ staff without admissions permission cannot open the queue                                                    0.10s
+  ✓ canonical admissions resource is read only and has no bulk decisions                                         0.08s
+
+   PASS  Tests\Feature\RoleAccessMatrixTest
+  ✓ seeded role has exactly its canonical permissions with data set "applicant has no action permissions"        0.16s
+  ✓ seeded role has exactly its canonical permissions with data set "student has no action permissions"          0.16s
+  ✓ seeded role has exactly its canonical permissions with data set "registrar owns admissions, records, schedu… 0.13s
+  ✓ seeded role has exactly its canonical permissions with data set "accounting owns assessment, payments, and…  0.14s
+  ✓ seeded role has exactly its canonical permissions with data set "faculty has no action permissions"          0.13s
+  ✓ seeded role has exactly its canonical permissions with data set "academic head owns overrides, curriculum,…  0.14s
+  ✓ seeded role has exactly its canonical permissions with data set "system super admin is scoped to configurat… 0.15s
+  ✓ permission gated resource access matches role with data set "applicant public-notice boundary"               0.14s
+  ✓ permission gated resource access matches role with data set "student public-notice boundary"                 0.14s
+  ✓ permission gated resource access matches role with data set "registrar public-notice boundary"               0.18s
+  ✓ permission gated resource access matches role with data set "accounting public-notice boundary"              0.17s
+  ✓ permission gated resource access matches role with data set "faculty public-notice boundary"                 0.25s
+  ✓ permission gated resource access matches role with data set "academic-head public-notice boundary"           0.22s
+  ✓ permission gated resource access matches role with data set "system-super-admin public-notice boundary"      0.23s
+  ✓ permission gated resource access matches role with data set "registrar reaches section placement"            0.22s
+  ✓ permission gated resource access matches role with data set "registrar reaches official schedules"           0.21s
+  ✓ permission gated resource access matches role with data set "registrar reaches applicant review"             0.19s
+  ✓ permission gated resource access matches role with data set "registrar cannot manage f a qs"                 0.16s
+  ✓ permission gated resource access matches role with data set "accounting reaches payments"                    0.16s
+  ✓ permission gated resource access matches role with data set "accounting cannot reach section placement"      0.14s
+  ✓ permission gated resource access matches role with data set "faculty reaches assigned class lists"           0.14s
+  ✓ permission gated resource access matches role with data set "faculty reaches assigned schedules"             0.14s
+  ✓ permission gated resource access matches role with data set "faculty cannot reach official schedules"        0.14s
+  ✓ permission gated resource access matches role with data set "faculty cannot reach section placement"         0.14s
+  ✓ permission gated resource access matches role with data set "faculty cannot reach payments"                  0.15s
+  ✓ permission gated resource access matches role with data set "academic head reaches curriculum version"       0.14s
+  ✓ permission gated resource access matches role with data set "academic head reaches official schedules"       0.13s
+  ✓ permission gated resource access matches role with data set "academic head cannot reach section placement"   0.14s
+  ✓ permission gated resource access matches role with data set "system super admin reaches user management"     0.13s
+  ✓ permission gated resource access matches role with data set "system super admin manages f a qs"              0.19s
+  ✓ permission gated resource access matches role with data set "system super admin cannot reach section placem… 0.22s
+  ✓ permission gated resource access matches role with data set "system super admin cannot reach official sched… 0.20s
+  ✓ permission gated resource access matches role with data set "accounting cannot reach official schedules"     0.17s
+  ✓ canonical permission set is complete and fully assigned                                                      0.17s
+
+   PASS  Tests\Feature\StaffNavigationVisibilityTest
+  ✓ staff roles only see current prd navigation for their workspace with data set "accounting has no registrar…  0.27s
+  ✓ staff roles only see current prd navigation for their workspace with data set "faculty has no registrar acc… 0.27s
+  ✓ staff roles only see current prd navigation for their workspace with data set "academic head has no registr… 0.25s
+  ✓ staff roles only see current prd navigation for their workspace with data set "system super admin has no op… 0.22s
+  ✓ staff roles only see current prd navigation for their workspace with data set "registrar has no accounting…  0.20s
+  ✓ system super admin with stale operational permissions still cannot see operational resources                 0.21s
+  ✓ system administration baseline is system super admin only                                                    1.04s
+  ✓ other staff roles cannot access system administration with data set "registrar"                              0.37s
+  ✓ other staff roles cannot access system administration with data set "accounting"                             0.24s
+  ✓ other staff roles cannot access system administration with data set "faculty"                                0.23s
+  ✓ other staff roles cannot access system administration with data set "academic head"                          0.21s
+  ✓ seeded permissions do not include legacy navigation permissions                                              0.21s
+
+   PASS  Tests\Feature\StudentHandoverChecklistHoldTest
+  ✓ legacy admission handover is retired without creating student or enrollment records                          0.15s
+
+   PASS  Tests\Feature\StudentHubCompletionReviewTest
+  ✓ completion page is unreachable while hidden snapshot history remains preserved                               0.13s
+  ✓ completion page is unreachable while visible snapshot history remains preserved                              0.15s
+
+   PASS  Tests\Feature\StudentHubTest
+  ✓ guests are redirected to student login                                                                       0.11s
+  ✓ non students cannot access student hub                                                                       0.16s
+  ✓ active students without official profile cannot access student hub                                           0.12s
+  ✓ active students can access student hub                                                                       0.20s
+  ✓ archived or merged duplicate profiles do not activate student hub                                            0.14s
+  ✓ student dashboard renders with profile and holds widgets                                                     0.20s
+  ✓ student pages render correctly                                                                               0.82s
+  ✓ student profile page exposes official values without self service mutation                                   0.14s
+
+   PASS  Tests\Feature\StudentLifecycleChangeTest
+  ✓ subject drop atomically releases only student records posts idempotent effects and preserves master schedul… 0.25s
+  ✓ withdrawal releases all courses changes status and rolls back when window validation fails                   0.20s
+  ✓ lifecycle create requires reviewed impact before it writes the approved result                               1.09s
+  ✓ lifecycle create rejects an unavailable preview with plain language and no partial write                     0.58s
+  ✓ lifecycle business rule failures use the dedicated domain exception                                          0.13s
+  ✓ lifecycle create does not disguise unexpected system failures as validation                                  0.89s
+  ✓ current term leave releases current schedule and marks profile on leave                                      0.24s
+  ✓ registrar recorded inactive changes only profile lifecycle status                                            0.19s
+  ✓ future program shift records a credit checklist then applies separately without current schedule changes     0.21s
+  ✓ program shift rejects mismatched target curriculum invalid credit rows and current terms                     0.17s
+  ✓ recorded program shift can be cancelled before application without profile mutation                          0.18s
+  ✓ leave transfer and reactivation apply only their authorized effects                                          0.34s
+  ✓ subject drop rejects a final released grade and rolls back all effects                                       0.17s
+  ✓ lifecycle finance regenerates a draft assessment instead of posting a ledger mutation                        0.20s
+
+   PASS  Tests\Feature\StudentUnitLoadExceptionTest
+  ✓ exact curriculum position is snapshotted without a global or term fallback                                   0.12s
+  ✓ missing or ambiguous curriculum position fails without any fallback quantity                                 0.12s
+  ✓ only a matching registrar recorded graduating overload authority permits the draft                           0.15s
+  ✓ matching authority is proposal specific and does not bypass other readiness                                  0.18s
+  ✓ incomplete non graduating and cross term authority attempts are rejected                                     0.22s
+
+   PASS  Tests\Feature\SystemAdministration\DisposalReviewRetirementGuardTest
+  ✓ guard refuses non empty disposal history without removing it                                                 0.18s
+
+   PASS  Tests\Feature\SystemAdministration\PublicContentWorkbenchTest
+  ✓ fixed public notice permission is assigned only to system administration                                     0.20s
+  ✓ existing faq authority remains reachable without the notice permission                                       0.20s
+  ✓ native notice producer saves draft previews and publishes explicitly                                         2.76s
+  ✓ legacy faq links redirect to the authorized canonical cluster                                                0.20s
+  ✓ faq reorder stays inside its category and preserves published history                                        0.20s
+
+   PASS  Tests\Feature\SystemAdministration\PublicNoticeLifecycleTest
+  ✓ publishing and revising preserves attributable history                                                       0.19s
+  ✓ scheduled successor takes effect at its window without reviving expired history                              0.22s
+  ✓ duplicate publish is idempotent and stale edits post nothing                                                 0.18s
+  ✓ overlapping publication order is rejected but non overlapping windows are allowed                            0.21s
+  ✓ invalid content cannot be saved with data set "empty title"                                                  0.14s
+  ✓ invalid content cannot be saved with data set "long title"                                                   0.14s
+  ✓ invalid content cannot be saved with data set "long message"                                                 0.15s
+  ✓ invalid content cannot be saved with data set "zero order"                                                   0.14s
+  ✓ invalid content cannot be saved with data set "unsafe link"                                                  0.17s
+  ✓ invalid content cannot be saved with data set "insecure link"                                                0.22s
+  ✓ invalid content cannot be saved with data set "embedded credentials"                                         0.21s
+  ✓ invalid content cannot be saved with data set "link without label"                                           0.23s
+  ✓ invalid content cannot be saved with data set "reversed dates"                                               0.23s
+  ✓ unpublish keeps history and the public projection escapes content                                            0.35s
+  ✓ other roles cannot manage notices                                                                            0.29s
+  ✓ reordering published notices is atomic and preserves both versions                                           0.35s
+  ✓ reorder rejects stale group and preserves existing successor draft                                           0.33s
+  ✓ permission revocation blocks a retry without changes                                                         0.24s
+  ✓ reordering uses one effective timestamp when the clock advances mid operation                                0.33s
+
+   PASS  Tests\Feature\SystemAdministration\SystemHealthAndGovernanceJourneyTest
+  ✓ canonical system administration pages are registered and role scoped                                         0.35s
+  ✓ operational evidence commands are registered                                                                 0.17s
+  ✓ system health projects only canonical statuses and keeps external facts unknown                              0.19s
+  ✓ mail health distinguishes pending successful and failed local evidence                                       0.10s
+  ✓ failed refresh retains the preceding capture and marks it stale                                              0.19s
+  ✓ mail self test is self only throttled and records safe classification                                        0.24s
+  ✓ failed mail self test records only safe failure classification                                               0.32s
+  ✓ evidence is validated idempotent immutable correctable and order safe                                        0.16s
+  ✓ backup health distinguishes missing current overdue and failed evidence                                      0.21s
+  ✓ restore evidence requires complete reconciliation without claiming production recovery                       0.16s
+  ✓ evidence commands accept one safe local json file and reject unknown fields                                  0.22s
+  ✓ governance tabs project direct allowlisted evidence without private fields                                   0.59s
+  ✓ output access evidence with lowercase generated status normalizes to recorded                                0.40s
+  ✓ governance projection filters and orders direct evidence deterministically                                   0.15s
+  ✓ explicit allowlist excludes unknown operational and activity events                                          0.11s
+  ✓ retired unit load setting is preserved only as unreachable history                                           0.11s
+  ✓ governance tab navigation has accessible wai aria attributes                                                 0.15s
+  ✓ governance privacy tab contains canonical disposal notice                                                    0.19s
+  ✓ billing slip artifacts and routes are completely retired                                                     0.08s
+  ✓ solver queued and dispatching states map to needs attention                                                  0.12s
+  ✓ governance event classification strictly scopes events and excludes read events                              0.15s
+  ✓ output projection maps stale inaccessible and unclassified to attention or unknown with safe attribution     0.11s
+  ✓ seed browser data database guard rejects non test tala db                                                    0.11s
+  ✓ seed browser data database guard rejects when config database is not test tala db                            0.10s
+  ✓ clear replay cache database guard rejects when config database is not test tala db                           0.11s
+  ✓ completion readiness and operational events attribute accurate roles and safe summaries                      0.14s
+  ✓ scoped cache cleanup preserves unrelated accounts and rate limiters                                          0.11s
+  ✓ browser qualification environment safe health failure never mutates schema                                   0.11s
+
+   PASS  Tests\Feature\SystemAdministration\UsersAndAccessLifecycleJourneyTest
+  ✓ disable and reactivate preserve roles and end sessions                                                       0.21s
+  ✓ self disable and final administrator removal are rejected without change                                     0.13s
+  ✓ multi role change is transactional and audited                                                               0.23s
+  ✓ access change remains authoritative when notification dispatch fails                                         0.20s
+  ✓ staff email change keeps the current address until successor verification                                    0.24s
+  ✓ direct staff create edit role and archive routes are retired                                                 0.23s
+  ✓ account detail is read only ordered and secret free                                                          0.30s
+  ✓ consequential access actions name effect owner and recovery before submission                                1.44s
+
+   PASS  Tests\Feature\TAL55AcademicFoundationTest
+  ✓ academic year owns terms and terms own calendar events                                                       0.11s
+  ✓ course specifications own components and structured requirements                                             0.11s
+  ✓ program curriculum versions entries and course specification placement                                       0.10s
+  ✓ import batches store academic import metadata without legacy import columns                                  0.10s
+
+   PASS  Tests\Feature\TAL58TermOfferingsResourceFoundationTest
+  ✓ rooms own flat features and calendar availability source records                                             0.14s
+  ✓ faculty qualifications are active flat faculty to course mappings                                            0.15s
+  ✓ faculty term load override uses term specific snapshot for allowed load                                      0.10s
+  ✓ term offering inherits course facts through curriculum entry and specification                               0.11s
+  ✓ sections belong to term offerings and validate capacity without occupancy counters                           0.10s
+  ✓ section delivery groups validate expected count against section capacity                                     0.11s
+
+   PASS  Tests\Feature\TAL59RegistrarTermOfferingBuilderTest
+  ✓ preview returns only active matching curriculum entries with inherited course facts                          0.11s
+  ✓ regular generation is transactional and idempotent                                                           0.13s
+  ✓ invalid later row rolls back the entire regular generation                                                   0.13s
+  ✓ invalid counts capacity modality inactive curriculum and mismatched placement are rejected                   0.14s
+  ✓ scheduled and cancelled offerings are blocked without overwrite                                              0.12s
+  ✓ special offering requires reason and valid delivery arrangement                                              0.12s
+  ✓ only registrar can mutate offerings                                                                          0.15s
+  ✓ term offering resource is explicitly registered and boots for registrar                                      0.17s
+
+   PASS  Tests\Feature\TAL61SchedulingDemandReadinessTest
+  ✓ generation creates source linked demand rows without duplicates                                              0.18s
+  ✓ generation updates existing identity even when key was seeded differently                                    0.18s
+  ✓ readiness findings surface missing or invalid source records                                                 0.18s
+  ✓ registrar and academic head authorization boundaries are enforced                                            0.21s
+  ✓ admin panel registers scheduling demand review surface                                                       0.36s
+
+   PASS  Tests\Feature\TAL62SolverRunDispatchTest
+  ✓ dispatch builds tal61 payload uses solver client and persists candidate rows                                 0.24s
+  ✓ dispatch blocks when any term demand is not ready for review                                                 0.17s
+  ✓ v2 snapshot captures profile operating grid room features and credit load                                    0.18s
+  ✓ snapshot emits only deterministic recurring calendar blocks                                                  0.18s
+  ✓ old solver rows without scheduling demand ids are rejected and block the run                                 0.21s
+  ✓ tal63 assignment response shape persists candidate rows without missing identifier rejection                 0.21s
+  ✓ authorization boundaries and admin panel registration are enforced                                           0.24s
+  ✓ solver run list polls and explains queued progress                                                           0.44s
+  ✓ solver run list does not sort large snapshot payloads                                                        0.30s
+
+   PASS  Tests\Feature\TAL66SchedulePublicationTest
+  ✓ authorized registrar publishes clean candidate mapping and audit metadata                                    0.45s
+  ✓ system super admin is not authorized to publish                                                              0.21s
+  ✓ academic head and unauthorized staff cannot publish                                                          0.15s
+  ✓ conflicts and nonempty violations block publication without writes                                           0.18s
+  ✓ empty candidates and wrong run statuses block publication                                                    0.23s
+  ✓ warning only candidates publish through confirmed filament action with note                                  0.57s
+  ✓ schedule run view renders nested diagnostics without crashing                                                0.22s
+  ✓ prior published run is superseded while history remains and active scope resolves current version            0.21s
+  ✓ repeat publication is rejected                                                                               0.20s
+  ✓ transaction failure rolls back all official meetings and run metadata                                        0.18s
+  ✓ filament action visibility and read only official schedule surface follow authorization and state            0.69s
+
+   PASS  Tests\Feature\TAL67EnrollmentPlacementTest
+  ✓ registrar confirms placement into published schedule without finance or cor side effects                     0.27s
+  ✓ system super admin cannot confirm registrar owned placement                                                  0.15s
+  ✓ non active lifecycle status blocks placement before schedule and seat effects                                0.14s
+  ✓ academic head and unauthorized staff cannot confirm placement                                                0.18s
+  ✓ candidate unpublished and superseded rows cannot be selected                                                 0.17s
+  ✓ duplicate confirmation is idempotent without duplicate active records                                        0.25s
+  ✓ capacity blocks final seat and rolls back partial writes                                                     0.20s
+  ✓ student time conflict is rejected and rolls back partial writes                                              0.17s
+  ✓ existing active reservation for another course does not block per course placement                           0.23s
+  ✓ legacy placement action is retired from the canonical registration surface                                   0.35s
+  ✓ regular cohort options keep multi year term offerings in the earliest eligible year                          0.23s
+
+   PASS  Tests\Feature\TAL68FinanceAssessmentLedgerTest
+  ✓ accounting can create a fixed fee plan draft from the bounded surface                                        1.01s
+  ✓ fee rule per unit surface is retired from accounting navigation                                              0.11s
+  ✓ fee plan action requires program term and fixed lines                                                        0.65s
+  ✓ fee plans are the accounting setup surface and legacy fee rules stay inaccessible                            0.15s
+  ✓ non accounting user cannot create or activate finance records                                                0.16s
+  ✓ assessment generation from pending payment enrollment is deterministic and uses enrolled units               0.19s
+  ✓ exact program and term rule beats a newer global rule                                                        0.14s
+  ✓ term scoped rule beats a newer program scoped rule                                                           0.12s
+  ✓ newest effective date wins within the same scope rank                                                        0.15s
+  ✓ newest id breaks a priority tie deterministically                                                            0.17s
+  ✓ missing required downpayment configuration blocks activation without partial ledger writes                   0.16s
+  ✓ broader downpayment scopes do not satisfy activation or write ledger entries                                 0.20s
+  ✓ exact program and term downpayment permits activation and posts charge ledger entries idempotently           0.17s
+  ✓ registrar can view finance summary but cannot mutate assessment or ledger                                    0.19s
+
+   PASS  Tests\Feature\TAL69PayMongoPaymentEvidenceLedgerTest
+  ✓ verified paymongo webhook creates payment evidence and posts one ledger payment                              0.27s
+  ✓ qualifying verified payment advances the finance gate                                                        0.28s
+  ✓ payment paid envelope uses checkout for ownership and payment id for evidence                                0.30s
+  ✓ duplicate paymongo webhook resolves to existing payment and ledger without reposting                         0.28s
+  ✓ amount mismatch keeps evidence under review without posting ledger                                           0.21s
+  ✓ currency and reference mismatches stay under review without posting ledger                                   0.30s
+  ✓ unknown paymongo reference is marked for review without payment or ledger rows                               0.18s
+  ✓ livemode mismatch cannot mutate financial records                                                            0.20s
+  ✓ missing currency routes known evidence to review without posting                                             0.19s
+  ✓ dispute or embedded refund signal prevents automatic posting                                                 0.28s
+  ✓ inactive assessment blocks payment mutation and routes the event to review                                   0.19s
+  ✓ attempt student must match the assessment enrollment owner                                                   0.20s
+  ✓ conflicting checkout identifier routes evidence to review                                                    0.20s
+  ✓ delivered failure after a verified payment never undoes the payment                                          0.25s
+  ✓ delivered failure ends the attempt and allows a successor                                                    0.20s
+  ✓ delivered failure cannot rewrite a non pending attempt                                                       0.21s
+  ✓ refund event requires accounting to link the exact immutable reversal                                        0.28s
+
+   PASS  Tests\Feature\TAL70CorOutputTest
+  ✓ student can view and print current cor with output logs                                                      0.25s
+  ✓ student cor schedule and holds keep actions and records responsive                                           0.43s
+  ✓ student sees blocked state without staff only hold notes                                                     0.25s
+  ✓ future and expired cor holds do not block the current cor                                                    0.33s
+  ✓ immutable cor does not absorb a later unfinalized course row                                                 0.26s
+  ✓ non active lifecycle status blocks current cor with student safe message                                     0.30s
+  ✓ archived duplicate profile blocks current cor                                                                0.26s
+  ✓ student without current official enrollment sees empty state                                                 0.14s
+  ✓ student cannot print another students cor                                                                    0.30s
+  ✓ registrar can print cor while accounting remains in finance outputs                                          0.32s
+  ✓ guest access to print route is denied                                                                        0.21s
+
+   PASS  Tests\Feature\TAL71FinanceOutputsStudentHubTest
+  ✓ student finance page shows ledger derived finance and available outputs                                      0.25s
+  ✓ finance outputs are authenticated owned and logged                                                           0.17s
+  ✓ student cannot access another students finance outputs                                                       0.17s
+  ✓ retired billing slip is absent and acknowledgement requires a posted payment                                 0.22s
+  ✓ paymongo checkout is not active and manual payment remains available                                         0.25s
+  ✓ student hub replaces old finance placeholder routes                                                          0.37s
+
+   PASS  Tests\Feature\TAL72GradesFilamentTest
+  ✓ registrar can see grade roster resource navigation                                                           0.19s
+  ✓ faculty can access focused grade roster page but not registrar resource                                      0.18s
+  ✓ grade roster list page renders for registrar                                                                 0.40s
+
+   PASS  Tests\Feature\TAL72GradesMvpTest
+  ✓ legacy period and p contract is not reachable from the faculty surface                                       0.14s
+  ✓ final result scale treats four as passing and five as failed                                                 0.17s
+
+   PASS  Tests\Feature\TAL73ProgressionLifecycleFilamentTest
+  ✓ resources are registered and policy boundaries are server enforced                                           0.37s
+  ✓ operational table filters and program shift apply action visibility work                                     0.63s
+  ✓ create modal contract validates required approved result fields                                              0.47s
+  ✓ registrar sees standing action but not the retired generic unit load exception                               0.34s
+  ✓ student record separates confirmed standing and recommendation with history and holds                        0.27s
+  ✓ student hub lifecycle projection is read only and own record only                                            0.16s
+
+   PASS  Tests\Feature\TAL75ReportsAuditTest
+  ✓ governance audit replaces the generic report hub and is system admin only                                    0.21s
+  ✓ governance views read authoritative sources without copying rows                                             0.20s
+
+   PASS  Tests\Feature\TAL77CalendarSchedulingBlockTest
+  ✓ policy enforces faculty ownership and staff management boundaries                                            0.40s
+  ✓ faculty historical scheduling blocks are read only evidence                                                  0.21s
+  ✓ recurring blocks reject manual assignment but no row and absolute events do not                              0.14s
+  ✓ new route is registered and legacy availability routes remain unreachable                                    0.13s
+
+   PASS  Tests\Feature\TAL82AcademicSetupAcceptanceTest
+  ✓ registrar and academic head can access accepted academic setup surfaces                                      0.15s
+  ✓ non academic setup roles do not access academic setup surfaces                                               0.14s
+  ✓ academic head can view but not create or update core academic setup records                                  0.12s
+  ✓ registrar can create programs academic years and terms with clean schema fields                              0.74s
+
+   PASS  Tests\Feature\TAL82BCurriculumCourseCatalogAcceptanceTest
+  ✓ clean course catalog resources are registered without reactivating legacy catalog resources                  0.08s
+  ✓ resource access follows registrar manage and academic head view boundary with data set "registrar manages c… 0.11s
+  ✓ resource access follows registrar manage and academic head view boundary with data set "academic head views… 0.14s
+  ✓ resource access follows registrar manage and academic head view boundary with data set "accounting cannot a… 0.13s
+  ✓ resource access follows registrar manage and academic head view boundary with data set "faculty cannot acce… 0.10s
+  ✓ resource access follows registrar manage and academic head view boundary with data set "system super admin…  0.12s
+  ✓ academic head can view but cannot mutate clean course catalog records                                        0.12s
+  ✓ registrar can create clean course specification and curriculum version records                               0.98s
+
+   PASS  Tests\Feature\TAL82CAcademicCalendarWindowTest
+  ✓ registrar manages academic calendar windows while academic head views and faculty is blocked                 0.15s
+  ✓ registrar can create absolute academic calendar window without recurring block fields                        0.36s
+  ✓ calendar window surface and scheduling blocks surface keep separate queries                                  0.37s
+  ✓ calendar window process options include grade and inc mvp windows                                            0.12s
+  ✓ calendar window routes are registered and edit honors read only academic head                                0.47s
+
+   PASS  Tests\Feature\TAL82DImportTemplateAcceptanceTest
+  ✓ current templates retain template version and exact csv headers                                              0.15s
+  ✓ course specification import rejects unsupported modality values                                              0.23s
+  ✓ strict header validation blocks missing or duplicate headers before rows are posted                          0.16s
+  ✓ course specification import posts draft records without overwriting active revisions                         0.20s
+  ✓ warnings require acknowledgement before draft creation                                                       0.17s
+  ✓ externally arranged course import preserves zero recurring components                                        0.16s
+  ✓ ambiguous course requirements are retained as errors and cannot be posted                                    0.13s
+  ✓ repeated course specification rows must have consistent shared fields                                        0.16s
+  ✓ repeated curriculum rows must have consistent shared fields and client totals                                0.20s
+  ✓ consistent client total mismatch requires acknowledgement and system units remain authoritative              0.23s
+  ✓ curriculum import posts draft version and entries without activation                                         0.22s
+  ✓ review surface and download expose complete row numbered findings                                            0.27s
+  ✓ course specification post revalidates active conflicts created after preview                                 0.17s
+  ✓ curriculum post revalidates active conflicts created after preview                                           0.17s
+  ✓ course specification import never changes an existing course identity state                                  0.20s
+  ✓ curriculum import proposes a draft revision from active source without mutating history                      0.27s
+  ✓ curriculum import blocks incomplete course sources without a complete revision to clone                      0.14s
+  ✓ registrar manages imports while academic head is read only                                                   0.53s
+  ✓ academic import uploads are restricted to declared schema components                                         0.27s
+  ✓ non utf8 encoded uploads are rejected before domain rows are validated                                       0.18s
+  ✓ import batch lifecycle actions write activity log rows visible to super admin                                0.35s
+  ✓ findings csv download neutralizes formula injection in source values                                         0.26s
+
+   PASS  Tests\Feature\TAL83BApplicantHandoverActionTest
+  ✓ legacy handover action is retired without creating student records                                           0.24s
+  ✓ legacy intake and policy routes are not reachable                                                            0.17s
+
+   PASS  Tests\Feature\TAL83CDuplicateProfileResolutionFilamentTest
+  ✓ resource route and schema use current student profile fields                                                 0.43s
+  ✓ registrar can create linked duplicate resolution from resource                                               0.26s
+  ✓ archived or merged profile cannot be selected as primary                                                     0.25s
+  ✓ staff with document permissions but without registrar role cannot access or create                           0.15s
+
+   PASS  Tests\Feature\TAL85ASectionDeliveryGroupSourceRecordUiTest
+  ✓ registrar can access registered section source record surface                                                0.18s
+  ✓ section form and table use clean source record fields                                                        0.21s
+  ✓ section planning service accepts only clean section fields                                                   0.11s
+  ✓ delivery group relation manager uses clean source record fields                                              0.16s
+  ✓ delivery group service rejects expected count above section capacity                                         0.11s
+  ✓ delivery group service does not require legacy fields                                                        0.13s
+
+   PASS  Tests\Feature\TAL85BResourceReadinessSurfacesTest
+  ✓ resource readiness routes are registered and legacy availability routes remain absent                        0.12s
+  ✓ room surface uses clean room fields and flat feature rows                                                    0.48s
+  ✓ faculty qualification surface uses clean mapping fields and role scoped access                               0.49s
+  ✓ faculty term load override surface records final staff managed overload only                                 0.37s
+
+   PASS  Tests\Feature\TAL85CSchedulingDemandReadinessAcceptanceTest
+  ✓ generated demand is idempotent and captures current source readiness evidence                                0.25s
+  ✓ generation blocks missing current sources and allows non physical modalities without rooms                   0.23s
+  ✓ fixed delivery override values are validated against source records                                          0.17s
+  ✓ fixed time must belong to the term grid and fit the operating day                                            0.15s
+  ✓ term scheduling readiness service uses clean schema sources                                                  0.13s
+
+   PASS  Tests\Feature\TAL85DMasterSchedulePublicationAcceptanceTest
+  ✓ publishable candidate rows create official meetings and non publishable rows do not write                    0.23s
+  ✓ superseded history remains while resource lists only current read only official meetings                     0.45s
+  ✓ publication authorization and downstream student hub boundary use active official meetings only              0.38s
+
+   PASS  Tests\Feature\TAL86BManualPaymentOrMappingTest
+  ✓ retired assessment resource cannot bypass the registration clearance surface                                 0.10s
+  ✓ duplicate manual payment reference and or number are rejected without reposting                              0.15s
+  ✓ duplicate manual or number is rejected without reposting                                                     0.18s
+  ✓ non accounting user cannot record manual payment or map or                                                   0.18s
+  ✓ under review payment evidence does not post ledger or produce acknowledgement                                0.19s
+  ✓ legacy or mapping action is retired without rewriting existing payment rows                                  0.19s
+  ✓ or mapping rejects duplicate or number and unposted payment evidence                                         0.18s
+
+   PASS  Tests\Feature\TAL86CAccountingAdjustmentReversalTest
+  ✓ accounting posts debit and credit adjustments using clean ledger schema                                      0.19s
+  ✓ accounting reverses one posted ledger entry once                                                             0.17s
+  ✓ payment reversal uses negative amount to negate payment balance effect                                       0.19s
+  ✓ zero amount future posting and non accounting users are blocked without writes                               0.18s
+  ✓ filament create action and labels use clean ledger fields                                                    0.14s
+
+   PASS  Tests\Feature\TAL86DFinancialAccommodationEffectsTest
+  ✓ accounting records approved accommodation result with schedule and append only policy                        0.15s
+  ✓ active valid accommodation bypasses only explicit financial hold effects                                     0.15s
+  ✓ wrong term expired inactive and missing effect accommodations do not bypass finance hold                     0.18s
+  ✓ student finance summary shows safe effects without private promissory or certification evidence              0.17s
+
+   PASS  Tests\Feature\TAL86EFinanceGateSourceBehaviorTest
+  ✓ posted ledger payment equal to required downpayment clears finance gate                                      0.14s
+  ✓ first term applicant with approved intake clears finance without capacity crash                              0.12s
+  ✓ active current term financial accommodation with explicit effect clears without payment ledger               0.12s
+  ✓ expired cancelled wrong term and missing effect accommodations do not clear finance gate                     0.15s
+  ✓ pending payment attempt does not clear finance gate                                                          0.14s
+  ✓ under review payment evidence does not clear finance gate without ledger posting                             0.12s
+  ✓ or mapping absence does not block verified evidence with posted ledger payment                               0.13s
+  ✓ checkout success return is not authoritative without verified webhook evidence and posted ledger entry       0.12s
+
+   PASS  Tests\Feature\TAL87AEnrollmentSourceRecordBaselineTest
+  ✓ clean enrollment source records replace direct enrollment sectioning                                         0.13s
+  ✓ admission cannot start enrollment through the retired handover path                                          0.18s
+  ✓ unauthorized actor cannot start an enrollment directly                                                       0.15s
+  ✓ early finance handover is retired without changing identity or roles                                         0.14s
+  ✓ cor readiness requires canonical outcome and immutable cor instead of schedule bindings                      0.13s
+
+   PASS  Tests\Feature\TAL87BEnrollmentGateReviewSurfaceTest
+  ✓ gate review summary uses recorded rows and synthetic not checked rows without writes                         0.18s
+  ✓ staff registration surface uses canonical case facts and hides generic gate actions                          1.08s
+
+   PASS  Tests\Feature\TAL87CEnrollmentGateEvaluatorTest
+  ✓ source backed gate evaluator persists ready state without final official enrollment                          0.29s
+  ✓ pending checkout and under review evidence do not clear finance gate or mutate ledger                        0.19s
+  ✓ inactive linked student account fails identity gate                                                          0.19s
+  ✓ generic gate and exception actions are retired from the canonical surface                                    0.58s
+
+   PASS  Tests\Feature\TAL87DOfficialEnrollmentTest
+  ✓ legacy gate records cannot bypass canonical proposal and assessment sources                                  0.17s
+  ✓ registrar surface exposes only the canonical finalization action                                             0.42s
+  ✓ legacy cor hold does not make an incomplete case finalizable                                                 0.52s
+  ✓ unresolved finance gate blocks official enrollment                                                           0.19s
+  ✓ legacy official status without immutable sources is not treated as canonical completion                      0.21s
+  ✓ terminal enrollment cannot be officially enrolled                                                            0.24s
+  ✓ incomplete legacy source rejection preserves seat occupancy                                                  0.24s
+  ✓ persisted generic gate results do not authorize canonical finalization                                       0.29s
+  ✓ non registrar cannot record official enrollment                                                              0.15s
+
+   PASS  Tests\Feature\TAL88ACorSourceOutputAcceptanceTest
+  ✓ leave withdrawn and transferred out lifecycle block current cor with student safe message                    0.27s
+  ✓ cor totals use immutable units and assessment categories without live ledger values                          0.19s
+  ✓ dropped subject is excluded from current cor subject list                                                    0.17s
+  ✓ live laboratory changes do not rewrite an issued cor                                                         0.17s
+  ✓ live assessment installments do not rewrite an issued cor                                                    0.24s
+  ✓ live accommodation schedule does not rewrite an issued cor                                                   0.19s
+  ✓ historical external course snapshot remains visible without inventing a meeting                              0.25s
+
+   PASS  Tests\Feature\TAL88BFinanceOutputAcceptanceTest
+  ✓ accounting can access all finance outputs with accounting copy logging                                       0.24s
+  ✓ soa shows version dated obligations and configured address                                                   0.22s
+  ✓ payment acknowledgement humanizes and deduplicates method and channel                                        0.23s
+  ✓ student and accounting can access a superseded soa as historical                                             0.22s
+  ✓ student finance reports payment under review status                                                          0.31s
+  ✓ student finance reports payment rejected when latest attempt failed without posted payment                   0.18s
+  ✓ reversed payment acknowledgement remains reproducible and clearly labelled                                   0.17s
+
+   PASS  Tests\Feature\TAL88CPublicCorVerificationDeferralTest
+  ✓ public cor verification routes and controller are deferred for v1                                            0.08s
+  ✓ retired cor verification island remains absent                                                               0.07s
+  ✓ authenticated cor print route remains available                                                              0.08s
+
+   PASS  Tests\Feature\TAL88DCrossRoleOutputRegressionTest
+  ✓ cor print route preserves cross role access and logging                                                      0.26s
+  ✓ finance output routes preserve accounting student access and block other roles                               0.30s
+
+   PASS  Tests\Feature\TAL89AGradesAcceptanceTest
+  ✓ designated faculty receives one final result surface without period or p controls                            0.30s
+  ✓ view only co faculty can open and export but cannot edit or submit                                           0.29s
+  ✓ draft save is atomic and rejects stale lock or membership evidence                                           0.17s
+
+   PASS  Tests\Feature\TAL89BLateGradeAuthorizationTest
+  ✓ registrar can open one roster scoped final grade entry authority                                             0.14s
+  ✓ period scoped and academic head late authority are retired                                                   0.14s
+  ✓ overlapping final grade entry authority is rejected                                                          0.15s
+  ✓ the shared grade entry window never reopens retired period entry                                             0.22s
+
+   PASS  Tests\Feature\TAL89CIncResolutionCorrectionTest
+  ✓ faculty submits and registrar releases inc completion with successor audit                                   0.35s
+  ✓ overdue inc remains inc and cannot be completed without an amendment                                         0.20s
+  ✓ submitted inc completion becomes stale when deadline authority changes                                       0.32s
+  ✓ submitted inc completion becomes stale when a correction supersedes the inc                                  0.38s
+  ✓ inc completion on non inc row is rejected                                                                    0.18s
+  ✓ registrar records posted correction on released row and preserves previous grade                             0.27s
+  ✓ correction a to b to a preserves both successors and exact retry is idempotent                               0.30s
+  ✓ posted correction on unreleased row is rejected                                                              0.12s
+  ✓ non registrar staff cannot release inc completion through the service                                        0.13s
+  ✓ non registrar staff cannot record posted correction through the service                                      0.13s
+  ✓ rows relation manager is visible to registrar on released roster only                                        0.15s
+  ✓ registrar releases submitted inc completion through relation manager action                                  0.41s
+  ✓ registrar records correction through relation manager action                                                 0.45s
+
+   PASS  Tests\Feature\TAL89DStudentGradeVisibilityTest
+  ✓ grades view shows only released rows for the authenticated student with student facing grade labels          0.58s
+  ✓ student dashboard service exposes student facing grade labels without internal grade audit fields            0.33s
+  ✓ staff roles cannot access the student grades view route                                                      0.20s
+
+   PASS  Tests\Feature\TAL90BGraduationBatchSnapshotAcceptanceTest
+  ✓ ready for registrar review when only remainder is an officially finalized current enrollment                 0.25s
+  ✓ blocked current enrollment not finalized when the current enrollment is not official                         0.24s
+  ✓ withdrawn required course counts toward missing blocker and stays itemized                                   0.27s
+  ✓ irregular student reaches ready for review against the same curriculum                                       0.20s
+  ✓ refresh after resolving a source record creates a new version and keeps the prior immutable                  0.17s
+  ✓ batch membership records metadata and rejects duplicate members                                              0.10s
+
+   PASS  Tests\Feature\TAL90CStaffVisibilityCompletionRegressionTest
+  ✓ delete action soft deactivates member and preserves snapshot history                                         0.32s
+  ✓ refresh snapshot is blocked on an inactive member                                                            0.17s
+  ✓ bulk refresh skips inactive members and only regenerates active ones                                         0.35s
+  ✓ deactivated member snapshot remains preserved while completion page is unreachable                           0.11s
+  ✓ active member snapshot remains preserved while completion page is unreachable                                0.10s
+
+   PASS  Tests\Feature\TAL91AStudentHubDashboardProjectionAcceptanceTest
+  ✓ guests are redirected to student login                                                                       0.09s
+  ✓ non students cannot access student hub                                                                       0.11s
+  ✓ widget hides when no tier is actionable                                                                      0.20s
+  ✓ unread notification outranks every other tier                                                                0.09s
+  ✓ enrollment blocking hold outranks informational notification                                                 0.13s
+  ✓ retired paymongo attempt does not override canonical registration review                                     0.14s
+  ✓ cor blocked hold outranks informational notification                                                         0.16s
+  ✓ read notification is the lowest priority actionable tier                                                     0.15s
+  ✓ own records isolation prevents cross student notice leakage                                                  0.30s
+  ✓ widget renders the resolved notice read only without mutating actions                                        0.55s
+
+   PASS  Tests\Feature\TAL91BStudentHubFinanceProjectionAcceptanceTest
+  ✓ student finance without an active assessment does not offer payment                                          0.14s
+  ✓ student finance page hides accommodation staff only fields                                                   0.20s
+  ✓ finance page projection never leaks another students assessment or accommodation                             0.27s
+  ✓ finance page distinguishes payment checkout evidence review ledger posted and or mapping states              0.16s
+
+   PASS  Tests\Feature\TAL91CStudentHubAcademicProjectionAcceptanceTest
+  ✓ schedule view shows only the acting students own bindings                                                    0.38s
+  ✓ schedule view excludes candidate unpublished schedule runs                                                   0.32s
+  ✓ schedule view excludes meetings whose state is not active                                                    0.35s
+  ✓ capacity pending tier outranks informational notices                                                         0.17s
+  ✓ pending review tier surfaces the first canonical readiness blocker                                           0.14s
+
+   PASS  Tests\Feature\TAL91DStudentHubAcademicStatusAcceptanceTest
+  ✓ holds view shows only the acting students own active hold rows                                               0.14s
+  ✓ holds view excludes resolved waived and expired holds for the acting student                                 0.16s
+  ✓ holds view office to contact column uses the student facing office label mapping                             0.15s
+  ✓ holds view never exposes the staff only reason field                                                         0.12s
+  ✓ lifecycle view surfaces authoritative enrollment guidance without using legacy standing                      0.18s
+  ✓ lifecycle view shows only the acting students own applied lifecycle change rows                              0.19s
+  ✓ student dashboard service projects the canonical academic effect                                             0.13s
+
+   PASS  Tests\Feature\TAL91EStudentHubDisplayPriorityCompletionTest
+  ✓ missing requirements tier fires for an unresolved own checklist item                                         0.15s
+  ✓ academic guidance tier fires for a recorded effect                                                           0.16s
+  ✓ schedule available tier fires for a published active binding                                                 0.25s
+  ✓ cor available tier fires for a current official enrollment                                                   0.31s
+  ✓ grades released tier fires for a released own grade roster row                                               0.27s
+  ✓ enrollment blocking hold outranks all five new tiers                                                         0.21s
+  ✓ tier 6 missing requirements outranks tier 7 academic deficiency                                              0.15s
+  ✓ tier 7 academic deficiency outranks tier 8 schedule available                                                0.25s
+  ✓ tier 8 schedule available outranks tier 9 cor available                                                      0.21s
+  ✓ tier 9 cor available outranks tier 10 grades released                                                        0.19s
+  ✓ informational notice does not outrank any of the five new tiers                                              0.12s
+  ✓ own records isolation prevents cross student new tier leakage                                                0.21s
+  ✓ irregular standing alone does not trigger academic deficiency tier                                           0.13s
+
+   PASS  Tests\Feature\TAL92BAuditCoverageTest
+  ✓ governance projects authentication and operational events without raw properties or payloads                 0.32s
+
+   PASS  Tests\Feature\TAL92DIntegrationMonitoringTest
+  ✓ system health is the only registered integration monitor and never renders secrets                           0.23s
+  ✓ self test is limited to the signed in administrator and safe event fields                                    0.30s
+  ✓ every projected row uses the fixed health vocabulary                                                         0.10s
+
+   PASS  Tests\Feature\TAL92ERetentionDisposalTest
+  ✓ retired disposal workflow is absent and the exact mvp boundary is reachable                                  0.23s
+
+   PASS  Tests\Feature\TAL92FSystemConfigurationAcceptanceTest
+  ✓ two coexisting versions of one setting key are preserved with full governance metadata                       0.15s
+  ✓ role permission configuration is read only and super admin only                                              0.25s
+
+   PASS  Tests\Feature\TAL93CProfileUpdateAlignmentTest
+  ✓ registrar records an attributable append only factual correction                                             1.05s
+  ✓ student profile projection does not offer a self service write path                                          0.23s
+
+   PASS  Tests\Feature\TAL93IAdmissionRequirementPolicyConfigTest
+  ✓ legacy intake and generic policy resources are not reachable                                                 0.20s
+  ✓ canonical cycle and application resources replace the legacy setup and queue                                 0.32s
+  ✓ registrar can access the canonical admissions surfaces                                                       0.60s
+
+   PASS  Tests\Feature\TAL93IAdmissionRequirementPolicySeederTest
+  ✓ seeder stays inert under the testing environment                                                             0.15s
+  ✓ seed baseline makes a fresh database submit ready                                                            0.18s
+
+   PASS  Tests\Feature\TAL93J2eFaqEntryAcceptanceTest
+  ✓ migration defines the expected schema                                                                        0.27s
+  ✓ seeding is idempotent and does not overwrite admin edits                                                     0.28s
+  ✓ super admin can create edit and delete with attribution                                                      1.40s
+  ✓ registrar cannot manage faqs                                                                                 0.22s
+  ✓ form validation enforces required fields and category options                                                0.51s
+  ✓ faq order is explicit and does not rewrite published versions through dragging                               0.23s
+  ✓ public landing renders only published entries in order                                                       0.31s
+  ✓ public landing escapes answer and hides unsafe html                                                          0.28s
+  ✓ public landing shows empty state when no published entries                                                   0.30s
+
+   PASS  Tests\Feature\TAL93J2hFinancialAccommodationLifecycleTest
+  ✓ accounting can apply every allowed transition with atomic audit evidence with data set "pending to active"   0.27s
+  ✓ accounting can apply every allowed transition with atomic audit evidence with data set "pending to cancelle… 0.21s
+  ✓ accounting can apply every allowed transition with atomic audit evidence with data set "active to fulfilled… 0.19s
+  ✓ accounting can apply every allowed transition with atomic audit evidence with data set "active to defaulted… 0.17s
+  ✓ accounting can apply every allowed transition with atomic audit evidence with data set "active to expired"   0.20s
+  ✓ accounting can apply every allowed transition with atomic audit evidence with data set "active to cancelled… 0.18s
+  ✓ invalid terminal repeat blank or oversized reason and premature expiry are rejected                          0.24s
+  ✓ expired transition requires an expiry date                                                                   0.20s
+  ✓ only accounting can use the dedicated transition ability                                                     0.23s
+  ✓ creation form accepts only pending or active status                                                          0.14s
+  ✓ view page action offers valid targets transitions and disappears for terminal records                        0.13s
+  ✓ terminal transition removes active only downstream effect without mutating flags or schedule history         0.15s
+
+   PASS  Tests\Feature\TAL93J3cPreIntegrationGateTest
+  ✓ manifest exactly matches registered staff surfaces                                                           0.18s
+  ✓ applicant manifest exactly matches registered workspace surfaces                                             0.15s
+  ✓ every registered surface has the expected role access with data set "registrar"                              0.18s
+  ✓ every registered surface has the expected role access with data set "accounting"                             0.30s
+  ✓ every registered surface has the expected role access with data set "faculty"                                0.27s
+  ✓ every registered surface has the expected role access with data set "academic head"                          0.34s
+  ✓ every registered surface has the expected role access with data set "system super admin"                     0.38s
+  ✓ every role has the expected registered navigation candidates with data set "registrar"                       0.54s
+  ✓ every role has the expected registered navigation candidates with data set "accounting"                      0.38s
+  ✓ every role has the expected registered navigation candidates with data set "faculty"                         0.35s
+  ✓ every role has the expected registered navigation candidates with data set "academic head"                   0.28s
+  ✓ every role has the expected registered navigation candidates with data set "system super admin"              0.32s
+
+   PASS  Tests\Feature\TAL94B1ScheduleAssignmentValidationTest
+  ✓ valid v2 result is accepted and ingested                                                                     0.27s
+  ✓ warning only result is accepted without becoming a hard violation                                            0.24s
+  ✓ missing captured demand blocks before candidate persistence                                                  0.20s
+  ✓ legacy result blocks and preserves prior candidate rows                                                      0.18s
+  ✓ envelope identity counters and objective must reconcile                                                      0.22s
+  ✓ solver statistics must be present typed and allowlisted                                                      0.26s
+  ✓ unknown search limit has truthful empty coverage counters                                                    0.16s
+  ✓ exact coverage and assignment hard constraints are enforced                                                  0.23s
+  ✓ non fixed assignment requires a captured starting time slot                                                  0.12s
+  ✓ assignment time slot key must match the captured grid row                                                    0.15s
+  ✓ overlap same faculty and deduplicated load rules are enforced                                                0.23s
+  ✓ shared cohort overlap is rejected across course specific delivery groups                                     0.17s
+  ✓ every cohort attached to a shared class is independently protected                                           0.19s
+  ✓ native non solution statuses are blocking without candidate writes                                           0.33s
+  ✓ duplicate success result cannot replace an immutable retained candidate                                      0.25s
+  ✓ schedule run view renders structured source linked findings                                                  0.44s
+  ✓ schedule run view explains each recorded hard constraint and soft objective                                  0.51s
+
+   PASS  Tests\Feature\TAL94B2ControlledRevalidationTest
+  ✓ candidate review has an explicit policy boundary                                                             0.27s
+  ✓ candidate correction validates the complete set and records override evidence                                0.26s
+  ✓ rejected candidate correction preserves rows and persists structured findings                                0.21s
+  ✓ generic manual override is retired and writes nothing                                                        0.16s
+  ✓ current context detects authoritative source drift across constraint families                                0.57s
+  ✓ publication revalidates current sources and preserves solver diagnostics                                     0.57s
+  ✓ publication uses current offering modality for room requirements and official output                         0.31s
+  ✓ live assignment entry point reports unaffected meeting and student binding conflicts                         0.32s
+  ✓ live assignment entry point rejects shared cohort overlap across delivery groups                             0.35s
+
+   PASS  Tests\Feature\TAL94CCandidateReviewUxTest
+  ✓ candidate review table and mutation controls follow role boundaries                                          0.92s
+  ✓ candidate review shows and filters online and face to face teaching modes                                    0.48s
+  ✓ registrar can submit a valid candidate correction through the relation action                                0.84s
+  ✓ invalid candidate correction is reported and preserves the original row                                      0.64s
+  ✓ generic manual override action is retired without mutating blocked or failed runs                            0.37s
+  ✓ retired manual override service rejects calls without writing rows                                           0.15s
+  ✓ run view prioritizes latest validation and keeps original solver provenance without raw json                 0.25s
+
+   PASS  Tests\Feature\TAL94D1ImpactSafePublicationTest
+  ✓ impact classifies assignments and counts affected people                                                     0.25s
+  ✓ binding added after preview blocks replacement without mutation                                              0.21s
+  ✓ warning and evidence derived lower quality require a reason                                                  0.30s
+  ✓ only registrar publishes and published candidates remain immutable                                           0.31s
+  ✓ filament publish modal renders impact and binding blocker                                                    0.37s
+
+   PASS  Tests\Feature\TAL94D2ControlledLiveRevisionTest
+  ✓ revision event schema and policy match the controlled domain                                                 0.19s
+  ✓ preview is read only and room revision records immutable evidence                                            1.10s
+  ✓ supported revision types update only their owned fields                                                      0.57s
+  ✓ multi meeting revision is atomic on success and failure                                                      0.33s
+  ✓ authorization input boundaries and current source drift are atomic                                           0.39s
+  ✓ whole section cancellation blocks active placement then cancels atomically                                   0.55s
+
+   PASS  Tests\Feature\TAL94D3aRevisionUxTest
+  ✓ revision action and history follow role and published state boundaries                                       0.73s
+  ✓ registrar sees a structured preview and applies a room revision                                              0.80s
+  ✓ registrar can apply faculty time modality and whole section revision paths                                   3.87s
+  ✓ source drift after preview blocks every grouped write                                                        0.76s
+  ✓ revision history is newest first filterable read only and uses snapshot fallbacks                            2.36s
+
+   PASS  Tests\Feature\TAL94D3bScheduleRevisionNotificationTest
+  ✓ committed revision queues once per unique affected user and records pending evidence                         0.50s
+  ✓ faculty reassignment notifies previous and replacement faculty once                                          0.29s
+  ✓ time and modality changes notify the affected faculty                                                        0.40s
+  ✓ failed revision creates no delivery evidence or mail                                                         0.16s
+  ✓ mailable contains only the recipient schedule changes                                                        0.40s
+  ✓ message sent and failed hooks update only the correlated event                                               0.14s
+  ✓ governance system events safely project delivery states                                                      0.30s
+
+   PASS  Tests\Feature\TAL94D3cScheduleProjectionAcceptanceTest
+  ✓ faculty schedule shows only owned active published assignments                                               1.64s
+  ✓ student schedule is owner scoped and logs only an available official view                                    0.73s
+  ✓ role boundaries separate official schedule access from faculty projection access                             0.20s
+  ✓ live revision is reflected in faculty student and cor projections                                            1.46s
+  ✓ whole section cancellation disappears from projections and cor uses current live state                       0.65s
+  ✓ student schedule and access log use only the current official enrollment                                     0.44s
+
+   PASS  Tests\Feature\TAL94E2aSolverQueueOperationsTest
+  ✓ run generation rejects another active run for the locked term                                                0.13s
+  ✓ transient attempts are recorded once and only exhaustion finalizes the run                                   0.27s
+  ✓ permanent transport failure is final on the first attempt and not retryable                                  0.18s
+  ✓ authorized retry requeues the same immutable run and preserves prior attempts                                0.49s
+  ✓ retry is denied for active successful permanent candidate bearing and published runs                         0.16s
+  ✓ database queue and canonical worker guidance match the solver timeout                                        0.16s
+
+   PASS  Tests\Feature\TAL94E2bScheduleReleasedNotificationTest
+  ✓ publication queues one release email for each distinct assigned faculty and records pending evidence         0.37s
+  ✓ official enrollment queues one release email for its student and repeat finalization is idempotent           0.25s
+  ✓ missing and invalid faculty emails record failed evidence without queueing mail or reversing publication     0.35s
+  ✓ queue setup failure records redacted failed evidence without reversing publication                           0.19s
+  ✓ failed release notification can be resent once by its recipient or registrar                                 0.10s
+  ✓ tracked mail sent and failed hooks record transport evidence for release and revision mail                   0.15s
+  ✓ publication transaction rollback creates no release mail or delivery evidence                                0.16s
+  ✓ non official registration creates no release mail or delivery evidence                                       0.13s
+
+   WARN  Tests\Feature\TAL94E3b1TaggedRealServiceAcceptanceTest
+  - tagged real service completes the queued schedule workflow and rejects a bad audience → Set TALA_E3B1_ACCEP… 0.08s
+
+   PASS  Tests\Feature\TAL95ACheckoutReliabilityTest
+  ✓ checkout derives the student and due and persists before provider creation                                   0.17s
+  ✓ repeated checkout reuses one provider active attempt                                                         0.22s
+  ✓ changed due expires the old provider session before creating a replacement                                   0.24s
+  ✓ student finance checkout ignores tampered livewire due state                                                 0.23s
+  ✓ student finance checkout action reuses the active attempt                                                    0.23s
+  ✓ student finance checkout action shows a safe provider failure                                                0.23s
+  ✓ student finance checkout action uses the paymongo v2 contract                                                0.28s
+  ✓ student finance disables checkout when no positive due exists                                                0.32s
+  ✓ database rejects a second pending or under review attempt for one assessment                                 0.16s
+  ✓ paymongo creation uses v2 reference and idempotency contract                                                 0.14s
+  ✓ paymongo retrieve and expire use v1 without creation idempotency headers                                     0.14s
+  ✓ definite provider rejection marks the local attempt failed with sanitized diagnostics                        0.20s
+  ✓ indeterminate provider failure preserves the pending attempt for idempotent recovery                         0.17s
+  ✓ sandbox command requires an existing active assessment before any provider call                              0.12s
+
+   PASS  Tests\Feature\TAL95BPayMongoWebhookPipelineTest
+  ✓ every driver rejects webhooks when the signing secret is missing                                             0.14s
+  ✓ signature must use the key for the configured mode                                                           0.11s
+  ✓ valid unsupported event is durably ignored with redacted headers                                             0.11s
+  ✓ supported event creates one pending canonical record and after commit job                                    0.09s
+  ✓ oversized payload is rejected before persistence                                                             0.08s
+  ✓ signed malformed event is durably rejected without a job                                                     0.12s
+  ✓ exact duplicate delivery reuses one event and does not queue again                                           0.11s
+  ✓ reused event id with a different fingerprint is routed to review                                             0.09s
+  ✓ terminal job failure updates both private and operational records without raw message                        0.12s
+  ✓ governance projection maps paymongo events to the safe status vocabulary                                     0.09s
+  ✓ queued processor uses the canonical event and routes unknown source to review                                0.12s
+  ✓ valid delivery and canonical event roll back together when acceptance persistence fails                      0.09s
+
+   PASS  Tests\Feature\TAL95C1PayMongoAccountingReconciliationTest
+  ✓ accounting recovery is scoped to student accounts without generic operational event access                   0.62s
+  ✓ unknown reference can be linked and reprocessed from the original webhook                                    0.20s
+  ✓ amount mismatch remains review only and cannot be confirmed                                                  0.20s
+  ✓ reject is terminal idempotent and never posts the ledger                                                     0.19s
+  ✓ hard invalid and refund evidence cannot be confirmed                                                         0.25s
+  ✓ failed processing can only requeue the persisted call with a reason                                          0.13s
+
+   PASS  Tests\Feature\TAL95C2PayMongoObservabilityAndStudentDeliveryTest
+  ✓ new ledger posting queues one student notice and duplicate posting does not queue again                      0.26s
+  ✓ automatic webhook posting uses the same student notification boundary                                        0.26s
+  ✓ invalid recipient and mail transport failure do not reverse financial posting                                0.32s
+  ✓ mail transport acceptance records allowlisted delivery evidence                                              0.15s
+  ✓ transaction rollback removes payment ledger notification evidence and queued mail                            0.18s
+  ✓ student payment evidence uses allowlisted guidance for each attempt state with data set "no attempt"         0.09s
+  ✓ student payment evidence uses allowlisted guidance for each attempt state with data set "pending"            0.10s
+  ✓ student payment evidence uses allowlisted guidance for each attempt state with data set "under review"       0.09s
+  ✓ student payment evidence uses allowlisted guidance for each attempt state with data set "failed"             0.07s
+  ✓ student payment evidence uses allowlisted guidance for each attempt state with data set "expired"            0.07s
+  ✓ student payment evidence uses allowlisted guidance for each attempt state with data set "cancelled"          0.10s
+  ✓ partial posting with a current due requests only the remaining payment                                       0.09s
+
+   PASS  Tests\Feature\TAL95D1PayMongoProviderContractTest
+  ✓ current v2 and legacy envelopes normalize to the same financial context                                      0.10s
+  ✓ genuine v1 top level checkout compatibility remains available when payments are absent                       0.11s
+  ✓ payment resources normalize from payment fields regardless of envelope                                       0.11s
+  ✓ checkout session nested payment evidence fails closed for every invalid shape                                0.08s
+  ✓ checkout session payment intent evidence must agree across provider locations                                0.09s
+  ✓ disputed and refunded nested payment evidence is exposed for review routing                                  0.09s
+  ✓ every invalid nested payment branch routes to review without a payment ledger posting                        0.49s
+  ✓ processor fallback event records the current normalization version                                           0.25s
+  ✓ v2 without a provider event id has stable semantic identity and fingerprint                                  0.11s
+  ✓ signature timestamp must be within the configured replay window                                              0.10s
+  ✓ gateway retries a transient response                                                                         0.34s
+  ✓ gateway does not retry a business rejection                                                                  0.17s
+  ✓ reordered v2 redelivery is a duplicate but a financial conflict routes to review                             0.14s
+  ✓ ambiguous v2 paid evidence routes to review without financial mutation                                       0.14s
+  ✓ provider confirmed decline is terminal and a late paid event requires review                                 0.14s
+  ✓ repaired smoke command proves current payment ledger and delivery evidence                                   0.22s
+  ✓ shared sandbox guard fails closed on unsafe configuration                                                    0.10s
+  ✓ guarded sandbox commands create reuse and expire one attempt                                                 0.26s
+  ✓ sandbox expiry keeps the attempt pending when the provider does not confirm expiry                           0.22s
+
+   PASS  Tests\Feature\TAL95D2APayMongoWebhookAdmissionCompatibilityTest
+  ✓ invalid hmac is logged with only a safe bounded verdict                                                      0.25s
+  ✓ verifier distinguishes every fail closed admission branch                                                    0.19s
+  ✓ correctly signed delivery with small future clock skew is valid                                              0.17s
+  ✓ correctly signed old delivery is classified as stale without admission                                       0.12s
+
+   PASS  Tests\Feature\TAL95D2B1PayMongoNormalizationRecoveryTest
+  ✓ exact signed redelivery recovers once and posts existing review evidence idempotently                        0.43s
+  ✓ byte different redelivery cannot enter normalization recovery                                                0.43s
+  ✓ wrong reason current version prior marker and live evidence reject recovery                                  0.42s
+  ✓ configured live mode rejects test mode normalization recovery                                                0.17s
+  ✓ newly admitted event records the current normalization version                                               0.17s
+
+   PASS  Tests\Feature\TAL96B1ClientAlignedAcceptanceBaselineTest
+  ✓ guarded command builds the complete client aligned acceptance baseline                                       5.28s
+  ✓ complete baseline rerun is an exact no op                                                                    5.87s
+  ✓ solver snapshot maps course specific delivery groups to six shared cohorts                                   5.10s
+  ✓ complete baseline with extra master data fails closed without writes                                         3.71s
+  ✓ complete baseline with mutated term state fails closed without writes                                        5.00s
+  ✓ complete baseline with unverified account fails closed without writes                                        4.74s
+  ✓ complete baseline with broken faculty readiness fails closed without writes                                  4.26s
+  ✓ rerun after operator edit preserves the change without writes                                                4.27s
+  ✓ complete baseline with changed curriculum content fails closed without writes                                5.26s
+  ✓ complete baseline with changed room content fails closed without writes                                      5.73s
+  ✓ complete baseline with changed student association fails closed without writes                               5.22s
+  ✓ complete baseline with changed academic standing fails closed without writes                                 4.44s
+  ✓ complete baseline with changed staff role set fails closed without writes                                    6.86s
+  ✓ partial or conflicting operational state fails without writes                                                0.18s
+  ✓ read only inspection reports empty state without writes                                                      0.21s
+  ✓ read only inspection reports complete state as ready without writes                                          5.09s
+  ✓ read only inspection reports conflict without writes                                                         0.23s
+  ✓ environment guard fails closed outside testing                                                               0.13s
+  ✓ database seeder remains free of acceptance operational data                                                  0.21s
+  ✓ capacity authority rejects a universal student ceiling                                                       0.15s
+
+   WARN  Tests\Feature\TAL96B2RealLoopbackSchedulingDemoReadinessTest
+  - client baseline completes the real solver publication and cross role projections → Set TALA_96B2_ACCEPTANCE… 0.11s
+  ✓ approved eight worker cloud profile is supported by the acceptance guard                                     0.10s
+
+   PASS  Tests\Feature\TAL96D1CrossRoleAuditHarnessTest
+  ✓ client baseline supports all seven representative workspaces                                                 6.62s
+
+   PASS  Tests\Feature\TAL96D2AAdmissionsHardeningTest
+  ✓ admin panel registers only the canonical admissions resources                                                0.09s
+  ✓ legacy admissions routes are unreachable while canonical routes are registered                               0.12s
+  ✓ application state does not mutate account identity or create student records                                 0.12s
+
+   PASS  Tests\Feature\TAL96D2BAcademicSetupHardeningTest
+  ✓ catalog accepts only face to face and online modalities                                                      0.10s
+  ✓ term dates must remain inside the selected academic year                                                     0.36s
+  ✓ only draft course specifications and curricula are directly editable                                         0.13s
+  ✓ registrar can copy a protected course revision into an independent draft                                     0.14s
+  ✓ complete course specification activation protects the revision from direct edits                             0.11s
+  ✓ externally arranged courses activate without fabricated recurring meetings                                   0.11s
+  ✓ lifecycle actions replace direct state editing on the staff surfaces                                         0.18s
+  ✓ lifecycle state payloads cannot bypass controlled actions                                                    1.11s
+  ✓ curriculum activation supersedes the previous active version without moving existing students                0.13s
+  ✓ course specification activation blocks incomplete drafts                                                     0.11s
+  ✓ curriculum activation blocks incomplete referenced specifications                                            0.11s
+  ✓ curriculum activation requires explicit confirmation                                                         0.12s
+  ✓ curriculum activation requires complete approval evidence                                                    0.13s
+
+   PASS  Tests\Feature\TAL96D2COfferingAndScenarioHardeningTest
+  ✓ only approved modalities are available                                                                       0.12s
+  ✓ direct section save requires a term unique source record code                                                0.14s
+  ✓ direct delivery group save enforces course modality and friendly name uniqueness                             0.15s
+  ✓ canonical dataset defines the current scheduling workload                                                    0.12s
+  ✓ registrar dashboard explains the academic setup and scheduling order                                         3.48s
+  ✓ curriculum review presents the source order and course facts in a readable table                             4.57s
+  ✓ exploration personas are grounded in owner correct prior term records                                        5.63s
+
+   PASS  Tests\Feature\TAL96D3AMasterScheduleFunctionalHardeningTest
+  ✓ scheduling authority keeps registrar mutations academic head read only and system admin on integration oper… 0.18s
+  ✓ unexpected generation and dispatch failures do not disclose internal exception messages                      0.90s
+  ✓ expected readiness and duplicate run validation remains actionable                                           0.89s
+  ✓ run view explains solution quality without presenting predictive accuracy                                    0.26s
+  ✓ faculty and student can print only their current official schedule and access is logged                      0.54s
+  ✓ empty schedule print outputs are clear and do not create access logs                                         0.11s
+
+   PASS  Tests\Feature\TAL96D3BEnrollmentWindowProposalPlacementTest
+  ✓ course enrollments store a non capacity holding section proposal                                             0.12s
+  ✓ section proposal is persisted without a seat reservation                                                     0.13s
+  ✓ enrollment window uses the active exact term calendar package                                                0.11s
+  ✓ missing and closed enrollment windows have distinct blockers                                                 0.10s
+  ✓ authorized staff start a continuing enrollment during the open window idempotently                           0.14s
+  ✓ continuing start rejects completed or terminal enrollments without reopening them                            0.18s
+  ✓ continuing start blocks closed windows and wrong roles without creating records                              0.13s
+  ✓ irregular student proposes published sections without consuming capacity                                     0.36s
+  ✓ irregular proposal rejects wrong student and incompatible curriculum without partial writes                  0.28s
+  ✓ irregular proposal blocks missing or closed windows without partial writes                                   0.19s
+  ✓ registrar confirms the complete irregular proposal atomically with window deadlines                          0.62s
+  ✓ registrar confirms a complete regular logical cohort block                                                   0.58s
+  ✓ regular cohort requires every eligible offering to be published for the same cohort                          0.29s
+  ✓ irregular proposal rejects full sections before mutating the proposal                                        0.19s
+  ✓ complete irregular confirmation rolls back every course when one section is full                             0.25s
+  ✓ complete irregular confirmation locks the proposal rows before confirming them                               0.32s
+  ✓ registrar replacement releases only the superseded course placement                                          0.34s
+  ✓ staff replacement requires the canonical window and records its deadline                                     0.48s
+  ✓ cancellation and deadline expiry release capacity and schedule bindings                                      0.95s
+  ✓ student enrollment page is a guided case status journey without section shopping                             0.20s
+  ✓ terminal enrollments reject placement and repeated cancellation without side effects                         0.32s
+  ✓ irregular replacement requires an existing same subject reservation                                          0.38s
+  ✓ complete proposal confirmation is restricted to irregular enrollments                                        0.14s
+  ✓ retired staff confirmation action is absent for every registration case state                                0.37s
+  ✓ student section shopping action is absent from terminal registration                                         0.18s
+  ✓ student page uses the controlled selection basis instead of regular cohort policy                            0.15s
+  ✓ student registration is not exposed as a bulk selectable table                                               0.19s
+  ✓ student page does not expose the retired bulk replace proposal action                                        0.15s
+  ✓ registrar can start a continuing enrollment from the staff list                                              0.61s
+  ✓ registrar staff list records an exact late start authority                                                   0.81s
+  ✓ staff list truthfully reports an existing active enrollment                                                  0.90s
+  ✓ staff list rejects a cancelled enrollment restart with a clear notice                                        0.64s
+  ✓ enrollment summary explains the next step and responsible office in plain language                           0.12s
+  ✓ staff enrollment list keeps one view action and assisted start recovery                                      0.19s
+  ✓ enrollment record exposes canonical primary and grouped recovery actions                                     0.23s
+  ✓ enrollment record never exposes retired placement or gate officialization actions                            0.25s
+  ✓ expired reservation recovery command is available to operations                                              0.14s
+
+   PASS  Tests\Feature\TAL96D3CFinancePayMongoHardeningTest
+  ✓ student checkout returns are informational and never claim payment posting                                   0.27s
+  ✓ paid provider recovery creates sanitized review evidence without posting                                     0.14s
+  ✓ accounting confirmation of exact recovered evidence posts once and notifies once                             0.20s
+  ✓ pending failed and expired provider sessions update only the attempt state                                   0.20s
+  ✓ recovered payment mismatch cannot be confirmed or posted                                                     0.14s
+  ✓ recovered payment cannot replace an existing provider intent                                                 0.17s
+  ✓ incomplete provider safety fields cannot be confirmed or posted                                              0.23s
+  ✓ accounting can reject unposted recovered evidence with an audited reason                                     0.18s
+  ✓ only accounting can recover or decide provider evidence                                                      0.18s
+  ✓ reconciliation and integration surfaces explain recovery without exposing secrets                            0.27s
+
+   PASS  Tests\Feature\TAL96D3DOfficialEnrollmentCorConvergenceTest
+  ✓ resolver selects the official enrollment in the active term                                                  0.29s
+  ✓ resolver returns null without an official enrollment in the active term                                      0.19s
+  ✓ resolver is deterministic when more than one active term exists                                              0.33s
+
+   PASS  Tests\Feature\TAL96D4ASystemUxFoundationTest
+  ✓ browser errors are branded safe and actionable with data set "forbidden"                                     0.11s
+  ✓ browser errors are branded safe and actionable with data set "not found"                                     0.14s
+  ✓ browser errors are branded safe and actionable with data set "expired session"                               0.18s
+  ✓ browser errors are branded safe and actionable with data set "too many requests"                             0.19s
+  ✓ browser errors are branded safe and actionable with data set "server error"                                  0.11s
+  ✓ browser errors are branded safe and actionable with data set "service unavailable"                           0.11s
+  ✓ browser errors are branded safe and actionable with data set "other client error fallback"                   0.09s
+  ✓ browser errors are branded safe and actionable with data set "other server error fallback"                   0.11s
+  ✓ an unmatched browser route uses the branded not found page                                                   0.08s
+  ✓ json errors keep the framework json response boundary                                                        0.08s
+  ✓ authenticated forbidden page offers the authorized workspace and explicit account switch                     0.15s
+  ✓ account switch recovery is not shown for unrelated http errors                                               0.11s
+  ✓ admin panel uses the canonical staff workspace name                                                          0.07s
+  ✓ error page actions and focus indicators meet contrast thresholds                                             0.07s
+
+   PASS  Tests\Feature\TAL96D4BGradesLifecycleHardeningTest
+  ✓ grade workspaces keep actions discoverable on small screens                                                  0.22s
+  ✓ lifecycle workspaces present structured impact and mobile safe actions                                       0.25s
+  ✓ graduation member picker is not limited to the first one hundred students                                    0.37s
+  ✓ student grade and lifecycle projections are mobile safe and plain language                                   0.15s
+  ✓ acceptance state overlay is guarded and idempotent                                                           0.24s
+
+   PASS  Tests\Feature\TAL96D4CStudentHubReportOutputPresentationTest
+  ✓ student hub keeps priority notices without exposing a second notification center                             0.12s
+  ✓ student summary and holds present plain language responsive guidance                                         0.31s
+  ✓ generic finance reports are unavailable to accounting                                                        0.15s
+  ✓ official outputs and operational emails share clear identity and action guidance                             0.38s
+
+   PASS  Tests\Feature\TAL96D4DLandingAndCrossRolePresentationTest
+  ✓ public landing explains the three workspace boundaries without script dependent headings                     0.28s
+  ✓ public landing keeps published faq entries ordered and hides drafts                                          0.17s
+  ✓ official output component owns static styles without blade inside css                                        0.12s
+  ✓ landing retains the progressive navigation and bottom edge blur                                              0.11s
+  ✓ tala logo surfaces share the approved brand radius and journey does not fake progress                        0.14s
+  ✓ landing keeps external location guidance without an embedded map or global button margins                    0.19s
+  ✓ role workspaces retain consistent tala branding and distinct names                                           0.19s
+
+   PASS  Tests\Feature\TAL96D5BAdmissionsClarityAndNotificationTest
+  ✓ canonical admissions resources use plain operating labels                                                    0.14s
+  ✓ applicant home explains the safe empty state without handover language                                       0.20s
+  ✓ requirements explain when no version bound set exists                                                        0.12s
+
+   PASS  Tests\Feature\TAL96D5BAdmissionsWindowAndWithdrawalTest
+  ✓ published admission cycle is the single public and submission window source                                  0.11s
+  ✓ partial draft is preserved when the cycle closes                                                             0.16s
+  ✓ close between page load and first submission preserves the draft without a snapshot                          0.16s
+  ✓ withdrawal and authorized reopening preserve the same reference and history                                  0.21s
+  ✓ withdrawal stops after clinic four registration has started                                                  0.13s
+
+   PASS  Tests\Feature\TAL96D5BApplicantLifecycleHistoryTest
+  ✓ applicant account exposes all applications and resolves the current nonwithdrawn record                      0.11s
+  ✓ database allows only one application per account and cycle                                                   0.14s
+  ✓ dashboard lists only the authenticated applicants history                                                    0.30s
+
+   PASS  Tests\Feature\TAL96D5BOperationalStateOverlayTest
+  ✓ canonical operational overlay is guarded idempotent and preserves scheduling inputs                          5.36s
+  ✓ canonical overlay exposes named enrollment finance grade and lifecycle states                                4.50s
+  ✓ coverage matrix names every required role and state family without claiming external proof                   3.70s
+
+   PASS  Tests\Feature\TAL96D5BSharedFoundationTest
+  ✓ utc storage uses one philippine display timezone contract                                                    0.09s
+  ✓ staff sidebar uses the canonical flat task navigation without legacy groups                                  0.18s
+
+   PASS  Tests\Feature\TAL96D5E1B2AAcademicReadinessTest
+  ✓ registrar sidebar exposes one academic readiness task instead of peer source tables                          0.12s
+  ✓ workbench access is role appropriate while source record routes remain available                             0.99s
+  ✓ workbench states the program readiness blocker and next action in plain language                             0.21s
+  ✓ workbench surfaces a pending revision instead of hiding it behind the active curriculum                      0.15s
+  ✓ manually created draft redirects to the combined curriculum review                                           0.23s
+  ✓ curriculum review combines source specification placement readiness and correction path                      0.19s
+  ✓ registrar can add a curriculum row without leaving the combined review                                       0.43s
+  ✓ registrar can correct curriculum placement inside the combined review                                        0.43s
+  ✓ curriculum placement rejects a whitespace only term label                                                    0.42s
+  ✓ registrar can complete a draft specification inside the combined review                                      0.60s
+  ✓ specification completion rejects a whitespace only subject title                                             0.64s
+  ✓ registrar records approval and confirms activation from the combined review                                  0.43s
+  ✓ activation remains blocked when a reviewed row has an incomplete specification                               0.34s
+  ✓ academic head receives the same curriculum truth without mutation actions                                    0.20s
+  ✓ posted curriculum import converges on the same curriculum review                                             0.16s
+
+   PASS  Tests\Feature\TAL96D5E1B2BAdmissionsWorkQueueTest
+  ✓ canonical admissions resources replace the legacy intake and generic policy routes                           0.10s
+  ✓ registrar work queue uses journey states and business filters without bulk decisions                         0.22s
+  ✓ retired handover cannot create student or enrollment records                                                 0.12s
+  ✓ work queue tabs keep current journey states separate                                                         0.54s
+
+   PASS  Tests\Feature\TAL96D5E1B2CClassPlanningTest
+  ✓ class planning is one role truthful entry with six ordered stages                                            0.64s
+  ✓ workflow presenter reports truthful blockers without invoking the solver                                     0.10s
+  ✓ scheduling authority keeps registrar management academic head read only and system admin denied              0.14s
+  ✓ academic head can review class planning but system admin cannot open it                                      0.19s
+  ✓ teaching resources action opens the source that owns the current blocker                                     0.10s
+  ✓ source records remain routable while plain language scheduling views are exposed                             0.28s
+
+   PASS  Tests\Feature\TAL96D5E1CAccountingRecoveryTest
+  ✓ accounting navigation presents one task centered operating flow                                              3.72s
+  ✓ student account presenter and detail explain the current position and next action                            5.13s
+  ✓ payment exceptions are named and filterable by evidence source status and reason                             5.44s
+  ✓ account activity uses human labels and filters without exposing technical sources by default                 5.06s
+  ✓ accounting payment tables format internal codes without changing raw state or filters                        4.29s
+  ✓ exploration overlay exposes finance and provider states without creating schedules                           4.60s
+
+   PASS  Tests\Feature\TAL96D5E1D2TimetablingOperatingJourneyTest
+  ✓ class planning preserves the selected term across operating destinations                                     0.30s
+  ✓ an open active generation request refreshes until it reaches review                                          0.27s
+  ✓ generated timetables can be narrowed to the operating term                                                   0.34s
+  ✓ published timetable supports term day and section operating filters                                          0.72s
+
+   PASS  Tests\Feature\TAL96D5E1D3EnrollmentCorJourneyClosureTest
+  ✓ source derived context reports mixed curriculum levels and course delivery mix                               0.22s
+  ✓ regular single level context remains truthful                                                                0.28s
+  ✓ student dashboard uses current sources while cor uses its immutable snapshot                                 0.32s
+  ✓ enrollment queue filters by term and program                                                                 0.92s
+  ✓ irregular student waits on the active term without a proposal reservation or solver run                      0.18s
+  ✓ student record list exposes and filters current enrollment context                                           1.15s
+
+   PASS  Tests\Feature\TAL96D5E1D4AdmissionsJourneyClosureTest
+  ✓ presenter reports resolved outstanding and handover blocker counts                                           0.17s
+  ✓ registrar can record reasoned waiver and undertaking outcomes with audit evidence                            0.19s
+  ✓ authority resolutions require detail and an authorized registrar without mutation                            0.12s
+  ✓ registrar actions use the evidence method and expose authority resolutions                                   0.84s
+  ✓ applicant home is compact and requirements owns per item detail                                              0.28s
+  ✓ applicant status mail renders scope owner and safe next action                                               0.34s
+
+   PASS  Tests\Feature\TAL96D5E1D5FinanceJourneyClosureTest
+  ✓ manual bank transfer evidence posts to an exact obligation without an or                                     0.19s
+  ✓ cash requires a physical or number before posting                                                            0.15s
+  ✓ manual payment allocates one payment across multiple targets and posts auditable ledger rows                 0.34s
+  ✓ payment allocated to prior term debt does not clear the current enrollment                                   0.16s
+  ✓ payment table eager loads academic context without per payment course queries                                0.19s
+  ✓ student account presenter reuses one request scoped projection                                               0.26s
+  ✓ legacy assessment payment editor is retired in favor of enrollment clearance                                 0.42s
+  ✓ current due follows exact obligation satisfaction before the remaining balance                               0.20s
+  ✓ partial payment with a mapped or does not claim or mapping is pending                                        0.22s
+  ✓ four step staff summary uses two columns at large container widths                                           0.26s
+  ✓ statement tables include mobile row labels                                                                   0.20s
+  ✓ automatic provider allocation does not retarget a satisfied obligation                                       0.29s
+  ✓ payment above the eligible outstanding total is rejected without partial writes                              0.20s
+  ✓ allocation cannot target another students account item                                                       0.20s
+  ✓ paymongo uses the same allocation seam and duplicate processing does not repost                              0.24s
+
+   PASS  Tests\Feature\TAL96D5E1D6BAcademicStandingLifecycleResultTest
+  ✓ system admin cannot record individual standing or lifecycle results                                          0.41s
+  ✓ registrar records an attributable academic effect without mutating legacy standing                           0.28s
+  ✓ staff lifecycle surfaces identify the student and complete recorded result                                   0.41s
+  ✓ student academic status is owner scoped and hides staff only decision evidence                               0.18s
+
+   PASS  Tests\Feature\TAL96D5E1D6CCompletionEligibilityReviewTest
+  ✓ canonical completion surfaces replace the dormant student and batch pages                                    0.13s
+  ✓ legacy completion evidence remains historical without setting current readiness                              0.14s
+
+   PASS  Tests\Feature\TAL96D5E1D6D1PresentationFixtureTest
+  ✓ presentation fixture preserves the client min population and resources                                       5.54s
+  ✓ presentation accounts use fictional filipino sounding names and expected roles                               5.29s
+  ✓ presentation case catalog is complete and uses plain fixture copy                                            5.32s
+  ✓ student academics progressively discloses large completion blocker sets                                      4.54s
+
+   PASS  Tests\Feature\TAL96D5E1D6D2SystemAdministrationHealthPresentationTest
+  ✓ system administration home links to the two canonical destinations                                           0.40s
+  ✓ system health and governance are system super admin only                                                     0.13s
+
+   PASS  Tests\Feature\TAL96D5E1DRemainingRoleCapabilityClosureTest
+  ✓ system administrator has exactly the four canonical navigation destinations                                  0.15s
+
+   PASS  Tests\Feature\TAL96D5E1ExplorationPersonaTest
+  ✓ exploration overlay builds the exact sign in persona catalog                                                 4.42s
+  ✓ exploration overlay is idempotent and preserves the min scheduling contract                                  5.19s
+  ✓ check mode reports an incomplete overlay without writing                                                     4.64s
+  ✓ check mode rejects an unknown or mismatched checkpoint without writing                                       6.00s
+  ✓ check mode rejects a persona whose documented local password changed                                         5.14s
+  ✓ exploration command fails closed outside the testing environment                                             3.29s
+  ✓ documentation keeps acceptance fixtures non authoritative                                                    3.55s
+
+  Tests:    3 skipped, 1295 passed (11738 assertions)
+  Duration: 657.55s
+
+START: 2026-09-11 12:58:58 | END: 2026-09-11 13:09:59 | EXIT: 0

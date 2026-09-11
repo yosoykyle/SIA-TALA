@@ -8,6 +8,7 @@
                     'border-gray-200 bg-white text-gray-700 dark:border-white/10 dark:bg-gray-900 dark:text-gray-200' => ! $captureStale,
                 ])
                 role="status"
+                aria-live="polite"
             >
                 <span class="font-semibold">{{ $captureStale ? 'Stale capture.' : 'Current capture.' }}</span>
                 {{ $captureNotice }}

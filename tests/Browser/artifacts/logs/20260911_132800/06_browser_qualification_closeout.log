@@ -1,0 +1,552 @@
+================================================================
+TALA SLICE 7 CLOSEOUT PASS: CRITERIA 19 & 28 BOUNDED EVIDENCE
+================================================================
+
+[Criterion 19] Verifying shared shell features for role: system-super-admin...
+[Criterion 19] Verifying shared shell features for role: registrar...
+[Criterion 19] Verifying shared shell features for role: accounting...
+[Criterion 19] Verifying shared shell features for role: faculty...
+[Criterion 19] Verifying shared shell features for role: academic-head...
+[Criterion 19] Verifying shared shell features for role: student...
+[Criterion 19] Verifying shared shell features for role: applicant...
+[Criterion 28] Verifying viewports and 200% zoom for registrar...
+[Criterion 28] Verifying viewports and 200% zoom for accounting...
+[Criterion 28] Verifying viewports and 200% zoom for faculty...
+[Criterion 28] Verifying viewports and 200% zoom for academic-head...
+[Criterion 28] Verifying viewports and 200% zoom for system-super-admin...
+[Criterion 28] Testing actual in-flight loading state across viewports & 200% zoom on /admin/system-health...
+[Criterion 28] Testing actual stale capture state via safe test failure mechanism...
+[Criterion 28] Testing actual concurrent state (session eviction) across viewports & 200% zoom in browser...
+[Criterion 28] Testing inaccessible (403) and failure (404) states across viewports & 200% zoom...
+
+--- Inapplicable Exceptional-State Viewport/Zoom Justifications (Documentation only; not counted as test rows) ---
+[Justified Inapplicable] State: output-print | Combination: 200% zoom on print CSS media (@media print)
+  Rationale: Inapplicable because official output print documents are rendered in fixed physical A4 page media (@page { size: A4 portrait/landscape }), where browser screen zoom does not scale physical paper print margins or sheet boundaries.
+
+[Justified Inapplicable] State: shared-shell-drawer | Combination: Mobile drawer open on 1366x768 desktop viewport
+  Rationale: Inapplicable because desktop viewports (>= 1024px) utilize a permanently docked, collapsible sidebar governed by responsive CSS; the mobile slide-over drawer is intentionally hidden above 1024px.
+
+[Justified Inapplicable] State: loading-state | Combination: In-flight Livewire loading state on static 403/404 HTTP error pages
+  Rationale: Inapplicable because HTTP 403 Forbidden and 404 Not Found error responses are synchronous full-page web responses produced by Laravel exception handling rather than reactive Livewire component instances.
+
+
+================================================================
+TARGETED CLOSEOUT PASS BROWSER RESULTS:
+================================================================
+[
+  {
+    "test_group": "criterion_19_shared_shell",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "ordinary",
+    "viewport": "1366x768 / 390x844",
+    "result": "PASS",
+    "details": "activeNav=true (System Health), context=true (TALA Staff Workspace), accountSecurity=true, signOut=true, desktopCollapse=true (initialWidth=272, collapsedWidth=79, expandVisible=true, restoredWidth=272), mobileDrawer=true (initialX=-244.765625, openedX=0, closedX=-244.765625), postLoginUrl=http://127.0.0.1:8008/admin/users"
+  },
+  {
+    "test_group": "criterion_19_shared_shell",
+    "role": "registrar",
+    "page": "/admin/admission-applications",
+    "state": "ordinary",
+    "viewport": "1366x768 / 390x844",
+    "result": "PASS",
+    "details": "activeNav=true (Admissions), context=true (TALA Staff Workspace), accountSecurity=true, signOut=true, desktopCollapse=true (initialWidth=272, collapsedWidth=79, expandVisible=true, restoredWidth=272), mobileDrawer=true (initialX=-244.765625, openedX=0, closedX=-244.765625), postLoginUrl=http://127.0.0.1:8008/admin/admission-applications"
+  },
+  {
+    "test_group": "criterion_19_shared_shell",
+    "role": "accounting",
+    "page": "/admin/fee-plans",
+    "state": "ordinary",
+    "viewport": "1366x768 / 390x844",
+    "result": "PASS",
+    "details": "activeNav=true (Fee Plans), context=true (TALA Staff Workspace), accountSecurity=true, signOut=true, desktopCollapse=true (initialWidth=272, collapsedWidth=79, expandVisible=true, restoredWidth=272), mobileDrawer=true (initialX=-244.765625, openedX=0, closedX=-244.765625), postLoginUrl=http://127.0.0.1:8008/admin/fee-plans"
+  },
+  {
+    "test_group": "criterion_19_shared_shell",
+    "role": "faculty",
+    "page": "/admin/my-availability",
+    "state": "ordinary",
+    "viewport": "1366x768 / 390x844",
+    "result": "PASS",
+    "details": "activeNav=true (My Availability), context=true (TALA Staff Workspace), accountSecurity=true, signOut=true, desktopCollapse=true (initialWidth=272, collapsedWidth=79, expandVisible=true, restoredWidth=272), mobileDrawer=true (initialX=-244.765625, openedX=0, closedX=-244.765625), postLoginUrl=http://127.0.0.1:8008/admin/my-availability"
+  },
+  {
+    "test_group": "criterion_19_shared_shell",
+    "role": "academic-head",
+    "page": "/admin/academic-approvals",
+    "state": "ordinary",
+    "viewport": "1366x768 / 390x844",
+    "result": "PASS",
+    "details": "activeNav=true (Academic Oversight), context=true (TALA Staff Workspace), accountSecurity=true, signOut=true, desktopCollapse=true (initialWidth=272, collapsedWidth=79, expandVisible=true, restoredWidth=272), mobileDrawer=true (initialX=-244.765625, openedX=0, closedX=-244.765625), postLoginUrl=http://127.0.0.1:8008/admin/academic-approvals"
+  },
+  {
+    "test_group": "criterion_19_shared_shell",
+    "role": "student",
+    "page": "/student",
+    "state": "ordinary",
+    "viewport": "1366x768 / 390x844",
+    "result": "PASS",
+    "details": "activeNav=true (Home), context=true (TALA Student Hub), accountSecurity=true, signOut=true, desktopCollapse=true (initialWidth=272, collapsedWidth=79, expandVisible=true, restoredWidth=272), mobileDrawer=true (initialX=-244.765625, openedX=0, closedX=-244.765625), postLoginUrl=http://127.0.0.1:8008/student"
+  },
+  {
+    "test_group": "criterion_19_shared_shell",
+    "role": "applicant",
+    "page": "/applicant",
+    "state": "ordinary",
+    "viewport": "1366x768 / 390x844",
+    "result": "PASS",
+    "details": "activeNav=true (Home), context=true (TALA Applicant Workspace), accountSecurity=true, signOut=true, desktopCollapse=true (initialWidth=272, collapsedWidth=79, expandVisible=true, restoredWidth=272), mobileDrawer=true (initialX=-244.765625, openedX=0, closedX=-244.765625), postLoginUrl=http://127.0.0.1:8008/applicant"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "registrar",
+    "page": "/admin/admission-applications",
+    "state": "ordinary",
+    "viewport": "1366x768 (desktop)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "registrar",
+    "page": "/admin/admission-applications",
+    "state": "ordinary",
+    "viewport": "768x1024 (tablet)",
+    "result": "PASS",
+    "details": "clientWidth=768, scrollWidth=768, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "registrar",
+    "page": "/admin/admission-applications",
+    "state": "ordinary",
+    "viewport": "390x844 (mobile-large)",
+    "result": "PASS",
+    "details": "clientWidth=390, scrollWidth=390, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "registrar",
+    "page": "/admin/admission-applications",
+    "state": "ordinary",
+    "viewport": "360x800 (mobile-small)",
+    "result": "PASS",
+    "details": "clientWidth=360, scrollWidth=360, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "registrar",
+    "page": "/admin/admission-applications",
+    "state": "ordinary",
+    "viewport": "200% zoom (1366x768)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "accounting",
+    "page": "/admin/fee-plans",
+    "state": "ordinary",
+    "viewport": "1366x768 (desktop)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "accounting",
+    "page": "/admin/fee-plans",
+    "state": "ordinary",
+    "viewport": "768x1024 (tablet)",
+    "result": "PASS",
+    "details": "clientWidth=768, scrollWidth=768, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "accounting",
+    "page": "/admin/fee-plans",
+    "state": "ordinary",
+    "viewport": "390x844 (mobile-large)",
+    "result": "PASS",
+    "details": "clientWidth=390, scrollWidth=390, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "accounting",
+    "page": "/admin/fee-plans",
+    "state": "ordinary",
+    "viewport": "360x800 (mobile-small)",
+    "result": "PASS",
+    "details": "clientWidth=360, scrollWidth=360, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "accounting",
+    "page": "/admin/fee-plans",
+    "state": "ordinary",
+    "viewport": "200% zoom (1366x768)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "faculty",
+    "page": "/admin/my-availability",
+    "state": "ordinary",
+    "viewport": "1366x768 (desktop)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "faculty",
+    "page": "/admin/my-availability",
+    "state": "ordinary",
+    "viewport": "768x1024 (tablet)",
+    "result": "PASS",
+    "details": "clientWidth=768, scrollWidth=768, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "faculty",
+    "page": "/admin/my-availability",
+    "state": "ordinary",
+    "viewport": "390x844 (mobile-large)",
+    "result": "PASS",
+    "details": "clientWidth=390, scrollWidth=390, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "faculty",
+    "page": "/admin/my-availability",
+    "state": "ordinary",
+    "viewport": "360x800 (mobile-small)",
+    "result": "PASS",
+    "details": "clientWidth=360, scrollWidth=360, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "faculty",
+    "page": "/admin/my-availability",
+    "state": "ordinary",
+    "viewport": "200% zoom (1366x768)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "academic-head",
+    "page": "/admin/academic-approvals",
+    "state": "ordinary",
+    "viewport": "1366x768 (desktop)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "academic-head",
+    "page": "/admin/academic-approvals",
+    "state": "ordinary",
+    "viewport": "768x1024 (tablet)",
+    "result": "PASS",
+    "details": "clientWidth=768, scrollWidth=768, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "academic-head",
+    "page": "/admin/academic-approvals",
+    "state": "ordinary",
+    "viewport": "390x844 (mobile-large)",
+    "result": "PASS",
+    "details": "clientWidth=390, scrollWidth=390, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "academic-head",
+    "page": "/admin/academic-approvals",
+    "state": "ordinary",
+    "viewport": "360x800 (mobile-small)",
+    "result": "PASS",
+    "details": "clientWidth=360, scrollWidth=360, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "academic-head",
+    "page": "/admin/academic-approvals",
+    "state": "ordinary",
+    "viewport": "200% zoom (1366x768)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "ordinary",
+    "viewport": "1366x768 (desktop)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "ordinary",
+    "viewport": "768x1024 (tablet)",
+    "result": "PASS",
+    "details": "clientWidth=768, scrollWidth=768, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "ordinary",
+    "viewport": "390x844 (mobile-large)",
+    "result": "PASS",
+    "details": "clientWidth=390, scrollWidth=390, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "ordinary",
+    "viewport": "360x800 (mobile-small)",
+    "result": "PASS",
+    "details": "clientWidth=360, scrollWidth=360, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_viewports",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "ordinary",
+    "viewport": "200% zoom (1366x768)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "loading",
+    "viewport": "1366x768 (desktop)",
+    "result": "PASS",
+    "details": "intercepted=true, loadingObserved=true (isDisabled=true, isSpinnerVisible=true), isReEnabled=true, clientWidth=1366, scrollWidth=1366, inFlightOverflow=false, postFlightOverflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "loading",
+    "viewport": "768x1024 (tablet)",
+    "result": "PASS",
+    "details": "intercepted=true, loadingObserved=true (isDisabled=true, isSpinnerVisible=true), isReEnabled=true, clientWidth=768, scrollWidth=768, inFlightOverflow=false, postFlightOverflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "loading",
+    "viewport": "390x844 (mobile-large)",
+    "result": "PASS",
+    "details": "intercepted=true, loadingObserved=true (isDisabled=true, isSpinnerVisible=true), isReEnabled=true, clientWidth=390, scrollWidth=390, inFlightOverflow=false, postFlightOverflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "loading",
+    "viewport": "360x800 (mobile-small)",
+    "result": "PASS",
+    "details": "intercepted=true, loadingObserved=true (isDisabled=true, isSpinnerVisible=true), isReEnabled=true, clientWidth=360, scrollWidth=360, inFlightOverflow=false, postFlightOverflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "loading",
+    "viewport": "200% zoom (1366x768)",
+    "result": "PASS",
+    "details": "intercepted=true, loadingObserved=true (isDisabled=true, isSpinnerVisible=true), isReEnabled=true, clientWidth=1366, scrollWidth=1366, inFlightOverflow=false, postFlightOverflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "stale",
+    "viewport": "1366x768 (desktop)",
+    "result": "PASS",
+    "details": "hasStaleHeader=true, hasStaleMessage=true, hasWarningClass=true, clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "stale",
+    "viewport": "768x1024 (tablet)",
+    "result": "PASS",
+    "details": "hasStaleHeader=true, hasStaleMessage=true, hasWarningClass=true, clientWidth=768, scrollWidth=768, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "stale",
+    "viewport": "390x844 (mobile-large)",
+    "result": "PASS",
+    "details": "hasStaleHeader=true, hasStaleMessage=true, hasWarningClass=true, clientWidth=390, scrollWidth=390, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "stale",
+    "viewport": "360x800 (mobile-small)",
+    "result": "PASS",
+    "details": "hasStaleHeader=true, hasStaleMessage=true, hasWarningClass=true, clientWidth=360, scrollWidth=360, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/system-health",
+    "state": "stale",
+    "viewport": "200% zoom (1366x768)",
+    "result": "PASS",
+    "details": "clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "student",
+    "page": "/student -> /student/academics",
+    "state": "concurrent",
+    "viewport": "1366x768 (desktop)",
+    "result": "PASS",
+    "details": "initialAuthenticated=true, wasEvictedToLogin=true, postEvictionUrl=http://127.0.0.1:8008/student/login, clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "student",
+    "page": "/student -> /student/academics",
+    "state": "concurrent",
+    "viewport": "768x1024 (tablet)",
+    "result": "PASS",
+    "details": "initialAuthenticated=true, wasEvictedToLogin=true, postEvictionUrl=http://127.0.0.1:8008/student/login, clientWidth=768, scrollWidth=768, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "student",
+    "page": "/student -> /student/academics",
+    "state": "concurrent",
+    "viewport": "390x844 (mobile-large)",
+    "result": "PASS",
+    "details": "initialAuthenticated=true, wasEvictedToLogin=true, postEvictionUrl=http://127.0.0.1:8008/student/login, clientWidth=390, scrollWidth=390, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "student",
+    "page": "/student -> /student/academics",
+    "state": "concurrent",
+    "viewport": "360x800 (mobile-small)",
+    "result": "PASS",
+    "details": "initialAuthenticated=true, wasEvictedToLogin=true, postEvictionUrl=http://127.0.0.1:8008/student/login, clientWidth=360, scrollWidth=360, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "student",
+    "page": "/student -> /student/academics",
+    "state": "concurrent",
+    "viewport": "200% zoom (1366x768)",
+    "result": "PASS",
+    "details": "initialAuthenticated=true, wasEvictedToLogin=true, postEvictionUrl=http://127.0.0.1:8008/student/login, clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "student",
+    "page": "/admin/academic-readiness",
+    "state": "inaccessible",
+    "viewport": "1366x768 (desktop)",
+    "result": "PASS",
+    "details": "status=403, hasForbiddenText=true, clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "student",
+    "page": "/admin/academic-readiness",
+    "state": "inaccessible",
+    "viewport": "768x1024 (tablet)",
+    "result": "PASS",
+    "details": "status=403, hasForbiddenText=true, clientWidth=768, scrollWidth=768, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "student",
+    "page": "/admin/academic-readiness",
+    "state": "inaccessible",
+    "viewport": "390x844 (mobile-large)",
+    "result": "PASS",
+    "details": "status=403, hasForbiddenText=true, clientWidth=390, scrollWidth=390, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "student",
+    "page": "/admin/academic-readiness",
+    "state": "inaccessible",
+    "viewport": "360x800 (mobile-small)",
+    "result": "PASS",
+    "details": "status=403, hasForbiddenText=true, clientWidth=360, scrollWidth=360, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "student",
+    "page": "/admin/academic-readiness",
+    "state": "inaccessible",
+    "viewport": "200% zoom (1366x768)",
+    "result": "PASS",
+    "details": "status=403, hasForbiddenText=true, clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/non-existent-route",
+    "state": "failure",
+    "viewport": "1366x768 (desktop)",
+    "result": "PASS",
+    "details": "status=404, hasNotFoundText=true, clientWidth=1366, scrollWidth=1366, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/non-existent-route",
+    "state": "failure",
+    "viewport": "768x1024 (tablet)",
+    "result": "PASS",
+    "details": "status=404, hasNotFoundText=true, clientWidth=768, scrollWidth=768, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/non-existent-route",
+    "state": "failure",
+    "viewport": "390x844 (mobile-large)",
+    "result": "PASS",
+    "details": "status=404, hasNotFoundText=true, clientWidth=390, scrollWidth=390, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/non-existent-route",
+    "state": "failure",
+    "viewport": "360x800 (mobile-small)",
+    "result": "PASS",
+    "details": "status=404, hasNotFoundText=true, clientWidth=360, scrollWidth=360, overflow=false"
+  },
+  {
+    "test_group": "criterion_28_responsive_states",
+    "role": "system-super-admin",
+    "page": "/admin/non-existent-route",
+    "state": "failure",
+    "viewport": "200% zoom (1366x768)",
+    "result": "PASS",
+    "details": "status=404, hasNotFoundText=true, clientWidth=1366, scrollWidth=1366, overflow=false"
+  }
+]
+
+ALL TARGETED CLOSEOUT CHECKS PASSED (57/57 checks, strict exit code 0)

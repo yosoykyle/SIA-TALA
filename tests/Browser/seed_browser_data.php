@@ -9,10 +9,9 @@ if (! defined('LARAVEL_START')) {
     $app->make(Kernel::class)->bootstrap();
 }
 
-$targetDb = (string) config('database.connections.'.config('database.default').'.database');
-if (! str_contains($targetDb, 'test') && app()->environment() !== 'testing' && env('ALLOW_BROWSER_SEED') !== 'true') {
-    throw new RuntimeException("Refusing to seed fixtures into non-testing database: {$targetDb}");
-}
+use Tests\Browser\BrowserQualificationEnvironment;
+
+BrowserQualificationEnvironment::assertValidDatabase();
 
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
@@ -32,6 +31,7 @@ use App\Models\Enrollment;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
+use App\Models\GraduationApplication;
 use App\Models\OfficialOutputPaymentClearance;
 use App\Models\OperationalEvent;
 use App\Models\OutputAccessLog;
@@ -88,6 +88,16 @@ foreach ($roleUsers as $role => $info) {
     }
     $users[$role] = $u;
 }
+
+$emptyApplicant = User::firstOrNew(['email' => 'applicant.empty@example.test']);
+$emptyApplicant->first_name = 'Empty';
+$emptyApplicant->last_name = 'Applicant';
+$emptyApplicant->name = 'Empty Applicant';
+$emptyApplicant->password = Hash::make('password');
+$emptyApplicant->status = User::StatusActive;
+$emptyApplicant->email_verified_at = now();
+$emptyApplicant->save();
+$emptyApplicant->syncRoles(['applicant']);
 
 $admin = $users['system-super-admin'];
 $registrar = $users['registrar'];
@@ -531,9 +541,22 @@ $payment = Payment::firstOrCreate(
 
 $conferral = DegreeConferral::query()->where('student_profile_id', $studentProfile->id)->first();
 if (! $conferral) {
+    $gradApp = GraduationApplication::firstOrCreate(
+        ['student_profile_id' => $studentProfile->id, 'term_id' => $term->id],
+        [
+            'curriculum_version_id' => $curriculumVersion->id,
+            'state' => GraduationApplication::StateActive,
+            'active_scope_key' => "{$studentProfile->id}:{$term->id}",
+            'source_fingerprint' => hash('sha256', "grad-app:{$studentProfile->id}:{$term->id}"),
+            'applied_at' => now()->subMonth(),
+            'applied_by' => $student->id,
+            'version' => 1,
+        ]
+    );
     $conferral = DegreeConferral::factory()
         ->for($studentProfile)
         ->create([
+            'graduation_application_id' => $gradApp->id,
             'curriculum_version_id' => $curriculumVersion->id,
             'version' => 1,
             'program_name_snapshot' => $program->name,

@@ -1,0 +1,225 @@
+================================================================
+TALA SLICE 7 COMPLETE BROWSER ACCEPTANCE & QUALIFICATION SUITE
+================================================================
+
+Step 0: Authenticating System Administrator (admin@example.test)...
+Authenticated successfully. First landing: http://127.0.0.1:8008/admin/users
+
+--- Step 1: SYS-003 System Health ---
+[SYS-003] Status Badges present: [ 'Available', 'Not recently checked' ]
+[SYS-003] All badges adhere to canonical 4-status vocabulary: true
+[SYS-003] Collapsible RPO/RTO targets section: collapsed was true -> now false
+[SYS-003] Contains prospective technical disclosure disclaimer: true
+[SYS-003] Clicked "Refresh local evidence" action successfully.
+[SYS-003] Testing Send self-test email action and rate-limiting modal...
+[SYS-003] Mail self-test event count: 2 -> 3 (recorded: true)
+[SYS-003] RateLimiter throttled state after invocation: true
+
+--- Step 2: SYS-004 Governance & Audit ---
+[SYS-004] Rendered Tabs: [
+  'Institutional Changes',
+  'System Events',
+  'Output and Export Access',
+  'Privacy and Retention Boundary'
+]
+[SYS-004] Exact 4 canonical tabs present: true
+[SYS-004] Testing physical keyboard roving focus (ArrowRight, End, Home)...
+[SYS-004] Roving focus: Right->"System Events", End->"Privacy and Retention Boundary", Home->"Institutional Changes" -> PASS
+[SYS-004] Testing physical keyboard Enter and Space tab activation...
+[SYS-004] Keyboard Enter/Space tab activation: PASS
+[SYS-004] Testing slide-over detail view and Escape close...
+[SYS-004] Slide-over modal open (attached): true
+[SYS-004] Modal presents allowlisted safe fields: true
+[SYS-004] Modal closed via Escape key: true
+[SYS-004] Testing Privacy and Retention Boundary tab...
+[SYS-004] After click: aria-selected="true", tabindex="0", labelledBy="tab-privacy-retention"
+[SYS-004] Canonical statutory copy present on Privacy tab: true
+
+--- Step 3: Responsive Viewports & 200% Zoom Reflow ---
+[Viewport: /admin/system-health] 360x800 (Narrow mobile): clientWidth=360, scrollWidth=360 -> ZERO OVERFLOW (PASS)
+[Viewport: /admin/system-health] 390x844 (Standard mobile): clientWidth=390, scrollWidth=390 -> ZERO OVERFLOW (PASS)
+[Viewport: /admin/system-health] 768x1024 (Tablet portrait): clientWidth=768, scrollWidth=768 -> ZERO OVERFLOW (PASS)
+[Viewport: /admin/system-health] 1366x768 (Standard desktop): clientWidth=1366, scrollWidth=1366 -> ZERO OVERFLOW (PASS)
+[Viewport: /admin/system-health] 200% Zoom (Desktop reflow: 683x384 @2x): clientWidth=683, scrollWidth=683 -> ZERO OVERFLOW (PASS)
+[Viewport: /admin/governance-audit] 360x800 (Narrow mobile): clientWidth=360, scrollWidth=360 -> ZERO OVERFLOW (PASS)
+[Viewport: /admin/governance-audit] 390x844 (Standard mobile): clientWidth=390, scrollWidth=390 -> ZERO OVERFLOW (PASS)
+[Viewport: /admin/governance-audit] 768x1024 (Tablet portrait): clientWidth=768, scrollWidth=768 -> ZERO OVERFLOW (PASS)
+[Viewport: /admin/governance-audit] 1366x768 (Standard desktop): clientWidth=1366, scrollWidth=1366 -> ZERO OVERFLOW (PASS)
+[Viewport: /admin/governance-audit] 200% Zoom (Desktop reflow: 683x384 @2x): clientWidth=683, scrollWidth=683 -> ZERO OVERFLOW (PASS)
+[Viewport: /admin/system-health 390x844] Mobile drawer open: true
+[Viewport: /admin/system-health 390x844] Mobile drawer closed: true
+[Viewport: /admin/system-health 360x800] Mobile drawer open: true
+[Viewport: /admin/system-health 360x800] Mobile drawer closed: true
+[Viewport: /admin/governance-audit 390x844] Mobile drawer open: true
+[Viewport: /admin/governance-audit 390x844] Mobile drawer closed: true
+[Viewport: /admin/governance-audit 360x800] Mobile drawer open: true
+[Viewport: /admin/governance-audit 360x800] Mobile drawer closed: true
+
+--- Step 4: Native Theme Switcher, OS Mode & Learner Persistence (Criterion 23) ---
+[Criterion 23] Opening user menu and clicking native "Enable dark theme" button...
+  - After native Dark toggle: classList has "dark" = true, localStorage.theme = "dark"
+[Criterion 23] Opening user menu and clicking native "Enable system theme" button...
+  - After native System toggle: localStorage.theme = "system"
+  - System mode OS media emulation: Dark OS preference active = true, Light OS preference active = true
+[Criterion 23] Testing theme persistence on Learner surface (/student/dashboard)...
+  - Learner surface (/student/dashboard) dark theme: classList has "dark"=true, bodyBg="rgb(15, 23, 42)", bodyColor="rgb(248, 250, 252)", headingColor="rgb(255, 255, 255)"
+  - Learner surface (/student/dashboard) light theme: classList has "dark"=false, bodyBg="rgb(248, 250, 252)", bodyColor="rgb(15, 23, 42)", headingColor="oklch(0.141 0.005 285.823)"
+  - Learner surface rendered theme verified: true (styles differ: true)
+  - Reverted back to native Light mode: true
+
+--- Step 5: Real Print Layout, Multipage, Monochrome & Failure Contracts (Criterion 24) ---
+[Print] Verifying outputs accessible to Registrar (OUT-001, OUT-002, OUT-003, OUT-005, Class Roster)...
+[Print] Visiting OUT-001 (Application Acknowledgment) at /outputs/applications/251/acknowledgment/65...
+  - OUT-001 Status: 200 (expected 200)
+  - OUT-001 Toolbar (.controls) display: "none" (expected "none")
+  - OUT-001 Body bg: "rgb(255, 255, 255)" (monochrome verified: true)
+  - OUT-001 PDF artifact: OUT-001.pdf (52556 bytes, pages=1, valid=true)
+  - OUT-001 Multipage contract present: true
+  - OUT-001 Break-inside avoid rule present: true
+  - OUT-001 Color adjust exact present: true
+  - OUT-001 Statutory notice present: true
+  - OUT-001 Result: PASS
+[Print] Visiting OUT-002 (Published Timetable) at /outputs/schedules/timetable/208...
+  - OUT-002 Status: 200 (expected 200)
+  - OUT-002 Toolbar (.official-output-toolbar) display: "none" (expected "none")
+  - OUT-002 Body bg: "rgb(255, 255, 255)" (monochrome verified: true)
+  - OUT-002 PDF artifact: OUT-002.pdf (55222 bytes, pages=1, valid=true)
+  - OUT-002 Multipage contract present: true
+  - OUT-002 Break-inside avoid rule present: true
+  - OUT-002 Color adjust exact present: true
+  - OUT-002 Statutory notice present: true
+  - OUT-002 Result: PASS
+[Print] Visiting OUT-003 (Certificate of Registration (COR)) at /outputs/cor/898...
+  - OUT-003 Status: 200 (expected 200)
+  - OUT-003 Toolbar (.official-output-toolbar) display: "none" (expected "none")
+  - OUT-003 Body bg: "rgb(255, 255, 255)" (monochrome verified: true)
+  - OUT-003 PDF artifact: OUT-003.pdf (120988 bytes, pages=1, valid=true)
+  - OUT-003 Multipage contract present: true
+  - OUT-003 Break-inside avoid rule present: true
+  - OUT-003 Color adjust exact present: true
+  - OUT-003 Statutory notice present: true
+  - OUT-003 Result: PASS
+[Print] Visiting OUT-005 (TALA Standard TOR Preview) at /outputs/academics/transcript/4...
+  - OUT-005 Multipage PDF generated: OUT-005-multipage.pdf (84666 bytes, pages=4, multipageVerified=true)
+  - OUT-005 Status: 200 (expected 200)
+  - OUT-005 Toolbar (.official-output-toolbar) display: "none" (expected "none")
+  - OUT-005 Body bg: "rgb(255, 255, 255)" (monochrome verified: true)
+  - OUT-005 PDF artifact: OUT-005.pdf (78169 bytes, pages=2, valid=true)
+  - OUT-005 Multipage contract present: true
+  - OUT-005 Break-inside avoid rule present: true
+  - OUT-005 Color adjust exact present: true
+  - OUT-005 Statutory notice present: true
+  - OUT-005 Result: PASS
+[Print] Visiting ClassRoster (Operational Class Roster) at /outputs/grade-rosters/394/print...
+  - ClassRoster Multipage PDF generated: ClassRoster-multipage.pdf (74708 bytes, pages=4, multipageVerified=true)
+  - ClassRoster Status: 200 (expected 200)
+  - ClassRoster Toolbar (.official-output-toolbar) display: "none" (expected "none")
+  - ClassRoster Body bg: "rgb(255, 255, 255)" (monochrome verified: true)
+  - ClassRoster PDF artifact: ClassRoster.pdf (69904 bytes, pages=1, valid=true)
+  - ClassRoster Multipage contract present: true
+  - ClassRoster Break-inside avoid rule present: true
+  - ClassRoster Color adjust exact present: true
+  - ClassRoster Statutory notice present: true
+  - ClassRoster Result: PASS
+
+[Print] Verifying outputs accessible to Student (OUT-004, OUT-006, OUT-007)...
+[Print] Visiting OUT-004 (Unofficial Student Record) at /outputs/academics/unofficial-record/2629...
+  - OUT-004 Multipage PDF generated: OUT-004-multipage.pdf (77814 bytes, pages=3, multipageVerified=true)
+  - OUT-004 Status: 200 (expected 200)
+  - OUT-004 Toolbar (.official-output-toolbar) display: "none" (expected "none")
+  - OUT-004 Body bg: "rgb(255, 255, 255)" (monochrome verified: true)
+  - OUT-004 PDF artifact: OUT-004.pdf (73505 bytes, pages=1, valid=true)
+  - OUT-004 Multipage contract present: true
+  - OUT-004 Break-inside avoid rule present: true
+  - OUT-004 Color adjust exact present: true
+  - OUT-004 Statutory notice present: true
+  - OUT-004 Result: PASS
+[Print] Visiting OUT-006 (Statement of Account (SOA)) at /outputs/finance/statement/319...
+  - OUT-006 Status: 200 (expected 200)
+  - OUT-006 Toolbar (.official-output-toolbar) display: "none" (expected "none")
+  - OUT-006 Body bg: "rgb(255, 255, 255)" (monochrome verified: true)
+  - OUT-006 PDF artifact: OUT-006.pdf (50231 bytes, pages=1, valid=true)
+  - OUT-006 Multipage contract present: true
+  - OUT-006 Break-inside avoid rule present: true
+  - OUT-006 Color adjust exact present: true
+  - OUT-006 Statutory notice present: true
+  - OUT-006 Result: PASS
+[Print] Visiting OUT-007 (Payment Acknowledgment) at /outputs/finance/payment-acknowledgement/163?print=1...
+  - OUT-007 Status: 200 (expected 200)
+  - OUT-007 Toolbar (.official-output-toolbar) display: "none" (expected "none")
+  - OUT-007 Body bg: "rgb(255, 255, 255)" (monochrome verified: true)
+  - OUT-007 PDF artifact: OUT-007.pdf (50991 bytes, pages=1, valid=true)
+  - OUT-007 Multipage contract present: true
+  - OUT-007 Break-inside avoid rule present: true
+  - OUT-007 Color adjust exact present: true
+  - OUT-007 Statutory notice present: true
+  - OUT-007 Result: PASS
+
+[Criterion 24] Verifying Output Failure Contracts (403 on unauthorized access, 404 on missing output)...
+  - Student accessing Registrar Transcript Preview: status=403 (expected 403)
+  - Safe access log in output_access_logs: denied events=1 (recorded: true)
+  - Accessing non-existent COR output /outputs/cor/999999: status=404 (expected 404)
+
+--- Step 6: Shared Shell Navigation & Isolation ---
+[Role: system-super-admin] Navigation items: [
+  'Users & Access',
+  'Public Content',
+  'System Health',
+  'Governance & Audit'
+]
+  - Has expected items: true
+  - Free of prohibited items: true
+[Role: registrar] Navigation items: [
+  'Admissions',
+  'Catalog & Curricula',
+  'Term Planning',
+  'Students & Enrollment',
+  'Grades & Completion'
+]
+  - Has expected items: true
+  - Free of prohibited items: true
+[Role: accounting] Navigation items: [ 'Fee Plans', 'Student Accounts' ]
+  - Has expected items: true
+  - Free of prohibited items: true
+[Role: faculty] Navigation items: [ 'My Availability', 'My Schedule', 'Grade Rosters' ]
+  - Has expected items: true
+  - Free of prohibited items: true
+[Role: academic-head] Navigation items: [ 'Academic Oversight' ]
+  - Has expected items: true
+  - Free of prohibited items: true
+
+--- Step 7: Screen-Reader, Status Announcement, Forced Colors & Motion (Criterion 29) ---
+[Criterion 29] Testing status announcements and aria-live polite regions...
+  - Live region announcement on Refresh: "Current capture. Local evidence was refreshed. No provider or business record was changed." (valid: true)
+  - Notification toast container with role="status": true
+[Criterion 29] Testing Forced Colors mode (forced-colors: active)...
+  - Button focus ring outline under forced-colors: "solid" (visible: true)
+  - Table border visibility under forced-colors: true
+[Criterion 29] Testing Reduced Motion mode (prefers-reduced-motion: reduce)...
+  - CSS transition and animation durations reduced to <= 0.001s: true
+
+================================================================
+FINAL LIVE BROWSER QUALIFICATION LEDGER:
+================================================================
+{
+  "sys003_canonical_badges": "PASS",
+  "sys003_collapsible_toggle": "PASS",
+  "sys003_technical_disclosure": "PASS",
+  "sys003_refresh_evidence": "PASS",
+  "sys003_mail_self_test": "PASS",
+  "sys003_rate_limiting": "PASS",
+  "sys004_canonical_tabs": "PASS",
+  "sys004_roving_focus": "PASS",
+  "sys004_slide_over": "PASS",
+  "sys004_wai_aria_click_sync": "PASS",
+  "sys004_canonical_privacy": "PASS",
+  "responsive_viewports_and_zoom": "PASS",
+  "theme_persistence": "PASS",
+  "criterion_23_native_theme_toggle_and_persistence": "PASS",
+  "print_simulation": "PASS",
+  "criterion_24_multipage_monochrome_and_failure_contracts": "PASS",
+  "shared_shell_navigation_and_isolation": "PASS",
+  "criterion_29_status_announcements_forced_colors_and_motion": "PASS"
+}
+
+OVERALL STATUS: ALL QUALIFIED (100% VERIFIED)

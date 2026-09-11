@@ -61,6 +61,8 @@ final class TAL75ReportsAuditTest extends TestCase
             'log_name' => 'default',
             'description' => 'changed',
             'event' => 'updated',
+            'subject_type' => User::class,
+            'subject_id' => $admin->getKey(),
             'causer_type' => User::class,
             'causer_id' => $admin->getKey(),
             'properties' => '{}',

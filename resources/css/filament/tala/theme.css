@@ -184,5 +184,5 @@
     .fi-body :is(.fi-btn, .fi-icon-btn) { border: 1px solid ButtonText; }
     .fi-body :is(input[type='checkbox'], input[type='radio']) { appearance: auto; border: 1px solid ButtonText; }
     .fi-sidebar-item.fi-active > .fi-sidebar-item-btn { outline: 2px solid Highlight; }
-    .fi-body :focus-visible { outline-color: Highlight !important; }
+    .fi-body :is(:focus, :focus-visible) { outline: 3px solid Highlight !important; outline-style: solid !important; }
 }
