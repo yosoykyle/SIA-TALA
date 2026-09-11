@@ -37,7 +37,7 @@ final class TAL96D5E1D6D2SystemAdministrationHealthPresentationTest extends Test
         Livewire::test(StaffRoleWorkspaceOverviewWidget::class)
             ->assertSee('System Health')
             ->assertSee('Governance & Audit')
-            ->assertSee('unknown');
+            ->assertSee('not recently checked');
 
         Livewire::test(SystemHealth::class)
             ->assertOk()

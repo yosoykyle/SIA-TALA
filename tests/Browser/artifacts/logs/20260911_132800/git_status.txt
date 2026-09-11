@@ -1,0 +1,19 @@
+ M app/Actions/SystemAdministration/GovernanceEvidenceProjection.php
+M  bootstrap/app.php
+M  phpunit.xml
+ M public/css/tala-foundation.css
+ M resources/css/filament/tala/theme.css
+ M resources/views/components/official-output-layout.blade.php
+ M resources/views/filament/pages/system-health.blade.php
+ M tests/Browser/fixtures.json
+ M tests/Browser/qualification_suite.cjs
+ M tests/Browser/seed_browser_data.php
+ M tests/Feature/SystemAdministration/SystemHealthAndGovernanceJourneyTest.php
+ M tests/Feature/TAL75ReportsAuditTest.php
+M  tests/TestCase.php
+D  tests/bootstrap.php
+?? server.php
+?? tests/Browser/BrowserQualificationEnvironment.php
+?? tests/Browser/artifacts/
+?? tests/Browser/qualification_closeout_pass.cjs
+?? tests/Browser/verify_role_viewports.cjs

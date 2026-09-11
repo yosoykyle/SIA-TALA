@@ -28,8 +28,6 @@ class FinanceEvidenceService
 
     public const OutputSoa = 'SOA';
 
-    public const OutputBillingSlip = 'BILLING_SLIP';
-
     public const OutputPaymentAcknowledgement = 'PAYMENT_ACKNOWLEDGEMENT';
 
     public const ActionView = 'VIEW';
@@ -189,18 +187,6 @@ class FinanceEvidenceService
     public function statement(Assessment $assessment, User $actor, string $copyContext = self::CopyStudent): array
     {
         return $this->financeForAssessment($assessment, $actor, $copyContext);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function billingSlip(Assessment $assessment, User $actor, string $copyContext = self::CopyStudent): array
-    {
-        $finance = $this->financeForAssessment($assessment, $actor, $copyContext);
-
-        abort_unless($this->money->greaterThanZero($finance['current_due_amount']), 403, 'Billing slip is available only when a positive amount is currently due.');
-
-        return $finance;
     }
 
     /**
@@ -680,13 +666,6 @@ class FinanceEvidenceService
             $payment = $output['payment'];
 
             return [Payment::class, (int) $payment->id, (int) $payment->student_profile_id];
-        }
-
-        if ($outputType === self::OutputBillingSlip && ($output['current_due_source'] ?? null) instanceof PaymentScheduleRow) {
-            /** @var PaymentScheduleRow $row */
-            $row = $output['current_due_source'];
-
-            return [PaymentScheduleRow::class, (int) $row->id, (int) ($output['student_profile']->id ?? 0)];
         }
 
         /** @var Assessment $assessment */

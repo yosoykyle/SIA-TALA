@@ -235,6 +235,9 @@
 
             body {
                 background: #ffffff;
+                color: #000000;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
 
             .official-output-toolbar {
@@ -248,15 +251,18 @@
                 padding: 0;
             }
 
+            table,
             tr,
             .official-output-context,
             .official-output-identity,
             .official-output-notice {
                 break-inside: avoid;
+                page-break-inside: avoid;
             }
 
             h2 {
                 break-after: avoid;
+                page-break-after: avoid;
             }
 
             @page {
