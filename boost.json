@@ -25,7 +25,6 @@
         "mcp-development",
         "livewire-development",
         "tailwindcss-development",
-        "accessibility",
         "better-accessibility",
         "better-colors",
         "better-interface",
@@ -34,15 +33,12 @@
         "better-ui",
         "better-writing",
         "explain-interface",
-        "grill-me",
         "grilling",
         "handoff",
         "interface-review",
         "laravel-filament",
-        "laravel-patterns",
         "laravel-permission-development",
         "laravel-security",
-        "laravel-tdd",
         "laravel-verification",
         "variant"
     ]
