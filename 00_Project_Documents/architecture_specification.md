@@ -45,9 +45,12 @@
     - [Frontend Runtime](#113-frontend-runtime)
     - [Solver and Engineering Tooling](#114-solver-and-engineering-tooling)
     - [Compatibility and Minimum Requirements](#115-compatibility-and-minimum-requirements)
-12. [Deployment and Operational Architecture](#12-deployment-and-operational-architecture)
-    - [Degraded and Failure Behavior](#121-degraded-and-failure-behavior)
-    - [Capstone Acceptance versus Prospective Production](#122-capstone-acceptance-versus-prospective-production)
+12. [Planned Deployment, Networking, and Operations](#12-planned-deployment-networking-and-operations)
+    - [Network Architecture for Deployment](#121-network-architecture-for-deployment)
+    - [OSI Networking Layer Mapping](#122-osi-networking-layer-mapping)
+    - [Backup, Recovery, and Operational Architecture](#123-backup-recovery-and-operational-architecture)
+    - [Degraded and Failure Behavior](#124-degraded-and-failure-behavior)
+    - [Capstone Acceptance versus Prospective Production](#125-capstone-acceptance-versus-prospective-production)
 13. [Estimated Deployment and Operating Costs in Philippine Peso](#13-estimated-deployment-and-operating-costs-in-philippine-peso)
     - [Pricing Basis and Assumptions](#131-pricing-basis-and-assumptions)
     - [Project Reference Fixed-Cost Baseline](#132-project-reference-fixed-cost-baseline)
@@ -284,7 +287,7 @@ flowchart TB
 
     subgraph TalaZone["TALA application trust zone"]
         direction LR
-        Web["HTTPS / Nginx<br/>Laravel 12 + Filament 5 + Livewire 4<br/>Fortify sessions + policies + RBAC"]
+        Web["Laravel web application<br/>Filament + Livewire<br/>Fortify sessions + policies + RBAC"]
         Domain["Domain actions and services"]
         Data["MySQL system of record<br/>institutional data + durable queue/cache tables"]
         Files["Private application files"]
@@ -302,7 +305,7 @@ flowchart TB
 
     subgraph ProviderZone["External provider trust zones"]
         direction LR
-        Solver["Audience-bound Google identity<br/>Private Cloud Run<br/>Python + OR-Tools CP-SAT"]
+        Solver["CP-SAT solver adapter<br/>typed candidate result"]
         PayMongo["PayMongo hosted Checkout<br/>and signed webhooks"]
         SMTP["Transactional SMTP provider"]
     end
@@ -315,6 +318,8 @@ flowchart TB
     Worker ---|queued transactional message| SMTP
     SMTP -.-|transactional message, never authoritative| Inbox
 ```
+
+This is a **logical runtime view**: it shows application responsibilities and authoritative data flow, not host placement or network routes. Section 12.1 shows the planned deployment and its traffic boundaries; the CP-SAT and hosted-payment sequences in Section 9 show ordering and failure behavior.
 
 ### 5.1 Primary Request Flow
 
@@ -512,7 +517,7 @@ The product boundary remains an immutable whole-term source snapshot, a typed so
 
 One solver demand represents one required recurring meeting block for one confirmed Class Offering. Courses without a genuine recurring master-timetable meeting create no demand. A candidate is untrusted integration output until Laravel revalidates whole-term completeness and every hard rule, and Registrar completes human review.
 
-Official mechanics rechecked on **August 13, 2026** support the boundary without proving TALA conformance: [Cloud Run service-to-service authentication](https://cloud.google.com/run/docs/authenticating/service-to-service) requires a Google-signed OpenID Connect ID token whose audience identifies the receiving service or configured custom audience; a [Cloud Run request timeout](https://cloud.google.com/run/docs/configuring/request-timeout) closes the connection with `504` but may leave container work running; and [OR-Tools CP-SAT](https://developers.google.com/optimization/cp/cp_solver) defines `OPTIMAL`, `FEASIBLE`, `INFEASIBLE`, `MODEL_INVALID`, and `UNKNOWN`. TALA separately maps authentication, transport, timeout, and infrastructure failures to `TechnicalFailure`; that sixth product outcome is not an invented CP-SAT status.
+Official Cloud Run mechanics rechecked on **September 14, 2026** support the boundary without proving TALA conformance: [service-to-service authentication](https://cloud.google.com/run/docs/authenticating/service-to-service) requires a Google-signed OpenID Connect ID token whose audience identifies the receiving service or configured custom audience; a [Cloud Run request timeout](https://cloud.google.com/run/docs/configuring/request-timeout) closes the connection with `504` but may leave container work running. [OR-Tools CP-SAT](https://developers.google.com/optimization/cp/cp_solver), checked on **August 13, 2026**, defines `OPTIMAL`, `FEASIBLE`, `INFEASIBLE`, `MODEL_INVALID`, and `UNKNOWN`. TALA separately maps authentication, transport, timeout, and infrastructure failures to `TechnicalFailure`; that sixth product outcome is not an invented CP-SAT status.
 
 #### Controlled Scheduling Flow
 
@@ -630,7 +635,7 @@ These objectives are lexicographic: a lower priority may not worsen a higher pri
 
 #### Runtime evidence and implementation-conformance boundary
 
-The dated runtime profile above is the current promoted configuration and the accepted planning default unless later compatibility results, workload growth, formulation change, runtime telemetry, or a new provider check materially invalidates it. The promoted service still represents the historical `tal94-demand-v2` / `balanced_v1` revision. The current source contract is `tala-timetable-v2` with the fixed `lexicographic_v1` hierarchy; source and local compatibility evidence do not prove that this newer revision is deployed or active. Cloud build, tagged validation, and promotion remain a separately authorized post-publication operation.
+The **August 19, 2026** Issue #22 activation evidence above supersedes the older statement that the promoted service still ran `tal94-demand-v2` / `balanced_v1`. It shows one then-promoted `tala-timetable-v2` / `lexicographic_v1` revision and one successful canonical qualification, not an unchanged live revision today or a TALA production deployment. The 8-vCPU/16-GiB profile remains the accepted planning default unless a fresh provider check, compatibility result, workload change, or telemetry invalidates it. Further build, validation, and promotion require separate authorization.
 
 Historical fixture, candidate-size, memory, status, validation, and scaling measurements remain bounded evidence in the archived [Representative Solver Evidence](archive/project-progress/TAL-96B2-Representative-Solver-Evidence.md) and [Cloud Run Capacity Benchmark](archive/project-progress/TAL-96B3-Cloud-Run-Capacity-Benchmark.md). Slice 3 reconciles solver code, Laravel integration, internal contract, formulation, schema, tests, fixtures, and deployable packaging. It reruns expensive capacity qualification only when local model-size, memory, runtime, or compatibility evidence invalidates the accepted profile; proportionate source-level acceptance still uses the coordinated Servitech workload.
 
@@ -713,7 +718,7 @@ sequenceDiagram
 
 PayMongo is selected because it provides locally relevant payment channels without TALA storing card or wallet credentials. The tradeoffs are transaction fees, provider availability, settlement rules, account verification, webhook operations, and vendor contract dependence.
 
-Official provider mechanics checked on **August 13, 2026**: [Hosted Checkout quick start](https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start), [webhook key concepts and signature boundary](https://docs.paymongo.com/docs/developer-tools-webhooks-key-concepts), [webhook retry and idempotency guidance](https://docs.paymongo.com/docs/developer-tools-retry-logic), and the [webhook resource](https://docs.paymongo.com/reference/webhook-resource). These sources define provider transport behavior only; they do not define TALA's authoritative Assessment, posting, retry, or Accounting-review policy.
+Official provider mechanics rechecked on **September 14, 2026**: [Hosted Checkout quick start](https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start), [webhook key concepts and signature boundary](https://docs.paymongo.com/docs/developer-tools-webhooks-key-concepts), and [webhook retry and idempotency guidance](https://docs.paymongo.com/docs/developer-tools-retry-logic). The [webhook resource](https://docs.paymongo.com/reference/webhook-resource) was checked on **August 13, 2026**. These sources define provider transport behavior only; they do not define TALA's authoritative Assessment, posting, retry, or Accounting-review policy.
 
 ### 9.3 Transactional Email
 
@@ -934,69 +939,108 @@ Production sizing must similarly be qualified with realistic data and concurrenc
 
 ---
 
-## 12. Deployment and Operational Architecture
+## 12. Planned Deployment, Networking, and Operations
+
+**TALA is not deployed to institutional production.** The following views describe the selected project-reference design and prospective production controls. Source code, local defaults, and a dated Cloud Run qualification are implementation or configuration evidence; they do not prove that the VPS, domain, mailbox, TLS endpoint, production queue supervision, or recovery path has been provisioned.
+
+### 12.1 Network Architecture for Deployment
 
 ```mermaid
 flowchart LR
-    subgraph ClientZone["Client network"]
-        U["Students, staff, and faculty"]
-        IWC["Authorized recovery workstation<br/>Infrastructure Custodian"]
+    subgraph Clients["Browsers and project-reference naming"]
+        Browser["Browsers<br/>public, Applicant, Student, Faculty, Staff"]
+        DNS["Project-reference DNS<br/>institution subdomain or separately priced .com"]
     end
 
-    subgraph HostingerAccount["Project reference Hostinger account<br/>institution adoption not yet evidenced"]
-        DNS["Existing institution-owned subdomain<br/>or separately priced .com / Hostinger DNS"]
-        MAIL["Business Email Starter reference<br/>one automated sender mailbox"]
-        VPS["KVM 2 reference subscription"]
+    subgraph Host["Planned Hostinger KVM 2 VPS — one failure domain"]
+        Nginx["Nginx<br/>HTTPS and TLS entry"]
+        Laravel["PHP-FPM / Laravel<br/>Filament, Livewire, webhook route"]
+        Database[("Private same-host MySQL<br/>records, sessions, queue, cache")]
+        Files["Private application files"]
+        Worker["Supervised Laravel queue worker"]
     end
 
-    subgraph HostZone["Project reference KVM 2 failure domain"]
-        TLS["Nginx TLS termination"]
-        N["Nginx"]
-        P["PHP-FPM / Laravel"]
-        W["Supervised Laravel queue worker"]
-        WH["Signed webhook transport endpoint"]
-        DB[("MySQL system of record<br/>institutional + queue/cache logical tables")]
-        FS["Private application files"]
-        B["Consistent backup export<br/>production control; not capstone acceptance"]
-        E["Encrypt and verify integrity"]
+    subgraph External["External services — reference mail in planned Hostinger account"]
+        Identity["Google identity service<br/>audience-bound ID token"]
+        Solver["IAM-private Cloud Run<br/>CP-SAT solver"]
+        PayMongo["PayMongo<br/>Checkout API, hosted page, webhooks"]
+        Mail["Hostinger Business Email Starter<br/>reference SMTP sender"]
     end
 
-    subgraph Providers["External provider trust zones"]
-        CR["Private Cloud Run solver"]
-        PM["PayMongo"]
-        SMTP["Evaluated alternate SMTP candidate<br/>selection requires evidence"]
-    end
-
-    subgraph BackupZone["Prospective recovery trust zones"]
-        OS["Independent encrypted off-host repository<br/>provider selected at deployment<br/>R2 evaluated candidate"]
-        OH["Optional offline recovery copy<br/>ORICO enclosure evaluated candidate"]
-    end
-
-    U --> DNS --> TLS --> N --> P
-    VPS -.-> TLS
-    P <--> DB
-    P <--> FS
-    P -->|enqueue after commit| DB
-    W -->|consume queued jobs| DB
-    W <-->|read/write authoritative records| DB
-    P -->|create exact-due checkout| PM
-    PM -->|signed event| WH -->|verify, persist, and enqueue| DB
-    W -->|invoke authorized payment domain action| P
-    W --> CR
-    CR -->|typed solver response| W
-    W --> MAIL
-    W -.-> SMTP
-    DB -->|consistent database export| B
-    FS -->|consistent private-file export| B
-    B --> E
-    E --> OS
-    OS -.->|optional verified repository copy| IWC
-    IWC -.->|optional offline rotation| OH
+    Browser -.->|DNS lookup| DNS
+    DNS -.->|name resolves to host| Nginx
+    Browser -->|user-facing HTTPS / TCP 443| Nginx
+    Nginx -->|local FastCGI; web and webhook requests| Laravel
+    Laravel <-->|same-host private access| Database
+    Laravel <-->|authorized file access| Files
+    Worker <-->|claim jobs; read and write records| Database
+    Laravel -->|outbound HTTPS Checkout Session API| PayMongo
+    Browser -->|HTTPS hosted checkout| PayMongo
+    PayMongo -->|inbound HTTPS signed webhook| Nginx
+    Worker -->|obtain Google-signed ID token| Identity
+    Worker <-->|authorized HTTPS solver request and response| Solver
+    Worker -->|authenticated SMTP / STARTTLS TCP 587| Mail
 ```
 
-The project reference topology uses one Hostinger KVM 2 VPS as a lean self-managed starting point with deliberate initial headroom, not as a highly available or indefinitely scalable platform. Nginx terminates web traffic, PHP-FPM runs Laravel, MySQL holds authoritative data, and a supervised queue worker processes asynchronous work. Keeping the reference VPS, domain/DNS, and one automated-sender mailbox in one Hostinger account reduces handoff and billing surfaces but concentrates account, provider, DNS, mail, application, and database risk. Portable DNS records, provider-neutral SMTP configuration, documented deployment procedures, an independent encrypted off-host backup, and measured resource monitoring provide escape paths; they do not prove procurement, eliminate migration work, or replace evidence-based scaling. Hostinger's included weekly VPS backup and controlled snapshot remain supplemental recovery layers rather than the independent copy.
+**Diagram legend (planned view):**
 
-If the reference deployment is adopted for real production, the Hostinger owner account must be registered to and controlled by the institution, protected by MFA, and retained through handover. Developers receive delegated access rather than shared owner credentials. The institution owns renewal payment methods, a renewal calendar and accountable renewal contact, and recovery access. Application, database, SMTP, and provider credentials remain only in the protected deployment environment. The independently controlled encrypted backup remains outside the primary-host provider, failure, and owner-account boundary; an offline copy is optional when the approved deployment plan justifies it.
+| Mark | Meaning |
+| --- | --- |
+| Solid arrow | Planned communication; two arrowheads show an exchange in both directions. |
+| Dashed arrow | DNS name-resolution relationship only, not a web-request path. |
+| Framed group | Client/naming, reference-host, or external-service boundary; it does not assert provisioning. |
+
+After hosted Checkout, the browser returns to TALA through the normal HTTPS entry; that redirect is not payment proof. The webhook reaches a Laravel route through the same Nginx entry, where the application verifies the raw-body signature and durably records the event before queued processing. The queue worker is a separate supervised process on the same reference VPS, not an additional server. MySQL and private files are inside that VPS boundary; the diagram grants neither a public database route nor a public file store. The Cloud Run service is private by IAM authorization, while its invocation still uses an HTTPS service endpoint. Port 443 describes the selected HTTPS flows; port 587 describes the documented Hostinger reference SMTP submission option, not the local mail configuration or a mandatory port for every future provider. Same-host database and FastCGI details remain deployment-configurable, so no network port is assigned to them here.
+
+Repository evidence checked on **September 14, 2026** provides a MySQL connection, database-backed sessions, queues, and cache, private local storage, a PayMongo Checkout/webhook implementation, and a Cloud Run client that obtains an audience-bound Google ID token from a configured service-account credential file. The example environment instead runs locally at `http://localhost` with loopback MySQL, log mail, mock payments, and the local solver stub. The repository does not contain the selected production Nginx/TLS, host firewall, or queue-supervisor configuration. Its `bootstrap/app.php` currently trusts forwarded proxy headers from `*`; deployment must reconcile that setting with actual Nginx forwarding and hostname/TLS configuration, set the production HTTPS application URL and secure-session-cookie policy, and prove the chosen entry path before exposure. The reference domain/DNS, Hostinger mailbox, and external-host credential custody remain unprovisioned or unproved production decisions, as described in Sections 8 and 9.
+
+The project reference uses one Hostinger KVM 2 VPS as a lean self-managed starting point, not as a highly available or indefinitely scalable platform. Grouping the reference VPS, domain/DNS, and one automated-sender mailbox under one prospective institution-owned account simplifies handover and billing but concentrates provider and account risk. If adopted, the institution must control that owner account with MFA, delegated developer access, renewal and recovery ownership, and protected runtime credentials. Portable DNS records, provider-neutral SMTP, an independent encrypted off-host backup, and measured resource monitoring are required escape and operations paths, not proof of procurement or readiness. Cloud Run is selected for the intermittent, resource-intensive solver; its separate scaling trades host load for cold-start latency, usage-based cost, provider dependence, identity configuration, and retry-safe requests.
+
+### 12.2 OSI Networking Layer Mapping
+
+```mermaid
+flowchart TB
+    L7["L7 Application<br/>Service messages<br/>TALA: HTTP requests, PayMongo webhook, Cloud Run request, SMTP"]
+    L6["L6 Presentation<br/>Representation and encryption<br/>TALA: HTML/JSON and TLS or STARTTLS"]
+    L5["L5 Session — conceptual<br/>Interaction continuity<br/>TALA: authenticated browser cookie and Laravel DB session lifecycle"]
+    L4["L4 Transport<br/>End-to-end delivery<br/>TALA: TCP 443 web entry; TCP 587 reference SMTP"]
+    L3["L3 Network<br/>IP addressing and routing<br/>TALA: client to VPS; VPS to external providers"]
+    L2["L2 Data Link<br/>Framing on each local link<br/>TALA: Ethernet or Wi-Fi where used on an access segment"]
+    L1["L1 Physical<br/>Signals over media<br/>TALA: wired, fiber, or radio links; actual paths unverified"]
+    L7 --> L6 --> L5 --> L4 --> L3 --> L2 --> L1
+```
+
+This is a **presentation mapping of the Section 12.1 traffic**, not a claim that TALA implements seven separate protocols. Modern Internet applications use a TCP/IP stack whose application functions do not map exactly to OSI Layers 5–7. Laravel's authenticated session is an application mechanism used as a Layer 5 analogy, not a discrete OSI session protocol; TLS and data representation are likewise shown under the conceptual presentation function. Layers 1–2 describe only generic local links along the path and do not assert Servitech's actual campus LAN, equipment, or physical media. DNS is an application-level name-resolution service, not a transit hop for browser HTTP traffic.
+
+### 12.3 Backup, Recovery, and Operational Architecture
+
+```mermaid
+flowchart LR
+    subgraph Primary["Prospective primary VPS failure domain"]
+        DB[("Authoritative MySQL")]
+        FS["Required private files"]
+        Export["External consistent export<br/>manifest and integrity checks"]
+        Encrypt["Client-side encryption"]
+        DB --> Export
+        FS --> Export
+        Export --> Encrypt
+    end
+
+    subgraph Independent["Independent provider and account boundary"]
+        Repo["Private encrypted off-host repository<br/>provider selected at deployment"]
+    end
+
+    subgraph Recovery["Institution-controlled recovery boundary"]
+        Workstation["Authorized isolated restore<br/>Infrastructure Custodian"]
+        Offline["Optional encrypted offline copy<br/>only if approved and verified"]
+    end
+
+    Encrypt -->|scoped transfer; verify generation| Repo
+    Repo -->|select and verify generation| Workstation
+    Workstation -.->|optional repository copy and rotation| Offline
+```
+
+This separate recovery view preserves the planned independent-backup and optional offline-copy controls without making them part of normal browser or payment traffic. It depicts a **required prospective production capability**, not an operating backup job or successful restore. The provider-neutral [deployment and recovery runbook](TALA-Deployment-Recovery-Runbook.md) owns the execution and evidence procedure; Cloudflare R2/restic and the ORICO enclosure remain evaluated candidates only.
 
 Philippine privacy authority requires a proportionate continuity process covering personal-data backup, restoration, remedial time, and periodic review/testing. It does not prescribe a numeric recovery objective. The following is therefore a **provider-neutral prospective production contract**, not a law- or Servitech-mandated policy, SLA, capstone journey requirement, current control, or achieved recovery claim:
 
@@ -1026,9 +1070,7 @@ The client-supplied **ORICO 9548U3** is retained only as evaluated optional offl
 
 Removable-media use, encryption, custody, and disposal must follow the institution's privacy and security policy and [NPC Circular No. 2023-06](https://privacy.gov.ph/wp-content/uploads/2024/03/NPC-Circular-Repeal-16-01-Signed.pdf).
 
-Cloud Run is selected for the solver because optimization is intermittent and independently resource-intensive; it can scale separately from PHP. The tradeoffs are cold-start latency, usage-based cost, provider dependence, identity configuration, and the need for retry-safe requests.
-
-### 12.1 Degraded and Failure Behavior
+### 12.4 Degraded and Failure Behavior
 
 | Unavailable component | Required safe behavior |
 | --- | --- |
@@ -1045,7 +1087,7 @@ Cloud Run is selected for the solver because optimization is intermittent and in
 
 TALA is a centralized web system, not an offline-first application. Loss of campus internet, the application host, or the primary database therefore requires institutional contingency procedures. The system must never portray cached, redirected, emailed, or solver-produced information as authoritative when the corresponding server-side transaction was not completed.
 
-### 12.2 Capstone Acceptance versus Prospective Production
+### 12.5 Capstone Acceptance versus Prospective Production
 
 Capstone acceptance does **not** migrate a client production database. It proves only the approved new-system journeys and their cross-role handoffs using bounded synthetic seed and acceptance data derived from authorized evidence.
 
@@ -1373,7 +1415,7 @@ The architecture is aligned to the standalone PRDs and is ready to constrain sep
 
 ## 18. Sources and References
 
-Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, and privacy sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated. The Cloud Run configuration and the provider/cost sources explicitly identified below were refreshed through **August 11, 2026**; current Cloud Run authentication and request-timeout mechanics, OR-Tools outcome semantics, and PayMongo hosted-checkout, signature, retry, and webhook mechanics were rechecked on **August 13, 2026**; and the Hostinger KVM 2 plan was rechecked on **August 13, 2026**. Access dates establish only what the source or provider state showed then; they do not prove procurement, billing, operational ownership, or achieved TALA controls.
+Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, and privacy sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated. The Cloud Run configuration and the provider/cost sources explicitly identified below were refreshed through **August 11, 2026**; OR-Tools outcome semantics and the PayMongo webhook resource were checked on **August 13, 2026**; and the Hostinger KVM 2 plan was rechecked on **August 13, 2026**. Cloud Run authentication and timeout mechanics, PayMongo hosted-checkout and webhook transport mechanics, and the Section 12 networking and OSI sources, including Hostinger's reference SMTP settings, were rechecked on **September 14, 2026**. Access dates establish only what the source or provider state showed then; they do not prove procurement, billing, operational ownership, or achieved TALA controls.
 
 ### 18.1 Internal System Evidence
 
@@ -1383,6 +1425,7 @@ Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-r
 - [Comprehensive execution log](./archive/project-progress/TALA-Comprehensive-Execution-Log.md) — archived historical SDLC narrative used only to refine the methodology classification.
 - [Composer manifest](../composer.json), [Composer lockfile](../composer.lock), [npm manifest](../package.json), and [npm lockfile](../package-lock.json) — declared and resolved dependencies.
 - [Application source](../app/), [routes](../routes/), [configuration](../config/), and [database definitions](../database/) — architectural implementation evidence.
+- [Example environment](../.env.example), [application bootstrap](../bootstrap/app.php), and [deployment and recovery runbook](TALA-Deployment-Recovery-Runbook.md) — local defaults, proxy configuration, and provider-neutral prospective recovery procedure; none proves production provisioning.
 - [Scheduling service source and contract](../cloud/scheduler-solver/) — Python runtime, solver model, container, and API evidence.
 - [Automated tests](../tests/) — behavior and integration-contract evidence.
 - Qualified implementation reference: the [canonical Academico repository](https://github.com/academico-sis/academico), inspected through a read-only local checkout. It is used to compare implemented SIS surfaces, not to infer features that its source does not establish.
@@ -1390,6 +1433,8 @@ Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-r
 ### 18.2 Framework, Data, and Architecture Sources
 
 - Laravel 12 documentation: [release notes and support policy](https://laravel.com/docs/12.x/releases), [deployment and server requirements](https://laravel.com/docs/12.x/deployment), [authentication](https://laravel.com/docs/12.x/authentication), [authorization](https://laravel.com/docs/12.x/authorization), [queues](https://laravel.com/docs/12.x/queues), [events](https://laravel.com/docs/12.x/events), [task scheduling](https://laravel.com/docs/12.x/scheduling), and [Fortify](https://laravel.com/docs/12.x/fortify); PHP runtime lifecycle uses the official [supported-versions table](https://www.php.net/supported-versions.php).
+- Networking interpretation: [RFC 1122 Internet protocol layering](https://www.rfc-editor.org/rfc/rfc1122.html) explains why TCP/IP does not map one-to-one to OSI Layers 5–7; the [IANA service registry](https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml) records HTTPS/TCP 443 and message-submission/TCP 587. These are protocol assignments, not evidence that a particular TALA host port is open.
+- Host entry and process mechanics: the [Laravel 12 Nginx deployment example](https://laravel.com/framework/docs/12.x/deployment#nginx), [Nginx FastCGI module](https://nginx.org/en/docs/http/ngx_http_fastcgi_module.html), [Laravel queue process monitoring](https://laravel.com/framework/docs/12.x/queues#supervisor-configuration), and [Laravel trusted-proxy guidance](https://laravel.com/framework/docs/12.x/requests#configuring-trusted-proxies) support the proposed Nginx/PHP-FPM and supervised-worker design; they do not supply TALA's final server configuration.
 - [Filament 5 security guidance](https://github.com/filamentphp/filament/blob/5.x/docs/09-advanced/06-security.md), [Livewire 4 documentation](https://livewire.laravel.com/docs/4.x/quickstart), and [Livewire browser-testing guidance](https://livewire.laravel.com/docs/4.x/testing#browser-testing).
 - Frontend compatibility sources: [Tailwind CSS 4 compatibility](https://tailwindcss.com/docs/compatibility), [Vite 7 production browser targets](https://v7.vite.dev/guide/build#browser-compatibility), [Vite 7 Node.js requirements](https://v7.vite.dev/guide/migration#node-js-support), and [Bootstrap 5.3 browser and device support](https://getbootstrap.com/docs/5.3/getting-started/browsers-devices/).
 - UI and accessibility sources: [WCAG 2.2](https://www.w3.org/TR/WCAG22/), [consistent navigation](https://www.w3.org/WAI/WCAG22/Understanding/consistent-navigation.html), [multiple ways](https://www.w3.org/WAI/WCAG22/Understanding/multiple-ways), [headings and labels](https://www.w3.org/WAI/WCAG22/Understanding/headings-and-labels), and the [WAI-ARIA breadcrumb pattern](https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb). [PeopleSoft Student Homepage](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/campus-solutions-application-fundamentals/using-student-homepage.html) is a bounded mature-SIS navigation comparison, not authority for TALA's broader enterprise features.
@@ -1438,7 +1483,7 @@ Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-r
 - Hostinger: [`.com` registration and renewal example](https://www.hostinger.com/ph/tutorials/how-to-buy-a-domain-name) — ₱609 first-year registration and ₱1,019 renewal for 12 months, excluding VAT, checked August 11, 2026; availability and checkout price still control.
 - Hostinger: [Business Email](https://www.hostinger.com/ph/business-email) — Starter displayed at ₱19/month equivalent for a 48-month promotional term and ₱49/month equivalent for a 48-month renewal term, one mailbox, paid upfront, checked August 11, 2026.
 - Hostinger: [Email limits](https://www.hostinger.com/support/4625828-parameters-and-limits-of-hostinger-email/) — Business Starter published 1,000 inbound and 1,000 outbound messages per mailbox per rolling 24 hours; limits may change and hPanel controls at acceptance time.
-- Hostinger: [SMTP configuration](https://www.hostinger.com/support/1575756-how-to-get-email-account-configuration-details-for-hostinger-email/) and [domain mail setup](https://www.hostinger.com/support/8650765-set-up-a-domain-for-hostinger-email/) — `smtp.hostinger.com`, TLS/STARTTLS 587 or SSL 465, and MX/SPF/DKIM/DMARC readiness evidence checked August 11, 2026.
+- Hostinger: [SMTP configuration](https://www.hostinger.com/support/1575756-how-to-get-email-account-configuration-details-for-hostinger-email/) and [domain mail setup](https://www.hostinger.com/support/8650765-set-up-a-domain-for-hostinger-email/) — `smtp.hostinger.com`, TLS/STARTTLS 587 or SSL 465; SMTP settings rechecked September 14, 2026, and domain-record readiness evidence checked August 11, 2026.
 - Google Cloud: [Cloud Run pricing and free-tier treatment](https://cloud.google.com/run/pricing) — checked August 11, 2026. Allowances and rates are usage/billing-account inputs, not an invoice or zero-cost commitment.
 - Brevo: [plan and email-limit documentation](https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans) — retained only as an alternative provider candidate reference; no Brevo plan or price is selected, and any future choice requires a fresh quotation and delivery/limit review.
 - PayMongo: [standard pricing](https://www.paymongo.com/pricing) — checked August 11, 2026 and explicitly stated by the provider as exclusive of VAT; actual fees remain transaction- and merchant-term-dependent.
