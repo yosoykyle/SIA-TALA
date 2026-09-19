@@ -37,7 +37,16 @@ Follow the [README setup](README.md#local-setup), then its [developer verificati
   php -S 127.0.0.1:8008 -t public
   ```
 
-Use the example environment's mock integrations initially. Keep credentials, machine-specific MCP settings, Serena indexes, and personal memories local; do not copy a teammate's whole `.env` or tool configuration.
+Use the example environment's mock integrations initially. Keep credentials, machine-specific MCP settings, Serena indexes, and personal memories local; do not copy a teammate's whole `.env` or tool configuration. For shared credential requests, contact `kylefbaluyot@iskolarngbayan.pup.edu.ph`.
+
+### Developer Integration Runbooks
+
+When configuring external integrations, consult the dedicated developer guides in [`00_Project_Documents/developer-guides/`](00_Project_Documents/developer-guides/):
+
+* [**ngrok Local Tunneling Guide**](00_Project_Documents/developer-guides/ngrok-setup.md): Exposing localhost for testing incoming webhooks and remote redirects.
+* [**Gmail SMTP Setup & Testing**](00_Project_Documents/developer-guides/smtp-setup.md): App Password setup, `.env` mail variables, and terminal testing via Tinker.
+* [**CP-SAT Cloud Run Solver Integration**](00_Project_Documents/developer-guides/cpsat-cloudrun-setup.md): Service Account key setup, Google Cloud CLI installation, and terminal `/health` verification.
+* [**PayMongo Checkout & Webhook Integration**](00_Project_Documents/developer-guides/paymongo-setup.md): Hosted checkout setup, webhook event selection, signing secret retrieval, and ngrok tunneling.
 
 ## 2. Connect your coding tools
 
