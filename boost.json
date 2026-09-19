@@ -9,7 +9,7 @@
         "cursor",
         "copilot"
     ],
-    "cloud": true,
+    "cloud": false,
     "guidelines": true,
     "mcp": true,
     "nightwatch": false,
