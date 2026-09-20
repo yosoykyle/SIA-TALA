@@ -28,7 +28,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th colspan="7">{{ $student['legal_name'] }} · {{ $student['student_number'] }} · {{ $document['reference'] }} · {{ strtoupper($status) }}</th>
+                            <th colspan="7" style="background: #f3f4f6; font-weight: 700; border-bottom: 2px solid #111827;">{{ $student['legal_name'] }} · {{ $student['student_number'] }} · {{ $document['reference'] }} · {{ strtoupper($status) }}</th>
                         </tr>
                         <tr><th scope="col">Term</th><th scope="col">Course</th><th scope="col">Historical title</th><th scope="col">Units</th><th scope="col">Grade/mark</th><th scope="col">Attempt / credit</th><th scope="col">Remarks</th></tr>
                     </thead>

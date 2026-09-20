@@ -13,12 +13,39 @@
                 <x-slot name="description">
                     Results appear only after Registrar release. Missing or pending records are named explicitly; TALA does not calculate partial averages.
                 </x-slot>
-                <div class="flex flex-wrap gap-3 pt-2">
-                    <x-filament::button :href="$scheduleUrl" tag="a" color="gray" icon="heroicon-m-calendar-days">Class schedule</x-filament::button>
-                    <x-filament::button :href="$holdsUrl" tag="a" color="gray" icon="heroicon-m-exclamation-triangle">Holds and blockers</x-filament::button>
-                    @if ($results->whereNotNull('event')->isNotEmpty())
-                        <x-filament::button :href="$unofficialRecordUrl" tag="a" target="_blank" icon="heroicon-m-printer">Unofficial record</x-filament::button>
-                    @endif
+                <div x-data="{ academicView: 'overview' }" class="space-y-3 pt-2">
+                    <div class="flex gap-2 border-b border-gray-200 pb-3 dark:border-white/10" role="tablist" aria-label="Academics sections">
+                        <button
+                            type="button"
+                            role="tab"
+                            :aria-selected="academicView === 'overview'"
+                            :class="academicView === 'overview' ? 'fi-tabs-item fi-active font-semibold text-primary-600 dark:text-primary-400' : 'fi-tabs-item text-gray-600 dark:text-gray-400'"
+                            x-on:click="academicView = 'overview'"
+                            class="rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-white/5"
+                        >
+                            Overview
+                        </button>
+                        <button
+                            type="button"
+                            role="tab"
+                            :aria-selected="academicView === 'details'"
+                            :class="academicView === 'details' ? 'fi-tabs-item fi-active font-semibold text-primary-600 dark:text-primary-400' : 'fi-tabs-item text-gray-600 dark:text-gray-400'"
+                            x-on:click="academicView = 'details'"
+                            class="rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-white/5"
+                        >
+                            Released records
+                        </button>
+                    </div>
+                    <div role="status" aria-live="polite" class="sr-only" x-text="academicView === 'overview' ? 'Showing academic overview' : 'Showing released academic records'">
+                        Showing academic overview
+                    </div>
+                    <div class="flex flex-wrap gap-3">
+                        <x-filament::button :href="$scheduleUrl" tag="a" color="gray" icon="heroicon-m-calendar-days">Class schedule</x-filament::button>
+                        <x-filament::button :href="$holdsUrl" tag="a" color="gray" icon="heroicon-m-exclamation-triangle">Holds and blockers</x-filament::button>
+                        @if ($results->whereNotNull('event')->isNotEmpty())
+                            <x-filament::button :href="$unofficialRecordUrl" tag="a" target="_blank" icon="heroicon-m-printer">Unofficial record</x-filament::button>
+                        @endif
+                    </div>
                 </div>
             </x-filament::section>
 

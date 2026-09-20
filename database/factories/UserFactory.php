@@ -29,7 +29,7 @@ class UserFactory extends Factory
 
         return [
             ...User::staffNamePayload($firstName, null, $lastName),
-            'username' => fake()->unique()->userName(),
+            'username' => fake()->unique()->userName().fake()->numberBetween(1000, 99999),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),

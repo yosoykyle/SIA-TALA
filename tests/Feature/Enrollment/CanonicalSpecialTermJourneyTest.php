@@ -5,12 +5,14 @@ namespace Tests\Feature\Enrollment;
 use App\Actions\Academics\AcademicAverageReadiness;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
+use App\Actions\Academics\RecordExternalCompetencyResult;
 use App\Actions\Academics\TermWeightedAverageProjection;
 use App\Actions\Enrollment\ConfirmRegistrationProposal;
 use App\Actions\Enrollment\FinalizeOfficialEnrollment;
 use App\Actions\Enrollment\IssueRegistrationProposal;
 use App\Actions\Enrollment\PlaceRegistrationProposal;
 use App\Actions\Enrollment\PrepareRegistrationProposal;
+use App\Actions\Enrollment\RecordCourseDrop;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\RecordApprovedCoverage;
@@ -18,8 +20,11 @@ use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
 use App\Actions\Finance\ReviewPaymentEvidence;
 use App\Actions\Grades\ManageTeachingAssignment;
 use App\Actions\Grades\PostAndReleaseGradeRoster;
+use App\Actions\Grades\RecordApprovedGradeCorrection;
+use App\Actions\Grades\ReleaseIncCompletion;
 use App\Actions\Grades\SaveFinalGradeResult;
 use App\Actions\Grades\SubmitGradeRoster;
+use App\Actions\Grades\SubmitIncCompletion;
 use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Models\ApprovedCoverage;
@@ -31,6 +36,8 @@ use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
+use App\Models\ExternalCompetencyRequirement;
+use App\Models\ExternalCompetencyResult;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
@@ -89,6 +96,12 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         ]);
         TermCalendarWindow::factory()->for($calendarPackage, 'package')->create([
             'window_type' => TermCalendarWindow::TypeEnrollment,
+            'opens_on' => now()->subDay()->toDateString(),
+            'closes_on' => now()->addMonth()->toDateString(),
+            'cutoff_at' => '23:59:59',
+        ]);
+        TermCalendarWindow::factory()->for($calendarPackage, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeCourseDrop,
             'opens_on' => now()->subDay()->toDateString(),
             'closes_on' => now()->addMonth()->toDateString(),
             'cutoff_at' => '23:59:59',
@@ -312,6 +325,78 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
 
         $this->assertSame($otherEnrollmentState, $otherEnrollment->fresh()->only(array_keys($otherEnrollmentState)));
         $this->assertFalse(CourseEnrollment::query()->where('enrollment_id', $otherEnrollment->id)->exists());
+
+        // Coordinated synthetic acceptance: External-competency supersedes without altering grade averages
+        $externalReq = ExternalCompetencyRequirement::factory()->create([
+            'curriculum_version_id' => $profile->curriculum_version_id,
+            'state' => 'ACTIVE',
+        ]);
+        $externalResult = app(RecordExternalCompetencyResult::class)->execute(
+            $externalReq, $profile, ExternalCompetencyResult::OutcomeCompetent,
+            'TESDA-ASSESSOR-001', 'REG-ST-EXT-001', today(), $registrar,
+            assessmentDate: today()->subDay(),
+            externalSource: 'TESDA-accredited assessment center',
+            credentialType: 'NC',
+            credentialReference: 'NC-2026-ST-001',
+            credentialValidUntil: today()->addYears(5),
+            safeRemarks: 'Coordinated synthetic external competency verified by Registrar.',
+            commandKey: 'st-external-result-001',
+        );
+        $this->assertSame(ExternalCompetencyResult::OutcomeCompetent, $externalResult->outcome);
+        $this->assertSame('2.13', app(TermWeightedAverageProjection::class)->forStudentAndTerm($profile, $term)['value']);
+        $this->assertSame('2.01', app(CumulativeGwaProjection::class)->forStudent($profile)['value']);
+
+        // Coordinated synthetic acceptance: INC, completion amendment, and correction append successors on named roster row
+        $incOffering = TermOffering::factory()->create(['term_id' => $term->id]);
+        $incSection = Section::factory()->create(['term_offering_id' => $incOffering->id, 'state' => Section::StateOpen, 'capacity' => 10]);
+        CourseEnrollment::query()->create([
+            'enrollment_id' => $official->id,
+            'term_offering_id' => $incOffering->id,
+            'section_id' => $incSection->id,
+            'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'units_snapshot' => '3.00',
+            'added_at' => now(),
+        ]);
+        app(ManageTeachingAssignment::class)->designate($incSection, $faculty, $registrar, 'ASSIGN-ST-INC-001');
+        $incRoster = app(SynchronizeOfficialGradeRoster::class)->execute($incSection, $registrar);
+        $this->releaseRoster($incRoster, 'INC', $faculty, $registrar, 'RELEASE-ST-INC-001', 'Complete missing laboratory requirement.');
+        $incEvent = $incRoster->fresh()->rows->sole()->outcomeEvents->sole();
+
+        $incSubmission = app(SubmitIncCompletion::class)->execute(
+            $incEvent, '2.50', 'Laboratory demonstration completed.', $faculty,
+        );
+        $incSuccessor = app(ReleaseIncCompletion::class)->execute($incSubmission, $registrar, 'INC-COMPLETION-ST-001');
+        $this->assertSame($incEvent->id, $incSuccessor->predecessor_event_id);
+
+        $corrected = app(RecordApprovedGradeCorrection::class)->execute(
+            $incRoster->fresh()->rows->sole(), '2.25', 'CORRECTION-BOARD-ST-001', 'Approved grade correction.', 'EVIDENCE-ST-001', $registrar,
+        );
+        $correctionEvent = $corrected->outcomeEvents()->latest('id')->firstOrFail();
+        $this->assertSame($incSuccessor->id, $correctionEvent->predecessor_event_id);
+        $this->assertSame('2.25', $corrected->fresh()->current_outcome_code);
+
+        // Coordinated synthetic acceptance: Course Drop removes subject from active enrollment without corrupting history
+        $dropOffering = TermOffering::factory()->create(['term_id' => $term->id]);
+        $dropSection = Section::factory()->create(['term_offering_id' => $dropOffering->id]);
+        $courseToDrop = CourseEnrollment::query()->create([
+            'enrollment_id' => $official->id,
+            'term_offering_id' => $dropOffering->id,
+            'section_id' => $dropSection->id,
+            'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'units_snapshot' => '3.00',
+            'added_at' => now(),
+        ]);
+        app(RecordCourseDrop::class)->execute(
+            $official,
+            $courseToDrop,
+            $registrar,
+            'Learner requested authorized drop during adjustment window.',
+            'SYN-DROP-ST-001',
+        );
+        $this->assertSame(CourseEnrollment::StatusDropped, $courseToDrop->fresh()->status);
+        $this->assertFalse($courseToDrop->fresh()->is_current);
     }
 
     private function recordPriorCanonicalHistory(
@@ -405,8 +490,9 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         User $faculty,
         User $registrar,
         string $authority,
+        ?string $incNote = null,
     ): void {
-        app(SaveFinalGradeResult::class)->execute($roster->rows->sole(), $result, null, $faculty);
+        app(SaveFinalGradeResult::class)->execute($roster->rows->sole(), $result, $incNote, $faculty);
         $submitted = app(SubmitGradeRoster::class)->execute($roster, $faculty);
         app(PostAndReleaseGradeRoster::class)->execute($submitted, $registrar, $authority);
     }

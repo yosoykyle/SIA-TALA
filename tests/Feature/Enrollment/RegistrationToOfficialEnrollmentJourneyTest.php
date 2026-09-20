@@ -122,7 +122,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame(RegistrationProposalVersion::StateConfirmed, $proposal->state);
         $this->assertSame($timetable->id, $proposal->published_timetable_version_id);
         $this->assertSame($curriculum->id, $proposal->curriculum_version_id);
-        $this->assertSame(0, CourseEnrollment::query()->count());
+        $this->assertSame(0, CourseEnrollment::query()->where('enrollment_id', $case->id)->count());
         $this->assertSame(0, StudentScheduleBinding::query()->count());
         $this->assertSame(1, $proposal->items()->firstOrFail()->reservation()->count());
 
@@ -496,6 +496,104 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $this->fail('Overlapping published meetings must fail atomically.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('conflict', $exception->errors());
+        }
+
+        $this->assertSame(0, $case->seatReservations()->count());
+    }
+
+    public function test_full_capacity_placement_fails_without_partial_reservations(): void
+    {
+        [$application, $term] = $this->readyApplicant();
+        [$section, $timetable] = $this->publishedOffering($application, $term);
+        $section->update(['capacity' => 1]);
+        CourseEnrollment::factory()->create([
+            'section_id' => $section->id,
+            'is_current' => true,
+        ]);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $proposal = app(PrepareRegistrationProposal::class)->execute(
+            $case,
+            $registrar,
+            [$section->id],
+            $case->lock_version,
+        );
+        app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
+        app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
+
+        try {
+            app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+            $this->fail('Full capacity section must fail placement atomically.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('capacity', $exception->errors());
+        }
+
+        $this->assertSame(0, $case->seatReservations()->count());
+    }
+
+    public function test_competing_placement_collision_for_last_capacity_seat_fails_atomically_without_partial_reservations(): void
+    {
+        [$application1, $term] = $this->readyApplicant();
+        [$section, $timetable] = $this->publishedOffering($application1, $term);
+        $section->update(['capacity' => 1]);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        // Case 1: Prepares and confirms proposal for the section
+        $case1 = app(StartRegistrationCase::class)->forReadyApplicant($application1, $term, $application1->user);
+        $proposal1 = app(PrepareRegistrationProposal::class)->execute($case1, $registrar, [$section->id], $case1->lock_version);
+        app(IssueRegistrationProposal::class)->execute($proposal1, $registrar);
+        app(ConfirmRegistrationProposal::class)->execute($proposal1->fresh(), $application1->user);
+
+        // Case 2: Concurrently prepares and confirms proposal for the same section before placement occurs
+        [$application2] = $this->readyApplicant(AdmissionApplication::PathFirstYear, $term);
+        $application2->update(['program_id' => $application1->program_id]);
+        $case2 = app(StartRegistrationCase::class)->forReadyApplicant($application2->fresh(), $term, $application2->user);
+        $proposal2 = app(PrepareRegistrationProposal::class)->execute($case2, $registrar, [$section->id], $case2->lock_version);
+        app(IssueRegistrationProposal::class)->execute($proposal2, $registrar);
+        app(ConfirmRegistrationProposal::class)->execute($proposal2->fresh(), $application2->user);
+
+        // Case 1 places first -> successfully claims the last seat
+        app(PlaceRegistrationProposal::class)->execute($proposal1->fresh(), $registrar);
+        $this->assertSame(1, $case1->seatReservations()->where('status', EnrollmentSeatReservation::StatusActive)->count());
+
+        // Case 2 attempts to place -> collision on section capacity fails atomically
+        try {
+            app(PlaceRegistrationProposal::class)->execute($proposal2->fresh(), $registrar);
+            $this->fail('Competing placement exceeding section capacity must fail atomically.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('capacity', $exception->errors());
+        }
+
+        // Case 2 has zero orphaned seat holds
+        $this->assertSame(0, $case2->seatReservations()->count());
+    }
+
+    public function test_stale_or_superseded_proposal_placement_fails_atomically(): void
+    {
+        [$application, $term] = $this->readyApplicant();
+        [$section1, $timetable] = $this->publishedOffering($application, $term);
+        $section2 = Section::factory()->for($section1->termOffering, 'termOffering')->create(['state' => Section::StateOpen, 'capacity' => 2]);
+        PublishedTimetableMeeting::factory()->for($timetable, 'timetableVersion')->create([
+            'section_id' => $section2->id,
+            'faculty_user_id' => $this->staff(User::StaffRoleFaculty)->id,
+        ]);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $proposal1 = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section1->id], $case->lock_version);
+        app(IssueRegistrationProposal::class)->execute($proposal1, $registrar);
+        app(ConfirmRegistrationProposal::class)->execute($proposal1->fresh(), $application->user);
+
+        // Case prepares a successor proposal with section2, advancing lock_version and changing current_proposal_version_id
+        app(PrepareRegistrationProposal::class)->execute($case->fresh(), $registrar, [$section2->id], $case->fresh()->lock_version);
+
+        // Attempting to place stale proposal1 fails atomically
+        try {
+            app(PlaceRegistrationProposal::class)->execute($proposal1->fresh(), $registrar);
+            $this->fail('Stale or superseded proposal placement must fail atomically.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('proposal', $exception->errors());
         }
 
         $this->assertSame(0, $case->seatReservations()->count());
@@ -1454,10 +1552,12 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
     }
 
     /** @return array{AdmissionApplication, Term} */
-    private function readyApplicant(string $applicationPath = AdmissionApplication::PathFirstYear): array
+    private function readyApplicant(string $applicationPath = AdmissionApplication::PathFirstYear, ?Term $term = null): array
     {
-        $term = Term::factory()->create(['state' => Term::StateActive]);
-        $this->openTermCalendarPackage($term);
+        if (! $term instanceof Term) {
+            $term = Term::factory()->create(['state' => Term::StateActive]);
+            $this->openTermCalendarPackage($term);
+        }
         $cycle = AdmissionCycle::factory()->for($term)->create();
         $application = AdmissionApplication::factory()->for($cycle, 'admissionCycle')->create([
             'term_id' => $term->id,

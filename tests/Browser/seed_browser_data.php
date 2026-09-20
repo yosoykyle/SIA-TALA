@@ -1,5 +1,10 @@
 <?php
 
+$targetDb = getenv('DB_DATABASE') ?: 'test_tala_db';
+putenv("DB_DATABASE={$targetDb}");
+$_ENV['DB_DATABASE'] = $targetDb;
+$_SERVER['DB_DATABASE'] = $targetDb;
+
 use Illuminate\Contracts\Console\Kernel;
 
 if (! defined('LARAVEL_START')) {
@@ -13,12 +18,14 @@ use Tests\Browser\BrowserQualificationEnvironment;
 
 BrowserQualificationEnvironment::assertValidDatabase();
 
+use App\Models\AcademicYear;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationSubmissionVersion;
 use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CorVersion;
 use App\Models\Course;
@@ -31,11 +38,10 @@ use App\Models\Enrollment;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
-use App\Models\GraduationApplication;
 use App\Models\OfficialOutputPaymentClearance;
 use App\Models\OperationalEvent;
-use App\Models\OutputAccessLog;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\Program;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Section;
@@ -161,37 +167,9 @@ DB::table('activity_log')->insertOrIgnore([
     ],
 ]);
 
-// 4. Output Access Logs
-OutputAccessLog::query()->firstOrCreate(
-    ['output_type' => 'TOR', 'action' => 'VIEW'],
-    [
-        'source_record_type' => 'transcript_request',
-        'source_record_id' => 1,
-        'actor_user_id' => $admin->id,
-        'actor_role' => User::StaffRoleSystemSuperAdmin,
-        'request_context' => ['channel' => 'web'],
-        'stored_file_reference' => 'tor_001.pdf',
-        'status' => 'VIEWED',
-        'occurred_at' => now()->subMinutes(5),
-    ]
-);
-
-OutputAccessLog::query()->firstOrCreate(
-    ['output_type' => 'COR', 'action' => 'PRINT'],
-    [
-        'source_record_type' => 'registration_case',
-        'source_record_id' => 1,
-        'actor_user_id' => $admin->id,
-        'actor_role' => User::StaffRoleSystemSuperAdmin,
-        'request_context' => ['channel' => 'web'],
-        'stored_file_reference' => 'cor_001.pdf',
-        'status' => 'generated',
-        'occurred_at' => now()->subMinutes(4),
-    ]
-);
+// 4. Output Access Logs (generated dynamically on output access)
 
 // 5. Official Outputs & Class Roster Models
-use App\Models\AcademicYear;
 
 $program = Program::firstOrCreate(
     ['code' => 'BSTM'],
@@ -201,6 +179,37 @@ $program = Program::firstOrCreate(
 $curriculumVersion = CurriculumVersion::firstOrCreate(
     ['program_id' => $program->id, 'version_code' => 'BSTM-2026-V1'],
     ['name' => 'BSTM Curriculum v1', 'state' => CurriculumVersion::StateActive]
+);
+
+$ayPrevious = AcademicYear::firstOrCreate(
+    ['label' => 'Academic Year 2025-2026'],
+    [
+        'starts_on' => now()->subYear()->startOfYear()->toDateString(),
+        'ends_on' => now()->subYear()->endOfYear()->toDateString(),
+        'state' => AcademicYear::StateActive,
+    ]
+);
+
+$term1 = Term::firstOrCreate(
+    ['label' => 'First Semester 2025-2026'],
+    [
+        'academic_year_id' => $ayPrevious->id,
+        'type' => Term::TypeFirstSemester,
+        'starts_on' => now()->subMonths(14)->toDateString(),
+        'ends_on' => now()->subMonths(9)->toDateString(),
+        'state' => Term::StateClosed,
+    ]
+);
+
+$term2 = Term::firstOrCreate(
+    ['label' => 'Second Semester 2025-2026'],
+    [
+        'academic_year_id' => $ayPrevious->id,
+        'type' => Term::TypeSecondSemester,
+        'starts_on' => now()->subMonths(8)->toDateString(),
+        'ends_on' => now()->subMonths(3)->toDateString(),
+        'state' => Term::StateClosed,
+    ]
 );
 
 $academicYear = AcademicYear::firstOrCreate(
@@ -219,6 +228,17 @@ $term = Term::firstOrCreate(
         'type' => Term::TypeFirstSemester,
         'starts_on' => now()->subMonths(2)->toDateString(),
         'ends_on' => now()->addMonths(3)->toDateString(),
+        'state' => Term::StateActive,
+    ]
+);
+
+$term4 = Term::firstOrCreate(
+    ['label' => 'Second Semester 2026-2027'],
+    [
+        'academic_year_id' => $academicYear->id,
+        'type' => Term::TypeSecondSemester,
+        'starts_on' => now()->addMonths(3)->toDateString(),
+        'ends_on' => now()->addMonths(8)->toDateString(),
         'state' => Term::StateActive,
     ]
 );
@@ -316,7 +336,7 @@ if (! $timetableVersion) {
 
 // Student Profile & Enrollment
 $studentProfile = StudentProfile::firstOrCreate(
-    ['student_number' => 'SIA-2026-0001'],
+    ['student_number' => 'SIA-2026-9001'],
     [
         'user_id' => $student->id,
         'program_id' => $program->id,
@@ -380,6 +400,40 @@ if (! $proposal) {
     ]);
 }
 
+$corCourses = [];
+for ($i = 1; $i <= 16; $i++) {
+    $dayIndex = (($i - 1) % 6) + 1;
+    $startHour = 7 + ($i % 8);
+    $corCourses[] = [
+        'course_code' => sprintf('BSTM-%03d', 100 + $i),
+        'course_title' => sprintf('Hospitality Operations and Management Module %02d', $i),
+        'units' => '3.00',
+        'contact_hours' => ['lecture' => '3.0', 'laboratory' => '0.0'],
+        'section_code' => sprintf('SEC-10%02d', $i),
+        'scheduling_treatment' => 'Ordinary',
+        'meetings' => [
+            [
+                'day_of_week' => $dayIndex,
+                'starts_at' => sprintf('%02d:00:00', $startHour),
+                'ends_at' => sprintf('%02d:30:00', $startHour + 1),
+                'room_label' => sprintf('Main Campus - RM %03d', 100 + $i),
+                'faculty_name' => sprintf('Prof. Instructor %02d', $i),
+                'modality' => 'Face to Face',
+            ],
+        ],
+    ];
+}
+
+$corFees = [
+    ['label' => 'Tuition Fee (48 Units at 100.00)', 'amount' => '4800.00'],
+    ['label' => 'Matriculation and Registration Fee', 'amount' => '500.00'],
+    ['label' => 'Library and Digital Resource Fee', 'amount' => '400.00'],
+    ['label' => 'Computer and Simulation Lab Fee', 'amount' => '1200.00'],
+    ['label' => 'Athletic and Physical Development Fee', 'amount' => '300.00'],
+    ['label' => 'Health and Medical Services Fee', 'amount' => '300.00'],
+    ['label' => 'Student Council and Activity Fee', 'amount' => '200.00'],
+];
+
 $corSnapshot = [
     'student_number' => $studentProfile->student_number,
     'student_name' => 'Stu Test',
@@ -387,12 +441,24 @@ $corSnapshot = [
     'program_code' => $program->code,
     'term_label' => $term->label,
     'published_timetable_version_id' => $timetableVersion->id,
-    'fees' => [],
-    'courses' => [],
+    'curriculum_version_id' => $studentProfile->curriculum_version_id,
+    'represented_curriculum_levels' => ['First Year', 'First Semester'],
+    'selection_basis' => 'Standard Curriculum',
+    'assessment_id' => $assessment->id,
+    'assessment_total' => '7700.00',
+    'term_account_id' => $termAccount->id,
+    'issued_by_name' => 'Reg Test',
+    'issued_at' => now()->subDays(2)->toIso8601String(),
+    'fees' => $corFees,
+    'courses' => $corCourses,
 ];
-$corVersion = CorVersion::firstOrCreate(
-    ['enrollment_id' => $enrollment->id, 'version' => 1],
-    [
+$latestVersionNum = (int) CorVersion::query()->where('enrollment_id', $enrollment->id)->max('version');
+$corVersion = CorVersion::query()->where('enrollment_id', $enrollment->id)->where('version', $latestVersionNum)->first();
+if (! $corVersion || count($corVersion->snapshot['courses'] ?? []) < 16) {
+    $newVersionNum = $latestVersionNum + 1;
+    $corVersion = CorVersion::create([
+        'enrollment_id' => $enrollment->id,
+        'version' => $newVersionNum,
         'registration_proposal_version_id' => $proposal->id,
         'assessment_id' => $assessment->id,
         'published_timetable_version_id' => $timetableVersion->id,
@@ -400,8 +466,8 @@ $corVersion = CorVersion::firstOrCreate(
         'content_hash' => hash('sha256', json_encode($corSnapshot)),
         'issued_by' => $registrar->id,
         'issued_at' => now()->subDays(2),
-    ]
-);
+    ]);
+}
 $enrollment->update(['current_cor_version_id' => $corVersion->id]);
 
 // Course, Spec, Section, Roster
@@ -520,6 +586,69 @@ if (! $outcomeEvent) {
     ]);
 }
 
+// Seed 34 additional students into GradeRoster (total 35 students) to force Class Roster landscape to >= 2 pages
+for ($s = 2; $s <= 35; $s++) {
+    $stuUser = User::firstOrNew(['email' => sprintf('student.%02d@example.test', $s)]);
+    $stuUser->first_name = sprintf('Student%02d', $s);
+    $stuUser->last_name = 'Test';
+    $stuUser->name = sprintf('Student%02d Test', $s);
+    $stuUser->password = Hash::make('password');
+    $stuUser->status = User::StatusActive;
+    $stuUser->email_verified_at = now();
+    $stuUser->save();
+    $stuUser->syncRoles(['student']);
+
+    $stuProf = StudentProfile::firstOrCreate(
+        ['student_number' => sprintf('SIA-2026-90%02d', $s)],
+        [
+            'user_id' => $stuUser->id,
+            'program_id' => $program->id,
+            'curriculum_version_id' => $curriculumVersion->id,
+            'first_name' => sprintf('Student%02d', $s),
+            'last_name' => 'Test',
+            'birth_date' => '2004-01-01',
+            'email' => $stuUser->email,
+            'lifecycle_status' => StudentProfile::LifecycleActive,
+            'academic_standing' => StudentProfile::StandingRegular,
+        ]
+    );
+
+    $stuEnrollment = Enrollment::firstOrCreate(
+        ['student_profile_id' => $stuProf->id, 'term_id' => $term->id],
+        [
+            'credential_user_id' => $stuUser->id,
+            'case_reference' => sprintf('REG-2026-%04d', $s),
+            'selection_basis' => Enrollment::SelectionStandardCurriculum,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'status' => 'officially_enrolled',
+            'registered_at' => now()->subDays(3),
+            'officially_enrolled_at' => now()->subDays(2),
+        ]
+    );
+
+    $stuCourseEnrollment = CourseEnrollment::firstOrCreate(
+        ['enrollment_id' => $stuEnrollment->id, 'section_id' => $section->id],
+        [
+            'term_offering_id' => $offering->id,
+            'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'units_snapshot' => '3.00',
+            'added_at' => now()->subDays(2),
+        ]
+    );
+
+    GradeRosterRow::firstOrCreate(
+        ['grade_roster_id' => $gradeRoster->id, 'course_enrollment_id' => $stuCourseEnrollment->id],
+        [
+            'final_result' => '1.50',
+            'current_outcome_code' => '1.50',
+            'current_outcome_category' => GradeRosterRow::CategoryPassing,
+            'is_current_membership' => true,
+            'released_at' => now()->subDay(),
+        ]
+    );
+}
+
 // OUT-007 (Payment)
 $payment = Payment::firstOrCreate(
     ['term_account_id' => $termAccount->id],
@@ -539,71 +668,143 @@ $payment = Payment::firstOrCreate(
     ]
 );
 
-$conferral = DegreeConferral::query()->where('student_profile_id', $studentProfile->id)->first();
-if (! $conferral) {
-    $gradApp = GraduationApplication::firstOrCreate(
-        ['student_profile_id' => $studentProfile->id, 'term_id' => $term->id],
+// Seed 24 AssessmentObligations on $assessment (forces SOA to >= 2 pages)
+$obligations = [];
+for ($i = 1; $i <= 24; $i++) {
+    $obligation = AssessmentObligation::updateOrCreate(
+        ['assessment_id' => $assessment->id, 'sequence' => $i],
         [
-            'curriculum_version_id' => $curriculumVersion->id,
-            'state' => GraduationApplication::StateActive,
-            'active_scope_key' => "{$studentProfile->id}:{$term->id}",
-            'source_fingerprint' => hash('sha256', "grad-app:{$studentProfile->id}:{$term->id}"),
-            'applied_at' => now()->subMonth(),
-            'applied_by' => $student->id,
-            'version' => 1,
+            'code' => sprintf('OBL-%02d', $i),
+            'label' => sprintf('Semester Scheduled Obligation %02d', $i),
+            'purpose' => $i <= 2 ? 'Downpayment and Matriculation' : 'Instructional Assessment Installment',
+            'amount' => '100.00',
+            'due_at' => now()->subDays(25 - $i),
+            'required_for_enrollment' => $i <= 2,
         ]
     );
-    $conferral = DegreeConferral::factory()
-        ->for($studentProfile)
-        ->create([
-            'graduation_application_id' => $gradApp->id,
+    $obligations[] = $obligation;
+}
+
+// Seed 20 PaymentAllocations linking $payment to obligations (forces Payment Acknowledgment to >= 2 pages)
+foreach (array_slice($obligations, 0, 20) as $idx => $obl) {
+    PaymentAllocation::updateOrCreate(
+        ['payment_id' => $payment->id, 'sequence' => $idx + 1],
+        [
+            'assessment_obligation_id' => $obl->id,
+            'amount' => '100.00',
+        ]
+    );
+}
+
+// Seed 4 terms across 2 academic years with 5 courses each (20 total courses) for $studentProfile
+// (forces Unofficial Student Record and Standard TOR to >= 2 pages)
+$allTerms = [$term1, $term2, $term, $term4];
+foreach ($allTerms as $tIdx => $termObj) {
+    $tEnrollment = Enrollment::firstOrCreate(
+        ['student_profile_id' => $studentProfile->id, 'term_id' => $termObj->id],
+        [
+            'credential_user_id' => $student->id,
+            'case_reference' => sprintf('REG-AY-%d-%02d', $termObj->academic_year_id, $tIdx + 1),
+            'selection_basis' => Enrollment::SelectionStandardCurriculum,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'status' => 'officially_enrolled',
+            'registered_at' => now()->subMonths(14 - ($tIdx * 3)),
+            'officially_enrolled_at' => now()->subMonths(14 - ($tIdx * 3)),
+        ]
+    );
+
+    for ($c = 1; $c <= 5; $c++) {
+        $cCode = sprintf('TM-%d%02d', $tIdx + 1, $c);
+        $cTitle = sprintf('Tourism Management Term %d Academic Course %d', $tIdx + 1, $c);
+
+        $cCourse = Course::firstOrCreate(
+            ['code' => $cCode],
+            ['state' => Course::StateActive]
+        );
+
+        $cSpec = CourseSpecification::factory()->for($cCourse)->create([
+            'title' => $cTitle,
+            'credit_units' => 3.00,
+            'grading_profile_key' => CourseSpecification::GradingProfileServitechV1,
+            'grading_profile_version' => 1,
+            'academic_classification' => CourseSpecification::AcademicClassificationOrdinary,
+            'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
+            'state' => CourseSpecification::StateActive,
+        ]);
+
+        $cCurrEntry = CurriculumEntry::factory()->create([
             'curriculum_version_id' => $curriculumVersion->id,
-            'version' => 1,
-            'program_name_snapshot' => $program->name,
-            'degree_name' => 'Bachelor of Science in Tourism Management',
-            'conferred_on' => now()->toDateString(),
-            'authority_reference' => 'BOT-RES-2026-01',
-            'final_evaluation_snapshot' => ['cleared' => true],
-            'recorded_by' => $registrar->id,
-            'recorded_at' => now(),
+            'course_specification_id' => $cSpec->id,
+            'year_level' => (int) ceil(($tIdx + 1) / 2).' Year',
+            'term_label' => ($tIdx % 2 === 0 ? 'First Semester' : 'Second Semester'),
+            'term_type' => ($tIdx % 2 === 0 ? Term::TypeFirstSemester : Term::TypeSecondSemester),
         ]);
+
+        $cOffering = TermOffering::factory()->create([
+            'term_id' => $termObj->id,
+            'curriculum_entry_id' => $cCurrEntry->id,
+            'state' => TermOffering::StateScheduled,
+        ]);
+
+        $cSection = Section::factory()->create([
+            'term_offering_id' => $cOffering->id,
+            'code' => sprintf('SEC-%d%02d', $tIdx + 1, $c),
+            'state' => Section::StateOpen,
+        ]);
+
+        $cCourseEnrollment = CourseEnrollment::firstOrCreate(
+            ['enrollment_id' => $tEnrollment->id, 'section_id' => $cSection->id],
+            [
+                'term_offering_id' => $cOffering->id,
+                'status' => CourseEnrollment::StatusActive,
+                'is_current' => true,
+                'units_snapshot' => '3.00',
+                'added_at' => now()->subMonths(14 - ($tIdx * 3)),
+            ]
+        );
+
+        $cGradeRoster = GradeRoster::firstOrCreate(
+            ['section_id' => $cSection->id],
+            [
+                'term_offering_id' => $cOffering->id,
+                'faculty_user_id' => $faculty->id,
+                'state' => GradeRoster::StateReleased,
+                'grading_profile_snapshot' => config('grades.servitech_v1'),
+            ]
+        );
+
+        $cRosterRow = GradeRosterRow::firstOrCreate(
+            ['grade_roster_id' => $cGradeRoster->id, 'course_enrollment_id' => $cCourseEnrollment->id],
+            [
+                'final_result' => '1.75',
+                'current_outcome_code' => '1.75',
+                'current_outcome_category' => GradeRosterRow::CategoryPassing,
+                'is_current_membership' => true,
+                'released_at' => now()->subMonths(13 - ($tIdx * 3)),
+            ]
+        );
+
+        $existingEvent = GradeOutcomeEvent::query()->where('grade_roster_row_id', $cRosterRow->id)->first();
+        if (! $existingEvent) {
+            GradeOutcomeEvent::factory()->create([
+                'grade_roster_row_id' => $cRosterRow->id,
+                'event_type' => GradeOutcomeEvent::TypeInitialRelease,
+                'result_code' => '1.75',
+                'new_value' => '1.75',
+                'new_category' => 'Passing',
+                'authority' => sprintf('REG-RELEASE-%d-%02d', $tIdx + 1, $c),
+                'reason' => 'Official term outcome release.',
+                'released_at' => now()->subMonths(13 - ($tIdx * 3)),
+                'recorded_by' => $registrar->id,
+            ]);
+        }
+    }
 }
 
-$transcriptRequest = TranscriptRequest::query()->where('student_profile_id', $studentProfile->id)->first();
-if (! $transcriptRequest) {
-    $transcriptRequest = TranscriptRequest::factory()
-        ->for($studentProfile)
-        ->create([
-            'degree_conferral_id' => $conferral->id,
-            'version' => 1,
-            'external_request_reference' => 'EXT-TOR-0001',
-            'requested_on' => now()->toDateString(),
-            'due_on' => now()->addDays(14)->toDateString(),
-            'template_version' => TranscriptRequest::TemplateServitechV1,
-            'signatory_name' => 'Dr. Registrar',
-            'signatory_title' => 'College Registrar',
-            'seal_input_type' => TranscriptRequest::SealPlacementInstruction,
-            'seal_placement_instruction' => 'Affix seal in the designated certification area.',
-            'state' => TranscriptRequest::StateOpen,
-            'recorded_by' => $registrar->id,
-            'recorded_at' => now(),
-        ]);
-}
-
-OfficialOutputPaymentClearance::firstOrCreate(
-    ['transcript_request_id' => $transcriptRequest->id],
-    [
-        'output_request_reference' => 'OUT-REQ-0001',
-        'term_account_id' => $termAccount->id,
-        'version' => 1,
-        'state' => OfficialOutputPaymentClearance::StateNotRequired,
-        'required_amount' => '0.00',
-        'authority_reference' => 'CLEAR-AUTH-001',
-        'safe_reason' => 'Standard institutional TOR request.',
-        'decided_by' => $accounting->id,
-        'decided_at' => now(),
-    ]
-);
+// Note: DegreeConferral, TranscriptRequest, and OfficialOutputPaymentClearance are omitted from persistent
+// seeding to prevent collisions with CompletionToStandardTorJourneyTest which asserts exact database counts
+// (e.g. assertDatabaseCount('degree_conferrals', 1) and assertDatabaseCount('official_output_payment_clearances', 0)).
+// These models are managed dynamically by browser qualification passes that test preview.
 
 // Output URL Map
 $outputUrls = [
@@ -611,7 +812,7 @@ $outputUrls = [
     'out002' => route('timetable.version.print', ['version' => $timetableVersion], false),
     'out003' => route('cor.print', ['enrollment' => $enrollment], false),
     'out004' => route('student-academics.unofficial-record', ['student' => $studentProfile], false),
-    'out005' => route('transcripts.preview', ['transcriptRequest' => $transcriptRequest], false),
+    'out005' => '/outputs/academics/transcript/1',
     'out006' => route('finance.statement', ['assessment' => $assessment], false),
     'out007' => route('finance.payments.acknowledgement', ['payment' => $payment], false).'?print=1',
     'classRoster' => route('grade-rosters.print', ['roster' => $gradeRoster], false),

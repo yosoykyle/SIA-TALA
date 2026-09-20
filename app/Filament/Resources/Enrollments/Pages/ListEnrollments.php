@@ -46,47 +46,63 @@ class ListEnrollments extends ListRecords
     /** @return array<string, Tab> */
     public function getTabs(): array
     {
+        $tabAttributes = ['style' => 'padding-left: 8px; padding-right: 8px; font-size: 12.5px;'];
+
         if ($this->isRegistrar()) {
             return [
-                'ready_to_prepare' => Tab::make('Ready to prepare')->modifyQueryUsing(
-                    fn (Builder $query): Builder => $query
-                        ->where('canonical_outcome', Enrollment::OutcomeInProgress)
-                        ->whereDoesntHave('currentProposalVersion'),
-                ),
-                'waiting_for_learner' => Tab::make('Waiting for learner')->modifyQueryUsing(
-                    fn (Builder $query): Builder => $query->whereHas(
-                        'currentProposalVersion',
-                        fn (Builder $query): Builder => $query->where('state', RegistrationProposalVersion::StateIssued),
+                'ready_to_prepare' => Tab::make('Ready to prepare')
+                    ->extraAttributes($tabAttributes)
+                    ->modifyQueryUsing(
+                        fn (Builder $query): Builder => $query
+                            ->where('canonical_outcome', Enrollment::OutcomeInProgress)
+                            ->whereDoesntHave('currentProposalVersion'),
                     ),
-                ),
-                'placement_shortages' => Tab::make('Placement and shortages')->modifyQueryUsing(
-                    fn (Builder $query): Builder => $query->whereHas(
-                        'seatReservations',
-                        fn (Builder $query): Builder => $query->whereIn('status', [EnrollmentSeatReservation::StatusPending, EnrollmentSeatReservation::StatusReleased]),
+                'waiting_for_learner' => Tab::make('Waiting for learner')
+                    ->extraAttributes($tabAttributes)
+                    ->modifyQueryUsing(
+                        fn (Builder $query): Builder => $query->whereHas(
+                            'currentProposalVersion',
+                            fn (Builder $query): Builder => $query->where('state', RegistrationProposalVersion::StateIssued),
+                        ),
                     ),
-                ),
-                'finance_pending' => Tab::make('Finance pending')->modifyQueryUsing(
-                    fn (Builder $query): Builder => $query->where('canonical_outcome', Enrollment::OutcomeInProgress)
-                        ->where(function (Builder $query): void {
-                            $query->whereDoesntHave('termAccount')
-                                ->orWhereHas('termAccount', fn (Builder $query): Builder => $query->where('state', '!=', TermAccount::StateCleared));
+                'placement_shortages' => Tab::make('Placement and shortages')
+                    ->extraAttributes($tabAttributes)
+                    ->modifyQueryUsing(
+                        fn (Builder $query): Builder => $query->whereHas(
+                            'seatReservations',
+                            fn (Builder $query): Builder => $query->whereIn('status', [EnrollmentSeatReservation::StatusPending, EnrollmentSeatReservation::StatusReleased]),
+                        ),
+                    ),
+                'finance_pending' => Tab::make('Finance pending')
+                    ->extraAttributes($tabAttributes)
+                    ->modifyQueryUsing(
+                        fn (Builder $query): Builder => $query->where('canonical_outcome', Enrollment::OutcomeInProgress)
+                            ->where(function (Builder $query): void {
+                                $query->whereDoesntHave('termAccount')
+                                    ->orWhereHas('termAccount', fn (Builder $query): Builder => $query->where('state', '!=', TermAccount::StateCleared));
+                            }),
+                    ),
+                'ready_to_finalize' => Tab::make('Ready to finalize')
+                    ->extraAttributes($tabAttributes)
+                    ->modifyQueryUsing(
+                        fn (Builder $query): Builder => $query
+                            ->where('canonical_outcome', Enrollment::OutcomeInProgress)
+                            ->whereHas('currentProposalVersion', fn (Builder $query): Builder => $query->where('state', RegistrationProposalVersion::StateConfirmed))
+                            ->whereHas('termAccount', fn (Builder $query): Builder => $query->where('state', TermAccount::StateCleared)),
+                    ),
+                'adjustments_drops' => Tab::make('Adjustments and Drops')
+                    ->extraAttributes($tabAttributes)
+                    ->modifyQueryUsing(
+                        fn (Builder $query): Builder => $query->where(function (Builder $query): void {
+                            $query->whereHas('proposalVersions', fn (Builder $query): Builder => $query->where('purpose', RegistrationProposalVersion::PurposeAdjustment))
+                                ->orWhereHas('courseEnrollments', fn (Builder $query): Builder => $query->where('status', 'dropped'));
                         }),
-                ),
-                'ready_to_finalize' => Tab::make('Ready to finalize')->modifyQueryUsing(
-                    fn (Builder $query): Builder => $query
-                        ->where('canonical_outcome', Enrollment::OutcomeInProgress)
-                        ->whereHas('currentProposalVersion', fn (Builder $query): Builder => $query->where('state', RegistrationProposalVersion::StateConfirmed))
-                        ->whereHas('termAccount', fn (Builder $query): Builder => $query->where('state', TermAccount::StateCleared)),
-                ),
-                'adjustments_drops' => Tab::make('Adjustments and Drops')->modifyQueryUsing(
-                    fn (Builder $query): Builder => $query->where(function (Builder $query): void {
-                        $query->whereHas('proposalVersions', fn (Builder $query): Builder => $query->where('purpose', RegistrationProposalVersion::PurposeAdjustment))
-                            ->orWhereHas('courseEnrollments', fn (Builder $query): Builder => $query->where('status', 'dropped'));
-                    }),
-                ),
-                'official_history' => Tab::make('Official and history')->modifyQueryUsing(
-                    fn (Builder $query): Builder => $query->where('canonical_outcome', '!=', Enrollment::OutcomeInProgress),
-                ),
+                    ),
+                'official_history' => Tab::make('Official and history')
+                    ->extraAttributes($tabAttributes)
+                    ->modifyQueryUsing(
+                        fn (Builder $query): Builder => $query->where('canonical_outcome', '!=', Enrollment::OutcomeInProgress),
+                    ),
             ];
         }
 

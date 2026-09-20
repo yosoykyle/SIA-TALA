@@ -14,6 +14,7 @@ use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -45,6 +46,10 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('student'));
         $this->assertTrue(Academics::canAccess());
         $this->assertFalse(Route::has('filament.student.pages.completion'));
+
+        Livewire::actingAs($student)
+            ->test(Academics::class)
+            ->assertSuccessful();
     }
 
     #[Test]

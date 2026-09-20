@@ -106,6 +106,11 @@
             width: 100%;
         }
 
+        tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
         th,
         td {
             border: 1px solid #d1d5db;
@@ -233,25 +238,56 @@
                 display: table-header-group;
             }
 
+            tfoot {
+                display: table-footer-group;
+            }
+
             body {
-                background: #ffffff;
-                color: #000000;
+                background: #ffffff !important;
+                color: #000000 !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
 
             .official-output-toolbar {
-                display: none;
+                display: none !important;
             }
 
             .official-output {
-                border: 0;
-                margin: 0;
-                max-width: none;
-                padding: 0;
+                border: 0 !important;
+                margin: 0 !important;
+                max-width: none !important;
+                padding: 0 !important;
             }
 
-            table,
+            .official-output-notice {
+                background: #ffffff !important;
+                border: 1px solid #000000 !important;
+                color: #000000 !important;
+            }
+
+            .official-output-context {
+                border: 2px solid #000000 !important;
+                color: #000000 !important;
+                background: #ffffff !important;
+            }
+
+            th {
+                background: #f3f4f6 !important;
+                color: #000000 !important;
+                border: 1px solid #374151 !important;
+            }
+
+            td {
+                border: 1px solid #4b5563 !important;
+                color: #000000 !important;
+            }
+
+            table {
+                break-inside: auto;
+                page-break-inside: auto;
+            }
+
             tr,
             .official-output-context,
             .official-output-identity,
@@ -260,7 +296,10 @@
                 page-break-inside: avoid;
             }
 
-            h2 {
+            h1,
+            h2,
+            h3,
+            .finance-heading {
                 break-after: avoid;
                 page-break-after: avoid;
             }

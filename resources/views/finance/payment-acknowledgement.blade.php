@@ -22,7 +22,14 @@
 
     <h2>Obligation Effects</h2>
     <div class="official-output-table"><table>
-        <thead><tr><th>Applied To</th><th>Amount</th></tr></thead>
+        <thead>
+            <tr>
+                <th colspan="2" style="background: #f3f4f6; font-weight: 700; border-bottom: 2px solid #111827;">
+                    TERM-ACCOUNT-{{ $acknowledgement['payment']->term_account_id }} · {{ $acknowledgement['owner'] }} · Ref: {{ $acknowledgement['payment']->provider_reference }} · {{ $acknowledgement['posting_status'] }}
+                </th>
+            </tr>
+            <tr><th>Applied To</th><th>Amount</th></tr>
+        </thead>
         <tbody>@foreach ($acknowledgement['allocations'] as $allocation)
             <tr><td>{{ $allocation['target'] }}</td><td>PHP {{ number_format((float) $allocation['amount'], 2) }}</td></tr>
         @endforeach</tbody>

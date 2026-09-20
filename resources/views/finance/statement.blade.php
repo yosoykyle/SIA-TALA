@@ -17,7 +17,14 @@
         <h2 class="finance-heading">Dated Obligations</h2>
         <div class="official-output-table finance-responsive-table">
             <table>
-                <thead><tr><th>Obligation</th><th>Purpose</th><th>Due</th><th>Original</th><th>Balance</th><th>Status</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th colspan="6" style="background: #f3f4f6; font-weight: 700; border-bottom: 2px solid #111827;">
+                            TERM-ACCOUNT-{{ $statement['account']->id }} · {{ $statement['owner'] }} · {{ $statement['term'] }} · {{ $statement['is_historical'] ? 'Historical Assessment' : 'Authenticated Account Copy' }}
+                        </th>
+                    </tr>
+                    <tr><th>Obligation</th><th>Purpose</th><th>Due</th><th>Original</th><th>Balance</th><th>Status</th></tr>
+                </thead>
                 <tbody>
                     @foreach ($statement['position']['obligations'] as $obligation)
                         <tr>

@@ -24,7 +24,7 @@
             <div class="official-output-table finance-responsive-table">
                 <table>
                     <thead>
-                        <tr><th colspan="5">{{ $student->student_number }} · {{ $term->label }} · Released academic evidence</th></tr>
+                        <tr><th colspan="5" style="background: #f3f4f6; font-weight: 700; border-bottom: 2px solid #111827;">{{ $student->student_number }} · {{ collect([$student->last_name, $student->first_name])->filter()->implode(', ') }} · {{ $term->label }} · UNOFFICIAL RECORD</th></tr>
                         <tr><th scope="col">Course</th><th scope="col">Title</th><th scope="col">Units</th><th scope="col">Released result</th><th scope="col">Released</th></tr>
                     </thead>
                     <tbody>

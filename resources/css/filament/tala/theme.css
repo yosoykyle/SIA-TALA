@@ -83,7 +83,21 @@
 }
 
 .fi-icon-btn { min-width: 1.5rem; min-height: 1.5rem; }
-.tala-drawer-heading .fi-icon-btn { min-width: 2.75rem; min-height: 2.75rem; }
+.tala-drawer-heading .fi-icon-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    margin-inline-end: 0.25rem;
+}
+.fi-topbar .tala-brand {
+    white-space: nowrap;
+    min-width: 0;
+}
+.fi-topbar .tala-brand__name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 14rem;
+}
 .fi-sidebar { transition-property: transform, width; transition-duration: 150ms; }
 .fi-sidebar-nav { overscroll-behavior: contain; }
 .fi-main { min-width: 0; }
@@ -150,6 +164,24 @@
     }
 
     .tala-term-planning-page .fi-header-actions-ctn .fi-btn {
+        flex: 1 1 14rem;
+        min-height: 2.75rem;
+    }
+}
+
+@media (max-width: 89.999rem) {
+    .tala-completion-and-tor-page .fi-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .tala-completion-and-tor-page .fi-header-actions-ctn,
+    .tala-completion-and-tor-page .fi-header-actions-ctn > .fi-ac {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .tala-completion-and-tor-page .fi-header-actions-ctn .fi-btn {
         flex: 1 1 14rem;
         min-height: 2.75rem;
     }

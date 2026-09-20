@@ -3,7 +3,7 @@
     subtitle="Operational reference — not an official issuance"
     page-orientation="landscape"
     page-margin="12mm"
-    :context="$roster->section?->code"
+    :context="'OPERATIONAL REFERENCE · '.$roster->section?->code"
     :generated-at="$generatedAt->format('F j, Y g:i A').' Asia/Manila'"
     :logo-src="asset('talalogo.png')"
 >
@@ -24,7 +24,7 @@
     <div class="official-output-table">
         <table>
             <thead>
-                <tr><th colspan="4">{{ $roster->section?->code }} · {{ $roster->termOffering?->term?->label }} · Current official membership</th></tr>
+                <tr><th colspan="4" style="background: #f3f4f6; font-weight: 700; border-bottom: 2px solid #111827;">{{ $roster->section?->code }} · {{ $roster->termOffering?->term?->label }} · Current official membership · Operational reference</th></tr>
                 <tr><th scope="col">Student number</th><th scope="col">Legal name</th><th scope="col">Program or cohort</th><th scope="col">Official enrollment state</th></tr>
             </thead>
             <tbody>

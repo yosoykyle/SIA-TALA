@@ -40,6 +40,8 @@ class CompletionAndTor extends Page implements HasTable
 
     protected string $view = 'filament.pages.completion-and-tor';
 
+    protected array $extraBodyAttributes = ['class' => 'tala-completion-and-tor-page'];
+
     /** @var array<int, array<string, mixed>> */
     private array $readinessCache = [];
 
@@ -62,9 +64,16 @@ class CompletionAndTor extends Page implements HasTable
             Action::make('correctApplication')
                 ->label('Correct application')
                 ->icon('heroicon-o-pencil-square')
-                ->disabled(fn (): bool => $this->activeApplicationOptions() === [])
+                ->size('sm')
+                ->disabled(fn (): bool => ! $this->hasActiveApplications())
                 ->schema([
-                    Select::make('application_id')->label('Active application')->options($this->activeApplicationOptions())->searchable()->required(),
+                    Select::make('application_id')
+                        ->label('Active application')
+                        ->searchable()
+                        ->getSearchResultsUsing(fn (string $search): array => $this->activeApplicationOptions($search))
+                        ->getOptionLabelUsing(fn ($value): ?string => $this->activeApplicationOptionLabel($value))
+                        ->options(fn (): array => $this->activeApplicationOptions())
+                        ->required(),
                     TextInput::make('authority_reference')->required()->maxLength(255),
                     Textarea::make('reason')->required()->maxLength(1000),
                 ])
@@ -82,11 +91,18 @@ class CompletionAndTor extends Page implements HasTable
                 ->label('Record conferral')
                 ->icon('heroicon-o-check-badge')
                 ->color('success')
+                ->size('sm')
                 ->requiresConfirmation()
                 ->modalDescription('This creates an immutable Degree Conferral, freezes the final curriculum evaluation, and records the Student as Completed. Later corrections append successors; they never rewrite this record.')
-                ->disabled(fn (): bool => $this->readyStudentOptions() === [])
+                ->disabled(fn (): bool => ! $this->hasReadyStudents())
                 ->schema([
-                    Select::make('student_profile_id')->label('Ready Student')->options($this->readyStudentOptions())->searchable()->required(),
+                    Select::make('student_profile_id')
+                        ->label('Ready Student')
+                        ->searchable()
+                        ->getSearchResultsUsing(fn (string $search): array => $this->readyStudentOptions($search))
+                        ->getOptionLabelUsing(fn ($value): ?string => $this->studentOptionLabel($value))
+                        ->options(fn (): array => $this->readyStudentOptions())
+                        ->required(),
                     TextInput::make('degree_name')->required()->maxLength(255),
                     DatePicker::make('conferred_on')->required(),
                     TextInput::make('authority_reference')->required()->maxLength(255),
@@ -113,9 +129,16 @@ class CompletionAndTor extends Page implements HasTable
             Action::make('recordTorRequest')
                 ->label('Record TOR request')
                 ->icon('heroicon-o-document-plus')
-                ->disabled(fn (): bool => $this->conferralOptions() === [])
+                ->size('sm')
+                ->disabled(fn (): bool => ! $this->hasConferrals())
                 ->schema([
-                    Select::make('degree_conferral_id')->label('Conferred Student')->options($this->conferralOptions())->searchable()->required(),
+                    Select::make('degree_conferral_id')
+                        ->label('Conferred Student')
+                        ->searchable()
+                        ->getSearchResultsUsing(fn (string $search): array => $this->conferralOptions($search))
+                        ->getOptionLabelUsing(fn ($value): ?string => $this->conferralOptionLabel($value))
+                        ->options(fn (): array => $this->conferralOptions())
+                        ->required(),
                     TextInput::make('request_reference')->required()->maxLength(255),
                     DatePicker::make('requested_on')->required(),
                     TextInput::make('signatory_name')->required()->maxLength(255),
@@ -138,11 +161,18 @@ class CompletionAndTor extends Page implements HasTable
             Action::make('correctConferral')
                 ->label('Correct conferral')
                 ->icon('heroicon-o-arrow-path-rounded-square')
+                ->size('sm')
                 ->requiresConfirmation()
                 ->modalDescription('This preserves the current conferral and appends an authorized successor. Every affected TOR snapshot remains history and is marked Superseded.')
-                ->disabled(fn (): bool => $this->conferralOptions() === [])
+                ->disabled(fn (): bool => ! $this->hasConferrals())
                 ->schema([
-                    Select::make('degree_conferral_id')->label('Current conferral')->options($this->conferralOptions())->searchable()->required(),
+                    Select::make('degree_conferral_id')
+                        ->label('Current conferral')
+                        ->searchable()
+                        ->getSearchResultsUsing(fn (string $search): array => $this->conferralOptions($search))
+                        ->getOptionLabelUsing(fn ($value): ?string => $this->conferralOptionLabel($value))
+                        ->options(fn (): array => $this->conferralOptions())
+                        ->required(),
                     TextInput::make('degree_name')->required()->maxLength(255),
                     DatePicker::make('conferred_on')->required(),
                     TextInput::make('authority_reference')->required()->maxLength(255),
@@ -166,6 +196,7 @@ class CompletionAndTor extends Page implements HasTable
             Action::make('torHistory')
                 ->label('TOR requests & history')
                 ->icon('heroicon-o-clock')
+                ->size('sm')
                 ->url(TranscriptRequestResource::getUrl('index')),
         ];
     }
@@ -185,9 +216,18 @@ class CompletionAndTor extends Page implements HasTable
                 TextColumn::make('program.name')->label('Program')->wrap()->sortable(),
                 TextColumn::make('completion_state')
                     ->label('Readiness')
-                    ->state(fn (StudentProfile $record): string => str($this->projection($record)['state'])->headline()->toString())
+                    ->state(function (StudentProfile $record): string {
+                        $state = $record->relationLoaded('completionReadinessVersions') && $record->completionReadinessVersions->isNotEmpty()
+                            ? $record->completionReadinessVersions->sortByDesc('version')->first()?->state
+                            : $this->projection($record)['state'];
+
+                        return str($state ?? CompletionReadinessProjection::NotEligible)->headline()->toString();
+                    })
                     ->description(function (StudentProfile $record): string {
-                        $blocker = collect($this->projection($record)['blockers'])->first();
+                        $blockers = $record->relationLoaded('completionReadinessVersions') && $record->completionReadinessVersions->isNotEmpty()
+                            ? $record->completionReadinessVersions->sortByDesc('version')->first()?->blockers
+                            : $this->projection($record)['blockers'];
+                        $blocker = collect($blockers)->first();
 
                         return is_array($blocker)
                             ? "Owner: {$blocker['owner']} · {$blocker['recovery']}"
@@ -197,18 +237,36 @@ class CompletionAndTor extends Page implements HasTable
                     ->wrap(),
                 TextColumn::make('application_state')
                     ->label('Application')
-                    ->state(fn (StudentProfile $record): string => ($application = $this->projection($record)['application']) instanceof GraduationApplication
-                        ? "Active · v{$application->version}"
-                        : 'No active application')
+                    ->state(function (StudentProfile $record): string {
+                        $application = $record->relationLoaded('graduationApplications')
+                            ? $record->graduationApplications->where('state', GraduationApplication::StateActive)->sortByDesc('version')->first()
+                            : $this->projection($record)['application'];
+
+                        return $application instanceof GraduationApplication
+                            ? "Active · v{$application->version}"
+                            : 'No active application';
+                    })
                     ->wrap(),
                 TextColumn::make('conferral_state')
                     ->label('Conferral')
-                    ->state(fn (StudentProfile $record): string => ($conferral = $this->projection($record)['conferral']) instanceof DegreeConferral
-                        ? $conferral->degree_name
-                        : 'Not recorded')
-                    ->description(fn (StudentProfile $record): ?string => ($conferral = $this->projection($record)['conferral']) instanceof DegreeConferral
-                        ? $conferral->conferred_on->format('M j, Y')
-                        : null)
+                    ->state(function (StudentProfile $record): string {
+                        $conferral = $record->relationLoaded('degreeConferrals')
+                            ? $record->degreeConferrals->whereNotNull('active_scope_key')->sortByDesc('version')->first()
+                            : $this->projection($record)['conferral'];
+
+                        return $conferral instanceof DegreeConferral
+                            ? $conferral->degree_name
+                            : 'Not recorded';
+                    })
+                    ->description(function (StudentProfile $record): ?string {
+                        $conferral = $record->relationLoaded('degreeConferrals')
+                            ? $record->degreeConferrals->whereNotNull('active_scope_key')->sortByDesc('version')->first()
+                            : $this->projection($record)['conferral'];
+
+                        return $conferral instanceof DegreeConferral
+                            ? $conferral->conferred_on?->format('M j, Y')
+                            : null;
+                    })
                     ->wrap(),
             ])
             ->filters([
@@ -246,26 +304,127 @@ class CompletionAndTor extends Page implements HasTable
         return ['torRequestsUrl' => TranscriptRequestResource::getUrl('index')];
     }
 
-    /** @return array<int, string> */
-    private function readyStudentOptions(): array
+    private function hasReadyStudents(): bool
     {
-        return StudentProfile::query()->whereHas('graduationApplications', fn ($query) => $query->where('state', GraduationApplication::StateActive))
-            ->orderBy('last_name')->get()->filter(fn (StudentProfile $student): bool => app(CompletionReadinessProjection::class)->forStudent($student)['state'] === CompletionReadinessProjection::ReadyForConferral)
-            ->mapWithKeys(fn (StudentProfile $student): array => [$student->id => $this->studentLabel($student)])->all();
+        return StudentProfile::query()
+            ->whereHas('graduationApplications', fn ($query) => $query->where('state', GraduationApplication::StateActive))
+            ->whereHas('completionReadinessVersions', fn (Builder $versions): Builder => $versions
+                ->where('state', CompletionReadinessProjection::ReadyForConferral)
+                ->whereRaw('version = (select max(current_readiness.version) from completion_readiness_versions as current_readiness where current_readiness.student_profile_id = completion_readiness_versions.student_profile_id)'))
+            ->exists();
+    }
+
+    private function hasActiveApplications(): bool
+    {
+        return GraduationApplication::query()->where('state', GraduationApplication::StateActive)->exists();
+    }
+
+    private function hasConferrals(): bool
+    {
+        return DegreeConferral::query()->whereNotNull('active_scope_key')->exists();
     }
 
     /** @return array<int, string> */
-    private function activeApplicationOptions(): array
+    public function readyStudentOptions(?string $search = null): array
     {
-        return GraduationApplication::query()->where('state', GraduationApplication::StateActive)->with('studentProfile')->get()
-            ->mapWithKeys(fn (GraduationApplication $application): array => [$application->id => $this->studentLabel($application->studentProfile)." · v{$application->version}"])->all();
+        $query = StudentProfile::query()
+            ->whereHas('graduationApplications', fn ($query) => $query->where('state', GraduationApplication::StateActive))
+            ->whereHas('completionReadinessVersions', fn (Builder $versions): Builder => $versions
+                ->where('state', CompletionReadinessProjection::ReadyForConferral)
+                ->whereRaw('version = (select max(current_readiness.version) from completion_readiness_versions as current_readiness where current_readiness.student_profile_id = completion_readiness_versions.student_profile_id)'));
+
+        if (filled($search)) {
+            $query->where(function (Builder $sub) use ($search): void {
+                $sub->where('student_number', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('first_name', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->orderBy('last_name')
+            ->limit(50)
+            ->get()
+            ->mapWithKeys(fn (StudentProfile $student): array => [$student->id => $this->studentLabel($student)])
+            ->all();
+    }
+
+    public function studentOptionLabel(mixed $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        $student = StudentProfile::query()->find((int) $value);
+
+        return $student ? $this->studentLabel($student) : null;
     }
 
     /** @return array<int, string> */
-    private function conferralOptions(): array
+    public function activeApplicationOptions(?string $search = null): array
     {
-        return DegreeConferral::query()->whereNotNull('active_scope_key')->with('studentProfile')->get()
-            ->mapWithKeys(fn (DegreeConferral $conferral): array => [$conferral->id => $this->studentLabel($conferral->studentProfile)." · {$conferral->degree_name}"])->all();
+        $query = GraduationApplication::query()
+            ->where('state', GraduationApplication::StateActive)
+            ->with('studentProfile');
+
+        if (filled($search)) {
+            $query->whereHas('studentProfile', fn (Builder $sub) => $sub
+                ->where('student_number', 'like', "%{$search}%")
+                ->orWhere('last_name', 'like', "%{$search}%")
+                ->orWhere('first_name', 'like', "%{$search}%"));
+        }
+
+        return $query->latest('id')
+            ->limit(50)
+            ->get()
+            ->mapWithKeys(fn (GraduationApplication $application): array => [$application->id => $this->studentLabel($application->studentProfile)." · v{$application->version}"])
+            ->all();
+    }
+
+    public function activeApplicationOptionLabel(mixed $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        $application = GraduationApplication::query()->with('studentProfile')->find((int) $value);
+
+        return $application ? $this->studentLabel($application->studentProfile)." · v{$application->version}" : null;
+    }
+
+    /** @return array<int, string> */
+    public function conferralOptions(?string $search = null): array
+    {
+        $query = DegreeConferral::query()
+            ->whereNotNull('active_scope_key')
+            ->with('studentProfile');
+
+        if (filled($search)) {
+            $query->where(function (Builder $sub) use ($search): void {
+                $sub->where('degree_name', 'like', "%{$search}%")
+                    ->orWhere('authority_reference', 'like', "%{$search}%")
+                    ->orWhereHas('studentProfile', fn (Builder $studentSub) => $studentSub
+                        ->where('student_number', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('first_name', 'like', "%{$search}%"));
+            });
+        }
+
+        return $query->latest('id')
+            ->limit(50)
+            ->get()
+            ->mapWithKeys(fn (DegreeConferral $conferral): array => [$conferral->id => $this->studentLabel($conferral->studentProfile)." · {$conferral->degree_name}"])
+            ->all();
+    }
+
+    public function conferralOptionLabel(mixed $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        $conferral = DegreeConferral::query()->with('studentProfile')->find((int) $value);
+
+        return $conferral ? $this->studentLabel($conferral->studentProfile)." · {$conferral->degree_name}" : null;
     }
 
     private function studentLabel(StudentProfile $student): string

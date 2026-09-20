@@ -196,6 +196,7 @@ class PrepareRegistrationProposal
 
             $source = [
                 'purpose' => $purpose,
+                'enrollment_id' => (int) $locked->id,
                 'term_id' => $locked->term_id,
                 'curriculum_version_id' => $curriculum->id,
                 'published_timetable_version_id' => $timetable->id,

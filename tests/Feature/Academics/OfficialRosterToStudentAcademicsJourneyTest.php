@@ -11,6 +11,7 @@ use App\Actions\Academics\ExaminationPeriodProjection;
 use App\Actions\Academics\RecordAcademicDecision;
 use App\Actions\Academics\RecordExternalCompetencyResult;
 use App\Actions\Academics\TermWeightedAverageProjection;
+use App\Actions\Completion\CompletionReadinessProjection;
 use App\Actions\Grades\AmendIncDeadline;
 use App\Actions\Grades\FinalResultPolicy;
 use App\Actions\Grades\IncDeadlineService;
@@ -58,6 +59,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
@@ -569,6 +571,257 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertSame(OperationalEvent::StatusFailed, data_get($notification->fresh()->payload, 'delivery_attempts.2.status'));
         $this->assertSame('2.75', $event->row->fresh()->current_outcome_code);
         $this->assertSame(GradeRoster::StateReleased, $event->row->roster->fresh()->state);
+    }
+
+    #[Test]
+    public function inc_calculates_leap_year_boundaries_permits_amendments_and_provides_retake_guidance(): void
+    {
+        $fixture = $this->fixture(termEndsOn: '2028-02-29');
+        $incEvent = $this->releaseResult($fixture, 'INC', 'Complete laboratory demonstration.');
+        $this->assertSame('2028-02-29', $incEvent->source_term_ends_on->toDateString());
+        $this->assertSame('2029-02-28', $incEvent->deadline->toDateString());
+        $this->assertSame(IncDeadlineService::StateCompletionOpen, app(IncDeadlineService::class)->state($incEvent, Carbon::parse('2029-02-28', 'Asia/Manila')));
+        $this->assertSame(IncDeadlineService::StateCompletionOverdue, app(IncDeadlineService::class)->state($incEvent, Carbon::parse('2029-03-01', 'Asia/Manila')));
+
+        app(AmendIncDeadline::class)->execute(
+            $incEvent, today()->addMonths(6), 'INC-EXT-LEAP-001', today(),
+            'Documented extension approval.', $fixture['registrar'],
+        );
+        $this->assertSame(IncDeadlineService::StateCompletionOpen, app(IncDeadlineService::class)->state($incEvent));
+
+        $projection = app(CompletionReadinessProjection::class)->forStudent($fixture['student']);
+        $incBlocker = collect($projection['blockers'])->firstWhere('code', 'official-result:inc-unresolved');
+        $this->assertNotNull($incBlocker);
+        $this->assertSame('Complete the authorized INC path or retake the course when completion is closed.', $incBlocker['recovery']);
+    }
+
+    #[Test]
+    public function stale_inc_completion_is_blocked_by_intervening_correction_deadline_change_or_expiry(): void
+    {
+        // Scenario A: Intervening correction blocks release of earlier INC submission
+        $fixtureA = $this->fixture(termEndsOn: today()->subMonth()->toDateString());
+        $incEventA = $this->releaseResult($fixtureA, 'INC', 'Complete laboratory requirements.');
+        $submissionA = app(SubmitIncCompletion::class)->execute(
+            $incEventA, '2.25', 'Completed lab requirements.', $fixtureA['faculty'],
+        );
+        app(RecordApprovedGradeCorrection::class)->execute(
+            $incEventA->row, '2.00', 'CORR-INTERVENING-001', 'Correction while submission pending.', 'EVID-001', $fixtureA['registrar'],
+        );
+        try {
+            app(ReleaseIncCompletion::class)->execute($submissionA, $fixtureA['registrar'], 'INC-STALE-RELEASE');
+            $this->fail('Intervening correction must block stale INC completion release.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('stale because the result or deadline authority changed', $e->getMessage());
+        }
+
+        // Scenario B: Deadline change after submission blocks release
+        $fixtureB = $this->fixture(termEndsOn: today()->subMonth()->toDateString());
+        $incEventB = $this->releaseResult($fixtureB, 'INC', 'Complete practical requirements.');
+        $submissionB = app(SubmitIncCompletion::class)->execute(
+            $incEventB, '2.25', 'Completed practicals.', $fixtureB['faculty'],
+        );
+        app(AmendIncDeadline::class)->execute(
+            $incEventB, today()->addMonths(3), 'AMEND-INTERVENING-001', today(),
+            'Intervening extension.', $fixtureB['registrar'],
+        );
+        try {
+            app(ReleaseIncCompletion::class)->execute($submissionB, $fixtureB['registrar'], 'INC-STALE-RELEASE');
+            $this->fail('Intervening deadline amendment must block stale INC completion release.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('stale because the result or deadline authority changed', $e->getMessage());
+        }
+
+        // Scenario C: Expiry blocks submission without valid extension
+        $fixtureC = $this->fixture(termEndsOn: today()->subYears(2)->toDateString());
+        $overdueEvent = $this->releaseResult($fixtureC, 'INC', 'Overdue course requirement.');
+        $this->assertSame(IncDeadlineService::StateCompletionOverdue, app(IncDeadlineService::class)->state($overdueEvent));
+        try {
+            app(SubmitIncCompletion::class)->execute($overdueEvent, '2.00', 'Late submission.', $fixtureC['faculty']);
+            $this->fail('Expired INC deadline must block completion submission.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('INC completion is not open', $e->getMessage());
+        }
+
+        // Scenario D: Repeated/concurrent release on an already released submission is idempotent
+        $fixtureD = $this->fixture(termEndsOn: today()->subMonth()->toDateString());
+        $incEventD = $this->releaseResult($fixtureD, 'INC', 'Complete project.');
+        $submissionD = app(SubmitIncCompletion::class)->execute(
+            $incEventD, '2.00', 'Project completed.', $fixtureD['faculty'],
+        );
+        $releasedD1 = app(ReleaseIncCompletion::class)->execute($submissionD, $fixtureD['registrar'], 'INC-REL-D1');
+        $this->assertSame('2.00', $releasedD1->result_code);
+
+        // Duplicate/concurrent release returns the identical event without extra outcome rows
+        $releasedD2 = app(ReleaseIncCompletion::class)->execute($submissionD, $fixtureD['registrar'], 'INC-REL-D2');
+        $this->assertSame($releasedD1->id, $releasedD2->id);
+        $this->assertSame(2, $incEventD->row->fresh()->outcomeEvents()->count());
+    }
+
+    #[Test]
+    public function grade_correction_a_to_b_to_a_preserves_three_linked_events_with_idempotent_duplicate_commands(): void
+    {
+        $fixture = $this->fixture();
+        $initialEvent = $this->releaseResult($fixture, '2.00');
+
+        $correctedB = app(RecordApprovedGradeCorrection::class)->execute(
+            $initialEvent->row, '2.25', 'CORR-A-TO-B-001', 'Change from 2.00 to 2.25.', 'EVID-B-001', $fixture['registrar'],
+        );
+        $eventB = $correctedB->outcomeEvents()->latest('id')->firstOrFail();
+        $this->assertSame($initialEvent->id, $eventB->predecessor_event_id);
+        $this->assertSame('2.25', $correctedB->fresh()->current_outcome_code);
+
+        // Duplicate command for B is idempotent
+        app(RecordApprovedGradeCorrection::class)->execute(
+            $initialEvent->row, '2.25', 'CORR-A-TO-B-001', 'Change from 2.00 to 2.25.', 'EVID-B-001', $fixture['registrar'],
+        );
+        $this->assertSame(2, $initialEvent->row->fresh()->outcomeEvents()->count());
+
+        // Correction back to A (2.00)
+        $correctedA2 = app(RecordApprovedGradeCorrection::class)->execute(
+            $initialEvent->row, '2.00', 'CORR-B-TO-A-001', 'Change back from 2.25 to 2.00.', 'EVID-A-002', $fixture['registrar'],
+        );
+        $eventA2 = $correctedA2->outcomeEvents()->latest('id')->firstOrFail();
+        $this->assertSame($eventB->id, $eventA2->predecessor_event_id);
+        $this->assertNotSame($initialEvent->id, $eventA2->id);
+        $this->assertSame('2.00', $correctedA2->fresh()->current_outcome_code);
+
+        $events = $initialEvent->row->fresh()->outcomeEvents()->orderBy('id')->get();
+        $this->assertCount(3, $events);
+        $this->assertSame($initialEvent->id, $events[0]->id);
+        $this->assertSame($eventB->id, $events[1]->id);
+        $this->assertSame($eventA2->id, $events[2]->id);
+        $this->assertSame($initialEvent->id, $events[1]->predecessor_event_id);
+        $this->assertSame($eventB->id, $events[2]->predecessor_event_id);
+
+        // Duplicate command for A2 is idempotent
+        app(RecordApprovedGradeCorrection::class)->execute(
+            $initialEvent->row, '2.00', 'CORR-B-TO-A-001', 'Change back from 2.25 to 2.00.', 'EVID-A-002', $fixture['registrar'],
+        );
+        $this->assertCount(3, $initialEvent->row->fresh()->outcomeEvents()->get());
+    }
+
+    #[Test]
+    public function empty_and_changed_roster_sources_fail_closed_without_partial_artifacts(): void
+    {
+        $fixture = $this->fixture();
+        $emptyOffering = TermOffering::factory()->create(['term_id' => $fixture['term']->id]);
+        $emptySection = Section::factory()->create(['term_offering_id' => $emptyOffering->id, 'state' => Section::StateOpen]);
+        app(ManageTeachingAssignment::class)->designate($emptySection, $fixture['faculty'], $fixture['registrar'], 'ASSIGN-EMPTY-001');
+        $emptyRoster = app(SynchronizeOfficialGradeRoster::class)->execute($emptySection, $fixture['registrar']);
+
+        $this->actingAs($fixture['faculty'])->get(route('grade-rosters.print', $emptyRoster))->assertStatus(409);
+        $this->actingAs($fixture['faculty'])->get(route('grade-rosters.csv', $emptyRoster))->assertStatus(409);
+
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-MAIN-001');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $otherStudent = StudentProfile::factory()->create();
+        $otherEnrollment = Enrollment::factory()->create(['student_profile_id' => $otherStudent->id, 'term_id' => $fixture['term']->id, 'status' => 'officially_enrolled']);
+        CourseEnrollment::query()->create([
+            'enrollment_id' => $otherEnrollment->id,
+            'term_offering_id' => $fixture['section']->term_offering_id,
+            'section_id' => $fixture['section']->id,
+            'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'units_snapshot' => '3.00',
+            'added_at' => now(),
+        ]);
+
+        $this->actingAs($fixture['registrar'])->get(route('grade-rosters.print', $roster))->assertStatus(409);
+        $this->actingAs($fixture['registrar'])->get(route('grade-rosters.csv', $roster))->assertStatus(409);
+
+        // Inaccessible roster sources fail closed with 403
+        $unauthorizedStudent = StudentProfile::factory()->create();
+        $unauthorizedStudent->user?->assignRole('student');
+        $this->actingAs($unauthorizedStudent->user)->get(route('grade-rosters.print', $roster))->assertForbidden();
+        $this->actingAs($unauthorizedStudent->user)->get(route('grade-rosters.csv', $roster))->assertForbidden();
+
+        $unassignedFaculty = $this->staff(User::StaffRoleFaculty);
+        $this->actingAs($unassignedFaculty)->get(route('grade-rosters.print', $roster))->assertForbidden();
+        $this->actingAs($unassignedFaculty)->get(route('grade-rosters.csv', $roster))->assertForbidden();
+
+        // Failed roster sources (e.g. rendering exception or source failure) fail closed without partial artifacts
+        $failOffering = TermOffering::factory()->create(['term_id' => $fixture['term']->id]);
+        $failSection = Section::factory()->create(['term_offering_id' => $failOffering->id, 'state' => Section::StateOpen]);
+        app(ManageTeachingAssignment::class)->designate($failSection, $fixture['faculty'], $fixture['registrar'], 'ASSIGN-FAIL-001');
+        CourseEnrollment::query()->create([
+            'enrollment_id' => $fixture['course_enrollment']->enrollment_id,
+            'term_offering_id' => $failOffering->id,
+            'section_id' => $failSection->id,
+            'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'units_snapshot' => '3.00',
+            'added_at' => now(),
+        ]);
+        $failingRoster = app(SynchronizeOfficialGradeRoster::class)->execute($failSection, $fixture['registrar']);
+
+        view()->composer('outputs.class-roster', function (): void {
+            throw new RuntimeException('Simulated failed roster source during rendering.');
+        });
+
+        try {
+            $this->withoutExceptionHandling()->actingAs($fixture['faculty'])->get(route('grade-rosters.print', $failingRoster));
+            $this->fail('Failed roster source must fail print action.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('Simulated failed roster source during rendering.', $e->getMessage());
+        }
+
+        $this->assertDatabaseMissing('output_access_logs', [
+            'source_record_type' => GradeRoster::class,
+            'source_record_id' => $failingRoster->id,
+            'status' => 'generated',
+        ]);
+
+        $this->assertEmpty(
+            collect(Storage::disk('local')->allFiles())->filter(fn (string $file) => str_contains($file, 'roster') || str_ends_with($file, '.tmp')),
+            'No partial roster artifacts must exist in storage following a failed print generation.'
+        );
+
+        // Failed roster source during CSV export fails closed without partial artifacts or access logs
+        $failCsv = true;
+        Enrollment::retrieved(function () use (&$failCsv): void {
+            if ($failCsv) {
+                throw new RuntimeException('Simulated failed roster source during CSV export.');
+            }
+        });
+
+        try {
+            $this->withoutExceptionHandling()->actingAs($fixture['faculty'])->get(route('grade-rosters.csv', $failingRoster));
+            $this->fail('Failed roster source must fail CSV export action.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('Simulated failed roster source during CSV export.', $e->getMessage());
+        } finally {
+            $failCsv = false;
+        }
+
+        $this->assertDatabaseMissing('output_access_logs', [
+            'source_record_type' => GradeRoster::class,
+            'source_record_id' => $failingRoster->id,
+            'action' => 'download',
+        ]);
+
+        $this->assertEmpty(
+            collect(Storage::disk('local')->allFiles())->filter(fn (string $file) => str_contains($file, 'roster') || str_ends_with($file, '.tmp') || str_ends_with($file, '.csv')),
+            'No partial roster CSV artifacts must exist in storage following a failed export.'
+        );
+
+        // Stale roster sources (replaced/ended teaching assignment) produce no print/export action or partial artifact
+        $this->withExceptionHandling();
+        ClassOfferingTeachingAssignment::query()
+            ->where('section_id', $failSection->id)
+            ->update(['state' => ClassOfferingTeachingAssignment::StateReplaced]);
+
+        $this->actingAs($fixture['faculty'])->get(route('grade-rosters.print', $failingRoster))->assertForbidden();
+        $this->actingAs($fixture['faculty'])->get(route('grade-rosters.csv', $failingRoster))->assertForbidden();
+
+        $this->assertDatabaseMissing('output_access_logs', [
+            'source_record_type' => GradeRoster::class,
+            'source_record_id' => $failingRoster->id,
+            'status' => 'generated',
+        ]);
+        $this->assertEmpty(
+            collect(Storage::disk('local')->allFiles())->filter(fn (string $file) => str_contains($file, 'roster') || str_ends_with($file, '.tmp')),
+            'No partial roster artifacts must exist in storage for stale roster sources.'
+        );
     }
 
     /** @return array{registrar: User, faculty: User, student: StudentProfile, term: Term, section: Section, course_enrollment: CourseEnrollment} */

@@ -1,4 +1,9 @@
 <x-filament-panels::page>
+    <div wire:loading class="fi-loading-indicator flex items-center gap-2 py-1 text-xs text-gray-500 dark:text-gray-400" role="status">
+        <x-filament::loading-indicator class="h-4 w-4 inline" />
+        <span>Updating registration details...</span>
+    </div>
+
     @if (! $enrollment)
         <x-filament::section
             heading="Registration has not started"
@@ -109,7 +114,33 @@
                 description="Each item names its authoritative source, responsible owner, consequence, and recovery."
                 icon="heroicon-o-list-bullet"
             >
-                <ol class="space-y-4">
+                <div x-data="{ checkpointTab: 'all' }" class="space-y-4">
+                    <div class="flex gap-2 border-b border-gray-200 pb-3 dark:border-white/10" role="tablist" aria-label="Checkpoint sections">
+                        <button
+                            type="button"
+                            role="tab"
+                            :aria-selected="checkpointTab === 'all'"
+                            :class="checkpointTab === 'all' ? 'fi-tabs-item fi-active font-semibold text-primary-600 dark:text-primary-400' : 'fi-tabs-item text-gray-600 dark:text-gray-400'"
+                            x-on:click="checkpointTab = 'all'"
+                            class="rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-white/5"
+                        >
+                            All checkpoints
+                        </button>
+                        <button
+                            type="button"
+                            role="tab"
+                            :aria-selected="checkpointTab === 'status'"
+                            :class="checkpointTab === 'status' ? 'fi-tabs-item fi-active font-semibold text-primary-600 dark:text-primary-400' : 'fi-tabs-item text-gray-600 dark:text-gray-400'"
+                            x-on:click="checkpointTab = 'status'"
+                            class="rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-white/5"
+                        >
+                            Status overview
+                        </button>
+                    </div>
+                    <div role="status" aria-live="polite" class="sr-only" x-text="checkpointTab === 'all' ? 'Showing all 5 registration checkpoints' : 'Showing registration status overview'">
+                        Showing all 5 registration checkpoints
+                    </div>
+                    <ol class="space-y-4">
                     @php($checkpointRows = [
                         ['Student eligibility', $readiness['eligibility'] && $readiness['identity'], 'Admissions/Student record', 'Registrar', 'Registration cannot proceed without a current eligible identity source.', 'Contact the Registrar if the source is not current.'],
                         ['Confirmed proposed subjects', $readiness['confirmation'], 'Registration Proposal version '.($proposal?->version ?? 'not prepared'), 'Learner', 'Unconfirmed subjects cannot become official registrations.', 'Review and confirm the current issued proposal.'],
@@ -133,7 +164,8 @@
                             </div>
                         </li>
                     @endforeach
-                </ol>
+                    </ol>
+                </div>
             </x-filament::section>
         </div>
 

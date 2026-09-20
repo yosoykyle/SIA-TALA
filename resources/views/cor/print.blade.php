@@ -29,6 +29,11 @@
             <table>
                 <thead>
                     <tr>
+                        <th colspan="9" style="background: #f3f4f6; font-weight: 700; border-bottom: 2px solid #111827;">
+                            {{ $cor['summary']['student_name'] }} ({{ $cor['summary']['student_number'] }}) · {{ $cor['summary']['program'] }} · {{ $cor['summary']['term'] }} · {{ $cor['summary']['document_status'] }}
+                        </th>
+                    </tr>
+                    <tr>
                         <th>Course</th>
                         <th>Title</th>
                         <th>Units</th>
