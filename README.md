@@ -73,17 +73,17 @@ This creates no staff account or complete academic dataset. Any Issue needing th
 Start the local development processes with:
 
 ```powershell
-composer dev
+composer run dev
 ```
 
-The command starts Laravel, the canonical `scheduling,default` queue listener, and Vite together in one terminal on native Windows or a supported Linux environment. Laravel continues writing application logs normally without a required live-log process. When active log inspection is useful on Windows, run `Get-Content storage\logs\laravel.log -Wait -Tail 80` separately.
+The command starts Laravel (with `--no-reload` for reliable startup on Windows), the canonical `scheduling,default` queue listener, and Vite together in one terminal on native Windows or a supported Linux environment. Because `--no-reload` disables automatic environment reloading, any changes to `.env` require stopping and restarting the command. Laravel continues writing application logs normally without a required live-log process. When active log inspection is useful on Windows, run `Get-Content storage\logs\laravel.log -Wait -Tail 80` separately.
 
 Use the local addresses printed by the processes; stop them together with `Ctrl+C` and confirm `Y` if Windows asks to terminate the batch job. The example environment uses mock payments, the local solver stub, and email written to the application log. These let you start locally without provider credentials; they do not prove real payment, email, or solver connectivity. See [task-specific integration setup](CONTRIBUTING.md#3-add-integration-credentials-only-when-needed). Legacy OCR environment entries do not configure an active OCR client in the current application.
 
 <details>
 <summary>When your task needs timed background jobs</summary>
 
-Laravel's task scheduler is separate from the timetable solver. `composer dev` starts a queue listener, but does not run timed jobs. Inspect the schedule from the repository root:
+Laravel's task scheduler is separate from the timetable solver. `composer run dev` starts a queue listener, but does not run timed jobs. Inspect the schedule from the repository root:
 
 ```powershell
 php artisan schedule:list --no-interaction

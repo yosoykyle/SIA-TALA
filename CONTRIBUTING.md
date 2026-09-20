@@ -31,7 +31,7 @@ Follow the [README setup](README.md#local-setup), then its [developer verificati
 
 - Create your own `.env` and use your own MySQL login.
 - Use `tala_db` for browsing the app and `test_tala_db` for disposable automated tests. Check both schemas using the README; passing tests does not update `tala_db`.
-- Confirm `composer dev` starts the app, the frontend builds, and `php artisan test --compact` passes.
+- Confirm `composer run dev` starts the app, the frontend builds, and `php artisan test --compact` passes.
 - For browser qualification testing, start the dedicated qualification test server in a separate terminal:
   ```powershell
   php -S 127.0.0.1:8008 -t public
@@ -166,7 +166,7 @@ Create the private directory if missing. Quote paths containing spaces, for exam
 
 For **email**, keep `MAIL_MAILER=log` until real delivery is needed; messages appear in the application log instead of an inbox. Use an approved recipient for an explicitly authorized send. See [Laravel mail configuration](https://laravel.com/framework/docs/12.x/mail#configuration).
 
-For **PayMongo**, also set `TALA_PAYMENT_GATEWAY_DRIVER=paymongo`. The owner must approve a reachable HTTPS test webhook ending in `/api/webhooks/paymongo`, its subscribed events (including `checkout_session.payment.paid` for hosted checkout), and its matching signing secret. A local endpoint needs an approved tunnel or hosted endpoint; never redirect another developer's shared webhook. Keep `QUEUE_CONNECTION=database` and the `composer dev` queue listener running for confirmation processing. See [PayMongo webhook setup](https://docs.paymongo.com/docs/creating-a-webhook-endpoint).
+For **PayMongo**, also set `TALA_PAYMENT_GATEWAY_DRIVER=paymongo`. The owner must approve a reachable HTTPS test webhook ending in `/api/webhooks/paymongo`, its subscribed events (including `checkout_session.payment.paid` for hosted checkout), and its matching signing secret. A local endpoint needs an approved tunnel or hosted endpoint; never redirect another developer's shared webhook. Keep `QUEUE_CONNECTION=database` and the `composer run dev` queue listener running for confirmation processing. See [PayMongo webhook setup](https://docs.paymongo.com/docs/creating-a-webhook-endpoint).
 
 For the **hosted solver**, the supplied identity needs permission to invoke that service, and the audience must match its approved configuration. The PHP client obtains its token from the JSON file; calling the existing hosted service needs neither Python nor Google Cloud CLI. See [Cloud Run service authentication](https://docs.cloud.google.com/run/docs/authenticating/service-to-service). Local Python solver work needs its own environment and pinned dependencies from the [solver guide](cloud/scheduler-solver/README.md); Cloud administration/deployment uses separately authorized tooling and access, such as [Google Cloud CLI](https://docs.cloud.google.com/sdk/docs/install-sdk).
 
