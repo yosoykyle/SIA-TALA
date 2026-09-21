@@ -121,6 +121,13 @@
                         <x-slot name="heading">Ready for enrollment</x-slot>
                         <x-slot name="description">This is a derived read-only projection. It did not create a Student, enrollment, assessment, or Registration Case.</x-slot>
                     </x-filament::callout>
+                    @php($availability = $this->enrollmentAvailability($application))
+                    <div class="mt-3">
+                        <x-filament::callout :color="$availability['available'] ? 'success' : 'info'" :icon="$availability['available'] ? 'heroicon-m-calendar' : 'heroicon-m-clock'">
+                            <x-slot name="heading">Enrollment availability</x-slot>
+                            <x-slot name="description">{{ $availability['explanation'] }}</x-slot>
+                        </x-filament::callout>
+                    </div>
                 @else
                     <p>{{ count($projection['blockers'] ?? []) }} current readiness blocker(s). Follow only the Applicant-safe instruction shown in Requirements.</p>
                 @endif

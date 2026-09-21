@@ -52,6 +52,44 @@
                     <div role="status" class="rounded-xl border border-green-300 bg-green-50 p-4 text-sm font-medium text-green-950 dark:border-green-400/30 dark:bg-green-950/30 dark:text-green-100">All required checks passed.</div>
                 @endif
 
+                @if ($draftPackages->isNotEmpty())
+                    <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
+                        <h2 class="font-semibold text-gray-950 dark:text-white">Draft Calendar Packages</h2>
+                        <div class="mt-3 space-y-3">
+                            @foreach ($draftPackages as $item)
+                                @php($pkg = $item['package'])
+                                @php($pkgReadiness = $item['readiness'])
+                                <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <span class="font-medium text-gray-900 dark:text-white">
+                                            Draft v{{ $pkg->version }} · {{ $pkg->authority_reference ?? 'No authority reference' }}
+                                        </span>
+                                        @if ($pkgReadiness['ready'])
+                                            <span role="status" class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-950/50 dark:text-green-300">
+                                                Ready for activation — all required checks passed
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                                                Action required ({{ count($pkgReadiness['blockers']) }} blocker{{ count($pkgReadiness['blockers']) === 1 ? '' : 's' }})
+                                            </span>
+                                        @endif
+                                    </div>
+                                    @if (! $pkgReadiness['ready'])
+                                        <ul class="mt-2 space-y-1 text-sm text-amber-900 dark:text-amber-200">
+                                            @foreach ($pkgReadiness['blockers'] as $blocker)
+                                                <li>
+                                                    <strong>{{ $blocker['source'] }}:</strong> {{ $blocker['reason'] }}
+                                                    <span class="text-xs text-gray-600 dark:text-gray-400">Action: {{ $blocker['next_action'] }}</span>
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
                 <article class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-gray-900">
                     <h2 class="text-lg font-semibold text-gray-950 dark:text-white">{{ $tabs[$viewTab] }}</h2>
                     <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">

@@ -4,6 +4,7 @@ namespace App\Filament\Applicant\Pages;
 
 use App\Actions\Admissions\AdmissionNotificationLedger;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
+use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Actions\Enrollment\CancelRegistrationCase;
 use App\Actions\Enrollment\ConfirmRegistrationIdentity;
 use App\Actions\Enrollment\ConfirmRegistrationProposal;
@@ -21,8 +22,11 @@ use App\Models\Payment;
 use App\Models\Program;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
+use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
@@ -75,9 +79,17 @@ class Dashboard extends BaseDashboard implements HasTable
                 ->visible(function (): bool {
                     $application = $this->currentApplication();
 
-                    return $application instanceof AdmissionApplication
-                        && ! $this->registrationCase() instanceof Enrollment
-                        && app(ReadyApplicantProjectionQuery::class)->forApplication($application)['ready'];
+                    if (! $application instanceof AdmissionApplication
+                        || $this->registrationCase() instanceof Enrollment
+                        || ! (bool) (app(ReadyApplicantProjectionQuery::class)->forApplication($application)['ready'] ?? false)) {
+                        return false;
+                    }
+
+                    if (collect($this->mountedActions ?? [])->contains('name', 'startRegistration')) {
+                        return true;
+                    }
+
+                    return (bool) ($this->enrollmentAvailability($application)['available'] ?? false);
                 })
                 ->requiresConfirmation()
                 ->modalDescription('TALA will derive the registration basis from the authoritative Application source and create one exact-Term Registration Case.')
@@ -86,16 +98,31 @@ class Dashboard extends BaseDashboard implements HasTable
                     $applicant = Auth::user();
                     abort_unless($application instanceof AdmissionApplication && $applicant instanceof User, 404);
 
-                    app(StartRegistrationCase::class)->forReadyApplicant(
-                        $application,
-                        Term::query()->findOrFail($application->term_id),
-                        $applicant,
-                    );
-                    Notification::make()
-                        ->title('Enrollment started')
-                        ->body('The Registrar can now prepare the exact-Term proposal. No Student identity was created yet.')
-                        ->success()
-                        ->send();
+                    try {
+                        app(StartRegistrationCase::class)->forReadyApplicant(
+                            $application,
+                            Term::query()->findOrFail($application->term_id),
+                            $applicant,
+                        );
+                        Notification::make()
+                            ->title('Enrollment started')
+                            ->body('The Registrar can now prepare the exact-Term proposal. No Student identity was created yet.')
+                            ->success()
+                            ->send();
+                    } catch (CalendarGateViolation $exception) {
+                        $availability = $this->enrollmentAvailability($application);
+                        Notification::make()
+                            ->title('Enrollment is not currently available')
+                            ->body($availability['explanation'] ?? $exception->getMessage())
+                            ->warning()
+                            ->send();
+                    } catch (ValidationException $exception) {
+                        Notification::make()
+                            ->title('Cannot start enrollment')
+                            ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
+                            ->danger()
+                            ->send();
+                    }
                 }),
             Action::make('confirmRegistrationProposal')
                 ->label('Confirm enrollment proposal')
@@ -483,15 +510,125 @@ class Dashboard extends BaseDashboard implements HasTable
 
     public function nextAction(AdmissionApplication $application): string
     {
+        if ($application->application_state === AdmissionApplication::StateAdmitted) {
+            $projection = app(ReadyApplicantProjectionQuery::class)->forApplication($application);
+            if ($projection['ready'] ?? false) {
+                if ($this->registrationCase() instanceof Enrollment) {
+                    return 'Continue your active Registration Case below.';
+                }
+
+                $availability = $this->enrollmentAvailability($application);
+
+                return match ($availability['status']) {
+                    'open' => 'Enrollment is open. Click Start enrollment to begin your Registration Case.',
+                    'upcoming', 'closed' => $availability['explanation'],
+                    default => 'Enrollment has not opened yet. Wait for the Registrar to announce the enrollment schedule.',
+                };
+            }
+
+            return 'Complete the due official credential instructions.';
+        }
+
         return match ($application->application_state) {
             AdmissionApplication::StateDraft => 'Complete and submit the five-step Application.',
             AdmissionApplication::StateActionNeeded => 'Respond only to the scoped correction items.',
             AdmissionApplication::StateSubmitted => 'Wait for Registrar review; monitor Requirements for an instruction.',
-            AdmissionApplication::StateAdmitted => 'Complete the due official credential instructions.',
             AdmissionApplication::StateNotAdmitted => 'Review the retained decision explanation.',
             AdmissionApplication::StateWithdrawn => 'Contact the Registrar only if an authorized reopening is needed.',
             default => 'Review the current Application record.',
         };
+    }
+
+    /** @return array{available: bool, status: string, explanation: string, opens_at: ?CarbonImmutable, closes_at: ?CarbonImmutable} */
+    public function enrollmentAvailability(?AdmissionApplication $application = null): array
+    {
+        $application ??= $this->currentApplication();
+
+        if (! $application instanceof AdmissionApplication || $application->term_id === null) {
+            return [
+                'available' => false,
+                'status' => 'unavailable',
+                'explanation' => 'Term enrollment window is not available.',
+                'opens_at' => null,
+                'closes_at' => null,
+            ];
+        }
+
+        $term = $application->term;
+
+        if (! $term) {
+            return [
+                'available' => false,
+                'status' => 'unavailable',
+                'explanation' => 'Term record is not found.',
+                'opens_at' => null,
+                'closes_at' => null,
+            ];
+        }
+
+        $package = TermCalendarPackage::query()
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->latest('version')
+            ->first();
+
+        if (! $package) {
+            return [
+                'available' => false,
+                'status' => 'not_configured',
+                'explanation' => 'Enrollment has not opened yet. The official academic calendar package is being prepared by the Registrar.',
+                'opens_at' => null,
+                'closes_at' => null,
+            ];
+        }
+
+        $window = $package->windows()
+            ->where('window_type', TermCalendarWindow::TypeEnrollment)
+            ->first();
+
+        if (! $window) {
+            return [
+                'available' => false,
+                'status' => 'not_configured',
+                'explanation' => 'Enrollment has not opened yet. The enrollment window has not been scheduled for this Term.',
+                'opens_at' => null,
+                'closes_at' => null,
+            ];
+        }
+
+        $timezone = (string) config('app.timezone');
+        $opensAt = CarbonImmutable::parse((string) $window->opens_on, $timezone)->startOfDay();
+        $cutoff = filled($window->cutoff_at) ? (string) $window->cutoff_at : '23:59:59';
+        $closesAt = CarbonImmutable::parse($window->closes_on->toDateString().' '.$cutoff, $timezone);
+        $now = CarbonImmutable::now($timezone);
+
+        if ($now->lt($opensAt)) {
+            return [
+                'available' => false,
+                'status' => 'upcoming',
+                'explanation' => 'Enrollment will open on '.$opensAt->timezone(config('app.display_timezone'))->format('F j, Y, g:i A').'.',
+                'opens_at' => $opensAt,
+                'closes_at' => $closesAt,
+            ];
+        }
+
+        if ($now->gt($closesAt)) {
+            return [
+                'available' => false,
+                'status' => 'closed',
+                'explanation' => 'Ordinary enrollment for this Term closed on '.$closesAt->timezone(config('app.display_timezone'))->format('F j, Y, g:i A').'. Contact the Registrar if you require late-enrollment assistance.',
+                'opens_at' => $opensAt,
+                'closes_at' => $closesAt,
+            ];
+        }
+
+        return [
+            'available' => true,
+            'status' => 'open',
+            'explanation' => 'Enrollment is open until '.$closesAt->timezone(config('app.display_timezone'))->format('F j, Y, g:i A').'.',
+            'opens_at' => $opensAt,
+            'closes_at' => $closesAt,
+        ];
     }
 
     private function canWithdraw(): bool

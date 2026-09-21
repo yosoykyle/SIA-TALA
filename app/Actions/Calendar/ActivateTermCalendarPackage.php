@@ -40,6 +40,7 @@ final class ActivateTermCalendarPackage
 
             if (! $readiness['ready']) {
                 throw ValidationException::withMessages([
+                    'package_id' => collect($readiness['blockers'])->pluck('reason')->all(),
                     'readiness' => collect($readiness['blockers'])->pluck('reason')->all(),
                 ]);
             }

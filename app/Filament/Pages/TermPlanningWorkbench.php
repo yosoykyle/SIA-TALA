@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Actions\Calendar\ActivateTermCalendarPackage;
+use App\Actions\Calendar\TermCalendarPackageReadinessService;
 use App\Actions\Grades\ManageTeachingAssignment;
 use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Actions\Scheduling\ConfirmClassOffering;
@@ -18,7 +19,6 @@ use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
-use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
@@ -28,14 +28,20 @@ use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 use UnitEnum;
 
@@ -106,6 +112,7 @@ final class TermPlanningWorkbench extends Page
 
         return [
             $this->recordCalendarPackageAction(),
+            $this->correctDraftCalendarPackageAction(),
             $this->activateCalendarPackageAction(),
             $this->requestFacultyAvailabilityAction(),
             $this->confirmClassAction(),
@@ -113,10 +120,11 @@ final class TermPlanningWorkbench extends Page
         ];
     }
 
-    private function recordCalendarPackageAction(): Action
+    public function recordCalendarPackageAction(): Action
     {
         return Action::make('recordCalendarPackage')
             ->label('Record Calendar Package')
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null)
             ->schema([
                 DatePicker::make('administrative_starts_on')->required(),
                 DatePicker::make('administrative_ends_on')->required()->after('administrative_starts_on'),
@@ -138,12 +146,20 @@ final class TermPlanningWorkbench extends Page
                     TimePicker::make('cutoff_at')->timezone((string) config('app.timezone'))->seconds(false),
                 ])->minItems(3)->required()->columns(4),
                 Repeater::make('teaching_grid_rows')->schema([
-                    Select::make('day_of_week')->options(SectionMeeting::dayOptions())->required(),
-                    TimePicker::make('starts_at')->timezone((string) config('app.timezone'))->required()->seconds(false),
-                    TimePicker::make('ends_at')->timezone((string) config('app.timezone'))->required()->seconds(false)->after('starts_at'),
+                    Select::make('day_of_week')->options([
+                        1 => 'Monday',
+                        2 => 'Tuesday',
+                        3 => 'Wednesday',
+                        4 => 'Thursday',
+                        5 => 'Friday',
+                        6 => 'Saturday',
+                        7 => 'Sunday',
+                    ])->required(),
+                    TimePicker::make('starts_at')->timezone((string) config('app.timezone'))->seconds(false)->required(),
+                    TimePicker::make('ends_at')->timezone((string) config('app.timezone'))->seconds(false)->required()->after('starts_at'),
                     Repeater::make('breaks')->schema([
-                        TimePicker::make('starts_at')->timezone((string) config('app.timezone'))->required()->seconds(false),
-                        TimePicker::make('ends_at')->timezone((string) config('app.timezone'))->required()->seconds(false)->after('starts_at'),
+                        TimePicker::make('starts_at')->timezone((string) config('app.timezone'))->seconds(false)->required(),
+                        TimePicker::make('ends_at')->timezone((string) config('app.timezone'))->seconds(false)->required()->after('starts_at'),
                     ])->columns(2),
                 ])->minItems(1)->required()->columns(3),
                 Repeater::make('dated_exceptions')->schema([
@@ -152,6 +168,7 @@ final class TermPlanningWorkbench extends Page
                     TextInput::make('exception_type')->required()->maxLength(64),
                     TextInput::make('label')->required()->maxLength(255),
                     TextInput::make('authority_reference')->required()->maxLength(255),
+                    Toggle::make('blocks_teaching')->label('Blocks teaching')->default(true),
                 ])->columns(3),
             ])
             ->action(function (array $data): void {
@@ -174,36 +191,323 @@ final class TermPlanningWorkbench extends Page
                         $package->teachingGridRows()->create($row);
                     }
                     foreach ($data['dated_exceptions'] ?? [] as $exception) {
-                        $package->datedExceptions()->create([...$exception, 'blocks_teaching' => true]);
+                        $package->datedExceptions()->create([
+                            ...$exception,
+                            'blocks_teaching' => (bool) ($exception['blocks_teaching'] ?? true),
+                        ]);
                     }
                 }, 3);
-                Notification::make()->title('Draft Calendar Package recorded')->body('Run readiness and activate it separately.')->success()->send();
+                Notification::make()->title('Draft Calendar Package recorded')->body('Review draft readiness and activate it when all checks pass.')->success()->send();
             });
     }
 
-    private function activateCalendarPackageAction(): Action
+    public function correctDraftCalendarPackageAction(): Action
     {
-        return Action::make('activateCalendarPackage')
-            ->label('Activate Calendar Package')
-            ->color('success')
-            ->schema([
-                Select::make('package_id')->label('Draft package')->options(TermCalendarPackage::query()
-                    ->where('term_id', $this->selectedTerm()->id)
+        return Action::make('correctDraftCalendarPackage')
+            ->label('Correct Draft Package')
+            ->color('warning')
+            ->visible(function (): bool {
+                if (! (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) || $this->termId === null) {
+                    return false;
+                }
+
+                return TermCalendarPackage::query()
+                    ->where('term_id', $this->termId)
                     ->where('state', TermCalendarPackage::StateDraft)
-                    ->get()
-                    ->mapWithKeys(
-                        fn (TermCalendarPackage $package): array => [$package->id => 'v'.$package->version.' · '.$package->authority_reference],
-                    ))->required()->searchable(),
+                    ->exists();
+            })
+            ->fillForm(function (): array {
+                if ($this->termId === null) {
+                    return [];
+                }
+
+                $draft = TermCalendarPackage::query()
+                    ->where('term_id', $this->termId)
+                    ->where('state', TermCalendarPackage::StateDraft)
+                    ->latest('version')
+                    ->with(['windows', 'teachingGridRows', 'datedExceptions'])
+                    ->first();
+
+                if (! $draft) {
+                    return [];
+                }
+
+                return [
+                    'package_id' => $draft->id,
+                    'concurrency_token' => $draft->concurrencyToken(),
+                    'original_updated_at' => $draft->concurrencyToken(),
+                    'administrative_starts_on' => $draft->administrative_starts_on?->toDateString(),
+                    'administrative_ends_on' => $draft->administrative_ends_on?->toDateString(),
+                    'classes_start_on' => $draft->classes_start_on?->toDateString(),
+                    'classes_end_on' => $draft->classes_end_on?->toDateString(),
+                    'faculty_availability_due_at' => $draft->faculty_availability_due_at?->timezone((string) config('app.display_timezone'))->format('Y-m-d H:i'),
+                    'authority_reference' => $draft->authority_reference,
+                    'authority_date' => $draft->authority_date?->toDateString(),
+                    'special_term_schedule_basis' => $draft->special_term_schedule_basis,
+                    'windows' => $draft->windows->map(fn (TermCalendarWindow $w): array => [
+                        'window_type' => $w->window_type,
+                        'opens_on' => $w->opens_on?->toDateString(),
+                        'closes_on' => $w->closes_on?->toDateString(),
+                        'cutoff_at' => $w->cutoff_at ? substr((string) $w->cutoff_at, 0, 5) : null,
+                    ])->all(),
+                    'teaching_grid_rows' => $draft->teachingGridRows->map(fn ($r): array => [
+                        'day_of_week' => $r->day_of_week,
+                        'starts_at' => substr((string) $r->starts_at, 0, 5),
+                        'ends_at' => substr((string) $r->ends_at, 0, 5),
+                        'breaks' => collect($r->breaks ?? [])->map(fn ($b): array => [
+                            'starts_at' => isset($b['starts_at']) ? substr((string) $b['starts_at'], 0, 5) : null,
+                            'ends_at' => isset($b['ends_at']) ? substr((string) $b['ends_at'], 0, 5) : null,
+                        ])->all(),
+                    ])->all(),
+                    'dated_exceptions' => $draft->datedExceptions->map(fn ($e): array => [
+                        'starts_on' => $e->starts_on?->toDateString(),
+                        'ends_on' => $e->ends_on?->toDateString(),
+                        'exception_type' => $e->exception_type,
+                        'label' => $e->label,
+                        'authority_reference' => $e->authority_reference,
+                        'blocks_teaching' => (bool) $e->blocks_teaching,
+                    ])->all(),
+                ];
+            })
+            ->schema([
+                Select::make('package_id')
+                    ->label('Draft package')
+                    ->options(fn (): array => TermCalendarPackage::query()
+                        ->where('term_id', $this->selectedTerm()->id)
+                        ->where('state', TermCalendarPackage::StateDraft)
+                        ->get()
+                        ->mapWithKeys(
+                            fn (TermCalendarPackage $package): array => [$package->id => 'v'.$package->version.' · '.$package->authority_reference],
+                        )->all())
+                    ->required()
+                    ->rules([
+                        Rule::exists('term_calendar_packages', 'id')
+                            ->where('term_id', $this->termId)
+                            ->where('state', TermCalendarPackage::StateDraft),
+                    ])
+                    ->live()
+                    ->afterStateUpdated(function (Set $set, ?string $state): void {
+                        if (! $state) {
+                            return;
+                        }
+
+                        $package = TermCalendarPackage::query()
+                            ->with(['windows', 'teachingGridRows', 'datedExceptions'])
+                            ->find((int) $state);
+
+                        if (! $package || $package->term_id !== $this->selectedTerm()->id || $package->state !== TermCalendarPackage::StateDraft) {
+                            return;
+                        }
+
+                        $token = $package->concurrencyToken();
+                        $set('concurrency_token', $token);
+                        $set('original_updated_at', $token);
+                        $set('administrative_starts_on', $package->administrative_starts_on?->toDateString());
+                        $set('administrative_ends_on', $package->administrative_ends_on?->toDateString());
+                        $set('classes_start_on', $package->classes_start_on?->toDateString());
+                        $set('classes_end_on', $package->classes_end_on?->toDateString());
+                        $set('faculty_availability_due_at', $package->faculty_availability_due_at?->timezone((string) config('app.display_timezone'))->format('Y-m-d H:i'));
+                        $set('authority_reference', $package->authority_reference);
+                        $set('authority_date', $package->authority_date?->toDateString());
+                        $set('special_term_schedule_basis', $package->special_term_schedule_basis);
+                        $set('windows', $package->windows->map(fn (TermCalendarWindow $w): array => [
+                            'window_type' => $w->window_type,
+                            'opens_on' => $w->opens_on?->toDateString(),
+                            'closes_on' => $w->closes_on?->toDateString(),
+                            'cutoff_at' => $w->cutoff_at ? substr((string) $w->cutoff_at, 0, 5) : null,
+                        ])->all());
+                        $set('teaching_grid_rows', $package->teachingGridRows->map(fn ($r): array => [
+                            'day_of_week' => $r->day_of_week,
+                            'starts_at' => substr((string) $r->starts_at, 0, 5),
+                            'ends_at' => substr((string) $r->ends_at, 0, 5),
+                            'breaks' => collect($r->breaks ?? [])->map(fn ($b): array => [
+                                'starts_at' => isset($b['starts_at']) ? substr((string) $b['starts_at'], 0, 5) : null,
+                                'ends_at' => isset($b['ends_at']) ? substr((string) $b['ends_at'], 0, 5) : null,
+                            ])->all(),
+                        ])->all());
+                        $set('dated_exceptions', $package->datedExceptions->map(fn ($e): array => [
+                            'starts_on' => $e->starts_on?->toDateString(),
+                            'ends_on' => $e->ends_on?->toDateString(),
+                            'exception_type' => $e->exception_type,
+                            'label' => $e->label,
+                            'authority_reference' => $e->authority_reference,
+                            'blocks_teaching' => (bool) $e->blocks_teaching,
+                        ])->all());
+                    }),
+                Hidden::make('concurrency_token'),
+                Hidden::make('original_updated_at'),
+                DatePicker::make('administrative_starts_on')->required(),
+                DatePicker::make('administrative_ends_on')->required()->after('administrative_starts_on'),
+                DatePicker::make('classes_start_on')->required(),
+                DatePicker::make('classes_end_on')->required()->after('classes_start_on'),
+                DateTimePicker::make('faculty_availability_due_at')
+                    ->label('Faculty availability deadline')
+                    ->timezone((string) config('app.display_timezone'))
+                    ->seconds(false)
+                    ->required()
+                    ->beforeOrEqual('classes_start_on'),
+                TextInput::make('authority_reference')->required()->maxLength(255),
+                DatePicker::make('authority_date')->required(),
+                TextInput::make('special_term_schedule_basis')->maxLength(255),
+                Repeater::make('windows')->schema([
+                    Select::make('window_type')->options(TermCalendarWindow::typeOptions())->required(),
+                    DatePicker::make('opens_on')->required(),
+                    DatePicker::make('closes_on')->required()->afterOrEqual('opens_on'),
+                    TimePicker::make('cutoff_at')->timezone((string) config('app.timezone'))->seconds(false),
+                ])->minItems(3)->required()->columns(4),
+                Repeater::make('teaching_grid_rows')->schema([
+                    Select::make('day_of_week')->options([
+                        1 => 'Monday',
+                        2 => 'Tuesday',
+                        3 => 'Wednesday',
+                        4 => 'Thursday',
+                        5 => 'Friday',
+                        6 => 'Saturday',
+                        7 => 'Sunday',
+                    ])->required(),
+                    TimePicker::make('starts_at')->timezone((string) config('app.timezone'))->seconds(false)->required(),
+                    TimePicker::make('ends_at')->timezone((string) config('app.timezone'))->seconds(false)->required()->after('starts_at'),
+                    Repeater::make('breaks')->schema([
+                        TimePicker::make('starts_at')->timezone((string) config('app.timezone'))->seconds(false)->required(),
+                        TimePicker::make('ends_at')->timezone((string) config('app.timezone'))->seconds(false)->required()->after('starts_at'),
+                    ])->columns(2),
+                ])->minItems(1)->required()->columns(3),
+                Repeater::make('dated_exceptions')->schema([
+                    DatePicker::make('starts_on')->required(),
+                    DatePicker::make('ends_on')->required()->afterOrEqual('starts_on'),
+                    TextInput::make('exception_type')->required()->maxLength(64),
+                    TextInput::make('label')->required()->maxLength(255),
+                    TextInput::make('authority_reference')->required()->maxLength(255),
+                    Toggle::make('blocks_teaching')->label('Blocks teaching')->default(true),
+                ])->columns(3),
             ])
             ->action(function (array $data): void {
                 $actor = auth()->user();
                 abort_unless($actor instanceof User, 403);
-                app(ActivateTermCalendarPackage::class)->execute(TermCalendarPackage::query()->findOrFail((int) $data['package_id']), $actor);
-                Notification::make()->title('Calendar Package activated')->success()->send();
+                $term = $this->selectedTerm();
+                Gate::forUser($actor)->authorize('update', $term);
+
+                DB::transaction(function () use ($data, $term, $actor): void {
+                    $package = TermCalendarPackage::query()
+                        ->where('term_id', $term->id)
+                        ->whereKey((int) $data['package_id'])
+                        ->with(['windows', 'teachingGridRows', 'datedExceptions'])
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (! $package || $package->state !== TermCalendarPackage::StateDraft) {
+                        throw ValidationException::withMessages([
+                            'package_id' => 'Only a Draft Term Calendar Package can be corrected for this Term.',
+                        ]);
+                    }
+
+                    $submittedToken = (string) ($data['concurrency_token'] ?? $data['original_updated_at'] ?? '');
+                    if (blank($submittedToken) || ! hash_equals($package->concurrencyToken(), $submittedToken)) {
+                        Notification::make()
+                            ->title('Cannot correct Draft Calendar Package')
+                            ->body('This Draft Calendar Package was modified by another Registrar while your form was open. Reopen the correction form to review the latest changes before saving.')
+                            ->danger()
+                            ->persistent()
+                            ->send();
+
+                        throw ValidationException::withMessages([
+                            'package_id' => 'This Draft Calendar Package was modified by another Registrar while your form was open. Reopen the correction form to review the latest changes before saving.',
+                        ]);
+                    }
+
+                    $package->update([
+                        ...collect($data)->except(['package_id', 'concurrency_token', 'original_updated_at', 'windows', 'teaching_grid_rows', 'dated_exceptions'])->all(),
+                        'recorded_by' => $actor->id,
+                    ]);
+
+                    $package->windows()->delete();
+                    foreach ($data['windows'] as $window) {
+                        $package->windows()->create($window);
+                    }
+
+                    $package->teachingGridRows()->delete();
+                    foreach ($data['teaching_grid_rows'] as $row) {
+                        $package->teachingGridRows()->create($row);
+                    }
+
+                    $package->datedExceptions()->delete();
+                    foreach ($data['dated_exceptions'] ?? [] as $exception) {
+                        $package->datedExceptions()->create([
+                            ...$exception,
+                            'blocks_teaching' => (bool) ($exception['blocks_teaching'] ?? true),
+                        ]);
+                    }
+                }, attempts: 3);
+
+                Notification::make()->title('Draft Calendar Package corrected')->body('Review draft readiness and activate it when all checks pass.')->success()->send();
             });
     }
 
-    private function requestFacultyAvailabilityAction(): Action
+    public function activateCalendarPackageAction(): Action
+    {
+        return Action::make('activateCalendarPackage')
+            ->label('Activate Calendar Package')
+            ->color('success')
+            ->visible(function (): bool {
+                if (! (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) || $this->termId === null) {
+                    return false;
+                }
+
+                return TermCalendarPackage::query()
+                    ->where('term_id', $this->termId)
+                    ->where('state', TermCalendarPackage::StateDraft)
+                    ->exists();
+            })
+            ->schema([
+                Select::make('package_id')
+                    ->label('Draft package')
+                    ->options(fn (): array => TermCalendarPackage::query()
+                        ->where('term_id', $this->selectedTerm()->id)
+                        ->where('state', TermCalendarPackage::StateDraft)
+                        ->get()
+                        ->mapWithKeys(
+                            fn (TermCalendarPackage $package): array => [$package->id => 'v'.$package->version.' · '.$package->authority_reference],
+                        )->all())
+                    ->required()
+                    ->rules([
+                        Rule::exists('term_calendar_packages', 'id')
+                            ->where('term_id', $this->termId)
+                            ->where('state', TermCalendarPackage::StateDraft),
+                    ])
+                    ->searchable(),
+            ])
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $package = TermCalendarPackage::query()
+                    ->where('term_id', $this->selectedTerm()->id)
+                    ->where('state', TermCalendarPackage::StateDraft)
+                    ->find((int) $data['package_id']);
+
+                if (! $package) {
+                    throw ValidationException::withMessages([
+                        'package_id' => 'The selected calendar package is not an activatable draft for this Term.',
+                    ]);
+                }
+
+                try {
+                    app(ActivateTermCalendarPackage::class)->execute($package, $actor);
+                    Notification::make()->title('Calendar Package activated')->success()->send();
+                } catch (ValidationException $exception) {
+                    $errors = collect($exception->errors())->flatten()->all();
+                    Notification::make()
+                        ->title('Cannot activate Calendar Package')
+                        ->body(implode(' ', $errors))
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw $exception;
+                }
+            });
+    }
+
+    public function requestFacultyAvailabilityAction(): Action
     {
         return Action::make('requestFacultyAvailability')
             ->label('Request Faculty Availability')
@@ -231,7 +535,7 @@ final class TermPlanningWorkbench extends Page
                     ->searchable()
                     ->required(),
             ])
-            ->visible(fn (): bool => $this->activeCalendarPackage() instanceof TermCalendarPackage)
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->activeCalendarPackage() instanceof TermCalendarPackage)
             ->action(function (array $data): void {
                 $actor = auth()->user();
                 abort_unless($actor instanceof User, 403);
@@ -252,10 +556,11 @@ final class TermPlanningWorkbench extends Page
             });
     }
 
-    private function confirmClassAction(): Action
+    public function confirmClassAction(): Action
     {
         return Action::make('confirmClassOffering')
             ->label('Confirm Class Offering')
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null)
             ->schema([
                 Select::make('section_id')->label('Class Offering')->options(Section::query()
                     ->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $this->selectedTerm()->id))
@@ -287,10 +592,11 @@ final class TermPlanningWorkbench extends Page
             });
     }
 
-    private function manageTeachingAssignmentAction(): Action
+    public function manageTeachingAssignmentAction(): Action
     {
         return Action::make('manageTeachingAssignment')
             ->label('Assign Teaching Faculty')
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null)
             ->schema([
                 Select::make('section_id')
                     ->label('Official Class Offering')
@@ -360,11 +666,25 @@ final class TermPlanningWorkbench extends Page
         $versions = $term instanceof Term
             ? PublishedTimetableVersion::query()->where('term_id', $term->id)->withCount('meetings')->latest('version')->get()
             : collect();
+        $readinessService = app(TermCalendarPackageReadinessService::class);
+        $draftPackages = $term instanceof Term
+            ? TermCalendarPackage::query()
+                ->where('term_id', $term->id)
+                ->where('state', TermCalendarPackage::StateDraft)
+                ->with(['windows', 'teachingGridRows', 'datedExceptions'])
+                ->orderBy('version')
+                ->get()
+                ->map(fn (TermCalendarPackage $p): array => [
+                    'package' => $p,
+                    'readiness' => $readinessService->for($p),
+                ])
+            : collect();
 
         return [
             'terms' => $terms,
             'term' => $term,
             'activePackage' => $activePackage,
+            'draftPackages' => $draftPackages,
             'currentVersion' => $currentVersion,
             'versions' => $versions,
             'readiness' => $term instanceof Term ? app(ReadyTermPlanningProjection::class)->forTerm($term) : null,

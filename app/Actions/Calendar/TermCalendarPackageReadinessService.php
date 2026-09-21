@@ -82,6 +82,91 @@ final class TermCalendarPackageReadinessService
                 $blockers[] = $this->blocker('teaching_grid_invalid', 'Weekly teaching grid', 'Registrar', 'A teaching-grid row is contradictory or not aligned to the fixed 30-minute grid.', 'Correct the affected teaching day.', 'Retain the Draft package until the grid is valid.');
                 break;
             }
+
+            $breaks = is_array($row->breaks) ? $row->breaks : [];
+            $breakIntervals = [];
+
+            foreach ($breaks as $break) {
+                if (! is_array($break) || blank($break['starts_at'] ?? null) || blank($break['ends_at'] ?? null)) {
+                    $blockers[] = $this->blocker('teaching_grid_break_invalid', 'Recurring institutional breaks', 'Registrar', 'A recurring teaching-grid break is incomplete, contradictory, or not aligned to the fixed 30-minute grid.', 'Correct or remove the invalid break interval.', 'Retain the Draft package until all recurring breaks are valid.');
+                    break 2;
+                }
+
+                $bStarts = strtotime((string) ($break['starts_at'] ?? ''));
+                $bEnds = strtotime((string) ($break['ends_at'] ?? ''));
+
+                if ($bStarts === false || $bEnds === false || $bEnds <= $bStarts || ($bStarts % 1800) !== 0 || ($bEnds % 1800) !== 0) {
+                    $blockers[] = $this->blocker('teaching_grid_break_invalid', 'Recurring institutional breaks', 'Registrar', 'A recurring teaching-grid break is incomplete, contradictory, or not aligned to the fixed 30-minute grid.', 'Correct the affected break interval.', 'Retain the Draft package until all recurring breaks are valid.');
+                    break 2;
+                }
+
+                if ($bStarts < $starts || $bEnds > $ends) {
+                    $blockers[] = $this->blocker('teaching_grid_break_out_of_bounds', 'Recurring institutional breaks', 'Registrar', 'A recurring teaching-grid break falls outside the approved daily teaching interval.', 'Keep breaks within the daily teaching start and end times.', 'Retain the Draft package until all breaks fall within teaching hours.');
+                    break 2;
+                }
+
+                foreach ($breakIntervals as $existing) {
+                    if ($bStarts < $existing['ends'] && $bEnds > $existing['starts']) {
+                        $blockers[] = $this->blocker('teaching_grid_break_overlap', 'Recurring institutional breaks', 'Registrar', 'Recurring teaching-grid breaks on the same day overlap each other.', 'Resolve overlapping break intervals on the affected day.', 'Retain the Draft package until breaks do not overlap.');
+                        break 3;
+                    }
+                }
+
+                $breakIntervals[] = ['starts' => $bStarts, 'ends' => $bEnds];
+            }
+        }
+
+        $exceptionsList = [];
+        foreach ($package->datedExceptions as $exception) {
+            $exStarts = CarbonImmutable::parse((string) $exception->starts_on);
+            $exEnds = CarbonImmutable::parse((string) $exception->ends_on);
+
+            if ($exEnds->lt($exStarts) || $exStarts->lt($administrativeStartsOn) || $exEnds->gt($administrativeEndsOn)) {
+                $blockers[] = $this->blocker('dated_exception_invalid', 'Dated exceptions', 'Registrar', 'A dated exception has contradictory dates or falls outside the exact-Term administrative bounds.', 'Correct the affected dated exception interval.', 'Retain the Draft package until all dated exceptions are valid.');
+                break;
+            }
+
+            if (blank($exception->authority_reference)) {
+                $blockers[] = $this->blocker('dated_exception_authority_missing', 'Dated exceptions', 'Registrar', 'A dated exception is missing its attributable authority reference.', 'Record the authority reference for each dated exception.', 'Retain the Draft package until all exceptions record authority.');
+                break;
+            }
+
+            $blocksTeaching = (bool) $exception->blocks_teaching;
+            $normalizedType = strtolower(str_replace([' ', '_', '-'], '', (string) $exception->exception_type));
+
+            foreach ($exceptionsList as $existingEx) {
+                if ($exStarts->lte($existingEx['ends']) && $exEnds->gte($existingEx['starts'])) {
+                    $isConflict = false;
+
+                    // 1. Contradictory teaching block effect
+                    if ($blocksTeaching !== $existingEx['blocks_teaching']) {
+                        $isConflict = true;
+                    }
+
+                    // 2. Contradictory exception types (e.g. no-class / holiday / suspension vs make-up / class-day)
+                    $isNoClassA = in_array($normalizedType, ['holiday', 'noclass', 'noclasses', 'suspension', 'closure', 'break'], true);
+                    $isNoClassB = in_array($existingEx['type'], ['holiday', 'noclass', 'noclasses', 'suspension', 'closure', 'break'], true);
+
+                    $isTeachingA = in_array($normalizedType, ['makeup', 'makeupallowed', 'makeupday', 'classday', 'teachingday'], true);
+                    $isTeachingB = in_array($existingEx['type'], ['makeup', 'makeupallowed', 'makeupday', 'classday', 'teachingday'], true);
+
+                    if (($isNoClassA && $isTeachingB) || ($isTeachingA && $isNoClassB)) {
+                        $isConflict = true;
+                    }
+
+                    if ($isConflict) {
+                        $blockers[] = $this->blocker('dated_exception_conflict', 'Dated exceptions', 'Registrar', 'Dated exceptions have conflicting instructional effects or dates.', 'Resolve the conflicting dated exception intervals.', 'Retain the Draft package until dated exceptions do not conflict.');
+                        break 2;
+                    }
+                }
+            }
+
+            $exceptionsList[] = [
+                'starts' => $exStarts,
+                'ends' => $exEnds,
+                'blocks_teaching' => $blocksTeaching,
+                'type' => $normalizedType,
+            ];
         }
 
         if ($package->term->type === Term::TypeSpecialTerm && blank($package->special_term_schedule_basis)) {
