@@ -43,6 +43,7 @@ Use the example environment's mock integrations initially. Keep credentials, mac
 
 When configuring external integrations, consult the dedicated developer guides in [`00_Project_Documents/developer-guides/`](00_Project_Documents/developer-guides/):
 
+* [**TALA Developer Workflow Playbook**](00_Project_Documents/developer-guides/tala-workflow-playbook.md): Visual scenario walkthroughs, the 7-step issue lifecycle (Todo to Done), CI waiting behavior, and error diagnosis.
 * [**ngrok Local Tunneling Guide**](00_Project_Documents/developer-guides/ngrok-setup.md): Exposing localhost for testing incoming webhooks and remote redirects.
 * [**Gmail SMTP Setup & Testing**](00_Project_Documents/developer-guides/smtp-setup.md): App Password setup, `.env` mail variables, and terminal testing via Tinker.
 * [**CP-SAT Cloud Run Solver Integration**](00_Project_Documents/developer-guides/cpsat-cloudrun-setup.md): Service Account key setup, Google Cloud CLI installation, and terminal `/health` verification.
@@ -177,6 +178,10 @@ After approved `.env` changes, clear stale local configuration with `php artisan
 Legacy OCR keys remain in `.env.example`, but the current application has no active OCR client consuming them. Leave them alone during onboarding; request OCR credentials only after an authorized task identifies a working client and its requirements.
 
 ## 4. Starting Your Assigned Issue: The 5-Step Developer Quickstart
+
+> [!TIP]
+> **Need a concrete walkthrough with visual diagrams?**  
+> Read the [**TALA Developer Workflow Playbook**](00_Project_Documents/developer-guides/tala-workflow-playbook.md) for step-by-step case studies, ASCII flowcharts, the PR endgame (Green vs. Red paths), and error diagnosis.
 
 When you are assigned an Issue on the [TALA Development Project Board](https://github.com/users/yosoykyle/projects) (or in your GitHub Issues tab), follow these 5 steps:
 

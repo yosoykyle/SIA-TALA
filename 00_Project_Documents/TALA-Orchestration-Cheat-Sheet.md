@@ -1,6 +1,6 @@
 # TALA Orchestration Cheat Sheet
 
-This is the non-authoritative operator companion to the [TALA Orchestrator Protocol](TALA-Orchestrator-Protocol.md). Use it to choose the next action and copy a prompt. The protocol governs any conflict.
+This is the non-authoritative operator companion to the [TALA Orchestrator Protocol](TALA-Orchestrator-Protocol.md). Use it to choose the next action and copy a prompt. The protocol governs any conflict. For visual scenario walkthroughs, ASCII flowcharts, and the PR endgame guide, see the [**TALA Developer Workflow Playbook**](developer-guides/tala-workflow-playbook.md).
 
 ## Choose the boundary
 
