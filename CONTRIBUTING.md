@@ -176,15 +176,100 @@ After approved `.env` changes, clear stale local configuration with `php artisan
 
 Legacy OCR keys remain in `.env.example`, but the current application has no active OCR client consuming them. Leave them alone during onboarding; request OCR credentials only after an authorized task identifies a working client and its requirements.
 
-## 4. The Three Work Types & Starting Your Assigned Issue
+## 4. Starting Your Assigned Issue: The 5-Step Developer Quickstart
 
-TALA enforces three distinct workflow boundaries governed by [`AGENTS.md`](AGENTS.md) and the [TALA Orchestrator Protocol](00_Project_Documents/TALA-Orchestrator-Protocol.md):
+When you are assigned an Issue on the [TALA Development Project Board](https://github.com/users/yosoykyle/projects) (or in your GitHub Issues tab), follow these 5 steps:
+
+### 1. Create your feature branch off fresh `main`
+```powershell
+git checkout main
+git pull origin main
+git checkout -b feat/issue-NN
+```
+
+### 2. Tell your AI assistant to plan (`READ_ONLY`)
+Copy and paste this prompt into your assistant (Antigravity, Codex, Cursor):
+```text
+Plan #NN. Read the issue and show me an implementation plan before writing any code.
+```
+*Review the proposed plan. If it makes sense, proceed.*
+
+### 3. Tell your AI assistant to implement (`LOCAL_EXECUTION`)
+```text
+Complete #NN on branch feat/issue-NN. Make bounded edits, run tests, format with Pint, and create 1 commit.
+```
+
+### 4. Verify locally
+```powershell
+php artisan test --compact --filter=YourTestName
+vendor/bin/pint --dirty --format agent
+```
+
+### 5. Push and submit your Pull Request
+```powershell
+git push -u origin feat/issue-NN
+gh pr create --body "Closes #NN"
+```
+*(Or click "New Pull Request" on GitHub. The PR template will pre-fill `Closes #NN` and the verification checklist).*
+
+> [!IMPORTANT]
+> **Why `Closes #NN` is Crucial**:  
+> Including `Closes #NN` links your PR to the issue. The issue stays `In Progress` during code review, and automatically moves to `Done` the moment the Lead merges your PR.
+> 
+> **Human Lead Merge Gate**:  
+> Pull Requests **never auto-merge**. Only the Project Lead (`@yosoykyle`) authorizes and executes merges into `main`.
+
+---
+
+### Workflow Decision Flowchart
+
+Use this decision tree to determine which work type, branching strategy, and submission route applies to your task:
+
+```text
+                     ┌─────────────────────────────────────┐
+                     │ Do you have an assigned Task/Issue? │
+                     └──────────────────┬──────────────────┘
+                                        │
+                      ┌─────────────────┴─────────────────┐
+                      │ Yes                               │ No
+                      ▼                                   ▼
+     ┌──────────────────────────────────┐      ┌───────────────────────────┐
+     │ Are there other active branches  │      │ Is it an ad-hoc fix, docs │
+     │ or active parallel developers?   │      │ or read-only exploration? │
+     └────────────────┬─────────────────┘      └─────────────┬─────────────┘
+                      │                                      │
+         ┌────────────┴────────────┐            ┌────────────┴────────────┐
+         │ No                      │ Yes        │ Yes                     │ No
+         ▼                         ▼            ▼                         ▼
+  ┌──────────────┐          ┌──────────────┐ ┌──────────────┐      ┌──────────────┐
+  │ Work Type 1: │          │ Work Type 2: │ │ Work Type 3: │      │ Create Issue │
+  │  Solo Work   │          │Parallel Work │ │Untracked Work│      │ via template │
+  ├──────────────┤          ├──────────────┤ ├──────────────┤      │  in .github/ │
+  │• On `main`   │          │• On branch   │ │• On `main`   │      └──────────────┘
+  │• 1 commit    │          │feat/issue-NN │ │• 1 commit    │
+  │• Direct push │          │• PR + Closes#│ │• Direct push │
+  │  to origin/  │          │• Human Merge │ │  to origin/  │
+  │  main        │          │  Gate        │ │  main        │
+  └──────────────┘          └──────────────┘ └──────────────┘
+```
+
+### The Three Work Types in Plain English
 
 | Work Type | When Used | Workflow & Branch Strategy |
 |---|---|---|
-| **Work Type 1: Solo Work** | Single active implementation issue tracked; zero concurrent branches. | Implemented on `main` in primary checkout; verified on `test_tala_db`; published as exactly **1 local commit** pushed directly to `origin/main`. |
-| **Work Type 2: Parallel Work** | Two or more concurrent issues active; shared surfaces. | Implemented in an isolated git worktree (`git worktree add ../SIA-TALA-slice-NN -b issue-NN-slice-NN origin/main`); published via Pull Request (`Closes #NN`); merged only after CI passes and human owner authorizes. |
-| **Work Type 3: Untracked Work** | Ad-hoc documentation, prompt refinement, or bug investigation without a GitHub Issue. | Inspected read-only; edited locally on `main`; formatted with Pint; published as 1 commit to `origin/main` without GitHub project overhead. |
+| **Work Type 1: Solo Work** | Single active implementation issue tracked; zero concurrent branches or PRs. | Implemented directly on `main` in your primary checkout; verified on disposable `test_tala_db`; published as exactly **1 local commit** pushed directly to `origin/main` after local CI preflight. |
+| **Work Type 2: Parallel Work (Team Default)** | Two or more concurrent issues active; multiple contributors or shared seams. | Implemented on an isolated branch (`feat/issue-NN` or via `git worktree`); verified on `test_tala_db`; published via Pull Request containing **`Closes #NN`**; merged **only after CI passes and the Human Project Owner explicitly authorizes it**. |
+| **Work Type 3: Untracked Work** | Ad-hoc documentation tweaks, prompt refinements, or bug investigations without a GitHub Issue. | Inspected read-only; edited locally on `main`; formatted with Pint; published as 1 commit to `origin/main` without GitHub Project board overhead. |
+
+### Demystifying `<tala_action>` XML Tags (Prompts for AI, Not Chores for Humans)
+
+Throughout the protocol and cheat sheet, you will encounter structured XML snippets such as `<tala_action action="plan" issue="NN">`.
+
+* **What they are**: These are machine-readable, structured prompt instructions designed specifically for AI coding assistants (such as OpenAI Codex, Antigravity, Claude Code, or Cursor). Modern LLMs parse XML tags with extreme reliability, ensuring they adhere strictly to permission boundaries (e.g. `READ_ONLY`) and do not perform destructive or out-of-scope actions.
+* **What they are NOT**: They are **not** bureaucratic documentation chores or forms that human developers must write, fill out, or commit.
+* **How to use them**:
+  - **Copy-Paste to your AI**: You can copy and paste the XML block directly into your AI chat prompt.
+  - **Or use Plain English**: You can simply type the plaintext shorthand (e.g., `Plan #NN` or `Complete #NN`). Your AI assistant will follow the same boundary rules.
 
 ### Re-anchoring for an Assigned Issue
 

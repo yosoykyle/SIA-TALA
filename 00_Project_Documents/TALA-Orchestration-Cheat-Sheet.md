@@ -88,7 +88,7 @@ Under a READ_ONLY boundary:
     duplicate, and dependency-blocked work. Run the protocol's operability and
     feasibility check, then explain why this is the next dependency-ready slice.
 
-    Draft the outcome, owner, authority and UI IDs, scope, dependencies, material
+    Draft the outcome, owner, governing specifications and target surfaces, scope, dependencies, material
     implementation order, acceptance criteria, verification and browser scenarios,
     exclusions, and stop conditions. Self-review it as the leanest acceptance-
     complete contract and correct unsupported choices or contradictions.
@@ -123,6 +123,52 @@ After accepting the draft, authorize Issue creation:
 
 Project automation adds an open `implementation` Issue as `Todo`.
 
+### Alternative: Drafting Standalone Work (Tooling, DX, Docs)
+
+When proposing developer tooling, test infra, documentation, or maintenance not owned by an active academic coordination cycle, draft it as standalone using `.github/ISSUE_TEMPLATE/02_standalone_work.md`:
+
+```xml
+<tala_action action="derive_standalone">
+  <boundary>READ_ONLY</boundary>
+  <objective>Draft standalone GitHub Issue contract</objective>
+  <instructions>
+    Draft a standalone issue contract for internal developer tooling, infrastructure, documentation,
+    or codebase maintenance. Exclude academic lifecycle features.
+    Provide the mandatory standalone rationale explaining why no active coordination cycle owns this outcome.
+    Define outcome, owner, bounded scope, exclusions, acceptance criteria, and verification plan.
+  </instructions>
+  <constraints>Read-only. Draft the Issue only; do not create it.</constraints>
+</tala_action>
+```
+
+*(Plaintext equivalent)*:
+```text
+Draft a standalone GitHub Issue for [brief description of task].
+Include the mandatory standalone rationale explaining why no active coordination cycle owns it,
+bounded scope, exclusions, acceptance criteria, and verification approach. Read-only.
+```
+
+After accepting the draft, create it parentless:
+
+```xml
+<tala_action action="create_standalone_issue">
+  <boundary>LOCAL_EXECUTION</boundary>
+  <objective>Create approved standalone GitHub Issue</objective>
+  <instructions>
+    Create the approved parentless standalone Issue using the accepted contract.
+    Apply label "implementation", assign the approved owner, and verify it appears in
+    TALA Development with status Todo.
+  </instructions>
+  <constraints>Do not plan, implement, create a branch, commit, publish, merge, or deploy.</constraints>
+</tala_action>
+```
+
+*(Plaintext equivalent)*:
+```text
+Create the approved standalone GitHub Issue on GitHub from our accepted draft. Ensure it is parentless,
+labeled "implementation", assigned to [owner], and tracked as Todo in TALA Development.
+```
+
 ### 3. Plan
 
 ```xml
@@ -131,7 +177,7 @@ Project automation adds an open `implementation` Issue as `Todo`.
   <objective>Formulate decision-complete implementation plan for #NN</objective>
   <instructions>
     Read the named GitHub Issue, relevant Git authority, current implementation, and qualified sources.
-    Produce a decision-complete plan identifying canonical UI inventory IDs, hierarchy, component disposition,
+    Produce a decision-complete plan identifying target surfaces, hierarchy, component disposition,
     states, responsive behavior, keyboard and screen-reader accessibility, and browser verification scenarios.
   </instructions>
   <constraints>Read-only. Make no local edits, commits, or external writes.</constraints>
@@ -207,8 +253,15 @@ Before success, classify every criterion as `Verified`, `Partial`, or `Unverifie
 
 *(Natural-language shorthand `Publish #NN` remains valid).*
 
-- Solo: freshly verify and push the accepted commit range from the primary `main` checkout.
-- Concurrent: push the Issue branch and open one PR containing `Closes #NN`.
+- **Solo Mode**: Freshly verify and push the accepted commit range directly from the primary `main` checkout.
+- **Concurrent Mode**: Push the Issue branch (`feat/issue-NN`) and open a Pull Request using `.github/pull_request_template.md`.
+
+### Concurrent PR Lifecycle & Merge Gate Rules
+
+- **Mandatory `Closes #NN` Linkage**: The pull request description must include `Closes #NN`. This links the PR to the issue on GitHub, keeps the card in `In Progress` during review, and enables GitHub Projects v2 automation to automatically transition the issue to `Done` upon merge.
+- **Why Issues Stay `In Progress`**: An issue remains `In Progress` throughout open PR review. Code review, CI verification, and merge readiness are core parts of the delivery lifecycle; work is not `Done` until merged into `main`.
+- **Strict Branch Currency**: Branch protection on `origin/main` requires `required_status_checks.strict: true`. If `main` advances while a PR is open, the PR branch must merge `origin/main` and re-verify CI.
+- **Human Lead Merge Gate**: Pull Requests are NEVER auto-merged. Even when GitHub Actions CI passes, merge requires explicit authorization and manual merge by the Human Project Owner (`@yosoykyle`).
 
 Keep the Issue `In Progress` until required CI passes for the exact published commit or PR head. Revalidate the all-`Verified` ledger, update only evidence-backed checkboxes, leave a compact evidence record, and close or merge last. `Publish #NN` never authorizes deployment or PR merge.
 

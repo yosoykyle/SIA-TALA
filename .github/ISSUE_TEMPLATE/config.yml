@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "TALA Contributor Guide"
+    url: "https://github.com/yosoykyle/SIA-TALA/blob/main/CONTRIBUTING.md"
+    about: "Developer onboarding, 5-step task quickstart, branching, AI pairing, and PR guidelines."
+  - name: "TALA Orchestration Cheat Sheet"
+    url: "https://github.com/yosoykyle/SIA-TALA/blob/main/00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md"
+    about: "Fast reference for prompt templates, commands, and operator state transitions."
+  - name: "TALA Orchestrator Protocol"
+    url: "https://github.com/yosoykyle/SIA-TALA/blob/main/00_Project_Documents/TALA-Orchestrator-Protocol.md"
+    about: "Formal workflow governance, authority hierarchies, boundaries, and evidence standards."
