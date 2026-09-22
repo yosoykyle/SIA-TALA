@@ -37,6 +37,7 @@ dont access
 .mcp.json
 /opencode.json
 /.github/skills/mcp-development/
+/.impeccable/questions/*.state.json
 
 # Local Dev Outputs & Helper Scripts
 /.playwright-mcp/

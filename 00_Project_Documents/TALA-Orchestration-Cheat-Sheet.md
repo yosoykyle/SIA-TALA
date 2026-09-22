@@ -12,7 +12,8 @@ The workflow operates across three explicit permission boundaries: `READ_ONLY`, 
 | `Plan #NN` | `READ_ONLY` | Read-only implementation plan |
 | Re-anchor | Current boundary | Read-only reconstruction, then resume the existing boundary |
 | Create or update an approved Issue | `LOCAL_EXECUTION` / External write | Explicit GitHub write only |
-| `Complete #NN` | `LOCAL_EXECUTION` $\rightarrow$ Complete | Implement, verify, and create one local commit |
+| Implement, fix, change, proceed | `LOCAL_EXECUTION` | Bounded file edits, test runs, Pint, coverage ledger (no commit) |
+| `Complete #NN` | `COMPLETION_AND_PUBLISH` | Requires all criteria Verified; creates ONE local commit |
 | `Publish #NN` | `COMPLETION_AND_PUBLISH` | Push approved solo work or open a PR |
 | Final integrated audit | `READ_ONLY` | Read-only cycle audit |
 | Merge a PR or close coordination | Explicit authorization | Separate explicit authorization |
@@ -209,17 +210,17 @@ Before accepting a draft or plan, confirm that you understand what will be built
 
 ### 4. Complete
 
-After accepting the plan, authorize execution:
+After accepting the plan, implementation proceeds under `LOCAL_EXECUTION` (`implement`, `fix`, `change`). When all acceptance criteria are verified, authorize completion and the local commit:
 
 ```xml
 <tala_action action="complete" issue="NN">
-  <boundary>LOCAL_EXECUTION</boundary>
+  <boundary>COMPLETION_AND_PUBLISH</boundary>
   <objective>Execute and complete #NN</objective>
   <instructions>
-    Mark Issue #NN In Progress in GitHub Project.
-    Implement bounded plan, maintain acceptance coverage map, run non-destructive verification in project environment,
-    remediate in-scope failures, clean intended diff, build criterion-by-criterion acceptance ledger (all Verified),
-    and create ONE bounded local commit.
+    Verify that Issue #NN is In Progress in GitHub Project.
+    Confirm bounded implementation is complete, non-destructive verification passes in project environment,
+    in-scope failures are remediated, intended diff is clean, criterion-by-criterion acceptance ledger is all Verified,
+    and create exactly ONE bounded local commit.
   </instructions>
   <constraints>Do not push, open PR, merge, deploy, or touch unrelated files.</constraints>
 </tala_action>
@@ -227,7 +228,7 @@ After accepting the plan, authorize execution:
 
 *(Natural-language shorthand `Complete #NN` remains valid).*
 
-This marks the Issue `In Progress`, implements the bounded plan, verifies and remediates in-scope failures, cleans the intended diff, and creates one local commit. It never pushes, merges, or deploys.
+This authorizes the completion gate: verifying all criteria are `Verified`, cleaning the intended diff, and creating exactly one bounded local commit. It never pushes, merges, or deploys.
 
 Treat the accepted plan as a decision boundary, not a minimum checklist: actively evaluate owned logic and representative UI states, preserve aligned work, and remediate proven in-scope gaps. Automated tests cannot make an identified owned defect `Verified`.
 

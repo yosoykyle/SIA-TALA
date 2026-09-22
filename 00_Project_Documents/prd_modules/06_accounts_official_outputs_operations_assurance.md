@@ -51,6 +51,10 @@ Clinic 6 is a narrow Student-Term Account companion. It is not a general ledger,
 #### Implementation-evidence boundary
 
 Current finance, payment, output, operations, schema, and test surfaces remain implementation evidence only. A later journey-complete slice must reconcile every consumer against this authority. File presence, migrations, tests, reports, or demo data cannot restore FeeRule precedence, silent percentage fallbacks, global holds, cashiering, allocations, tax documents, refunds, penalties, collections, or generic reporting.
+
+**Provider-Neutral Accounting and PayMongo Implementation-Evidence Boundary:** Core accounts, fee plans, authorized individual assessments, and payment verification are provider-neutral institutional accounting capabilities. TALA supports manual payment verification (bank, cash/teller receipts) independently of third-party gateways. The PayMongo checkout and webhook integration is backed by implementation and automated test evidence (`tests/Feature/Finance/ExactDuePayMongoJourneyTest.php`, `tests/Feature/TAL95BPayMongoWebhookPipelineTest.php`), but live sandbox and production gateway endpoints are unverified in this session. Live merchant activation remains strictly owner-gated.
+
+**Clearance vs. Hold Boundary:** `EnrollmentPaymentRequirementProjection` and `OfficialOutputPaymentClearance` are source-specific ledger calculation projections, never administrative holds. Accounting does not create, manage, or enforce blanket, wildcard, or global holds. Administrative holds are strictly scoped to named actions via `blocking_level` (`blocks_enrollment`, `blocks_cor_print`, `blocks_clearance`, `blocks_record_release`, `blocks_graduation_eligibility`, `blocks_reactivation`, `advisory_only`), fully attributed to responsible offices, provide student-facing resolution requirements, and are maintained separately from financial ledger projections.
 ## 4. Authoritative Records, Fields, and Invariants
 
 These are conceptual product records and projections. They are not approved table, class, route, or API names.

@@ -58,8 +58,8 @@ Every task in TALA follows a strict, consequential pipeline. No code ever lands 
 Every interaction with your AI assistant operates within one of three explicit permission boundaries:
 
 1. **`READ_ONLY`** (`Plan #NN`, `diagnose`, `reanchor`): The AI can read files, inspect Git history, and run read-only database queries. It **cannot** modify code, create files, or make Git commits.
-2. **`LOCAL_EXECUTION`** (`Complete #NN`, `implement`): The AI can make bounded edits to in-scope files, run migrations on disposable `test_tala_db`, execute tests, format with Pint, and create exactly ONE local Git commit. It **cannot** push, open PRs, or touch `origin`.
-3. **`COMPLETION_AND_PUBLISH`** (`Publish #NN`): The AI (or developer) pushes the branch to `origin` and creates the Pull Request linked to the issue. The AI session stops immediately once published.
+2. **`LOCAL_EXECUTION`** (`implement`, `fix`, `change`, `proceed`): The AI can make bounded edits to in-scope files, run migrations on disposable `test_tala_db`, execute tests, and format with Pint. It **cannot** create git commits, push, open PRs, or touch `origin`.
+3. **`COMPLETION_AND_PUBLISH`** (`Complete #NN`, `Publish #NN`, `commit`): The AI creates exactly ONE bounded local commit once verification is complete and all criteria are Verified (`Complete #NN`); and in Publish mode (`Publish #NN`), pushes the branch to `origin` and creates the Pull Request linked to the issue.
 
 ---
 
@@ -92,8 +92,9 @@ This is the primary day-to-day journey for every contributing developer. Follow 
                                  │
  [STEP 4: COMPLETE]              ▼
  ┌───────────────────────────────────────────────────────────────┐
- │ AI Chat: Prompt "Complete #48" (LOCAL_EXECUTION).             │
- │ AI Action: Bounded edits -> Run Pint -> Run Tests -> 1 Commit.│
+ │ AI Chat: Prompt "implement" (LOCAL_EXEC) -> edits/Pint/tests. │
+ │ AI Chat: Prompt "Complete #48" (COMPLETION_AND_PUBLISH)       │
+ │ Action:  All criteria Verified -> creates 1 local commit.     │
  └───────────────────────────────┬───────────────────────────────┘
                                  │
  [STEP 5: PUBLISH]               ▼
@@ -442,7 +443,7 @@ The table below maps the 11 formal commands from the [TALA Orchestrator Protocol
 | `create_issue` | `LOCAL_EXEC` | `"Create approved issue on GitHub"` | AI/dev creates issue; GitHub automation moves card to `Todo`. |
 | `plan` (`Plan #NN`) | `READ_ONLY` | `"Plan #NN. Show plan before writing code."` | AI inspects code, specs, and tests; produces read-only plan. |
 | `review` | `READ_ONLY` | `"Review proposed plan for #NN"` | Optional second-pass audit of architecture or migrations. |
-| `complete` (`Complete #NN`) | `LOCAL_EXEC` | `"Complete #NN on branch feat/issue-NN"` | AI edits code, runs Pint, runs tests, creates 1 local commit. |
+| `complete` (`Complete #NN`) | `COMPLETION_AND_PUBLISH` | `"Complete #NN on branch feat/issue-NN"` | Verifies all criteria Verified, creates 1 local commit. |
 | `publish` (`Publish #NN`) | `PUBLISH` | `"Publish #NN"` or `git push && gh pr create` | Branch pushed to origin; PR opened with `Closes #NN`; AI stops. |
 | `diagnose` | `READ_ONLY` | `"Diagnose #NN: CI failed with error X"` | AI inspects CI logs and pinpoints root cause without edits. |
 | `reanchor` | `CURRENT` | `"Re-anchor session for Issue #NN"` | Restores context after chat compaction or resumption. |

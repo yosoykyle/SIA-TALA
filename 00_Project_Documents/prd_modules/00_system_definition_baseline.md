@@ -63,7 +63,7 @@ In one sentence:
 
 > Define and deliver a lean, coherent, user-centered, policy-aligned, defense-ready Philippine college information system—preserving existing work only where it supports the correct product, and simplifying or rebuilding anything that does not.
 
-TALA is Servitech-first rather than a speculative multi-school platform.
+TALA is Servitech-first rather than a speculative multi-school platform. Institutional authority belongs to the school: all workspaces, student/applicant surfaces, official documents, and notifications must lead with the official institutional identity (**Servitech Institute Asia Inc.** or **Servitech Institute Asia**). System identity is strictly secondary (e.g., *Powered by TALA* or *Generated through TALA from authenticated records*). Bare "TALA Staff Workspace", standalone "TALA" branding, or system-first presentations where institutional authority is exercised are prohibited.
 
 ## 2. Authority, Product Boundary, and Completeness Reset
 
@@ -312,6 +312,26 @@ No demographic field, report, export, state, event, or workflow may be added mer
 
 Navigation visibility is a usability decision, never authorization. Every page, query, action, download, projection, and output rechecks role and record authority server-side.
 
+### 3.7 Administrative Holds and Service Restrictions
+
+TALA strictly prohibits unrestricted, wildcard, or blanket holds that block all services, deny portal sign-in, or lock an account without specific authority.
+
+- **Scoped action blocking levels:** Administrative holds are bounded by the model's explicit `blocking_level` scope:
+  - `blocks_enrollment`: Restricts course proposal confirmation and official registration finalization.
+  - `blocks_cor_print`: Restricts printing or downloading the official Certificate of Registration.
+  - `blocks_clearance`: Restricts clearance processing for academic terms.
+  - `blocks_record_release`: Restricts release of official student academic records, including transcripts.
+  - `blocks_graduation_eligibility`: Restricts graduation evaluation and conferral.
+  - `blocks_reactivation`: Restricts reactivation of inactive or returning students.
+  - `advisory_only`: Informational notice that presents student-facing guidance without blocking automated transactions.
+  No generic grade-viewing block or blanket system lockout is permitted.
+- **Responsible-office attribution:** Every hold records responsible-office ownership aligned with `hold_type`:
+  - `financial`: Owned by the Accounting Office.
+  - `academic_deficit`, `prerequisite`: Owned by the Academic Head Office (or Registrar).
+  - All other types (`documentary`, `behavioral`, `disciplinary`, `enrollment`, `cor_download`, `clearance`, `graduation_eligibility`, `reactivation`, `transfer_out`, `record_release`): Owned by the Registrar Office.
+- **Attribution, student information, and audit history:** Holds capture `reason`, optional internal `staff_only_reason`, student-facing guidance (`student_message`, `resolution_requirement`), creating actor (`created_by`), optional `effective_at` and `expires_at` timestamps, and full lifecycle resolution/waiver history (`resolved_by`, `resolved_at`, `waived_by`, `waived_at`). Expiry is optional rather than mandatory.
+- **Separation from financial projections:** Payment requirements and document clearances (`EnrollmentPaymentRequirementProjection`, `OfficialOutputPaymentClearance`) are source-specific projections computed by Clinic 6 against current ledger obligations. They are not administrative holds and must never be conflated with hold records.
+
 ## 4. Identity, Access, and Public Entry
 
 > **Clinic status — Approved.** The complete Clinic 1 contract now lives in [PRD 01 — Identity, Access, and Public Entry](./01_identity_access_public_entry.md) and the Clinic 1 section of the [UI Surface Blueprint](../ui_surface_blueprint.md). This baseline retains only the cross-module summary.
@@ -348,7 +368,7 @@ Navigation visibility is a usability decision, never authorization. Every page, 
 - **Accepted:** Applicant intake is data-minimized to application scope, minimum identity and contact, prior education, declarations, and the applicable preliminary evidence. Complete Student-reporting demographics are not collected during admission.
 - **Accepted:** Registrar Admissions is one queue-first workbench with small operational counts, native search/date filters and active indicators, owner and next-action presentation, two readiness summaries, and one state-appropriate primary action. There is no analytics dashboard, applicant ranking, or bulk admission decision.
 - **Accepted:** Emails are limited to submission, consolidated Action Needed, Admitted, Not Admitted, Ready for Enrollment, and withdrawal. Delivery failure never rolls back the institutional transaction.
-- **Accepted:** Clinic 2 ends at the same application's derived `ReadyForEnrollment` projection. Clinic 4 consumes it automatically and alone owns registration, placement, finance, official enrollment, Student creation, student-number generation, and Student access. There is no handover button or copied record.
+- **Accepted:** Clinic 2 ends at the same application's derived `ReadyForEnrollment` projection. Clinic 4 consumes it automatically and alone owns registration, placement, finance, official enrollment, Student creation, student-number generation, and Student access. There is no handover button or copied record. **Identity Distinction:** `Ready Applicant != Registration Case != Official Enrollment != Student Identity != Student Number`. Starting registration for a Ready Applicant is authorized by policy either through learner self-service or via an explicit Registrar-assisted trigger action in the Students & Enrollment workbench (`REG-E01`/`REG-E02`).
 - **Accepted:** A requirement classified as `PostEnrollmentFollowUp` does not become an enrollment-readiness blocker. Registrar and Clinic 2 retain responsibility for the follow-up after enrollment; Clinic 4 preserves its reference and may surface it without reclassifying or deciding the credential result.
 
 ## 6. Academic Setup, Offerings, and Published Timetable

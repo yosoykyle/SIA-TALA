@@ -36,8 +36,8 @@ The workflow transitions through three explicit permission boundaries:
 | Boundary | Triggers / Shorthand | Live Project Status | Allowed Operations (Positive Rules) | Prohibited Operations (Constraints) | Exit / Transition Condition |
 | --- | --- | --- | --- | --- | --- |
 | `READ_ONLY` | `Plan #NN`, `review`, `audit`, `diagnose`, `derive` | `Todo` / Unchanged | Read files, inspect Git/GitHub state, run read-only database queries, formulate plans, draft derivation contracts | No workspace edits, no commits, no branch creation, no push, no external mutations | User acceptance of draft or plan |
-| `LOCAL_EXECUTION` | `Complete #NN`, `implement`, `fix`, `change`, `proceed` | Transitions to `In Progress` | Bounded file edits, running tests, fixing in-scope failures, code formatting (Pint), establishing coverage ledger, creating ONE local commit | No push, no PR creation, no merge, no deployment, no file edits outside in-scope target files | All acceptance criteria `Verified` + 1 clean local commit |
-| `COMPLETION_AND_PUBLISH` | `Publish #NN`, `commit and push` | `In Progress` $\rightarrow$ `Done` (via automation) | Solo: push accepted commit range directly to `origin/main` after CI preflight. Concurrent: push branch and open PR with `Closes #NN`. Post evidence record. | Never force-push, never merge PR without separate explicit authorization, never deploy | CI passes on GitHub; Issue closed (solo) or PR merged (concurrent) |
+| `LOCAL_EXECUTION` | `Implement`, `fix`, `change`, `proceed` | Transitions to `In Progress` | Bounded file edits, running tests, fixing in-scope failures, code formatting (Pint), establishing coverage ledger | No git commit, no git push, no branch creation, no PR creation, no deployment, no file edits outside in-scope target files | All acceptance criteria `Verified` and prepared for completion |
+| `COMPLETION_AND_PUBLISH` | `Complete #NN`, `Publish #NN`, `commit`, `commit and push` | `In Progress` $\rightarrow$ `Done` (via automation) | - Complete: Requires passing verification and an all-Verified criterion ledger; creates exactly ONE bounded local commit.<br>- Publish (Solo): Push accepted commit range directly to `origin/main` after fresh CI preflight.<br>- Publish (Concurrent): Push branch and open PR with `Closes #NN`. Post evidence record. | Never force-push, never merge PR without separate explicit authorization, never deploy, never mutate unrelated issues | CI passes on GitHub; Issue closed (solo) or PR merged (concurrent) |
 
 ### Issue derivation
 
@@ -137,9 +137,11 @@ This is a planning and handoff completeness contract. It does not require high-f
 
 A planning request without an issue number works the same way but has no GitHub task mutation. Accepting a plan does not itself authorize implementation while remaining under a read-only boundary.
 
-### Complete
+### Local Execution and Complete
 
-`Complete #NN` explicitly authorizes the agent to mark the named issue `In Progress` and execute the following bounded workflow:
+Under `LOCAL_EXECUTION` (triggered by `implement`, `fix`, `change`, `proceed`), the agent marks the named issue `In Progress` in the GitHub Project and performs bounded local file edits, test runs, code formatting (Pint), and failure remediation strictly without creating Git commits.
+
+`Complete #NN` (under `COMPLETION_AND_PUBLISH`) authorizes the final completion gate: it requires passing verification and an all-`Verified` criterion ledger, creating exactly ONE bounded local commit. It executes the following bounded workflow:
 
 1. **Inspect Authority**: Inspect relevant authority and current implementation.
 2. **Establish Coverage Map**: Before material implementation, establish a working coverage map for every owning-Issue acceptance criterion. Connect each criterion to its applicable governing authority, required domain behavior and ordering, human and automatic actions, UI or output reachability, and proportionate positive, negative, boundary, recovery, stale or concurrent, integration, browser, companion-artifact, external-action, and stop-condition evidence. Reuse the accepted Plan where it already supplies the mapping; maintain the map as findings change. A passing main journey, aggregate tests, or related code never proves criterion coverage by itself.

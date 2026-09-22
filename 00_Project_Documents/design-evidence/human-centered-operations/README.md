@@ -1,10 +1,14 @@
 # Human-Centered Operations Design Evidence
 
-This is the portable, non-authoritative evidence pack for the approved Human-Centered Operations direction. The [design companion](../../TALA-Experience-and-Official-Output-Design-Definition.md), [owning PRD](../../prd_modules/01_identity_access_public_entry.md), [UI Surface Blueprint](../../ui_surface_blueprint.md), and [Architecture Specification](../../architecture_specification.md) govern its use. This inventory correction changes neither [coordination #32](https://github.com/yosoykyle/SIA-TALA/issues/32)'s seven-slice map nor [implementation #33](https://github.com/yosoykyle/SIA-TALA/issues/33)'s scope.
+> [!NOTE]
+> **Status:** HISTORICAL EVIDENCE CHECKPOINT (2026-09-22).
+> This pack contains historical visual evidence from the August 2026 Human-Centered Operations exploration, preserved for provenance and regression reference. The active replacement visual direction for the September 26 capstone scope is governed by root [`PRODUCT.md`](../../../PRODUCT.md), seed [`DESIGN.md`](../../../DESIGN.md) (The Philippine Archival Collegiate Registry), and `.impeccable/surfaces/`.
+
+This is the portable, non-authoritative evidence pack for the superseded Human-Centered Operations direction. The [design companion](../../TALA-Experience-and-Official-Output-Design-Definition.md), [owning PRD](../../prd_modules/01_identity_access_public_entry.md), [UI Surface Blueprint](../../ui_surface_blueprint.md), and [Architecture Specification](../../architecture_specification.md) govern its use. This inventory correction changes neither [coordination #32](https://github.com/yosoykyle/SIA-TALA/issues/32)'s seven-slice map nor [implementation #33](https://github.com/yosoykyle/SIA-TALA/issues/33)'s scope.
 
 ## Reference rule
 
-Use canonical authority and the subsequent owner-approved guardrails first. The selected concept supplies overall direction; the accepted refined prototype **and explicit accepted annotations** supply the more specific presentation/interaction decisions. Later refinements must not be reversed to resemble an earlier board or screenshot.
+Use canonical authority and the subsequent owner-approved guardrails first. The earlier Human-Centered Operations visuals and refined prototype captures serve as historical evidence and anti-references rather than binding design prescriptions; canonical PRDs, the UI Surface Blueprint, and the active replacement direction (Candidate #6 in root `DESIGN.md`) govern actual presentation and interaction decisions. Later refinements must not be reversed to resemble an earlier board or legacy screenshot.
 
 The inventory separates the original concept, historical checkpoints and fresh current-comparison captures. A filename containing `final` is not proof that it includes every accepted refinement. The original concept was correctly retained; the problem was mixed checkpoints and insufficient classification, not corrupted images or selection of the wrong concept.
 
@@ -44,9 +48,9 @@ Source fingerprints (SHA-256; source files preserved):
 
 ## Refinement guardrails
 
-The approved designs and all historical images remain unchanged. They guide hierarchy and visual direction while canonical authority preserves native features and compatible installed plugin responsibilities. Improve weak UI through those supported capabilities. Materially bypassing or replacing a plugin's responsibilities requires explicit approval and replacement proof.
+The historical visual exploration artifacts and prototype screenshots remain unchanged as archival evidence and anti-references, not active design templates. Canonical authority governs all interfaces while preserving independently required native features, authentication composition, and theme behavior. Improve weak UI through supported native capabilities rather than legacy prototype mimicry; materially bypassing or replacing established plugin responsibilities requires explicit approval and replacement proof.
 
-Authentication composition retains the approved Auth Designer presentation through supported configuration. The prototype's small mock login dialog supplies context/copy direction, not a replacement production layout. Light captures do not prove Dark/System behavior or authorize disabling it. Production verification must cover both appearances, native theme selection, system changes and persistent user choice.
+Authentication composition retains the independently required native Auth Designer presentation through supported configuration, not the external prototype's small mock login dialog. Light-only captures do not prove Dark/System behavior, serve as an anti-reference against single-theme lock-in, and never authorize disabling native theme support. Production implementation and verification must preserve both appearances, native theme selection, system following, and persistent explicit user choice.
 
 ## Evidence inventory
 

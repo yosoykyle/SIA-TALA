@@ -1,10 +1,14 @@
 # TALA Experience and Official-Output Design Definition — Human-Centered Operations
 
+> [!NOTE]
+> **Status:** SUPERSEDED HISTORICAL RATIONALE (2026-09-22).
+> This document records the earlier August 2026 Human-Centered Operations prototype rationale and is preserved for historical traceability. The active visual and operational design authority for the September 26 capstone scope is governed by root [`PRODUCT.md`](../PRODUCT.md), seed [`DESIGN.md`](../DESIGN.md) (The Philippine Archival Collegiate Registry), and the Impeccable surface briefs in `.impeccable/surfaces/`.
+
 ## Authority and scope
 
-**Status:** Approved design-definition companion for successor-cycle planning and implementation.
+**Status:** Superseded historical design-definition companion preserved for reference.
 
-This document records the approved Human-Centered Operations direction, its ethical behavioral-design rules, its production-stack translation, and the complete successor coordination map. It refines presentation without creating business workflows. The canonical PRDs continue to own product behavior, the [UI Surface Blueprint](ui_surface_blueprint.md) owns UI IDs and presentation contracts, and the [Architecture Specification](architecture_specification.md) owns integration and deployment boundaries. If this companion conflicts with those documents, the canonical owner governs and the conflict must be corrected before implementation.
+This document records the historically approved (August 2026) Human-Centered Operations direction, its ethical behavioral-design rules, its production-stack translation, and the complete successor coordination map. It refines presentation without creating business workflows. The canonical PRDs continue to own product behavior, the [UI Surface Blueprint](ui_surface_blueprint.md) owns UI IDs and presentation contracts, and the [Architecture Specification](architecture_specification.md) owns integration and deployment boundaries. The active visual replacement direction is established in root [`DESIGN.md`](../DESIGN.md) (Candidate #6). If this companion conflicts with canonical authorities, the canonical owner governs and the conflict must be corrected before implementation.
 
 The approved refined React prototype and its accepted annotations are visual and interaction evidence only. The curated [Human-Centered Operations design-evidence pack](design-evidence/human-centered-operations/README.md) distinguishes the original concept, historical screenshot checkpoints, and current comparison references, with source provenance and decision-to-implementation routing. Later accepted refinements must not be reversed to match an earlier board or a file named `final`; canonical authority and subsequent owner-approved guardrails govern every comparison. Production TALA remains Blade, Bootstrap, Filament, Livewire, Alpine, and print CSS. No React runtime, generic design system product, behavioral engine, or duplicate business logic is introduced.
 

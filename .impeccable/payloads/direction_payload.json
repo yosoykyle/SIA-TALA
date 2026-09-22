@@ -1,0 +1,139 @@
+{
+  "title": "Choose the Visual Direction for TALA",
+  "question": "The roll assigned Candidate #6: The Philippine Archival Collegiate Registry. Review the assigned direction, competitors, and canon, then confirm your choice.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "The Philippine Archival Collegiate Registry",
+      "kicker": "THE ROLL",
+      "lineage": "Philippine collegiate registry folios and archival institutional ledgers",
+      "thesis": "An authoritative, dignified institutional workbench pairing archival collegiate structure with high-assurance operational controls.",
+      "palette": [
+        "#0f2b48",
+        "#fdfcf7",
+        "#1e4976",
+        "#b45309",
+        "#15803d"
+      ],
+      "materials": [
+        "archival parchment ground",
+        "hairline ruling",
+        "official institutional crest",
+        "embossed record borders"
+      ],
+      "viewport": "Servitech Institute Asia Inc. institutional banner leads with authoritative insignia; below, high-density enrollment recovery and timetable conflict consoles display immediate actionable statuses with zero modal friction.",
+      "risk": "Can feel overly formal if interactive micro-states lack responsive tactile feedback.",
+      "raised": [
+        {
+          "from": "challenger-phosphor",
+          "raise": "CP-SAT solver and background jobs gain an embedded live audit stream drawer with high-legibility telemetry."
+        },
+        {
+          "from": "challenger-elbow",
+          "raise": "Structural academic terms and curriculum packages use continuous structural hierarchy brackets."
+        }
+      ]
+    },
+    {
+      "id": "model-pick",
+      "label": "The Registrar's Certified Record Folio",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "Official CHED Form 137, permanent record cards, and dry-sealed transcripts",
+      "thesis": "Every operational screen feels like an authentic, certified collegiate record card with laser-sharp tabular discipline.",
+      "palette": [
+        "#0c2340",
+        "#f8f9fa",
+        "#1e3a8a",
+        "#991b1b"
+      ],
+      "materials": [
+        "linen bond paper ground",
+        "engraved hairline grids",
+        "security watermark rules"
+      ],
+      "viewport": "Structured header with institutional seal watermark, followed by two-column dual-ledger view of active registration cases and class schedule matrices.",
+      "risk": "The most familiar pattern in institutional collegiate administration; highly conventional."
+    },
+    {
+      "id": "challenger-japanese-density",
+      "label": "High-Density Operational Mosaic",
+      "verdict": "competitive",
+      "lineage": "Japanese contemporary high-density information architecture",
+      "thesis": "A dense mosaic of ruled rectangular modules, packed edge-to-edge with utility tabs, eliminating wasted administrative whitespace.",
+      "palette": [
+        "#ffffff",
+        "#18181b",
+        "#dc2626",
+        "#71717a"
+      ],
+      "materials": [
+        "dense CSS grid mosaic",
+        "hairline borders",
+        "utility-red status tabs"
+      ],
+      "viewport": "Edge-to-edge modular dashboard packing timetable conflict matrix, reservation expiry countdowns, and payment queues into a single zero-scroll viewport.",
+      "case": "Exceptional data density and scanability for high-volume registrar work; loses slightly on collegiate institutional warmth.",
+      "risk": "High visual density can overwhelm casual or infrequent users."
+    },
+    {
+      "id": "challenger-phosphor",
+      "label": "Signals Instrument Terminal",
+      "verdict": "declined",
+      "lineage": "Midnight machine room phosphor terminal",
+      "palette": [
+        "#0a0f0d",
+        "#10b981"
+      ],
+      "materials": [
+        "phosphor CRT bloom",
+        "monospaced transcript stream"
+      ],
+      "case": "Lacks collegiate institutional identity; registrar staff do not identify with hacker consoles.",
+      "kept": "High-legibility telemetry audit trail stream for CP-SAT solver and background queues."
+    },
+    {
+      "id": "challenger-elbow",
+      "label": "Elbow Panel Console",
+      "verdict": "declined",
+      "lineage": "Pop-culture sci-fi wall console",
+      "palette": [
+        "#000000",
+        "#c084fc",
+        "#fb923c"
+      ],
+      "materials": [
+        "pill segments",
+        "corner elbows"
+      ],
+      "case": "Pop-culture sci-fi aesthetics conflict with Philippine higher education authority.",
+      "kept": "Continuous structural hierarchy brackets connecting academic term packages to section offerings."
+    }
+  ],
+  "reroll": {
+    "registers": [
+      "safer",
+      "bolder"
+    ]
+  },
+  "buildPath": {
+    "value": "code",
+    "toggle": false
+  },
+  "canon": true,
+  "canonCard": {
+    "label": "The SaaS Category Standard",
+    "thesis": "Standard enterprise education ERP admin portal (floating white cards, neutral slate borders, primary blue actions).",
+    "palette": [
+      "#ffffff",
+      "#0f172a",
+      "#2563eb"
+    ],
+    "materials": [
+      "clean rounded cards",
+      "standard table components"
+    ],
+    "viewport": "Standard top navigation, metric stat cards, and standard paginated data tables with action dropdowns.",
+    "risk": "Completely indistinguishable from generic SaaS templates; lacks distinct institutional presence."
+  },
+  "steer": true
+}
