@@ -243,7 +243,7 @@ Before success, classify every criterion as `Verified`, `Partial`, or `Unverifie
   <boundary>COMPLETION_AND_PUBLISH</boundary>
   <objective>Publish #NN</objective>
   <instructions>
-    Revalidate all-Verified acceptance ledger and verify clean diff.
+    Revalidate all-Verified acceptance ledger, task-applicable local verification, and clean diff.
     - Solo mode (main): Freshly verify and push accepted commit range directly to origin/main.
     - Concurrent mode: Push Issue branch and open PR containing "Closes #NN".
     Verify required CI checks pass for exact published commit or PR head before closing or updating Issue.

@@ -457,7 +457,7 @@ The table below maps the 11 formal commands from the [TALA Orchestrator Protocol
 When working on any TALA task, remember the **Golden Rules**:
 1. 🛑 **Never code on `main`** — Always create `feat/issue-NN`.
 2. 📝 **Always plan first** — `Plan #NN` is read-only and catches mistakes before they happen.
-3. 🧪 **Always verify before committing** — Tests run against `test_tala_db`, styled with Pint.
+3. 🧪 **Always verify before committing** — For code changes, run affected tests against `test_tala_db` and required formatting. For documentation-only changes, check authority consistency, the intended diff, and formatting. Required GitHub CI still applies after publication.
 4. 🔗 **Always include `Closes #NN`** — Links your PR to your issue for automatic closure upon merge.
 5. 🛑 **The AI stops at Publish** — It does not sit waiting for cloud CI.
 6. 🚨 **Never open a new issue for a broken PR** — Fix it right on the same branch and re-push.

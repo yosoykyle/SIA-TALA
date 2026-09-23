@@ -37,7 +37,7 @@ The workflow transitions through three explicit permission boundaries:
 | --- | --- | --- | --- | --- | --- |
 | `READ_ONLY` | `Plan #NN`, `review`, `audit`, `diagnose`, `derive` | `Todo` / Unchanged | Read files, inspect Git/GitHub state, run read-only database queries, formulate plans, draft derivation contracts | No workspace edits, no commits, no branch creation, no push, no external mutations | User acceptance of draft or plan |
 | `LOCAL_EXECUTION` | `Implement`, `fix`, `change`, `proceed` | Transitions to `In Progress` | Bounded file edits, running tests, fixing in-scope failures, code formatting (Pint), establishing coverage ledger | No git commit, no git push, no branch creation, no PR creation, no deployment, no file edits outside in-scope target files | All acceptance criteria `Verified` and prepared for completion |
-| `COMPLETION_AND_PUBLISH` | `Complete #NN`, `Publish #NN`, `commit`, `commit and push` | `In Progress` $\rightarrow$ `Done` (via automation) | - Complete: Requires passing verification and an all-Verified criterion ledger; creates exactly ONE bounded local commit.<br>- Publish (Solo): Push accepted commit range directly to `origin/main` after fresh CI preflight.<br>- Publish (Concurrent): Push branch and open PR with `Closes #NN`. Post evidence record. | Never force-push, never merge PR without separate explicit authorization, never deploy, never mutate unrelated issues | CI passes on GitHub; Issue closed (solo) or PR merged (concurrent) |
+| `COMPLETION_AND_PUBLISH` | `Complete #NN`, `Publish #NN`, `commit`, `commit and push` | `In Progress` $\rightarrow$ `Done` (via automation) | - Complete: Requires passing verification and an all-Verified criterion ledger; creates exactly ONE bounded local commit.<br>- Publish (Solo): Push accepted commit range directly to `origin/main` after task-applicable local verification; check required CI on the published commit before closure.<br>- Publish (Concurrent): Push branch and open PR with `Closes #NN`. Post evidence record. | Never force-push, never merge PR without separate explicit authorization, never deploy, never mutate unrelated issues | CI passes on GitHub; Issue closed (solo) or PR merged (concurrent) |
 
 ### Issue derivation
 
@@ -154,7 +154,7 @@ Under `LOCAL_EXECUTION` (triggered by `implement`, `fix`, `change`, `proceed`), 
 
 | Criterion Status | Definition | Implication for Complete |
 | --- | --- | --- |
-| `Verified` | Proved with current attributable automated or browser evidence | Required for all criteria to succeed |
+| `Verified` | Proved with current attributable evidence appropriate to the criterion, such as document review, tests, or browser observation | Required for all criteria to succeed |
 | `Partial` | Partially implemented or missing evidence for edge/negative paths | Blocks Complete; keeps Issue `In Progress` |
 | `Unverified` | Unchecked, failing, or inferred without direct evidence | Blocks Complete; keeps Issue `In Progress` |
 
@@ -171,10 +171,12 @@ A clear task without an issue number remains valid. A request to implement, fix,
 
 `Publish #NN` is a separate external-write boundary. It first requires current verification, intended-diff evidence, and an all-`Verified` acceptance ledger.
 
+The local preflight below uses the task-applicable verification in Section 7: documentation-only changes require document consistency, intended-diff, and formatting checks, while code changes require affected tests. Documentation-only work does not require a local application-test run. Required GitHub CI still must pass on the exact published commit or pull-request head before closure or merge.
+
 | Mode | Target | Preflight Requirements | Core Actions | Final Project Transition |
 | --- | --- | --- | --- | --- |
-| **Solo Work** | `origin/main` | Clean diff, all criteria `Verified`, local tests passing | Inspect commits ahead of `origin/main`; push accepted range directly to `origin/main`; await required CI checks; post durable evidence record; close Issue | GitHub Project automation sets item to `Done` upon Issue closure |
-| **Concurrent Work** | Feature Branch & PR | Clean diff, all criteria `Verified`, local tests passing | Push Issue branch; open PR with `Closes #NN`; await required CI checks | PR review remains `In Progress`; merge requires separate explicit authorization and triggers `Done` via Project automation |
+| **Solo Work** | `origin/main` | Clean diff, all criteria `Verified`, task-applicable local verification passing | Inspect commits ahead of `origin/main`; push accepted range directly to `origin/main`; await required CI checks; post durable evidence record; close Issue | GitHub Project automation sets item to `Done` upon Issue closure |
+| **Concurrent Work** | Feature Branch & PR | Clean diff, all criteria `Verified`, task-applicable local verification passing | Push Issue branch; open PR with `Closes #NN`; await required CI checks | PR review remains `In Progress`; merge requires separate explicit authorization and triggers `Done` via Project automation |
 
 After the source is on GitHub, every required CI check for the exact published commit or pull-request head must succeed. Immediately before an authorized solo closure or separately authorized concurrent merge, re-fetch the owning Issue and Project state, revalidate that every criterion remains `Verified`, update only evidence-backed acceptance checkboxes, and post a compact durable evidence record. Closure or merge happens last. Any failed gate keeps the Issue `In Progress`; never tick a semantic criterion merely because tests passed.
 

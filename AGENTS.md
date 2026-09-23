@@ -468,7 +468,7 @@ livewire(ListUsers::class)
 <boundary name="COMPLETION_AND_PUBLISH" triggers="Complete #NN, Publish #NN, Commit">
   <allowed>
     - Complete: Requires passing verification and an all-Verified criterion ledger; creates exactly ONE bounded local commit.
-    - Publish (Solo Work on main): Pushes accepted commit range directly to origin/main after fresh CI/test preflight.
+    - Publish (Solo Work on main): Pushes accepted commit range directly to origin/main after fresh, task-applicable local verification (including affected tests for code changes). Required CI must pass on the published commit before issue closure.
     - Publish (Concurrent Work): Pushes issue branch and opens PR containing "Closes #NN".
   </allowed>
   <prohibited>Never force-push, never merge PRs without separate explicit authorization, never deploy, never mutate unrelated issues.</prohibited>
