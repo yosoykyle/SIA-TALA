@@ -47,6 +47,7 @@ class ListScheduleGenerationRuns extends ListRecords
                             ->all())
                         ->searchable()
                         ->required()
+                        ->default(fn (): ?int => request()->integer('term_id') ?: (int) request()->input('tableFilters.term_id.value') ?: null)
                         ->helperText('Only ready Schedule Requirements are included. Generation is blocked while any requirement for the term still needs correction.'),
                 ])
                 ->modalHeading('Generate Timetable')

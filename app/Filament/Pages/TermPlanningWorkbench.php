@@ -9,11 +9,17 @@ use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\FacultyAvailabilityRequestService;
 use App\Actions\Scheduling\ReadyTermPlanningProjection;
+use App\Actions\Scheduling\ReviewTimetableCandidate;
+use App\Actions\Scheduling\ScheduleGenerationService;
+use App\Actions\Scheduling\SchedulePublicationImpactService;
+use App\Actions\Scheduling\SchedulePublishService;
+use App\Actions\Scheduling\ScheduleSolverRetryService;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\Terms\TermResource;
+use App\Models\CandidateScheduleRow;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\PublishedTimetableVersion;
@@ -31,6 +37,7 @@ use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
@@ -43,6 +50,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
+use Throwable;
 use UnitEnum;
 
 final class TermPlanningWorkbench extends Page
@@ -66,6 +74,35 @@ final class TermPlanningWorkbench extends Page
     #[Url]
     public string $viewTab = 'overview';
 
+    #[Url]
+    public ?int $selectedRunId = null;
+
+    #[Url]
+    public string $candidateViewMode = 'matrix';
+
+    #[Url]
+    public ?string $candidateFilterFaculty = null;
+
+    #[Url]
+    public ?string $candidateFilterRoom = null;
+
+    #[Url]
+    public ?string $candidateFilterSection = null;
+
+    #[Url]
+    public ?string $candidateFilterModality = null;
+
+    #[Url]
+    public ?int $selectedVersionId = null;
+
+    #[Url]
+    public bool $isControlDeckCollapsed = false;
+
+    public function toggleControlDeck(): void
+    {
+        $this->isControlDeckCollapsed = ! $this->isControlDeckCollapsed;
+    }
+
     /** @var list<string> */
     private const Tabs = ['overview', 'classes', 'resources', 'generate', 'published'];
 
@@ -83,6 +120,17 @@ final class TermPlanningWorkbench extends Page
 
             if ($activeTermIds->count() === 1) {
                 $this->termId = (int) $activeTermIds->sole();
+            }
+        }
+
+        if ($this->selectedVersionId !== null) {
+            $versionBelongsToTerm = PublishedTimetableVersion::query()
+                ->whereKey($this->selectedVersionId)
+                ->when($this->termId !== null, fn ($query) => $query->where('term_id', $this->termId))
+                ->exists();
+
+            if (! $versionBelongsToTerm) {
+                $this->selectedVersionId = null;
             }
         }
 
@@ -117,6 +165,11 @@ final class TermPlanningWorkbench extends Page
             $this->requestFacultyAvailabilityAction(),
             $this->confirmClassAction(),
             $this->manageTeachingAssignmentAction(),
+            $this->generateTimetableAction(),
+            $this->acceptCandidateAction(),
+            $this->rejectCandidateAction(),
+            $this->retrySolverRunAction(),
+            $this->publishOfficialTimetableAction(),
         ];
     }
 
@@ -639,11 +692,350 @@ final class TermPlanningWorkbench extends Page
             });
     }
 
+    public function generateTimetableAction(): Action
+    {
+        return Action::make('generateTimetable')
+            ->label('Generate Timetable')
+            ->icon(Heroicon::OutlinedPaperAirplane)
+            ->color('primary')
+            ->requiresConfirmation()
+            ->modalHeading('Generate Timetable')
+            ->modalDescription(function (): string {
+                $term = $this->termId ? Term::query()->find($this->termId) : null;
+                $label = $term ? "{$term->label}" : 'the selected term';
+
+                return "Captures the current ready requirements for {$label} as one protected request, then sends it to the configured timetable generator. Nothing becomes official until Registrar review and publication.";
+            })
+            ->modalSubmitActionLabel('Generate Timetable')
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null)
+            ->action(function (): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+
+                try {
+                    $term = Term::query()->findOrFail($this->termId);
+                    $run = app(ScheduleGenerationService::class)->generate($term, $actor);
+                    $this->selectedRunId = $run->id;
+                    $this->viewTab = 'generate';
+
+                    Notification::make()
+                        ->title('Timetable generation requested')
+                        ->body("Request #{$run->id} captured the current ready requirements. Its status refreshes automatically.")
+                        ->success()
+                        ->send();
+                } catch (ValidationException $exception) {
+                    $message = collect($exception->errors())->flatten()->first();
+
+                    Notification::make()
+                        ->title('Timetable generation blocked')
+                        ->body(is_string($message) ? $message : 'Review the Schedule Requirement findings and try again.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                } catch (Throwable $exception) {
+                    report($exception);
+
+                    Notification::make()
+                        ->title('Timetable generation failed')
+                        ->body('TALA could not queue the timetable request. Try again or review the application log.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                }
+            });
+    }
+
+    public function acceptCandidateAction(): Action
+    {
+        return Action::make('acceptCandidate')
+            ->label('Accept Candidate')
+            ->icon(Heroicon::OutlinedCheck)
+            ->color('success')
+            ->requiresConfirmation()
+            ->modalHeading('Accept Candidate Timetable')
+            ->modalDescription('This attributable review records that the candidate meets academic requirements. It remains non-official until separately published.')
+            ->schema([
+                Textarea::make('candidate_review_reason')
+                    ->label('Review reason')
+                    ->required()
+                    ->maxLength(2000),
+            ])
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->canReviewActiveRun())
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $run = $this->activeScheduleRun();
+                abort_unless($run instanceof ScheduleGenerationRun, 404);
+
+                app(ReviewTimetableCandidate::class)->accept($run, $actor, (string) $data['candidate_review_reason']);
+
+                Notification::make()
+                    ->title('Candidate Accepted')
+                    ->body('The candidate has been marked Accepted. It remains non-official until separately published.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public function rejectCandidateAction(): Action
+    {
+        return Action::make('rejectCandidate')
+            ->label('Reject Candidate')
+            ->icon(Heroicon::OutlinedXMark)
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Reject Candidate Timetable')
+            ->modalDescription('Record why this candidate schedule is rejected. A rejected candidate cannot be published.')
+            ->schema([
+                Textarea::make('candidate_review_reason')
+                    ->label('Rejection reason')
+                    ->required()
+                    ->maxLength(2000),
+            ])
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->canReviewActiveRun())
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $run = $this->activeScheduleRun();
+                abort_unless($run instanceof ScheduleGenerationRun, 404);
+
+                app(ReviewTimetableCandidate::class)->reject($run, $actor, (string) $data['candidate_review_reason']);
+
+                Notification::make()
+                    ->title('Candidate Rejected')
+                    ->body('The candidate has been marked Rejected and cannot be published.')
+                    ->danger()
+                    ->send();
+            });
+    }
+
+    public function retrySolverRunAction(): Action
+    {
+        return Action::make('retrySolverRun')
+            ->label('Retry Generation')
+            ->icon(Heroicon::OutlinedArrowPath)
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalHeading('Retry Timetable Generation')
+            ->modalDescription('Retry this same protected generation request. Previous solver diagnostics remain in the operational log.')
+            ->modalSubmitActionLabel('Retry Solver')
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->canRetryActiveRun())
+            ->action(function (): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $run = $this->activeScheduleRun();
+                abort_unless($run instanceof ScheduleGenerationRun, 404);
+
+                try {
+                    $retried = app(ScheduleSolverRetryService::class)->retry($run, $actor);
+                    $this->selectedRunId = $retried->id;
+
+                    Notification::make()
+                        ->title('Solver run requeued')
+                        ->body('Generation has been re-dispatched to the solver.')
+                        ->success()
+                        ->send();
+                } catch (ValidationException $exception) {
+                    $message = collect($exception->errors())->flatten()->first();
+                    Notification::make()
+                        ->title('Solver retry blocked')
+                        ->body(is_string($message) ? $message : 'The solver run cannot be retried.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                }
+            });
+    }
+
+    public function publishOfficialTimetableAction(): Action
+    {
+        return Action::make('publishOfficialTimetable')
+            ->label('Publish Official Timetable')
+            ->icon(Heroicon::OutlinedCheckCircle)
+            ->color('success')
+            ->requiresConfirmation()
+            ->modalHeading('Publish Official Timetable')
+            ->modalDescription(fn (): string => $this->publicationModalDescription())
+            ->modalSubmitActionLabel('Publish Official Timetable')
+            ->schema([
+                TextInput::make('authority_reference')
+                    ->label('External timetable sign-off reference')
+                    ->required()
+                    ->maxLength(255)
+                    ->helperText('Record the official board, council, or Registrar sign-off authority reference.'),
+                Textarea::make('publication_note')
+                    ->label('Publication reason / note')
+                    ->maxLength(2000)
+                    ->required(fn (): bool => $this->publicationReasonRequirement() !== null)
+                    ->helperText(fn (): string => $this->publicationReasonRequirement()
+                        ?? 'Optional for optimal candidate without quality warnings.'),
+            ])
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->canPublishActiveRun())
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $run = $this->activeScheduleRun();
+                abort_unless($run instanceof ScheduleGenerationRun, 404);
+
+                try {
+                    app(SchedulePublishService::class)->publish(
+                        $run,
+                        $actor,
+                        $data['publication_note'] ?? null,
+                        authorityReference: $data['authority_reference'] ?? null,
+                    );
+
+                    $this->viewTab = 'published';
+                    $this->selectedVersionId = null;
+
+                    Notification::make()
+                        ->title('Official Timetable Published')
+                        ->body('The timetable is now authoritative. Switched to Published Timetable view.')
+                        ->success()
+                        ->send();
+                } catch (ValidationException $exception) {
+                    $message = collect($exception->errors())->flatten()->first();
+                    Notification::make()
+                        ->title('Schedule publication blocked')
+                        ->body(is_string($message) ? $message : 'The schedule failed validation and cannot be published.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                }
+            });
+    }
+
+    public function activeScheduleRun(): ?ScheduleGenerationRun
+    {
+        if ($this->termId === null) {
+            return null;
+        }
+
+        if ($this->selectedRunId !== null) {
+            $run = ScheduleGenerationRun::query()
+                ->where('term_id', $this->termId)
+                ->whereKey($this->selectedRunId)
+                ->first();
+
+            if ($run instanceof ScheduleGenerationRun) {
+                return $run;
+            }
+        }
+
+        return ScheduleGenerationRun::query()
+            ->where('term_id', $this->termId)
+            ->latest('id')
+            ->first();
+    }
+
+    public function canReviewActiveRun(): bool
+    {
+        $actor = auth()->user();
+        $run = $this->activeScheduleRun();
+
+        return $actor instanceof User
+            && $run instanceof ScheduleGenerationRun
+            && $run->status === ScheduleGenerationRun::StatusUnderReview
+            && ! in_array($run->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)
+            && Gate::forUser($actor)->allows('reviewCandidates', $run);
+    }
+
+    public function canRetryActiveRun(): bool
+    {
+        $actor = auth()->user();
+        $run = $this->activeScheduleRun();
+
+        return $actor instanceof User
+            && $run instanceof ScheduleGenerationRun
+            && Gate::forUser($actor)->allows('retry', $run)
+            && $run->canRetrySolver();
+    }
+
+    public function canPublishActiveRun(): bool
+    {
+        $actor = auth()->user();
+        $run = $this->activeScheduleRun();
+
+        return $actor instanceof User
+            && $run instanceof ScheduleGenerationRun
+            && Gate::forUser($actor)->allows('publish', $run)
+            && $run->canBePublished();
+    }
+
+    private function publicationModalDescription(): string
+    {
+        $run = $this->activeScheduleRun();
+        if (! $run instanceof ScheduleGenerationRun) {
+            return '';
+        }
+
+        $summary = $run->publicationSummary();
+        $impact = app(SchedulePublicationImpactService::class)->preview($run);
+
+        $description = sprintf(
+            '%d candidate assignments, %d warnings, and %d conflicts. Impact: %d new, %d changed, %d removed, and %d unchanged; %d affected faculty. Publication makes these assignments official and supersedes any prior published version.',
+            $summary['assignments'],
+            $summary['warnings'],
+            $summary['conflicts'],
+            $impact->newAssignments(),
+            $impact->changedAssignments(),
+            $impact->removedAssignments(),
+            $impact->unchangedAssignments(),
+            $impact->affectedFaculty(),
+        );
+
+        if ($impact->blocksFullReplacement()) {
+            return $description.' Warning: Full replacement is blocked because active official student registrations exist. Controlled revision must be used instead.';
+        }
+
+        return $description;
+    }
+
+    private function publicationReasonRequirement(): ?string
+    {
+        $run = $this->activeScheduleRun();
+        if (! $run instanceof ScheduleGenerationRun) {
+            return null;
+        }
+
+        return app(SchedulePublishService::class)->publicationReasonRequirement($run);
+    }
+
+    public function selectRun(int $runId): void
+    {
+        $this->selectedRunId = $runId;
+    }
+
+    public function setCandidateViewMode(string $mode): void
+    {
+        $this->candidateViewMode = in_array($mode, ['matrix', 'table'], true) ? $mode : 'matrix';
+    }
+
+    public function resetCandidateFilters(): void
+    {
+        $this->candidateFilterFaculty = null;
+        $this->candidateFilterRoom = null;
+        $this->candidateFilterSection = null;
+        $this->candidateFilterModality = null;
+    }
+
+    public function selectPublishedVersion(int $versionId): void
+    {
+        $version = PublishedTimetableVersion::query()
+            ->whereKey($versionId)
+            ->when($this->termId !== null, fn ($query) => $query->where('term_id', $this->termId))
+            ->first();
+
+        $this->selectedVersionId = $version?->id;
+    }
+
     public function selectTerm(int $termId): void
     {
         abort_unless(Term::query()->whereKey($termId)->exists(), 404);
         $this->termId = $termId;
         $this->viewTab = 'overview';
+        $this->selectedRunId = null;
+        $this->selectedVersionId = null;
     }
 
     public function showTab(string $tab): void
@@ -658,7 +1050,7 @@ final class TermPlanningWorkbench extends Page
         $terms = Term::query()->with(['academicYear', 'calendarPackages'])->latest('starts_on')->get();
         $term = $terms->firstWhere('id', $this->termId);
         $activePackage = $term instanceof Term
-            ? TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)->first()
+            ? TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)->with('teachingGridRows')->first()
             : null;
         $currentVersion = $term instanceof Term
             ? PublishedTimetableVersion::query()->where('term_id', $term->id)->where('state', PublishedTimetableVersion::StatePublished)->withCount('meetings')->first()
@@ -680,6 +1072,183 @@ final class TermPlanningWorkbench extends Page
                 ])
             : collect();
 
+        $activeRun = $term instanceof Term ? $this->activeScheduleRun() : null;
+        $allRuns = $term instanceof Term
+            ? ScheduleGenerationRun::query()->where('term_id', $term->id)->latest('id')->get()
+            : collect();
+
+        $allCandidateRows = collect();
+        $filteredCandidateRows = collect();
+        $candidateFacultyOptions = collect();
+        $candidateRoomOptions = collect();
+        $candidateSectionOptions = collect();
+        $candidateModalityOptions = collect();
+        $solverOutcome = [];
+        $solverDispatch = [];
+        $solverFailure = [];
+        $qualityMeasures = [];
+        $publicationSummary = ['assignments' => 0, 'warnings' => 0, 'conflicts' => 0];
+
+        if ($activeRun instanceof ScheduleGenerationRun) {
+            $diagnostics = is_array($activeRun->diagnostics) ? $activeRun->diagnostics : [];
+            $solverOutcome = (array) ($diagnostics['solver_outcome'] ?? []);
+            $solverDispatch = (array) ($diagnostics['solver_dispatch'] ?? []);
+            $solverFailure = $activeRun->finalSolverFailure();
+            $qualityMeasures = is_array($activeRun->quality_measures) ? $activeRun->quality_measures : [];
+            $publicationSummary = $activeRun->publicationSummary();
+
+            $allCandidateRows = $activeRun->candidateRows()
+                ->with([
+                    'faculty',
+                    'room',
+                    'schedulingDemand.courseComponent.courseSpecification.course',
+                    'schedulingDemand.sectionDeliveryGroup.section',
+                    'schedulingDemand.termOffering',
+                ])
+                ->orderBy('day_of_week')
+                ->orderBy('starts_at')
+                ->orderBy('id')
+                ->get();
+
+            $candidateFacultyOptions = $allCandidateRows
+                ->filter(fn (CandidateScheduleRow $r): bool => $r->faculty !== null)
+                ->mapWithKeys(fn (CandidateScheduleRow $r): array => [(int) $r->faculty_user_id => (string) $r->faculty?->name])
+                ->unique()
+                ->sort();
+
+            $candidateRoomOptions = $allCandidateRows
+                ->filter(fn (CandidateScheduleRow $r): bool => $r->room !== null)
+                ->mapWithKeys(fn (CandidateScheduleRow $r): array => [(int) $r->room_id => (string) ($r->room?->code ?? $r->room?->name)])
+                ->unique()
+                ->sort();
+
+            $candidateSectionOptions = $allCandidateRows
+                ->mapWithKeys(function (CandidateScheduleRow $r): array {
+                    $section = data_get($r, 'schedulingDemand.sectionDeliveryGroup.section');
+
+                    return $section ? [(int) $section->id => (string) $section->code] : [];
+                })
+                ->unique()
+                ->sort();
+
+            $candidateModalityOptions = $allCandidateRows
+                ->mapWithKeys(function (CandidateScheduleRow $r): array {
+                    $modality = data_get($r, 'schedulingDemand.modality');
+
+                    return $modality ? [(string) $modality => (string) str($modality)->headline()] : [];
+                })
+                ->filter()
+                ->unique()
+                ->sort();
+
+            $filteredCandidateRows = $allCandidateRows;
+
+            if ($this->candidateFilterFaculty) {
+                $filteredCandidateRows = $filteredCandidateRows->where('faculty_user_id', (int) $this->candidateFilterFaculty);
+            }
+            if ($this->candidateFilterRoom) {
+                $filteredCandidateRows = $filteredCandidateRows->where('room_id', (int) $this->candidateFilterRoom);
+            }
+            if ($this->candidateFilterSection) {
+                $filteredCandidateRows = $filteredCandidateRows->filter(
+                    fn (CandidateScheduleRow $r): bool => (int) data_get($r, 'schedulingDemand.sectionDeliveryGroup.section.id') === (int) $this->candidateFilterSection,
+                );
+            }
+            if ($this->candidateFilterModality) {
+                $filteredCandidateRows = $filteredCandidateRows->filter(
+                    fn (CandidateScheduleRow $r): bool => (string) data_get($r, 'schedulingDemand.modality') === (string) $this->candidateFilterModality,
+                );
+            }
+        }
+
+        $matrixDays = [
+            1 => 'Monday',
+            2 => 'Tuesday',
+            3 => 'Wednesday',
+            4 => 'Thursday',
+            5 => 'Friday',
+            6 => 'Saturday',
+        ];
+        if (
+            $allCandidateRows->contains('day_of_week', 7)
+            || ($activePackage?->teachingGridRows && $activePackage->teachingGridRows->contains('day_of_week', 7))
+            || (is_array($term?->scheduling_days) && in_array(7, $term->scheduling_days, true))
+        ) {
+            $matrixDays[7] = 'Sunday';
+        }
+
+        $startHour = null;
+        $endHour = null;
+
+        if ($activePackage instanceof TermCalendarPackage && $activePackage->teachingGridRows->isNotEmpty()) {
+            $startHour = (int) $activePackage->teachingGridRows->map(fn ($r): int => (int) substr((string) $r->starts_at, 0, 2))->min();
+            $endHour = (int) $activePackage->teachingGridRows->map(function ($r): int {
+                $h = (int) substr((string) $r->ends_at, 0, 2);
+                $m = (int) substr((string) $r->ends_at, 3, 2);
+
+                return $m > 0 ? $h : max(0, $h - 1);
+            })->max();
+        }
+
+        if ($startHour === null && $term instanceof Term && $term->scheduling_day_starts_at !== null) {
+            $startHour = (int) substr((string) $term->scheduling_day_starts_at, 0, 2);
+        }
+
+        if ($endHour === null && $term instanceof Term && $term->scheduling_day_ends_at !== null) {
+            $h = (int) substr((string) $term->scheduling_day_ends_at, 0, 2);
+            $m = (int) substr((string) $term->scheduling_day_ends_at, 3, 2);
+            $endHour = $m > 0 ? $h : max(0, $h - 1);
+        }
+
+        $startHour ??= 7;
+        $endHour ??= 20;
+
+        if ($allCandidateRows->isNotEmpty()) {
+            $candidateStart = $allCandidateRows->map(fn ($r): int => (int) substr((string) $r->starts_at, 0, 2))->min();
+            if ($candidateStart !== null && $candidateStart < $startHour) {
+                $startHour = (int) $candidateStart;
+            }
+
+            $candidateEnd = $allCandidateRows->map(function ($r): int {
+                $h = (int) substr((string) $r->ends_at, 0, 2);
+                $m = (int) substr((string) $r->ends_at, 3, 2);
+
+                return $m > 0 ? $h : max(0, $h - 1);
+            })->max();
+
+            if ($candidateEnd !== null && $candidateEnd > $endHour) {
+                $endHour = (int) $candidateEnd;
+            }
+        }
+
+        $matrixHours = range($startHour, max($startHour, $endHour));
+
+        // Published timetable view data
+        $selectedVersion = null;
+        if ($this->selectedVersionId !== null) {
+            $selectedVersion = $versions->firstWhere('id', $this->selectedVersionId);
+            if (! $selectedVersion instanceof PublishedTimetableVersion) {
+                $this->selectedVersionId = null;
+            }
+        }
+
+        if (! $selectedVersion instanceof PublishedTimetableVersion) {
+            $selectedVersion = $currentVersion ?? $versions->first();
+        }
+
+        $publishedMeetings = $selectedVersion instanceof PublishedTimetableVersion
+            ? $selectedVersion->meetings()
+                ->with([
+                    'classOffering',
+                    'faculty',
+                    'room',
+                    'schedulingDemand.courseComponent.courseSpecification.course',
+                ])
+                ->orderBy('day_of_week')
+                ->orderBy('starts_at')
+                ->get()
+            : collect();
+
         return [
             'terms' => $terms,
             'term' => $term,
@@ -687,6 +1256,8 @@ final class TermPlanningWorkbench extends Page
             'draftPackages' => $draftPackages,
             'currentVersion' => $currentVersion,
             'versions' => $versions,
+            'selectedVersion' => $selectedVersion,
+            'publishedMeetings' => $publishedMeetings,
             'readiness' => $term instanceof Term ? app(ReadyTermPlanningProjection::class)->forTerm($term) : null,
             'counts' => $term instanceof Term ? [
                 'classes' => Section::query()->where('term_calendar_package_id', $activePackage?->id)->count(),
@@ -708,6 +1279,21 @@ final class TermPlanningWorkbench extends Page
                 'published' => SectionMeetingResource::getUrl(),
             ],
             'readOnly' => auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? true,
+            'activeRun' => $activeRun,
+            'allRuns' => $allRuns,
+            'solverOutcome' => $solverOutcome,
+            'solverDispatch' => $solverDispatch,
+            'solverFailure' => $solverFailure,
+            'qualityMeasures' => $qualityMeasures,
+            'publicationSummary' => $publicationSummary,
+            'candidateRows' => $filteredCandidateRows,
+            'allCandidateRowsCount' => $allCandidateRows->count(),
+            'candidateFacultyOptions' => $candidateFacultyOptions,
+            'candidateRoomOptions' => $candidateRoomOptions,
+            'candidateSectionOptions' => $candidateSectionOptions,
+            'candidateModalityOptions' => $candidateModalityOptions,
+            'matrixDays' => $matrixDays,
+            'matrixHours' => $matrixHours,
         ];
     }
 
