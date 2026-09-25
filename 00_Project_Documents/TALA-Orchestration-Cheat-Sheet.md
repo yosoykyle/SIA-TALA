@@ -26,7 +26,7 @@ Draft coordination map -> authorize coordination Issue creation
 
 REPEAT PER IMPLEMENTATION ISSUE
 Derive draft -> accept draft -> authorize Issue creation (automation sets Todo)
--> Plan #NN -> accept plan -> Complete #NN -> Publish #NN -> Done
+-> Plan #NN (or reuse accepted plan) -> Complete #NN -> Publish #NN -> Done
 
 PARALLEL WORK
 First verify CI and main protection
@@ -126,7 +126,7 @@ Project automation adds an open `implementation` Issue as `Todo`.
 
 ### Alternative: Drafting Standalone Work (Tooling, DX, Docs)
 
-When proposing developer tooling, test infra, documentation, or maintenance not owned by an active academic coordination cycle, draft it as standalone using `.github/ISSUE_TEMPLATE/02_standalone_work.md`:
+When proposing developer tooling, test infra, documentation, or maintenance not owned by an active academic coordination cycle, draft it as standalone using `.github/ISSUE_TEMPLATE/task.md`:
 
 ```xml
 <tala_action action="derive_standalone">
@@ -157,7 +157,7 @@ After accepting the draft, create it parentless:
   <objective>Create approved standalone GitHub Issue</objective>
   <instructions>
     Create the approved parentless standalone Issue using the accepted contract.
-    Apply label "implementation", assign the approved owner, and verify it appears in
+    Apply the approved label (e.g. "implementation" or "documentation"), assign the approved owner, and verify it appears in
     TALA Development with status Todo.
   </instructions>
   <constraints>Do not plan, implement, create a branch, commit, publish, merge, or deploy.</constraints>
@@ -167,7 +167,7 @@ After accepting the draft, create it parentless:
 *(Plaintext equivalent)*:
 ```text
 Create the approved standalone GitHub Issue on GitHub from our accepted draft. Ensure it is parentless,
-labeled "implementation", assigned to [owner], and tracked as Todo in TALA Development.
+labeled with the approved label (e.g. "implementation" or "documentation"), assigned to [owner], and tracked as Todo in TALA Development.
 ```
 
 ### 3. Plan
@@ -186,6 +186,10 @@ labeled "implementation", assigned to [owner], and tracked as Todo in TALA Devel
 ```
 
 *(Natural-language shorthand `Plan #NN` remains valid).*
+
+Each slice has **one accepted, decision-complete plan**. If an approved pre-Issue plan exists, matches the created Issue, and is recorded in or durably linked from the Issue, reuse it. Invoke `Plan #NN` only when no decision-complete plan exists or a material premise changes; do not repeat planning as ceremony.
+
+The user and Codex ORCH IMPLI decide material scope and approach; AGY ORCH IMPLI makes routine implementation choices within the accepted plan and stops for material conflicts.
 
 Operate under a READ_ONLY boundary. The plan decides **how the accepted Issue will be implemented**. It reads authority, live implementation, and qualified sources when needed, challenges material choices and alternatives, and makes no edits or external writes.
 
@@ -210,7 +214,7 @@ Before accepting a draft or plan, confirm that you understand what will be built
 
 ### 4. Complete
 
-After accepting the plan, implementation proceeds under `LOCAL_EXECUTION` (`implement`, `fix`, `change`). When all acceptance criteria are verified, authorize completion and the local commit:
+After accepting or reusing the plan, implementation proceeds under `LOCAL_EXECUTION` (`implement`, `fix`, `change`, `proceed`) for bounded file edits, testing, and formatting strictly without commits. When all acceptance criteria are verified, authorize completion and the local commit:
 
 ```xml
 <tala_action action="complete" issue="NN">
@@ -230,9 +234,9 @@ After accepting the plan, implementation proceeds under `LOCAL_EXECUTION` (`impl
 
 This authorizes the completion gate: verifying all criteria are `Verified`, cleaning the intended diff, and creating exactly one bounded local commit. It never pushes, merges, or deploys.
 
-Treat the accepted plan as a decision boundary, not a minimum checklist: actively evaluate owned logic and representative UI states, preserve aligned work, and remediate proven in-scope gaps. Automated tests cannot make an identified owned defect `Verified`.
+Treat the accepted plan as a decision boundary, not a minimum checklist: actively evaluate owned logic and representative UI states, preserve aligned work, and remediate proven in-scope gaps.
 
-Near the start, map every acceptance criterion to its governing authority, required behavior and actions, reachable UI or output, and proportionate evidence. Maintain that map as findings change.
+Acceptance criteria are a small set of observable outcomes. Verification matches the work type (documentation-only changes do not require application tests; code changes require affected tests; UI changes require representative rendered or browser checks). Later human QA supplements rather than replaces these automated and local checks. Do not impose disproportionate evidence demands on non-UI or docs slices.
 
 Before success, classify every criterion as `Verified`, `Partial`, or `Unverified` with current evidence. Anything not `Verified` keeps the Issue `In Progress` and blocks publication, merge, closure, and `Done`.
 
@@ -313,23 +317,25 @@ When planner and implementer differ, put the accepted plan or concise execution 
 A fresh agent session is recommended when the owner or Issue changes, but it is optional. Whether the task is new or existing, anchor it to one assigned Issue. The Issue branch, isolated workspace/database, and PR provide parallel isolation. In the assigned developer's session:
 
 ```xml
-<tala_action action="complete" issue="NN" role="implementer">
+<tala_action action="implement" issue="NN" role="implementer">
   <boundary>LOCAL_EXECUTION</boundary>
-  <objective>Complete #NN as assigned implementation owner</objective>
+  <objective>Implement #NN as assigned implementation owner</objective>
   <instructions>
     You are the implementer for this Issue, not the primary TALA orchestrator.
     Read AGENTS.md, the protocol, the owning Issue's body and relevant durable
     comments, and the accepted plan or handoff. Re-anchor from live Git and GitHub
-    state. Verify assignment, dependencies, workspace isolation, and any material
-    task-specific environment, skill, or tool prerequisite. Then create or switch
-    to the Issue branch from accepted, up-to-date main. Remain within this Issue's
-    scope; stop and report if a required prerequisite is unavailable.
+    state. Verify assignment, dependencies, workspace isolation (on the assigned
+    Issue branch for concurrent work or main for authorized solo work), and any
+    material task-specific environment, skill, or tool prerequisite. Remain within
+    this Issue's scope; stop and report if a required prerequisite is unavailable.
 
-    Use applicable project skills and tools. Do not derive or reorder other work,
-    modify coordination, work directly on main, publish, merge, or deploy. Finish
-    only through the verified bounded local commit.
+    Use applicable project skills and tools. Perform bounded local edits, run
+    applicable tests, and format with Pint strictly without commits or branch
+    creation. When in-scope implementation and verification are complete, stop
+    uncommitted and report the diff and verification evidence for independent
+    review. Do not commit, push, create branches, or invoke Complete.
   </instructions>
-  <constraints>Do not modify coordination, work directly on main, publish, merge, or deploy.</constraints>
+  <constraints>No git commit, no git push, no branch creation, no PR creation, no deployment, no file edits outside in-scope target files.</constraints>
 </tala_action>
 ```
 

@@ -114,7 +114,11 @@ Missing or incorrect recorded state stops before `Plan #NN` or `Complete #NN` fo
 
 ### Plan
 
+Each slice has **one accepted, decision-complete plan**. An approved pre-Issue plan can be reused when the created Issue matches it and the concise plan or handoff is recorded in or durably linked from the Issue. Invoke `Plan #NN` when no decision-complete plan exists or a material premise changes; do not repeat planning as ceremony.
+
 `Plan #NN` reads the named GitHub Issue, relevant Git authority, current implementation, and qualified sources when needed, then returns a decision-complete plan. It makes no local edits, commits, or external writes.
+
+The user and Codex ORCH IMPLI decide material scope and approach; AGY ORCH IMPLI makes routine implementation choices within the accepted plan and stops for material conflicts. Keep the handoff concise and durable.
 
 A useful plan states the goal, bounded scope, relevant authorities and surfaces, verification approach, exclusions, and any material decision requiring the user. Add detail only when it can change the decision.
 
@@ -144,7 +148,7 @@ Under `LOCAL_EXECUTION` (triggered by `implement`, `fix`, `change`, `proceed`), 
 `Complete #NN` (under `COMPLETION_AND_PUBLISH`) authorizes the final completion gate: it requires passing verification and an all-`Verified` criterion ledger, creating exactly ONE bounded local commit. It executes the following bounded workflow:
 
 1. **Inspect Authority**: Inspect relevant authority and current implementation.
-2. **Establish Coverage Map**: Before material implementation, establish a working coverage map for every owning-Issue acceptance criterion. Connect each criterion to its applicable governing authority, required domain behavior and ordering, human and automatic actions, UI or output reachability, and proportionate positive, negative, boundary, recovery, stale or concurrent, integration, browser, companion-artifact, external-action, and stop-condition evidence. Reuse the accepted Plan where it already supplies the mapping; maintain the map as findings change. A passing main journey, aggregate tests, or related code never proves criterion coverage by itself.
+2. **Map Acceptance Criteria**: Acceptance criteria must be a small set of observable outcomes. Before material implementation, map each criterion to its expected observable outcome and task-applicable evidence. Reuse the accepted Plan where it already supplies the mapping; maintain the map as findings change. Do not impose disproportionate evidence demands (such as multi-state browser matrices for non-UI work or code tests for documentation). A passing main journey or aggregate test run never proves a specific criterion by itself.
 3. **Targeted Research**: Research official or institutional sources when existing authority is insufficient, conflicting, time-sensitive, security-critical, or likely wrong.
 4. **Bounded Local Edits**: Make bounded local changes strictly to in-scope files.
 5. **Proportionate Verification**: Run proportionate non-destructive verification in the configured project environment.
@@ -211,7 +215,7 @@ The coordination map covers the whole accepted implementation cycle at high-leve
 
 The cycle is complete only when every accepted high-level journey is covered by linked implementation Issues that are `Done` or intentionally `Canceled` with a recorded reason, dependencies are resolved, and a fresh read-only integrated acceptance audit finds no required gap against canonical authority. Required gaps return to the normal derivation and `Plan`–`Complete`–`Publish` loop. Closing the coordination Issue is a separate GitHub write and never authorizes deployment. Materially new approved work after closure starts a successor coordination Issue linked to the completed map; finishing one slice never creates a new coordination cycle.
 
-When planner and implementer differ, the accepted plan or a concise execution handoff must be posted in or durably linked from the owning GitHub Issue before coding begins under an authorized assignment or `Complete #NN` boundary. Read the Issue body, relevant durable comments, and linked plan or handoff together. The handoff identifies relevant authority, bounded scope, accountable ownership, dependencies, material implementation order, verification, exclusions, stop conditions, and any task-specific environment, skill, or tool prerequisite whose absence would block implementation or acceptance. Do not repeat generic project guidance or every available tool.
+When planner and implementer differ, the accepted plan or a concise execution handoff must be posted in or durably linked from the owning GitHub Issue before coding begins under an authorized assignment or `Complete #NN` boundary. Read the Issue body, relevant durable comments, and linked plan or handoff together. The user and Codex ORCH IMPLI decide material scope and approach; AGY ORCH IMPLI makes routine implementation choices within the accepted plan and stops for material conflicts. Keep the handoff concise and durable. The handoff identifies relevant authority, bounded scope, accountable ownership, dependencies, material implementation order, verification, exclusions, stop conditions, and any task-specific environment, skill, or tool prerequisite whose absence would block implementation or acceptance. Do not repeat generic project guidance or every available tool.
 
 The public `TALA Development` GitHub Project provides an `All Work` table and a status-grouped `Board`. It uses exactly `Todo`, `In Progress`, `Done`, and `Canceled`. An open Issue labeled `implementation` is automatically added and set to `Todo`; closing the Issue or merging its linked pull request sets it to `Done`. The agent sets `In Progress` when `Complete #NN` begins and sets `Canceled` only after an explicit intentional stop, supersession, or not-planned decision with a recorded reason. Open pull-request review remains `In Progress`. The active `coordination` Issue remains `In Progress` until the separately authorized final closure sets it to `Done`. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
 
@@ -239,11 +243,14 @@ Memory may help recall prior reasoning but never replaces live Git authority or 
 
 ## 7. Verification and handoff
 
-Verification is part of Complete, not a separate user command. Match it to risk:
+Verification is part of Complete, not a separate user command. Task-applicable verification is proportionate to the change type:
 
-- Documentation: authority consistency, contradiction review, intended diff, and formatting checks.
-- Narrow local behavior: focused positive, negative, authorization, state, and regression checks as relevant, plus required formatting or static analysis.
-- Schema, security, cross-role, destructive, external, or deployment work: stronger automated checks and the necessary human or rendered acceptance.
+- **Documentation-only changes**: Authority consistency, contradiction review, intended diff, and formatting checks. Does not require running application tests, migrations, or database setup.
+- **Backend / code changes**: Affected unit and feature tests run against `test_tala_db`, focused positive/negative paths, authorization, state transitions, regression checks, and code formatting with Pint (`vendor/bin/pint --dirty --format agent`).
+- **UI-bearing changes**: Affected automated tests plus representative rendered or browser checks of key viewports/states, keyboard navigation, and screen-reader accessibility.
+- **End-to-end / integration changes**: Multi-role or external-service integration verification in the configured project environment.
+
+All code changes require affected tests to pass; all UI changes require representative rendered or browser checks; every accepted criterion must be `Verified` before Complete; and required CI checks must pass on published commits. Later human QA supplements rather than replaces these automated and local checks.
 
 Use the project's configured environment and normal commands. Testing configuration belongs to the test infrastructure, not this orchestration protocol.
 

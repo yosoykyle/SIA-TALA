@@ -19,7 +19,7 @@ This playbook provides concrete, visual, scenario-based walkthroughs for everyda
 
 ### The Full Lifecycle in 30 Seconds
 
-Every task in TALA follows a strict, consequential pipeline. No code ever lands on the default branch (`main`) without passing through isolated development, local verification, cloud CI checks, and a human review gate:
+Every task in TALA follows a strict, consequential pipeline. For team and concurrent development, work proceeds through isolated branches and pull requests to protect `main`. (In approved solo mode with zero concurrent work, work proceeds directly on `main` via a single verified commit and direct push):
 
 ```text
  ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
@@ -31,7 +31,7 @@ Every task in TALA follows a strict, consequential pipeline. No code ever lands 
  │ 1 Local Commit  │ <──── │ Pint & Tests    │ <──────────────┘
  │ on your branch  │       │ (LOCAL_EXEC)    │
  └────────┬────────┘       └─────────────────┘
-          │
+          │ (Complete #NN)
           ▼
  ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
  │ Publish PR with │       │ GitHub Actions  │       │ Human Lead Gate │
@@ -49,7 +49,7 @@ Every task in TALA follows a strict, consequential pipeline. No code ever lands 
 
 | Work Type | When to Use | Branch Strategy | Submission & Merge |
 |---|---|---|---|
-| **Work Type 1: Solo Work** | Single active implementation issue tracked; zero concurrent branches or PRs. | Implemented directly on `main` in your primary checkout. | Direct push to `origin/main` after fresh local preflight; auto-closed. |
+| **Work Type 1: Solo Work** | Single active implementation issue tracked; zero concurrent branches or PRs. | Implemented directly on `main` in your primary checkout. | Push to `origin/main` after fresh local preflight; required CI must pass on published commit before Issue closure. |
 | **Work Type 2: Parallel Work (Team Default)** | Multiple developers active or working on parallel features/fixes. | Isolated branch (`feat/issue-NN` or `fix/issue-NN`). | PR with `Closes #NN`; merged **strictly by the Project Lead** after CI passes. |
 | **Work Type 3: Untracked Work** | Ad-hoc internal docs tweaks, prompt tuning, or read-only investigation. | Handled directly on `main` or in session. | 1 clean commit; no GitHub Project board overhead. |
 
@@ -59,15 +59,15 @@ Every interaction with your AI assistant operates within one of three explicit p
 
 1. **`READ_ONLY`** (`Plan #NN`, `diagnose`, `reanchor`): The AI can read files, inspect Git history, and run read-only database queries. It **cannot** modify code, create files, or make Git commits.
 2. **`LOCAL_EXECUTION`** (`implement`, `fix`, `change`, `proceed`): The AI can make bounded edits to in-scope files, run migrations on disposable `test_tala_db`, execute tests, and format with Pint. It **cannot** create git commits, push, open PRs, or touch `origin`.
-3. **`COMPLETION_AND_PUBLISH`** (`Complete #NN`, `Publish #NN`, `commit`): The AI creates exactly ONE bounded local commit once verification is complete and all criteria are Verified (`Complete #NN`); and in Publish mode (`Publish #NN`), pushes the branch to `origin` and creates the Pull Request linked to the issue.
+3. **`COMPLETION_AND_PUBLISH`** (`Complete #NN`, `Publish #NN`, `commit`): The AI creates exactly ONE bounded local commit on the active branch (or directly on `main` for approved solo work) once verification is complete and all criteria are Verified (`Complete #NN`). In Publish mode (`Publish #NN`), it pushes the feature branch to `origin` and opens a PR with `Closes #NN` (concurrent mode), or pushes directly to `origin/main` where required CI must pass before Issue closure (approved solo mode).
 
 ---
 
 ## Section 2: Primary Focus — Getting an Issue (From Todo to Done)
 
-This is the primary day-to-day journey for every contributing developer. Follow these 7 consecutive steps from the moment you are assigned a card to the moment it is merged and closed.
+This is the primary day-to-day journey for every contributing developer. Follow these 7 consecutive steps from the moment you are assigned a card to the moment it is merged and closed. The walkthrough below details the standard **concurrent-work branch/PR workflow** (Work Type 2, the team default). For approved solo work on `main` (Work Type 1), Steps 2, 5, and 7 follow the direct-`main` path instead without feature branches or PRs.
 
-### Visual Flowchart: The 7 Consequential Steps
+### Visual Flowchart: The 7 Consequential Steps (Concurrent-Work Example)
 
 ```text
  [STEP 1: DISCOVER]
@@ -94,13 +94,15 @@ This is the primary day-to-day journey for every contributing developer. Follow 
  ┌───────────────────────────────────────────────────────────────┐
  │ AI Chat: Prompt "implement" (LOCAL_EXEC) -> edits/Pint/tests. │
  │ AI Chat: Prompt "Complete #48" (COMPLETION_AND_PUBLISH)       │
- │ Action:  All criteria Verified -> creates 1 local commit.     │
+ │ Action:  All criteria Verified -> creates 1 local commit      │
+ │          (on branch, or on main for approved solo work).      │
  └───────────────────────────────┬───────────────────────────────┘
                                  │
  [STEP 5: PUBLISH]               ▼
  ┌───────────────────────────────────────────────────────────────┐
  │ AI Chat or Terminal: Prompt "Publish #48".                    │
- │ Action: Push branch & create PR with "Closes #48".            │
+ │ Action: Concurrent: Push branch & create PR ("Closes #48").   │
+ │         Solo: Push to origin/main (CI must pass on commit).   │
  │ Note:   AI session STOPS immediately (no token burning).      │
  └───────────────────────────────┬───────────────────────────────┘
                                  │
@@ -128,7 +130,9 @@ This is the primary day-to-day journey for every contributing developer. Follow 
 
 ---
 
-### Step-by-Step Case Study: Developer "Bob" Working on Issue #48
+### Step-by-Step Case Study: Developer "Bob" Working on Issue #48 (Concurrent-Work Walkthrough)
+
+Below is a practical walkthrough of developer "Bob" using the standard concurrent-work branch/PR workflow (Work Type 2). When operating under authorized solo mode on `main` (Work Type 1), Steps 2, 5, and 7 follow the direct-`main` path instead without feature branches or PRs.
 
 #### Step 1: Discover Card in `Todo` & Read Contract
 Bob opens the [TALA Development Project Board](https://github.com/users/yosoykyle/projects) and sees card `#48` assigned to him in `Todo`:
@@ -143,7 +147,7 @@ git checkout main
 git pull origin main
 git checkout -b feat/issue-48
 ```
-> **Rule:** Never write code on `main` when working in a team. Branch protection will reject any attempt to push directly to `origin/main`.
+> **Rule:** When working in a team or with multiple active contributors, never write code directly on `main`. Branch protection will reject any attempt to push directly to `origin/main`. (Solo work on `main` is authorized only when zero concurrent contributors or branches exist).
 
 #### Step 3: Phase 1 AI Pairing — `Plan #48` (`READ_ONLY`)
 Bob pastes this prompt into his AI coding assistant:
@@ -152,6 +156,9 @@ Plan #48. Read the issue contract, relevant curriculum services, and tests.
 Show me an implementation plan before touching any code.
 ```
 
+> [!TIP]
+> **Reusing Pre-Issue Plans:** If an approved, decision-complete plan or concise execution handoff was already established during derivation and recorded in or linked from Issue #48, Bob does **not** need to invoke `Plan #48` again as ceremony. He can proceed directly to `LOCAL_EXECUTION`. Invoke `Plan #NN` only when no decision-complete plan exists or when a material premise has changed.
+
 **What the AI does behind the scenes:**
 1. Calls read-only tools to examine `app/Services/EnrollmentService.php` and `tests/Feature/EnrollmentTest.php`.
 2. Produces a concise implementation plan outlining the exact files to modify.
@@ -159,22 +166,32 @@ Show me an implementation plan before touching any code.
 
 Bob reads the plan. It looks accurate and bounded.
 
-#### Step 4: Phase 2 AI Pairing — `Complete #48` (`LOCAL_EXECUTION`)
-Bob instructs the AI to execute:
+#### Step 4: Phase 2 AI Pairing — Implementation & Completion (`LOCAL_EXECUTION` $\rightarrow$ `Complete #48`)
+Bob instructs the AI to implement:
 ```text
-Complete #48 on branch feat/issue-48. Make bounded edits, verify with tests
-against test_tala_db, format with Pint, and create exactly 1 local commit.
+Implement #48 on branch feat/issue-48. Make bounded edits, verify with tests
+against test_tala_db, and format with Pint.
 ```
 
-**What the AI does behind the scenes:**
+**What the AI does under `LOCAL_EXECUTION` (no commit yet):**
 1. Modifies `app/Services/EnrollmentService.php` to add the prerequisite validation check.
 2. Adds a regression test to `tests/Feature/EnrollmentTest.php`.
-3. Runs the test suite: `php artisan test --filter=EnrollmentTest`.
+3. Runs the affected tests: `php artisan test --compact --filter=EnrollmentTest`.
 4. Formats code with Pint: `vendor/bin/pint --dirty --format agent`.
-5. Creates a single, clean Git commit on `feat/issue-48`:
-   ```text
-   fix(curriculum): enforce prerequisite check before subject enrollment (#48)
-   ```
+5. Verifies that all acceptance criteria are satisfied.
+
+*(Note for documentation-only tasks: Running the application test suite is not required; verification consists of document consistency, intended diff, and formatting checks).*
+
+Once all criteria are verified, Bob prompts the completion gate:
+```text
+Complete #48. Create 1 bounded local commit.
+```
+
+**What the AI does under `COMPLETION_AND_PUBLISH`:**
+Creates a single, clean Git commit on `feat/issue-48` (or on `main` for approved solo work):
+```text
+fix(curriculum): enforce prerequisite check before subject enrollment (#48)
+```
 
 #### Step 5: Phase 3 AI Pairing — `Publish #48` (`COMPLETION_AND_PUBLISH`)
 Bob tells the AI to publish (or runs it manually in terminal):
@@ -186,6 +203,7 @@ Publish #48. Push branch feat/issue-48 and open a Pull Request.
 git push -u origin feat/issue-48
 gh pr create --title "fix(curriculum): enforce prerequisite check before subject enrollment" --body "Closes #48"
 ```
+*(Solo work equivalent)*: In authorized solo mode on `main`, Publish pushes directly to `origin/main` (`git push origin main`) after local preflight, and required CI must pass on the published commit before Issue closure.
 
 > [!IMPORTANT]
 > **What the AI Agent Does Next: IT STOPS!**  
@@ -337,10 +355,12 @@ When multiple developers are coding on TALA simultaneously, strict branch isolat
 ```
 
 ### Why No One Codes on `main` in Team Mode
-The repository enforces strict **Branch Protection** on `origin/main`:
-* Direct pushes to `origin/main` by collaborators are rejected by GitHub.
+The repository enforces strict **Branch Protection** on `origin/main` for concurrent development:
+* Direct pushes to `origin/main` by collaborators during parallel work are rejected by GitHub.
 * Pull Requests require passing CI before they can be merged.
 * Branch currency is enforced (`required_status_checks.strict: true`). If `main` moves ahead while your PR is open, your PR must pull or merge `main` and re-verify before it can be merged.
+
+*(Note: When operating in approved solo mode with zero concurrent contributors or branches, direct-`main` work is authorized under `AGENTS.md` through a single local commit on `main` and direct push after task-applicable verification).*
 
 ### Standard Branch Naming Conventions
 Always name your feature branch using the issue number:
@@ -443,8 +463,8 @@ The table below maps the 11 formal commands from the [TALA Orchestrator Protocol
 | `create_issue` | `LOCAL_EXEC` | `"Create approved issue on GitHub"` | AI/dev creates issue; GitHub automation moves card to `Todo`. |
 | `plan` (`Plan #NN`) | `READ_ONLY` | `"Plan #NN. Show plan before writing code."` | AI inspects code, specs, and tests; produces read-only plan. |
 | `review` | `READ_ONLY` | `"Review proposed plan for #NN"` | Optional second-pass audit of architecture or migrations. |
-| `complete` (`Complete #NN`) | `COMPLETION_AND_PUBLISH` | `"Complete #NN on branch feat/issue-NN"` | Verifies all criteria Verified, creates 1 local commit. |
-| `publish` (`Publish #NN`) | `PUBLISH` | `"Publish #NN"` or `git push && gh pr create` | Branch pushed to origin; PR opened with `Closes #NN`; AI stops. |
+| `complete` (`Complete #NN`) | `COMPLETION_AND_PUBLISH` | `"Complete #NN"` (or `"Complete #NN on branch feat/issue-NN"`) | Verifies all criteria Verified, creates 1 local commit (on feature branch, or on `main` for solo work). |
+| `publish` (`Publish #NN`) | `COMPLETION_AND_PUBLISH` | `"Publish #NN"` or `git push && gh pr create` | Concurrent: branch pushed to origin; PR opened with `Closes #NN`. Solo: commit pushed to `origin/main` (required CI must pass before closure). AI stops. |
 | `diagnose` | `READ_ONLY` | `"Diagnose #NN: CI failed with error X"` | AI inspects CI logs and pinpoints root cause without edits. |
 | `reanchor` | `CURRENT` | `"Re-anchor session for Issue #NN"` | Restores context after chat compaction or resumption. |
 | `derive_batch` | `READ_ONLY` | `"Derive parallel batch for 2 developers"` | Partitions independent feature slices for concurrent work. |
@@ -455,10 +475,10 @@ The table below maps the 11 formal commands from the [TALA Orchestrator Protocol
 ## Summary Checklist for Every Developer
 
 When working on any TALA task, remember the **Golden Rules**:
-1. 🛑 **Never code on `main`** — Always create `feat/issue-NN`.
-2. 📝 **Always plan first** — `Plan #NN` is read-only and catches mistakes before they happen.
+1. 🛑 **In team/concurrent mode, never code on `main`** — Always create `feat/issue-NN` (Solo work on main is authorized when zero concurrent work exists).
+2. 📝 **Plan first or reuse pre-Issue plan** — Do not repeat `Plan #NN` as ceremony when an accepted plan is already linked.
 3. 🧪 **Always verify before committing** — For code changes, run affected tests against `test_tala_db` and required formatting. For documentation-only changes, check authority consistency, the intended diff, and formatting. Required GitHub CI still applies after publication.
-4. 🔗 **Always include `Closes #NN`** — Links your PR to your issue for automatic closure upon merge.
+4. 🔗 **In PRs, always include `Closes #NN`** — Links your PR to your issue for automatic closure upon merge.
 5. 🛑 **The AI stops at Publish** — It does not sit waiting for cloud CI.
 6. 🚨 **Never open a new issue for a broken PR** — Fix it right on the same branch and re-push.
 7. 👑 **The Lead merges into `main`** — Once merged, GitHub automatically marks your card `Done`!

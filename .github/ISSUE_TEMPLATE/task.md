@@ -30,17 +30,28 @@ Governed by AGENTS.md, CONTRIBUTING.md, and the TALA Orchestrator Protocol.
 - 
 
 ## Acceptance Criteria
-<!-- Testable, unambiguous conditions of satisfaction. -->
+<!-- A small set of observable outcomes that define satisfaction. Keep criteria outcome-based, not prescriptive implementation steps. -->
 - [ ] Criterion 1: 
 - [ ] Criterion 2: 
 
 ## Verification Plan
-<!-- How will you verify this work? -->
-- [ ] **Automated Tests**: (`php artisan test --compact --filter=ExampleTest`)
-- [ ] **Code Formatting**: (`vendor/bin/pint --format agent`)
-- [ ] **Clean Diff**: Working tree clean, touches only in-scope files
+<!-- Task-applicable verification proportionate to the change type. Select and fill applicable items only. -->
+
+### Documentation-Only Changes
+- [ ] **Document Consistency**: Authority consistency and contradiction review
+- [ ] **Intended Diff & Formatting**: Touches only in-scope docs with no extraneous edits, valid Markdown/links
+
+### Code & Backend Changes
+- [ ] **Automated Tests**: Affected unit/feature tests pass on `test_tala_db` (`php artisan test --compact --filter=ExampleTest`)
+- [ ] **Code Formatting**: Clean Pint formatting (`vendor/bin/pint --dirty --format agent`)
+- [ ] **Clean Diff**: Touches only in-scope files with no extraneous edits
+
+### UI-Bearing & End-to-End Changes
+- [ ] **Representative Rendered/Browser Check**: Responsive layouts, empty/loading/error states, keyboard/screen-reader accessibility
+- [ ] **Integration/Multi-Role Check**: External service or cross-role workflow verified if applicable
 
 ## Boundaries
-- **Execution Boundary**: `LOCAL_EXECUTION` for development and 1 local commit.
-- **Publication**: Do not push directly to `origin/main` if working concurrently. Follow PR workflow with `Closes #NN`.
-- **Database Safety**: Never run tests or migration resets against `tala_db`. All automated tests target `test_tala_db`.
+- **Local Execution Boundary**: `LOCAL_EXECUTION` authorizes bounded file edits, running tests, fixing in-scope failures, and Pint formatting. It strictly **prohibits** creating git commits, pushing, or branch mutations.
+- **Completion Gate**: `Complete #NN` (under `COMPLETION_AND_PUBLISH`) authorizes creating exactly **ONE** bounded local commit only after all acceptance criteria are `Verified` with task-applicable evidence.
+- **Publication Boundary**: `Publish #NN` authorizes pushing approved commits (solo work directly to `origin/main`; concurrent work via Issue branch and PR with `Closes #NN`). Required CI checks on GitHub must pass before closure or merge.
+- **Database Safety**: Automated tests target disposable `test_tala_db`, never `tala_db`. (Documentation-only changes do not require a database run).
