@@ -51,7 +51,7 @@ class ApplicantWorkspaceTest extends TestCase
         $this->actingAs($user)
             ->get('/applicant')
             ->assertOk()
-            ->assertSee('TALA Applicant Workspace')
+            ->assertSee('Servitech Institute Asia — Applicant Workspace')
             ->assertSee('No application yet')
             ->assertSee('Current and earlier Applications');
     }

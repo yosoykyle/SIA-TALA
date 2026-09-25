@@ -131,7 +131,7 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
     {
         $panel = (new AdminPanelProvider($this->app))->panel(new Panel);
 
-        $this->assertSame('TALA Staff Workspace', $panel->getBrandName());
+        $this->assertSame('Servitech Institute Asia — Staff Workspace', $panel->getBrandName());
     }
 
     public function test_error_page_actions_and_focus_indicators_meet_contrast_thresholds(): void

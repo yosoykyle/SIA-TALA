@@ -1,4 +1,4 @@
-@extends('layouts.landing-bootstrap', ['title' => 'TALA'])
+@extends('layouts.landing-bootstrap', ['title' => 'Servitech Institute Asia Inc. — Powered by TALA'])
 
 @section('content')
     <a class="tala-skip-link" href="#main-content">
@@ -22,7 +22,7 @@
             <a class="navbar-brand fs-5 fw-bold d-flex align-items-center" href="{{ url('/') }}">
                 <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="Servitech Institute Asia" class="landing-crest" width="48" height="48">
                 <img src="{{ asset('talalogo.png') }}" alt="" class="landing-brand-logo">
-                <span data-navbar-contrast-target>TALA</span>
+                <span data-navbar-contrast-target>Servitech Institute Asia</span>
             </a>
 
             <div class="collapse navbar-collapse justify-content-center" id="navbarNav">
@@ -269,9 +269,9 @@
                     <a class="footer-brand d-inline-flex align-items-center text-decoration-none" href="{{ url('/') }}">
                         <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="Servitech Institute Asia" class="landing-crest" width="48" height="48">
                         <img src="{{ asset('talalogo.png') }}" alt="" class="footer-logo">
-                        <span>TALA</span>
+                        <span>Servitech Institute Asia</span>
                     </a>
-                    <p class="footer-desc mt-3 mb-0">Tertiary Academic Lifecycle Administration for Servitech Institute Asia.</p>
+                    <p class="footer-desc mt-3 mb-0">Powered by TALA · Tertiary Academic Lifecycle Administration</p>
                 </div>
                 <div class="col-lg-5">
                     <nav class="d-flex flex-wrap justify-content-lg-end gap-3" aria-label="Footer navigation">

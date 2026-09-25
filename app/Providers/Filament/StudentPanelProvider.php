@@ -49,7 +49,7 @@ class StudentPanelProvider extends PanelProvider
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
-            ->brandName('TALA Student Hub')
+            ->brandName('Servitech Institute Asia — Student Hub')
             ->plugin(
                 AuthDesignerPlugin::make()
                     ->defaults(fn (AuthPageConfig $config) => $config

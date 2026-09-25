@@ -104,7 +104,7 @@ class AdminPanelProvider extends PanelProvider
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
-            ->brandName('TALA Staff Workspace')
+            ->brandName('Servitech Institute Asia — Staff Workspace')
             ->plugin(
                 AuthDesignerPlugin::make()
                     ->defaults(fn (AuthPageConfig $config) => $config

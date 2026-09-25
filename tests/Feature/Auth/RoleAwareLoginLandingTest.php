@@ -86,13 +86,13 @@ class RoleAwareLoginLandingTest extends TestCase
                 'role' => 'applicant',
                 'status' => User::StatusActive,
                 'path' => '/applicant',
-                'expectedText' => 'TALA Applicant Workspace',
+                'expectedText' => 'Servitech Institute Asia — Applicant Workspace',
             ],
             'student sees Student Hub dashboard' => [
                 'role' => 'student',
                 'status' => User::StatusActive,
                 'path' => '/student',
-                'expectedText' => 'TALA Student Hub',
+                'expectedText' => 'Servitech Institute Asia — Student Hub',
             ],
         ];
     }

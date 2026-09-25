@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Completion\CompletionReadinessProjection;
 use App\Filament\Pages\CompletionAndTor;
 use App\Filament\Student\Pages\Academics;
+use App\Models\GraduationApplication;
 use App\Models\GraduationReviewBatch;
 use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
@@ -67,6 +68,26 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
         $this->assertNotSame(CompletionReadinessProjection::Conferred, $projection['state']);
         $this->assertDatabaseHas('graduation_snapshots', ['id' => $snapshot->id]);
         $this->assertDatabaseCount('degree_conferrals', 0);
+    }
+
+    #[Test]
+    public function graduation_withdrawal_action_uses_unambiguous_task_label(): void
+    {
+        $student = $this->staff('student');
+        $profile = StudentProfile::factory()->create(['user_id' => $student->id]);
+        GraduationApplication::factory()->create([
+            'student_profile_id' => $profile->id,
+            'state' => GraduationApplication::StateActive,
+        ]);
+
+        $this->actingAs($student);
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+
+        Livewire::actingAs($student)
+            ->test(Academics::class)
+            ->assertActionExists('withdrawGraduationApplication')
+            ->assertActionVisible('withdrawGraduationApplication')
+            ->assertSee('Withdraw graduation application');
     }
 
     private function staff(string $role): User

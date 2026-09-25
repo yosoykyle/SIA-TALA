@@ -82,7 +82,7 @@ class Academics extends Page
                     }
                 }),
             Action::make('withdrawGraduationApplication')
-                ->label('Withdraw application')
+                ->label('Withdraw graduation application')
                 ->icon('heroicon-o-x-circle')
                 ->color('gray')
                 ->requiresConfirmation()

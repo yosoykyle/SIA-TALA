@@ -49,7 +49,7 @@ class ApplicantPanelProvider extends PanelProvider
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
-            ->brandName('TALA Applicant Workspace')
+            ->brandName('Servitech Institute Asia — Applicant Workspace')
             ->plugin(
                 AuthDesignerPlugin::make()
                     ->defaults(fn (AuthPageConfig $config) => $config
