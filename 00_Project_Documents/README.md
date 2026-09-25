@@ -25,8 +25,8 @@ The baseline and PRDs own product behavior, the UI Surface Blueprint owns interf
 | --- | --- | --- |
 | Workflow authority | [`../AGENTS.md`](../AGENTS.md), [`TALA-Orchestrator-Protocol.md`](TALA-Orchestrator-Protocol.md) | Planning, execution, verification, preservation, Git, and external-mutation rules only |
 | Workflow quick reference | [`TALA-Orchestration-Cheat-Sheet.md`](TALA-Orchestration-Cheat-Sheet.md) | Derived operational companion for humans and agents; introduces no authority, and the Orchestrator Protocol governs any conflict |
-| Active design foundation | [`../PRODUCT.md`](../PRODUCT.md), [`../DESIGN.md`](../DESIGN.md), [`.impeccable/surfaces/`](../.impeccable/surfaces/) | Confirmed Impeccable replacement design foundation (The Philippine Archival Collegiate Registry) for September 26 scope |
-| Historical design rationale | [`TALA-Experience-and-Official-Output-Design-Definition.md`](TALA-Experience-and-Official-Output-Design-Definition.md) | Superseded Human-Centered Operations design rationale; canonical PRDs, UI Surface Blueprint, Architecture Specification, and root DESIGN.md govern any conflict |
+| Active design foundation | [`../PRODUCT.md`](../PRODUCT.md), [`../DESIGN.md`](../DESIGN.md), [`.impeccable/surfaces/`](../.impeccable/surfaces/) | User-approved refinement of the established blue-led identity, with Impeccable-led workflow and component design for September 26 scope |
+| Historical design rationale | [`TALA-Experience-and-Official-Output-Design-Definition.md`](TALA-Experience-and-Official-Output-Design-Definition.md) | Historical Human-Centered Operations layouts and rationale; selected identity traits survive through current canonical UI authority and DESIGN.md, not the prototype itself |
 | Task management | GitHub Issues and the public [`TALA Development`](https://github.com/users/yosoykyle/projects/3) project | Issues own tracked scope; the project provides `All Work` and `Board` views, with approved implementation intake and terminal `Done` transitions automated as defined by the protocol |
 | Developer setup | [`../README.md`](../README.md), [`../CONTRIBUTING.md`](../CONTRIBUTING.md), [`developer-guides/`](developer-guides/), [`../CLAUDE.md`](../CLAUDE.md), [`../GEMINI.md`](../GEMINI.md) | Application setup, integration runbooks, fresh-clone readiness, and compatibility routing; never product authority |
 
@@ -38,7 +38,7 @@ Classification is determined by the first matching rule below. Every project-aut
 
 | Path | Classification | Reading rule |
 | --- | --- | --- |
-| [`design-evidence/`](design-evidence/) | Supporting evidence — historical evidence and anti-reference | Portable prototype and QA comparisons only; historical evidence and anti-reference; canonical owners govern implementation |
+| [`design-evidence/`](design-evidence/) | Supporting evidence — historical comparison | Portable prototype and QA comparisons; retained identity traits have authority only where promoted into current PRODUCT.md, DESIGN.md, or the UI Blueprint |
 | `prd_modules/_legacy/**` | Supporting evidence — replaced PRDs | Traceability and bounded salvage only; canonical 00–06 wins |
 | [`business-evidence/`](business-evidence/) | Supporting evidence — institutional material | Clarifies terminology, forms, and current/manual practice; cannot override accepted policy or product authority |
 | [`research paper/`](research%20paper/) | Supporting evidence — research | Technical and academic support; not an implementation contract |

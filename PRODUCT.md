@@ -12,7 +12,7 @@ web
 - **Accounting Officer:** Financial controller responsible for publishing term fee plans, evaluating manual payment claims, verifying online payments, computing clearance projections, issuing official financial statements, and placing financial administrative holds.
 - **Faculty:** Academic instructors responsible for viewing official class meeting schedules, monitoring class rosters, inputting final grade rosters, and resolving incomplete (INC) grades within the 1-year window.
 - **Student / Ready Applicant:** Learners tracking admissions readiness, confirming course proposals, reserving class seats, reviewing term accounts, executing PayMongo checkouts or submitting payment proof, viewing released grades, and accessing official enrollment certificates (COR).
-- **Academic Head:** Academic leadership exercising read-only oversight across departments, approving institutional calendar dates, and reviewing curriculum progression signals.
+- **Academic Head:** Academic leadership reviewing institutional calendar and curriculum evidence in read-only TALA oversight; calendar approval occurs outside TALA.
 - **System Administrator:** Technical administrator managing identity security, staff role assignments, TOTP multi-factor authentication, audit logs, and local service health monitoring.
 
 ## Product Purpose
@@ -21,7 +21,7 @@ Tertiary Academic Lifecycle Administration (TALA) is the official institutional 
 
 ## Positioning
 
-Unlike generic higher education ERPs or fragmented LMS plugins, TALA is a lightweight, high-assurance academic operations engine tailored to Philippine college regulations and institutional policies. It integrates a discrete constraint optimization solver (CP-SAT via Google OR-Tools) directly into academic timetable publishing, enforces atomic registration with bounded seat reservations, and maintains append-only event-driven financial and academic ledgers—providing mathematical guarantees against double-booking, over-enrollment, and record tampering.
+Unlike generic higher education ERPs or fragmented LMS plugins, TALA is a lightweight, high-assurance academic operations engine tailored to Philippine college regulations and institutional policies. It integrates a discrete constraint optimization solver (CP-SAT via Google OR-Tools) into academic timetable publishing, enforces atomic registration with bounded seat reservations, and maintains auditable financial and academic record histories. Independent schedule validation, transactional enrollment, and attributable records protect against conflicts, over-enrollment, and silent record changes.
 
 ## Operating Context
 
@@ -38,13 +38,14 @@ Operates in the daily administrative and academic cycle of Servitech Institute A
   6. *Accounts, Payments & Outputs:* Single continuous Term Account, frozen Fee Plans or Authorized Individual Assessments, manual payment proof verification, PayMongo online checkout, official PDF outputs, and local health assurance.
 - **Administrative Holds:** Strictly scoped restrictions defined by the `Hold` model (`blocking_level`: `blocks_enrollment`, `blocks_cor_print`, `blocks_clearance`, `blocks_record_release`, `blocks_graduation_eligibility`, `blocks_reactivation`, `advisory_only`). Blanket account or login bans are prohibited. Holds record office attribution (financial to Accounting; academic deficit/prerequisite to Academic Head; others to Registrar), internal reason and staff-only reason, student-facing resolution requirements (`student_message`, `resolution_requirement`), placing actor, optional expiry, and immutable resolution/waiver audit history (`resolved_by`/`resolved_at`, `waived_by`/`waived_at`).
 - **Ledger Clearances vs Holds:** `EnrollmentPaymentRequirementProjection` and `OfficialOutputPaymentClearance` are real-time derived accounting calculations, strictly separated from administrative holds.
-- **Demonstration Boundaries:** Capstone demonstration focuses on core academic lifecycle (Journeys 2–6). Automated scheduling helper runs via local CP-SAT solver backed by implementation and automated tests (`tests/Unit/TAL65CloudRunSchedulingSolverClientTest.php`), while the August 19, 2026 Cloud Run activation revision remains unverified in this session as a live external service. PayMongo hosted checkout and webhooks are backed by implementation and automated tests (`tests/Feature/Finance/ExactDuePayMongoJourneyTest.php`, `tests/Feature/TAL95BPayMongoWebhookPipelineTest.php`), while live sandbox and production endpoints are unverified in this session; live merchant activation remains strictly owner-gated.
+- **Demonstration Boundaries:** Capstone demonstration follows the retained academic lifecycle. Issue #53 records an actual local Python CP-SAT solve, independent validation, human publication, and schedule projection on guarded `test_tala_db`; the August 19, 2026 Cloud Run activation remains dated evidence, not verification of its current live state. PayMongo hosted checkout and webhooks are implemented and test-backed (`tests/Feature/Finance/ExactDuePayMongoJourneyTest.php`, `tests/Feature/TAL95BPayMongoWebhookPipelineTest.php`), while live sandbox and production endpoints remain unverified here; live merchant activation is owner-gated.
 - **Technical Stack:** Laravel 12 on PHP 8.4, Livewire 4, Tailwind CSS, MySQL system of record.
 
 ## Brand Commitments
 
 - **School-First Institutional Branding:** "Servitech Institute Asia Inc." (or "Servitech Institute Asia") must lead on all page headers, shells, sidebars, print outputs, document headers, and transactional notifications.
 - **Secondary System Attribution:** "TALA" is strictly secondary attribution (e.g., "Powered by TALA" or "Generated through TALA from authenticated records").
+- **Recognizable Visual Identity:** Retain and refine the established blue-led institutional interface, light surfaces, restrained yellow accent, Outfit/Inter typography, full-color school crest, and secondary TALA mark. Existing page layouts and controls are evidence to improve, not a requirement to preserve confusing workflows.
 - **Tone & Voice:** Authoritative, clean, professional, academic, reassuring, transparent, and precise. Generic labels like "TALA Staff Workspace" without the institution name are prohibited.
 
 ## Evidence on Hand
@@ -54,7 +55,7 @@ Operates in the daily administrative and academic cycle of Servitech Institute A
 - Architecture Specification (`00_Project_Documents/architecture_specification.md`).
 - Governing Business Policy (`00_Project_Documents/TALA-Business-Policy.md`).
 - Committed visual baseline screenshots (`00_Project_Documents/design-evidence/human-centered-operations/*.png`).
-- Existing, unexecuted test evidence and active Eloquent models/services.
+- Existing tests and active Eloquent models/services; execution claims belong to their dated Issue and CI records, not the presence of test files alone.
 
 ## Product Principles
 

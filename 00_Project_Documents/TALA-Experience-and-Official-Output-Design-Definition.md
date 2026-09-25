@@ -1,18 +1,18 @@
 # TALA Experience and Official-Output Design Definition — Human-Centered Operations
 
 > [!NOTE]
-> **Status:** SUPERSEDED HISTORICAL RATIONALE (2026-09-22).
-> This document records the earlier August 2026 Human-Centered Operations prototype rationale and is preserved for historical traceability. The active visual and operational design authority for the September 26 capstone scope is governed by root [`PRODUCT.md`](../PRODUCT.md), seed [`DESIGN.md`](../DESIGN.md) (The Philippine Archival Collegiate Registry), and the Impeccable surface briefs in `.impeccable/surfaces/`.
+> **Status:** HISTORICAL RATIONALE; SELECTED IDENTITY TRAITS RETAINED (2026-09-25).
+> This document preserves the August 2026 Human-Centered Operations prototype rationale. Its blue-led identity and useful interaction guardrails are carried forward only where the canonical [UI Surface Blueprint](ui_surface_blueprint.md), root [`PRODUCT.md`](../PRODUCT.md), or refined [`DESIGN.md`](../DESIGN.md) say so. Prototype layouts are not active screen prescriptions.
 
 ## Authority and scope
 
-**Status:** Superseded historical design-definition companion preserved for reference.
+**Status:** Historical design-definition companion preserved for reference; current authority is named above.
 
-This document records the historically approved (August 2026) Human-Centered Operations direction, its ethical behavioral-design rules, its production-stack translation, and the complete successor coordination map. It refines presentation without creating business workflows. The canonical PRDs continue to own product behavior, the [UI Surface Blueprint](ui_surface_blueprint.md) owns UI IDs and presentation contracts, and the [Architecture Specification](architecture_specification.md) owns integration and deployment boundaries. The active visual replacement direction is established in root [`DESIGN.md`](../DESIGN.md) (Candidate #6). If this companion conflicts with canonical authorities, the canonical owner governs and the conflict must be corrected before implementation.
+This document records the historically approved (August 2026) Human-Centered Operations direction, its ethical behavioral-design rules, its production-stack translation, and its successor coordination map. It does not create current business workflows or implementation scope. The canonical PRDs own product behavior, the [UI Surface Blueprint](ui_surface_blueprint.md) owns UI IDs and presentation contracts, and the [Architecture Specification](architecture_specification.md) owns integration and deployment boundaries. Root [`DESIGN.md`](../DESIGN.md) records the user-approved refinement of the established visual identity; Candidate #6 is a superseded exploration. If this companion conflicts with current authorities, the current owner governs.
 
 The approved refined React prototype and its accepted annotations are visual and interaction evidence only. The curated [Human-Centered Operations design-evidence pack](design-evidence/human-centered-operations/README.md) distinguishes the original concept, historical screenshot checkpoints, and current comparison references, with source provenance and decision-to-implementation routing. Later accepted refinements must not be reversed to match an earlier board or a file named `final`; canonical authority and subsequent owner-approved guardrails govern every comparison. Production TALA remains Blade, Bootstrap, Filament, Livewire, Alpine, and print CSS. No React runtime, generic design system product, behavioral engine, or duplicate business logic is introduced.
 
-**Refinement guardrails:** The approved designs and complete seven-slice scope remain unchanged. Improve weak UI through supported native and installed-component capabilities while preserving canonical behavior and compatible plugin responsibilities. Materially bypassing or replacing those responsibilities requires explicit approval and replacement proof. Light reference images do not authorize disabling Filament/Auth Designer's native Light/Dark/System behavior; the UI Surface Blueprint governs both screen appearances and user preference. This clarification does not restart Product Design or the broad product-definition phase.
+**Current reading rule:** The historical prototype and seven-slice map are provenance, not a mandate to keep their layouts or execute that old scope. Preserve canonical behavior and compatible plugin responsibilities while improving weak UI; use focused custom interactions when native composition fails the task. Materially bypassing or replacing an installed plugin responsibility requires explicit approval and replacement proof. Light reference images do not authorize disabling Filament/Auth Designer's native Light/Dark/System behavior. The UI Surface Blueprint governs both screen appearances and user preference.
 
 ## 1. Product and visual direction
 
@@ -77,7 +77,7 @@ Public state comes from authoritative server projections. No CMS, carousel build
 - The institution is the issuer. A restrained `Generated through TALA` footer may identify the product.
 - Preview never issues an output. A stale, inaccessible, or failed source creates no partial or official-looking artifact.
 
-## 6. Current implementation disposition
+## 6. Historical implementation disposition (August 2026)
 
 - **Reuse:** canonical services, policies, projections, Application Wizard, FAQ records, one-page landing foundation, Filament actions/tables/forms, compatible installed plugin responsibilities including Auth Designer, role authorization, and the shared official-output component.
 - **Refine or simplify:** panel theme and shell presentation, architecture-facing routine copy, inconsistent role navigation, repeated standalone output CSS, and pages that expose all evidence before the user needs it. Optimize and track existing approved authentication media while retaining its approved plugin layout; missing or unapproved media uses a safe static fallback. The separate public hero-media approval boundary does not justify discarding existing authentication presentation.

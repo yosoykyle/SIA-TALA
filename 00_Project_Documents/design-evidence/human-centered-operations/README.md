@@ -1,14 +1,14 @@
 # Human-Centered Operations Design Evidence
 
 > [!NOTE]
-> **Status:** HISTORICAL EVIDENCE CHECKPOINT (2026-09-22).
-> This pack contains historical visual evidence from the August 2026 Human-Centered Operations exploration, preserved for provenance and regression reference. The active replacement visual direction for the September 26 capstone scope is governed by root [`PRODUCT.md`](../../../PRODUCT.md), seed [`DESIGN.md`](../../../DESIGN.md) (The Philippine Archival Collegiate Registry), and `.impeccable/surfaces/`.
+> **Status:** HISTORICAL EVIDENCE CHECKPOINT (updated 2026-09-25).
+> This pack preserves August 2026 Human-Centered Operations exploration and comparison captures. The user now retains and refines the recognizable blue-led identity through root [`PRODUCT.md`](../../../PRODUCT.md), seed [`DESIGN.md`](../../../DESIGN.md), and the canonical UI Blueprint; individual prototype layouts do not become current authority.
 
-This is the portable, non-authoritative evidence pack for the superseded Human-Centered Operations direction. The [design companion](../../TALA-Experience-and-Official-Output-Design-Definition.md), [owning PRD](../../prd_modules/01_identity_access_public_entry.md), [UI Surface Blueprint](../../ui_surface_blueprint.md), and [Architecture Specification](../../architecture_specification.md) govern its use. This inventory correction changes neither [coordination #32](https://github.com/yosoykyle/SIA-TALA/issues/32)'s seven-slice map nor [implementation #33](https://github.com/yosoykyle/SIA-TALA/issues/33)'s scope.
+This is a portable, non-authoritative evidence pack. The [design companion](../../TALA-Experience-and-Official-Output-Design-Definition.md), [owning PRD](../../prd_modules/01_identity_access_public_entry.md), [UI Surface Blueprint](../../ui_surface_blueprint.md), and [Architecture Specification](../../architecture_specification.md) govern its use. Historical [coordination #32](https://github.com/yosoykyle/SIA-TALA/issues/32) and [implementation #33](https://github.com/yosoykyle/SIA-TALA/issues/33) remain provenance, not the September 26 delivery map.
 
 ## Reference rule
 
-Use canonical authority and the subsequent owner-approved guardrails first. The earlier Human-Centered Operations visuals and refined prototype captures serve as historical evidence and anti-references rather than binding design prescriptions; canonical PRDs, the UI Surface Blueprint, and the active replacement direction (Candidate #6 in root `DESIGN.md`) govern actual presentation and interaction decisions. Later refinements must not be reversed to resemble an earlier board or legacy screenshot.
+Use canonical authority and subsequent owner-approved decisions first. These visuals and refined prototype captures show the origin of the retained blue-led identity and earlier interaction ideas; they are historical comparison evidence, not binding layout or workflow prescriptions. Root `DESIGN.md` records the active identity refinement. Later work need not mimic an earlier board or legacy screenshot.
 
 The inventory separates the original concept, historical checkpoints and fresh current-comparison captures. A filename containing `final` is not proof that it includes every accepted refinement. The original concept was correctly retained; the problem was mixed checkpoints and insufficient classification, not corrupted images or selection of the wrong concept.
 
@@ -48,7 +48,7 @@ Source fingerprints (SHA-256; source files preserved):
 
 ## Refinement guardrails
 
-The historical visual exploration artifacts and prototype screenshots remain unchanged as archival evidence and anti-references, not active design templates. Canonical authority governs all interfaces while preserving independently required native features, authentication composition, and theme behavior. Improve weak UI through supported native capabilities rather than legacy prototype mimicry; materially bypassing or replacing established plugin responsibilities requires explicit approval and replacement proof.
+The historical visual exploration artifacts and prototype screenshots remain unchanged as archival evidence, not active design templates. Canonical authority governs all interfaces while preserving independently required native features, authentication composition, and theme behavior. Improve weak UI through fitting native capabilities or focused custom interactions rather than prototype mimicry; materially bypassing or replacing installed plugin responsibilities requires explicit approval and replacement proof.
 
 Authentication composition retains the independently required native Auth Designer presentation through supported configuration, not the external prototype's small mock login dialog. Light-only captures do not prove Dark/System behavior, serve as an anti-reference against single-theme lock-in, and never authorize disabling native theme support. Production implementation and verification must preserve both appearances, native theme selection, system following, and persistent explicit user choice.
 
@@ -126,7 +126,7 @@ This is an evidence-routing guide, not a second plan or acceptance ledger. #33 r
 | Ethical behavior and accessibility; companion §§2–3 and owning criteria | Visible hierarchy, explicit next actions and disclosure patterns across current references | Ground progress/defaults/warnings in canonical persisted evidence; no preselected consequential action or coercion. Verify keyboard, screen-reader names/status, contrast, forced colors, reduced motion, exact viewports and 200% zoom. Never copy a prototype defect as an accepted requirement. |
 | Producer/access/failure surfaces absent from the mock; PRD 01 and #33 | No complete prototype equivalent | Independently verify Users & Access, Public Content Notices/FAQ, complete auth/security states and dependency-light failures. Screenshot coverage is not feature coverage. |
 
-Student enrollment, Registrar workbench content, System Health operations and official-output implementation remain with their owning later slices. Their current captures keep the whole pack coherent; #33 consumes only its shared branding/theme/navigation/presentation primitives. The complete seven-slice map, proven-dependency rules, replacement-owned cleanup and final integrated audit remain unchanged.
+At the time of #33, Student enrollment, Registrar workbench content, System Health operations, and official-output implementation belonged to later slices. Their captures keep the historical pack coherent; #33 consumed shared branding/theme/navigation/presentation primitives. That seven-slice map and its cleanup plan are historical; current #48 scope and the September 25 user-approved identity correction govern new work.
 
 ## QA summary and known limits
 

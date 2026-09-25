@@ -20,19 +20,19 @@
 ## Direction Contract
 
 ### THESIS
-A high-density collegiate operational ledger that unifies Ready Applicant conversion, seat reservation review, and scoped hold inspection into an actionable dossier—refusing the standard SaaS pattern of detached modal popups and bloated paginated card grids.
+A Registrar can find the right learner and take the next authorized enrollment action without navigating a maze of disconnected records. The exact future composition remains a task-level design decision; this brief does not require a ledger metaphor or a dense dossier.
 
 ### OWN-WORLD
-Deep archival navy (`#0f2b48`) institutional headers with Servitech Institute Asia Inc. insignia, warm parchment page ground (`#fdfcf7`), crisp hairline grid lines, seal amber (`#b45309`) countdown badges for temporary reservations, restriction crimson tags for active scoped holds, and verification green (`#15803d`) for officially cleared checkpoints.
+Refine the existing institutional blue, light canvas, white task surfaces, restrained yellow accent, Outfit/Inter typography, and school-first crest/secondary TALA mark. Distinguish reservation, scoped restriction, financial clearance, and official enrollment states with accessible text and semantic treatments from the UI Blueprint; do not import the superseded parchment/archival palette.
 
 ### STORY
 The Registrar opens the workbench, sees immediate counts of Ready Applicants and expiring reservations, selects a learner, inspects the 5-checkpoint verification ledger (Eligibility, Proposal Confirmation, Class Placement, Financial Clearance, Registrar Approval), and executes atomic enrollment finalization or guided placement re-validation when a reservation has lapsed.
 
 ### FIRST VIEWPORT
-Institutional header leads; workbench layout explores an asymmetric split (filterable queue: Ready Applicants, Expiring Reservations, Pending Finance, Scoped Holds) paired with an Active Learner Dossier displaying the 5 atomic checkpoints, reserved course blocks, and the primary "Finalize Official Enrollment" commitment action.
+Institutional identity and exact Term context lead. The active learner, next authorized action, and relevant checkpoint/recovery information are visible without forcing every exception into the ordinary path. Queue-plus-detail remains an exploration option, not an approved split ratio or a requirement to rebuild completed #51 behavior.
 
 ### FORM
-The Philippine Archival Collegiate Registry (Position #6 on grounded list; seed key `0d15d662`).
+Established blue-led Servitech identity, refined for this task. Candidate #6 (seed key `0d15d662`) is historical visual exploration, not the active palette or an approval of this brief's exploratory layout.
 
 ### FINISH
 unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
