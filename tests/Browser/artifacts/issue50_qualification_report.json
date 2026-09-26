@@ -1,0 +1,28 @@
+{
+  "timestamp": "2026-09-26T10:41:08.565Z",
+  "database": "test_tala_db",
+  "steps": {
+    "login": "Passed",
+    "initial_term_state": "Verified Draft",
+    "multiple_drafts_choice": "Verified explicit choice required",
+    "keyboard_navigation": "Verified keyboard focus, Escape dismiss, and Enter trigger",
+    "unready_draft_blockers": "Verified blockers visible",
+    "unready_submission_rejection": "Verified rejection and safe halt",
+    "ready_draft_summary": "Verified ready badge, core and optional windows, policy notice, and absence of contradictory failure toast",
+    "mobile_responsiveness": "Verified 390x844 layout, readability, and CTA reachability",
+    "activation_success": "Verified modal close, notification, and immediate Active workbench state",
+    "single_draft_autopreselection": "Verified immediate auto-preselection and summary rendering"
+  },
+  "screenshots": [
+    "tests/Browser/artifacts/screenshots/issue50/01_workbench_initial_term_1366x768.png",
+    "tests/Browser/artifacts/screenshots/issue50/02_modal_multiple_drafts_open_1366x768.png",
+    "tests/Browser/artifacts/screenshots/issue50/03_modal_unready_draft_blockers_1366x768.png",
+    "tests/Browser/artifacts/screenshots/issue50/04_modal_unready_submission_rejected_1366x768.png",
+    "tests/Browser/artifacts/screenshots/issue50/05_modal_ready_draft_summary_1366x768.png",
+    "tests/Browser/artifacts/screenshots/issue50/06_modal_mobile_390x844.png",
+    "tests/Browser/artifacts/screenshots/issue50/07_workbench_after_activation_1366x768.png",
+    "tests/Browser/artifacts/screenshots/issue50/08_modal_single_draft_autopreselected_1366x768.png"
+  ],
+  "consoleErrors": [],
+  "status": "SUCCESS"
+}
