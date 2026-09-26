@@ -35,6 +35,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -43,10 +44,13 @@ use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\HtmlString;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
@@ -500,6 +504,7 @@ final class TermPlanningWorkbench extends Page
     {
         return Action::make('activateCalendarPackage')
             ->label('Activate Calendar Package')
+            ->icon(Heroicon::OutlinedCheckCircle)
             ->color('success')
             ->visible(function (): bool {
                 if (! (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) || $this->termId === null) {
@@ -511,31 +516,126 @@ final class TermPlanningWorkbench extends Page
                     ->where('state', TermCalendarPackage::StateDraft)
                     ->exists();
             })
+            ->modalHeading('Activate Calendar Package')
+            ->modalDescription('Review the selected exact Term, package authority, readiness, and downstream operational windows before activating this package.')
+            ->modalSubmitActionLabel('Activate Calendar Package')
+            ->modalWidth('2xl')
+            ->fillForm(function (): array {
+                if ($this->termId === null) {
+                    return [];
+                }
+
+                $drafts = TermCalendarPackage::query()
+                    ->where('term_id', $this->termId)
+                    ->where('state', TermCalendarPackage::StateDraft)
+                    ->get();
+
+                if ($drafts->count() === 1) {
+                    return [
+                        'package_id' => $drafts->first()->id,
+                    ];
+                }
+
+                return [
+                    'package_id' => null,
+                ];
+            })
             ->schema([
                 Select::make('package_id')
-                    ->label('Draft package')
-                    ->options(fn (): array => TermCalendarPackage::query()
-                        ->where('term_id', $this->selectedTerm()->id)
-                        ->where('state', TermCalendarPackage::StateDraft)
-                        ->get()
-                        ->mapWithKeys(
-                            fn (TermCalendarPackage $package): array => [$package->id => 'v'.$package->version.' · '.$package->authority_reference],
-                        )->all())
+                    ->label('Draft calendar package')
+                    ->placeholder('Select a draft package...')
+                    ->options(function (): array {
+                        if ($this->termId === null) {
+                            return [];
+                        }
+
+                        return TermCalendarPackage::query()
+                            ->where('term_id', $this->termId)
+                            ->where('state', TermCalendarPackage::StateDraft)
+                            ->orderByDesc('version')
+                            ->get()
+                            ->mapWithKeys(function (TermCalendarPackage $package): array {
+                                $details = collect([
+                                    'v'.$package->version,
+                                    $package->authority_reference ? 'Auth: '.$package->authority_reference : null,
+                                    $package->authority_date ? 'Approved: '.$package->authority_date->toDateString() : null,
+                                    ($package->classes_start_on && $package->classes_end_on)
+                                        ? 'Classes: '.$package->classes_start_on->toDateString().' to '.$package->classes_end_on->toDateString()
+                                        : null,
+                                ])->filter()->implode(' · ');
+
+                                return [$package->id => $details];
+                            })
+                            ->all();
+                    })
+                    ->default(function (): ?int {
+                        if ($this->termId === null) {
+                            return null;
+                        }
+
+                        $drafts = TermCalendarPackage::query()
+                            ->where('term_id', $this->termId)
+                            ->where('state', TermCalendarPackage::StateDraft)
+                            ->get();
+
+                        return $drafts->count() === 1 ? $drafts->first()->id : null;
+                    })
                     ->required()
                     ->rules([
                         Rule::exists('term_calendar_packages', 'id')
                             ->where('term_id', $this->termId)
                             ->where('state', TermCalendarPackage::StateDraft),
                     ])
-                    ->searchable(),
+                    ->live()
+                    ->afterStateUpdated(function (Page $livewire): void {
+                        $livewire->dispatch('close-notification', id: 'calendar_package_activation_feedback');
+                    })
+                    ->afterStateUpdatedJs(<<<'JS'
+                        window.dispatchEvent(new CustomEvent('close-notification', { detail: { id: 'calendar_package_activation_feedback' } }));
+                    JS),
+                Placeholder::make('activation_summary')
+                    ->hiddenLabel()
+                    ->content(function (Get $get): Htmlable {
+                        if ($this->termId === null) {
+                            return new HtmlString('');
+                        }
+
+                        $term = $this->selectedTerm();
+                        $packageId = $get('package_id');
+                        $package = null;
+                        $readiness = null;
+
+                        if ($packageId) {
+                            $package = TermCalendarPackage::query()
+                                ->where('term_id', $term->id)
+                                ->where('state', TermCalendarPackage::StateDraft)
+                                ->with(['windows', 'teachingGridRows', 'datedExceptions'])
+                                ->find((int) $packageId);
+
+                            if ($package) {
+                                $readiness = app(TermCalendarPackageReadinessService::class)->for($package);
+                            }
+                        }
+
+                        return new HtmlString(view('filament.pages.partials.activate-calendar-package-summary', [
+                            'term' => $term,
+                            'package' => $package,
+                            'readiness' => $readiness,
+                        ])->render());
+                    })
+                    ->columnSpanFull(),
             ])
-            ->action(function (array $data): void {
+            ->action(function (array $data, Action $action): void {
                 $actor = auth()->user();
-                abort_unless($actor instanceof User, 403);
+                abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
+                $term = $this->selectedTerm();
+                Gate::forUser($actor)->authorize('update', $term);
+
+                $packageId = (int) ($data['package_id'] ?? 0);
                 $package = TermCalendarPackage::query()
-                    ->where('term_id', $this->selectedTerm()->id)
+                    ->where('term_id', $term->id)
                     ->where('state', TermCalendarPackage::StateDraft)
-                    ->find((int) $data['package_id']);
+                    ->find($packageId);
 
                 if (! $package) {
                     throw ValidationException::withMessages([
@@ -545,17 +645,31 @@ final class TermPlanningWorkbench extends Page
 
                 try {
                     app(ActivateTermCalendarPackage::class)->execute($package, $actor);
-                    Notification::make()->title('Calendar Package activated')->success()->send();
+                    Notification::make('calendar_package_activation_feedback')
+                        ->title('Calendar Package activated')
+                        ->body("Calendar Package v{$package->version} is now Active for {$term->label}.")
+                        ->success()
+                        ->send();
                 } catch (ValidationException $exception) {
-                    $errors = collect($exception->errors())->flatten()->all();
-                    Notification::make()
+                    $errors = collect($exception->errors())->flatten()->unique()->values()->all();
+                    Notification::make('calendar_package_activation_feedback')
                         ->title('Cannot activate Calendar Package')
                         ->body(implode(' ', $errors))
                         ->danger()
-                        ->persistent()
+                        ->duration(6000)
                         ->send();
 
                     throw $exception;
+                } catch (Throwable $e) {
+                    report($e);
+                    Notification::make('calendar_package_activation_feedback')
+                        ->title('Activation failed unexpectedly')
+                        ->body('An unexpected error occurred while activating the Calendar Package. Please review the term state and try again.')
+                        ->danger()
+                        ->duration(8000)
+                        ->send();
+
+                    $action->halt();
                 }
             });
     }

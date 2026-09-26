@@ -1,7 +1,18 @@
 <x-filament-panels::page>
     <div class="space-y-6">
         <section aria-labelledby="term-selector" class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-gray-900">
-            <h2 id="term-selector" class="text-base font-semibold text-gray-950 dark:text-white">Exact Term</h2>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 id="term-selector" class="text-base font-semibold text-gray-950 dark:text-white">Exact Term</h2>
+                @if ($term)
+                    <span @class([
+                        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
+                        'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-300' => in_array($term->state, [\App\Models\Term::StateActive, 'Active', 'ACTIVE'], true),
+                        'bg-slate-100 text-slate-700 ring-slate-600/20 dark:bg-gray-800 dark:text-gray-300' => ! in_array($term->state, [\App\Models\Term::StateActive, 'Active', 'ACTIVE'], true),
+                    ])>
+                        Term state: {{ ucfirst(strtolower($term->state)) }}
+                    </span>
+                @endif
+            </div>
             <div class="mt-3 flex flex-wrap gap-2">
                 @forelse ($terms as $option)
                     <button type="button" wire:click="selectTerm({{ $option->id }})" @class([
@@ -10,6 +21,7 @@
                         'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-white/10 dark:text-gray-100 dark:hover:bg-white/15' => $term?->id !== $option->id,
                     ])>
                         {{ $option->academicYear?->label }} · {{ $option->label }}
+                        <span class="ml-1 text-xs opacity-75 font-normal">({{ ucfirst(strtolower($option->state)) }})</span>
                     </button>
                 @empty
                     <p class="text-sm text-gray-600 dark:text-gray-300">No Term exists yet. Registrar can create one from Term records.</p>

@@ -995,6 +995,203 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertSame(Term::StateDraft, $term->fresh()->state);
     }
 
+    public function test_registrar_can_mount_and_submit_activation_modal_with_single_draft_preselected(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create([
+            'state' => Term::StateDraft,
+            'label' => 'First Semester',
+        ]);
+
+        $draft = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateDraft,
+            'version' => 1,
+            'authority_reference' => 'CHED-MEMO-2026-001',
+            'authority_date' => '2026-07-01',
+            'administrative_starts_on' => '2026-08-01',
+            'administrative_ends_on' => '2026-12-31',
+            'classes_start_on' => '2026-08-15',
+            'classes_end_on' => '2026-12-15',
+            'faculty_availability_due_at' => '2026-08-10 17:00:00',
+        ]);
+        $this->addValidWindowsAndGridToPackage($draft);
+        $draft->windows()->create([
+            'window_type' => TermCalendarWindow::TypeLateEnrollment,
+            'opens_on' => '2026-08-15',
+            'closes_on' => '2026-08-20',
+            'cutoff_at' => '17:00:00',
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('staff'));
+
+        $testable = Livewire::actingAs($registrar)
+            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->assertActionVisible('activateCalendarPackage')
+            ->mountAction('activateCalendarPackage')
+            ->assertActionMounted('activateCalendarPackage')
+            ->assertSchemaStateSet(['package_id' => $draft->id])
+            ->assertMountedActionModalSee('Activate Calendar Package')
+            ->assertMountedActionModalSee($term->label)
+            ->assertMountedActionModalSee('CHED-MEMO-2026-001')
+            ->assertMountedActionModalSee('All required checks passed')
+            ->assertMountedActionModalSee('Downstream operational windows')
+            ->assertMountedActionModalSee('Late Enrollment')
+            ->assertMountedActionModalSee('2026-08-15 to 2026-08-20')
+            ->assertMountedActionModalSee('Package activation does not itself open enrollment')
+            ->assertMountedActionModalSee('Activation consequences')
+            ->callMountedAction()
+            ->assertNotified('Calendar Package activated');
+
+        $this->assertSame(TermCalendarPackage::StateActive, $draft->fresh()->state);
+        $this->assertSame($registrar->id, $draft->fresh()->recorded_by);
+        $this->assertNotNull($draft->fresh()->activated_at);
+        $this->assertSame(Term::StateActive, $term->fresh()->state);
+
+        // Workbench visibly displays Active state
+        $testable->assertSee('Active v1')
+            ->assertSee('Term state: Active')
+            ->assertActionHidden('activateCalendarPackage');
+    }
+
+    public function test_multiple_drafts_require_explicit_selection_with_distinguishing_information(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create(['state' => Term::StateDraft]);
+
+        $draft1 = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateDraft,
+            'version' => 1,
+            'authority_reference' => 'DRAFT-AUTH-V1',
+            'authority_date' => '2026-06-01',
+            'administrative_starts_on' => '2026-08-01',
+            'administrative_ends_on' => '2026-12-31',
+            'classes_start_on' => '2026-08-15',
+            'classes_end_on' => '2026-12-15',
+            'faculty_availability_due_at' => '2026-08-10 17:00:00',
+        ]);
+        $this->addValidWindowsAndGridToPackage($draft1);
+
+        $draft2 = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateDraft,
+            'version' => 2,
+            'authority_reference' => 'DRAFT-AUTH-V2',
+            'authority_date' => '2026-07-01',
+            'administrative_starts_on' => '2026-08-01',
+            'administrative_ends_on' => '2026-12-31',
+            'classes_start_on' => '2026-08-20',
+            'classes_end_on' => '2026-12-20',
+            'faculty_availability_due_at' => '2026-08-12 17:00:00',
+        ]);
+        $this->addValidWindowsAndGridToPackage($draft2);
+
+        Filament::setCurrentPanel(Filament::getPanel('staff'));
+
+        $testable = Livewire::actingAs($registrar)
+            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->assertActionVisible('activateCalendarPackage')
+            ->mountAction('activateCalendarPackage')
+            ->assertSchemaStateSet(['package_id' => null])
+            ->assertMountedActionModalSee('Please select a draft package above')
+            ->callMountedAction()
+            ->assertHasFormErrors(['package_id' => 'required']);
+
+        // Both drafts remain Draft
+        $this->assertSame(TermCalendarPackage::StateDraft, $draft1->fresh()->state);
+        $this->assertSame(TermCalendarPackage::StateDraft, $draft2->fresh()->state);
+        $this->assertSame(Term::StateDraft, $term->fresh()->state);
+
+        // Explicitly choose Draft 2 and activate
+        $testable->setActionData(['package_id' => $draft2->id])
+            ->assertMountedActionModalSee('DRAFT-AUTH-V2')
+            ->assertMountedActionModalSee('All required checks passed')
+            ->callMountedAction()
+            ->assertNotified('Calendar Package activated');
+
+        $this->assertSame(TermCalendarPackage::StateDraft, $draft1->fresh()->state);
+        $this->assertSame(TermCalendarPackage::StateActive, $draft2->fresh()->state);
+        $this->assertSame(Term::StateActive, $term->fresh()->state);
+        $this->assertNotNull($draft2->fresh()->activated_at);
+    }
+
+    public function test_mounted_action_with_unready_draft_displays_blockers_and_rejects_activation(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create(['state' => Term::StateDraft]);
+
+        $draft = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateDraft,
+            'version' => 1,
+            'authority_reference' => 'UNREADY-AUTH-001',
+            'authority_date' => '2026-07-01',
+            'administrative_starts_on' => '2026-08-01',
+            'administrative_ends_on' => '2026-12-31',
+            'classes_start_on' => '2026-08-15',
+            'classes_end_on' => '2026-12-15',
+            'faculty_availability_due_at' => '2026-08-10 17:00:00',
+        ]);
+        $this->addValidWindowsAndGridToPackage($draft);
+
+        // Put an out-of-bounds break on the teaching grid row to make it unready
+        $draft->teachingGridRows->first()->update([
+            'breaks' => [
+                ['starts_at' => '18:00:00', 'ends_at' => '19:00:00'],
+            ],
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('staff'));
+
+        Livewire::actingAs($registrar)
+            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->assertActionVisible('activateCalendarPackage')
+            ->mountAction('activateCalendarPackage')
+            ->assertMountedActionModalSee('Action required')
+            ->assertMountedActionModalSee('A recurring teaching-grid break falls outside the approved daily teaching interval')
+            ->callMountedAction()
+            ->assertHasErrors(['package_id', 'readiness'])
+            ->assertNotified('Cannot activate Calendar Package');
+
+        $this->assertSame(TermCalendarPackage::StateDraft, $draft->fresh()->state);
+        $this->assertNull($draft->fresh()->activated_at);
+        $this->assertSame(Term::StateDraft, $term->fresh()->state);
+    }
+
+    public function test_unexpected_failure_during_activation_halts_cleanly_with_actionable_notification(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create(['state' => Term::StateDraft]);
+
+        $draft = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateDraft,
+            'version' => 1,
+            'authority_reference' => 'FAIL-AUTH-001',
+            'authority_date' => '2026-07-01',
+            'administrative_starts_on' => '2026-08-01',
+            'administrative_ends_on' => '2026-12-31',
+            'classes_start_on' => '2026-08-15',
+            'classes_end_on' => '2026-12-15',
+            'faculty_availability_due_at' => '2026-08-10 17:00:00',
+        ]);
+        $this->addValidWindowsAndGridToPackage($draft);
+
+        // Throw an unexpected runtime exception during model saving to simulate unexpected server failure
+        TermCalendarPackage::saving(function (): void {
+            throw new \RuntimeException('Database connection lost unexpectedly.');
+        });
+
+        Filament::setCurrentPanel(Filament::getPanel('staff'));
+
+        Livewire::actingAs($registrar)
+            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->assertActionVisible('activateCalendarPackage')
+            ->mountAction('activateCalendarPackage')
+            ->callMountedAction()
+            ->assertNotified('Activation failed unexpectedly');
+
+        // State remains completely Draft with zero partial writes
+        $this->assertSame(TermCalendarPackage::StateDraft, $draft->fresh()->state);
+        $this->assertSame(Term::StateDraft, $term->fresh()->state);
+    }
+
     private function addValidWindowsAndGridToPackage(TermCalendarPackage $package): void
     {
         $package->windows()->delete();
