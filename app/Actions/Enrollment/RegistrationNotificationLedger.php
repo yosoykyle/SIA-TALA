@@ -285,10 +285,11 @@ class RegistrationNotificationLedger
     private function mailContent(OperationalEvent $event): array
     {
         $payload = is_array($event->payload) ? $event->payload : [];
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
 
         return match ($event->event_type) {
             OperationalEvent::TypeEnrollmentWindowEmail => [
-                'subject' => 'Enrollment is available for your Term',
+                'subject' => "{$institution} — Enrollment is available for your Term",
                 'heading' => 'Your enrollment window is open',
                 'message' => sprintf(
                     'Enrollment for %s is open through %s. Open Enrollment to review the authoritative checkpoints and next action.',
@@ -298,7 +299,7 @@ class RegistrationNotificationLedger
                 'action_label' => 'Open Enrollment',
             ],
             OperationalEvent::TypeRegistrationProposalEmail => [
-                'subject' => 'Your registration proposal is ready',
+                'subject' => "{$institution} — Your registration proposal is ready",
                 'heading' => 'Review your proposed subjects',
                 'message' => sprintf(
                     'The Registrar prepared proposal version %s for %s. Review its subjects, schedule, consequences, and confirmation by %s.',
@@ -309,7 +310,7 @@ class RegistrationNotificationLedger
                 'action_label' => 'Review Proposal',
             ],
             OperationalEvent::TypeRegistrationPaymentActionEmail => [
-                'subject' => 'Registration finance action is required',
+                'subject' => "{$institution} — Registration finance action is required",
                 'heading' => 'Review your registration finance requirement',
                 'message' => sprintf(
                     'Accounting recorded PHP %s due for enrollment by %s. Open Enrollment or Finance to see the authoritative requirement and safe next action.',
@@ -319,19 +320,19 @@ class RegistrationNotificationLedger
                 'action_label' => 'Review Requirement',
             ],
             OperationalEvent::TypeRegistrationCaseExpiryEmail => [
-                'subject' => 'Your registration reservation was released',
+                'subject' => "{$institution} — Your registration reservation was released",
                 'heading' => 'A reservation deadline passed',
                 'message' => 'The reservation was released without deleting your case or finance history. Open Enrollment for the current owner and recovery path.',
                 'action_label' => 'Review Registration',
             ],
             OperationalEvent::TypeRegistrationAdjustmentEmail => [
-                'subject' => 'Your official enrollment was adjusted',
+                'subject' => "{$institution} — Your official enrollment was adjusted",
                 'heading' => 'An authorized enrollment adjustment was recorded',
                 'message' => 'Open Enrollment to review the successor course and COR version. Any Accounting review remains separately identified.',
                 'action_label' => 'Review Adjustment',
             ],
             OperationalEvent::TypeCourseDropEmail => [
-                'subject' => 'Your official Course Drop was recorded',
+                'subject' => "{$institution} — Your official Course Drop was recorded",
                 'heading' => 'An authorized Course Drop was recorded',
                 'message' => 'Open Enrollment to review the updated official courses and COR version. Accounting effects are not inferred by this message.',
                 'action_label' => 'Review Course Drop',

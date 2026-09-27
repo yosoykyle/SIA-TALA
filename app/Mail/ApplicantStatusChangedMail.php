@@ -43,10 +43,12 @@ class ApplicantStatusChangedMail extends Mailable implements ShouldQueue
      */
     public function envelope(): Envelope
     {
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+
         return new Envelope(
             subject: $this->statusLabel === 'Action Required'
-                ? 'Action required for your TALA application'
-                : 'Your TALA application is approved for handover',
+                ? "{$institution} — Action required for your application"
+                : "{$institution} — Your application is approved for handover",
         );
     }
 

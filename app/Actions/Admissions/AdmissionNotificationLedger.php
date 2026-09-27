@@ -189,58 +189,59 @@ class AdmissionNotificationLedger
         }
 
         $payload = is_array($event->payload) ? $event->payload : [];
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
         $reference = $this->payloadString($payload, 'application_reference', 'Your application');
         [$subject, $heading, $lines, $actionLabel, $path] = match ($event->event_type) {
             OperationalEvent::TypeAdmissionApplicationSubmitted,
             OperationalEvent::TypeAdmissionApplicationResubmitted => [
-                'Your TALA application was received',
+                "{$institution} — Application received",
                 $event->event_type === OperationalEvent::TypeAdmissionApplicationSubmitted
                     ? 'Application received'
                     : 'Corrected application received',
                 [
                     "Application reference: {$reference}",
-                    'Received: '.$this->payloadString($payload, 'submitted_at', 'Recorded in TALA'),
+                    'Received: '.$this->payloadString($payload, 'submitted_at', 'Recorded in system'),
                     'Your submitted version is preserved for Registrar review.',
                 ],
                 'View your application',
                 '/applicant/application',
             ],
             OperationalEvent::TypeAdmissionCorrectionRequested => [
-                'Action needed for your TALA application',
+                "{$institution} — Action needed for your application",
                 'Correct named application items',
                 [
                     "Application reference: {$reference}",
-                    'Items: '.implode(', ', $this->payloadStringList($payload, 'affected_items', ['See the named items in TALA'])),
-                    $this->payloadString($payload, 'instruction', 'Review the correction request in TALA.'),
-                    'Due: '.$this->payloadString($payload, 'due_at', 'See TALA'),
+                    'Items: '.implode(', ', $this->payloadStringList($payload, 'affected_items', ['See the named items in your application portal'])),
+                    $this->payloadString($payload, 'instruction', 'Review the correction request in your application portal.'),
+                    'Due: '.$this->payloadString($payload, 'due_at', 'See application portal'),
                 ],
                 'Review required corrections',
                 '/applicant/application',
             ],
             OperationalEvent::TypeAdmissionApplicationAdmitted => [
-                'Your TALA admission result is available',
+                "{$institution} — Admission result available",
                 'Admission result: Admitted',
                 [
                     "Application reference: {$reference}",
-                    $this->payloadString($payload, 'applicant_explanation', 'Your safe admission result is available in TALA.'),
-                    ...$this->payloadStringList($payload, 'credential_instructions', ['Review your official credential instructions in TALA.']),
+                    $this->payloadString($payload, 'applicant_explanation', 'Your safe admission result is available in your application portal.'),
+                    ...$this->payloadStringList($payload, 'credential_instructions', ['Review your official credential instructions in your application portal.']),
                 ],
                 'View admission result',
                 '/applicant/application',
             ],
             OperationalEvent::TypeAdmissionApplicationNotAdmitted => [
-                'Your TALA admission result is available',
+                "{$institution} — Admission result available",
                 'Admission result: Not admitted',
                 [
                     "Application reference: {$reference}",
-                    $this->payloadString($payload, 'applicant_explanation', 'Your safe admission result is available in TALA.'),
-                    'Support: '.$this->payloadString($payload, 'support_contact', 'See the official support path in TALA.'),
+                    $this->payloadString($payload, 'applicant_explanation', 'Your safe admission result is available in your application portal.'),
+                    'Support: '.$this->payloadString($payload, 'support_contact', 'See the official support path in your application portal.'),
                 ],
                 'View admission history',
                 '/applicant/application',
             ],
             OperationalEvent::TypeAdmissionReadyForEnrollment => [
-                'You are ready to start enrollment in TALA',
+                "{$institution} — Ready to start enrollment",
                 'Ready for enrollment',
                 [
                     "Application reference: {$reference}",
@@ -251,12 +252,12 @@ class AdmissionNotificationLedger
                 '/applicant',
             ],
             OperationalEvent::TypeAdmissionApplicationWithdrawn => [
-                'Your TALA application withdrawal is recorded',
+                "{$institution} — Application withdrawal recorded",
                 'Application withdrawn',
                 [
                     "Application reference: {$reference}",
                     'The application is no longer active for enrollment readiness.',
-                    'Support: '.$this->payloadString($payload, 'support_contact', 'See the official support path in TALA.'),
+                    'Support: '.$this->payloadString($payload, 'support_contact', 'See the official support path in your application portal.'),
                 ],
                 'View application history',
                 '/applicant/application',

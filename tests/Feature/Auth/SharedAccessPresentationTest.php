@@ -35,9 +35,22 @@ class SharedAccessPresentationTest extends TestCase
     public function test_server_failure_rendering_does_not_require_authentication_data_or_compiled_assets(): void
     {
         Auth::shouldReceive('user')->never();
-        $this->view('errors.500')->assertSee('Source: TALA HTTP response 500')
+        $this->view('errors.500')->assertSee('Source: Servitech Institute Asia HTTP response 500 (Powered by TALA)')
             ->assertSee('System Administration')
+            ->assertSee('Return to Servitech Institute Asia home')
+            ->assertDontSee('Return to TALA home')
             ->assertDontSee('/build/assets', false)
             ->assertDontSee('livewire.js', false);
+    }
+
+    public function test_shared_access_layout_renders_school_first_identity_without_duplicate_announcement(): void
+    {
+        $view = $this->blade('<x-tala-access-layout title="Test Access" heading-id="test-heading"><h1 id="test-heading">Test Heading</h1><div>Body Content</div></x-tala-access-layout>');
+
+        $view->assertSee('Test Access — Servitech Institute Asia Inc. · Powered by TALA')
+            ->assertSee('Servitech Institute Asia home')
+            ->assertSee('alt="" aria-hidden="true" class="tala-brand__crest"', false)
+            ->assertSee('Servitech Institute Asia')
+            ->assertDontSee('alt="Servitech Institute Asia"', false);
     }
 }

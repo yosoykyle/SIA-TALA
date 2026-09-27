@@ -48,10 +48,13 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
     {
         $this->get("/_tal96d4a/errors/{$status}")
             ->assertStatus($status)
-            ->assertSee('TALA')
+            ->assertSee('Servitech Institute Asia')
+            ->assertSee('Powered by TALA')
             ->assertSee((string) $status)
             ->assertSee($heading)
-            ->assertSee('Return to TALA home')
+            ->assertSee('Return to Servitech Institute Asia home')
+            ->assertDontSee('Return to TALA home')
+            ->assertSee('Source: Servitech Institute Asia HTTP response')
             ->assertSee(url('/'), false)
             ->assertSee(asset('css/tala-error.css'), false)
             ->assertDontSee('TAL96D4A internal diagnostic');
@@ -62,7 +65,8 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
         $this->get('/_tal96d4a/route-that-does-not-exist')
             ->assertNotFound()
             ->assertSee('Page not found')
-            ->assertSee('Return to TALA home');
+            ->assertSee('Return to Servitech Institute Asia home')
+            ->assertDontSee('Return to TALA home');
 
         $this->assertFileExists(public_path('css/tala-error.css'));
     }
@@ -73,7 +77,7 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
             ->assertForbidden()
             ->assertHeader('content-type', 'application/json')
             ->assertJsonPath('message', 'TAL96D4A internal diagnostic must not appear in HTML.')
-            ->assertDontSee('Return to TALA home');
+            ->assertDontSee('Return to Servitech Institute Asia home');
     }
 
     public function test_authenticated_forbidden_page_offers_the_authorized_workspace_and_explicit_account_switch(): void
@@ -119,7 +123,8 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
             $this->actingAs($applicant)
                 ->get("/_tal96d4a/errors/{$status}")
                 ->assertStatus($status)
-                ->assertSee('Return to TALA home')
+                ->assertSee('Return to Servitech Institute Asia home')
+                ->assertDontSee('Return to TALA home')
                 ->assertDontSee('Use another account')
                 ->assertDontSee('data-account-switch-dialog', false);
         }

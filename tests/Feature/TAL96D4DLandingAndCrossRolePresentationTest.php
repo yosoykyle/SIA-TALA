@@ -181,7 +181,8 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
             $this->assertStringContainsString(asset('talalogo.png'), $markup);
             $this->assertStringContainsString(asset('images/brand/servitech-crest.webp'), $markup);
             $this->assertStringContainsString($panel->getBrandName(), $markup);
-            $this->assertStringContainsString('alt="Servitech Institute Asia"', $markup);
+            $this->assertStringContainsString('alt="" aria-hidden="true"', $markup);
+            $this->assertStringNotContainsString('alt="Servitech Institute Asia"', $markup);
         }
 
         $this->assertSame(array_replace(Color::Blue, [600 => '#1D4ED8', 700 => '#1E3A8A']), $admin->getColors()['primary']);

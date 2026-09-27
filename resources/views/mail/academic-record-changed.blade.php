@@ -3,7 +3,7 @@
 
 Hello {{ $recipientName }},
 
-Current details and the safe next action are available in your authenticated TALA Student Academics page.
+Current details and the safe next action are available in your authenticated Student Academics page.
 
 For privacy, this email does not include grade values or attachments.
 
@@ -11,8 +11,8 @@ For privacy, this email does not include grade values or attachments.
 Open Student Academics
 </x-mail::button>
 
-If you did not expect this update, use the official support path published in TALA.
+If you did not expect this update, use the official support path published in the Student workspace.
 
 Regards,<br>
-{{ config('app.name') }}
+{{ config('institution.name') }} via {{ config('app.name') }}
 </x-mail::message>

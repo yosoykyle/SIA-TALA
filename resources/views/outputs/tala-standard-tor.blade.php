@@ -3,7 +3,7 @@
     :subtitle="$document['template_version'].' · Request '.$request->external_request_reference.' · Due '.$request->due_on->format('F j, Y')"
     :context="strtoupper($status)"
     :generated-at="$document['generated_at']"
-    :logo-src="asset('talalogo.png')"
+    :logo-src="asset('images/brand/servitech-crest.webp')"
 >
     <section aria-labelledby="student-identity">
         <h2 id="student-identity">Student and program</h2>

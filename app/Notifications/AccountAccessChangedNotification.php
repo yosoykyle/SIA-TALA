@@ -34,11 +34,14 @@ class AccountAccessChangedNotification extends Notification implements ShouldQue
      */
     public function toMail(object $notifiable): MailMessage
     {
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+
         return (new MailMessage)
-            ->subject('Your TALA account access changed')
+            ->subject("{$institution} — Your account access was updated")
             ->line($this->summary)
             ->action('Review Account Security', url('/'))
-            ->line('If you did not expect this change, contact the institution through its official support channel.');
+            ->line('If you did not expect this change, contact the institution through its official support channel.')
+            ->salutation("Regards,\n{$institution} via ".config('app.name'));
     }
 
     /**

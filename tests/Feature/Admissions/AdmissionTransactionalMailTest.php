@@ -74,14 +74,30 @@ class AdmissionTransactionalMailTest extends TestCase
 
         $ledger->queuePending($application, $recipient, ...$messages[0]);
 
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+
         Mail::assertQueuedCount(count($messages));
-        Mail::assertQueued(AdmissionsTransactionalMail::class, function (AdmissionsTransactionalMail $mail) use ($recipient): bool {
-            return $mail->hasTo($recipient->email)
-                && $mail->afterCommit === true
-                && str_starts_with($mail->actionUrl, url('/applicant'))
-                && ! str_contains(json_encode($mail->safeLines, JSON_THROW_ON_ERROR), 'LRN')
-                && ! str_contains(json_encode($mail->safeLines, JSON_THROW_ON_ERROR), 'evidence');
-        });
+        $expectedSubjects = [
+            'admission_application_submitted' => "{$institution} — Application received",
+            'admission_application_resubmitted' => "{$institution} — Application received",
+            'admission_correction_requested' => "{$institution} — Action needed for your application",
+            'admission_application_admitted' => "{$institution} — Admission result available",
+            'admission_application_not_admitted' => "{$institution} — Admission result available",
+            'admission_ready_for_enrollment' => "{$institution} — Ready to start enrollment",
+            'admission_application_withdrawn' => "{$institution} — Application withdrawal recorded",
+        ];
+
+        foreach ($expectedSubjects as $eventType => $expectedSubject) {
+            Mail::assertQueued(AdmissionsTransactionalMail::class, function (AdmissionsTransactionalMail $mail) use ($recipient, $eventType, $expectedSubject): bool {
+                return $mail->hasTo($recipient->email)
+                    && $mail->operationalEventType === $eventType
+                    && $mail->subjectLine === $expectedSubject
+                    && $mail->afterCommit === true
+                    && str_starts_with($mail->actionUrl, url('/applicant'))
+                    && ! str_contains(json_encode($mail->safeLines, JSON_THROW_ON_ERROR), 'LRN')
+                    && ! str_contains(json_encode($mail->safeLines, JSON_THROW_ON_ERROR), 'evidence');
+            });
+        }
     }
 
     public function test_delivery_failure_preserves_domain_state_and_authorized_resend_is_idempotent(): void

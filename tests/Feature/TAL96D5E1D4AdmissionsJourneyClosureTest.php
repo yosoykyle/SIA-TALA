@@ -291,6 +291,11 @@ class TAL96D5E1D4AdmissionsJourneyClosureTest extends TestCase
 
         $rendered = $mail->render();
 
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+        $this->assertStringStartsWith($institution, $mail->envelope()->subject);
+        $this->assertStringContainsString('Action required for your application', $mail->envelope()->subject);
+        $this->assertStringNotContainsString('TALA', $mail->envelope()->subject);
+
         $this->assertStringContainsString('Application reference: #42', $rendered);
         $this->assertStringContainsString('Bachelor of Science in Information Systems', $rendered);
         $this->assertStringContainsString('AY 2026-2027, First Semester', $rendered);

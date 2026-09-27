@@ -91,12 +91,46 @@
 .fi-topbar .tala-brand {
     white-space: nowrap;
     min-width: 0;
+    gap: 0.625rem;
+}
+.fi-topbar .tala-crest-plate {
+    background-color: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 0.5rem;
+    padding: 3px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+}
+.fi-topbar .tala-brand__crest {
+    display: block !important;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.fi-topbar .tala-brand__text {
+    min-width: 0;
 }
 .fi-topbar .tala-brand__name {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: min(36rem, calc(100vw - 12rem));
+    max-width: min(32rem, calc(100vw - 12rem));
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--tala-on-brand);
+}
+.fi-topbar .tala-brand__attribution {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.6875rem;
+}
+.fi-topbar .tala-brand__star {
+    width: 0.875rem;
+    height: 0.875rem;
 }
 .fi-sidebar { transition-property: transform, width; transition-duration: 150ms; }
 .fi-sidebar-nav { overscroll-behavior: contain; }
@@ -135,9 +169,10 @@
 .fi-auth-layout.media-cover .fi-auth-card { background: var(--tala-surface); }
 .fi-auth-layout .fi-auth-content-section { min-width: 0; }
 .fi-auth-layout .tala-brand, .fi-simple-layout .tala-brand { flex-wrap: wrap; }
-.fi-auth-layout .tala-brand__crest, .fi-simple-layout .tala-brand__crest { display: block; }
-.fi-auth-layout .tala-brand__star, .fi-simple-layout .tala-brand__star { width: 3rem; height: 3rem; }
-.fi-auth-layout .tala-brand__name, .fi-simple-layout .tala-brand__name { max-width: 10rem; }
+.fi-auth-layout .tala-crest-plate, .fi-simple-layout .tala-crest-plate { width: 3.5rem; height: 3.5rem; }
+.fi-auth-layout .tala-brand__crest, .fi-simple-layout .tala-brand__crest { width: 100%; height: 100%; display: block; }
+.fi-auth-layout .tala-brand__star, .fi-simple-layout .tala-brand__star { width: 1rem; height: 1rem; }
+.fi-auth-layout .tala-brand__name, .fi-simple-layout .tala-brand__name { max-width: min(28rem, 100%); text-wrap: balance; }
 .fi-auth-layout .fi-logo, .fi-simple-layout .fi-logo { margin-bottom: 1.5rem; }
 .fi-simple-layout .fi-simple-main { margin-block: 1rem; }
 .fi-auth-layout .fi-btn, .fi-simple-layout .fi-btn { min-height: 2.75rem; }
@@ -192,7 +227,7 @@
     .fi-input, .fi-select-input, .fi-fo-field-label-content, .fi-sidebar-item-label { font-size: 1rem; }
     .fi-auth-layout.no-media .fi-auth-form-container, .fi-simple-main { padding: 1.5rem 1rem; }
     .fi-auth-layout.media-cover { padding: 1.5rem 1rem; }
-    .fi-topbar .tala-brand__name { max-width: 10rem; font-size: 0.875rem; }
+    .fi-topbar .tala-brand__name { max-width: min(22rem, calc(100vw - 7rem)); font-size: 0.875rem; }
     .fi-topbar { padding-inline: 1rem; }
 }
 

@@ -8,6 +8,10 @@
     'logoSrc' => null,
 ])
 
+@php
+    $resolvedLogo = $logoSrc ?: asset('images/brand/servitech-crest.webp');
+@endphp
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -335,8 +339,8 @@
     <main class="official-output">
         <header class="official-output-header">
             <div class="official-output-identity">
-                @if (filled($logoSrc))
-                    <img class="official-output-logo" src="{{ $logoSrc }}" alt="{{ config('institution.name') }} logo">
+                @if (filled($resolvedLogo))
+                    <img class="official-output-logo" src="{{ $resolvedLogo }}" alt="{{ config('institution.name') }} logo">
                 @endif
                 <div>
                 <p><strong>{{ config('institution.name') }}</strong></p>

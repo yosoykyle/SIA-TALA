@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $title }} — TALA</title>
+    <title>{{ $title }} — Servitech Institute Asia Inc. · Powered by TALA</title>
     <link rel="icon" href="{{ asset('talalogo.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">
@@ -14,10 +14,10 @@
     <a class="tala-skip-link" href="#tala-main-content">Skip to main content</a>
     <main id="tala-main-content" @class(['tala-access-main', 'tala-access-main-wide' => $wide]) tabindex="-1">
         <section class="tala-access-card" aria-labelledby="{{ $headingId }}">
-            <x-tala-panel-brand workspace="TALA" />
+            <x-tala-panel-brand workspace="Servitech Institute Asia" />
             {{ $slot }}
             <nav class="tala-access-help" aria-label="Access help">
-                <a href="{{ route('home') }}">TALA home</a>
+                <a href="{{ route('home') }}">Servitech Institute Asia home</a>
                 <a href="{{ route('home', ['modal' => 'support']) }}">Contact school support</a>
             </nav>
         </section>

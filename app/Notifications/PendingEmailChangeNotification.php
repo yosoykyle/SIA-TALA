@@ -37,14 +37,17 @@ class PendingEmailChangeNotification extends Notification implements ShouldQueue
      */
     public function toMail(object $notifiable): MailMessage
     {
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+
         return (new MailMessage)
-            ->subject('Verify your new TALA sign-in email')
+            ->subject("{$institution} — Verify your new sign-in email")
             ->line('A System Administrator requested this Staff sign-in email change.')
             ->action('Verify new email', route('staff-email-changes.verify', [
                 'change' => $this->change,
                 'token' => $this->plainTextToken,
             ]))
-            ->line('The current sign-in email remains active until this successor address is verified.');
+            ->line('The current sign-in email remains active until this successor address is verified.')
+            ->salutation("Regards,\n{$institution} via ".config('app.name'));
     }
 
     /**

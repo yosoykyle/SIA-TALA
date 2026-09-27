@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title>{{ $statusCode }} — {{ $pageTitle }} | TALA</title>
+    <title>{{ $statusCode }} — {{ $pageTitle }} | Servitech Institute Asia Inc. — Powered by TALA</title>
     <link rel="icon" href="{{ asset('talalogo.png') }}">
     <link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-foundation.css') }}">
@@ -28,9 +28,17 @@
 
     <main id="error-content" class="error-shell" aria-labelledby="error-title" tabindex="-1">
         <article class="error-card">
-            <a class="brand" href="{{ url('/') }}" aria-label="TALA home">
-                <img src="{{ asset('talalogo.png') }}" alt="" width="52" height="52">
-                <span>TALA</span>
+            <a class="brand" href="{{ url('/') }}" aria-label="Servitech Institute Asia home">
+                <span class="brand-crest-plate">
+                    <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="" aria-hidden="true" class="brand-crest" width="48" height="48">
+                </span>
+                <span class="brand-text">
+                    <span class="brand-name">Servitech Institute Asia</span>
+                    <span class="brand-attribution">
+                        <img src="{{ asset('talalogo.png') }}" alt="" aria-hidden="true" class="brand-star" width="16" height="16">
+                        <span>Powered by TALA</span>
+                    </span>
+                </span>
             </a>
 
             <p class="status-code">Error {{ $statusCode }}</p>
@@ -50,10 +58,10 @@
                     <a class="primary-action" href="{{ url($workspacePath) }}">Return to {{ $workspaceName }}</a>
                     <button class="secondary-action" type="button" data-open-account-switch>Use another account</button>
                 @else
-                    <a class="primary-action" href="{{ url('/') }}">Return to TALA home</a>
+                    <a class="primary-action" href="{{ url('/') }}">Return to Servitech Institute Asia home</a>
                 @endif
             </div>
-            <p class="support-note">Source: TALA HTTP response {{ $statusCode }}. System Administration handles technical access and service recovery; the responsible school office handles your underlying request.</p>
+            <p class="support-note">Source: Servitech Institute Asia HTTP response {{ $statusCode }} (Powered by TALA). System Administration handles technical access and service recovery; the responsible school office handles your underlying request.</p>
             <p class="support-note"><a class="secondary-action" href="{{ route('home', ['modal' => 'support']) }}">Contact school support</a></p>
         </article>
     </main>
@@ -63,7 +71,7 @@
             <form method="dialog" class="dialog-close-form">
                 <button class="dialog-close" type="submit" aria-label="Close account switch confirmation">&times;</button>
             </form>
-            <h2 id="account-switch-title">Use another TALA account?</h2>
+            <h2 id="account-switch-title">Use another account?</h2>
             <p>
                 You are signed in as <strong>{{ $authenticatedUser->getFilamentName() }}</strong>
                 ({{ $authenticatedUser->email }}). Continuing will securely sign out this account.

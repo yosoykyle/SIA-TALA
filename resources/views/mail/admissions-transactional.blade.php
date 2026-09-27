@@ -10,8 +10,8 @@
 {{ $actionLabel }}
 </x-mail::button>
 
-The TALA workspace remains the authoritative source if this email is delayed or unavailable.
+The official applicant workspace remains the authoritative source if this email is delayed or unavailable.
 
 Regards,<br>
-{{ config('app.name') }}
+{{ config('institution.name') }} via {{ config('app.name') }}
 </x-mail::message>

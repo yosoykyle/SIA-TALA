@@ -34,10 +34,13 @@ class EmailChangeAlertNotification extends Notification implements ShouldQueue
      */
     public function toMail(object $notifiable): MailMessage
     {
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+
         return (new MailMessage)
-            ->subject('A TALA sign-in email change was requested')
+            ->subject("{$institution} — A sign-in email change was requested")
             ->line("A change to {$this->newEmail} was requested. Your current address remains active until the successor address is verified.")
-            ->line('If you did not expect this request, contact the institution through its official support channel.');
+            ->line('If you did not expect this request, contact the institution through its official support channel.')
+            ->salutation("Regards,\n{$institution} via ".config('app.name'));
     }
 
     /**

@@ -14,15 +14,21 @@ class TestConnectionMail extends Mailable
 
     public function envelope(): Envelope
     {
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+        $app = (string) config('app.name', 'TALA');
+
         return new Envelope(
-            subject: 'TALA Mail Connection Test',
+            subject: "{$institution} — Mail Connection Test (Powered by {$app})",
         );
     }
 
     public function content(): Content
     {
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+        $app = (string) config('app.name', 'TALA');
+
         return new Content(
-            htmlString: 'This is an automated TALA mail self-test triggered from System Health by the signed-in administrator.',
+            htmlString: "This is an automated mail self-test for {$institution} triggered from System Health by the signed-in administrator (Powered by {$app}).",
         );
     }
 }

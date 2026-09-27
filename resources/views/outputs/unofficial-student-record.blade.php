@@ -5,7 +5,7 @@
     page-margin="12mm"
     context="UNOFFICIAL"
     :generated-at="$asOf->format('F j, Y g:i A').' Asia/Manila'"
-    :logo-src="asset('talalogo.png')"
+    :logo-src="asset('images/brand/servitech-crest.webp')"
 >
     <section aria-labelledby="student-record-identity">
         <h2 id="student-record-identity" class="finance-heading">Student and curriculum</h2>

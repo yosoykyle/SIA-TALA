@@ -38,8 +38,10 @@ class PaymentPostedMail extends Mailable implements ShouldQueue
      */
     public function envelope(): Envelope
     {
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+
         return new Envelope(
-            subject: 'Payment posted to your student ledger',
+            subject: "{$institution} — Payment posted to your student ledger",
         );
     }
 

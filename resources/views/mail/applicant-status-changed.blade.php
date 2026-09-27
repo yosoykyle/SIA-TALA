@@ -18,9 +18,9 @@ Application reference: #{{ $applicantIntakeId }}
 {{ $nextAction }}
 
 <x-mail::button :url="$actionUrl">
-Open TALA Applicant Workspace
+Open Applicant Workspace
 </x-mail::button>
 
-Thanks,<br>
-{{ config('app.name') }}
+Regards,<br>
+{{ config('institution.name') }} via {{ config('app.name') }}
 </x-mail::message>

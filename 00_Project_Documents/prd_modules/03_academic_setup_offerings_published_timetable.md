@@ -393,7 +393,7 @@ The workbench has five tabs:
 4. **Generate & Review** — result meaning, owner, next action, quality measures, filterable weekly view, accessible table alternative, warnings or failure diagnostics, and candidate actions.
 5. **Published Timetable** — current immutable version, authority, publication time, filtered official timetable, print/save-as-PDF, revision impact, and superseded history.
 
-Only the weekly timetable view is a justified custom component. Native Filament Tables, Sections, Infolists, Forms, Action Groups, filter panels, and active indicators own the rest. There are no custom column-header filter dropdowns, drag-and-drop timetable editor, generic Academic Settings surface, or peer navigation maze.
+Within the scheduling workbench, the weekly timetable view is the justified custom component. Native Filament Tables, Sections, Infolists, Forms, Action Groups, filter panels, and active indicators own the rest. There are no custom column-header filter dropdowns, drag-and-drop timetable editor, generic Academic Settings surface, or peer navigation maze.
 
 ### 15.3 Role projections
 

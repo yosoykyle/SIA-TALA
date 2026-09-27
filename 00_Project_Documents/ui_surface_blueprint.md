@@ -290,7 +290,7 @@ The same account state, verified email, role assignment, effective time, and nex
 
 ### System-wide failure and workspace identity
 
-TALA uses one product identity across its four entry surfaces: the public site, `TALA Applicant Workspace`, `TALA Student Hub`, and `TALA Staff Workspace`. The Staff Workspace label is the canonical name for `/admin`; technical panel IDs and route prefixes do not appear as user-facing product names.
+TALA uses one school-first institutional identity across its four entry surfaces: the public site, `Servitech Institute Asia — Applicant Workspace`, `Servitech Institute Asia — Student Hub`, and `Servitech Institute Asia — Staff Workspace` (with secondary *Powered by TALA* attribution). The Staff Workspace label is the canonical name for `/admin`; technical panel IDs and route prefixes do not appear as user-facing product names.
 
 Browser requests that end in an HTTP failure use a shared TALA presentation contract:
 
@@ -858,7 +858,7 @@ The result leads with status, plain-language meaning, responsible owner, and one
 
 Filters are program, cohort, course, Faculty, room, day, mode, and changed/affected rows. **Adjust candidate meeting** offers constrained day/time/Faculty/room choices and first tests the request with all other meetings fixed. A valid local result previews one changed meeting; an invalid result saves nothing and shows its conflicts plus the explicit **Find valid repair** action. Repair fixes the request, minimizes changed non-requested meetings before ordinary quality, and previews every changed meeting and quality difference. Registrar accepts or rejects the entire immutable successor. Every path revalidates the complete candidate and never waives a hard rule or moves another meeting silently. A quality-lowering successor requires a publication reason. The label **Manual override** is not used.
 
-The weekly timetable is the one justified custom component. It must have an equivalent native, filterable, screen-reader-readable meeting table. It is not drag-and-drop.
+The weekly timetable is the justified custom component in the scheduling workbench. It must have an equivalent native, filterable, screen-reader-readable meeting table. It is not drag-and-drop.
 
 #### Published Timetable
 

@@ -36,16 +36,19 @@ class StaffInvitationNotification extends Notification
      */
     public function toMail(object $notifiable): MailMessage
     {
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+
         return (new MailMessage)
-            ->subject('Activate your TALA Staff access')
-            ->greeting('TALA Staff access invitation')
+            ->subject("{$institution} — Activate your Staff access")
+            ->greeting("{$institution} — Staff access invitation")
             ->line('A System Administrator approved Staff access for this email address.')
             ->line('The activation link expires in 60 minutes and can be used once.')
             ->action('Activate Staff access', route('staff-invitations.activate', [
                 'invitation' => $this->invitation,
                 'token' => $this->plainTextToken,
             ]))
-            ->line('If you did not expect this invitation, contact the institution through its official support channel.');
+            ->line('If you did not expect this invitation, contact the institution through its official support channel.')
+            ->salutation("Regards,\n{$institution} via ".config('app.name'));
     }
 
     /**

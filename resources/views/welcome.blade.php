@@ -19,10 +19,17 @@
         </div>
 
         <div class="container">
-            <a class="navbar-brand fs-5 fw-bold d-flex align-items-center" href="{{ url('/') }}">
-                <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="Servitech Institute Asia" class="landing-crest" width="48" height="48">
-                <img src="{{ asset('talalogo.png') }}" alt="" class="landing-brand-logo">
-                <span data-navbar-contrast-target>Servitech Institute Asia</span>
+            <a class="navbar-brand fs-5 fw-bold d-flex align-items-center" href="{{ url('/') }}" aria-label="Servitech Institute Asia Inc. Powered by TALA home">
+                <span class="landing-crest-plate">
+                    <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="" aria-hidden="true" class="landing-crest" width="36" height="36">
+                </span>
+                <span class="landing-brand-text d-flex flex-column ms-2 text-start" data-navbar-contrast-target>
+                    <span class="landing-brand-name">Servitech Institute Asia</span>
+                    <span class="landing-attribution d-inline-flex align-items-center gap-1">
+                        <img src="{{ asset('talalogo.png') }}" alt="" aria-hidden="true" class="landing-attribution-mark" width="14" height="14">
+                        <span>Powered by TALA</span>
+                    </span>
+                </span>
             </a>
 
             <div class="collapse navbar-collapse justify-content-center" id="navbarNav">
@@ -266,10 +273,17 @@
         <div class="container">
             <div class="row align-items-start g-4">
                 <div class="col-lg-7">
-                    <a class="footer-brand d-inline-flex align-items-center text-decoration-none" href="{{ url('/') }}">
-                        <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="Servitech Institute Asia" class="landing-crest" width="48" height="48">
-                        <img src="{{ asset('talalogo.png') }}" alt="" class="footer-logo">
-                        <span>Servitech Institute Asia</span>
+                    <a class="footer-brand d-inline-flex align-items-center text-decoration-none" href="{{ url('/') }}" aria-label="Servitech Institute Asia Inc. Powered by TALA home">
+                        <span class="landing-crest-plate me-2">
+                            <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="" aria-hidden="true" class="landing-crest" width="36" height="36">
+                        </span>
+                        <span class="d-flex flex-column text-start">
+                            <span>Servitech Institute Asia</span>
+                            <span class="landing-attribution d-inline-flex align-items-center gap-1">
+                                <img src="{{ asset('talalogo.png') }}" alt="" aria-hidden="true" class="landing-attribution-mark" width="14" height="14">
+                                <span>Powered by TALA</span>
+                            </span>
+                        </span>
                     </a>
                     <p class="footer-desc mt-3 mb-0">Powered by TALA · Tertiary Academic Lifecycle Administration</p>
                 </div>

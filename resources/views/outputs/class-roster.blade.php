@@ -5,7 +5,7 @@
     page-margin="12mm"
     :context="'OPERATIONAL REFERENCE · '.$roster->section?->code"
     :generated-at="$generatedAt->format('F j, Y g:i A').' Asia/Manila'"
-    :logo-src="asset('talalogo.png')"
+    :logo-src="asset('images/brand/servitech-crest.webp')"
 >
     <div class="finance-grid">
         <p><strong>Exact Term</strong><br>{{ $roster->termOffering?->term?->label }}</p>

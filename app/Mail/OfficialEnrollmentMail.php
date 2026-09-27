@@ -37,8 +37,10 @@ class OfficialEnrollmentMail extends Mailable implements ShouldQueue
      */
     public function envelope(): Envelope
     {
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+
         return new Envelope(
-            subject: 'Your official enrollment is confirmed',
+            subject: "{$institution} — Your official enrollment is confirmed",
         );
     }
 
