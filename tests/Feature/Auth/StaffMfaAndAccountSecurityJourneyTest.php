@@ -35,10 +35,9 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Role::findOrCreate(User::StaffRoleFaculty, 'web');
-        Role::findOrCreate(User::StaffRoleSystemSuperAdmin, 'web');
-        Role::findOrCreate('student', 'web');
-        Role::findOrCreate('applicant', 'web');
+        foreach (['applicant', 'student', ...User::staffRoleNames()] as $role) {
+            Role::findOrCreate($role, 'web');
+        }
     }
 
     public function test_app_authentication_uses_encrypted_columns_and_single_use_recovery_codes(): void
@@ -424,5 +423,209 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $this->assertSame('current-learner@example.test', $applicant->fresh()->email);
         Notification::assertSentTo($applicant, NoticeOfEmailChangeRequest::class);
         Notification::assertSentOnDemand(VerifyEmailChange::class);
+    }
+
+    public function test_mfa_challenge_exposes_use_another_account_action_and_resets_pending_state(): void
+    {
+        $staff = User::factory()->create([
+            'email' => 'mfa-restart@example.test',
+            'password' => 'a secure password 2026',
+        ]);
+        $staff->assignRole(User::StaffRoleFaculty);
+        $provider = app(TalaAppAuthentication::class)->recoverable();
+        $provider->saveSecret($staff, $provider->generateSecret());
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $login = Livewire::test(ContextualLogin::class)
+            ->set('data.email', $staff->email)
+            ->set('data.password', 'a secure password 2026')
+            ->call('authenticate')
+            ->assertHasNoErrors()
+            ->assertSee('Use another account');
+
+        $this->assertNotNull($login->get('userUndertakingMultiFactorAuthentication'));
+
+        $login->set('data.multiFactor.app.code', '999999')
+            ->call('authenticate')
+            ->assertHasErrors(['data.multiFactor.app.code']);
+
+        $login->callAction('useAnotherAccount')
+            ->assertHasNoErrors()
+            ->assertDispatched('focus-email-input')
+            ->assertDontSee('Use another account')
+            ->assertSeeHtml('x-on:focus-email-input.window');
+
+        $this->assertNull($login->get('userUndertakingMultiFactorAuthentication'));
+        $this->assertNull($login->get('data.email'));
+        $this->assertNull($login->get('data.password'));
+        $this->assertSame('Sign in to Staff', $login->instance()->getHeading());
+    }
+
+    public function test_restarting_mfa_challenge_allows_second_account_to_authenticate_without_credential_leak(): void
+    {
+        $staff = User::factory()->create([
+            'email' => 'staff-first@example.test',
+            'password' => 'first account password',
+        ]);
+        $staff->assignRole(User::StaffRoleFaculty);
+        $provider = app(TalaAppAuthentication::class)->recoverable();
+        $provider->saveSecret($staff, $provider->generateSecret());
+
+        $student = User::factory()->create([
+            'email' => 'student-second@example.test',
+            'password' => 'second account password',
+        ]);
+        $student->assignRole('student');
+        StudentProfile::factory()->create(['user_id' => $student->id]);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $login = Livewire::test(ContextualLogin::class)
+            ->set('data.email', $staff->email)
+            ->set('data.password', 'first account password')
+            ->call('authenticate')
+            ->assertHasNoErrors();
+
+        $this->assertNotNull($login->get('userUndertakingMultiFactorAuthentication'));
+
+        $login->callAction('useAnotherAccount')
+            ->assertHasNoErrors();
+
+        $login->set('data.email', $student->email)
+            ->set('data.password', 'second account password')
+            ->call('authenticate')
+            ->assertHasNoErrors()
+            ->assertRedirect('/student');
+
+        $this->assertAuthenticatedAs($student);
+    }
+
+    public function test_restarting_mfa_does_not_reset_rate_limiting_counters_or_consume_recovery_codes(): void
+    {
+        $staff = User::factory()->create([
+            'email' => 'staff-rate-limit-preservation@example.test',
+            'password' => 'a secure password 2026',
+        ]);
+        $staff->assignRole(User::StaffRoleFaculty);
+        $provider = app(TalaAppAuthentication::class)->recoverable();
+        $secret = $provider->generateSecret();
+        $provider->saveSecret($staff, $secret);
+        $provider->saveRecoveryCodes($staff, ['unconsumed-recovery-code']);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $mfaKey = 'tala-mfa:'.$staff->getAuthIdentifier().'|127.0.0.1';
+        RateLimiter::clear($mfaKey);
+
+        $login = Livewire::test(ContextualLogin::class)
+            ->set('data.email', $staff->email)
+            ->set('data.password', 'a secure password 2026')
+            ->call('authenticate')
+            ->assertHasNoErrors();
+
+        $this->assertNotNull($login->get('userUndertakingMultiFactorAuthentication'));
+
+        $login->set('data.multiFactor.app.code', '999999')
+            ->call('authenticate')
+            ->assertHasErrors(['data.multiFactor.app.code']);
+
+        $this->assertSame(1, RateLimiter::attempts($mfaKey));
+
+        $login->callAction('useAnotherAccount');
+
+        $this->assertSame(1, RateLimiter::attempts($mfaKey));
+        $this->assertCount(1, $staff->fresh()->getAppAuthenticationRecoveryCodes());
+        $this->assertTrue($provider->verifyRecoveryCode('unconsumed-recovery-code', $staff->fresh()));
+        $this->assertDatabaseMissing('activity_log', [
+            'subject_type' => User::class,
+            'subject_id' => $staff->id,
+            'event' => 'mfa_challenge_succeeded',
+        ]);
+    }
+
+    public function test_restarting_mfa_challenge_from_mfa_account_a_to_mfa_account_b(): void
+    {
+        $provider = app(TalaAppAuthentication::class)->recoverable();
+
+        $userA = User::factory()->create([
+            'email' => 'staff-a@example.test',
+            'password' => 'password a 2026',
+        ]);
+        $userA->assignRole(User::StaffRoleFaculty);
+        $secretA = $provider->generateSecret();
+        $provider->saveSecret($userA, $secretA);
+        $provider->saveRecoveryCodes($userA, ['recovery-a-code']);
+
+        $userB = User::factory()->create([
+            'email' => 'staff-b@example.test',
+            'password' => 'password b 2026',
+        ]);
+        $userB->assignRole(User::StaffRoleRegistrar);
+        $secretB = $provider->generateSecret();
+        $provider->saveSecret($userB, $secretB);
+        $provider->saveRecoveryCodes($userB, ['recovery-b-code']);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $login = Livewire::test(ContextualLogin::class)
+            ->set('data.email', $userA->email)
+            ->set('data.password', 'password a 2026')
+            ->call('authenticate')
+            ->assertHasNoErrors();
+
+        // 1. User A is in challenge
+        $this->assertNotNull($login->get('userUndertakingMultiFactorAuthentication'));
+        $this->assertGuest();
+
+        // 2. User A enters invalid code, generating error
+        $login->set('data.multiFactor.app.code', '999999')
+            ->call('authenticate')
+            ->assertHasErrors(['data.multiFactor.app.code']);
+
+        // 3. User clicks "Use another account"
+        $login->callAction('useAnotherAccount')
+            ->assertHasNoErrors()
+            ->assertDispatched('focus-email-input');
+
+        // 4. Assert challenge identity cleared, credential data cleared, errors cleared
+        $this->assertNull($login->get('userUndertakingMultiFactorAuthentication'));
+        $this->assertNull($login->get('data.email'));
+        $this->assertNull($login->get('data.password'));
+        $this->assertGuest();
+
+        // 5. Enter Account B credentials
+        $login->set('data.email', $userB->email)
+            ->set('data.password', 'password b 2026')
+            ->call('authenticate')
+            ->assertHasNoErrors();
+
+        // 6. User B now enters MFA challenge, and remains guest
+        $this->assertNotNull($login->get('userUndertakingMultiFactorAuthentication'));
+        $this->assertGuest();
+
+        // 7. Submitting User A's TOTP or invalid code fails for User B
+        $totpA = $provider->getCurrentCode($userA, $secretA);
+        $invalidForB = $totpA === $provider->getCurrentCode($userB, $secretB) ? '000000' : $totpA;
+
+        $login->set('data.multiFactor.app.code', $invalidForB)
+            ->call('authenticate')
+            ->assertHasErrors(['data.multiFactor.app.code']);
+        $this->assertGuest();
+
+        // 8. Submitting User B's own valid TOTP succeeds
+        $totpB = $provider->getCurrentCode($userB, $secretB);
+
+        $login->set('data.multiFactor.app.code', $totpB)
+            ->call('authenticate')
+            ->assertHasNoErrors()
+            ->assertRedirect('/admin/admission-applications');
+
+        // 9. Fully authenticated as User B
+        $this->assertAuthenticatedAs($userB);
+
+        // 10. User A and B recovery codes untouched and unconsumed
+        $this->assertCount(1, $userA->fresh()->getAppAuthenticationRecoveryCodes());
+        $this->assertTrue($provider->verifyRecoveryCode('recovery-a-code', $userA->fresh()));
+        $this->assertCount(1, $userB->fresh()->getAppAuthenticationRecoveryCodes());
+        $this->assertTrue($provider->verifyRecoveryCode('recovery-b-code', $userB->fresh()));
     }
 }

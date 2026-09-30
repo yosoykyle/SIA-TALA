@@ -20,18 +20,20 @@ class ContextualFilamentLoginResponse implements LoginResponse
             return redirect('/');
         }
 
+        session()->forget('url.intended');
+
         $requested = session()->pull('tala.requested_context');
         $available = $this->contexts->availableContexts($user);
         $this->contexts->explainUnavailableEntry(is_string($requested) ? $requested : null, $available);
 
         if (is_string($requested) && array_key_exists($requested, $available)) {
-            return redirect()->intended($this->contexts->select($user, $requested));
+            return redirect()->to($this->contexts->select($user, $requested));
         }
 
         if (count($available) === 1) {
             $context = array_key_first($available);
 
-            return redirect()->intended($this->contexts->select($user, $context));
+            return redirect()->to($this->contexts->select($user, $context));
         }
 
         return redirect()->route('workspace-chooser');

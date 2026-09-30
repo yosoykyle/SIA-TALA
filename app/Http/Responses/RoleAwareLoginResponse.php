@@ -40,6 +40,8 @@ class RoleAwareLoginResponse implements LoginResponseContract
             default => config('fortify.home'),
         };
 
+        session()->forget('url.intended');
+
         return redirect()->to($workspacePath);
     }
 

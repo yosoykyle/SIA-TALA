@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Actions\Authentication\TalaAppAuthentication;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Pages\Auth\ContextualLogin;
 use App\Models\AdmissionApplication;
@@ -232,5 +233,111 @@ class Clinic1ContextualAccessJourneyTest extends TestCase
             ->assertSet('requestedContext', null);
 
         $this->assertFalse(session()->has('tala.requested_context'));
+    }
+
+    public function test_contextual_login_ignores_stale_intended_url_and_lands_on_canonical_destination(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'admin@example.test',
+            'password' => 'a secure password 2026',
+        ]);
+        $user->assignRole(User::StaffRoleSystemSuperAdmin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        session()->put('url.intended', '/admin/my-availability');
+
+        Livewire::test(ContextualLogin::class)
+            ->set('data.email', 'admin@example.test')
+            ->set('data.password', 'a secure password 2026')
+            ->call('authenticate')
+            ->assertHasNoErrors()
+            ->assertRedirect('/admin/users');
+
+        $this->assertAuthenticatedAs($user);
+        $this->assertNull(session('url.intended'));
+    }
+
+    public function test_stale_faculty_intended_url_with_system_administrator_mfa_enters_admin_users(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'sysadmin@example.test',
+            'password' => 'a secure password 2026',
+        ]);
+        $user->assignRole(User::StaffRoleSystemSuperAdmin);
+        $provider = app(TalaAppAuthentication::class)->recoverable();
+        $secret = $provider->generateSecret();
+        $provider->saveSecret($user, $secret);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        session()->put('url.intended', '/admin/my-availability');
+
+        $login = Livewire::test(ContextualLogin::class)
+            ->set('data.email', 'sysadmin@example.test')
+            ->set('data.password', 'a secure password 2026')
+            ->call('authenticate')
+            ->assertHasNoErrors();
+
+        $this->assertNotNull($login->get('userUndertakingMultiFactorAuthentication'));
+        $this->assertGuest();
+
+        $validTotp = $provider->getCurrentCode($user, $secret);
+
+        $login->set('data.multiFactor.app.code', $validTotp)
+            ->call('authenticate')
+            ->assertHasNoErrors()
+            ->assertRedirect('/admin/users');
+
+        $this->assertAuthenticatedAs($user);
+        $this->assertNull(session('url.intended'));
+    }
+
+    public function test_already_authenticated_user_visiting_login_ignores_stale_intended_url(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(User::StaffRoleSystemSuperAdmin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $this->actingAs($user);
+        session()->put('url.intended', '/admin/forbidden-route');
+
+        Livewire::test(ContextualLogin::class)
+            ->assertRedirect('/admin/users');
+
+        $this->assertNull(session('url.intended'));
+    }
+
+    public function test_already_authenticated_user_requesting_valid_context_switches_workspace(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(['student', User::StaffRoleFaculty]);
+        StudentProfile::factory()->create(['user_id' => $user->id]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $this->actingAs($user);
+        session()->put(WorkspaceContextResolver::SessionKey, 'student');
+
+        $this->get('/admin/login?context=faculty')
+            ->assertRedirect('/admin/my-availability');
+
+        $this->assertSame(User::StaffRoleFaculty, session(WorkspaceContextResolver::SessionKey));
+    }
+
+    public function test_already_authenticated_user_requesting_unauthorized_context_explains_and_routes_to_authorized_workspace(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('student');
+        StudentProfile::factory()->create(['user_id' => $user->id]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $this->actingAs($user);
+
+        $this->get('/admin/login?context=faculty')
+            ->assertRedirect('/student');
+
+        $this->assertSame(
+            'You are signed in. The selected entry is unavailable for this account. Use one of your authorized workspaces.',
+            session('tala.context_entry_notice'),
+        );
     }
 }

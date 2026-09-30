@@ -3,9 +3,12 @@
 namespace App\Filament\Pages\Auth;
 
 use App\Actions\Applicants\ApplicantEntryReadinessService;
+use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Pages\Auth\Login;
 use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Checkbox;
@@ -28,7 +31,11 @@ class ContextualLogin extends Login
             throw new LogicException('The Filament login email component must be a text input.');
         }
 
-        return $component->autocomplete('username');
+        return $component
+            ->autocomplete('username')
+            ->extraInputAttributes([
+                'x-on:focus-email-input.window' => '$nextTick(() => $el.focus())',
+            ]);
     }
 
     protected function getPasswordFormComponent(): TextInput
@@ -90,11 +97,63 @@ class ContextualLogin extends Login
             session()->forget('tala.requested_context');
         }
 
+        if (Filament::auth()->check()) {
+            session()->forget('url.intended');
+
+            $user = Filament::auth()->user();
+            if ($user instanceof User) {
+                /** @var WorkspaceContextResolver $resolver */
+                $resolver = app(WorkspaceContextResolver::class);
+                $available = $resolver->availableContexts($user);
+
+                $resolver->explainUnavailableEntry($this->requestedContext, $available);
+
+                if (is_string($this->requestedContext) && array_key_exists($this->requestedContext, $available)) {
+                    redirect()->to($resolver->select($user, $this->requestedContext));
+
+                    return;
+                }
+
+                if (count($available) === 1) {
+                    $context = array_key_first($available);
+                    redirect()->to($resolver->select($user, $context));
+
+                    return;
+                }
+
+                if (count($available) > 1) {
+                    $currentPanelId = Filament::getCurrentOrDefaultPanel()->getId();
+                    $selected = $resolver->selected($user);
+                    $selectedPanel = $selected ? ($available[$selected]['panel'] ?? null) : null;
+
+                    if ($selected !== null && $selectedPanel === $currentPanelId) {
+                        redirect()->to($resolver->destinationFor($user, $selected));
+
+                        return;
+                    }
+
+                    redirect()->route('workspace-chooser');
+
+                    return;
+                }
+
+                redirect()->to('/');
+
+                return;
+            }
+
+            redirect()->to(Filament::getUrl());
+
+            return;
+        }
+
         parent::mount();
     }
 
     public function authenticate(): ?LoginResponse
     {
+        session()->forget('url.intended');
+
         $email = Str::lower(trim((string) ($this->data['email'] ?? '')));
         $user = User::query()->where('email', $email)->first();
         $rateLimitingKey = 'tala-login:'.$email.'|'.request()->ip();
@@ -129,6 +188,7 @@ class ContextualLogin extends Login
         }
 
         if ($response instanceof LoginResponse) {
+            session()->forget('url.intended');
             RateLimiter::clear($rateLimitingKey);
 
             $authenticatedUser = Filament::auth()->user();
@@ -190,5 +250,53 @@ class ContextualLogin extends Login
         };
 
         return "Sign in to {$label}";
+    }
+
+    /**
+     * @return array<Action | ActionGroup>
+     */
+    protected function getMultiFactorChallengeFormActions(): array
+    {
+        return [
+            $this->getMultiFactorAuthenticateFormAction(),
+            $this->useAnotherAccountAction(),
+        ];
+    }
+
+    public function useAnotherAccountAction(): Action
+    {
+        return Action::make('useAnotherAccount')
+            ->label('Use another account')
+            ->color('gray')
+            ->action(fn () => $this->restartAuthentication());
+    }
+
+    public function restartAuthentication(): void
+    {
+        $this->userUndertakingMultiFactorAuthentication = null;
+
+        $this->data = [
+            'email' => null,
+            'password' => null,
+            'remember' => false,
+        ];
+
+        $this->form->fill($this->data);
+        $this->multiFactorChallengeForm->fill([]);
+
+        $this->resetErrorBag();
+        $this->resetValidation();
+
+        $this->dispatch('focus-email-input');
+    }
+
+    public function useAnotherAccount(): void
+    {
+        $this->restartAuthentication();
+    }
+
+    public function restartMultiFactorChallenge(): void
+    {
+        $this->restartAuthentication();
     }
 }
