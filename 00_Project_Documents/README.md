@@ -17,7 +17,7 @@ These ten documents are the complete approved product authority set:
 9. [`ui_surface_blueprint.md`](ui_surface_blueprint.md)
 10. [`architecture_specification.md`](architecture_specification.md)
 
-The baseline and PRDs own product behavior, the UI Surface Blueprint owns interface mapping, and the Architecture Specification owns system and integration boundaries. Active visual design authority for the September 26 scope is governed by the Impeccable design foundation ([`../PRODUCT.md`](../PRODUCT.md), [`../DESIGN.md`](../DESIGN.md), and [`.impeccable/surfaces/`](../.impeccable/surfaces/)). The historical [TALA Experience and Official-Output Design Definition](TALA-Experience-and-Official-Output-Design-Definition.md) is superseded historical design rationale preserved for traceability; it cannot override canonical owners.
+The baseline and PRDs own product behavior, the UI Surface Blueprint owns interface mapping, and the Architecture Specification owns system and integration boundaries. Current shared visual direction is recorded in [`PRODUCT.md`](../PRODUCT.md) and [`DESIGN.md`](../DESIGN.md), while the UI Surface Blueprint governs observable interface and role-surface contracts and Architecture governs technical boundaries. The October 2 owner-selected guide is supporting evidence whose accepted traits are promoted into those records. Existing surface briefs retain task-specific decisions but cannot override superseded global visual requirements. The historical [TALA Experience and Official-Output Design Definition](TALA-Experience-and-Official-Output-Design-Definition.md) is superseded historical design rationale preserved for traceability; it cannot override canonical owners.
 
 ## Workflow and operational authority
 
@@ -25,7 +25,7 @@ The baseline and PRDs own product behavior, the UI Surface Blueprint owns interf
 | --- | --- | --- |
 | Workflow authority | [`../AGENTS.md`](../AGENTS.md), [`TALA-Orchestrator-Protocol.md`](TALA-Orchestrator-Protocol.md) | Planning, execution, verification, preservation, Git, and external-mutation rules only |
 | Workflow quick reference | [`TALA-Orchestration-Cheat-Sheet.md`](TALA-Orchestration-Cheat-Sheet.md) | Derived operational companion for humans and agents; introduces no authority, and the Orchestrator Protocol governs any conflict |
-| Active design foundation | [`../PRODUCT.md`](../PRODUCT.md), [`../DESIGN.md`](../DESIGN.md), [`.impeccable/surfaces/`](../.impeccable/surfaces/) | User-approved refinement of the established blue-led identity, with Impeccable-led workflow and component design for September 26 scope |
+| Active design foundation | [`../PRODUCT.md`](../PRODUCT.md), [`../DESIGN.md`](../DESIGN.md), [`.impeccable/surfaces/`](../.impeccable/surfaces/) | October 2 school-first presentation direction and applicable task-specific briefs; canonical UI and architecture owners govern conflicts |
 | Historical design rationale | [`TALA-Experience-and-Official-Output-Design-Definition.md`](TALA-Experience-and-Official-Output-Design-Definition.md) | Historical Human-Centered Operations layouts and rationale; selected identity traits survive through current canonical UI authority and DESIGN.md, not the prototype itself |
 | Task management | GitHub Issues and the public [`TALA Development`](https://github.com/users/yosoykyle/projects/3) project | Issues own tracked scope; the project provides `All Work` and `Board` views, with approved implementation intake and terminal `Done` transitions automated as defined by the protocol |
 | Developer setup | [`../README.md`](../README.md), [`../CONTRIBUTING.md`](../CONTRIBUTING.md), [`developer-guides/`](developer-guides/), [`../CLAUDE.md`](../CLAUDE.md), [`../GEMINI.md`](../GEMINI.md) | Application setup, integration runbooks, fresh-clone readiness, and compatibility routing; never product authority |
@@ -38,7 +38,8 @@ Classification is determined by the first matching rule below. Every project-aut
 
 | Path | Classification | Reading rule |
 | --- | --- | --- |
-| [`design-evidence/`](design-evidence/) | Supporting evidence — historical comparison | Portable prototype and QA comparisons; retained identity traits have authority only where promoted into current PRODUCT.md, DESIGN.md, or the UI Blueprint |
+| [`design-evidence/layout/`](design-evidence/layout/) | Supporting evidence — current owner-selected adaptation reference | Use the current README and rendered specimens through promoted canonical contracts. Native Heroicons override prototype Lucide for production. Fictional workflows, historical captures, and QA are not product or acceptance authority |
+| [`design-evidence/`](design-evidence/) | Supporting evidence — historical comparison | Historical comparisons and other supporting design material; current reference directories require their explicit classification. No prototype independently grants product or implementation authority |
 | `prd_modules/_legacy/**` | Supporting evidence — replaced PRDs | Traceability and bounded salvage only; canonical 00–06 wins |
 | [`business-evidence/`](business-evidence/) | Supporting evidence — institutional material | Clarifies terminology, forms, and current/manual practice; cannot override accepted policy or product authority |
 | [`research paper/`](research%20paper/) | Supporting evidence — research | Technical and academic support; not an implementation contract |

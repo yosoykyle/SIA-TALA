@@ -2,7 +2,7 @@
 
 ## Purpose and Authority
 
-This blueprint is the canonical UI authority for the TALA MVP. It defines user-visible capabilities, navigation, states, information hierarchy, interaction patterns, responsiveness, accessibility, outputs, and acceptance traceability independently of any design tool or implementation structure. The [Human-Centered Operations design definition](TALA-Experience-and-Official-Output-Design-Definition.md) records earlier August 2026 rationale and prototype translations. The user-approved September 25 correction retains and refines the established blue-led institutional identity in [`DESIGN.md`](../DESIGN.md), while allowing substantial workflow and component redesign where user tasks require it. This blueprint governs any conflict.
+This blueprint is the canonical UI authority for the TALA MVP. It defines user-visible capabilities, navigation, states, information hierarchy, interaction patterns, responsiveness, accessibility, outputs, and acceptance traceability independently of any design tool or implementation structure. The [Human-Centered Operations design definition](TALA-Experience-and-Official-Output-Design-Definition.md) records earlier August 2026 rationale and prototype translations. The October 2 owner-selected direction uses neutral light/dark surfaces, green-led primary actions, supporting TALA blue, Inter typography, and native Heroicons. Earlier blue-primary and Outfit/Inter requirements are superseded; product behavior, school-first branding, role ownership, accessibility, and official-output contracts remain governed by canonical authority. [`DESIGN.md`](../DESIGN.md) records the shared visual direction. This blueprint governs any conflict.
 
 Use this source order while defining every UI authority and later planning every approved UI slice:
 
@@ -82,7 +82,7 @@ Filament v5 implementation conventions:
 
 ## Human-Centered Operations and Ethical Decision Presentation
 
-The approved presentation direction combines Servitech institutional identity, calm blue-led surfaces, learner guidance, efficient Staff workbenches, plain operational language, restrained semantic status colors, and document-specific official-output layouts. The institution crest and TALA mark remain full color on screen. Selected navigation uses a filled surface, contrast, icon, and weight without a narrow yellow side strip. Routine pages progressively disclose detail rather than presenting every field, evidence item, and action at once.
+The October 2 owner-selected direction uses neutral light/dark surfaces, green-led primary actions, supporting TALA blue, Inter typography, and native Heroicons. Earlier blue-primary and Outfit/Inter requirements are superseded; product behavior, school-first branding, role ownership, accessibility, and official-output contracts remain governed by canonical authority. Learner guidance, efficient Staff workbenches, plain operational language, restrained semantic status colors, and document-specific official-output layouts remain task-led. The institution crest and TALA mark remain full color on screen. Selected navigation uses a filled surface, contrast, icon, and weight without a narrow yellow side strip. Routine pages progressively disclose detail rather than presenting every field, evidence item, and action at once.
 
 The following rules apply to every coverage ID:
 
@@ -344,11 +344,11 @@ A single-role Staff account enters its fixed destination directly. A multi-role 
 
 ### Workspace shell
 
-At 1024 CSS pixels and above, authenticated workspaces use a persistent left navigation, a top bar, and one main-content region. Below 1024 pixels, the left navigation becomes a labelled modal drawer opened from the top bar. TALA does not add role-specific bottom navigation.
+At 1024 CSS pixels and above, authenticated workspaces retain left navigation, a coordinated header, and one main region. Below that width, the selected direction uses a compact header and role-specific bottom navigation. Exact destination labels/order and complete overflow access belong to the owning child. Until a role’s adaptation is accepted, its existing accessible navigation remains the working baseline. This changes presentation, not permissions or the supported mutation capabilities of a viewport.
 
 The top bar and sidebar header lead with the institutional identity (**Servitech Institute Asia Inc.** or **Servitech Institute Asia**), followed by current workspace/role, secondary TALA system identity (e.g. *Powered by TALA*), an explicitly selected Term context when the owning page requires it, the multi-role workspace switcher when applicable, Account Security, and sign-out. Bare "TALA Staff Workspace" or standalone "TALA" presentation where institutional authority is exercised is prohibited. Primary navigation order is exactly the Panel and Navigation Map above and remains stable across pages. The first focusable control is **Skip to main content**.
 
-The shell uses a semantic `header`, one labelled primary `nav`, `main`, and a labelled account menu. Opening the mobile drawer moves focus into it; Tab remains contained while it is modal; Escape closes it where safe; and closing returns focus to the trigger. The current destination is expressed in text and `aria-current`, never by color alone. Hiding navigation never authorizes or deauthorizes a route, query, action, download, or output.
+The shell uses a semantic `header`, one labelled primary `nav`, `main`, and a labelled account menu. Opening an authorized overflow drawer or fallback mobile drawer moves focus into it; Tab remains contained while it is modal; Escape closes it where safe; and closing returns focus to the trigger. The current destination is expressed in text and `aria-current`, never by color alone. Hiding navigation never authorizes or deauthorizes a route, query, action, download, or output.
 
 TALA adds no global search. Primary navigation, source-owned contextual links, workbench search, and owning-page links provide alternative paths. A Wizard or guided process owns its own sequence; global navigation and breadcrumbs do not imitate process steps.
 
@@ -379,65 +379,119 @@ Controls retain a distinct border, fill, or stable action zone and never look li
 
 Authenticated Applicant, Student, and each Staff role may use one short, role-aware **Quick tour** implemented with the installed Driver.js 1.4.0 dependency plus a small TALA wrapper. Public visitors receive no tour. On the first successful entry for a credential, authorized role, and tour version, TALA shows a non-blocking invitation; it never opens the overlay automatically. **Quick tour** remains replayable from the account menu. Dismissal or completion suppresses only that role and version's invitation.
 
-The static steps cover only the current workspace/role, canonical navigation, explicit Term context when present, owner/status/next-action presentation, the page's primary-action location, and Account Security/replay. The tour never navigates, switches a Term or role, opens the mobile drawer, enters data, explains private record contents, or performs an institutional mutation. Before starting, the wrapper removes steps whose targets are not present or authorized; it does not rely on a newer missing-target option. If no usable step remains, ordinary navigation continues and no completion preference is recorded.
+The static steps cover only the current workspace/role, canonical navigation, explicit Term context when present, owner/status/next-action presentation, the page's primary-action location, and Account Security/replay. The tour never navigates, switches a Term or role, opens mobile navigation or an overflow drawer, enters data, explains private record contents, or performs an institutional mutation. Before starting, the wrapper removes steps whose targets are not present or authorized; it does not rely on a newer missing-target option. If no usable step remains, ordinary navigation continues and no completion preference is recorded.
 
-The tour uses visible **Next**, **Previous**, **Finish**, and **Close** controls; Escape closes; focus remains within the named dialog and returns to the invitation or replay control. Screen readers receive the title, description, and **Step x of y** progress in meaningful order. At mobile widths, the visible drawer trigger may be highlighted but the drawer is not programmatically opened; a target-free centered explanation may replace a hidden desktop target. With reduced motion, animation and smooth scrolling are disabled. The tour sends no third-party request, captures no DOM or record content, records no grade, application, finance, or identity value, and adds no analytics. Failure changes neither business state nor the dismissal/completion preference.
+The tour uses visible **Next**, **Previous**, **Finish**, and **Close** controls; Escape closes; focus remains within the named dialog and returns to the invitation or replay control. Screen readers receive the title, description, and **Step x of y** progress in meaningful order. At mobile widths, visible bottom-navigation or overflow controls (or the fallback drawer trigger) may be highlighted, but an overflow/fallback drawer is never programmatically opened; a target-free centered explanation may replace a hidden desktop target. With reduced motion, animation and smooth scrolling are disabled. The tour sends no third-party request, captures no DOM or record content, records no grade, application, finance, or identity value, and adds no analytics. Failure changes neither business state nor the dismissal/completion preference.
 
 No onboarding checklist, dashboard, tour editor, database-driven workflow builder, or new plugin is introduced. Later implementation acceptance must qualify Driver.js 1.4.0 with keyboard, NVDA or equivalent desktop screen reader, TalkBack or equivalent mobile screen reader, 360/390 mobile, and reduced-motion behavior; inability to pass that bounded contract reopens only the tour disposition and never blocks ordinary workspace use.
 
 ## Visual Foundation and Implementation Authority
 
-The September 25 user-approved correction retains and refines the recognizable blue-led identity already established in this blueprint and implemented across parts of the product; it supersedes Candidate #6's replacement archival palette without accepting existing layouts or workflows wholesale. Historical prototype captures remain comparison evidence, not binding screen templates. Light-first references do not disable native Light/Dark/System behavior. Institutional navy and blue carry shared structure and primary action hierarchy; yellow remains a restrained accent rather than a navigation stripe or broad selection treatment. The approved yellow TALA star artwork is the product mark; the word **TALA** is rendered as live text rather than a separate raster wordmark. The institution-supplied Servitech/SIA crest is the institution mark. Both marks remain full color on screen. File presence, a legacy screenshot, or an existing template cannot substitute for approval of the underlying artwork. Canonical UI Blueprint authority governs any conflict with design exploration seeds.
+The October 2 owner-selected direction uses neutral light/dark surfaces, green-led primary actions, supporting TALA blue, Inter typography, and native Heroicons. Earlier blue-primary and Outfit/Inter requirements are superseded; product behavior, school-first branding, role ownership, accessibility, and official-output contracts remain governed by canonical authority. Historical prototype captures remain comparison evidence, not binding screen templates. Light-first references do not disable native Light/Dark/System behavior. The approved yellow TALA star artwork is the product mark; the word **TALA** is rendered as live text rather than a separate raster wordmark. The institution-supplied Servitech/SIA crest is the institution mark. Both marks remain full color on screen. File presence, a legacy screenshot, or an existing template cannot substitute for approval of the underlying artwork. Canonical UI Blueprint authority governs any conflict with design exploration seeds.
 
 ### Color tokens
 
-| Token | Value | Use |
-|---|---|---|
-| Brand primary | `#1D4ED8` | Primary actions, selected navigation, links on light surfaces |
-| Brand strong | `#1E3A8A` | Emphasis and high-contrast brand surfaces |
-| Brand accent | `#FACC15` | Small brand cue with dark text; never body text on white |
-| Canvas | `#F8FAFC` | Application background |
-| Surface | `#FFFFFF` | Forms, tables, panels, and print-safe content |
-| Primary text | `#0F172A` | Headings and body text |
-| Muted text | `#475569` | Secondary explanation and metadata |
-| Border | `#CBD5E1` | Structural separation and control boundaries |
-| Success | `#166534` on `#F0FDF4` | Completed/available state with icon and text |
-| Warning | `#92400E` on `#FFFBEB` | Pending/action-needed state with icon and text |
-| Danger | `#991B1B` on `#FEF2F2` | Rejected/blocked/voided state with icon and text |
-| Information | `#1E40AF` on `#EFF6FF` | Advisory state with icon and text |
-| Focus ring | `#A16207` | Visible focus with offset and at least 3:1 component contrast |
+| Semantic role | Light appearance | Dark appearance | Use |
+|---|---|---|---|
+| Primary action | `#2F7D3B` / `#FFFFFF` | `#6ACB7C` / `#17351C` | Primary action background / foreground |
+| Accent text | `#15772E` | `#8DE698` | Standalone interactive accent |
+| Supporting TALA blue | `#0C53C1` | `#6EB4FF` | Appropriate links/information and secondary identity |
+| Selection | `#B8D4B8` / `#0E4A0B` | `#35533E` / `#8DE698` | Selected surface / foreground |
+| Canvas | `#FAFAFB` | `#222226` | Application background |
+| Secondary surface | `#EBEBED` | `#2E2E32` | Navigation and secondary containers |
+| Task surface | `#FFFFFF` | `#36363A` | Forms, tables, and task panels |
+| Primary ink | `#2E2E34` | `#FFFFFF` | Headings and body text |
+| Muted ink | `#63636D` | `#B7B7BD` | Secondary explanation and metadata |
+| Structural divider | `#D6D6DC` | `#48484E` | Quiet separation |
+| Inset field | `#FFFFFF` | `#1D1D20` | Editable-field background |
+| Control boundary | `#85858F` | `#85858F` | Editable fields and neutral controls |
+| Success | `#17451E` / `#DFEFDF` | `#A4E6B5` / `#274433` | Status foreground / background |
+| Warning | `#765311` / `#F4E7C9` | `#F4D598` / `#4B3D26` | Status foreground / background |
+| Danger | `#9C1437` / `#F6DCE3` | `#FFC0CC` / `#542D37` | Status foreground / background |
+| Destructive action | `#B4113F` / `#FFFFFF` | `#B4113F` / `#FFFFFF` | Destructive background / foreground |
+| Restrained gold | `#805B16` | `#EBCA90` | Supporting highlights, never a broad navigation stripe |
 
-These values define the accepted light appearance. Filament panels and Auth Designer retain native Light, Dark, and System choices, with System as the default and an explicit user choice respected across visits. The public Bootstrap gateway retains its existing system-theme following. Custom surfaces, text, statuses, and focus treatments must adapt and meet contrast in both appearances through shared semantic tokens or native dark variants; do not build a second theme engine or reset stored user choices. All normal text meets 4.5:1 contrast; large text and non-text controls meet 3:1. Status always combines label, icon, and semantic context. Paper/print output remains governed by its own monochrome-capable contract, independent of screen appearance.
+These are semantic adaptation anchors, not a complete framework color ramp or a certification of every rendered state. Information uses supporting-blue foreground on a suitable neutral surface. Status meanings remain source-derived and text-backed. Primary actions and success indicators must remain distinguishable by component treatment and labels.
+
+Preserve native Light/Dark/System behavior and stored preferences. Filament panels and Auth Designer default to System; the public Bootstrap gateway retains its existing system-theme following. Do not build a second theme engine or reset stored user choices. Normal text meets 4.5:1; large text and applicable non-text indicators meet 3:1. Verify actual backgrounds, opacity, gradients, hover/focus/disabled states, and forced colors. A custom focus perimeter is at least 2 pixels with sufficient offset and contrast against adjacent colors. Status combines label, icon, and semantic context. Print remains independent and monochrome-capable.
 
 ### Typography tokens
 
-- Outfit at weights 600–700 is the display/heading face. Inter at weights 400, 500, and 600 is the body, control, table, amount, and identifier face. Both fall back to the system sans-serif stack.
+- Inter is the heading and interface family: headings use appropriate 600–700 weights; body, controls, tables, amounts, and identifiers use appropriate 400–600 weights, with system sans-serif fallbacks.
 - The type scale is 12, 14, 16, 18, 20, 24, and 30 CSS pixels. Text smaller than 12 pixels is not used.
-- Body and learner input text remains at least 16 pixels at mobile widths. Dense Staff table text may be 14 pixels while retaining zoom/reflow and target requirements.
+- Body and all input text remains at least 16 pixels at mobile widths. Dense Staff table text may be 14 pixels while retaining zoom/reflow and target requirements.
 - Body line height is 1.5; headings use approximately 1.25. Wrapped text of three or more lines uses at least 1.4.
 - Long explanatory prose is capped near 60–75 characters per line. Headings may use balanced wrapping; descriptions may use deliberate natural wrapping.
 - Amounts, changing counts, identifiers, dates, and times use tabular numerals. Text remains selectable, and meaningful truncation always has an expanded or detail view.
 
 ### Layout and motion tokens
 
-- Spacing uses 4, 8, 12, 16, 24, 32, and 48 pixels. Mobile content and full-width learner actions remain inset at least 16 pixels from the viewport edge and safe area.
-- Corner radii use 6, 8, and 12 pixels. Nested surfaces use concentric radii rather than identical pinched corners.
-- Borders carry structural hierarchy. Shadows are reserved for drawers, menus, and dialogs that genuinely float above content.
+- Content spacing uses 4, 8, 12, 16, 24, 32, and 48 pixels. Mobile content and full-width learner actions remain inset at least 16 pixels from the viewport edge and safe area. Desktop shell framing uses 12-pixel outer padding and 10-pixel panel gaps where available content width permits.
+- Shell panels and dialogs use 15-pixel corner roles, cards 12 pixels, and controls 8 pixels. Nested treatments preserve appropriate concentric relationships; circles, status pills, and mobile edge-to-edge surfaces retain purposeful exceptions.
+- Borders carry structure and state. Controls may use restrained same-hue gradients and inset/outer shading: neutral controls stay quieter, selected controls read as pressed, and disabled controls remain flat. Stronger elevation belongs to genuinely floating drawers, menus, and dialogs.
 - Public navigation and the fixed footer strip use the approved progressive-blur layers without a uniform tint overlay, hard bottom border, or abrupt color cut. Mobile footer content reserves the full blur height plus the device safe area so no link is obscured.
 - Selected authenticated navigation uses filled surface, contrast, icon, and weight. It has no narrow yellow side strip.
-- Routine state changes use no decorative entrance animation. Necessary feedback is limited to 150–200 ms opacity or transform transitions, never `transition: all`, and respects reduced-motion preference.
-- Heroicons Outline is the one interface icon family. Authenticated workspaces use Filament's PHP `Heroicon` abstraction; the separately declared npm Heroicons package gains no independent responsibility. Icon stroke weight matches adjacent text and active states use color/fill without requiring a separate asset.
+- Routine state changes use no decorative entrance animation. Shell transitions use 180 ms ease timing on explicitly named properties; high-frequency feedback stays immediate or restrained. Theme changes remain immediate. Every transition preserves static cues, interruption recovery, and reduced-motion access; never use `transition: all`.
+- Native Heroicons Outline is the production interface icon family, matching the reference's visual weight through size and optical alignment. Authenticated workspaces use Filament's PHP `Heroicon` abstraction; the separately declared npm Heroicons package gains no independent responsibility. Active states use color/fill without requiring a separate asset. Lucide remains prototype-only; no new icon dependency is implied.
 - Qualification frames are 390×844 and 360×800 for learner mobile, 768×1024 for intermediate review, and 1366×768 for dense Staff work.
 
 ### Brand-mark and print roles
 
 - Public and authentication surfaces show the full-color institution crest together with the full-color TALA star and live **TALA** wordmark. The star may be friendly and prominent there, but it never competes with the page's task.
-- Institutional authority belongs to the school: Authenticated Applicant, Student, and Staff shells lead with **Servitech Institute Asia** (or **Servitech Institute Asia Inc.**) with the live workspace/role name and secondary TALA system identity (e.g., *Powered by TALA*). Bare "TALA Staff Workspace" or standalone "TALA" branding where institutional authority is presented is prohibited. Dense navigation and workbenches use a restrained 32 CSS-pixel TALA mark alongside the institution identity without repeating large decorative mascots.
+- Institutional authority belongs to the school: authenticated Applicant, Student, and Staff shells lead with Servitech Institute Asia or Servitech Institute Asia Inc., with readable workspace context. Powered by TALA remains secondary and may appear in an appropriate header area, sidebar footer, or shell footer; one stacked or adjacent lockup is not mandatory. Preserve the approved artwork, mark-size, contrast, and accessible-name requirements wherever marks are shown. Bare TALA Staff Workspace or standalone TALA branding where institutional authority is presented remains prohibited.
 - The favicon and install/app icon use the approved star-only artwork.
 - Official and institutional printable outputs lead with the approved institution crest and institution name. They do not use the mascot; a restrained **Generated through TALA** text footer may identify the product.
-- The TALA star is never rendered below 24 CSS pixels, is normally 32 pixels in the authenticated shell, and is at least 48 pixels on public/authentication surfaces. The institution crest is at least 48 CSS pixels on screen and 18 mm high on print, preserves its aspect ratio, remains full color when print color is available, and also has a qualified monochrome-safe rendering.
+- The TALA star is never rendered below 24 CSS pixels, is normally 32 pixels in the authenticated shell, and is at least 48 pixels on public/authentication surfaces.
+- Preserve complete source artwork and original colors without stretching or recoloring. A non-distorting crest-symbol crop is permitted on compact screen surfaces, paired with readable institutional identity and secondary Powered by TALA attribution. The visible crest remains at least 48 CSS pixels; official outputs retain the complete approved artwork and existing 18 mm print floor, full color when available, and a qualified monochrome-safe rendering. TALA mark-size and accessible-name requirements remain unchanged.
 - When adjacent visible text already identifies TALA or Servitech/SIA, the image is decorative and uses an empty text alternative. A standalone product or institution mark receives the matching accessible name. No interface uses the filename as alternative text.
 - Failure pages use system fallbacks and do not depend on Vite or Livewire. Failure pages and printable outputs do not depend on remotely loaded fonts or a decorative background to communicate identity or status.
+
+### Authenticated shell and interaction contract — October 2, 2026
+
+The current owner-selected reference is `design-evidence/layout/README.md`. Its accepted styling, shell composition, responsive grouping, and interaction inform this contract. Native Heroicons override prototype Lucide for production. Example features, data, percentage metrics, settings, and JavaScript do not define SIS requirements.
+
+**Shell states**
+
+- Provide expanded, compact, and scroll-responsive desktop states, retaining coordinated automatic collapse/repositioning.
+- Provide explicit keyboard/touch-operable collapse controls and coordinated header/search presentation; temporary expansion must not block the collapse control.
+- A collapsed desktop rail may expand after 500 ms on hover-capable pointers. Close temporary expansion only after the pointer leaves and focus no longer remains in the rail or search. Keyboard and touch paths never depend on hover.
+- Support pointer and keyboard resizing within available content width, with equivalent controls and safe cancellation of interrupted dragging.
+- Preserve entered values, active task, focus, content/scroll continuity, and reachable navigation through scrolling transitions. Explicit manual state and focused controls take precedence; upward scrolling restores the appropriate state without repeated oscillation.
+- On mobile, downward scrolling may hide the header and bottom navigation; slight upward scrolling, navigation focus, or route change restores them. The virtual keyboard and transition must not obscure a focused control or required action.
+- Preserve safe-area and content spacing, equal touch targets, and a static pressed-selection cue. Navigation backdrops never intercept input and disappear with the navigation.
+- Retain all authorized destinations through role-specific bottom navigation and complete overflow access. Modal overflow follows focus containment, safe Escape dismissal, and focus return; existing accessible navigation remains a fallback until accepted.
+- Define each search control’s purpose, scope, results, empty behavior, and authorization in the owning child. Reuse source-owned contextual search; do not create a global record-search service.
+- Reduced motion preserves every function through non-animated state changes or an accessible equivalent.
+
+**Information and action hierarchy**
+
+- Lead with the current task/state, responsible owner, relevant remarks or deadline, and one meaningful primary action.
+- Surface necessary evidence and permitted controls at the workflow step where they are used; progressively disclose secondary detail.
+- Missing information or interaction is assessed against product purpose and authority. It does not automatically authorize additional fields, data collection, persisted states, or approval steps.
+- Tables, labelled cards, inline sections, and dialogs are selected by task and information density, not by a universal template.
+
+**Navigation counts**
+
+- Show counts only for a defined, useful workload or state.
+- Use the role-authorized authoritative query and lead to a destination exposing the matching records and context.
+- Define scope and refresh behavior in the owning child. Navigation or a relevant completed action may refresh the projection; do not imply continuous monitoring.
+- Default to hiding zero badges. Unavailable or stale evidence must not be converted into a false zero.
+- Give the count an understandable accessible meaning. Do not introduce a separate notification or analytics subsystem merely to produce badges.
+
+**Feedback and motion**
+
+- Include loading, validation, empty, stale, failure, success, and inaccessible behavior in each affected slice.
+- Necessary transitions follow the existing motion tokens, preserve static state cues, and respect reduced motion.
+- Required shell behavior is implemented with the shell. Additional motion polish follows verified functionality; decorative page-load choreography is not required.
+- Routine success notifications may auto-dismiss and provide an accessible close action. Errors or notifications containing an action remain until dismissed. Result changes receive appropriate announcements; table updates preserve useful keyboard position. Route/view changes provide meaningful orientation.
+- Dialogs preserve background protection, safe Escape behavior, and focus return. Recovery pages expose a truthful explanation and working recovery destination. Prototype branding switches and attention-pulse controls do not introduce production settings.
+
+**Acceptance**
+
+- Verify expanded/compact/scroll states, mobile navigation, long labels/content, both appearances, reduced motion, keyboard/focus behavior, and 200% zoom.
+- Preserve theme preferences, authorization, private evidence access, and the accepted #56 sign-in/MFA behavior.
+- Screen-shell changes do not alter official-output or print contracts.
+- Adoption must prevent the documented prototype shortcut, naming, focus, announcement, misleading-status, and forced-colors failures. Qualify keyboard and screen-reader behavior, zoom/reflow, both appearances, interruption recovery, and supported viewport/action boundaries through the destination framework; prototype checks alone cannot establish application acceptance.
 
 ## Reusable Component Authority
 
@@ -445,8 +499,8 @@ The implementation and any design artifact use these named component families an
 
 | Family | Required variants and annotation |
 |---|---|
-| Shell | Public, authenticated desktop, authenticated mobile drawer, Applicant, Student, and Staff role contexts |
-| Navigation | Top bar, sidebar, drawer trigger/panel, workspace switcher, account menu, default/current/disabled navigation item |
+| Shell | Public; authenticated expanded, compact, scroll-responsive desktop, and role-specific mobile header/bottom navigation with complete overflow or accepted drawer fallback; Applicant, Student, and Staff contexts |
+| Navigation | Top bar, sidebar, role-specific bottom navigation, overflow/fallback drawer trigger/panel, workspace switcher, account menu, default/current/disabled item, and purpose-defined optional workload count |
 | Location | Breadcrumb, contextual Back link, browser/page-title example |
 | Page header | Title/context, one primary action, secondary Action Group, no-action/read-only variant |
 | Status and metadata | Status badge with icon/text; owner, source, version, as-of time, deadline, and immutable marker |

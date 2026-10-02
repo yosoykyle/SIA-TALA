@@ -45,7 +45,7 @@ Operates in the daily administrative and academic cycle of Servitech Institute A
 
 - **School-First Institutional Branding:** "Servitech Institute Asia Inc." (or "Servitech Institute Asia") must lead on all page headers, shells, sidebars, print outputs, document headers, and transactional notifications.
 - **Secondary System Attribution:** "TALA" is strictly secondary attribution (e.g., "Powered by TALA" or "Generated through TALA from authenticated records").
-- **Recognizable Visual Identity:** Retain and refine the established blue-led institutional interface, light surfaces, restrained yellow accent, Outfit/Inter typography, full-color school crest, and secondary TALA mark. Existing page layouts and controls are evidence to improve, not a requirement to preserve confusing workflows.
+- **Recognizable Visual Identity:** Apply the October 2 owner-selected school-first direction: neutral light/dark surfaces, green-led primary actions, supporting TALA blue, restrained gold/yellow cues, Inter typography, native Heroicons, full-color institutional crest, and secondary TALA attribution. Existing page layouts and controls are evidence to assess, not requirements to preserve or import.
 - **Tone & Voice:** Authoritative, clean, professional, academic, reassuring, transparent, and precise. Generic labels like "TALA Staff Workspace" without the institution name are prohibited.
 
 ## Evidence on Hand
@@ -54,7 +54,7 @@ Operates in the daily administrative and academic cycle of Servitech Institute A
 - Canonical UI Blueprint (`00_Project_Documents/ui_surface_blueprint.md`).
 - Architecture Specification (`00_Project_Documents/architecture_specification.md`).
 - Governing Business Policy (`00_Project_Documents/TALA-Business-Policy.md`).
-- Committed visual baseline screenshots (`00_Project_Documents/design-evidence/human-centered-operations/*.png`).
+- Current owner-selected visual/interaction reference: `00_Project_Documents/design-evidence/layout/README.md`, interpreted through DESIGN.md and the canonical UI Blueprint. Historical captures under `design-evidence/human-centered-operations/` remain comparison evidence, not current styling authority.
 - Existing tests and active Eloquent models/services; execution claims belong to their dated Issue and CI records, not the presence of test files alone.
 
 ## Product Principles
