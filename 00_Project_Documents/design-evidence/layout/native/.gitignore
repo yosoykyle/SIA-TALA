@@ -1,0 +1,5 @@
+/bootstrap/cache/*.php
+/storage/
+/public/css/filament/
+/public/js/filament/
+/public/fonts/filament/

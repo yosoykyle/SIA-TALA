@@ -344,11 +344,11 @@ A single-role Staff account enters its fixed destination directly. A multi-role 
 
 ### Workspace shell
 
-At 1024 CSS pixels and above, authenticated workspaces retain left navigation, a coordinated header, and one main region. Below that width, the selected direction uses a compact header and role-specific bottom navigation. Exact destination labels/order and complete overflow access belong to the owning child. Until a role’s adaptation is accepted, its existing accessible navigation remains the working baseline. This changes presentation, not permissions or the supported mutation capabilities of a viewport.
+The October 2 native-first correction selects Filament’s sidebar-only authenticated layout (`topbar(false)`), native expanded/compact desktop navigation, a native mobile menu trigger and drawer, and one main region with ordinary page scrolling. Use the installed framework’s responsive behavior rather than a separate bespoke breakpoint or mobile bottom-navigation system. Until a role’s adaptation is accepted, its existing accessible navigation remains the working baseline. This changes presentation, not permissions or the supported mutation capabilities of a viewport.
 
-The top bar and sidebar header lead with the institutional identity (**Servitech Institute Asia Inc.** or **Servitech Institute Asia**), followed by current workspace/role, secondary TALA system identity (e.g. *Powered by TALA*), an explicitly selected Term context when the owning page requires it, the multi-role workspace switcher when applicable, Account Security, and sign-out. Bare "TALA Staff Workspace" or standalone "TALA" presentation where institutional authority is exercised is prohibited. Primary navigation order is exactly the Panel and Navigation Map above and remains stable across pages. The first focusable control is **Skip to main content**.
+Sidebar branding and the appropriate mobile identity area lead with **Servitech Institute Asia Inc.** or **Servitech Institute Asia**, readable workspace/role context, and secondary *Powered by TALA* attribution. Expose an explicitly selected Term context where the owning page requires it. Keep the multi-role workspace switcher when applicable, Account Security, sign-out, and native Light/Dark/System controls reachable through the native sidebar/user menu or supported extension points; the reference preview’s disabled user menu is not a production instruction. Bare "TALA Staff Workspace" or standalone "TALA" presentation where institutional authority is exercised is prohibited. Primary navigation order is exactly the Panel and Navigation Map above and remains stable across pages. The first focusable control is **Skip to main content**.
 
-The shell uses a semantic `header`, one labelled primary `nav`, `main`, and a labelled account menu. Opening an authorized overflow drawer or fallback mobile drawer moves focus into it; Tab remains contained while it is modal; Escape closes it where safe; and closing returns focus to the trigger. The current destination is expressed in text and `aria-current`, never by color alone. Hiding navigation never authorizes or deauthorizes a route, query, action, download, or output.
+The shell uses one labelled primary `nav`, `main`, a labelled account menu, and a semantic `header` where a header is present. Opening the native mobile drawer moves focus into it; Tab remains contained while it is modal; Escape closes it where safe; and closing returns focus to the trigger. Preserve existing accessibility safeguards until the replacement passes equivalent verification. The current destination is expressed in text and `aria-current`, never by color alone. Hiding navigation never authorizes or deauthorizes a route, query, action, download, or output.
 
 TALA adds no global search. Primary navigation, source-owned contextual links, workbench search, and owning-page links provide alternative paths. A Wizard or guided process owns its own sequence; global navigation and breadcrumbs do not imitate process steps.
 
@@ -381,7 +381,7 @@ Authenticated Applicant, Student, and each Staff role may use one short, role-aw
 
 The static steps cover only the current workspace/role, canonical navigation, explicit Term context when present, owner/status/next-action presentation, the page's primary-action location, and Account Security/replay. The tour never navigates, switches a Term or role, opens mobile navigation or an overflow drawer, enters data, explains private record contents, or performs an institutional mutation. Before starting, the wrapper removes steps whose targets are not present or authorized; it does not rely on a newer missing-target option. If no usable step remains, ordinary navigation continues and no completion preference is recorded.
 
-The tour uses visible **Next**, **Previous**, **Finish**, and **Close** controls; Escape closes; focus remains within the named dialog and returns to the invitation or replay control. Screen readers receive the title, description, and **Step x of y** progress in meaningful order. At mobile widths, visible bottom-navigation or overflow controls (or the fallback drawer trigger) may be highlighted, but an overflow/fallback drawer is never programmatically opened; a target-free centered explanation may replace a hidden desktop target. With reduced motion, animation and smooth scrolling are disabled. The tour sends no third-party request, captures no DOM or record content, records no grade, application, finance, or identity value, and adds no analytics. Failure changes neither business state nor the dismissal/completion preference.
+The tour uses visible **Next**, **Previous**, **Finish**, and **Close** controls; Escape closes; focus remains within the named dialog and returns to the invitation or replay control. Screen readers receive the title, description, and **Step x of y** progress in meaningful order. At mobile widths, the visible native menu trigger or other authorized controls may be highlighted, but the drawer is never programmatically opened; a target-free centered explanation may replace a hidden desktop target. With reduced motion, animation and smooth scrolling are disabled. The tour sends no third-party request, captures no DOM or record content, records no grade, application, finance, or identity value, and adds no analytics. Failure changes neither business state nor the dismissal/completion preference.
 
 No onboarding checklist, dashboard, tour editor, database-driven workflow builder, or new plugin is introduced. Later implementation acceptance must qualify Driver.js 1.4.0 with keyboard, NVDA or equivalent desktop screen reader, TalkBack or equivalent mobile screen reader, 360/390 mobile, and reduced-motion behavior; inability to pass that bounded contract reopens only the tour disposition and never blocks ordinary workspace use.
 
@@ -413,6 +413,8 @@ The October 2 owner-selected direction uses neutral light/dark surfaces, green-l
 
 These are semantic adaptation anchors, not a complete framework color ramp or a certification of every rendered state. Information uses supporting-blue foreground on a suitable neutral surface. Status meanings remain source-derived and text-backed. Primary actions and success indicators must remain distinguishable by component treatment and labels.
 
+Filament generates its native primary palette from `#2F7D3B` and retains native Zinc surfaces/borders, choosing shades and foregrounds for each component/state. Bootstrap uses the paired light/dark anchors through its existing variables and color modes. Do not force identical component pixels or replace every native shade with a single anchor; consistent identity and meaning, plus verified rendered contrast, govern cross-framework adaptation.
+
 Preserve native Light/Dark/System behavior and stored preferences. Filament panels and Auth Designer default to System; the public Bootstrap gateway retains its existing system-theme following. Do not build a second theme engine or reset stored user choices. Normal text meets 4.5:1; large text and applicable non-text indicators meet 3:1. Verify actual backgrounds, opacity, gradients, hover/focus/disabled states, and forced colors. A custom focus perimeter is at least 2 pixels with sufficient offset and contrast against adjacent colors. Status combines label, icon, and semantic context. Print remains independent and monochrome-capable.
 
 ### Typography tokens
@@ -426,12 +428,12 @@ Preserve native Light/Dark/System behavior and stored preferences. Filament pane
 
 ### Layout and motion tokens
 
-- Content spacing uses 4, 8, 12, 16, 24, 32, and 48 pixels. Mobile content and full-width learner actions remain inset at least 16 pixels from the viewport edge and safe area. Desktop shell framing uses 12-pixel outer padding and 10-pixel panel gaps where available content width permits.
-- Shell panels and dialogs use 15-pixel corner roles, cards 12 pixels, and controls 8 pixels. Nested treatments preserve appropriate concentric relationships; circles, status pills, and mobile edge-to-edge surfaces retain purposeful exceptions.
-- Borders carry structure and state. Controls may use restrained same-hue gradients and inset/outer shading: neutral controls stay quieter, selected controls read as pressed, and disabled controls remain flat. Stronger elevation belongs to genuinely floating drawers, menus, and dialogs.
+- Content spacing uses 4, 8, 12, 16, 24, 32, and 48 pixels. Mobile content and full-width learner actions remain inset at least 16 pixels from the viewport edge and safe area. Start desktop composition from native framework spacing; the earlier bespoke outer-padding and panel-gap mandate is superseded.
+- Start from native framework corner and component treatments. The earlier universal 15/12/8-pixel shell/card/control roles are superseded. Apply restrained task-justified extensions while retaining purposeful circles, status pills, and mobile edge-to-edge variants.
+- Borders carry structure and state. Filled action buttons may use restrained same-hue gradients and inset/outer shading; neutral buttons stay quieter and disabled controls remain flat. Navigation, links, fields, and statuses retain distinct native treatments. Stronger elevation belongs to genuinely floating drawers, menus, and dialogs.
 - Public navigation and the fixed footer strip use the approved progressive-blur layers without a uniform tint overlay, hard bottom border, or abrupt color cut. Mobile footer content reserves the full blur height plus the device safe area so no link is obscured.
 - Selected authenticated navigation uses filled surface, contrast, icon, and weight. It has no narrow yellow side strip.
-- Routine state changes use no decorative entrance animation. Shell transitions use 180 ms ease timing on explicitly named properties; high-frequency feedback stays immediate or restrained. Theme changes remain immediate. Every transition preserves static cues, interruption recovery, and reduced-motion access; never use `transition: all`.
+- Routine state changes use no decorative entrance animation. Retain native interaction timing unless a bounded, verified adjustment is justified; high-frequency feedback stays immediate or restrained. Theme changes remain immediate. Every transition preserves static cues, interruption recovery, and reduced-motion access; never use `transition: all`.
 - Native Heroicons Outline is the production interface icon family, matching the reference's visual weight through size and optical alignment. Authenticated workspaces use Filament's PHP `Heroicon` abstraction; the separately declared npm Heroicons package gains no independent responsibility. Active states use color/fill without requiring a separate asset. Lucide remains prototype-only; no new icon dependency is implied.
 - Qualification frames are 390×844 and 360×800 for learner mobile, 768×1024 for intermediate review, and 1366×768 for dense Staff work.
 
@@ -448,18 +450,20 @@ Preserve native Light/Dark/System behavior and stored preferences. Filament pane
 
 ### Authenticated shell and interaction contract — October 2, 2026
 
-The current owner-selected reference is `design-evidence/layout/README.md`. Its accepted styling, shell composition, responsive grouping, and interaction inform this contract. Native Heroicons override prototype Lucide for production. Example features, data, percentage metrics, settings, and JavaScript do not define SIS requirements.
+The October 2 consolidation records selected branding, color, composition, and recovery-animation choices in DESIGN.md and this Blueprint. Laravel Boost and installed-version official Filament/Bootstrap documentation are primary implementation references; the official Filament demo is optional rendered native-behavior evidence. `design-evidence/layout/` remains preserved supporting/historical evidence, not a mandatory replica, additional authority, maintained second application, or runtime dependency. This contract supersedes earlier mandatory hover expansion, resizing, coordinated scroll-driven shell movement, and mobile bottom navigation. Historical specimens are not proof that workflow findings are resolved. Native Heroicons override prototype Lucide for production. Example features, data, percentage metrics, settings, and JavaScript do not define SIS requirements.
+
+Use native Filament components and supported configuration first, then existing compatible extensions. Investigate a version-compatible plugin only for a demonstrated gap, with separate approval before adding a dependency. Focused custom UI remains appropriate for justified school workflows that native components cannot adequately present. No new plugin or paid theme is required for the inspected Applicant–Registrar journey. PRDs continue to own business behavior; framework convenience does not silently remove a required field, state, approval, safeguard, or output.
 
 **Shell states**
 
-- Provide expanded, compact, and scroll-responsive desktop states, retaining coordinated automatic collapse/repositioning.
-- Provide explicit keyboard/touch-operable collapse controls and coordinated header/search presentation; temporary expansion must not block the collapse control.
-- A collapsed desktop rail may expand after 500 ms on hover-capable pointers. Close temporary expansion only after the pointer leaves and focus no longer remains in the rail or search. Keyboard and touch paths never depend on hover.
-- Support pointer and keyboard resizing within available content width, with equivalent controls and safe cancellation of interrupted dragging.
-- Preserve entered values, active task, focus, content/scroll continuity, and reachable navigation through scrolling transitions. Explicit manual state and focused controls take precedence; upward scrolling restores the appropriate state without repeated oscillation.
-- On mobile, downward scrolling may hide the header and bottom navigation; slight upward scrolling, navigation focus, or route change restores them. The virtual keyboard and transition must not obscure a focused control or required action.
-- Preserve safe-area and content spacing, equal touch targets, and a static pressed-selection cue. Navigation backdrops never intercept input and disappear with the navigation.
-- Retain all authorized destinations through role-specific bottom navigation and complete overflow access. Modal overflow follows focus containment, safe Escape dismissal, and focus return; existing accessible navigation remains a fallback until accepted.
+- Use native expanded/compact desktop sidebar states with explicit keyboard/touch-operable collapse controls.
+- Use the native mobile menu trigger and drawer. Ordinary scrolling does not require automatic chrome hiding, repositioning, or a second navigation system.
+- Preserve entered values, the active task, useful focus, content continuity, and explicit collapse preferences through navigation and native state changes.
+- Keep workspace switching, account security, sign-out, and theme controls reachable through the native account/sidebar arrangement or supported extension points.
+- Preserve safe areas, readable content spacing, touch targets, and static current-location cues. The virtual keyboard must not obscure a focused control or required action.
+- Verify drawer focus containment, background protection, safe Escape dismissal, and focus return; preserve existing accessibility fixes until the native adaptation passes equivalent checks.
+- Retain every authorized canonical destination in stable order. The reference’s example menus do not introduce production destinations or change permissions.
+- Do not implement hover expansion, drag/keyboard resizing, scroll-driven shell movement, or mobile bottom navigation solely to reproduce archived prototype mechanics.
 - Define each search control’s purpose, scope, results, empty behavior, and authorization in the owning child. Reuse source-owned contextual search; do not create a global record-search service.
 - Reduced motion preserves every function through non-animated state changes or an accessible equivalent.
 
@@ -481,17 +485,26 @@ The current owner-selected reference is `design-evidence/layout/README.md`. Its 
 **Feedback and motion**
 
 - Include loading, validation, empty, stale, failure, success, and inaccessible behavior in each affected slice.
-- Necessary transitions follow the existing motion tokens, preserve static state cues, and respect reduced motion.
-- Required shell behavior is implemented with the shell. Additional motion polish follows verified functionality; decorative page-load choreography is not required.
+- Necessary transitions use native feedback and the existing motion safeguards, preserve static state cues, and respect reduced motion.
+- Native interaction feedback is implemented with each affected workflow. Additional motion polish follows verified functionality; decorative page-load choreography is not required.
 - Routine success notifications may auto-dismiss and provide an accessible close action. Errors or notifications containing an action remain until dismissed. Result changes receive appropriate announcements; table updates preserve useful keyboard position. Route/view changes provide meaningful orientation.
-- Dialogs preserve background protection, safe Escape behavior, and focus return. Recovery pages expose a truthful explanation and working recovery destination. Prototype branding switches and attention-pulse controls do not introduce production settings.
+- Dialogs preserve background protection, safe Escape behavior, and focus return. Recovery pages expose a truthful explanation and working recovery destination. Prototype branding/motion switches do not introduce a production settings subsystem; the selected recovery-background effect follows the bounded contract below, including a local pause/stop control when required.
 
 **Acceptance**
 
-- Verify expanded/compact/scroll states, mobile navigation, long labels/content, both appearances, reduced motion, keyboard/focus behavior, and 200% zoom.
+- Verify native expanded/compact desktop states, the mobile menu/drawer, ordinary long-page scrolling, long labels/content, both appearances, reduced motion, keyboard/focus behavior, and 200% zoom.
 - Preserve theme preferences, authorization, private evidence access, and the accepted #56 sign-in/MFA behavior.
 - Screen-shell changes do not alter official-output or print contracts.
 - Adoption must prevent the documented prototype shortcut, naming, focus, announcement, misleading-status, and forced-colors failures. Qualify keyboard and screen-reader behavior, zoom/reflow, both appearances, interruption recovery, and supported viewport/action boundaries through the destination framework; prototype checks alone cannot establish application acceptance.
+
+### HTTP and session-recovery presentation — October 2, 2026
+
+- Adopt the selected experimental recovery-page composition independently of archived shell mechanics: one centered reading path, one plain-language H1, a short explanation, one context-safe primary recovery action, secondary actual HTTP code when applicable, school-first branding, and secondary Powered by TALA attribution. Preserve necessary support/account recovery access and readable institutional identity; specimen mark sizes do not override the existing artwork floors.
+- Preserve actual response codes and source-specific recovery, including existing 403/404/419/429/5xx behavior where applicable. Session expiry remains a recovery state. Authorized workspace resolution, verification-link recovery, sign-out confirmation, CSRF/MFA/permission protections, and private evidence access are unchanged. Do not import simulated prototype actions.
+- Unconfirmed mutation outcomes require checking the latest recorded state before resubmission. Reload/retry is permitted only when safe for the failed operation; it must not automatically replay a submission, decision, payment, or other mutation.
+- Preserve the selected soft state-aware background blooms, brief arrival, and slow ambient pulse behind static content. This is a bounded decorative exception, not general operational page-load choreography, a new status/progress signal, or a system-wide animation requirement. Use a static fallback under reduced motion or unavailable scripting; remove decoration in forced colors and print; pause while hidden/offscreen. Movement lasting more than five seconds needs a visible keyboard-accessible pause/stop control. The effect never captures input, flashes, shifts layout, obscures focus, or delays recovery.
+- Reuse the existing shared standalone error presentation; core explanation and safe recovery work without Vite, Livewire, JavaScript, remote fonts, or the prototype runtime. Retain usable native navigation for local page-level failure; use the minimal standalone fallback when the application shell cannot load.
+- Verify the actual response, authorized recovery destination, mutation-safe retry, keyboard/focus, 200% zoom/reflow, light/dark contrast throughout the animation, static reduced-motion/forced-colors fallbacks, pause/stop, hidden/offscreen behavior, and missing-asset/script resilience when an affected child adopts the pattern. #57 covers only recovery states reached by its Applicant–Registrar journey and proportionate shared-consumer regressions; this consolidation does not activate an all-error-page or all-role rollout.
 
 ## Reusable Component Authority
 
@@ -499,8 +512,8 @@ The implementation and any design artifact use these named component families an
 
 | Family | Required variants and annotation |
 |---|---|
-| Shell | Public; authenticated expanded, compact, scroll-responsive desktop, and role-specific mobile header/bottom navigation with complete overflow or accepted drawer fallback; Applicant, Student, and Staff contexts |
-| Navigation | Top bar, sidebar, role-specific bottom navigation, overflow/fallback drawer trigger/panel, workspace switcher, account menu, default/current/disabled item, and purpose-defined optional workload count |
+| Shell | Public; authenticated native sidebar-only expanded/compact desktop and mobile menu/drawer with complete authorized navigation; Applicant, Student, and Staff contexts |
+| Navigation | Sidebar, mobile menu trigger/drawer, workspace switcher, account/theme controls, default/current/disabled item, and purpose-defined optional workload count |
 | Location | Breadcrumb, contextual Back link, browser/page-title example |
 | Page header | Title/context, one primary action, secondary Action Group, no-action/read-only variant |
 | Status and metadata | Status badge with icon/text; owner, source, version, as-of time, deadline, and immutable marker |

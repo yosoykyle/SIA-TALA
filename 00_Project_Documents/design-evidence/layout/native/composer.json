@@ -1,0 +1,5 @@
+{
+  "name": "tala/native-ui-preview",
+  "description": "Isolated native framework specimens using the locally installed TALA packages.",
+  "autoload": { "psr-4": { "TalaPreview\\": "app/" } }
+}

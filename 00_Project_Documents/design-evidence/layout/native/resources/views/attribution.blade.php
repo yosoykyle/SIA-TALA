@@ -1,0 +1,1 @@
+<footer class="tala-attribution"><img src="/assets/talalogo.png" alt="" width="22" height="22"><span>Powered by <strong>TALA</strong></span><span class="tala-preview-label">Native framework preview · Fictional data</span></footer>

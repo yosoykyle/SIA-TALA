@@ -1,0 +1,1 @@
+<x-filament::icon-button color="gray" icon="heroicon-o-sun" label="Switch between light and dark theme" x-data="{}" x-on:click="$store.theme = document.documentElement.classList.contains('dark') ? 'light' : 'dark'" />

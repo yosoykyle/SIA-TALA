@@ -54,7 +54,8 @@ Operates in the daily administrative and academic cycle of Servitech Institute A
 - Canonical UI Blueprint (`00_Project_Documents/ui_surface_blueprint.md`).
 - Architecture Specification (`00_Project_Documents/architecture_specification.md`).
 - Governing Business Policy (`00_Project_Documents/TALA-Business-Policy.md`).
-- Current owner-selected visual/interaction reference: `00_Project_Documents/design-evidence/layout/README.md`, interpreted through DESIGN.md and the canonical UI Blueprint. Historical captures under `design-evidence/human-centered-operations/` remain comparison evidence, not current styling authority.
+- Shared presentation decisions, including branding, native-framework color adaptation, and selected HTTP/session-recovery composition and background animation, are consolidated in DESIGN.md and the canonical UI Blueprint. These decisions do not add product capabilities or change business rules.
+- Laravel Boost and installed-version official Filament/Bootstrap documentation are the primary implementation references; the official Filament demo optionally illustrates native composition and behavior. `00_Project_Documents/design-evidence/layout/` remains preserved supporting/historical evidence for selected traits, not a mandatory replica, additional authority, maintained second application, or runtime dependency. Historical captures under `design-evidence/human-centered-operations/` remain comparison evidence, not current styling authority.
 - Existing tests and active Eloquent models/services; execution claims belong to their dated Issue and CI records, not the presence of test files alone.
 
 ## Product Principles

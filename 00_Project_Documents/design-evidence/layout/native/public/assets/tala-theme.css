@@ -1,0 +1,26 @@
+/* Cosmetic extensions only. Filament retains its native layout and interaction rules. */
+.tala-brand{display:inline-flex;align-items:center;gap:.625rem;font:600 1rem Inter,sans-serif;white-space:nowrap;color:inherit}
+.tala-crest{display:block;position:relative;width:36px;height:27px;overflow:hidden;flex:none}
+.tala-crest img{position:absolute;width:43.07px;height:43.07px;max-width:none;left:-3.03px;top:-4.04px;object-fit:contain}
+.tala-notice{padding:.75rem 1rem;border-radius:.5rem;background:#eef5ef;color:#244c2c;font-size:.875rem;line-height:1.6}
+.dark .tala-notice{background:#29382e;color:#c6e5ce}
+.tala-form{display:grid;gap:1rem}
+.tala-actions{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
+.tala-attribution{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;padding:1rem 1.5rem;color:#626269;font-size:.8125rem}
+.dark .tala-attribution{color:#b8b8bf}
+.tala-preview-label{margin-inline-start:auto}
+.tala-prose{max-width:72ch;line-height:1.65}
+.tala-prose h2{font-size:1.125rem;font-weight:600;margin-block:1.75rem .5rem}
+.tala-prose h2:first-child{margin-block-start:0}
+.tala-prose .tala-actions{margin-block-start:1.5rem}
+.fi-btn:not(.fi-outlined):not(.fi-disabled):not([disabled]){
+ background-image:linear-gradient(to bottom,rgb(255 255 255 / .09),rgb(0 0 0 / .035));
+ box-shadow:inset 0 1px 0 rgb(255 255 255 / .16),inset 0 -1px 0 rgb(0 0 0 / .08),0 1px 2px rgb(0 0 0 / .08);
+}
+.dark .fi-btn:not(.fi-outlined):not(.fi-disabled):not([disabled]){
+ background-image:linear-gradient(to bottom,rgb(255 255 255 / .035),rgb(0 0 0 / .025));
+ box-shadow:inset 0 1px 0 rgb(255 255 255 / .07),inset 0 -1px 0 rgb(0 0 0 / .1),0 1px 2px rgb(0 0 0 / .12);
+}
+.fi-btn:not(.fi-outlined):not(.fi-disabled):not([disabled]):active{background-image:none;box-shadow:inset 0 1px 2px rgb(0 0 0 / .12)}
+@media(max-width:640px){.tala-preview-label{margin-inline-start:0;width:100%}.tala-prose{max-width:100%}}
+@media(forced-colors:active){.fi-btn{background-image:none!important;box-shadow:none!important}.tala-notice{border:1px solid CanvasText;background:Canvas;color:CanvasText}}
