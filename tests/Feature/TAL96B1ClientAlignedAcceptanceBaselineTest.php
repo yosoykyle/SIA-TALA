@@ -606,11 +606,13 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
     public function test_capacity_authority_rejects_a_universal_student_ceiling(): void
     {
         $baseline = file_get_contents(base_path('00_Project_Documents/prd_modules/00_system_definition_baseline.md'));
+        $academicSetup = file_get_contents(base_path('00_Project_Documents/prd_modules/03_academic_setup_offerings_published_timetable.md'));
 
         $this->assertIsString($baseline);
+        $this->assertIsString($academicSetup);
         $this->assertStringContainsString(
-            'There is no universal 100-student ceiling',
-            $baseline,
+            'Capacity does not control admission and has no universal institutional ceiling',
+            $academicSetup,
         );
         $this->assertStringContainsString(
             'Any larger population is labelled a synthetic structural or capacity test, not a Servitech forecast',
