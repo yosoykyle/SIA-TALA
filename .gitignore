@@ -24,9 +24,10 @@ Thumbs.db
 dont access
 # Laravel Boost & Agents
 .gemini/
-# Share Boost's skill inputs; keep other local AI artifacts ignored.
+# Share Boost's skill inputs and project rules; keep other local AI artifacts ignored.
 /.ai/*
 !/.ai/skills/
+!/.ai/rules/
 /.codex/
 /.qwen/
 /.serena/

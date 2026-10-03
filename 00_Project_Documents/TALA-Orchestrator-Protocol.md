@@ -127,6 +127,7 @@ Before presenting the plan, challenge each material implementation decision agai
 #### UI-Bearing Slice Completeness Checklist
 For a UI-bearing vertical slice, the plan and any developer handoff derived from it must explicitly identify:
 - [ ] **Canonical UI inventory IDs**: From `ui_surface_blueprint.md`.
+- [ ] **Impeccable surface briefs**: Orchestration identifies matching briefs and drafts only missing or materially changed direction within the single accepted plan. Reuse sufficient briefs across related children; name approved brief edits in scope. Backend-only work needs no UI brief.
 - [ ] **Navigation & Workspace Entry**: Entry point and route.
 - [ ] **Information & Action Hierarchy**: Primary content, primary action, secondary actions.
 - [ ] **Component Disposition**: Filament core, installed compatible dependency, focused TALA custom, or purposeful exclusion.
@@ -143,7 +144,7 @@ A planning request without an issue number works the same way but has no GitHub 
 
 ### Local Execution and Complete
 
-Under `LOCAL_EXECUTION` (triggered by `implement`, `fix`, `change`, `proceed`), the agent marks the named issue `In Progress` in the GitHub Project and performs bounded local file edits, test runs, code formatting (Pint), and failure remediation strictly without creating Git commits.
+Under `LOCAL_EXECUTION` (triggered by `implement`, `fix`, `change`, `proceed`), the agent marks the named issue `In Progress` in the GitHub Project and performs bounded local file edits, test runs, code formatting (Pint), and failure remediation strictly without creating Git commits. Before UI implementation, create or update only approved in-scope surface briefs through [Impeccable's installed workflow](../.agents/skills/impeccable/SKILL.md) and read them back; reuse sufficient existing briefs unchanged.
 
 `Complete #NN` (under `COMPLETION_AND_PUBLISH`) authorizes the final completion gate: it requires passing verification and an all-`Verified` criterion ledger, creating exactly ONE bounded local commit. It executes the following bounded workflow:
 
@@ -215,7 +216,7 @@ The coordination map covers the whole accepted implementation cycle at high-leve
 
 The cycle is complete only when every accepted high-level journey is covered by linked implementation Issues that are `Done` or intentionally `Canceled` with a recorded reason, dependencies are resolved, and a fresh read-only integrated acceptance audit finds no required gap against canonical authority. Required gaps return to the normal derivation and `Plan`–`Complete`–`Publish` loop. Closing the coordination Issue is a separate GitHub write and never authorizes deployment. Materially new approved work after closure starts a successor coordination Issue linked to the completed map; finishing one slice never creates a new coordination cycle.
 
-When planner and implementer differ, the accepted plan or a concise execution handoff must be posted in or durably linked from the owning GitHub Issue before coding begins under an authorized assignment or `Complete #NN` boundary. Read the Issue body, relevant durable comments, and linked plan or handoff together. The user and Codex ORCH IMPLI decide material scope and approach; AGY ORCH IMPLI makes routine implementation choices within the accepted plan and stops for material conflicts. Keep the handoff concise and durable. The handoff identifies relevant authority, bounded scope, accountable ownership, dependencies, material implementation order, verification, exclusions, stop conditions, and any task-specific environment, skill, or tool prerequisite whose absence would block implementation or acceptance. Do not repeat generic project guidance or every available tool.
+When planner and implementer differ, the accepted plan or a concise execution handoff must be posted in or durably linked from the owning GitHub Issue before coding begins under an authorized assignment or `Complete #NN` boundary. Read the Issue body, relevant durable comments, and linked plan or handoff together. The user and Codex ORCH IMPLI decide material scope and approach; AGY ORCH IMPLI makes routine implementation choices within the accepted plan and stops for material conflicts. Keep the handoff concise and durable. The handoff identifies relevant authority, applicable accepted UI brief references, bounded scope, accountable ownership, dependencies, material implementation order, verification, exclusions, stop conditions, and any task-specific environment, skill, or tool prerequisite whose absence would block implementation or acceptance. Do not repeat generic project guidance or every available tool.
 
 The public `TALA Development` GitHub Project provides an `All Work` table and a status-grouped `Board`. It uses exactly `Todo`, `In Progress`, `Done`, and `Canceled`. An open Issue labeled `implementation` is automatically added and set to `Todo`; closing the Issue or merging its linked pull request sets it to `Done`. The agent sets `In Progress` when `Complete #NN` begins and sets `Canceled` only after an explicit intentional stop, supersession, or not-planned decision with a recorded reason. Open pull-request review remains `In Progress`. The active `coordination` Issue remains `In Progress` until the separately authorized final closure sets it to `Done`. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
 
@@ -247,7 +248,7 @@ Verification is part of Complete, not a separate user command. Task-applicable v
 
 - **Documentation-only changes**: Authority consistency, contradiction review, intended diff, and formatting checks. Does not require running application tests, migrations, or database setup.
 - **Backend / code changes**: Affected unit and feature tests run against `test_tala_db`, focused positive/negative paths, authorization, state transitions, regression checks, and code formatting with Pint (`vendor/bin/pint --dirty --format agent`).
-- **UI-bearing changes**: Affected automated tests plus representative rendered or browser checks of key viewports/states, keyboard navigation, and screen-reader accessibility.
+- **UI-bearing changes**: Affected automated tests plus representative rendered or browser checks of key viewports/states, keyboard navigation, and screen-reader accessibility against the accepted brief and owning acceptance criteria.
 - **End-to-end / integration changes**: Multi-role or external-service integration verification in the configured project environment.
 
 All code changes require affected tests to pass; all UI changes require representative rendered or browser checks; every accepted criterion must be `Verified` before Complete; and required CI checks must pass on published commits. Later human QA supplements rather than replaces these automated and local checks.

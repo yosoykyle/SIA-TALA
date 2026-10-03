@@ -42,6 +42,14 @@ Public arrival, guided learner tasks, operational workbenches, and official outp
 
 Specific split ratios, navigation dimensions, and screen compositions belong to approved surface briefs and verified implementation, not this global seed.
 
+### UI/UX assessment and component selection
+
+Impeccable leads the assessment of an operating surface's purpose, hierarchy, cognitive load, copy, composition, and responsive transformation. Use the relevant writing, layout, accessibility, color, typography, and UI skills where they resolve a specific problem. Laravel Boost, Serena, and installed-version official documentation support code tracing and implementation choices; tool use alone is not design evidence.
+
+For a demonstrated problem, compare the incumbent composition with a suitable native configuration before preserving it. Native Tables may use stacked mobile cells or supported Split/Stack layouts; Sections, Tabs, Infolists, Forms, Wizards, and Action Groups serve different jobs. Required information remains reachable, while secondary details can be progressively disclosed. A green theme on an unchanged crowded screen does not resolve a hierarchy problem.
+
+Record the accepted task-specific direction in `.impeccable/surfaces/`, derived from the owning Issue and canonical UI contract. Inspect representative desktop/mobile states in one bounded pass, fix the demonstrated problems together, and confirm the result once. Evidence must show the user-visible improvement and retained behavior. Check tool capability before scheduling a verification method; use truthful task-applicable evidence for the outcome and never label a simulation as a direct browser observation.
+
 ## Consolidated native-first direction — October 2, 2026
 
 Adopt clean shell/content separation, aligned grouping, clear action hierarchy, and task-appropriate responsive components. Do not import fictional metrics, generic settings, duplicate boards, or additional SIS capabilities.

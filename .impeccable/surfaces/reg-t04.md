@@ -25,7 +25,7 @@
 A collegiate scheduling matrix pairing a high-density weekly grid with clear constraint validation and structured revision diffs—refusing static uneditable grid printouts and unvalidated automatic schedule shifts.
 
 ### OWN-WORLD
-Refine the existing institutional blue, light canvas, white task surfaces, restrained yellow accent, Outfit/Inter typography, and school-first crest/secondary TALA mark. The weekly grid and meeting table need clear hierarchy, readable selection, and text-backed semantic states. Do not import the superseded parchment/archival palette.
+Inherit the October 2 direction from DESIGN.md: green-led primary actions, supporting TALA blue, neutral light/dark native surfaces, Inter typography, native Heroicons, and the school-first crest with secondary Powered by TALA. The weekly grid and meeting table need clear hierarchy, readable selection, and text-backed semantic states. This supersedes the former blue-primary and Outfit/Inter styling in this brief; its workflow-specific decisions remain subject to their owning Issue and current canonical authority.
 
 ### STORY
 The Registrar initiates a CP-SAT solve, inspects room and faculty allocations across a dense weekly matrix in `REG-T04`, verifies zero collisions and constraint satisfaction, and executes immutable publication into `REG-T06` with instant version incrementing and print readiness.
@@ -34,13 +34,13 @@ The Registrar initiates a CP-SAT solve, inspects room and faculty allocations ac
 Servitech Institute Asia Inc. institutional header leads; prominent action bar indicates Candidate Status (e.g. `Candidate v3 · CP-SAT Feasible · Hard Conflicts: 0`), primary "Publish Official Timetable" commitment action, and filter controls for room and instructor views.
 
 ### FORM
-User-selected Choice 3 hybrid split-pane workflow within the established blue-led Servitech identity. Candidate #6 (seed key `0d15d662`) is historical palette exploration, not an active visual constraint.
+User-selected Choice 3 hybrid split-pane workflow within the current Servitech identity from DESIGN.md. Candidate #6 (seed key `0d15d662`) remains historical palette exploration. This brief does not activate later scheduling work or override the owning Issue's current scope.
 
 ### APPROVED WORKFLOW & LAYOUT DIRECTION: CHOICE 3 (2026-09-25)
 - **Workbench Integration Topology:** Hybrid Split-Pane on Tab 4 (`Generate & Review`) of Term Planning Workbench. Use the workbench's single selectable exact-Term context; do not repeat Term selection inside generation or review.
 - **Collapsible Control Deck:** Solver dispatch, status KPIs (Hard conflicts, Soft score, Seat waste, Faculty/Cohort idle, Runtime), and failure/infeasibility diagnostics reside in a collapsible header deck, allowing the Registrar to maximize vertical screen canvas for timetable inspection.
 - **Candidate View Topology:** Sub-view toggle between:
-  1. *Time-Block Matrix (Grid)*: Weekly matrix (Monday–Saturday columns, 07:00–21:00 time rows) using the established blue-led identity and text-backed visual distinctions for lectures, labs, warnings, and collisions.
+  1. *Time-Block Matrix (Grid)*: Weekly matrix (Monday–Saturday columns, 07:00–21:00 time rows) using the current DESIGN.md identity and text-backed visual distinctions for lectures, labs, warnings, and collisions.
   2. *Filterable Registry List (Table)*: High-density tabular registry filterable by Faculty, Room, Section, and Modality.
 - **Publication & Output Transition:** Modal Sign-Off with Direct Tab 5 Transition. "Publish Official Timetable" requires recorded external sign-off (`authority_reference`), produces immutable `PublishedTimetableVersion`, and automatically switches to Tab 5 (`Published Timetable`) with prominent A4 Landscape print action (`OUT-002`).
 - **Role Isolation:** Academic Head maintains read-only oversight; mutation actions (generate, accept, publish, retry) are restricted to Registrar.

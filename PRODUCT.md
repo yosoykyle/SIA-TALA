@@ -60,6 +60,8 @@ Operates in the daily administrative and academic cycle of Servitech Institute A
 
 ## Product Principles
 
+- **Lean capstone scope:** Retain the accepted connected student lifecycle and make each role's purpose, transaction sequence, handoff, and next action understandable. CP-SAT adaptation is the principal innovation; payment integration supports the lifecycle. Issue #48 coordinates the delivery order, and each child proves one bounded journey. Existing screens, fields, and components are evidence to challenge against their purpose and authority, rather than a requirement to preserve their composition.
+- **UI/UX judgment and implementation evidence:** Impeccable leads task-level analysis of hierarchy, cognitive load, copy, composition, and responsive behavior. Relevant design skills and installed-version framework guidance support that judgment. Preserve school behavior and safeguards while comparing suitable native configurations. Functional tests, a clean detector, or reading skills do not establish visual acceptance; the owning Issue needs attributable rendered evidence and independent review.
 - **Authority and Integrity First:** TALA is an official record-keeper, not an autonomous decider. Authoritative human decisions govern; external helpers (solvers, payment gateways) provide evidence.
 - **Atomic, Safe State Transitions:** Actions that affect records (enrollment finalization, grade release, payment posting) execute atomically with full validation, never leaving records in partial or corrupt states.
 - **Zero Unresolved Conflicts:** Timetables and course placements must be free of room, instructor, and student schedule collisions prior to publication.

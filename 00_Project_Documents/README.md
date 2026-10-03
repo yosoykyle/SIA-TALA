@@ -33,6 +33,8 @@ The baseline and PRDs own product behavior, the UI Surface Blueprint owns interf
 
 Task IDs, tracker rows, commits, demonstrations, tests, code, schema, seeders, and implementation history cannot create or restore product requirements.
 
+The [Applicant–Registrar surface brief](../.impeccable/surfaces/applicant-registrar.md) expresses the accepted #57 journey for Impeccable-led UI/UX assessment. Surface briefs hold task-specific direction, not live task status. Read current Issue bodies for scope and status; dated comments preserve evidence and superseded decisions. F/S owner concerns, M meeting priorities, C clarifications, canonical APP/REG surface IDs, and AC acceptance criteria retain their original identities and are mapped rather than renumbered.
+
 ## Evidence and archive classification
 
 Classification is determined by the first matching rule below. Every project-authored document in scope is covered by an exact file or directory rule.
