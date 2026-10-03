@@ -453,7 +453,9 @@ livewire(ListUsers::class)
 </authorities>
 
 <workflow_boundaries>
-<!-- Positive-Paired Boundary Constraints: Every task operates within one explicit boundary -->
+<!-- Boundaries define permissions; a request may explicitly authorize multiple phases without separate chat turns. -->
+
+Reuse a sufficient accepted Issue contract or direct task scope as the plan. Continue necessary inspection, implementation, verification, in-scope fixes, and review within the stated authorization. Commit, publication, Issue writes, isolation setup, merge, and deployment require their corresponding explicit authorization; multiple effects may be named in one request. Read-only requests remain read-only.
 
 <boundary name="READ_ONLY" triggers="Plan #NN, Review, Audit, Diagnosis, Derive">
   <allowed>Read files, inspect git state, run read-only database queries, formulate implementation plans, draft issue contracts.</allowed>
@@ -462,12 +464,12 @@ livewire(ListUsers::class)
 
 <boundary name="LOCAL_EXECUTION" triggers="Implement, Fix, Change, Proceed">
   <allowed>Bounded edits to in-scope files, running tests, fixing in-scope failures, code formatting (Pint).</allowed>
-  <prohibited>No git commit, no git push, no branch creation, no PR creation, no deployment, no file edits outside in-scope target files.</prohibited>
+  <prohibited>No git commit, no git push, no implicit branch creation, no PR creation, no deployment, no file edits outside in-scope target files. Necessary concurrent isolation setup requires explicit authorization as defined by the protocol.</prohibited>
 </boundary>
 
 <boundary name="COMPLETION_AND_PUBLISH" triggers="Complete #NN, Publish #NN, Commit">
   <allowed>
-    - Complete: Requires passing verification and an all-Verified criterion ledger; creates exactly ONE bounded local commit.
+    - Complete: Finishes any remaining bounded implementation and verification under the accepted contract; requires an all-Verified criterion ledger before creating exactly ONE bounded local commit. Reuse completed work and valid evidence.
     - Publish (Solo Work on main): Pushes accepted commit range directly to origin/main after fresh, task-applicable local verification (including affected tests for code changes). Required CI must pass on the published commit before issue closure.
     - Publish (Concurrent Work): Pushes issue branch and opens PR containing "Closes #NN".
   </allowed>
@@ -478,7 +480,7 @@ livewire(ListUsers::class)
 <github_projects_v2_automation>
 <!-- Alignment with GitHub Projects v2 ("TALA Development") lifecycle statuses -->
 - `Todo`: Newly created issues labeled `implementation` are automatically added to `Todo` by GitHub Project workflow automation.
-- `In Progress`: Set by the agent when `Complete #NN` begins, when a coordination cycle is active, or while an open PR is under review.
+- `In Progress`: Set by the agent under authorized lifecycle writes when tracked `LOCAL_EXECUTION` or `Complete #NN` begins, when a coordination cycle is active, or while an open PR is under review.
 - `Done`: Set automatically by GitHub Project automation upon issue closure or linked PR merge.
 - `Canceled`: Set by the agent only upon explicit, authorized abandonment or supersession with recorded rationale.
 *Prohibition: Do not create custom statuses (e.g., 'In Review') or local shadow task queues. GitHub Projects is an issue view, not a second task database.*
@@ -487,14 +489,19 @@ livewire(ListUsers::class)
 <task_modes>
 - Tracked Work (`#NN`): Read named GitHub Issue. Transitions through Todo -> In Progress -> Done.
 - Clear Direct Work (Untracked): Solo work operates directly on primary checkout (`main`) without creating extra branches, worktrees, or GitHub Issues. Follows the same 3 permission boundaries above.
+- Task-applicable verification follows Protocol Section 7. For behavior-preserving changes, adequate affected tests satisfy verification without an extra test-only edit; add or update tests when changed behavior lacks coverage. This project-specific coverage rule qualifies the generic test-edit instruction in the generated Boost block.
 - Compaction & Resumption: Re-anchor from recent messages, live git state, and issue comments before acting. Continue only within the authorized boundary.
 </task_modes>
 
 <human_gates>
-Stop and ask confirmation ONLY for:
+Stop and ask confirmation ONLY when the existing authorization does not settle:
+- A material product decision, authority conflict, or scope expansion.
+- An external write or isolation setup outside the explicitly authorized effects.
 - Destructive or hard-to-reverse operations.
 - Adding new package dependencies, credentials, or cloud infrastructure costs.
 - Structural architecture pivots that contradict established domain boundaries.
 - Merging pull requests or deploying to production.
+
+Do not ask again for an already explicit, applicable authorization. A material change to its scope or safety conditions requires a new decision. The protocol governs task-specific prerequisites, evidence reuse, and publication follow-through.
 </human_gates>
 </TALA_ORCHESTRATOR_ROUTER>

@@ -1,409 +1,54 @@
 # TALA Orchestration Cheat Sheet
 
-This is the non-authoritative operator companion to the [TALA Orchestrator Protocol](TALA-Orchestrator-Protocol.md). Use it to choose the next action and copy a prompt. The protocol governs any conflict. For visual scenario walkthroughs, ASCII flowcharts, and the PR endgame guide, see the [**TALA Developer Workflow Playbook**](developer-guides/tala-workflow-playbook.md).
+Use this quick reference to choose the next authorized action. The [TALA Orchestrator Protocol](TALA-Orchestrator-Protocol.md) owns the workflow. The [developer playbook](developer-guides/tala-workflow-playbook.md) gives practical task, publication, and recovery examples.
 
 ## Choose the boundary
 
-The workflow operates across three explicit permission boundaries: `READ_ONLY`, `LOCAL_EXECUTION`, and `COMPLETION_AND_PUBLISH`.
-
-| Action | Permission boundary | Effect |
-| --- | --- | --- |
-| Draft a coordination map or Issue | `READ_ONLY` | Read-only draft |
-| `Plan #NN` | `READ_ONLY` | Read-only implementation plan |
-| Re-anchor | Current boundary | Read-only reconstruction, then resume the existing boundary |
-| Create or update an approved Issue | `LOCAL_EXECUTION` / External write | Explicit GitHub write only |
-| Implement, fix, change, proceed | `LOCAL_EXECUTION` | Bounded file edits, test runs, Pint, coverage ledger (no commit) |
-| `Complete #NN` | `COMPLETION_AND_PUBLISH` | Requires all criteria Verified; creates ONE local commit |
-| `Publish #NN` | `COMPLETION_AND_PUBLISH` | Push approved solo work or open a PR |
-| Final integrated audit | `READ_ONLY` | Read-only cycle audit |
-| Merge a PR or close coordination | Explicit authorization | Separate explicit authorization |
-
-## One-screen route
-
-```text
-SET UP ONCE
-Draft coordination map -> authorize coordination Issue creation
-
-REPEAT PER IMPLEMENTATION ISSUE
-Derive draft -> accept draft -> authorize Issue creation (automation sets Todo)
--> Plan #NN (or reuse accepted plan) -> Complete #NN -> Publish #NN -> Done
-
-PARALLEL WORK
-First verify CI and main protection
-Use one owner + Issue + branch + isolated workspace + PR per task
-Publish opens the PR; merge needs separate authorization
-
-FINISH
-Final integrated audit -> remediate gaps or authorize coordination closure
-```
-
-## Set up coordination once
-
-Use one coordination Issue for the complete approved implementation cycle. It is the delivery map, not permission to code.
-
-Under a READ_ONLY boundary:
-
-```xml
-<tala_action action="coordinate_draft">
-  <boundary>READ_ONLY</boundary>
-  <objective>Draft TALA coordination map for the current approved implementation cycle</objective>
-  <instructions>
-    Read AGENTS.md, the TALA Orchestrator Protocol, canonical product documents,
-    current GitHub Issues and Project statuses, open PRs, and Git state. Include the
-    high-level journey map, dependencies, capacity assumptions, completion and
-    final-audit conditions, and first recommended slice.
-  </instructions>
-  <constraints>Read-only. Do not create or modify anything.</constraints>
-</tala_action>
-```
-
-After accepting the draft, authorize Issue creation:
-
-```xml
-<tala_action action="coordinate_create">
-  <boundary>LOCAL_EXECUTION</boundary>
-  <objective>Create approved coordination-only GitHub Issue</objective>
-  <instructions>
-    Create the approved coordination-only GitHub Issue exactly from the accepted
-    draft. Apply label "coordination" and track in TALA Development as In Progress.
-  </instructions>
-  <constraints>Do not create an implementation Issue, modify files, begin coding, commit, publish, merge, or deploy.</constraints>
-</tala_action>
-```
-
-Keep that map until its cycle passes the final audit and is separately closed. Completing one slice does not create another coordination Issue.
-
-## Repeat the implementation-Issue loop
-
-### 1. Derive
-
-Under a READ_ONLY boundary:
-
-```xml
-<tala_action action="derive">
-  <boundary>READ_ONLY</boundary>
-  <objective>Derive next eligible journey-complete implementation Issue</objective>
-  <instructions>
-    Inspect the coordination Issue, live Issues and Project, open PRs, relevant
-    authority, implementation, and Git state. Exclude completed, canceled, active,
-    duplicate, and dependency-blocked work. Run the protocol's operability and
-    feasibility check, then explain why this is the next dependency-ready slice.
-
-    Draft the outcome, owner, governing specifications and target surfaces, scope, dependencies, material
-    implementation order, acceptance criteria, verification and browser scenarios,
-    exclusions, and stop conditions. Self-review it as the leanest acceptance-
-    complete contract and correct unsupported choices or contradictions.
-  </instructions>
-  <constraints>Read-only. Draft the Issue only; do not create it.</constraints>
-</tala_action>
-```
-
-Derivation chooses **what work is next**. It does not decide the implementation.
-
-### 2. Create
-
-After accepting the draft, authorize Issue creation:
-
-```xml
-<tala_action action="create_issue">
-  <boundary>LOCAL_EXECUTION</boundary>
-  <objective>Create approved tracked Issue</objective>
-  <instructions>
-    Create the approved tracked Issue exactly from the accepted draft.
-
-    If coordination-derived, attach its active coordination Issue as the native
-    parent. Apply the approved label ("implementation"), owner, and separate dependency links. If
-    genuinely standalone, keep it parentless and record why no coordination owns it.
-
-    After creation, verify the live parent classification, label, owner, dependency
-    links, and Project status (Todo via automation). Stop if any recorded state is missing or incorrect.
-  </instructions>
-  <constraints>Do not plan, implement, create a branch, commit, publish, merge, or deploy.</constraints>
-</tala_action>
-```
-
-Project automation adds an open `implementation` Issue as `Todo`.
-
-### Alternative: Drafting Standalone Work (Tooling, DX, Docs)
-
-When proposing developer tooling, test infra, documentation, or maintenance not owned by an active academic coordination cycle, draft it as standalone using `.github/ISSUE_TEMPLATE/task.md`:
-
-```xml
-<tala_action action="derive_standalone">
-  <boundary>READ_ONLY</boundary>
-  <objective>Draft standalone GitHub Issue contract</objective>
-  <instructions>
-    Draft a standalone issue contract for internal developer tooling, infrastructure, documentation,
-    or codebase maintenance. Exclude academic lifecycle features.
-    Provide the mandatory standalone rationale explaining why no active coordination cycle owns this outcome.
-    Define outcome, owner, bounded scope, exclusions, acceptance criteria, and verification plan.
-  </instructions>
-  <constraints>Read-only. Draft the Issue only; do not create it.</constraints>
-</tala_action>
-```
-
-*(Plaintext equivalent)*:
-```text
-Draft a standalone GitHub Issue for [brief description of task].
-Include the mandatory standalone rationale explaining why no active coordination cycle owns it,
-bounded scope, exclusions, acceptance criteria, and verification approach. Read-only.
-```
-
-After accepting the draft, create it parentless:
-
-```xml
-<tala_action action="create_standalone_issue">
-  <boundary>LOCAL_EXECUTION</boundary>
-  <objective>Create approved standalone GitHub Issue</objective>
-  <instructions>
-    Create the approved parentless standalone Issue using the accepted contract.
-    Apply the approved label (e.g. "implementation" or "documentation"), assign the approved owner, and verify it appears in
-    TALA Development with status Todo.
-  </instructions>
-  <constraints>Do not plan, implement, create a branch, commit, publish, merge, or deploy.</constraints>
-</tala_action>
-```
-
-*(Plaintext equivalent)*:
-```text
-Create the approved standalone GitHub Issue on GitHub from our accepted draft. Ensure it is parentless,
-labeled with the approved label (e.g. "implementation" or "documentation"), assigned to [owner], and tracked as Todo in TALA Development.
-```
-
-### 3. Plan
-
-```xml
-<tala_action action="plan" issue="NN">
-  <boundary>READ_ONLY</boundary>
-  <objective>Formulate decision-complete implementation plan for #NN</objective>
-  <instructions>
-    Read the named GitHub Issue, relevant Git authority, current implementation, and qualified sources.
-    Produce a decision-complete plan identifying target surfaces, hierarchy, component disposition,
-    states, responsive behavior, keyboard and screen-reader accessibility, and browser verification scenarios.
-  </instructions>
-  <constraints>Read-only. Make no local edits, commits, or external writes.</constraints>
-</tala_action>
-```
-
-*(Natural-language shorthand `Plan #NN` remains valid).*
-
-Each slice has **one accepted, decision-complete plan**. If an approved pre-Issue plan exists, matches the created Issue, and is recorded in or durably linked from the Issue, reuse it. Invoke `Plan #NN` only when no decision-complete plan exists or a material premise changes; do not repeat planning as ceremony.
-
-The user and Codex ORCH IMPLI decide material scope and approach; AGY ORCH IMPLI makes routine implementation choices within the accepted plan and stops for material conflicts.
-
-Operate under a READ_ONLY boundary. The plan decides **how the accepted Issue will be implemented**. It reads authority, live implementation, and qualified sources when needed, challenges material choices and alternatives, and makes no edits or external writes.
-
-For architecture, security, migrations, integrations, parallel seams, hard-to-reverse choices, or weak evidence, optionally request a second read-only review:
-
-```xml
-<tala_action action="review" target="derivation|plan" issue="NN">
-  <boundary>READ_ONLY</boundary>
-  <objective>Independently review proposed derivation or Plan #NN</objective>
-  <instructions>
-    Re-anchor from its authority and live implementation, Git, and GitHub evidence.
-    Challenge scope, dependencies, choices, alternatives, verification, preservation,
-    and cleanup. Report concrete defects or state that no material objection remains.
-  </instructions>
-  <constraints>Read-only. Do not change anything.</constraints>
-</tala_action>
-```
-
-This review is optional and is not a fourth command.
-
-Before accepting a draft or plan, confirm that you understand what will be built, why it is the correct next work, what is excluded, how completion will be proven, and what conditions require stopping. Resolve any material uncertainty before authorizing the next action.
-
-### 4. Complete
-
-After accepting or reusing the plan, implementation proceeds under `LOCAL_EXECUTION` (`implement`, `fix`, `change`, `proceed`) for bounded file edits, testing, and formatting strictly without commits. When all acceptance criteria are verified, authorize completion and the local commit:
-
-```xml
-<tala_action action="complete" issue="NN">
-  <boundary>COMPLETION_AND_PUBLISH</boundary>
-  <objective>Execute and complete #NN</objective>
-  <instructions>
-    Verify that Issue #NN is In Progress in GitHub Project.
-    Confirm bounded implementation is complete, non-destructive verification passes in project environment,
-    in-scope failures are remediated, intended diff is clean, criterion-by-criterion acceptance ledger is all Verified,
-    and create exactly ONE bounded local commit.
-  </instructions>
-  <constraints>Do not push, open PR, merge, deploy, or touch unrelated files.</constraints>
-</tala_action>
-```
-
-*(Natural-language shorthand `Complete #NN` remains valid).*
-
-This authorizes the completion gate: verifying all criteria are `Verified`, cleaning the intended diff, and creating exactly one bounded local commit. It never pushes, merges, or deploys.
-
-Treat the accepted plan as a decision boundary, not a minimum checklist: actively evaluate owned logic and representative UI states, preserve aligned work, and remediate proven in-scope gaps.
-
-Acceptance criteria are a small set of observable outcomes. Verification matches the work type (documentation-only changes do not require application tests; code changes require affected tests; UI changes require representative rendered or browser checks). Later human QA supplements rather than replaces these automated and local checks. Do not impose disproportionate evidence demands on non-UI or docs slices.
-
-Before success, classify every criterion as `Verified`, `Partial`, or `Unverified` with current evidence. Anything not `Verified` keeps the Issue `In Progress` and blocks publication, merge, closure, and `Done`.
-
-### 5. Publish
-
-```xml
-<tala_action action="publish" issue="NN" mode="solo|concurrent">
-  <boundary>COMPLETION_AND_PUBLISH</boundary>
-  <objective>Publish #NN</objective>
-  <instructions>
-    Revalidate all-Verified acceptance ledger, task-applicable local verification, and clean diff.
-    - Solo mode (main): Freshly verify and push accepted commit range directly to origin/main.
-    - Concurrent mode: Push Issue branch and open PR containing "Closes #NN".
-    Verify required CI checks pass for exact published commit or PR head before closing or updating Issue.
-  </instructions>
-  <constraints>Never force-push, never merge PR without separate explicit authorization, never deploy.</constraints>
-</tala_action>
-```
-
-*(Natural-language shorthand `Publish #NN` remains valid).*
-
-- **Solo Mode**: Freshly verify and push the accepted commit range directly from the primary `main` checkout.
-- **Concurrent Mode**: Push the Issue branch (`feat/issue-NN`) and open a Pull Request using `.github/pull_request_template.md`.
-
-### Concurrent PR Lifecycle & Merge Gate Rules
-
-- **Mandatory `Closes #NN` Linkage**: The pull request description must include `Closes #NN`. This links the PR to the issue on GitHub, keeps the card in `In Progress` during review, and enables GitHub Projects v2 automation to automatically transition the issue to `Done` upon merge.
-- **Why Issues Stay `In Progress`**: An issue remains `In Progress` throughout open PR review. Code review, CI verification, and merge readiness are core parts of the delivery lifecycle; work is not `Done` until merged into `main`.
-- **Strict Branch Currency**: Branch protection on `origin/main` requires `required_status_checks.strict: true`. If `main` advances while a PR is open, the PR branch must merge `origin/main` and re-verify CI.
-- **Human Lead Merge Gate**: Pull Requests are NEVER auto-merged. Even when GitHub Actions CI passes, merge requires explicit authorization and manual merge by the Human Project Owner (`@yosoykyle`).
-
-Keep the Issue `In Progress` until required CI passes for the exact published commit or PR head. Revalidate the all-`Verified` ledger, update only evidence-backed checkboxes, leave a compact evidence record, and close or merge last. `Publish #NN` never authorizes deployment or PR merge.
-
-If CI fails, diagnose first:
-
-```xml
-<tala_action action="diagnose" issue="NN">
-  <boundary>READ_ONLY</boundary>
-  <objective>Diagnose failed Publish #NN verification</objective>
-  <instructions>
-    Inspect the owning Issue, published commit, failed TALA CI run, and any existing
-    branch or PR. Report the exact cause and smallest correction.
-  </instructions>
-  <constraints>Read-only. Do not create replacement tracked work, edit files, merge, close, or deploy.</constraints>
-</tala_action>
-```
-
-After the diagnosis is accepted:
-
-- Solo: authorize one bounded corrective commit on `main`, then separately republish it.
-- Concurrent: authorize the correction on the same Issue branch, then update the existing PR.
-
-## You plus another developer
-
-Before activating a second implementation Issue, verify required PR CI and protection of `main`. Derive no more independent Issues than the stated owner capacity.
-
-```xml
-<tala_action action="derive_batch">
-  <boundary>READ_ONLY</boundary>
-  <objective>Derive next parallel-safe TALA implementation Issue batch</objective>
-  <developer>
-    <username>[username]</username>
-    <work_area>[work area]</work_area>
-    <capacity>one active Issue</capacity>
-  </developer>
-  <instructions>
-    Derive the next parallel-safe TALA implementation Issue batch from the approved
-    coordination map. Verify dependency readiness, ownership, shared seams, workspace
-    isolation, CI, and main protection. Return fewer drafts when safe concurrency
-    cannot be proven; keep each draft journey-complete.
-  </instructions>
-  <constraints>Read-only. Do not create Issues, branches, Project changes, or other writes.</constraints>
-</tala_action>
-```
-
-When planner and implementer differ, put the accepted plan or concise execution handoff in or durably link it from the owning Issue. Include only material task-specific environment, skill, or tool prerequisites; generic project guidance stays in `AGENTS.md` and `CONTRIBUTING.md`.
-
-A fresh agent session is recommended when the owner or Issue changes, but it is optional. Whether the task is new or existing, anchor it to one assigned Issue. The Issue branch, isolated workspace/database, and PR provide parallel isolation. In the assigned developer's session:
-
-```xml
-<tala_action action="implement" issue="NN" role="implementer">
-  <boundary>LOCAL_EXECUTION</boundary>
-  <objective>Implement #NN as assigned implementation owner</objective>
-  <instructions>
-    You are the implementer for this Issue, not the primary TALA orchestrator.
-    Read AGENTS.md, the protocol, the owning Issue's body and relevant durable
-    comments, and the accepted plan or handoff. Re-anchor from live Git and GitHub
-    state. Verify assignment, dependencies, workspace isolation (on the assigned
-    Issue branch for concurrent work or main for authorized solo work), and any
-    material task-specific environment, skill, or tool prerequisite. Remain within
-    this Issue's scope; stop and report if a required prerequisite is unavailable.
-
-    Use applicable project skills and tools. Perform bounded local edits, run
-    applicable tests, and format with Pint strictly without commits or branch
-    creation. When in-scope implementation and verification are complete, stop
-    uncommitted and report the diff and verification evidence for independent
-    review. Do not commit, push, create branches, or invoke Complete.
-  </instructions>
-  <constraints>No git commit, no git push, no branch creation, no PR creation, no deployment, no file edits outside in-scope target files.</constraints>
-</tala_action>
-```
-
-Use one owner, Issue-specific branch, PR, and isolated workspace/database per active Issue. Dependent work waits for its prerequisite PR to merge unless an explicit stacked-branch plan is approved. Open PR review remains `In Progress`; merge requires separate authorization.
-
-## Work without an Issue
-
-Clear direct work remains valid and has no GitHub Project status.
-
-| Request | Allowed result |
-| --- | --- |
-| Review, diagnose, or plan | Read-only |
-| Implement, fix, change, build, or proceed | Bounded local edits and verification; no commit |
-| Explicitly complete or commit | Bounded work, verification, and one local commit |
-| Explicitly publish an accepted commit or range | Bounded push; no deployment |
-
-State the target and external effect plainly. Never infer permission to commit, push, merge, deploy, or mutate GitHub.
-
-## Compaction and re-anchoring
-
-The protocol requires re-anchoring after compaction or resumption; it is an agent operational rule across all environments. Reconstruct the last proven checkpoint from recent original messages and durable live evidence, then continue only within the existing permission boundary.
-
-Use this fallback when the agent appears confused:
-
-```xml
-<tala_action action="reanchor">
-  <boundary>CURRENT_BOUNDARY</boundary>
-  <active_task>[Plan #NN | Complete #NN | Publish #NN | untracked task]</active_task>
-  <previous_task_id>[task ID if available]</previous_task_id>
-  <instructions>
-    Determine what completed, what is running, what remains, and the current
-    authorization from recent original messages and durable live evidence. For a
-    named Issue, include its relevant durable comments and linked plan or handoff.
-    Continue from the last proven checkpoint. Stop if material state cannot be proven safely.
-  </instructions>
-  <constraints>Do not repeat completed mutations, broaden scope, publish, merge, deploy, or begin another Issue. Continue only within existing authorized boundary.</constraints>
-</tala_action>
-```
-
-Compaction never expands authority.
-
-## Statuses
-
-| Status | Meaning | Set by |
-| --- | --- | --- |
-| `Todo` | Approved implementation Issue exists but is inactive | GitHub automation |
-| `In Progress` | Implementation, open-PR review, or coordination is active | The agent or authorized coordination setup |
-| `Done` | Work completed its approved publication or merge path | GitHub automation after closure or linked merge |
-| `Canceled` | Work intentionally stopped or superseded with a recorded reason | The agent after explicit authorization |
-
-Do not create another Project status or a local shadow queue.
-
-## Finish the coordination cycle
-
-When all accepted journeys appear covered, operate under a READ_ONLY boundary:
-
-```xml
-<tala_action action="audit" issue="NN">
-  <boundary>READ_ONLY</boundary>
-  <objective>Final integrated acceptance audit for coordination Issue #NN</objective>
-  <instructions>
-    Read the coordination map, linked Issues, Project statuses, merged PRs or
-    published commits, canonical authority, current main, and current automated and
-    browser evidence. Verify journey coverage, dependencies, cross-role behavior,
-    outputs, state transitions, and required canonical coverage.
-  </instructions>
-  <constraints>Read-only. Do not close or modify coordination, create Issues, change files, commit, publish, merge, or deploy.</constraints>
-</tala_action>
-```
-
-If a required gap exists, return it to the normal Issue loop. If the audit passes, separately authorize coordination closure. Start a successor coordination Issue only for materially new approved work after closure.
+| Request | Boundary | Result |
+|---|---|---|
+| Derive, plan, review, audit, diagnose | `READ_ONLY` | Findings, contract, or decision-complete plan |
+| Implement, fix, change, proceed | `LOCAL_EXECUTION` | Bounded edits and task-applicable verification |
+| Create/update an accepted Issue | Explicit external-write authorization | The specified task record is saved and read back |
+| Complete | `COMPLETION_AND_PUBLISH` | All criteria Verified, fresh verification, one bounded local commit |
+| Publish | `COMPLETION_AND_PUBLISH` | Accepted commit range published through the applicable solo/PR path; required CI verified on the exact revision |
+| Merge, deploy, or close coordination | Explicit authorization for that effect | The specified terminal action after its gates pass |
+| Re-anchor or resume | Retained authorized boundary | Current authority and state checked, then unfinished authorized work continued |
+
+The owner's stated scope and exclusions govern the request. Boundaries define permissions, not required separate turns: reuse authorization already given and continue to its named endpoint. Product decisions explicitly delegated to the orchestrator are assessed and recorded in their owning authority, then reconciled with affected task records.
+
+## Continue a child task
+
+1. Read the Issue, durable handoff, relevant authority, Git state, and current evidence.
+2. Use a sufficient accepted Issue contract or linked plan; plan separately only for a missing or materially changed decision. Check only task-applicable prerequisites.
+3. Name the assigned executor, bounded scope, actual delivery method, and material safeguards. UI work identifies the matching accepted Impeccable brief.
+4. Execute within the authorized boundary and return criterion-level evidence.
+5. Independently review the result. Complete and publish under their corresponding authorization, which may be given in one request. Maintain one acceptance ledger and reuse valid evidence.
+
+The owner selects the environment and recipient. Orchestration counterparts coordinate and review; an assigned executor implements and verifies. Platform and session details belong to the task handoff.
+
+## Name the endpoint once
+
+For a settled Issue, choose the effects you want:
+
+- Local only: `Implement #NN under its accepted contract; verify and fix in-scope failures. Do not commit or publish.`
+- Complete and publish: `Complete and publish #NN under its accepted contract. Include necessary concurrent isolation setup, verification, and in-scope CI remediation with bounded corrective commits/pushes. Do not merge, deploy, or broaden scope.`
+
+A direct untracked request names its outcome and scope instead of an Issue number. Stop only for an unresolved material decision, safety conflict, or missing authorization; do not invent another approval for routine execution or checks.
+
+## Preserve scope and evidence
+
+Use the existing coordination register for system concerns and stable identifiers. Expand the owning concern before adding a new one. Derive only the next dependency-ready bounded task. Keep the actual shared task state in GitHub Issues and Project views.
+
+Inspect and preserve unrelated edits. Solo work uses the primary checkout on `main`. Concurrent work uses the protocol's isolated Issue workspace, branch, database, and PR arrangement. Stage only the accepted manifest at completion.
+
+Verification follows the change: document consistency/diff/format checks for documentation, affected tests for code, and representative rendered checks for UI. Each criterion has current evidence and a `Verified`, `Partial`, or `Unverified` result; completion requires all criteria Verified. Tests and CI support their covered behavior. Independent review assesses product conformance and usability.
+
+## Publication and recovery
+
+Solo publication pushes the accepted range to `origin/main`; required CI and refreshed acceptance evidence precede authorized closure. Concurrent publication opens a linked PR; required CI and review precede separately authorized merge. Deployment has its own authorization.
+
+A diagnose-only request is read-only. Within an execution assignment, inspect and fix in-scope failures, then rerun affected checks without another approval. Commit and publish corrections only when those effects are explicitly included, reusing authorization already given. Keep the same task and history. Follow required CI to its outcome with bounded waits/checks and report meaningful changes.
+
+## Resume after interruption
+
+Read recent owner instructions and refresh volatile Issue, Git, and evidence state. Retain the accepted decisions and permission boundary. Resolve a material conflict in its owning authority before affected execution. Routine implementation detail stays with the assigned executor.

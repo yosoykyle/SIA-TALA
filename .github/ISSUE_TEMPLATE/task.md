@@ -7,7 +7,8 @@ labels: ["implementation"]
 
 <!-- 
 TALA UNIVERSAL ISSUE TEMPLATE
-Governed by AGENTS.md, CONTRIBUTING.md, and the TALA Orchestrator Protocol.
+Governed by AGENTS.md and the TALA Orchestrator Protocol; CONTRIBUTING.md is setup guidance.
+A sufficient accepted Issue contract serves as the plan. Delete inapplicable verification sections and link existing decisions/briefs instead of duplicating them.
 -->
 
 ## Outcome
@@ -29,13 +30,19 @@ Governed by AGENTS.md, CONTRIBUTING.md, and the TALA Orchestrator Protocol.
 ### Out-of-Scope (Preserved Surfaces)
 - 
 
+## Dependencies & Material Decisions
+<!-- Link prerequisites and accepted material decisions when applicable. Routine implementation choices need no extra approval. -->
+- **Dependencies / Readiness**:
+- **Accepted Decision or Brief References (if applicable)**:
+- **Unresolved Material Decisions / Stop Conditions (if any)**:
+
 ## Acceptance Criteria
 <!-- A small set of observable outcomes that define satisfaction. Keep criteria outcome-based, not prescriptive implementation steps. -->
 - [ ] Criterion 1: 
 - [ ] Criterion 2: 
 
 ## Verification Plan
-<!-- Task-applicable verification proportionate to the change type. Select and fill applicable items only. -->
+<!-- Map each acceptance outcome to suitable evidence. Keep applicable sections only; reuse sufficient existing tests and brief/state contracts. -->
 
 ### Documentation-Only Changes
 - [ ] **Document Consistency**: Authority consistency and contradiction review
@@ -51,7 +58,7 @@ Governed by AGENTS.md, CONTRIBUTING.md, and the TALA Orchestrator Protocol.
 - [ ] **Integration/Multi-Role Check**: External service or cross-role workflow verified if applicable
 
 ## Boundaries
-- **Local Execution Boundary**: `LOCAL_EXECUTION` authorizes bounded file edits, running tests, fixing in-scope failures, and Pint formatting. It strictly **prohibits** creating git commits, pushing, or branch mutations.
-- **Completion Gate**: `Complete #NN` (under `COMPLETION_AND_PUBLISH`) authorizes creating exactly **ONE** bounded local commit only after all acceptance criteria are `Verified` with task-applicable evidence.
-- **Publication Boundary**: `Publish #NN` authorizes pushing approved commits (solo work directly to `origin/main`; concurrent work via Issue branch and PR with `Closes #NN`). Required CI checks on GitHub must pass before closure or merge.
-- **Database Safety**: Automated tests target disposable `test_tala_db`, never `tala_db`. (Documentation-only changes do not require a database run).
+
+Follow [AGENTS.md](../../AGENTS.md) and the [TALA Orchestrator Protocol](../../00_Project_Documents/TALA-Orchestrator-Protocol.md) for permissions, completion, publication, and recovery. An assignment may explicitly include multiple effects in one request; Issue creation or assignment alone grants no implementation, commit, push, merge, or deployment.
+
+Automated database tests target disposable `test_tala_db`, never `tala_db`. Documentation-only work requires no database or application-test run. Every acceptance criterion must be Verified before completion; required CI must pass on the exact published revision.

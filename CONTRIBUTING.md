@@ -43,7 +43,7 @@ Use the example environment's mock integrations initially. Keep credentials, mac
 
 When configuring external integrations, consult the dedicated developer guides in [`00_Project_Documents/developer-guides/`](00_Project_Documents/developer-guides/):
 
-* [**TALA Developer Workflow Playbook**](00_Project_Documents/developer-guides/tala-workflow-playbook.md): Visual scenario walkthroughs, the 7-step issue lifecycle (Todo to Done), CI waiting behavior, and error diagnosis.
+* [**TALA Developer Workflow Playbook**](00_Project_Documents/developer-guides/tala-workflow-playbook.md): Task execution, workspace selection, publication follow-through, and recovery examples.
 * [**ngrok Local Tunneling Guide**](00_Project_Documents/developer-guides/ngrok-setup.md): Exposing localhost for testing incoming webhooks and remote redirects.
 * [**Gmail SMTP Setup & Testing**](00_Project_Documents/developer-guides/smtp-setup.md): App Password setup, `.env` mail variables, and terminal testing via Tinker.
 * [**CP-SAT Cloud Run Solver Integration**](00_Project_Documents/developer-guides/cpsat-cloudrun-setup.md): Service Account key setup, Google Cloud CLI installation, and terminal `/health` verification.
@@ -87,6 +87,8 @@ Select guidelines, skills, and MCP configuration, then select only your coding a
 Boost reads the shared `.ai/skills` sources and installed packages, then generates your assistant's guidelines, skills, and MCP connection automatically. For Codex, this includes `.agents/skills` and `.codex/config.toml`; for Claude Code, `.claude/skills`; for Cursor, `.cursor/skills`. You do not need to create those folders manually.
 
 Review `git diff` afterward. Setup may record your assistant selection in `boost.json`; keep personal setup choices out of shared commits and report unexpected guideline or skill changes.
+
+Boost owns the generated `<laravel-boost-guidelines>` blocks in `AGENTS.md`, `CLAUDE.md`, and other selected agent files. TALA workflow governance belongs in `<TALA_ORCHESTRATOR_ROUTER>` outside that block and its linked protocol. Routine SDLC edits change only that router in `AGENTS.md`; leave generated blocks, skills, and personal tool configuration unchanged. A future approved package-guideline customization uses Boost's documented source/override mechanism and reviewed regeneration, not hand-edits to generated output.
 
 Check your assistant's active MCP list and confirm the connection targets this clone. Open it as a trusted project, restart your assistant, then ask it to call Boost's `application_info` and report the Laravel version. A successful response is the connection check. See [Boost installation](https://laravel.com/framework/docs/12.x/boost#installation) and [Codex MCP setup](https://developers.openai.com/codex/mcp).
 
@@ -143,12 +145,15 @@ This shares the team's tool settings, not personal memories or chat history.
 
 ### D. Confirm readiness before coding
 
-- App starts; build and tests pass; both database targets and migration status were checked.
-- Dedicated qualification test server runs on `http://127.0.0.1:8008` when browser testing is required.
-- GitHub identity/access are correct; Boost responds; Serena activates and finds a symbol when needed.
-- For UI acceptance, one working route is available: Playwright, Chrome DevTools, Codex Browser, or attributable manual verification.
+Check the prerequisites needed by the assignment and reuse still-valid setup evidence:
 
-Send the coordinator a short ready/missing report. Remove secrets from errors; never paste raw MCP configuration or unredacted server-list output. If unassigned, wait for an Issue and accepted plan.
+- All work: accepted scope, relevant authority, correct workspace, attributable Git state, and preservation of unrelated edits.
+- Documentation-only work: document access and consistency/diff checks; no app, database, migration, or browser setup.
+- Code work: applicable runtime and package tools, affected tests, and verified database targets/isolation when those checks use a database.
+- UI work: a ready serving app and one working browser or attributable manual route for the required rendered checks. Use the dedicated qualification server when applicable.
+- External integrations: only the assigned task's approved access and sandbox/provider checks.
+
+Report a blocking prerequisite with its safe remedy. Otherwise continue within the existing execution authorization; a readiness report is not another approval gate. Remove secrets from errors and tool output. Without an assigned task or clear direct execution request, remain read-only.
 
 ## 3. Add integration credentials only when needed
 
@@ -179,154 +184,154 @@ Legacy OCR keys remain in `.env.example`, but the current application has no act
 
 ## 4. Starting Your Assigned Issue: The 5-Step Developer Quickstart
 
-> [!TIP]
-> **Need a concrete walkthrough with visual diagrams?**  
-> Read the [**TALA Developer Workflow Playbook**](00_Project_Documents/developer-guides/tala-workflow-playbook.md) for step-by-step case studies, ASCII flowcharts, the PR endgame (Green vs. Red paths), and error diagnosis.
+These are phases of one bounded assignment, not five required owner conversations. The [Orchestrator Protocol](00_Project_Documents/TALA-Orchestrator-Protocol.md) owns permissions; the [cheat sheet](00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md) provides short requests and the [developer playbook](00_Project_Documents/developer-guides/tala-workflow-playbook.md) explains continuation, publication, and recovery.
 
-When you are assigned an Issue on the [TALA Development Project Board](https://github.com/users/yosoykyle/projects) (or in your GitHub Issues tab), follow these 5 steps:
+### 1. Read the accepted contract; plan only what is missing
 
-### 1. Create your feature branch off fresh `main`
+Read the owning Issue and relevant durable decisions or handoff. A sufficient accepted Issue already serves as the plan. An explicit owner request to execute that contract adopts it within the stated scope; unresolved material decisions still require resolution before affected implementation.
+
+If the contract is missing or materially changed, use:
+
+```text
+Plan #NN. Resolve the missing scope, authority, material decisions, and verification
+for this Issue. Reuse existing accepted decisions. Read-only; do not write code.
+```
+
+Assignment notifications alone grant no execution permission. For clear direct work without an Issue, the owner's explicit request supplies the bounded contract.
+
+### 2. Check the workspace and task-specific prerequisites
+
+Inspect the current workspace before setup:
+
 ```powershell
-git checkout main
-git pull origin main
-git checkout -b feat/issue-NN
+git status --short
+git branch --show-current
+git worktree list
 ```
 
-### 2. Tell your AI assistant to plan (`READ_ONLY`)
-Copy and paste this prompt into your assistant (Antigravity, Codex, Cursor):
+Solo work uses the existing primary `main` checkout. Preserve attributable unrelated edits; do not reset, clean, or create a branch simply because an Issue exists.
+
+For concurrent work, verify the protocol's prerequisites and explicitly authorize the required isolated checkout/branch and database arrangement. In an agreed separate checkout, an authorized branch setup can look like this:
+
+```powershell
+git fetch origin
+git switch -c codex/issue-NN origin/main
+```
+
+`codex/issue-NN` is the Codex example; other environments use their agreed branch name. A branch alone does not isolate a shared checkout. Use the protocol's separate workspace for parallel execution.
+
+Use section 2D's conditional readiness checks: documentation needs no database or app server; code checks need their actual runtime/test targets; rendered UI checks need a ready HTTP/browser route. On resumption, refresh volatile or invalidated premises rather than repeating onboarding.
+
+### 3. Execute to the explicitly authorized endpoint
+
+For local edits only:
+
 ```text
-Plan #NN. Read the issue and show me an implementation plan before writing any code.
+Implement #NN under the accepted contract. Make bounded edits, run applicable
+verification, repair in-scope failures, and review the result. Preserve unrelated
+work. No commit, push, PR, or unauthorized isolation setup.
 ```
-*Review the proposed plan. If it makes sense, proceed.*
 
-### 3. Tell your AI assistant to implement (`LOCAL_EXECUTION`)
+`Complete #NN` can finish remaining bounded implementation and verification, then create one commit after every criterion is Verified. A separate Implement turn is unnecessary. If the owner wants completion and publication together, one explicit request may cover them:
+
 ```text
-Complete #NN on branch feat/issue-NN. Make bounded edits, run tests, format with Pint, and create 1 commit.
+Complete and Publish #NN under the accepted contract. Finish remaining bounded
+work, verify and review every criterion, create one bounded commit, and publish
+by the protocol's current solo/concurrent path. For concurrent work, I authorize
+necessary Issue-branch/workspace setup and the linked PR. Follow required CI on
+the exact published revision; repair only in-scope CI failures and create/push
+bounded corrective commits after re-verification. I authorize this Issue's
+required status/evidence updates and solo closure after Verified acceptance and
+successful CI. Preserve unrelated work. No merge, deployment, new dependencies,
+or scope expansion.
 ```
 
-### 4. Verify locally
+Only use that broader request when those effects are intended. A read-only request stays read-only. Plain language is sufficient; optional XML formatting provides no compliance guarantee.
+
+### 4. Verify and review the outcome
+
+Maintain one criterion-level acceptance ledger. Add or update tests when existing coverage is insufficient. For code changes, use the affected tests; format PHP edits with Pint:
+
 ```powershell
 php artisan test --compact --filter=YourTestName
 vendor/bin/pint --dirty --format agent
 ```
 
-### 5. Push and submit your Pull Request
+These commands are examples for applicable code work, not a second mandatory test round. Reuse valid evidence; repeat checks invalidated by edits, environment changes, or findings. Documentation-only work uses authority consistency, links, intended-diff, and formatting checks. UI work also needs representative rendered checks.
+
+The reviewer checks actual conformance and applicable failure/recovery paths, not just the executor's success report. A genuine capability gap stays Partial or Unverified and blocks completion.
+
+### 5. Publish through the applicable route and verify CI
+
+Complete selectively stages the exact accepted manifest and creates one bounded local commit. After publication is explicitly authorized and the preflight passes, manual CLI examples are:
+
+**Solo publication from primary `main`:**
+
 ```powershell
-git push -u origin feat/issue-NN
-gh pr create --body "Closes #NN"
+git push origin main
 ```
-*(Or click "New Pull Request" on GitHub. The PR template will pre-fill `Closes #NN` and the verification checklist).*
 
-> [!IMPORTANT]
-> **Why `Closes #NN` is Crucial**:  
-> Including `Closes #NN` links your PR to the issue. The issue stays `In Progress` during code review, and automatically moves to `Done` the moment the Lead merges your PR.
-> 
-> **Human Lead Merge Gate**:  
-> Pull Requests **never auto-merge**. Only the Project Lead (`@yosoykyle`) authorizes and executes merges into `main`.
+**Concurrent publication from the isolated Issue branch:**
 
----
+```powershell
+git push -u origin codex/issue-NN
+gh pr create --base main --title "Issue #NN: bounded outcome" --body "Closes #NN. Include acceptance and verification evidence here."
+```
+
+Push only the accepted commit range; inspect it first so unrelated pending or ahead work is excluded. Verify required CI on the exact published revision. A push or PR URL alone is not the end of publication verification.
+
+`Closes #NN` links a concurrent PR to its Issue and closes it when merged into the default branch. Required CI and resolved review precede a separately authorized merge; agents never infer merge permission from Publish. Solo tracked closure requires successful published CI and current acceptance evidence. Deployment has its own gate.
+
+An authorized CI correction stays with the same task, is reverified, and receives its own bounded corrective commit. If that effect was not authorized, request only the missing permission.
 
 ### Workflow Decision Flowchart
 
-Use this decision tree to determine which work type, branching strategy, and submission route applies to your task:
-
 ```text
-                     ┌─────────────────────────────────────┐
-                     │ Do you have an assigned Task/Issue? │
-                     └──────────────────┬──────────────────┘
-                                        │
-                      ┌─────────────────┴─────────────────┐
-                      │ Yes                               │ No
-                      ▼                                   ▼
-     ┌──────────────────────────────────┐      ┌───────────────────────────┐
-     │ Are there other active branches  │      │ Is it an ad-hoc fix, docs │
-     │ or active parallel developers?   │      │ or read-only exploration? │
-     └────────────────┬─────────────────┘      └─────────────┬─────────────┘
-                      │                                      │
-         ┌────────────┴────────────┐            ┌────────────┴────────────┐
-         │ No                      │ Yes        │ Yes                     │ No
-         ▼                         ▼            ▼                         ▼
-  ┌──────────────┐          ┌──────────────┐ ┌──────────────┐      ┌──────────────┐
-  │ Work Type 1: │          │ Work Type 2: │ │ Work Type 3: │      │ Create Issue │
-  │  Solo Work   │          │Parallel Work │ │Untracked Work│      │ via template │
-  ├──────────────┤          ├──────────────┤ ├──────────────┤      │  in .github/ │
-  │• On `main`   │          │• On branch   │ │• On `main`   │      └──────────────┘
-  │• 1 commit    │          │feat/issue-NN │ │• 1 commit    │
-  │• Direct push │          │• PR + Closes#│ │• Direct push │
-  │  to origin/  │          │• Human Merge │ │  to origin/  │
-  │  main        │          │  Gate        │ │  main        │
-  └──────────────┘          └──────────────┘ └──────────────┘
+Requested boundary?
+  READ_ONLY --------------------------> Findings or draft only; no writes
+  Authorized edits/completion
+    |
+    +-- Issue #NN? -------------------> Read its accepted contract
+    |   Clear direct task? -----------> Use the owner's bounded request
+    |   Missing material decision? ---> Resolve before affected implementation
+    |
+    +-- Concurrent implementation? ---> Authorized isolated workspace + Issue branch
+    |                                   Publish: linked PR + required CI
+    |                                   Merge: separate explicit authorization
+    |
+    +-- Solo? ------------------------> Existing primary main checkout
+                                        Publish: accepted range + required CI
+
+Execute only to the authorized endpoint; task type never grants extra permission.
 ```
 
 ### The Three Work Types in Plain English
 
-| Work Type | When Used | Workflow & Branch Strategy |
-|---|---|---|
-| **Work Type 1: Solo Work** | Single active implementation issue tracked; zero concurrent branches or PRs. | Implemented directly on `main` in your primary checkout; verified on disposable `test_tala_db`; published as exactly **1 local commit** pushed directly to `origin/main` after local CI preflight. |
-| **Work Type 2: Parallel Work (Team Default)** | Two or more concurrent issues active; multiple contributors or shared seams. | Implemented on an isolated branch (`feat/issue-NN` or via `git worktree`); verified on `test_tala_db`; published via Pull Request containing **`Closes #NN`**; merged **only after CI passes and the Human Project Owner explicitly authorizes it**. |
-| **Work Type 3: Untracked Work** | Ad-hoc documentation tweaks, prompt refinements, or bug investigations without a GitHub Issue. | Inspected read-only; edited locally on `main`; formatted with Pint; published as 1 commit to `origin/main` without GitHub Project board overhead. |
+| Work type | Workspace and delivery |
+| --- | --- |
+| Solo tracked work | Existing primary `main` checkout; authorized bounded completion and direct publication, followed by required CI and Verified acceptance before closure |
+| Concurrent tracked work | Authorized isolated Issue branch/workspace; linked PR, required CI and review, then separately authorized merge |
+| Clear Direct Work (Untracked) | Direct request supplies scope; existing primary checkout for solo work; no Issue or Project item; edits, commit, and publication follow the explicitly named effects |
 
-### Demystifying `<tala_action>` XML Tags (Prompts for AI, Not Chores for Humans)
-
-Throughout the protocol and cheat sheet, you will encounter structured XML snippets such as `<tala_action action="plan" issue="NN">`.
-
-* **What they are**: These are machine-readable, structured prompt instructions designed specifically for AI coding assistants (such as OpenAI Codex, Antigravity, Claude Code, or Cursor). Modern LLMs parse XML tags with extreme reliability, ensuring they adhere strictly to permission boundaries (e.g. `READ_ONLY`) and do not perform destructive or out-of-scope actions.
-* **What they are NOT**: They are **not** bureaucratic documentation chores or forms that human developers must write, fill out, or commit.
-* **How to use them**:
-  - **Copy-Paste to your AI**: You can copy and paste the XML block directly into your AI chat prompt.
-  - **Or use Plain English**: You can simply type the plaintext shorthand (e.g., `Plan #NN` or `Complete #NN`). Your AI assistant will follow the same boundary rules.
+A read-only investigation remains read-only in every work type. GitHub Project status is a view of tracked work, not an extra task record.
 
 ### Re-anchoring for an Assigned Issue
 
-The coordinator assigns you through the Issue's **Assignees** field. Alerts follow your [GitHub notification settings](https://docs.github.com/en/subscriptions-and-notifications/concepts/about-notifications); they do not authorize coding.
+The coordinator assigns the accountable owner through the Issue's Assignees field. Alerts follow your [GitHub notification settings](https://docs.github.com/en/subscriptions-and-notifications/concepts/about-notifications); they do not authorize coding. Contributors may enable [GitHub Actions failure notifications](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-github-actions-notifications) on their own account.
 
-Enable [GitHub Actions notifications](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-github-actions-notifications) on your own GitHub account, preferably with **Only notify for failed workflows**.
+If readiness needs a separate diagnosis, use this read-only prompt. During an already authorized execution assignment, perform the same applicable checks without another owner approval round:
 
-When beginning an assigned Issue, use the standardized XML action template from the [TALA Orchestration Cheat Sheet](00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md):
-
-```xml
-<tala_action action="reanchor" issue="NN">
-  <context>
-    Read AGENTS.md, CONTRIBUTING.md, the TALA Orchestrator Protocol, the owning Issue body
-    and relevant durable comments, any existing accepted plan or execution handoff, and the
-    minimum relevant canonical documents and implementation surfaces.
-  </context>
-  <verification>
-    Verify the current branch, HEAD relationship to origin/main, clean working tree,
-    assignment, workspace and dual-database isolation (tala_db vs test_tala_db), migration
-    status, GitHub access, Laravel Boost, applicable project skills, dedicated qualification
-    server (port 8008), and required browser-verification routes.
-  </verification>
-  <boundary>
-    READ_ONLY: Report what is ready, what is missing, the exact safe remedy, and whether
-    implementation may begin. Do not edit files, mutate GitHub, create a branch, commit,
-    publish, merge, deploy, or change credentials yet.
-  </boundary>
-</tala_action>
-```
-
-*(Plaintext equivalent)*:
 ```text
-Re-anchor this TALA clone for assigned Issue #NN as its implementation owner.
-
-Read AGENTS.md, CONTRIBUTING.md, the TALA Orchestrator Protocol, the owning
-Issue body and relevant durable comments, any existing accepted plan or execution
-handoff, and the minimum relevant canonical documents and implementation
-surfaces. Verify the current branch, HEAD relationship to origin/main, clean or
-attributable working state, assignment, dependencies, workspace and database
-isolation, actual development and test database targets, migration status and
-any observed schema mismatch for each, GitHub access, Laravel Boost, applicable
-project skills, dedicated test server on port 8008, the browser-verification route
-required by the Issue, and any material task-specific environment or tool
-prerequisite named by the handoff. Treat Serena and other plugins as conditional
-unless the Issue or accepted plan requires them.
-
-Report what is ready, what is missing, the exact safe remedy, and whether
-implementation may begin. Read-only: do not edit files, mutate GitHub, create a
-branch, commit, publish, merge, deploy, or change credentials yet.
+Re-anchor this TALA workspace for Issue #NN. Read the router, applicable protocol
+sections, owning Issue/accepted handoff, relevant authority, and existing evidence.
+Check branch/base, assignment, dependencies, unrelated edits, and required isolation.
+Prove actual database targets/migrations when code tests need them, and HTTP/browser
+readiness when rendered verification needs it. Treat plugins as conditional unless
+the task requires them. Report blockers and safe remedies. Read-only: no edits,
+Git/GitHub writes, commit, push, merge, or deployment.
 ```
 
-Follow the [cheat sheet](00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md): use `Plan #NN` to plan read-only when no accepted plan exists. Coding needs readiness, an accepted plan/handoff, and authorized `Complete #NN`. For parallel work, that command implements and commits locally in the worktree. `Publish #NN` publishes separately. Setup alone authorizes none of these actions.
+Use `Plan #NN` only for a missing or materially changed contract. Coding requires task-applicable readiness and explicit execution authorization; commit and publication need their corresponding effects. Setup alone authorizes none of them.
 
 ## 5. Troubleshooting & Branch Protection
 
@@ -343,7 +348,7 @@ Follow the [cheat sheet](00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md)
 | Serena opens its dashboard unexpectedly | Check section 2C's user settings and any `--open-web-dashboard` launcher override, then restart the connection |
 | A database has pending migrations or missing columns | Follow the README's maintenance steps for the verified target. Rebuild only the disposable `test_tala_db` after explicit approval; never use its rebuild command on `tala_db` |
 | Required accounts, roles, or academic data are missing | Check README seeding, then request the Issue's missing fixtures/account setup. There are no default administrator credentials; do not copy a teammate's database |
-| Wrong branch, behind `main`, or unexplained dirty files | Stop before implementation and reconcile Git state without discarding work |
+| Wrong assigned workspace/base or overlapping edits of unclear ownership | Reconcile the affected state without discarding work. Unrelated attributable edits alone do not block a bounded task |
 | Prototype comparison evidence is needed | Use the tracked [Human-Centered Operations evidence pack](00_Project_Documents/design-evidence/human-centered-operations/README.md); it does not define production behavior |
 
 If project-scoped Boost configuration still cannot load, Laravel also supports [manual registration](https://laravel.com/framework/docs/12.x/boost#manually-registering-the-mcp-server). Use one connection, correcting any existing entry first:
@@ -358,7 +363,8 @@ codex mcp add laravel-boost -- php (Join-Path (Get-Location).Path 'artisan') boo
 
 The [TALA CI workflow](.github/workflows/ci.yml) installs dependencies, builds assets, migrates a disposable MySQL database, and runs PHPUnit on GitHub-hosted Linux. Check [GitHub Actions](https://github.com/yosoykyle/SIA-TALA/actions/workflows/ci.yml); passing CI does not replace acceptance or browser evidence.
 
-The repository strictly enforces GitHub branch protection on `origin/main` with `required_status_checks.strict: true`.
-- **Parallel Work**: All Pull Requests must pass CI and be fully up-to-date with `origin/main` before they can be merged. If `main` advances while a PR is open, the PR branch must merge `origin/main` and re-pass CI.
-- **Solo Work**: Solo work proceeds through the approved single-commit direct-`main` path after complete local verification.
-- **Human Merge Gate**: Pull Requests are merged strictly with the Human Project Owner's explicit authorization.
+Verify live branch protection and required checks before concurrent work; this guide does not establish that remote settings are currently configured.
+
+- **Parallel Work**: Required CI, resolved review, integrated dependencies, and sufficient currency with `origin/main` precede merge. Refresh the branch and invalidated evidence when its base changes.
+- **Solo Work**: Retain the approved direct-`main` path after task-applicable local verification; required CI applies to the published commit.
+- **Human Merge Gate**: Pull Requests require the Human Project Owner's explicit merge authorization.
