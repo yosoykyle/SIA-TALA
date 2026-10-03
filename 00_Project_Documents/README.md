@@ -17,7 +17,7 @@ These ten documents are the complete approved product authority set:
 9. [`ui_surface_blueprint.md`](ui_surface_blueprint.md)
 10. [`architecture_specification.md`](architecture_specification.md)
 
-The baseline and PRDs own product behavior, the UI Surface Blueprint owns interface mapping, and the Architecture Specification owns system and integration boundaries. [`PRODUCT.md`](../PRODUCT.md) records the product brief; [`DESIGN.md`](../DESIGN.md) records shared visual foundations. Surface briefs apply those foundations to their assigned tasks. Laravel Boost and installed-version official framework documentation are primary implementation references; the official Filament demo provides optional examples of native composition and behavior. The evidence classification below identifies the role of retained references and historical documents.
+The baseline and PRDs own product behavior, the UI Surface Blueprint owns interface mapping, and the Architecture Specification owns system and integration boundaries. Current shared visual direction is recorded in [`PRODUCT.md`](../PRODUCT.md) and [`DESIGN.md`](../DESIGN.md), while the UI Surface Blueprint governs observable interface and role-surface contracts and Architecture governs technical boundaries. The October 2 consolidation promotes selected branding, native-framework color guidance, and HTTP/session-recovery composition/background animation into those existing records. Laravel Boost and installed-version official framework documentation are primary implementation references; the official Filament demo is optional native composition/behavior evidence, not a source of product requirements. The local layout guide remains optional supporting/historical evidence, not a mandatory replica or additional authority. Existing surface briefs retain task-specific decisions but cannot override superseded global visual requirements. The historical [TALA Experience and Official-Output Design Definition](TALA-Experience-and-Official-Output-Design-Definition.md) is superseded historical design rationale preserved for traceability; it cannot override canonical owners.
 
 ## Workflow and operational authority
 
@@ -35,15 +35,13 @@ Task IDs, tracker rows, commits, demonstrations, tests, code, schema, seeders, a
 
 The [Applicant–Registrar surface brief](../.impeccable/surfaces/applicant-registrar.md) expresses the accepted #57 journey for Impeccable-led UI/UX assessment. Surface briefs hold task-specific direction, not live task status. Read current Issue bodies for scope and status; dated comments preserve evidence and superseded decisions. F/S owner concerns, M meeting priorities, C clarifications, canonical APP/REG surface IDs, and AC acceptance criteria retain their original identities and are mapped rather than renumbered.
 
-The [#48 evidence register](https://github.com/yosoykyle/SIA-TALA/issues/48#issuecomment-5918342932) preserves client-meeting, client-QA and developer feedback, its source comparison and decision history. Current product requirements belong to their owning PRDs; tracked delivery scope and evidence belong to the owning Issue and handoff.
-
 ## Evidence and archive classification
 
 Classification is determined by the first matching rule below. Every project-authored document in scope is covered by an exact file or directory rule.
 
 | Path | Classification | Reading rule |
 | --- | --- | --- |
-| [`design-evidence/layout/`](design-evidence/layout/) | Supporting/historical evidence | Preserved visual specimens and provenance for composition, including recovery backgrounds/animation. DESIGN.md and the UI Surface Blueprint own adopted visual decisions; the PRDs own school capabilities |
+| [`design-evidence/layout/`](design-evidence/layout/) | Supporting/historical evidence — selected traits consolidated | Optional provenance and specimens for decisions now owned by DESIGN.md and the UI Surface Blueprint, including recovery backgrounds/animation. Preserve the folder; continued development or exact copying of this framework showcase is not required. Native Heroicons override prototype Lucide. Fictional workflows, demo settings/actions, historical captures, and QA are not product or acceptance authority |
 | [`design-evidence/`](design-evidence/) | Supporting evidence — historical comparison | Historical comparisons and other supporting design material; current reference directories require their explicit classification. No prototype independently grants product or implementation authority |
 | `prd_modules/_legacy/**` | Supporting evidence — replaced PRDs | Traceability and bounded salvage only; canonical 00–06 wins |
 | [`business-evidence/`](business-evidence/) | Supporting evidence — institutional material | Clarifies terminology, forms, and current/manual practice; cannot override accepted policy or product authority |
@@ -65,7 +63,6 @@ Historical manual test cases and UAT documents are demonstration material. Autom
 
 ## Change rule
 
-- Keep one enforceable owner for each rule: PRDs for product fields/rules/actions, UI Blueprint for capability and interaction outcomes, Architecture for technical boundaries, and Protocol for delivery permissions. Derived summaries link to that owner. Impeccable leads composition; use sketches when they help resolve a design decision.
 - Update product authority before changing a settled product decision.
 - Update workflow authority before changing orchestration rules.
 - Keep live shared task status only in GitHub Issues; do not create a local shadow tracker.

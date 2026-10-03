@@ -1,14 +1,14 @@
 # PRD 01 — Identity, Access, and Public Entry
-## Authority
+## Authority and Standalone Status
 
-This PRD owns identity, access and public-entry behavior. Use one public Sign in entry and one credential account, with server-enforced role authorization, post-authentication multi-role resolution and Staff MFA/session protections. The [#48 register](https://github.com/yosoykyle/SIA-TALA/issues/48#issuecomment-5918342932) retains decision provenance and feedback.
+**Status:** Standalone and ready for vertical-slice planning.
 
 This PRD is the complete product authority for identity, access, public entry, account security, and bounded public content. It is sufficient to understand the module without a legacy PRD or implementation file. Product-wide terminology and mutation rules come from the [TALA System Definition Baseline](./00_system_definition_baseline.md); exact shared presentation comes from the [UI Surface Blueprint](../ui_surface_blueprint.md).
 ## 1. Purpose and Successful Outcome
 
 Clinic 1 gives each person one secure TALA credential account and only the workspace contexts that person is authorized to use. It provides:
 
-- A school-first one-page public gateway with factual Programs, institution/location context, and one public sign-in action
+- A task-focused one-page public gateway with factual Programs, institution/location context, and contextual sign-in
 - Minimal Applicant account creation and email verification
 - Secure Staff invitation and activation
 - Verified-email sign-in and recovery
@@ -172,23 +172,20 @@ The existing audit facility may carry this evidence. No parallel audit engine is
 | State or projection | Trigger or action | Actor | Authorization | Guards | Resulting record or effect | Irreversible or superseding behavior | Cross-role projection |
 |---|---|---|---|---|---|---|---|
 | Public entry available/unavailable | Publish or close the current admissions-entry source | Registrar through Clinic 2 | Clinic 2 cycle authority | Current cycle and publication readiness | Public gateway derives whether **Apply** is available | Later cycle publication supersedes the projection; existing sign-in is never removed | Public sees availability; existing Applicants retain sign-in |
-| `VerificationRequired` | Create Applicant account | Public applicant | Self-registration while entry is open | Unique normalized email, privacy acknowledgement and valid password | One credential account and pending verification evidence | Verification links are single-purpose; a later resend supersedes the prior pending link | Account holder sees verification guidance; System Administrator sees safe state only |
-| Pending sign-in email change | Request a replacement address, then verify it | Applicant/Student-only account holder; System Administrator initiates for Staff-capable accounts | Recent actor password confirmation; recorded authority for a Staff change | New address valid/unique; current account/source; one current pending change | Existing account remains active on its verified address; verification makes the replacement address effective | Expiry, cancellation or failed dispatch preserves the existing address. A successor request invalidates its predecessor; verification rechecks uniqueness | New address receives verification; existing address receives a security alert; account holder sees pending status and recovery |
+| `VerificationRequired` | Create Applicant account or request an email change | Applicant, learner, or authorized System Administrator for Staff-capable accounts | Self-service for Applicant/Student-only; recorded authority for Staff-capable accounts | Unique normalized email, privacy acknowledgement, valid password when creating | One credential account and pending verification evidence | Verification links are single-purpose; a later resend or email-change request supersedes the prior pending link | Account holder sees verification guidance; System Administrator sees safe state only |
 | `InvitationPending` | Invite new Staff or resend invitation | System Administrator | Fixed-role assignment plus recorded reason and authority | No duplicate account; final-administrator and self-escalation protections | One account, Staff access profile, role assignment evidence, and expiring activation link | Resend invalidates the previous link; activation supersedes pending invitation | Invited person sees activation; administrator sees pending/expired state |
 | `Active` | Verify email, complete activation, or reactivate | Account holder or System Administrator | Valid signed link, or recorded reactivation authority | Account not disabled; Staff-capable account must complete MFA before Staff access | Authorized workspace contexts become usable | Activation/verification evidence is retained; reactivation does not erase prior disablement | Chooser shows only authorized contexts; single-role users route directly |
 | MFA enrollment/challenge required | Enter a Staff-capable context | Staff account holder | Existing Staff role | Password-authenticated session; valid TOTP or unused recovery code | Staff workspace access or continued enrollment requirement | Recovery codes are single-use; reset supersedes the prior factor only after external identity verification | Staff sees security action; administrator sees bounded reset evidence, never secrets |
 | Access assignment changed | Add or revoke a fixed Staff role | System Administrator | Recorded reason, authority, and optional evidence | Cannot remove the final active System Administrator or self-escalate without authority | Role assignment history and refreshed workspace projection | Later authorized change supersedes current access, but history is immutable | Affected account sees added/removed context; other roles gain no authority |
 | `Disabled` | Disable account | System Administrator | Recorded reason and authority | No self-disable; final active System Administrator protected | Sessions end and all workspace entry is blocked while domain records remain | Reactivation supersedes current disablement; disablement evidence remains | Account holder sees only disabled/support guidance; internal reason remains restricted |
 | Student context granted | Finalize first official enrollment | Registrar through Clinic 4 | Clinic 4 finalization authority | Existing verified credential account; idempotency by official enrollment/student identity | Existing account gains Student access and Student becomes normal context | Retry creates neither a second account nor a second Student number | Learner sees Student context; Applicant context leaves the everyday chooser |
-| Public notice scheduled/published/unpublished; FAQ published/unpublished | Save publication action | System Administrator | Public-content permission | Complete safe content and unique display order; notices validate their Asia/Manila window and optional link | Public notice/FAQ projection changes | Later edit or unpublish supersedes public projection; audit remains | Public sees only currently effective content |
+| Public content scheduled/published/unpublished | Save publication action | System Administrator | Public-content permission | Bounded fields, valid Asia/Manila window, safe optional link | Public notice/FAQ projection changes | Later edit or unpublish supersedes public projection; audit remains | Public sees only currently effective content |
 
 ### 4.7 Public Content
 
-**Announcements** communicate time-sensitive school notices, dates, and changes on the Public Gateway. The product record is **PublicNotice**. **FAQs** answer recurring questions about eligibility, application steps, documents, sign-in, and where to get help. System Administrator maintains both from approved information; Program availability and application dates come from their owning sources.
-
 **PublicNotice** contains a required title of 1–160 characters, required plain-text short message of 1–500 characters, publication state, optional visible-from and visible-until in Asia/Manila, a positive display order unique within its effective published group, and an optional HTTPS link whose label is at most 80 characters and URL at most 2,048 characters. When both dates exist, visible-from cannot follow visible-until.
 
-**PublicFaq** contains a required question of 1–160 characters, required plain-text answer of 1–3,000 characters, optional topic label of 1–120 characters when supplied, publication state, and one positive display order unique among published FAQs. A topic is descriptive text on the entry. The public page presents FAQs in display order. Draft entries become visible through **Publish**; **Unpublish** removes them from public view while retaining publication history.
+**PublicFaq** contains a required question of 1–160 characters, required plain-text answer of 1–3,000 characters, category label of 1–120 characters, publication state, positive category order, and positive question order unique within the category/effective published group. Neither record supports arbitrary page layout, scripts, uploads, or rich CMS behavior.
 
 ## 5. Readiness and Setup Contract
 
@@ -215,7 +212,7 @@ The first System Administrator is created through a controlled deployment/operat
 
 1. Public visitor opens TALA and sees Servitech/TALA identity, current application availability, factual active Programs, the connected learner journey, in-page FAQ, institution/location context, and official support.
 2. When entry is open, **Apply** opens Applicant account registration. When closed, the page explains that applications are closed while preserving Applicant sign-in for existing accounts.
-3. Registration collects only email, password, confirmation, and acknowledgement of the linked privacy notice. The acknowledgement records that the notice was presented; it is not blanket consent for later application, education, credential, or financial processing. The single notice names actual purposes, data categories, recipients, rights/contact, retention responsibility and applicable processing bases. Ordinary personal-data bases under Data Privacy Act Section 12 and sensitive-information exceptions under Section 13 are distinguished. The institution/privacy owner must establish the applicable basis before production collection; TALA records notice/version facts and any specific consent required by the owning journey without introducing a consent-management subsystem.
+3. Registration collects only email, password, confirmation, and acknowledgement of the linked privacy notice.
 4. The primary action is **Create account**. Account creation does not create an application.
 5. TALA rejects duplicate email safely and does not reveal unrelated account details.
 6. TALA creates the credential account in **VerificationRequired**, sends verification, and shows resend/support guidance.
@@ -226,11 +223,11 @@ Expired, already-used, malformed, throttled, and mail-failure paths must state w
 
 ### 6.2 Sign in and workspace resolution
 
-1. Public entry offers one **Sign in** action; the visitor does not select Applicant, Student, or Staff before authentication.
-2. The account's authorized roles and security state determine eligible destinations after authentication. Public entry never grants or discloses a role.
+1. Public sign-in offers Applicant, Student, and Staff contexts.
+2. Context selection changes orientation and requested destination only; it never grants or discloses a role.
 3. The user signs in with verified email and password.
 4. Unknown email or wrong password receives the same generic failure.
-5. A retained role-specific link or requested destination cannot grant access. Correct credentials authenticate once, then resolve an authorized destination with a short explanation when necessary.
+5. Correct credentials used through the wrong entry authenticate once, then route to an authorized context with a short explanation.
 6. A single authorized context routes directly.
 7. Multiple authorized contexts open the workspace chooser.
 8. The user may switch contexts without another sign-in; every direct route is still independently authorized.
@@ -294,7 +291,7 @@ Clinic 4 owns the transaction:
 
 ### 6.8 Bounded public content
 
-System Administrator may create, edit, publish/unpublish, and order concise notices and FAQ entries. Notices may use publication windows in Asia/Manila. Invalid or unsafe optional notice links are rejected. Public rendering includes published FAQs and currently effective published notices.
+System Administrator may create, edit, publish/unpublish, order, and schedule concise notices and FAQ entries. Publication windows use Asia/Manila. Invalid or unsafe optional links are rejected. Public rendering includes only currently published content.
 
 Programs are not Public Content records. The Public Gateway projects active Program facts and intake availability from Clinic 2 authority. Location uses the configured approved map reference with an external-link fallback. Hero media is limited to a small tracked or approved-object-storage asset set selected through deployment/configuration; it is never an arbitrary gallery. Moving media must be muted, include a poster and visible pause/stop control, preserve all meaning in text, and become static when reduced motion is requested.
 
@@ -357,14 +354,14 @@ Bounded security logs may retain throttling and failed-authentication evidence w
 
 ## 10. UI Authority
 
-Clinic 1 capability coverage, hierarchy, states and responsive/accessibility outcomes live in the UI Surface Blueprint. This PRD owns necessary information, actions and roles. Impeccable leads composition using components suited to each task.
+The exact Clinic 1 page blueprints and low-fidelity wireframes live in the UI Surface Blueprint. This PRD owns the required inventory and information contract.
 
 | Page/surface | Owner/user | Primary purpose | Primary action |
 |---|---|---|---|
-| Public gateway | Public | Understand Servitech/TALA, current admission availability, factual Programs, location/support, and choose Apply or Sign in | Apply or Sign in |
+| Public gateway | Public | Understand Servitech/TALA, current admission availability, factual Programs, location/support, and choose Apply or sign-in context | Apply or Sign in |
 | Applicant registration | Public Applicant | Create a credential account | Create account |
 | Email verification | Applicant/Staff | Prove email ownership | Verify / Resend |
-| Unified sign-in | All account holders | Authenticate once and resolve an authorized context | Sign in |
+| Contextual sign-in | All account holders | Authenticate for an intended context | Sign in |
 | Password recovery/reset | All eligible accounts | Restore password access | Send recovery link / Reset password |
 | Workspace chooser | Multi-role account | Choose one authorized context | Open workspace |
 | Account Security | Signed-in account | Manage email/password and applicable MFA | Contextual security action |
@@ -430,7 +427,7 @@ Technical IDs and evidence references remain secondary detail.
 
 - Tables carry queues; infolists carry read-only facts; forms collect actual input; Sections/Tabs disclose secondary evidence; Action Groups contain secondary row actions.
 - A wizard is not used for registration because the form is only email/password. Staff invitation is a focused form, not a workflow builder.
-- The public page and authentication family use one school-branded **Sign in** entry without a pre-authentication role menu or **Choose another workspace** link. Authorized multi-role choice and switching remain available after authentication; verification/recovery retain necessary support and safe account exit.
+- The public page and authentication shell visibly identify the selected context and always offer **Choose another workspace**.
 - Public and authenticated decisions follow the UI Blueprint's ethical presentation standard: defaults disclose their source and remain reversible; persisted progress and saved state are factual; consequential actions are never preselected; and warnings name the real consequence, owner, date/source, and recovery path without pressure.
 - A chooser shows authorized contexts only; it has no unavailable roles, counts, previews, or analytics.
 - System Administrator tables use native Filament filter panels and active indicators, not custom column-header dropdowns.
@@ -441,7 +438,7 @@ Technical IDs and evidence references remain secondary detail.
 - Public and learner-facing pages qualify at 360 × 800 CSS pixels and larger.
 - Public and authentication pages provide semantic landmarks, a visible-on-focus skip link, and consistently placed official support.
 - Access cards stack on mobile.
-- The single Sign in action is a semantic link usable by focus, click, tap, and keyboard. Role authorization and Staff session/MFA policy are enforced after credentials are verified, independently of the entry link.
+- The sign-in menu is usable by hover, focus, click, tap, and keyboard; it never depends on hover alone.
 - Authentication and security forms remain single-column at narrow widths.
 - Authentication fields support correct autocomplete, paste, and password managers.
 - Users & Access hides or stacks secondary columns while preserving identity, state, and next action.
@@ -449,7 +446,7 @@ Technical IDs and evidence references remain secondary detail.
 - Focus is visible and not obscured; labels and instructions are programmatically associated; errors identify fields, announce a summary, and focus the first error; state changes include screen-reader status text.
 - Interactive targets meet the WCAG 2.2 minimum and use comfortable touch sizing where practical.
 - Content remains usable at 200% zoom, in high-contrast mode, and with reduced motion.
-- The Public Gateway remains one Bootstrap page. Programs, notices, FAQ, institution/location and map context, and support remain in the page body; the navigation uses in-page anchors and single public sign-in. Support, Privacy Notice, and Accessibility may use the approved bounded Bootstrap modal treatment rather than separate public pages. Each modal is full-screen below Bootstrap's small breakpoint and wide, centered, and scrollable on larger screens, with a labelled title, close control, Escape dismissal, contained focus, and focus restoration.
+- The Public Gateway remains one Bootstrap page. Programs, notices, FAQ, institution/location and map context, and support remain in the page body; the navigation uses in-page anchors and contextual sign-in. Support, Privacy Notice, and Accessibility may use the approved bounded Bootstrap modal treatment rather than separate public pages. Each modal is full-screen below Bootstrap's small breakpoint and wide, centered, and scrollable on larger screens, with a labelled title, close control, Escape dismissal, contained focus, and focus restoration.
 - Approved hero media never carries task meaning by itself. Moving media is muted, pausable, has a poster, and becomes static under reduced motion. Missing media or an unavailable map embed leaves the textual content and external map fallback intact.
 - The registration Privacy Notice link opens `/?modal=privacy` in a new tab so entered Filament form data remains intact while the same Public Gateway notice is shown; the notice is not duplicated inside Filament.
 - Session-expiry warning allows the user to continue when the security policy permits without removing the accepted idle timeout.
@@ -465,15 +462,15 @@ The following matrix is the controlling module-specific mutation contract. Produ
 
 | Action or record | Who and when | Validation/readiness | Confirmation and audit | Limits, deletion, and recovery |
 |---|---|---|---|---|
-| Applicant registration and verification | Public user while registration is available | Email primitive; password 15–64; acknowledgement; no protected duplicate disclosure | Routine submission records the credential reference and verification event | One credential account per normalized email. Resend is one message per 60 seconds; token expires after 60 minutes; no duplicate account is created |
+| Applicant registration and verification | Public user while registration is available | Email primitive; password 15–64; acknowledgement; no protected duplicate disclosure | Submit does not need an alertdialog; successful creation records credential reference and verification event | One credential account per normalized email. Resend is one message per 60 seconds; token expires after 60 minutes; no duplicate account is created |
 | Sign-in, MFA, and recovery | Account owner; Staff context requires enrolled TOTP | Five failed login/MFA attempts per normalized account/IP per minute; stricter Staff session policy; valid recovery token/code | Sensitive account changes require password reconfirmation no older than 15 minutes | Throttle waits for window reset, never permanent auto-lock. Recovery codes are shown once and complete-set replacement invalidates the prior set |
-| Email change | Applicant/Student-only account holder; System Administrator initiates for Staff-capable accounts after recent actor password confirmation | New email valid/unique; current account/version; one current pending change; verify the replacement before it becomes effective | **Change sign-in email** shows session and notification consequences; Staff change records authority/reason; audit old/new address safely | Prior verified email remains active until successor verification completes. Expiry/cancellation preserves it; stale/conflicting verification applies no change |
+| Email change | Account owner after recent password confirmation and verification of the replacement | New email valid/unique; current account/version; no unresolved conflicting change | **Change sign-in email** shows session and notification consequences; audit old/new normalized address without exposing secrets | No second credential account. Stale/conflict posts nothing; prior verified email remains until successor verification completes |
 | Staff invitation/resend/activation | System Administrator with Staff-access authority | Existing eligible verified account is reused; fixed role; unique active invitation; mail readiness | **Invite Staff** or **Resend invitation** shows role, recipient, expiry, and that the prior link becomes invalid | One active invitation per account/scope; expiry creates no account. Resend invalidates prior link; activation is idempotent |
 | Role assignment/revocation | System Administrator | Fixed role set; authority/reason; current account; transactional final-active-System-Administrator protection | Named confirmation shows gained/lost workspaces and sessions; records before/after roles and reason | No role builder or account deletion. Rejected final-admin action changes nothing and is safe to retry after another administrator exists |
 | Disable/reactivate | System Administrator for another account; self-disable is unavailable | Current account/state, reason/authority, affected contexts, and transactional final-active-System-Administrator protection | **Disable account** states that all sessions and contexts end while history remains; **Reactivate account** states restored access | Accounts are never archived or deleted. Disablement preserves every domain link; reactivation does not recreate roles or records |
 | MFA reset | System Administrator under bounded recovery authority | Verified subject/recovery basis, recent actor password confirmation, current Staff account | **Reset Staff MFA** shows session termination and re-enrollment requirement | Old factor and recovery codes become unusable; no secret is displayed or recoverable |
-| Public Notice/FAQ Draft | System Administrator | Bounded text and safe content; notice window/link and type-specific display order | Save Draft retains the entered content | Hard-delete only before first publication and without references. Previously published content is unpublished or superseded, never deleted |
-| Publish/unpublish public content | System Administrator | Current record/version, complete safe content and unique published order; notices also validate window/link | **Publish [type]** or **Unpublish [type]** shows public visibility and the notice's effective window when supplied | Atomic and idempotent; stale version changes nothing. Public projections follow the current publication state and applicable notice window |
+| Public Notice/FAQ Draft | System Administrator | Title/label primitives; unique order within published group; Asia/Manila window; HTTPS link; safe content | Routine Draft save needs no confirmation | Hard-delete only before first publication and without references. Previously published content is unpublished or superseded, never deleted |
+| Publish/unpublish public content | System Administrator | Current Draft/version, complete safe content, valid window/link/order | **Publish [type]** or **Unpublish [type]** shows public visibility and effective window | Atomic and idempotent; stale version posts nothing. Scheduled/public projections update without a generic archive state |
 
 All identity mutations revalidate authorization and version server-side. Conflicting changes are never merged. Inaccessible and duplicate-account responses disclose neither whether another person exists nor their roles, state, or identifiers. Email delivery failure never reverses the access transaction and retains the same immutable email idempotency key.
 ## 13. Technical and Operational Boundaries
@@ -490,7 +487,7 @@ The implemented module must prove:
 - Verification required, resend throttle, expired/used links, and dispatch failure recovery
 - Password creation/reset against the passphrase policy
 - Session invalidation after completed recovery
-- One public sign-in with verified email and authorized Applicant/Student/Staff resolution
+- Applicant, Student, and Staff contextual sign-in with verified email
 - Wrong-entry recovery without pre-authentication role disclosure
 - Single-role direct routing and multi-role choosing/switching
 - Staff invitation, 60-minute expiry, resend invalidation, activation, and forced MFA enrollment
@@ -503,7 +500,7 @@ The implemented module must prove:
 - Disabled-message privacy, self-disable rejection, and final-admin protection
 - Learner versus Staff email-change ownership
 - Official-enrollment hook granting Student access idempotently without a second account or Student number
-- Notice publication windows and safe links; FAQ publish/unpublish; one display order per content type
+- Public notice/FAQ publication windows, ordering, and safe links
 - Factual Program projection from current Program/Admission Cycle authority without duplicate marketing records
 - Approved hero-media and map fallback behavior, including pause/poster/reduced-motion and no dependency on media for meaning
 - Ethical defaults, persisted progress/saved state, active choice for consequential actions, factual warnings, and visible alternatives
@@ -520,19 +517,19 @@ This module supplies credential and role contexts for the coordinated baseline o
 | `C1-APP-ACTIVE` | Ana Applicant, `ana.applicant@example.test`, active and verified | Applicant | Open-entry sign-in, direct routing, Account Security |
 | `C1-APP-VERIFY` | Vera Applicant, `vera.verify@example.test`, `VerificationRequired` | Applicant pending | Expired verification, resend, verification completion |
 | `C1-STAFF-INVITE` | Felipe Invitee, `felipe.invitee@example.test`, `InvitationPending` | Faculty pending | Invitation expiry, resend invalidation, activation, MFA enrollment |
-| `C1-STAFF-ACTIVE` | Regina Registrar, `regina.registrar@example.test`, active | Registrar | Unified sign-in, TOTP, Staff session policy |
+| `C1-STAFF-ACTIVE` | Regina Registrar, `regina.registrar@example.test`, active | Registrar | Contextual Staff sign-in, TOTP, Staff session policy |
 | `C1-MULTIROLE` | Mara Multi-role, `mara.multirole@example.test`, active | Student and Faculty | Workspace chooser, switching, Staff policy across contexts |
 | `C1-DISABLED` | Diego Disabled, `diego.disabled@example.test`, disabled | Applicant | Generic disabled guidance, inaccessible direct route, reactivation |
 | `C1-FINAL-ADMIN` | Sienna Administrator, `sienna.admin@example.test`, active | Sole System Administrator | Rejected self-disable and final-administrator role-removal attempts |
-| `C1-CONTENT` | Three notices and four FAQ entries | Public projection | Notice scheduling/expiry and unsafe-link rejection; FAQ publish/unpublish; type-specific display ordering |
+| `C1-CONTENT` | Three notices and four FAQ entries | Public projection | Published, scheduled, unpublished, expired, explicit ordering, and unsafe-link rejection |
 
 ### 14.2 Browser Acceptance Walkthrough
 
 | Persona / preconditions | Entry | Action | Visible evidence | Cross-role result | Output | Failure branch | Pass condition |
 |---|---|---|---|---|---|---|---|
-| Public visitor; entry closed then open | Public gateway | Inspect closed state, Programs, FAQ, map context, and single public sign-in; then select **Apply** after Clinic 2 opens entry | Availability, active Program source, support, privacy/accessibility links, institution/location, and single public sign-in remain clear | Existing Applicant sign-in remains available | Applicant registration entry only when open | Unsafe public link, unavailable map/media, or unavailable source shows a textual safe fallback | No duplicate marketing/CMS detour, no artificial urgency, and no application is created by registration |
+| Public visitor; entry closed then open | Public gateway | Inspect closed state, Programs, FAQ, map context, and contextual sign-in; then select **Apply** after Clinic 2 opens entry | Availability, active Program source, support, privacy/accessibility links, institution/location, and contextual sign-in remain clear | Existing Applicant sign-in remains available | Applicant registration entry only when open | Unsafe public link, unavailable map/media, or unavailable source shows a textual safe fallback | No duplicate marketing/CMS detour, no artificial urgency, and no application is created by registration |
 | `C1-APP-VERIFY` | Applicant registration | Create account, open expired link, resend, verify | Generic duplicate protection, pending state, resend guidance, verified completion | System Administrator sees bounded state, not secrets | Verified Applicant access | Mail failure preserves account and offers retry/support | One account reaches Applicant workspace |
-| `C1-APP-ACTIVE` | Applicant sign-in | Use unified sign-in or a retained role-specific link, recover, then reset password | School identity, generic auth error, authorized destination, recovery result | Other roles remain undisclosed | Applicant workspace and invalidated old sessions | Used/expired recovery link has one safe action | Authentication occurs once and route authorization holds |
+| `C1-APP-ACTIVE` | Applicant sign-in | Sign in through the wrong context, recover, then reset password | Context orientation, generic auth error, authorized destination, recovery result | Other roles remain undisclosed | Applicant workspace and invalidated old sessions | Used/expired recovery link has one safe action | Authentication occurs once and route authorization holds |
 | `C1-MULTIROLE` | Staff sign-in | Complete MFA, choose Student, switch to Faculty | Only authorized contexts, current context identity, stricter Staff session policy | Student and Faculty projections remain separate | Correct destination for each chosen context | Direct unauthorized role route is inaccessible without record leakage | No combined-role dashboard or privilege merging |
 | System Administrator and `C1-STAFF-INVITE` | Users & Access | Invite Staff, expire/resend link, activate, enroll MFA | Pending/expired state, invalidated old link, fixed roles, access evidence | Invitee receives Staff context after MFA | Activated Staff account | Duplicate-email path reuses an eligible verified account | Administrator never enters a password; one account is used |
 | System Administrator and `C1-DISABLED` | Account detail | Disable, attempt sign-in/direct route, then reactivate | Required authority evidence, ended sessions, generic support guidance | All contexts blocked then restored | Immutable access-change evidence | Mail failure does not reverse access state | Linked records and roles remain intact |
@@ -557,3 +554,4 @@ No Philippine higher-education source requires username login, a role builder, a
 
 - The institution's authorizing office supplies Staff-role approval and completes off-system identity proof for lost-factor recovery. These are external operational inputs; System Administrator records only the authorized assignment or reset result and its evidence.
 - Account disablement preserves every domain link. Ordinary UI never deletes Account or security history; lawful retention/privacy/disposal operations remain external under the product-wide boundary.
+- No PRD 01 product-policy ambiguity remains for implementation planning.
