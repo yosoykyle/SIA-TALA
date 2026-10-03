@@ -8,20 +8,20 @@ web
 
 ## Users
 
-- **Registrar:** Primary operational custodian responsible for official academic structures, term calendar packages, published timetables, registration finalization, COR issuance, grade releases, transcript (TOR) generation, and academic administrative holds.
-- **Accounting Officer:** Financial controller responsible for publishing term fee plans, evaluating manual payment claims, verifying online payments, computing clearance projections, issuing official financial statements, and placing financial administrative holds.
+- **Registrar:** Operational custodian responsible for admissions decisions, one enrollment-clearance result after external school checks, official academic structures, term calendar packages, published timetables, registration finalization, COR issuance, grade releases, and transcript (TOR) issuance. Restrictions and corrections follow the owning PRD's authority and direct system effect.
+- **Accounting Officer:** Responsible for publishing approved versioned fee plans, recording exact assessments and approved coverage, verifying payment evidence, maintaining Term Accounts, and providing bounded enrollment/output-clearance results and non-tax account outputs. Cash refunds and institutional financial decisions remain outside TALA.
 - **Faculty:** Academic instructors responsible for viewing official class meeting schedules, monitoring class rosters, inputting final grade rosters, and resolving incomplete (INC) grades within the 1-year window.
-- **Student / Ready Applicant:** Learners tracking admissions readiness, confirming course proposals, reserving class seats, reviewing term accounts, executing PayMongo checkouts or submitting payment proof, viewing released grades, and accessing official enrollment certificates (COR).
+- **Student / Ready Applicant:** Learners tracking admissions readiness, confirming proposed subjects and placement, reviewing Term Accounts, using available exact-due payment options or submitting payment proof, viewing released grades, and accessing official enrollment certificates (COR). TALA protects bounded reservations during registration; learners do not operate an open seat marketplace.
 - **Academic Head:** Academic leadership reviewing institutional calendar and curriculum evidence in read-only TALA oversight; calendar approval occurs outside TALA.
 - **System Administrator:** Technical administrator managing identity security, staff role assignments, TOTP multi-factor authentication, audit logs, and local service health monitoring.
 
 ## Product Purpose
 
-Tertiary Academic Lifecycle Administration (TALA) is the official institutional college information system for Servitech Institute Asia Inc. It captures, validates, and preserves the complete student academic lifecycle—from admissions evaluation and timetable publishing to registration, enrollment, grading, financial ledger management, and graduation clearance. Success means maintaining one single, authoritative, auditable institutional record that ensures zero scheduling conflicts, atomic enrollment integrity, reliable grade records, and transparent financial tracking without manual reconciliation friction.
+Tertiary Academic Lifecycle Administration (TALA) is Servitech Institute Asia Inc.'s lean college information system. It records the necessary connected outcomes of admissions, timetable publication, registration, enrollment, final grades, academic records and Term Accounts. Success means a usable, attributable lifecycle with validated schedules, atomic enrollment and clear next actions. Office deliberation, individual paper-document processing, raw grade calculations, cash refunds and general financial accounting remain with their responsible owners outside TALA.
 
 ## Positioning
 
-Unlike generic higher education ERPs or fragmented LMS plugins, TALA is a lightweight, high-assurance academic operations engine tailored to Philippine college regulations and institutional policies. It integrates a discrete constraint optimization solver (CP-SAT via Google OR-Tools) into academic timetable publishing, enforces atomic registration with bounded seat reservations, and maintains auditable financial and academic record histories. Independent schedule validation, transactional enrollment, and attributable records protect against conflicts, over-enrollment, and silent record changes.
+TALA connects Philippine college operations through attributable records, atomic enrollment and validated timetable publication. CP-SAT through Google OR-Tools supplies scheduling candidates; Registrar publishes an independently validated version. Bounded reservations and append-only academic/financial history protect capacity and record integrity.
 
 ## Operating Context
 
@@ -31,14 +31,14 @@ Operates in the daily administrative and academic cycle of Servitech Institute A
 
 - **Six Core Journeys:**
   1. *Identity & Access:* Fortify authentication, mandatory TOTP MFA for staff, single identity across applicant-to-student transition.
-  2. *Admissions & Evaluation:* Verification of applicant credentials, deriving read-only Ready Applicant status without premature student profile or student number generation.
+  2. *Admissions & Evaluation:* Minimum necessary intake, selected private preliminary copies, scoped correction, an attributable admission decision and one Registrar enrollment clearance. Ready Applicant status is derived from current admitted identity and matching clearance, without premature Student identity or number creation. Other paper documents are handled externally.
   3. *Academic Setup & Published Timetable:* Versioned curricula, Term Calendar Packages, draft offerings, automated constraint solving via CP-SAT, and frozen Published Timetables.
   4. *Registration & Official Enrollment:* Selection basis (Standard Curriculum vs Individually Advised), temporary seat reservations, five atomic checkpoints (eligibility, proposal confirmation, valid placement, financial clearance, Registrar approval), Student Number creation on first enrollment, and immutable COR v1.
   5. *Teaching & Academic Records:* Single final grade per enrolled student per class, complete roster release by Registrar, 1-year bounded Incomplete (INC) resolution without auto-failure, exact GWA calculation, and immutable TOR snapshot issuance.
-  6. *Accounts, Payments & Outputs:* Single continuous Term Account, frozen Fee Plans or Authorized Individual Assessments, manual payment proof verification, PayMongo online checkout, official PDF outputs, and local health assurance.
-- **Administrative Holds:** Strictly scoped restrictions defined by the `Hold` model (`blocking_level`: `blocks_enrollment`, `blocks_cor_print`, `blocks_clearance`, `blocks_record_release`, `blocks_graduation_eligibility`, `blocks_reactivation`, `advisory_only`). Blanket account or login bans are prohibited. Holds record office attribution (financial to Accounting; academic deficit/prerequisite to Academic Head; others to Registrar), internal reason and staff-only reason, student-facing resolution requirements (`student_message`, `resolution_requirement`), placing actor, optional expiry, and immutable resolution/waiver audit history (`resolved_by`/`resolved_at`, `waived_by`/`waived_at`).
-- **Ledger Clearances vs Holds:** `EnrollmentPaymentRequirementProjection` and `OfficialOutputPaymentClearance` are real-time derived accounting calculations, strictly separated from administrative holds.
-- **Demonstration Boundaries:** Capstone demonstration follows the retained academic lifecycle. Issue #53 records an actual local Python CP-SAT solve, independent validation, human publication, and schedule projection on guarded `test_tala_db`; the August 19, 2026 Cloud Run activation remains dated evidence, not verification of its current live state. PayMongo hosted checkout and webhooks are implemented and test-backed (`tests/Feature/Finance/ExactDuePayMongoJourneyTest.php`, `tests/Feature/TAL95BPayMongoWebhookPipelineTest.php`), while live sandbox and production endpoints remain unverified here; live merchant activation is owner-gated.
+  6. *Accounts, Payments & Outputs:* Single continuous Term Account, frozen approved Fee Plans or eligible Authorized Individual Assessments, approved coverage, verified manual payment evidence, optional exact-due PayMongo checkout, non-tax account outputs and local health assurance. Refund execution remains external; TALA records authorized corrections only with matching evidence and an atomic attributable effect.
+- **Bounded restrictions:** The owning PRD defines the responsible office, exact consuming action, authority, safe learner instruction and correction history. Current code models or enum values do not expand product scope. Blanket service or login bans and a generic policy/approval engine are outside the product boundary.
+- **Accounting clearances:** Enrollment-payment and official-output clearance are source-specific calculations from current approved assessments, verified payment and coverage. They are distinct from administrative restrictions and from the Registrar's admissions clearance.
+- **Demonstration:** Use the owning PRDs' coordinated synthetic institution to show the connected lifecycle in a guarded test environment. The active Issues record actual execution and acceptance evidence. Architecture owns integration activation and production boundaries.
 - **Technical Stack:** Laravel 12 on PHP 8.4, Livewire 4, Tailwind CSS, MySQL system of record.
 
 ## Brand Commitments
@@ -53,9 +53,9 @@ Operates in the daily administrative and academic cycle of Servitech Institute A
 - Comprehensive PRD modules (`00_Project_Documents/prd_modules/00_system_definition_baseline.md` through `06_accounts_official_outputs_operations_assurance.md`).
 - Canonical UI Blueprint (`00_Project_Documents/ui_surface_blueprint.md`).
 - Architecture Specification (`00_Project_Documents/architecture_specification.md`).
-- Governing Business Policy (`00_Project_Documents/TALA-Business-Policy.md`).
+- Product rules and scope belong to the canonical PRDs; supplied business evidence informs their decisions within its evidenced scope. The documentation registry classifies supporting and historical material.
 - Shared presentation decisions, including branding, native-framework color adaptation, and selected HTTP/session-recovery composition and background animation, are consolidated in DESIGN.md and the canonical UI Blueprint. These decisions do not add product capabilities or change business rules.
-- Laravel Boost and installed-version official Filament/Bootstrap documentation are the primary implementation references; the official Filament demo optionally illustrates native composition and behavior. `00_Project_Documents/design-evidence/layout/` remains preserved supporting/historical evidence for selected traits, not a mandatory replica, additional authority, maintained second application, or runtime dependency. Historical captures under `design-evidence/human-centered-operations/` remain comparison evidence, not current styling authority.
+- Laravel Boost and installed-version official Filament/Bootstrap documentation are the primary implementation references; the official Filament demo provides optional examples of native composition and behavior. `00_Project_Documents/design-evidence/layout/` and historical captures under `design-evidence/human-centered-operations/` supply supporting visual evidence. DESIGN.md and the UI Surface Blueprint own current visual decisions.
 - Existing tests and active Eloquent models/services; execution claims belong to their dated Issue and CI records, not the presence of test files alone.
 
 ## Product Principles
@@ -70,7 +70,7 @@ Operates in the daily administrative and academic cycle of Servitech Institute A
 
 ## Accessibility & Inclusion
 
-- Compliance with WCAG 2.1 AA standards across all public, student, and administrative interfaces.
+- Target WCAG 2.2 AA across public, student and administrative interfaces; verify the relevant outcomes within each owning delivery slice.
 - High-contrast typography (minimum 4.5:1 ratio for normal text, 3:1 for large text/icons).
 - Full keyboard navigability with visible, non-obscured focus indicators (`focus-visible`).
 - Semantic HTML with appropriate ARIA roles, landmarks, and live regions for dynamic Livewire updates.

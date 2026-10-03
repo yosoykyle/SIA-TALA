@@ -1,15 +1,10 @@
 # TALA System Definition Baseline
 
-## Purpose and Current Status
+## Purpose and Authority
 
 This document defines TALA's product-wide goal, boundaries, terminology, ownership, policy classes, shared mutation/validation rules, coordinated acceptance institution, and cross-module handoffs. PRDs 01–06 own their complete module behavior.
 
-Current status:
-
-- **Product authority is standalone and ready for separately planned journey-complete vertical slices.**
-- The UI Surface Blueprint is the complete product authority for user-visible capabilities, navigation, states, responsiveness, accessibility, and acceptance coverage. No design-tool artifact or fixed screen count governs implementation.
-- The definition-first order remains binding: an approved vertical task must cite this complete authority set, reconcile the bounded existing implementation, and receive separate execution authority before implementation begins.
-- Legacy PRDs, business evidence, implementation, schema, tests, formulation, benchmarks, and demonstrations are supporting evidence only.
+Read the owning journey PRD for product behavior and the UI Surface Blueprint for user-visible capabilities, navigation, states, responsiveness, accessibility and acceptance coverage. Each delivery slice cites its governing contracts, reconciles existing implementation evidence and follows the authorized execution boundary in the Orchestrator Protocol. The Documentation Authority Registry classifies supporting and historical evidence.
 
 Statement-status rules:
 
@@ -32,8 +27,6 @@ If a PRD conflicts with this baseline, the conflict must be reconciled explicitl
 
 ## Foundation and Shared Rules
 
-**Status:** Standalone-authority review passed.
-
 Its governing content is:
 
 - **Section 1:** Product Goal
@@ -41,11 +34,11 @@ Its governing content is:
 - **Section 3:** Shared roles, cross-role records, configuration, readiness, communication, contextual operational views/exports, and public-content boundaries
 - **Section 10:** Requirements that every standalone PRD and UI definition must satisfy
 
-Clinic 0 does not approve the detailed behavior of Identity, Admissions, Academic Setup, Enrollment, Grades, or Accounts. Sections 4–9 preserve only their previously accepted inputs and open matters so the later clinics do not lose or falsely repeat them.
+Sections 4–9 identify each journey's owner and minimum connected outcome. The owning PRD supplies its detailed behavior; delivery progress and review evidence belong to the active Issues.
 
 ## 1. Product Goal
 
-The goal is not to finish, polish, or rescue the system that already exists. The goal is to define and deliver the leanest, clearest, factually defensible, user-centered, and defense-ready Philippine college information system.
+The goal is to refine and deliver TALA as a lean, clear, factually defensible, user-centered, and defense-ready Philippine college information system. Reuse sound existing work and simplify the parts that obstruct the connected learner journey.
 
 TALA must:
 
@@ -54,7 +47,7 @@ TALA must:
 - **Assume a normally recognized and authorized Philippine college.** Recognition-pending workarounds and student-facing recognition concerns do not belong in the product.
 - **Remain understandable from every user's perspective.** Each role sees only the information, action, evidence, and next step needed for its responsibility while sharing the same authoritative records.
 - **Define the complete product before judging the implementation.** Every module settles its narrative, exact data, states, alternatives, invalid cases, setup, readiness, actions, emails, outputs, UI, and exclusions before code or schema classification.
-- **Plan the interface as part of the product.** Important workbenches receive evidence-backed visual alternatives; routine pages still receive exact blueprints.
+- **Plan the interface as part of the product.** Define required information, actions, states, access and recovery. Impeccable leads task-specific composition using suitable native components. Use visual alternatives or sketches when they help resolve a design decision.
 - **Deliver complete vertical slices.** A finished module visibly works across data, rules, authorization, every participating role, emails, outputs, audit evidence, realistic data, tests, and browser-verified desktop and mobile journeys.
 - **Preserve good work without becoming trapped by it.** Existing Laravel, Filament, authentication, scheduling, integrations, and tests survive only when they align with the approved product.
 - **Remain demonstrable and technically defensible.** TALA must resist invalid and out-of-order actions, explain failures clearly, and support a convincing end-to-end defense within the capstone refinement period.
@@ -192,6 +185,20 @@ Readiness results use:
 
 Failed items show the responsible owner, evidence/source link, and next action. Passed checks remain collapsed. Missing SMTP never reverses an academic or financial transaction. PayMongo failure disables only optional checkout. Solver failure never changes an already published timetable.
 
+**Setup order and unavailable actions.** For an authorized user, an applicable action blocked by incomplete setup remains discoverable with a persistent plain-language reason, the missing source, its responsible owner and the exact remedy that enables it. Show a source link only when that user may access it; otherwise show safe office/contact guidance. Do not rely on a disabled-button tooltip. Useful Draft entry and independent work remain available. Actions forbidden by authorization remain undisclosed where disclosure would expose protected information. Server-side guards enforce the same prerequisites even when the UI is bypassed.
+
+| Work to enable | Minimum dependency order | Blocked action and source owner |
+|---|---|---|
+| Account entry and Staff access | Deployment security/contact configuration → account verification; invited Staff then complete MFA | Unverified entry or Staff access; account holder/System Administrator. Closed admissions never disables existing-account sign-in. PRD 01 owns recovery. |
+| Application entry | Target Term exists → approved accepting Program/path and preliminary requirement version → valid Cycle dates/instructions/private storage → Registrar publishes Cycle | Start/first submission while the Cycle or private evidence source is unavailable; Registrar owns setup. A published timetable or Fee Plan is not an admissions prerequisite. PRD 02 owns correction/review boundaries. |
+| Admissions readiness | Submitted current facts and identity review → admitted decision → current Registrar enrollment clearance | Admission decision while identity/review is unresolved; enrollment readiness while clearance is absent, stale or action-needed. Registrar owns resolution. |
+| Timetable generation/publication | Approved active curriculum and exact Term calendar → confirmed classes → complete Faculty/room/meeting inputs → valid candidate → recorded external sign-off/publication | Generate or publish with the named missing/current source; Registrar owns setup and publication, Faculty owns their availability declaration. Draft setup remains usable. PRD 03 owns each check. |
+| Enrollment | Exact-Term window and eligible identity/results → current proposed subjects/classes → learner confirmation and valid placement → current Accounting assessment/clearance → Registrar finalization | Only the consuming checkpoint/action; Registrar owns academic/placement sources, Accounting owns assessment/clearance. Readiness or payment is never official enrollment. PRD 04 owns atomic finalization. |
+| Grade release and later registration | Official membership/assigned Faculty/open entry window → complete submitted roster → Registrar release → current academic evaluation | Submit/release with missing or stale rows/source; designated Faculty or Registrar owns the remedy. Unreleased prerequisites exclude only dependent courses; eligible remainder stays usable. PRD 05 owns results. |
+| Finance and transcript output | Confirmed registration → valid fixed plan or eligible exact individual assessment → verified account effects; TOR separately needs releasable history, request, signatory/template and request-specific clearance | Accounting owns missing assessment/payment evidence; Registrar owns transcript sources. Graduation is not a universal TOR prerequisite. PayMongo failure disables only checkout. PRDs 05–06 own the checks. |
+
+The owning PRD matrices define each dependency's exact validity, correction and recovery. Complete the prerequisites for the consuming action; keep independent work available.
+
 ### 3.3 Contextual communication
 
 TALA uses contextual statuses plus selective transactional email. It does not build a persistent notification-center subsystem.
@@ -235,8 +242,7 @@ No email is sent for ordinary saves, navigation, successful or failed sign-in at
 - The approved contextual data-file outputs are Clinic 6's two allowlisted, purpose-recorded finance CSV exports and Clinics 4–5's one current, per-Class-Offering roster CSV. The roster CSV is available only from an authorized selected roster, uses fixed minimum teaching-roster columns, and never becomes a generic Student, enrollment, grade, or reporting export. Other modules provide only their approved operational views and printable outputs.
 - Admissions analytics means a small operational summary—counts and aging—above the same filtered Admissions queue. It is not scoring, forecasting, or applicant ranking.
 - Staff queues use meaningful date ranges and native Filament filters with active-filter indicators. TALA does not reproduce custom dropdowns in every column header.
-- Public content includes bounded FAQ add/edit/delete, category, publish/unpublish, and display ordering, plus simple dated notices.
-- FAQ ordering controls category order and question order within a category. There is no page builder, media library, reviewer workflow, or general-purpose CMS.
+- Public FAQs answer recurring process questions; announcements communicate current school notices, dates, and changes. [PRD 01 Section 4.7](01_identity_access_public_entry.md#47-public-content) owns their fields, publication, ordering, and history.
 
 [CHED's HEMIS orientation](https://region1.ched.gov.ph/chedro-spearheads-2024-hemis-orientation/) and [Citizen's Charter CAV process](https://ched.gov.ph/wp-content/uploads/CHED-Updated-CC-2025-1st-edition-033125.pdf) confirm external HEI data-submission and academic-record-verification responsibilities; they do not prescribe a Servitech-specific TALA workflow. CHED and other regulator submissions therefore remain an external institutional responsibility. TALA retains the approved source records from which an authorized office may later prepare an Enrollment List, Promotional Report, List of Graduates, Special Order support, CAV evidence, HEMIS submission, or another prescribed return, but it does not invent a generic Reports destination, speculative demographic fields, an unapproved template, or a regulator-portal workflow. An exact regulatory output may be considered only after Servitech supplies the applicable authority, prescribed format, responsible owner, submission process, privacy basis, and acceptance evidence.
 
@@ -246,8 +252,8 @@ The complete product remains lean because every normally expected SIS capability
 
 | Capability | Authority and record owner | User journey and UI projection | Failure, correction, or output | Verdict |
 |---|---|---|---|---|
-| Identity, access, and public entry | PRD 01; account, role assignments, invitation, and verification | Public Gateway, Applicant/Student entry, Staff context selection, Users & Access | Recovery, disablement, inaccessible routes, access correction, security email | Complete |
-| Admissions | PRD 02; Admission Cycle, Application, evidence, decision, and credentials | Applicant Home/Application/Requirements; Registrar Admissions | Correction, withdrawal, reopening, superseding decision, acknowledgment | Complete |
+| Identity, access, and public entry | PRD 01; account, role assignments, invitation, and verification | Public Gateway, unified sign-in, authorized post-authentication context resolution, Users & Access | Recovery, disablement, inaccessible routes, access correction, security email | Complete |
+| Admissions | PRD 02; Admission Cycle, Application, evidence, decision, and Registrar enrollment clearance | Applicant Home/Application/Requirements; Registrar Admissions | Correction, withdrawal, reopening, superseding decision, acknowledgment | Complete |
 | Academic authority and curriculum | PRD 03; Program, Course Revision, Curriculum Version, and authorized external-competency requirements | Catalog & Curricula; read-only Academic Oversight | Import finding, blocked activation, successor authority, external-result source correction | Complete with bounded external evidence |
 | Terms and offerings | PRD 03; Term Calendar Package, Term Cohort, and Class Offering | Term Planning; Faculty availability and informational Examination Period projections | Missing authority, incomplete resource, Additional Offering correction, unavailable calendar source | Complete |
 | Scheduling | PRD 03; solver request/result, candidate, and Published Timetable Version | Generate & Review, Published Timetable, Faculty/Student projections | Infeasible, Unknown, ModelInvalid, TechnicalFailure, bounded correction, revision | Complete |
@@ -269,6 +275,24 @@ The supplied Servitech curriculum-evaluation forms separately track TESDA qualif
 The approved term-level `Examination Period` is sufficient for the current Servitech scope. Its dates, calendar authority, package version, owner, and as-of time are projected read-only in Term Planning, Academic Oversight, Faculty My Schedule, Student Home, and Student Academics. Exact class arrangements remain Faculty-owned and use the approved teaching channel. Missing or stale calendar evidence shows **Examination period unavailable — contact Registrar or Faculty** and never creates a date from class meetings. No class-level exam record, examination timetable, facility/proctor/seating/permit workflow, assessment-content feature, email, output, generic event system, or financial examination hold is introduced.
 
 The final inclusion/exclusion register applies a stricter negative-space test. Institutional occurrence alone does not justify digitizing a process. TALA retains a fact only when omitting it would break an accepted journey, lose a required authoritative source, force an unsafe shadow record, or prevent a necessary learner or Staff action. `Minimal retained TALA effect` never transfers ownership of the external process.
+
+The retained scope supports the connected college lifecycle through the following minimum outcomes:
+
+| Area | Minimum outcome |
+|---|---|
+| Public and access — PRD 01 | School-first factual discovery, one sign-in, application entry, fixed authorized roles, account security/recovery and bounded notices/FAQ. |
+| Admissions — PRD 02 | Necessary intake, selected private preliminary copies, scoped correction/decision and one attributable Registrar enrollment clearance. Historical records remain available to authorized reviewers. |
+| Academic setup/scheduling — PRD 03 | Approved catalog/curriculum/calendar, actual classes/resources/Faculty availability, CP-SAT candidates, independent validation and human publication. Retain the core innovation; external approvals remain result/reference intake. |
+| Registration — PRD 04 | Reuse identity/application and released academic records, confirm proposed subjects/classes, protect placement, consume current clearance/assessment, finalize enrollment and COR through one Registration Case. |
+| Academic records — PRD 05 | Faculty final results, Registrar release/correction, factual evaluation, necessary lifecycle/completion and official outputs. Retain; raw gradebooks, attendance, appeals and physical fulfillment stay external. |
+| Finance/assurance — PRD 06 | Accounting-owned exact assessments, approved coverage and verified postings, action-specific clearances, truthful account views, necessary outputs/audit/local health. Retain; cash/refund execution and provider/office operations stay external. |
+
+A field must have an exact actor/purpose, collection stage, authoritative source, visible label, requiredness, format/limits and applicable exception. Reuse or derive an existing fact. Distinguish optional, unknown and inapplicable values; show missing source data as unavailable. Use plain task language for visible labels.
+
+**Product defaults.** Use supplied institutional evidence as the local backbone. Owner-delegated product choices use scoped Philippine and mature-SIS comparisons, official framework guidance and relevant skills. Identify each adopted default as a TALA project choice, with its source, limits, owner and correction path. Preserve security, privacy and record integrity. PRD 05 owns the bounded one-year, nonautomatic INC default. Show academic readiness in its owning source/workbench and use the fixed labels Term weighted average and Cumulative GWA.
+
+**Connected workflow.** The owning state/action and readiness matrices govern the journey: one verified account feeds admissions; one current admissions clearance feeds registration; approved curriculum/calendar/resources feed candidate generation and human timetable publication; one confirmed registration/placement feeds exact Accounting assessment and atomic enrollment; released official results feed academic evaluation and later registration. TOR issuance consumes releasable history under PRD 05 Section 8. Graduation/conferral has its own recorded authority. Accounting executes refunds externally and records verified local corrections. A missing source blocks its named consuming action while independent work remains available. The derived [lifecycle flowchart](../TALA-System-Lifecycle-Flowchart.md) presents the connected journey. The Orchestrator Protocol governs environment-neutral roles, accepted plans, authorized execution, independent review and completion/publication boundaries.
+
 
 | Capability | Institutional occurrence | External/inside owner | Authoritative source | Affected canonical records | User-visible need | Consequence if omitted | Minimal retained TALA effect | Final verdict | Reopening evidence |
 |---|---|---|---|---|---|---|---|---|---|
@@ -312,277 +336,50 @@ No demographic field, report, export, state, event, or workflow may be added mer
 
 Navigation visibility is a usability decision, never authorization. Every page, query, action, download, projection, and output rechecks role and record authority server-side.
 
-### 3.7 Administrative Holds and Service Restrictions
+### 3.7 Source-owned Action Restrictions
 
-TALA strictly prohibits unrestricted, wildcard, or blanket holds that block all services, deny portal sign-in, or lock an account without specific authority.
+An action restriction needs a named consuming action, its condition in the owning PRD and an attributable source. Model names, schema flags or a generic list of hold types do not create product requirements. Use existing admission clearance, academic/lifecycle decisions, placement readiness and request-specific financial projections for their declared effects; no separate general hold editor, office-clearance workflow or waiver engine is required.
 
-- **Scoped action blocking levels:** Administrative holds are bounded by the model's explicit `blocking_level` scope:
-  - `blocks_enrollment`: Restricts course proposal confirmation and official registration finalization.
-  - `blocks_cor_print`: Restricts printing or downloading the official Certificate of Registration.
-  - `blocks_clearance`: Restricts clearance processing for academic terms.
-  - `blocks_record_release`: Restricts release of official student academic records, including transcripts.
-  - `blocks_graduation_eligibility`: Restricts graduation evaluation and conferral.
-  - `blocks_reactivation`: Restricts reactivation of inactive or returning students.
-  - `advisory_only`: Informational notice that presents student-facing guidance without blocking automated transactions.
-  No generic grade-viewing block or blanket system lockout is permitted.
-- **Responsible-office attribution:** Every hold records responsible-office ownership aligned with `hold_type`:
-  - `financial`: Owned by the Accounting Office.
-  - `academic_deficit`, `prerequisite`: Owned by the Academic Head Office (or Registrar).
-  - All other types (`documentary`, `behavioral`, `disciplinary`, `enrollment`, `cor_download`, `clearance`, `graduation_eligibility`, `reactivation`, `transfer_out`, `record_release`): Owned by the Registrar Office.
-- **Attribution, student information, and audit history:** Holds capture `reason`, optional internal `staff_only_reason`, student-facing guidance (`student_message`, `resolution_requirement`), creating actor (`created_by`), optional `effective_at` and `expires_at` timestamps, and full lifecycle resolution/waiver history (`resolved_by`, `resolved_at`, `waived_by`, `waived_at`). Expiry is optional rather than mandatory.
-- **Separation from financial projections:** Payment requirements and document clearances (`EnrollmentPaymentRequirementProjection`, `OfficialOutputPaymentClearance`) are source-specific projections computed by Clinic 6 against current ledger obligations. They are not administrative holds and must never be conflated with hold records.
+An externally authorized consequential restriction records its responsible office, authority/source, effective scope, actor/time, safe learner explanation, resolution requirement and attributable correction/resolution history. Internal evidence stays restricted. Academic Head may own an external academic decision; Registrar records its effect in TALA. This does not give the read-only Academic Head workspace a mutation permission. Accounting owns its exact financial projections; they are separate from an academic or administrative decision.
+
+Blanket finance blocks on sign-in, classes, examinations or grade viewing are prohibited. Account security disablement remains PRD 01's distinct authorized action. Missing setup follows Section 3.2; it does not become a new institutional restriction. Existing hold records and working guards remain implementation evidence to reconcile in the owning slice; this definition change neither deletes history nor authorizes silently bypassing a current restriction.
 
 ## 4. Identity, Access, and Public Entry
 
-> **Clinic status — Approved.** The complete Clinic 1 contract now lives in [PRD 01 — Identity, Access, and Public Entry](./01_identity_access_public_entry.md) and the Clinic 1 section of the [UI Surface Blueprint](../ui_surface_blueprint.md). This baseline retains only the cross-module summary.
-
-### Accepted summary
-
-- **Accepted:** One credential account belongs to one person. Verified email is the only sign-in identifier and the single live TALA communication address. Application references, student numbers, optional staff identifiers, and LRN are domain identifiers and never authenticate an account.
-- **Accepted:** Only Applicants self-register, and only while application entry is open. Registration creates an account—not an application—and email verification precedes Applicant workspace access.
-- **Accepted:** Staff are invited by System Administrator through a single-use activation link. The administrator never creates or sees a Staff password. Staff-capable accounts require authenticator-app MFA and recovery codes.
-- **Accepted:** Official enrollment—not admission acceptance or readiness—adds Student access to the existing account. Student access persists for historical portal use; current-term eligibility controls actions rather than account existence.
-- **Accepted:** One account may hold multiple legitimate fixed roles and enters one authorized context at a time. A single-role account routes directly; a multi-role account receives a compact authorized-only chooser and may switch without signing in again.
-- **Accepted:** The fixed role name is **System Administrator**. It owns account access, bounded public content, locally evidenced System Health, and appropriate security/audit evidence, but gains no automatic academic, admissions, enrollment, grade, or payment authority.
-- **Accepted:** Account access state is derived as `InvitationPending`, `VerificationRequired`, `Active`, or `Disabled`. Disable/reactivate replaces archive/restore and preserves linked records and roles.
-- **Accepted:** The credential account holds authentication and access facts only. Purpose-specific identity belongs to Applicant, Student, or minimal Staff access profiles.
-- **Accepted:** Public entry is a task gateway with Applicant, Student, and Staff sign-in contexts, bounded notices and FAQ, and official support/privacy/accessibility links. It is not a marketing site or general CMS.
-- **Accepted:** Roles and permissions are code-owned. TALA has no role builder, permission editor, generic policy DSL, arbitrary Settings area, or configurable account state machine.
-- **Accepted:** Identity readiness is derived from fixed access vocabulary, at least one active System Administrator, secure deployment, queued mail, and official support/privacy configuration. TALA adds no setup wizard.
-- **Routed to Clinic 2:** LRN capture, Applicant identity fields, duplicate-candidate matching, application records, and admissions decisions.
-- **Routed to Clinic 4:** The idempotent official-enrollment transaction grants Student access. Clinic 4 sends one non-rollback **Official enrollment and COR ready** message; on first enrollment that same message also explains that Student access is active, so no separate activation email is sent.
+[PRD 01](01_identity_access_public_entry.md) owns account creation/verification, unified sign-in, authorized context resolution, fixed roles, Staff MFA, sessions, recovery and bounded public content. The minimum outcome is one secure credential account with an understandable authorized next action; official enrollment later adds persistent Student access. Public discovery includes the landing page. No second account, general CMS or role builder is required.
 
 ## 5. Application, Admission Decision, and Enrollment Readiness
 
-> **Clinic status — Approved.** The complete Clinic 2 contract now lives in [PRD 02 — Application, Admission Decision, and Enrollment Readiness](./02_application_admission_decision_enrollment_readiness.md) and the Clinic 2 section of the [UI Surface Blueprint](../ui_surface_blueprint.md). This baseline retains only the cross-module summary.
+[PRD 02](02_application_admission_decision_enrollment_readiness.md) owns Cycle/requirement setup, minimum intake, selected private preliminary copies, scoped corrections, identity resolution, admission decision and one current Registrar enrollment clearance. The selected copies, admission and permission to begin enrollment remain distinct. Physical-document processing stays external; attributable old evidence remains protected.
 
-### Accepted summary
-
-- **Accepted:** Clinic 2 supports first-year and transferee applications. SHS, ALS A&E, and PEPT or equivalent are credential bases rather than separate applicant types. Returning/readmission, foreign-student processing, cross-enrollment, second-degree, special or non-degree, refresher, exam, interview, appeal, scholarship, medical, appointment, courier, and credit-evaluation workflows remain outside this clinic unless later authority proves a need.
-- **Accepted:** One verified Applicant account may start one application per Admission Cycle for one accepting program. Public self-service is normal; Registrar-assisted entry is a bounded exception using the same record and rules.
-- **Accepted:** Stored application states are `Draft`, `Submitted`, `ActionNeeded`, `Admitted`, `NotAdmitted`, and `Withdrawn`. `AwaitingOfficialCredentials`, `ReadyForEnrollment`, and `RegistrationStarted` are derived projections; there is no Mark for Evaluation, Approved for Handover, or configurable workflow engine.
-- **Accepted:** After first submission, only fields or evidence named by one scoped correction request reopen. Decisions and later corrections remain append-only. Appeals and physical credential transactions stay outside TALA.
-- **Accepted:** LRN is an optional credential identifier when applicable, not a login. A verified-LRN collision or exact legal-name plus birth-date warning blocks the admission decision until Registrar resolves it; TALA does not perform fuzzy merging or disclose another record to the applicant.
-- **Accepted:** `AdmissionCycle` owns opening, public closing, and a separate correction boundary at or after public closing. Public closing stops new applications and first submissions; the correction boundary governs issuance of new scoped correction requests, while an existing active correction, review, decision, and credential work continue. Registrar owns immutable, versioned requirement sets. A shared calendar may project cycle dates but cannot own or edit them, and there is no generic admissions Settings or policy engine.
-- **Accepted:** Preliminary evidence and official-credential results are separate vocabularies. Review copies cannot be presented as officially verified credentials. Core official-enrollment credentials cannot receive arbitrary waivers.
-- **Accepted:** Applicant intake is data-minimized to application scope, minimum identity and contact, prior education, declarations, and the applicable preliminary evidence. Complete Student-reporting demographics are not collected during admission.
-- **Accepted:** Registrar Admissions is one queue-first workbench with small operational counts, native search/date filters and active indicators, owner and next-action presentation, two readiness summaries, and one state-appropriate primary action. There is no analytics dashboard, applicant ranking, or bulk admission decision.
-- **Accepted:** Emails are limited to submission, consolidated Action Needed, Admitted, Not Admitted, Ready for Enrollment, and withdrawal. Delivery failure never rolls back the institutional transaction.
-- **Accepted:** Clinic 2 ends at the same application's derived `ReadyForEnrollment` projection. Clinic 4 consumes it automatically and alone owns registration, placement, finance, official enrollment, Student creation, student-number generation, and Student access. There is no handover button or copied record. **Identity Distinction:** `Ready Applicant != Registration Case != Official Enrollment != Student Identity != Student Number`. Starting registration for a Ready Applicant is authorized by policy either through learner self-service or via an explicit Registrar-assisted trigger action in the Students & Enrollment workbench (`REG-E01`/`REG-E02`).
-- **Accepted:** A requirement classified as `PostEnrollmentFollowUp` does not become an enrollment-readiness blocker. Registrar and Clinic 2 retain responsibility for the follow-up after enrollment; Clinic 4 preserves its reference and may surface it without reclassifying or deciding the credential result.
+PRD 04 consumes the current source-bound ReadyApplicantProjection on the same account/application. Admission creates no Student number, class placement, assessment or official enrollment.
 
 ## 6. Academic Setup, Offerings, and Published Timetable
 
-> **Clinic status — Approved.** The complete Clinic 3 contract now lives in [PRD 03 — Academic Setup, Offerings, and Published Timetable](./03_academic_setup_offerings_published_timetable.md) and the Clinic 3 section of the [UI Surface Blueprint](../ui_surface_blueprint.md). This baseline retains the cross-module summary and the previously accepted calendar detail.
-
-### Accepted inputs
-
-- **Accepted:** Academic calendar ownership follows `Decision then record`: Academic Head approves through the institution's process; Registrar records, activates, and operates the approved calendar; TALA adds no duplicate approval queue.
-- **Accepted:** The full Term Setup Workbench and typed Term Calendar Package in Section 6.1 govern the calendar boundary.
-- **Accepted:** Faculty supplies genuine hard unavailability only; TALA does not collect preferred times or model informal arrangements that do not change the official timetable.
-- **Accepted:** There is no universal 100-student ceiling; capacity comes from actual offerings, sections, applicable rooms, and authorized placements.
-- **Accepted:** CP-SAT remains TALA's principal intelligent capability, generating explainable candidates for authorized review and Registrar publication; candidate and published timetables remain separate records.
-- **Accepted:** Timetable failure distinguishes source-readiness failure, proven infeasibility, timeout/unknown, and technical failure, showing reason, basis, owner, and next action without a diagnostic rules engine.
-- **Accepted:** Clinic 3 is one journey from recorded academic authority through immutable timetable publication and controlled revision. It replaces separate Academic Setup, Term Offerings, and CP-SAT journey authorities.
-- **Accepted:** Stable Courses, immutable Course Revisions, externally approved Curriculum Versions, simple requisites/equivalencies, and zero-or-more weekly meeting requirements form the catalog boundary. Internships without genuine recurring meetings remain academic records but are excluded from CP-SAT.
-- **Accepted:** `TermCohort` plus `ClassOffering` replaces Term Offering → Section → Delivery Group layering. TALA may generate Draft Class Offerings from active curricula, confirmed standard-curriculum cohorts, forecast demand, and bounded unmet-demand evidence; Registrar alone confirms, splits, shares, adds, or cancels them. Class sources remain `Regular` or `Additional`, where `Regular` describes the offering source only and never a Student status. Shared classes require canonical identity or approved equivalency, capacity, resources, and Registrar confirmation; CP-SAT never merges cohorts.
-- **Accepted:** First, Second, and institutionally approved Special Terms use the same Term Calendar Package, Class Offering, timetable, registration, account, and academic-record contracts. Multiple exact Terms may be `Active` concurrently, and their enrollment, adjustment, teaching, grade-entry, account, and output work may overlap. Every action and projection binds to an explicit Term; no implicit system-wide “current term” is authoritative. A Special Term requires its recorded particular schedule and attributable class-hour/class-day basis. There is no separate Summer scheduler, tutorial workflow, universal Special Term unit cap, or learner classification.
-- **Accepted:** Faculty provides only hard unavailability or **No additional restrictions**. Rooms have flat suitability facts and hard unavailability. Authorized exact commitments require authority and reason; no soft locks, preferred times, travel matrix, or booking marketplace exist.
-- **Accepted:** Whole-term CP-SAT uses complete hard validation and a fixed lexicographic hierarchy: cohort mode switches, cohort idle time, Faculty load imbalance, Faculty idle time, room-seat waste, then stable earlier placement. No editable weights or accuracy percentage exists.
-- **Accepted:** Results distinguish `Optimal`, `Feasible`, `Infeasible`, `Unknown`, `ModelInvalid`, and `TechnicalFailure`. Failure evidence is deterministic and source-linked; only failed checks expand.
-- **Accepted:** Candidate correction first tests one requested meeting while fixing every other meeting. If invalid, it changes nothing; Registrar may explicitly request a whole-Term repair that fixes the request and minimizes changed non-requested meetings before the ordinary quality hierarchy, previews every change, and creates an immutable successor only after whole-candidate acceptance. Hints alone do not guarantee repair, no hard rule is waived, and publication or targeted revision never edits a published meeting in place.
-- **Accepted:** Clinic 4 consumes curriculum totals, requisites, equivalencies, published Class Offerings, capacity, and official meeting times and returns bounded `UnmetClassDemandProjection` evidence to Clinic 3. Clinic 3 does not own student eligibility, proposal confirmation, placement, finance, enrollment, activation, or COR. Clinic 5 owns full curriculum evaluation and official academic-history outcomes; Clinic 4 consumes those released facts for current-term eligibility and proposed registrations.
-
-PRD 03 owns the complete Clinic 3 behavior, conceptual records, exclusions, UI contract, technical-evidence boundary, and acceptance scenarios. This section is only the product-wide summary.
+[PRD 03](03_academic_setup_offerings_published_timetable.md) owns approved Program/Course/Curriculum sources, exact-Term calendars, actual cohorts/classes/resources, Faculty availability, CP-SAT rules, candidate review and immutable human publication/revision. These inputs are necessary to the principal scheduling innovation. TALA records external approvals and resource facts without recreating regulator, HR or committee workflows.
 
 ### 6.1 Accepted Academic Calendar Contract
 
-Use the selected **A — Term Setup Workbench** structure:
-
-- Overview and official dates
-- Operational deadlines
-- Weekly teaching grid
-- Date exceptions
-- Failed-first readiness
-
-Calendar ownership uses the accepted **Decision then record** boundary:
-
-1. Academic Head owns and approves the institutional calendar through the school's authorized process outside TALA.
-2. Registrar records the approved dates, authority, and evidence reference.
-3. Registrar activates the recorded calendar and operates the associated deadlines.
-4. Academic Head receives a read-only verification view.
-5. TALA does not add a duplicate Academic Head approval queue or approval button.
-
-Calendar concepts remain separate:
-
-- Academic year, term, class start, and class end
-- Registration period
-- Enrollment Adjustment period
-- Course Drop deadline
-- Grade-entry period
-- INC-resolution deadline only after policy confirmation
-- Informational examination period; no examination-scheduling module
-- Holidays, no-class dates, and approved make-up dates
-- Weekly teaching hours and institutional breaks
-- Room and faculty unavailability under scheduling resources, not the calendar
-- Application dates under Admissions Cycle
-- Payment dates under the student-term account or fee plan
-
-Deadlines use an inclusive Asia/Manila date plus an optional cutoff time. A time is entered only when the approved source specifies one.
-
-CHED establishes calendar and instructional-time requirements but does not supply one universal add/drop duration. TALA records the institution's approved dates and authority instead of hard-coding another school's value. Supporting benchmarks include [CHED CMO No. 1, s. 2011](https://ched.gov.ph/wp-content/uploads/2017/10/CMO-No.01-s2011.pdf), [UP Diliman Change of Matriculation](https://our.upd.edu.ph/files/acadinfo/CHANGE%20OF%20MATRICULATION.pdf), [UP Diliman AY 2026–2027 calendar](https://our.upd.edu.ph/files/calendar/regular/ACAD%20CAL%202026-2027.pdf), [UPOU Registrar FAQ](https://registrar.upou.edu.ph/faq-enrollment/), and the scoped [PUP 2026–2027 registration, Summer grade-encoding, and adjustment schedule](https://www.pup.edu.ph/announcements/?go=Cjoh4ZVj%2FLE%3D&v=Schedule-of-AY-2026-2027-First-Semester-Online-Enrollment-and-Encoding-of-Grades-20260727134235133), which demonstrates operational overlap but establishes no Servitech deadline or grade rule.
-
-The accepted calendar contract is a typed **Term Calendar Package**. It is one workbench composed of four small authoritative record groups, not one generic event store or configurable calendar-rules engine.
-
-#### Term Calendar
-
-The Term Calendar owns:
-
-- Academic year
-- Controlled term type
-- Display label
-- Administrative term start and end dates
-- Instruction/class start and end dates
-- State: `Draft`, `Active`, or `Closed`
-- External approval reference
-- External approval date
-- Registrar recorder and recorded-at timestamp
-- For a Special Term, its approved particular schedule and attributable class-hour/class-day basis
-
-Asia/Manila is the system timezone and is not another editable calendar field. `Draft` is the editable preparation state. `Active` is the version consumed by operational actions. `Closed` preserves the historical term. More than one exact First, Second, or Special Term may be `Active` at the same time; the uniqueness rule is one active package version per Term, not one active Term for the institution. Every window, class, registration, roster, result, account, timetable, COR, and official output carries its exact Term reference. Activation is blocked when required calendar records are incomplete or internally inconsistent; it does not reproduce the Academic Head's institutional approval inside TALA.
-
-#### Operational Windows
-
-Each Operational Window owns only:
-
-- Controlled window type
-- Open date
-- Inclusive close date
-- Optional approved cutoff time
-- Optional public-facing note
-
-V1 supports these controlled types:
-
-- Enrollment
-- Late Enrollment, only when supported by an approved institutional period
-- Enrollment Adjustment
-- Course Drop
-- Examination Period
-- Grade Entry
-
-The Term Calendar Package owns the approved opening and closing dates. Clinic 4 owns the `Enrollment` window's bounded applicability: Ready Applicants, Standard continuing Students, Individually Advised or exception cases, or all otherwise eligible learners. These are fixed code-owned choices, not arbitrary audience rules, programmable effects, or per-window email configuration. Examination Period is informational unless an approved institutional rule gives it a direct class effect. PRD 05 derives each released INC deadline from the original Term's official end date; it is not a configurable Calendar window.
-
-Application dates remain under Admissions Cycle. Payment due dates remain under the Fee Plan or Student-Term Account. Offering preparation, schedule generation, schedule review, late-grade authorization, and grade finalization remain readiness milestones or recorded exception decisions rather than calendar windows unless an approved institutional source establishes a real deadline.
-
-#### Weekly Teaching Grid
-
-The Weekly Teaching Grid owns one row per allowed teaching day:
-
-- Weekday
-- Earliest allowed class start
-- Latest allowed class end
-
-Recurring institutional breaks own:
-
-- Weekday
-- Break start and end
-- Display label
-
-The grid is a CP-SAT operating input. It does not own faculty preferences, faculty hard unavailability, room unavailability, or informal arrangements. TALA supplies no assumed weekday, opening time, closing time, or break value; Registrar records only institutionally approved operating values.
-
-#### Dated Exceptions
-
-Each Dated Exception owns:
-
-- Date or date range
-- Optional start and end times
-- Controlled type
-- Display title or reason
-- Instructional effect
-- Authority or evidence reference
-
-Instructional effect is limited to:
-
-- `NoClasses`
-- `MakeUpAllowed`
-- `InformationOnly`
-
-An exception may identify a holiday, authorized no-class period, institutional closure, or approved make-up opportunity. `MakeUpAllowed` does not silently create a meeting or alter the published timetable; the responsible scheduling workflow must record and publish any actual timetable change.
-
-#### Workbench and role projections
-
-The Term Setup Workbench presents:
-
-- **Overview:** term identity, official and instructional dates, state, and approval evidence
-- **Operational Deadlines:** native table with type and date-range filters
-- **Weekly Teaching Grid:** compact editable weekday rows with recurring break rows
-- **Dated Exceptions:** native table with type and date-range filters; an optional read-only month view may supplement but never replace it
-- **Readiness:** failed-first A1 results with owner, source link, blocker, and next action
-
-Registrar records, edits while Draft, activates, and closes the package. Academic Head sees the same calendar as a read-only verification projection. Students and faculty see only relevant active dates and exceptions in their own workspaces. Scheduling consumes instructional dates, the weekly grid, and applicable blocking exceptions. Enrollment, adjustment, dropping, grade entry, and INC handling consume only their typed windows.
-
-Recording or activating a date does not itself send an email. The separate transactional-message contract decides whether a qualifying business transition warrants email, preventing the calendar from becoming a hidden notification engine.
+PRD 03 Section 6 is the single owner of Term type/state, dates, windows, teaching grid, breaks, dated exceptions, Examination Period, activation conditions and correction behavior. This baseline provides shared readiness presentation; it does not maintain a second calendar field or policy list. Concurrent Terms remain exact-source contexts, and a Term's activation does not itself open enrollment or publish a timetable.
 
 ## 7. Current-Term Registration, Official Enrollment, Student Activation, Adjustment, and Course Drop
 
-> **Clinic status — Approved.** The complete Clinic 4 contract lives in [PRD 04 — Current-Term Registration, Official Enrollment, Student Activation, Adjustment, and Course Drop](./04_current_term_registration_official_enrollment.md) and the Clinic 4 section of the [UI Surface Blueprint](../ui_surface_blueprint.md). This section retains its cross-module summary.
+[PRD 04](04_current_term_registration_official_enrollment.md) owns proposals, confirmation, placement/capacity, registration outcomes, finalization, identity continuity, adjustments, Course Drop and immutable COR versions. It consumes current admissions, published-class, released academic and Accounting sources rather than copying their records or rules.
 
-### Accepted summary
-
-- **Accepted:** The standalone Study Plan module is removed. `EnrollmentSelectionBasis` is `StandardCurriculum` or `IndividuallyAdvised`; the current `RegistrationCase` owns versioned proposed course registrations. Selection basis is independent from academic progress, enrollment effect, identity, and funding.
-- **Accepted:** Learners do not freely shop for subjects or classes. Standard proposals derive from the assigned curriculum and published cohort classes; Registrar prepares bounded Individually Advised proposals from curriculum evaluation, released results, approved credits/equivalencies, and actual offerings.
-- **Accepted:** Clinic 4 uses only released Clinic 5 results. A failed, incomplete, or unreleased prerequisite blocks only its dependent course chain; unrelated eligible curriculum courses remain available. TALA creates no provisional prerequisite permission or substitute grade. When a satisfying result is later released, Registrar may add the newly eligible dependent course through the ordinary adjustment path while the window is open, or through the same exact late-adjustment authority required for any other late add. A later correction that invalidates a prerequisite never silently changes an existing Official Enrollment and instead opens the ordinary result-impact review.
-- **Accepted:** The Term Calendar Package owns enrollment-window dates, while Clinic 4 selects only the bounded applicable audience. Clinic 4 returns aggregate unmet-class-demand evidence to Clinic 3; Clinic 3 may generate Draft Class Offerings, but Registrar remains the confirmer and CP-SAT never merges cohorts.
-- **Accepted:** Clinic 2 retains ownership of unresolved `PostEnrollmentFollowUp` credential results. Clinic 4 preserves and surfaces their references without turning them into enrollment blockers.
-- **Accepted:** One registration engine supports new, continuing, failed/back-course, transferee, returning/reactivated, shifted, old-curriculum, bridging, graduating, and approved Special Term circumstances without storing Regular/Irregular policy status.
-- **Accepted:** Stored Registration Case outcomes are `Active`, `OfficiallyEnrolled`, `CancelledByLearner`, `CancelledByRegistrar`, and `NotEnrolled`. Current stage, owner, reason, and next action are derived from five checkpoints: eligibility, confirmed proposal, valid placement, Accounting clearance/coverage, and Registrar finalization.
-- **Accepted:** A terminal same-Term Registration Case may return to `Active` only through Registrar reopening before the final authorized cutoff or, afterward, with exact late-enrollment authority. The same case/reference and append-only history remain; no prior proposal, confirmation, seat, Assessment, clearance, or eligibility fact is restored automatically, and no duplicate case is created.
-- **Accepted:** Learner confirmation transactionally validates capacity and creates temporary seat reservations that share the applicable institutional enrollment/payment deadline. Full/stale classes produce Registrar shortage items; there is no ranked waitlist or individual countdown.
-- **Accepted:** Official enrollment requires clearance for the amount currently required, not a universal zero balance. Verified payment, Applied Approved Coverage, a mixed basis, or institutionally authorized `NoPaymentRequired` may satisfy that amount. Funding processing and later obligations remain external/separate from academic finalization; service-specific restrictions cannot globally block login or examinations.
-- **Accepted:** Every-term finalization atomically revalidates all checkpoints, converts reservations, creates official registrations, activates schedules/rosters, records enrollment, creates immutable COR version 1, and publishes account/academic effects. Only first-ever finalization also creates the minimal Student profile, permanent `SIA-YYYY-NNNN`, and Student access on the existing account.
-- **Accepted:** Finalization queues one **Official enrollment and COR ready** message. On first enrollment it also announces Student access; it is not accompanied by a separate activation email. A published timetable revision likewise produces one shared event: Clinic 3 owns the publication trigger, while Clinic 4 supplies affected officially enrolled Students and their updated schedule/COR context.
-- **Accepted:** Every initial result release, INC resolution, or correction recalculates curriculum/requisite facts and reviews affected active Registration Cases. Before finalization, an adverse or expired source invalidates the proposal/placement and blocks finalization. After finalization, Registrar review opens without silently adding, removing, replacing, or retaining a course by assumption.
-- **Accepted:** Adjustment and Course Drop are separate externally authorized outcomes recorded in the same workbench. During the Adjustment window, a guarded adjustment may apply; after closure, only a specific recorded late-adjustment authority permits the same transaction. Without it, current enrollment/COR remain intact and the action names the owner and next permissible path. Every applied change synchronizes placement, roster, schedule, account-review projection, and a new immutable COR version; fees, penalties, and refunds are never invented.
-- **Accepted:** The learner receives one guided status page; Registrar receives one Students & Enrollment workbench; Accounting receives a bounded Enrollment Clearance queue. Native Filament tables, infolists, forms, filters, and Action Groups carry the UI.
+The minimum outcome is an attributable official enrollment and COR on the same credential account. Eligibility, readiness, reservation and payment are earlier facts, not enrollment. The owning transaction rechecks current checkpoints; a later source change uses a guarded correction rather than silently reversing the official record.
 
 ## 8. Teaching, Grades, Academic Records, and Completion
 
-> **Clinic status — Approved.** The complete Clinic 5 contract lives in [PRD 05 — Teaching, Final Grades, Academic Records, Lifecycle, and Completion](./05_teaching_grades_academic_records_completion.md) and the Clinic 5 section of the [UI Surface Blueprint](../ui_surface_blueprint.md). This baseline retains only the cross-module summary.
+[PRD 05](05_teaching_grades_academic_records_completion.md) owns official membership-based final-result submission, Registrar release/correction, fixed averages, factual curriculum evaluation, source-backed lifecycle/completion and transcript issuance. Faculty gradebooks, attendance, office appeals and physical fulfillment remain external.
 
-### Accepted summary
-
-- **Accepted:** TALA records one controlled final result per official course registration. Faculty calculates period grades, raw scores, attendance, and formulas outside TALA. The accepted final vocabulary is `1.00` through `3.00` in quarter-point steps, `4.00`, `5.00`, or `INC`; `1.00–4.00` satisfies the course, `5.00` does not, and `P` is not an official mark.
-- **Accepted:** One roster exists per official `ClassOffering`, including externally arranged courses without recurring timetable meetings. Only officially enrolled learners appear. One designated Faculty submits the complete roster; Registrar releases it as a whole or returns specified rows with one consolidated explanation.
-- **Accepted:** Roster state is `Draft`, `Submitted`, `Returned`, or `Released`. Released grades are immutable events. Grade entry uses the Term Calendar's definite window and due date; an overdue submission requires recorded late authority.
-- **Accepted:** `TermWeightedAverageProjection` is the full-precision, unit-weighted result for one term; `CumulativeGwaProjection` uses all included attempts and units through the selected grade-complete term and is not an arithmetic mean of term values. The neutral term label is **Term weighted average**; **Term GPA** or another label requires recorded Servitech authority and an effective term. All attempts count, while PE and NSTP—including CWTS, LTS, and ROTC equivalents—are excluded under the client-confirmed Servitech rule. `INC`, dropped or withdrawn results, and nonnumeric approved credit are excluded. Values display to two decimals in academic views and remain absent from the standard TOR.
-- **Accepted:** `AcademicAverageReadiness` is `GradesNotComplete`, `IncompleteResultPending`, `Available`, or `NotApplicable`. A partially released term shows **Grades not complete** and no partial term/new cumulative value; a grade-complete zero-denominator term shows **Not applicable — no included academic units** rather than zero. An unresolved included `INC` withholds the current term and current cumulative final value and does not satisfy prerequisites. Completion or later correction preserves history and recalculates every affected projection. Deadline passage changes only the derived completion state to `CompletionOverdue` and never converts the grade; without an authorized deadline extension, the original `INC` remains no-credit and the course must be retaken.
-- **Accepted:** Every initial release, INC resolution, and authorized grade correction recalculates the affected term weighted average, cumulative GWA, curriculum evaluation, `AcademicEnrollmentEffect`, completion readiness, and active Clinic 4 impact. Corrections append a superseding result without a hard technical cutoff; earlier decisions and issued transcript snapshots remain historical.
-- **Accepted:** Full curriculum evaluation is deterministic from effective curricula, every released attempt, approved credits/equivalencies, current official enrollment, and effective shift, bridging, deficiency, or old-curriculum mappings. TALA has no what-if audit, speculative graduation date, generic substitution builder, automatic equivalency decision, or double counting.
-- **Accepted:** Curriculum and released-result facts determine course satisfaction, prerequisites, remaining requirements, retake need, and whether the standard curriculum sequence remains usable. `AcademicEnrollmentEffect` is `Allowed`, `AdvisingRequired`, `Blocked`, or `PendingDecision`. Failures, deficiencies, shifts, bridging, or other nonstandard placement produce `AdvisingRequired`; `Blocked` requires a recorded authorized institutional decision or incompatible lifecycle state; `PendingDecision` requires an actual opened review or unresolved authoritative source. No failed-unit percentage automatically creates Warning, Probation, load reduction, dismissal, or institutional ineligibility.
-- **Accepted:** Append-only lifecycle events derive `Active`, `OnLeave`, `Withdrawn`, `TransferredOut`, or `Completed`. Course Drop remains Clinic 4. Lifecycle changes preserve academic history, do not infer refunds, do not disable historical portal access, and never create a registration or seat by themselves.
-- **Accepted:** Completion readiness is `NotEligible`, `EligibleToApply`, `AwaitingResultsOrClearance`, `ReadyForConferral`, or `Conferred`. Applying records intent only. Conferral requires satisfied curriculum, no unresolved result, an application, source-owned clearances, and recorded external authority.
-- **Accepted:** Student Academics presents released grades, term weighted average/cumulative GWA or its explicit readiness state, curriculum evaluation, confirmed progress, units, completion readiness, and history. Students may print an unofficial record only.
-- **Accepted:** TALA owns the fixed versioned **TALA Standard TOR — Servitech v1** contract. Registrar may preview and issue it after academic completion, identity verification, request-specific Clinic 6 clearance, required signatory data, and output-readiness validation. Issued snapshots retain void/replacement and supersession history. Physical signature, seal, claiming, delivery, courier, CAV, diploma, and ceremony remain external and do not prevent TALA from recording system issuance. A later Servitech format becomes a successor template version; no transcript-template builder or generic document engine exists.
-- **Accepted:** Clinic 5 exposes released `OfficialCourseResultProjection`, `AcademicEnrollmentEffect`, curriculum-evaluation, and lifecycle facts to Clinic 4. Draft or submitted grades never change registration. A later correction sends an affected active Registration Case to Registrar review rather than silently changing subjects.
-- **Accepted:** Grade-release and other approved academic emails contain no grade values or attachments. Mail failure never rolls back an academic transaction.
+Released history supports eligible current and former Students' records. Completion/conferral is included when recorded and is not a universal TOR prerequisite. Exact grade vocabulary, average formula/classifications, nonautomatic INC deadline and request-specific output conditions belong to PRD 05; this baseline does not duplicate them.
 
 ## 9. Accounts, Official Outputs, Operations, and Assurance
 
-> **Clinic status — Approved.** Complete journey, state, data, output, operations, and UI authority lives in [PRD 06 — Accounts, Official Outputs, Operations, and Assurance](./06_accounts_official_outputs_operations_assurance.md) and the Clinic 6 section of the [UI Surface Blueprint](../ui_surface_blueprint.md). This baseline retains only the cross-module boundary.
+[PRD 06](06_accounts_official_outputs_operations_assurance.md) owns Accounting's fixed Fee Plans or eligible exact authorized individual assessments, continuous Term Accounts, approved coverage, verified payment effects, request-specific financial projections, non-tax outputs, contextual exports and truthful local health/audit views.
 
-### Accepted summary
+The minimum outcome is a source-backed account position and clearance for the action it satisfies. No fee amount is inferred, no pending browser return proves payment, and no payment or coverage event silently revokes enrollment. Refund execution, tax invoicing, cash movement, provider operations, retention decisions and disaster restoration remain external. Prospective infrastructure requirements belong to Architecture and remain distinct from capstone implementation acceptance.
 
-- TALA provides one narrow fixed Program-and-Term Fee Plan for ordinary cases and one continuous same-human-subject/RegistrationCase Term Account companion. An Assessment version uses exactly `PublishedFeePlan` or, for an approved selection-specific exception, `AuthorizedIndividualAssessment`. The latter records Accounting's exact externally calculated lines and obligations without executing a formula. Every verified Payment Posting names the exact current Assessment obligations and applied amount per obligation; bounded target obligations apply deterministically in published order, oldest due first, without a generic allocation engine, cross-Term effect, or prior-debt allocation. `Person` is only a documentation label for identity continuity, not a new master record. TALA does not replace Accounting's bookkeeping, cashiering, collections, general ledger, refund, or BIR-invoicing procedures.
-- `ApprovedCoverage` is an append-only externally approved Term Account effect categorized as scholarship, sponsorship, government subsidy, or other authorized funding. It is `Applied`, `Superseded`, or `Reversed`, targets an exact Assessment/obligation, and never becomes a funding application, eligibility, renewal, disbursement, accommodation, allocation, refund, or cash-movement workflow.
-- Clinic 6 publishes `EnrollmentPaymentRequirementProjection` to Clinic 4. It states the assessment basis and exact registration/change source, current enrollment obligation, separate verified-payment and Approved-Coverage amounts, remaining required amount, state, `SatisfactionBasis = VerifiedPayment | ApprovedCoverage | Mixed | NoPaymentRequired | None`, authority/source/as-of time, later-obligation indicator, and authorized account link. `Cleared` never means a lifetime zero balance. A missing, stale, or invalid assessment authority produces `Unavailable`; a valid assessment whose current obligation is not satisfied produces `ActionNeeded`. Neither state invents zero, a silent cap, or a percentage fallback.
-- Clinic 6 publishes request-specific `OfficialOutputPaymentClearance = Cleared | NotRequired | ActionNeeded` to Clinic 5. It never creates a global finance hold.
-- A later missed obligation never reverses official enrollment or blocks login, classes, examinations, or released academic records. COR remains Clinic 4's immutable enrollment output with an assessment-at-finalization snapshot; Account Statement/SOA remains Clinic 6's current non-tax account output.
-- Manual evidence stays unverified until Accounting checks the actual external bank, wallet, cash, or institutional source. Exact valid signed PayMongo evidence posts idempotently; browser returns do not prove payment, and mismatches enter an exception queue.
-- Clinic 6 generates only a non-tax Account Statement/SOA, non-tax Payment Acknowledgment, contextual Account Status CSV, and contextual Verified Payments CSV. Accounting owns any required BIR invoice or external tax document.
-- Accounting navigation is **Fee Plans** and one tabbed **Student Accounts** workbench. Student Finance is summary-first and becomes read-only for alumni.
-- System Health shows only locally recorded evidence and explicitly labels provider or physical-backup facts `Not checked by TALA`. Governance & Audit is read-only. Automatic retention disposal is not provided in the MVP; lawful retention schedules, privacy requests, legal holds, and secure disposal remain external institutional responsibilities.
-- The **project-selected reference deployment and costing baseline** is a self-managed Hostinger KVM 2 VPS, preferably using a suitable existing institution-owned domain or subdomain and otherwise a separately priced institution-owned `.com` domain, plus one Hostinger Business Email Starter automated-sender mailbox and Hostinger's included weekly VPS backup. This reference baseline fixes the architecture and cost comparison; it does not claim that the institution has purchased, approved, or operated the services. Before real production, the institution must also choose and evidence one encrypted backup outside the primary Hostinger account/provider boundary. Cloudflare R2 is the evaluated automated online-backup candidate, while the client-owned ORICO enclosure is an evaluated offline-copy candidate; neither is an MVP feature or capstone acceptance requirement. The six-hour recovery-point objective means targeting no more than six hours of recent data loss, and the eight-hour recovery-time objective means targeting restoration of core service within eight elapsed hours after recovery is declared. Both are prospective production-planning targets, not Servitech policy, law, SLA, current capability, or capstone acceptance criteria.
-- Clinic 6 owns only the idempotent **Verified payment posted** email.
 ## 10. Canonical PRD and UI Contract
 
 The baseline owns product-wide vocabulary, common mutation and validation rules, cross-module ownership, policy classes, official-output rules, exclusions, and handoffs. Each PRD owns the complete current-state behavior of one journey and must be understandable without a legacy PRD, implementation file, test, benchmark, or task plan. The UI Surface Blueprint owns shared presentation and screen coverage; the Architecture Specification owns technical and integration boundaries.
@@ -609,10 +406,10 @@ Each standalone PRD must settle:
 - Explicit exclusions and external/manual decisions
 - Realistic demonstration data and browser acceptance script
 
-Every primary user-visible capability receives a low-fidelity wireframe or an explicitly governed shared pattern. The Canonical UI Surface Coverage Inventory makes every primary destination reachable and gives dedicated acceptance coverage to seven cross-role journeys:
+Every primary user-visible capability has an explicit information/action/state/access/recovery contract. The Canonical UI Surface Coverage Inventory makes every required capability reachable and gives dedicated acceptance coverage to seven cross-role journeys. Related capabilities may share a native surface suited to their tasks. Impeccable leads composition; sketches provide supporting evidence for design decisions:
 
-1. Public entry, identity, verification, role selection, and access failure
-2. Application, decision, official credentials, and enrollment readiness
+1. Public entry, identity, verification, unified sign-in, authorized post-authentication context selection, and access failure
+2. Application, selected preliminary review, decision, Registrar clearance, and enrollment readiness
 3. Academic authority, timetable readiness/failure, publication, and revision
 4. Registration, assessment/coverage, official enrollment, Student activation, and COR
 5. Grade submission/release, INC/correction, completion, and TOR
@@ -650,7 +447,7 @@ No public HTTP API is added. The shared vocabulary below names logical responsib
 | Owner | Canonical conceptual vocabulary |
 |---|---|
 | Clinic 1 | Credential account, Staff access profile, role/security/public-content facts, derived workspace context and access state |
-| Clinic 2 | Admission Cycle, Application and immutable snapshots, evidence/correction/decision history, official-credential results, one `ReadyApplicantProjection` |
+| Clinic 2 | Admission Cycle, Application and immutable snapshots, evidence/correction/decision history, Registrar enrollment-clearance history, one `ReadyApplicantProjection` |
 | Clinic 3 | Program/Course/Curriculum authority, Term Calendar Package, cohorts and Class Offerings, resource declarations, generation run/candidate history, published timetable versions, derived readiness/availability/demand/Examination Period projections |
 | Clinic 4 | Registration Case, proposal/confirmation/reservation history, Official Enrollment and registrations, Student identity events, adjustments/Drops, COR versions, and source-owned readiness projections |
 | Clinic 5 | Roster/result history, INC deadline amendments, external competency and lifecycle results, derived averages/evaluation/enrollment/completion projections, Graduation/Conferral records, and versioned transcript output records |
@@ -682,7 +479,7 @@ No public HTTP API is added. The shared vocabulary below names logical responsib
 | Published Timetable / schedule print | Clinic 3 published version | Official only after Registrar publication; role/owner scoped | New publication supersedes; unpublished candidate never appears official |
 | Registration Form / COR | Clinic 4 official enrollment and COR version | Official enrollment output for learner/authorized Staff; assessment-at-finalization snapshot, not live ledger | Change creates a new immutable version; failure produces no partial COR |
 | Unofficial Student Record | Clinic 5 released academic record | Clearly **Unofficial — for student reference** | Current projection only; print failure cannot imply official issuance |
-| TOR | Clinic 5 transcript snapshot and `TALA Standard TOR — Servitech v1` | Registrar-controlled official output for academically completed learners; physical signing, sealing, delivery, and CAV remain external | Void/replacement/supersession is append-only; failure produces no issuance event or official-looking artifact |
+| TOR | Clinic 5 transcript snapshot and `TALA Standard TOR — Servitech v1` | Registrar-controlled official output from releasable history for authorized current/former Students, without a blanket graduation gate; completion/conferral appears only if recorded. Physical signing, sealing, delivery and CAV remain external | Void/replacement/supersession is append-only; failure produces no issuance event or official-looking artifact |
 | Account Statement / SOA and Payment Acknowledgment | Clinic 6 Term Account and verified posting | Authenticated non-tax outputs | Reversal remains visible and marks acknowledgment reversed/superseded |
 | Account Status CSV / Verified Payments CSV | Clinic 6 owning queues | Contextual, allowlisted, purpose-recorded, role-authorized | Failure records no completed export and exposes no partial file |
 
@@ -756,7 +553,7 @@ Confidentiality restrictions and the absence of direct client contact do not reo
 | Slice | Proven high-level prerequisites | Inputs used for implementation acceptance rather than treated as client blockers |
 |---|---|---|
 | 1 — Public entry and verified Applicant | Open Clinic 2 Admission Cycle projection for registration; existing credential, authorization, and mail-dispatch boundaries | Approved TALA public guidance, project-approved public support contacts, synthetic Applicant accounts, and fake/local mail delivery evidence |
-| 2 — Application to enrollment readiness | Verified Applicant context from Slice 1 | Synthetic Cycle dates, requirement versions, Registrar authority, Applicants, private evidence, credential results, and support/privacy references |
+| 2 — Application to enrollment readiness | Verified Applicant context from Slice 1 | Synthetic Cycle dates, requirement versions, Registrar authority, Applicants, selected private preliminary evidence, Registrar clearance, and support/privacy references |
 | 3 — Academic authority to published timetable | Authorized Registrar Staff access; PRD 03 academic authority, Term, offering, resource, and solver/publication boundaries. Delivery after Slice 2 is a solo-capacity order, not a blanket dependency | Synthetic curricula, Term calendars, Faculty, rooms, cohorts, Class Offerings, commitments, solver outcomes, sign-off authority, and publication versions |
 | 4 — Registration to Official Enrollment and COR | Ready Applicant projection from Slice 2; applicable active academic authority and published timetable from Slice 3; current Clinic 6 assessment/payment-readiness projections for the selected case | Synthetic Registration Cases, proposals, placement/capacity facts, assessment or coverage/payment results, Registrar authority, and COR sources |
 | 5 — Official roster to released Student Academics | Official Enrollment and roster projections from Slice 4; applicable academic authority from Slice 3 | Fixed PRD 05 result/INC rules plus synthetic Faculty, rosters, grade events, corrections, lifecycle authority, curriculum evaluation, and completion cases |
@@ -773,7 +570,7 @@ This annex supplies the normalized controls used by PRDs 01–06. An owning PRD 
 | Capability | Authority owner | Authoritative source | Consumers may | Consumers may not |
 |---|---|---|---|---|
 | Identity and access | PRD 01; System Administrator for bounded Staff access | Credential account, verified contact, fixed role assignment, access-change evidence | Read authorized identity and context projections | Edit another clinic's domain record or merge people silently |
-| Admissions | PRD 02; Registrar | Admission Cycle, Application/versioned evidence, decision, credential result | Consume `ReadyApplicantProjection` | Create Student identity, enrollment, placement, or assessment |
+| Admissions | PRD 02; Registrar | Admission Cycle, Application/versioned evidence, decision, current Registrar enrollment clearance | Consume `ReadyApplicantProjection` | Create Student identity, enrollment, placement, or assessment |
 | Academic authority and timetable | PRD 03; Registrar, with external institutional authority where required | Program, Course Revision, Curriculum Version, Calendar Package, Class Offering, Published Timetable Version | Consume immutable effective versions | Edit source authority or treat a candidate as published |
 | Registration and official enrollment | PRD 04; Registrar | Registration Case, proposal version, placement/reservation, official enrollment, COR version | Consume source-owned readiness projections | Recreate admissions, curriculum, grades, or finance authority |
 | Academic record and completion | PRD 05; Faculty submits and Registrar releases/records | Official roster results, corrections, curriculum evaluation, lifecycle, completion, conferral, TOR snapshot | Consume released projections | Use draft grades or overwrite released history |
@@ -834,17 +631,18 @@ Every readiness projection names its source, owner, effective version or as-of t
 |---|---|
 | Email | Trim; compare lowercase; valid address; maximum 254 characters; case-insensitive uniqueness per credential account |
 | Name part | 1–100 Unicode letters/marks plus spaces, apostrophes, periods, and hyphens; middle name optional; suffix separate and maximum 20 characters |
-| Reference/code | Trimmed 1–64 characters; letters, numbers, spaces, hyphen, underscore, slash, period, and colon only; unique within owning scope |
+| Internal code | Trimmed 1–64 characters; letters, numbers, spaces, hyphen, underscore, slash, period, and colon only; unique within its explicitly defined owning scope |
+| External authority/source reference | Plain text, trimmed 1–255 characters when required by its owning action; accept legitimate Unicode and punctuation. Show what source is expected and an appropriate example. One source may support multiple records, so no generic uniqueness rule applies. A provider transaction reference, LRN or other identifier keeps its own defined format/idempotency boundary. Render safely and escape export text. |
 | Title/label | Title maximum 160 characters; short label maximum 120 |
-| Administrative reason | Required for consequential Staff actions; 10–1,000 characters |
+| Administrative reason | Required for rejection, correction, reversal and authority-backed exceptions; 10–1,000 characters. An owning PRD may use an attributable fixed result for routine successful verification/clearance without a separate narrative. Actor, time and current source are still required. |
 | Safe learner explanation | 1–500 characters; no internal notes, secrets, private evidence, or unsupported accusation |
-| LRN | Optional 12 digits; a match to another credential identity blocks submission and routes to non-disclosing Registrar review |
-| Telephone | Optional; normalized to 8–15 international digits while accepting Philippine-friendly input |
+| LRN | Explicit Provided / Not issued / Not available route. Provided is exactly 12 digits stored as text, preserving leading zeros. Before `Admitted`, Registrar resolves a verified identity collision or unavailable-LRN warning through the non-disclosing PRD 02 path. Initial submission remains available; `NotAdmitted` uses its own recorded decision basis. |
+| Telephone | Requiredness belongs to the owning field contract; normalize to 8–15 international digits while accepting Philippine-friendly input |
 | Money | PHP only for MVP, two decimal places, nonnegative; payment and coverage postings must be positive |
 | Units | Positive, up to two decimal places; curriculum/authority reconciliation controls validity, not a universal cap |
 | Date/time | Asia/Manila; explicit inclusive/exclusive semantics; start cannot follow end; effective dates never silently rewrite prior authority |
 | Public URL | HTTPS only, maximum 2,048 characters; link label maximum 80 |
-| Private evidence file | Exactly one PDF, JPEG, or PNG per requirement/evidence version; maximum 10 MiB; actual MIME/signature validation, private storage, generated storage name, checksum, and access audit |
+| Private evidence file | Exactly one PDF, JPEG, or PNG per requirement/evidence version; maximum 10 MiB; server-detected MIME and matching file-format header, private storage, generated storage name, checksum, and access audit. Every attach, replace, read, download, or discard revalidates purpose and exact record/version/path ownership. File checks and checksums establish permitted format and byte identity; document authenticity remains an external institutional check. |
 
 Every material mutation revalidates actor, authorization, current state, effective version, dependencies, and source server-side. A stale or conflicting submission creates no partial mutation, identifies what changed, refreshes authoritative facts, and preserves safe uncommitted text where possible. Academic, financial, security, publication, capacity, finalization, and issuance edits are never silently merged.
 
@@ -853,9 +651,9 @@ Every material mutation revalidates actor, authorization, current state, effecti
 | Action class | Confirmation | Success evidence |
 |---|---|---|
 | Routine save, filter, search, preview, or calculation | None | Normal request evidence only |
-| Security/access, identity, academic release/correction, publication, enrollment, financial posting/correction, lifecycle/conferral, or official output | Named `alertdialog` | Actor, role, record/version, authority/reason, before/after state, time, idempotency result, affected roles/projections/emails/outputs |
+| Security/access, identity, academic release/correction, publication, enrollment, financial posting/correction, lifecycle/conferral, or official output | Labelled modal consequence confirmation | Actor, role, record/version, authority/reason, before/after state, time, idempotency result, affected roles/projections/emails/outputs |
 
-The dialog shows the exact record/version, actor/authority, resulting state, downstream effects, reversibility or successor requirement, and required reason/authority fields. The action label names the consequence—such as **Publish timetable**, **Finalize enrollment**, **Release roster**, or **Record reversal**—and never uses only **Yes**. Cancellation or failed confirmation causes no institutional mutation.
+The dialog shows the exact record/version, actor/authority, resulting state, downstream effects, reversibility or successor requirement, and required reason/authority fields. The action label names the consequence, such as **Publish timetable**, **Finalize enrollment**, **Release roster** or **Record reversal**. Use the native labelled modal for structured preview or input; a brief important interruption uses the WAI-ARIA alert-dialog pattern. Both contain focus and restore it on close. Cancellation or failed confirmation causes no institutional mutation.
 
 #### Matrix 8 — Retry, attempt, correction, and deadline behavior
 
@@ -922,15 +720,15 @@ This matrix is the final traceability contract for later journey-complete vertic
 
 | Journey | Required end-to-end evidence | Cross-module pass condition |
 |---|---|---|
-| Identity and entry | Public closed/open entry, registration, verification, contextual sign-in, multi-role choice, MFA/recovery, disablement, inaccessible route | One credential account; no protected disclosure, silent role priority, or duplicate activation message |
-| Application to readiness | Draft/submission, scoped correction, decision, official credentials, duplicate warning, withdrawal, `ReadyApplicantProjection` | Clinic 4 sees the same application/version without copy or early Student creation |
+| Identity and entry | Public closed/open entry, registration, verification, unified sign-in, authorized post-authentication multi-role choice, MFA/recovery, disablement, inaccessible route | One credential account; no protected disclosure, silent role priority, or duplicate activation message |
+| Application to readiness | Draft/submission, scoped correction, decision, Registrar enrollment clearance, duplicate warning, withdrawal, `ReadyApplicantProjection` | Clinic 4 sees the same application/version without copy or early Student creation |
 | Concurrent term operation | First-, Second-, and Special-Term packages with overlapping enrollment, adjustment, teaching, grade-entry, account, timetable, COR, and output work | Every record/action carries its exact Term; one Term's window or closure never silently controls another; no Summer subsystem or implicit current term appears |
 | Academic authority to publication | Curriculum/calendar/class/resource readiness, feasible/infeasible/unknown/technical solver results, candidate review, publication and revision | Only Registrar publication creates the official version; consumers keep its identifier and version |
 | First official enrollment | RegistrationCase, proposal, learner confirmation, placement, Clinic 6 requirement, finalization, Student access, COR | Same human/credential/RegistrationCase/TermAccount continuity; five checkpoints revalidated atomically |
 | Continuing and advised enrollment | Standard and Individually Advised proposals, reduced/Special Term cases, fixed or authorized individual assessment, prerequisites, shortages, reservations, timetable revision | Clinic 3 owns one revision event/email; no arbitrary course shopping, invented assessment, or silent learner move |
 | Special Term through cumulative projection | Approved `TERM-2026-ST`, Regular and Additional published classes, `REG-2026-ST-001`, exact individual assessment, Applied coverage plus verified payment, official enrollment, partial then complete roster release | Same references cross Clinics 3–6; partial release shows **Grades not complete**, final release yields deterministic term/cumulative values; no Summer/tutorial/irregular/scholarship engine |
 | Grade release and correction | Designated Faculty roster, returned rows, complete release, `GradesNotComplete`/INC/not-applicable/available average states, completion deadline/amendment/overdue/result race, correction, RegistrationCase review | Only released results cross clinics; no partial average, automatic grade conversion, overwritten result, or silent registration change |
-| Pending prerequisite to next-term outcome | Individually Advised case, exact authorized exception, learner confirmation, initial release/INC/correction, pre/post-finalization review, open Adjustment, closed Adjustment with/without late authority | No released `P` or fabricated satisfaction; unrelated courses remain usable; capacity/finance/roster/schedule/COR effects occur only through an authorized guarded transaction |
+| Pending prerequisite to next-term outcome | Individually Advised case, exact approved credit/equivalency or overload/late-adjustment authority, learner confirmation, initial release/INC/correction, pre/post-finalization review, open Adjustment, closed Adjustment with/without late authority | No released `P` or fabricated satisfaction; unrelated courses remain usable; capacity/finance/roster/schedule/COR effects occur only through an authorized guarded transaction |
 | Lifecycle and withdrawal | Leave, full withdrawal, return, transfer, shift, conferral and current-term effects | Seats, rosters, schedule, COR and account review remain synchronized with append-only history |
 | Completion and TOR | Completion readiness, request-specific Clinic 6 clearance, TALA Standard TOR preview/issuance, void/replacement/supersession | Only Registrar confirmation creates issuance; physical certification remains external; consumers cannot edit finance or source academic facts |
 | Account, coverage, and payment | Fixed Fee Plan and authorized-individual-assessment readiness, Approved Coverage application/supersession/reversal, mixed satisfaction, unavailable source, adjustment/drop review, manual evidence, exact-due checkout, under/mismatch, duplicate and missing/late webhook, reversal | Browser return never posts; coverage is not payment or eligibility processing; one posting and one email; no silent cap, fee fallback, invented refund/penalty, or global hold |
@@ -939,31 +737,29 @@ This matrix is the final traceability contract for later journey-complete vertic
 
 Across every row, consumers must not edit producer-owned facts; missing or stale authority prevents unsafe action; and no workflow creates a duplicate account, handoff record, official output, payment posting, or email.
 
-## 13. Standalone Authority Status and Next Boundary
+## 13. Canonical Ownership and Delivery
 
-There are seven product-definition clinics. A clinic is a planning boundary, not a system feature. The resolved final cross-module contradiction and omission review is an approval gate rather than an eighth clinic.
+The seven modules below identify canonical ownership. Live delivery scope, progress and acceptance evidence belong to the coordination Issue and its owning children.
 
-| Clinic | Authority produced | Purpose | Current position |
-|---|---|---|---|
-| **0 — Foundation and Shared Rules** | This baseline | Sections 1–3, 10, and 11.1–11.4: product goal, evidence hierarchy, lean boundaries, roles, shared vocabulary, coordinated acceptance data, readiness, communication, PRD completeness, UI planning, and authority controls | Approved; standalone-authority review passed |
-| **1 — Identity, Access, and Public Entry** | PRD 01 | Identity model, authentication entry, role workspaces, public content, access and inaccessible-record behavior | Standalone and ready for vertical-slice planning |
-| **2 — Application, Admission Decision, and Enrollment Readiness** | PRD 02 | Application intake, versioned requirements, scoped correction, authorized decision, official-credential outcomes, derived readiness, and the shared Clinic 4 projection; official-Student activation remains in Clinic 4 | Standalone and ready for vertical-slice planning |
-| **3 — Academic Setup and Published Timetable** | PRD 03 | Calendar and informational Examination Period, curricula and bounded external-competency requirements, courses, offerings, resources, faculty availability, CP-SAT, review, publication, and timetable failure behavior | Standalone and ready for vertical-slice planning |
-| **4 — Current-Term Registration and Official Enrollment** | PRD 04 | Eligibility, proposed registrations, placement, minimum Accounting clearance, Registrar finalization, conditional first Student activation, adjustment, Course Drop, and COR | Standalone and ready for vertical-slice planning |
-| **5 — Teaching and Official Academic Record** | PRD 05 | Official rosters, final grades, release, correction, deadline-bound nonautomatic INC, term weighted average, cumulative GWA, factual curriculum position, lifecycle, standard TOR, and completion | Standalone and ready for vertical-slice planning |
-| **6 — Accounts and Operations** | PRD 06 | Fee Plans, continuous Term Accounts, Approved Coverage, payment evidence, bounded enrollment/output-clearance projections, non-tax account outputs, contextual exports, System Health, privacy, audit, recovery, and assurance | Standalone and ready for vertical-slice planning |
+| Clinic | Owning document | Purpose |
+|---|---|---|
+| **0 — Foundation and Shared Rules** | This baseline | Product goal, evidence hierarchy, lean boundaries, roles, shared vocabulary, coordinated acceptance data, readiness, communication, UI planning and authority controls |
+| **1 — Identity, Access, and Public Entry** | PRD 01 | Identity model, authentication entry, role workspaces, public content, access and inaccessible-record behavior |
+| **2 — Application, Admission Decision, and Enrollment Readiness** | PRD 02 | Application intake, versioned requirements, scoped correction, authorized decision, Registrar enrollment clearance, derived readiness and the shared Clinic 4 projection |
+| **3 — Academic Setup and Published Timetable** | PRD 03 | Calendar and informational Examination Period, curricula and bounded external-competency requirements, courses, offerings, resources, faculty availability, CP-SAT, review, publication and timetable failure behavior |
+| **4 — Current-Term Registration and Official Enrollment** | PRD 04 | Eligibility, proposed registrations, placement, minimum Accounting clearance, Registrar finalization, conditional first Student activation, adjustment, Course Drop and COR |
+| **5 — Teaching and Official Academic Record** | PRD 05 | Official rosters, final grades, release, correction, deadline-bound nonautomatic INC, term weighted average, cumulative GWA, factual curriculum position, lifecycle, standard TOR and completion |
+| **6 — Accounts and Operations** | PRD 06 | Fee Plans, continuous Term Accounts, Approved Coverage, payment evidence, bounded enrollment/output-clearance projections, non-tax account outputs, contextual exports, System Health, privacy, audit, recovery and assurance |
 
 Clinic 0 establishes the universal readiness presentation; each journey PRD owns its sources, validity, owner, consequence, consuming action, and recovery. The calendar ownership, Term Planning Workbench, typed Term Calendar Package, unified Class Offering model, whole-term solver contract, and immutable publication/revision boundary remain fixed Clinic 3 authority. The Clinic 2→4, Clinic 3↔4, Clinic 4↔5, Clinic 6→4, and Clinic 6→5 handoffs remain fixed as summarized in Section 10.1.
 
-Application behavior is decision-complete for separately planned vertical slices: implementation must not silently choose or reinterpret Student identity continuity, INC completion, TOR generation, output ownership, contextual reporting, payment-webhook recovery, regulatory-submission boundaries, Examination Period visibility, externally verified competency-result ownership, requested-record and quality-assurance boundaries, role entry, shared shell behavior, design foundations, component coverage, UI traceability, mutation governance, validation, concurrency, confirmation, retry, or deletion behavior. This completeness claim does not imply institution-owner approval of procurement, provider or account ownership, privacy/DPO decisions, credential custody, billing, retention, recovery operations, or prospective production readiness; those remain the explicit owner-gated decisions defined by their owning PRD and the Architecture Specification. A later proven stronger authority, material feasibility conflict, or explicit user change may reopen only the affected application decision.
+The owning contracts govern identity continuity, academic results, official outputs, role entry, interface coverage, validation, concurrency, confirmation, retry and record preservation. Resolve a material authority or feasibility conflict in its owning document before implementing the affected behavior. Production operations and institution-owner decisions follow the owning PRD and Architecture Specification.
 
 Current workflow gates are:
 
-- Canonical product definition, cross-module resolution, UI coverage, negative-space review, authority hardening, and standalone-authority refinement are complete.
-- The Canonical UI Surface Coverage Inventory governs required user-visible behavior without prescribing a design artifact, fixed page count, route count, or component count.
-- The next boundary is separately planning the first journey-complete vertical implementation slice. Each slice must cite its owning PRD, UI authority, architecture boundary, shared handoff, and acceptance row; inspect bounded code/schema/test evidence; and classify retained work before execution.
-- Complete-authority approval alone does not authorize application, schema, seeder, test, dependency, tracker, Linear, Git-history, push, PR, or deployment changes.
-- Destructive data/schema work, external effects, and implementation execution retain their separate human and protocol gates.
+- The Canonical UI Surface Coverage Inventory governs required user-visible behavior and acceptance coverage.
+- Reuse the accepted slice plan and matching brief. Each authorized slice cites current owning product/UI/architecture contracts, inspects relevant code/schema/test evidence, and verifies retained behavior before acceptance.
+- Apply the permission boundaries and human gates in the Orchestrator Protocol to implementation, destructive work, external effects, completion and publication.
 
 ## 14. Assumptions
 
