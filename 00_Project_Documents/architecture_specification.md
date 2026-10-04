@@ -406,15 +406,15 @@ Authenticated workspaces use the native Filament sidebar-only arrangement: expan
 
 Use supported framework configuration, themes, CSS hooks, and focused extensions for native collapse/drawer, ordinary scrolling, and focus behavior. Adapt the shared semantic color anchors through each framework's palette and component lifecycles. Preserve installed authentication responsibilities, route ownership, and supported viewport/action boundaries.
 
-Standalone HTTP/session-recovery presentation reuses the existing shared Blade error layout rather than loading the prototype or duplicating the Filament shell. Actual response codes, permitted destinations, session/account protections, and mutation-safe recovery remain application responsibilities. Core explanation and recovery work without Vite, Livewire, JavaScript, remote fonts, or animated backgrounds. The selected ambient background animation is progressive decoration governed by DESIGN.md/Blueprint, with static/reduced-motion/forced-colors fallbacks and accessible pause/stop for continuous motion; it adds no dependency, provider request, retry engine, or product state. Native-first composition permits this focused fallback because it must remain usable when the normal workspace cannot load.
+Standalone HTTP/session-recovery presentation reuses the existing shared Blade error layout. Actual response codes, permitted destinations, session/account protections, and mutation-safe recovery remain application responsibilities. Core explanation and recovery work without Vite, Livewire, JavaScript, remote fonts, or animated backgrounds. DESIGN.md and the UI Blueprint own the finite recovery-background animation and its static, reduced-motion and forced-colors fallbacks. The shared fallback remains usable when the normal workspace cannot load.
 
 Production branding and authentication media must be optimized, attributable, and reproducible from tracked build assets or approved object storage. Runtime-local untracked files never define the deployed experience. The public page may use a bounded approved hero-media set with a poster, pause/stop control for movement, and reduced-motion fallback; this does not create an asset library, gallery, or CMS.
 
 Every canonical UI entry is dispositioned as `NativeFilament`, `InstalledCompatibleDependency`, `FocusedTALACustom`, or `PurposefullyExcluded`. The disposition records the leanest approved presentation responsibility; it does not require one route, Page, or component per inventory row. Native Filament remains first, an already-installed compatible dependency is second, a small TALA-specific component is third, and a new dependency is considered only when those options cannot satisfy approved behavior.
 
-This precedence guides composition and capability gaps, not automatic replacement of working installed responsibilities. Auth Designer retains branded authentication presentation around native Filament/Fortify behavior. Refine it through supported configuration; a material bypass or replacement requires explicit approval and consumer-migration proof. Panels inherit native Light/Dark/System behavior and default to System; shared custom tokens/variants adapt to the chosen appearance. Preserve the Bootstrap gateway's existing system following and keep print output independent. No parallel theme engine or dependency change is implied.
+The selection follows the task-fit composition defined by DESIGN.md and the matching brief. Supported Blade views and focused Livewire layouts may combine native Filament forms, actions, tables and infolists with the existing Tailwind theme. This preserves server-driven ownership and avoids a second frontend application. Auth Designer retains branded authentication presentation around native Filament/Fortify behavior; a material bypass or replacement requires explicit approval and consumer-migration proof. Panels inherit native Light/Dark/System behavior and default to System; shared custom tokens/variants adapt to the chosen appearance. Preserve the Bootstrap gateway's existing system following and keep print output independent.
 
-Required hierarchy, copy, responsive behavior, states, print content and composition belong to the owning PRD/UI Blueprint and DESIGN.md. Implement them through compatible native components and focused extensions. Server-side projections and domain actions supply current source facts and enforce authorization independently of navigation or visual state. Source-owned readiness is presented in context, without another settings/gate product or frontend policy engine.
+PRDs own required behavior, data and business dependencies; the UI Blueprint and DESIGN.md own interface outcomes, visual foundations and task-specific composition. Implement the chosen arrangement through supported framework configuration and focused extensions. Server-side projections and domain actions supply current source facts and enforce authorization independently of navigation or visual state. Source-owned readiness is presented in context, without another settings/gate product or frontend policy engine.
 
 ### 7.3 Authorization Rule
 
@@ -721,38 +721,38 @@ Recent UCTP literature shows that exact solvers, commercial mathematical program
 
 ## 11. Dependency Architecture
 
-Versions in this section were verified from the installed dependency graph on **August 13, 2026 (Philippine Time)**. A dependency is justified only when its active responsibility is clear; presence in a manifest does not prove architectural use.
+This section owns dependency responsibilities. `composer.json`, `composer.lock`, `package.json` and the frontend lockfile own declared constraints and resolved versions. Inspect the installed dependency graph before relying on an API. A dependency is justified by its active responsibility and compatibility with the supported runtime.
 
 ### 11.1 Active PHP Runtime
 
-| Dependency | Verified version | Architectural responsibility and benefit |
-| --- | ---: | --- |
-| PHP | 8.2 | Selected runtime for the current Laravel ecosystem; the PHP 8.2 branch receives security fixes only through December 31, 2026 |
-| Laravel Framework | 12.66.0 | HTTP lifecycle, routing, validation, ORM, transactions, queues, policies, notifications, storage, and testing conventions; Laravel 12 receives security fixes through February 24, 2027 |
-| Filament | 5.6.7 | Role-oriented administrative workspaces built from server-defined resources and actions |
-| Livewire | 4.3.1 | Stateful, reactive server-driven interactions without a separate SPA/API application |
-| Laravel Fortify | 1.37.2 | Headless authentication actions including login, recovery, verification, and two-factor foundations |
-| Caresome Filament Auth Designer | 3.1.0 | Presentation layer for branded Filament authentication pages; it does not replace the authentication authority |
-| Spatie Laravel Permission | 6.25.0 | Persisted roles and permissions integrated with Laravel authorization |
-| Spatie Activitylog | 4.12.3 | Auditable model and workflow activity where explicitly configured |
-| Google Auth | 1.52.0 | Service-account credentials and identity-token creation for authenticated Cloud Run invocation |
-| Guzzle | 7.15.3 | HTTP transport used by Laravel's outbound integration clients |
-| Guzzle PSR-7 | 2.13.0 | PSR-7 request, response, stream, and URI implementation used by the HTTP transport |
+| Dependency | Architectural responsibility and benefit |
+| --- | --- |
+| PHP | Application runtime satisfying Composer platform constraints, required extensions and the supported deployment release |
+| Laravel Framework | HTTP lifecycle, routing, validation, ORM, transactions, queues, policies, notifications, storage and testing conventions |
+| Filament | Role-oriented administrative workspaces built from server-defined resources and actions |
+| Livewire | Stateful, reactive server-driven interactions without a separate SPA/API application |
+| Laravel Fortify | Headless authentication actions including login, recovery, verification, and two-factor foundations |
+| Caresome Filament Auth Designer | Presentation layer for branded Filament authentication pages; it does not replace the authentication authority |
+| Spatie Laravel Permission | Persisted roles and permissions integrated with Laravel authorization |
+| Spatie Activitylog | Auditable model and workflow activity where explicitly configured |
+| Google Auth | Service-account credentials and identity-token creation for authenticated Cloud Run invocation |
+| Guzzle | HTTP transport used by Laravel's outbound integration clients |
+| Guzzle PSR-7 | PSR-7 request, response, stream, and URI implementation used by the HTTP transport |
 
 Laravel, Filament, and Livewire are selected together because TALA is a form-, table-, policy-, and workflow-heavy institutional application. They keep UI behavior, validation, authorization, and transactions in one PHP system. A separate JavaScript SPA would add an API contract, duplicated validation and authorization concerns, client-state complexity, and another deployment surface without a demonstrated baseline requirement for disconnected clients or independent frontend teams.
 
-The runtime lifecycle must be reconsidered before PHP 8.2 security support ends on **December 31, 2026** and before Laravel 12 security support ends on **February 24, 2027**. Laravel 13 remains a separate future dependency-compatibility, PHP-platform, and deployment decision; these dates do not authorize or imply an immediate framework upgrade.
+Runtime selection follows supported PHP/framework releases, installed-package compatibility and the deployment requirements below. Dependency upgrades retain their authorization and verification boundary.
 
-Authenticated workspaces use native Filament components first and focused Tailwind CSS presentation only where Filament composition cannot express the approved behavior; Bootstrap remains isolated to the public landing page.
+DESIGN.md and the UI Surface Blueprint govern task-led composition within the authenticated Filament/Livewire/Tailwind and isolated public Bootstrap surfaces.
 
 ### 11.2 Declared Packages Requiring Deliberate Disposition
 
-| Declared package | Verified version | Current architectural interpretation |
-| --- | ---: | --- |
-| Laravel MCP | 0.8.2 | Available to expose governed AI tools or resources, but it is not a production integration boundary while its application route is disabled. |
-| Laravel Tinker | 2.11.1 | Developer diagnostic utility, not a production subsystem. |
-| chillerlan/php-qrcode | 5.0.5 | Declared, but no active application reference establishes a current production responsibility. |
-| Spatie Model States | 2.12.1 | Declared, but no active application reference establishes state-machine ownership. |
+| Declared package | Current architectural interpretation |
+| --- | --- |
+| Laravel MCP | Available to expose governed AI tools or resources, but it is not a production integration boundary while its application route is disabled. |
+| Laravel Tinker | Developer diagnostic utility, not a production subsystem. |
+| chillerlan/php-qrcode | Declared, but no active application reference establishes a current production responsibility. |
+| Spatie Model States | Declared, but no active application reference establishes state-machine ownership. |
 
 These packages must be either connected to an approved responsibility or considered for removal in a separate dependency review. Keeping unused runtime packages increases upgrade work and supply-chain exposure. Removal is intentionally not performed as part of this architecture document.
 
@@ -760,15 +760,15 @@ The PayMongo transport and signed webhook pipeline are application-owned. Previo
 
 ### 11.3 Frontend Runtime
 
-| Dependency | Verified version | Architectural responsibility |
-| --- | ---: | --- |
-| Tailwind CSS | 4.1.18 | Utility-based styling and responsive layout, including Filament-aligned styling |
-| `@tailwindcss/vite` | 4.1.18 | Tailwind compilation through Vite |
-| Vite | 7.3.6 | Asset bundling and development build pipeline |
-| Laravel Vite Plugin | 2.1.0 | Laravel-aware asset entry points and development integration |
-| Alpine.js | 3.15.10 | Declared client-side interaction dependency; Filament/Livewire also provide their expected runtime behavior |
-| Axios | 1.18.1 | Present in the default bootstrap layer, but not an architectural API client while the application entry point does not load that layer |
-| Bootstrap assets | local landing-page assets | Isolated public-facing landing presentation, not the administrative component system |
+| Dependency | Architectural responsibility |
+| --- | --- |
+| Tailwind CSS | Utility-based styling and responsive layout, including Filament-aligned styling |
+| `@tailwindcss/vite` | Tailwind compilation through Vite |
+| Vite | Asset bundling and development build pipeline |
+| Laravel Vite Plugin | Laravel-aware asset entry points and development integration |
+| Alpine.js | Declared client-side interaction dependency; Filament/Livewire also provide their expected runtime behavior |
+| Axios | Present in the default bootstrap layer, but not an architectural API client while the application entry point does not load that layer |
+| Bootstrap assets | Isolated public-facing landing presentation, not the administrative component system |
 
 Driver.js 1.4.0 has one approved optional responsibility: role-aware Quick tours inside authenticated Applicant, Student, and Staff workspaces. TALA supplies only a small wrapper for invitation, replay, role/version scope, target filtering, accessibility, reduced motion, and privacy behavior; Driver.js does not own navigation, authorization, business state, analytics, onboarding records, or a configurable tour editor. Filament's PHP `Heroicon` abstractions using Heroicons Outline are the canonical interface icon surface. The separately declared npm Heroicons package 2.2.0 has no independent production responsibility.
 
@@ -776,17 +776,17 @@ Driver.js 1.4.0 has one approved optional responsibility: role-aware Quick tours
 
 The scheduling container uses Python 3.12 slim, Google OR-Tools 9.15.6755, Flask 3.1.3, and Gunicorn 26. Flask provides a small HTTP contract, Gunicorn provides the production process boundary, and OR-Tools owns optimization. The separation prevents Python solver dependencies from expanding the PHP web runtime.
 
-| Engineering dependency | Verified version | Responsibility |
-| --- | ---: | --- |
-| Laravel Boost | 2.5.3 | Version-aware application inspection and framework-documentation retrieval for AI-assisted development |
-| PHPUnit | 11.5.55 | Automated unit and feature behavior checks |
-| Larastan | 3.10.0 | Laravel-aware static analysis |
-| Laravel Pint | 1.29.1 | Consistent PHP formatting |
-| Laravel Sail | 1.62.0 | Containerized local-development option |
-| FakerPHP | 1.24.1 | Deterministic-shape test data generation through factories |
-| Mockery | 1.6.12 | Test doubles where an isolated collaborator is appropriate |
-| Collision | 8.9.4 | Readable command-line errors and test output |
-| Concurrently | 9.2.4 | Coordinates the local web, queue, and asset-development processes |
+| Engineering dependency | Responsibility |
+| --- | --- |
+| Laravel Boost | Version-aware application inspection and framework-documentation retrieval for AI-assisted development |
+| PHPUnit | Automated unit and feature behavior checks |
+| Larastan | Laravel-aware static analysis |
+| Laravel Pint | Consistent PHP formatting |
+| Laravel Sail | Containerized local-development option |
+| FakerPHP | Deterministic-shape test data generation through factories |
+| Mockery | Test doubles where an isolated collaborator is appropriate |
+| Collision | Readable command-line errors and test output |
+| Concurrently | Coordinates the local web, queue, and asset-development processes |
 
 These are engineering controls, not user-facing production modules.
 

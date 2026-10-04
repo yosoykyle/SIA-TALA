@@ -164,17 +164,11 @@ There is no miscellaneous central Settings product. Setup belongs to its domain 
 
 Every configurable item must identify its owner, scope, effective date, and consuming action. A variable record without a real consumer is removed.
 
-Readiness is a shared contextual presentation pattern, not a navigation destination or a generic gate engine. Each consuming action shows failed checks first, names the source owner, links to the owning record, and collapses passed checks. No role may manually change a calculated `Blocked` result to `Ready`.
+Readiness belongs beside its consuming action. Explain failed checks, name the source owner and remedy, and provide a concise successful-check summary with accessible evidence. Role authorization governs source links. A calculated `Blocked` result changes only when its authoritative sources satisfy the action's guards.
 
 The baseline owns only this universal readiness behavior. Each journey PRD defines the authoritative inputs required by its own actions, who owns them, what validity means, and whether a missing or invalid input blocks, warns, or degrades that action. TALA does not create one abstract global settings model or require a complete cross-system source-record inventory before the module clinics.
 
-The accepted A1 presentation uses:
-
-- Guided dependency order
-- A milestone strip
-- Inline owner, deadline, blocker, and next action
-
-A1 defines the shared presentation pattern. Its rows and results are derived from the readiness contracts approved inside each journey PRD.
+Readiness communicates dependency order, current source results, responsible owner, applicable deadline and the next permissible action. The owning PRD supplies those facts; Impeccable and the UI Blueprint guide a task-appropriate presentation.
 
 Readiness results use:
 
@@ -183,7 +177,7 @@ Readiness results use:
 - Degraded integration
 - Passed
 
-Failed items show the responsible owner, evidence/source link, and next action. Passed checks remain collapsed. Missing SMTP never reverses an academic or financial transaction. PayMongo failure disables only optional checkout. Solver failure never changes an already published timetable.
+Failed items show the responsible owner, evidence/source link, and next action. Successful checks use a concise summary with accessible source detail. Missing SMTP never reverses an academic or financial transaction. PayMongo failure disables only optional checkout. Solver failure never changes an already published timetable.
 
 **Setup order and unavailable actions.** For an authorized user, an applicable action blocked by incomplete setup remains discoverable with a persistent plain-language reason, the missing source, its responsible owner and the exact remedy that enables it. Show a source link only when that user may access it; otherwise show safe office/contact guidance. Do not rely on a disabled-button tooltip. Useful Draft entry and independent work remain available. Actions forbidden by authorization remain undisclosed where disclosure would expose protected information. Server-side guards enforce the same prerequisites even when the UI is bypassed.
 
@@ -250,24 +244,24 @@ No email is sent for ordinary saves, navigation, successful or failed sign-in at
 
 The complete product remains lean because every normally expected SIS capability is either owned by one canonical journey or explicitly left with its responsible external process. This matrix is a traceability index; detailed behavior remains in the owning PRD.
 
-| Capability | Authority and record owner | User journey and UI projection | Failure, correction, or output | Verdict |
+| Capability | Authority and record owner | User journey and UI projection | Failure, correction, or output | Scope disposition |
 |---|---|---|---|---|
-| Identity, access, and public entry | PRD 01; account, role assignments, invitation, and verification | Public Gateway, unified sign-in, authorized post-authentication context resolution, Users & Access | Recovery, disablement, inaccessible routes, access correction, security email | Complete |
-| Admissions | PRD 02; Admission Cycle, Application, evidence, decision, and Registrar enrollment clearance | Applicant Home/Application/Requirements; Registrar Admissions | Correction, withdrawal, reopening, superseding decision, acknowledgment | Complete |
-| Academic authority and curriculum | PRD 03; Program, Course Revision, Curriculum Version, and authorized external-competency requirements | Catalog & Curricula; read-only Academic Oversight | Import finding, blocked activation, successor authority, external-result source correction | Complete with bounded external evidence |
-| Terms and offerings | PRD 03; Term Calendar Package, Term Cohort, and Class Offering | Term Planning; Faculty availability and informational Examination Period projections | Missing authority, incomplete resource, Additional Offering correction, unavailable calendar source | Complete |
-| Scheduling | PRD 03; solver request/result, candidate, and Published Timetable Version | Generate & Review, Published Timetable, Faculty/Student projections | Infeasible, Unknown, ModelInvalid, TechnicalFailure, bounded correction, revision | Complete |
-| Registration | PRD 04; Registration Case and proposal versions | Learner Enrollment and Registrar Students & Enrollment | Proposal revision, assisted confirmation, expiry, cancellation | Complete |
-| Enrollment | PRD 04; placement, reservation, five-checkpoint readiness, and official enrollment | Learner status, Registrar workbench, Accounting clearance | Shortage, stale placement, missing assessment, failed finalization | Complete |
-| COR | PRD 04; immutable COR versions and finalization snapshot | Authenticated current/historical COR | Adjustment or Course Drop successor, superseded version, print failure | Complete |
-| Grades and averages | PRD 05; roster results, bounded operational metadata, average projections, and externally verified competency results | Grade Rosters, Grades & Completion, Student Academics | Return, INC completion/overdue state/deadline amendment, correction, Grades not complete, superseding external result | Complete |
-| Lifecycle and completion | PRD 05; curriculum evaluation, progress, lifecycle, completion, and conferral records | Student Academics, Registrar workbench, Academic Oversight | Pending source, authorized decision, superseding result, authority-gated external requirement | Complete |
-| TOR | PRD 05 fixed TALA Standard TOR authority plus PRD 06 request-specific clearance | Registrar preview, issuance, and history | Missing source/certification data or clearance; output failure; void/replacement | Complete within the approved external boundary |
-| Accounts and assessments | PRD 06; Fee Plan, Authorized Individual Assessment, and Term Account | Fee Plans, Student Accounts, Student Finance | Unavailable/stale assessment, append-only correction | Complete |
-| Coverage and payments | PRD 06; Approved Coverage, evidence, verified posting, and PayMongo attempt | Account detail, Payment Exceptions, learner Finance | Rejection, mismatch, pending webhook, reversal, supersession | Complete |
-| Official outputs and contextual exports | Owning PRDs; seven canonical outputs plus the two Clinic 6 finance CSVs and one Clinics 4–5 current Class Roster CSV | Authenticated print/read-only surfaces and authorized contextual CSV actions | No partial artifact, explicit version/state, formula-safe CSV, output-access audit | Complete |
-| Privacy, audit, and retention | PRDs 01–06 and Architecture | Private evidence, Governance & Audit, contextual history | Non-disclosing failure; automatic disposal is outside the MVP | Complete |
-| Operations and integrations | Architecture and PRD 06 | System Health and locally evidenced projections | Unknown/Not checked by TALA, degraded service, safe continuity | Complete |
+| Identity, access, and public entry | PRD 01; account, role assignments, invitation, and verification | Public Gateway, unified sign-in, authorized post-authentication context resolution, Users & Access | Recovery, disablement, inaccessible routes, access correction, security email | Retained |
+| Admissions | PRD 02; Admission Cycle, Application, evidence, decision, and Registrar enrollment clearance | Applicant Home/Application/Requirements; Registrar Admissions | Correction, withdrawal, reopening, superseding decision, acknowledgment | Retained |
+| Academic authority and curriculum | PRD 03; Program, Course Revision, Curriculum Version, and authorized external-competency requirements | Catalog & Curricula; read-only Academic Oversight | Import finding, blocked activation, successor authority, external-result source correction | Retained with bounded external evidence |
+| Terms and offerings | PRD 03; Term Calendar Package, Term Cohort, and Class Offering | Term Planning; Faculty availability and informational Examination Period projections | Missing authority, incomplete resource, Additional Offering correction, unavailable calendar source | Retained |
+| Scheduling | PRD 03; solver request/result, candidate, and Published Timetable Version | Generate & Review, Published Timetable, Faculty/Student projections | Infeasible, Unknown, ModelInvalid, TechnicalFailure, bounded correction, revision | Retained |
+| Registration | PRD 04; Registration Case and proposal versions | Learner Enrollment and Registrar Students & Enrollment | Proposal revision, assisted confirmation, expiry, cancellation | Retained |
+| Enrollment | PRD 04; placement, reservation, five-checkpoint readiness, and official enrollment | Learner status, Registrar workbench, Accounting clearance | Shortage, stale placement, missing assessment, failed finalization | Retained |
+| COR | PRD 04; immutable COR versions and finalization snapshot | Authenticated current/historical COR | Adjustment or Course Drop successor, superseded version, print failure | Retained |
+| Grades and averages | PRD 05; roster results, bounded operational metadata, average projections, and externally verified competency results | Grade Rosters, Grades & Completion, Student Academics | Return, INC completion/overdue state/deadline amendment, correction, Grades not complete, superseding external result | Retained |
+| Lifecycle and completion | PRD 05; curriculum evaluation, progress, lifecycle, completion, and conferral records | Student Academics, Registrar workbench, Academic Oversight | Pending source, authorized decision, superseding result, authority-gated external requirement | Retained |
+| TOR | PRD 05 fixed TALA Standard TOR authority plus PRD 06 request-specific clearance | Registrar preview, issuance, and history | Missing source/certification data or clearance; output failure; void/replacement | Retained within the approved external boundary |
+| Accounts and assessments | PRD 06; Fee Plan, Authorized Individual Assessment, and Term Account | Fee Plans, Student Accounts, Student Finance | Unavailable/stale assessment, append-only correction | Retained |
+| Coverage and payments | PRD 06; Approved Coverage, evidence, verified posting, and PayMongo attempt | Account detail, Payment Exceptions, learner Finance | Rejection, mismatch, pending webhook, reversal, supersession | Retained |
+| Official outputs and contextual exports | Owning PRDs; seven canonical outputs plus the two Clinic 6 finance CSVs and one Clinics 4–5 current Class Roster CSV | Authenticated print/read-only surfaces and authorized contextual CSV actions | No partial artifact, explicit version/state, formula-safe CSV, output-access audit | Retained |
+| Privacy, audit, and retention | PRDs 01–06 and Architecture | Private evidence, Governance & Audit, contextual history | Non-disclosing failure; automatic disposal is outside the MVP | Retained |
+| Operations and integrations | Architecture and PRD 06 | System Health and locally evidenced projections | Unknown/Not checked by TALA, degraded service, safe continuity | Retained |
 | Regulatory submissions | External institutional responsibility; TALA retains source records only | No current Reports destination or speculative submission UI | Reopen only for an exact authority, format, owner, privacy basis, and acceptance process | External boundary recorded |
 
 The supplied Servitech curriculum-evaluation forms separately track TESDA qualification assessment dates and remarks. TALA therefore permits an approved `CurriculumVersion` to identify a bounded external-competency requirement and Clinic 5 to record its externally verified result. TESDA or its accredited assessor remains authoritative for the judgment and certification. TALA does not conduct, schedule, charge for, issue, renew, or verify a TESDA assessment or certificate through an operational integration. A requirement is `TrackedOnly` unless an exact approved Servitech curriculum authority makes it `CompletionRequired`; supplied evaluation sheets alone cannot create a completion block.
@@ -399,8 +393,8 @@ Each standalone PRD must settle:
 - Email-trigger rows
 - Official outputs and audit evidence
 - Exact authoritative data and conceptual contract
-- Page inventory and information hierarchy
-- Fields, columns, filters, sorting, actions, and evidence
+- Required user tasks, destinations and information priorities
+- Necessary inputs and review facts, contextual search/sorting, actions and evidence
 - Empty, loading, error, and inaccessible states
 - Desktop, mobile, print, accessibility, and keyboard behavior
 - Explicit exclusions and external/manual decisions
@@ -416,20 +410,7 @@ Every primary user-visible capability has an explicit information/action/state/a
 6. Fee Plan/assessment, payment evidence or PayMongo, account outputs, and reversal
 7. System Health, Governance & Audit, output access, and the explicit no-automatic-disposal boundary
 
-Key pages receive two or three visual alternatives. Routine forms and detail pages receive one evidence-based recommended blueprint.
-
-Use native Filament v5 first:
-
-- Tables for queues and rosters
-- Infolists for official read-only records
-- Forms for actual input
-- Tabs and Sections for progressive disclosure
-- Action Groups for secondary actions
-- Wizards only for genuinely chronological flows
-- Widgets only for small operational counts
-- Native filter panels and active indicators
-
-Custom components or plugins require a demonstrated native capability gap. A month calendar may supplement dated exceptions as a read-only view; it cannot replace the Term Setup workbench.
+Impeccable establishes the task-specific composition and tests useful alternatives when a design decision warrants comparison. Research relevant capabilities, supported customization and demos through Laravel Boost and official installed-version documentation. Choose the smallest suitable implementation across native configuration, installed compatible components and focused TALA-owned extensions. Keep required decision facts visible and justify material choices by workflow, usability, accessibility, security and maintenance. A new dependency requires separate approval. A month calendar may supplement dated exceptions as a read-only view; it cannot replace the Term Setup workbench.
 
 Every entry in the Canonical UI Surface Coverage Inventory carries one implementation disposition:
 
@@ -450,7 +431,7 @@ No public HTTP API is added. The shared vocabulary below names logical responsib
 | Clinic 2 | Admission Cycle, Application and immutable snapshots, evidence/correction/decision history, Registrar enrollment-clearance history, one `ReadyApplicantProjection` |
 | Clinic 3 | Program/Course/Curriculum authority, Term Calendar Package, cohorts and Class Offerings, resource declarations, generation run/candidate history, published timetable versions, derived readiness/availability/demand/Examination Period projections |
 | Clinic 4 | Registration Case, proposal/confirmation/reservation history, Official Enrollment and registrations, Student identity events, adjustments/Drops, COR versions, and source-owned readiness projections |
-| Clinic 5 | Roster/result history, INC deadline amendments, external competency and lifecycle results, derived averages/evaluation/enrollment/completion projections, Graduation/Conferral records, and versioned transcript output records |
+| Clinic 5 | Roster/result history, INC deadline amendments, external competency and lifecycle results, derived averages/evaluation/enrollment/completion projections, Conferral records, and versioned transcript output records |
 | Clinic 6 | Fee Plan and Assessment versions, continuous Term Account events, Approved Coverage, payment evidence/attempt/posting/reversal history, clearance decisions, derived account/readiness/health projections, and account/finance outputs |
 | Shared presentation/evidence | `ReadinessResult`; `TransactionalMessageEvent` only as the code-defined audit/idempotency envelope for an owning clinic email, never a notification center or template editor |
 

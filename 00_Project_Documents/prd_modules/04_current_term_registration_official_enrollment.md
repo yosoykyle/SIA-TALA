@@ -261,14 +261,14 @@ Clinic 3 cannot finalize cancellation of a published Class Offering while unreso
 
 ## 8. Exact UI authority
 
-Capability coverage, hierarchy, states, responsive/accessibility outcomes and shared Student Home/Profile contracts live in the Clinic 4 and shared-shell [UI Surface Blueprint](../ui_surface_blueprint.md). This PRD owns product content, actions and authorization. Impeccable leads composition using native components suited to each task.
+Capability coverage, hierarchy, states, responsive/accessibility outcomes and shared Student Home/Profile contracts live in the Clinic 4 and shared-shell [UI Surface Blueprint](../ui_surface_blueprint.md). This PRD owns product content, actions and authorization. DESIGN.md and the matching surface brief govern Impeccable-led composition and framework research.
 
 ### 8.1 Learner Enrollment page
 
-Use one **Guided status page**, not a Wizard or card dashboard. Information order is:
+The learner follows one status-led enrollment journey. Keep the current stage and permitted next action readily identifiable, with these facts available in context:
 
 1. Term, applicable deadline, stage, owner, next action, and one primary button.
-2. Five-checkpoint summary with successful checks collapsed and failed checks explained.
+2. Five-checkpoint summary with successful checks summarized and failed checks explained.
 3. Proposed or official subjects and schedule.
 4. **Why these subjects** and link to full curriculum evaluation.
 5. Academic blockers, unavailable requirements, shortage status, and bounded completion outlook.
@@ -282,7 +282,7 @@ Primary actions are limited to **Start enrollment/registration**, **Confirm prop
 
 One selected-term header shows term/windows, readiness and deadlines, official-enrollment count, shortage count, and one state-appropriate primary action.
 
-Tabs are **Ready to prepare**, **Waiting for learner**, **Placement and shortages**, **Finance pending**, **Ready to finalize**, **Adjustments and Drops**, and **Official and history**.
+The workbench distinguishes **Ready to prepare**, **Waiting for learner**, **Placement and shortages**, **Finance pending**, **Ready to finalize**, **Adjustments and Drops**, and **Official and history** work. The UI Blueprint governs their discoverable composition.
 
 Search supports legal name, verified email, application reference, and student number. Native filters cover term/program, Applicant/continuing context, selection basis, academic enrollment effect, checkpoint/stage, shortage/capacity condition, finance state, deadline/overdue state, and started/finalized/last-activity date ranges.
 
@@ -296,11 +296,11 @@ The record reads in this order:
 6. Finance requirement.
 7. Finalization evidence.
 8. Adjustments, drops, timetable impacts, and COR versions.
-9. Collapsed audit and email evidence.
+9. Accessible supporting audit and email evidence.
 
 Actions are **Prepare/revise proposal**, **Issue for confirmation**, **Record assisted confirmation**, **Place/change class**, **Finalize official enrollment**, **Record cancellation**, **Record adjustment**, **Record Course Drop**, and **Print current/historical COR**, presented in their authorized context. A relevant authorized action awaiting setup or evidence remains visibly disabled beside its reason, source owner and recovery action; server-side guards recheck readiness when invoked.
 
-Native Filament Tables own work queues and filters; Infolists and Sections own read-only detail; Forms own actual input; secondary actions use Action Groups. There is no generic gate screen, separate Study Plan resource, or column-header filter dropdown.
+Keep work queues searchable and filterable, current evidence readable, actual inputs distinct and the permitted next action clear. DESIGN.md and the matching surface brief govern component selection and supported customization. Readiness stays with the affected registration action and its owning source.
 
 ### 8.3 Accounting and role projections
 
@@ -332,7 +332,7 @@ It excludes LRN, live ledger activity, future installments, payment attempts, re
 
 Routine saves, validation/capacity checks, staff navigation, and recurring reminders send no email. Delivery failure never rolls back academic or financial state.
 
-Mobile uses labelled stacked course and queue rows, preserves reading order, keeps the primary action reachable, and puts secondary actions in Action Groups. Loading, empty, stale, expired, 403, 404, 419, 429, validation, concurrency, and integration-failure states identify the responsible owner and safe recovery action. Keyboard access, visible focus, screen-reader status text, and non-color status meaning are mandatory.
+Mobile uses labelled stacked course and queue rows, preserves reading order, keeps the primary action reachable, and keeps secondary actions discoverable. Loading, empty, stale, expired, 403, 404, 419, 429, validation, concurrency, and integration-failure states identify the responsible owner and safe recovery action. Keyboard access, visible focus, screen-reader status text, and non-color status meaning are mandatory.
 
 ## 9. Authoritative Records and Conceptual Contracts
 

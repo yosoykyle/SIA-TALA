@@ -182,7 +182,7 @@ Queued-mail failure is a degraded readiness condition owned by System Administra
 - An authorized public-window or correction-boundary extension or reopening records reason, authority, previous and new dates, actor, and time.
 - Cancellation stops new starts and first submissions and provides affected applicants a safe explanation and official support path. Unsubmitted Drafts remain inspectable/discardable. Existing active correction, review, decision and clearance work continues under its recorded authority and boundaries. Any adverse decision, withdrawal or clearance change requires its own attributable action; cancellation creates none automatically. A replacement is a distinct authorized cycle/version.
 
-The readiness checklist is failed-first: passed items remain collapsed, while blockers show the source record, owner, reason, and next action.
+The readiness checklist is failed-first: successful checks use a concise summary, while blockers show the source record, owner, reason, and next action.
 
 ### 7.3 Readiness Matrix
 
@@ -336,12 +336,12 @@ Registrar owns the external paper-document check and follow-up. Clinic 4 consume
 
 Information order:
 
-1. Application reference, plain-language state, responsible party, and nearest deadline.
-2. One next action and one primary button.
-3. Cycle, program, path, and submission summary.
-4. Preliminary-review and Registrar-clearance summaries.
-5. A short **What happens next** explanation.
-6. Application history.
+1. Plain-language current situation, responsible office, relevant deadline and permitted next step or waiting condition.
+2. One primary action when the applicant can act; otherwise the reason and condition that enable the next step.
+3. Compact application reference, cycle, program, path and submission facts.
+4. Distinct preliminary-review, admission and Registrar-clearance summaries.
+5. One short **What happens next** explanation.
+6. Reachable application history and version-bound acknowledgment.
 
 Home is a status-first task page. A compact progress indicator explains the factual application, review, decision and Registrar-clearance stages without introducing stored workflow states. Its current stage, nearest deadline and one permitted next action lead; secondary readiness and historical details remain reachable through progressive disclosure.
 
@@ -406,7 +406,7 @@ Native filters are cycle, program, path, application state, submitted date/time 
 
 ### 13.2 Applicant Record
 
-Use one vertical reading order:
+Keep current state and decision-critical facts visible; the record requires:
 
 1. State, owner, next action, and one primary action.
 2. Private identity or LRN match warning.
@@ -414,9 +414,9 @@ Use one vertical reading order:
 4. Preliminary evidence review.
 5. Current and historical admission decisions.
 6. One Registrar enrollment clearance after admission.
-7. Collapsed activity, notification, and technical evidence.
+7. Accessible supporting activity, notification, and technical evidence.
 
-Only one state-appropriate primary action appears. Secondary actions use an Action Group. There are no bulk Admit, bulk enrollment-clearance, or bulk withdrawal actions.
+Only one state-appropriate primary action appears. Secondary actions remain discoverable through task-appropriate controls. There are no bulk Admit, bulk enrollment-clearance, or bulk withdrawal actions.
 
 ### 13.3 Cycle and requirement setup
 
@@ -431,7 +431,7 @@ These pages are reached from Admissions. They are not a generic Settings area.
 
 ### 13.4 Responsive and accessible interaction
 
-On mobile, tables collapse secondary columns into labelled row detail, the Wizard remains single-column, filters use the native panel, and secondary actions remain in an Action Group. Empty, loading, error, inaccessible, and stale-action states must name what happened and the safe next action. Keyboard order, visible focus, labels, status text, and error association must remain usable without color or pointer input alone.
+On mobile, tables collapse secondary columns into labelled row detail, the Wizard remains single-column, filters use the native panel, and secondary actions remain discoverable. Empty, loading, error, inaccessible, and stale-action states must name what happened and the safe next action. Keyboard order, visible focus, labels, status text, and error association must remain usable without color or pointer input alone.
 
 ## 14. Cross-Role Visibility and Communication
 

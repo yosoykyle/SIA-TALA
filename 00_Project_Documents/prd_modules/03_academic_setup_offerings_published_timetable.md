@@ -209,7 +209,7 @@ The calendar records the following approved facts:
 
 Dates use Asia/Manila. A cutoff time is collected only when the approved source specifies one; otherwise the close date is inclusive through its end. Application and payment dates remain with their respective domains; INC deadlines remain PRD 05's derived rule. Labels and helper text identify the consuming action and expected approved source before entry.
 
-Activation requires attributable authority, valid term/instruction bounds, a complete teaching grid, valid breaks and consistent dated exceptions. Each entered operational window requires internally ordered dates and an attributable approved relationship to its exact Term and consuming action. Approved enrollment may precede instruction and Grade Entry may follow instruction; instruction bounds alone do not invalidate those periods. A date outside the approved consumer period requires corrected source dates or explicit source authority, not an invented universal restriction. Each consuming action checks its own window: Enrollment for ordinary registration start, Late Enrollment for an approved late period, Enrollment Adjustment for ordinary adjustments, Course Drop for ordinary drops, and Grade Entry for ordinary Faculty entry/submission. Missing windows show **Dates not configured**, Registrar ownership and the exact setup action; they block only that consuming action. An approved, scoped late authority follows the owning PRD. Examination Period is informational. Term setup and timetable planning can proceed before unrelated operational dates are supplied. Readiness presents failed checks first; passed checks remain available in collapsed detail with **All required checks passed** when complete.
+Activation requires attributable authority, valid term/instruction bounds, a complete teaching grid, valid breaks and consistent dated exceptions. Each entered operational window requires internally ordered dates and an attributable approved relationship to its exact Term and consuming action. Approved enrollment may precede instruction and Grade Entry may follow instruction; instruction bounds alone do not invalidate those periods. A date outside the approved consumer period requires corrected source dates or explicit source authority, not an invented universal restriction. Each consuming action checks its own window: Enrollment for ordinary registration start, Late Enrollment for an approved late period, Enrollment Adjustment for ordinary adjustments, Course Drop for ordinary drops, and Grade Entry for ordinary Faculty entry/submission. Missing windows show **Dates not configured**, Registrar ownership and the exact setup action; they block only that consuming action. An approved, scoped late authority follows the owning PRD. Examination Period is informational. Term setup and timetable planning can proceed before unrelated operational dates are supplied. Readiness presents failed checks first; successful checks remain available through concise summary and source detail with **All required checks passed** when complete.
 
 A dated exception affects the applicable dated occurrences without rewriting the recurring published meeting pattern. Faculty and room unavailability remain teaching-resource records, not calendar events.
 
@@ -381,13 +381,13 @@ No email is sent for term creation or activation, routine saves, readiness check
 
 ## 15. UI Authority
 
-The Clinic 3 [UI Surface Blueprint](../ui_surface_blueprint.md) owns capability coverage, hierarchy, states and responsive/accessibility outcomes. This PRD owns necessary information, actions and roles. Impeccable leads composition using native components suited to each task.
+The Clinic 3 [UI Surface Blueprint](../ui_surface_blueprint.md) owns capability coverage, hierarchy, states and responsive/accessibility outcomes. This PRD owns necessary information, actions and roles. DESIGN.md and the matching surface brief govern Impeccable-led composition and framework research.
 
 ### 15.1 Catalog & Curricula workbench
 
 One connected Registrar workbench contains Programs and authority, the Course catalog and current revisions, a grouped Curriculum Version sheet, Draft import preview and blocking findings, and activation readiness and evidence.
 
-Show Program/curriculum readiness beside the selected source and its activation action, including failed checks and recovery links. Academic Head sees the same source facts read-only in Academic Oversight. Use native Tables and Sections for these summaries.
+Show Program/curriculum readiness beside the selected source and its activation action, including failed checks and recovery links. Academic Head sees the same source facts read-only in Academic Oversight.
 
 The curriculum sheet groups by curriculum year and term. It shows course code/title, units, prerequisites/corequisites, scheduling treatment, weekly meeting pattern, modes, room needs, source, and readiness. Authorized external-competency requirements appear in a bounded section with qualification/level, mapped curriculum position, treatment, authority, and effective version. Draft rows may be edited; active records are read-only.
 
@@ -395,7 +395,7 @@ The curriculum sheet groups by curriculum year and term. It shows course code/ti
 
 One selected-term header shows term identity, state, current readiness, governing authority, current published version, and one state-appropriate primary action.
 
-The workbench has five tabs:
+The Term Planning workbench covers five task groups:
 
 1. **Overview** — official dates, operational windows including the informational Examination Period, weekly grid, exceptions, authority evidence, and failed-first readiness.
 2. **Cohorts & Classes** — forecast and confirmed cohorts, Class Offerings, sharing, capacity, source, pattern, mode, state, readiness, and contextual filters/actions.
@@ -403,7 +403,7 @@ The workbench has five tabs:
 4. **Generate & Review** — result meaning, owner, next action, quality measures, filterable weekly view, accessible table alternative, warnings or failure diagnostics, and candidate actions.
 5. **Published Timetable** — current immutable version, authority, publication time, filtered official timetable, print/save-as-PDF, revision impact, and superseded history.
 
-Within the scheduling workbench, the weekly timetable view is the justified custom component. Native Filament Tables, Sections, Infolists, Forms, Action Groups, filter panels, and active indicators own the rest. There are no custom column-header filter dropdowns, drag-and-drop timetable editor, generic Academic Settings surface, or peer navigation maze.
+The scheduling workbench makes day/time relationships, conflicts, candidate differences and publication consequences understandable. The weekly timetable retains its accessible meeting-table equivalent. Component selection follows DESIGN.md and the matching surface brief; the workbench preserves source ownership and server-side validation through supported framework configuration or focused customization.
 
 ### 15.3 Role projections
 
@@ -414,7 +414,7 @@ Within the scheduling workbench, the weekly timetable view is the justified cust
 - System Administrator: solver-related System Health and technical evidence, with no academic authority.
 - Applicant, Accounting, and Public: no Clinic 3 timetable authority or master-schedule access.
 
-On mobile, curriculum rows and class/resource tables use responsive stacked layouts and the weekly view becomes day-by-day/list presentation. Secondary actions remain in Action Groups. Status meaning never depends on color alone.
+On mobile, curriculum rows and class/resource tables use responsive stacked layouts and the weekly view becomes day-by-day/list presentation. Secondary actions remain discoverable through task-appropriate controls. Status meaning never depends on color alone.
 ## 16. Lifecycle, Mutation, and Implementation-Evidence Boundary
 
 Draft Programs, Courses, Course Revisions, Curriculum Versions, Calendar Packages, resources, cohorts, and Class Offerings may be deleted only before activation, confirmation, publication, or any reference. Historically used authority is retired, cancelled, or superseded through effective-dated successors. Accepted candidates and Published Timetable Versions are immutable.

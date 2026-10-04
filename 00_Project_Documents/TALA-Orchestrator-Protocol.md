@@ -145,7 +145,7 @@ For a UI-bearing vertical slice, the plan and any developer handoff derived from
 - [ ] **Impeccable surface briefs**: Orchestration identifies matching briefs and drafts only missing or materially changed direction within the single accepted plan. Reuse sufficient briefs across related children; name approved brief edits in scope. Backend-only work needs no UI brief.
 - [ ] **Navigation & Workspace Entry**: Entry point and route.
 - [ ] **Information & Action Hierarchy**: Primary content, primary action, secondary actions.
-- [ ] **Component Disposition**: Filament core, installed compatible dependency, focused TALA custom, or purposeful exclusion.
+- [ ] **Component Disposition**: Filament core, installed compatible dependency, focused TALA custom, or purposeful exclusion; give the task-fit reason for materially changed composition.
 - [ ] **Reusable Current Components**: Existing components leveraged without duplication.
 - [ ] **UI States**: Loading, empty, validation, stale/concurrent, failure, and inaccessible states.
 - [ ] **Responsive Transformation**: Desktop, tablet, mobile layouts.
@@ -258,7 +258,8 @@ Memory may help recall prior reasoning but never replaces live Git authority or 
 - Clarify the real office owner, manual step, TALA responsibility, and editable or read-only boundary only when a task introduces or changes that workflow.
 - Research official or institutional sources when existing authority is missing, conflicting, time-sensitive, security-critical, or likely wrong; the user does not need to repeat that instruction.
 - Inspect a qualified reference only when meaningful overlap could change an unresolved implementation choice. Benchmarking and reference review inform judgment but never override TALA authority.
-- Prefer current aligned code, then native Laravel and Filament features, then an established compatible pattern or installed component, and finally focused custom code. Adding a dependency remains a human gate.
+- Select the user outcome and Impeccable-led composition first. Reuse aligned code and supported native configuration where they make the task clear; use an established compatible component or focused TALA-owned Blade/Livewire layout when it resolves a demonstrated gap. Preserve native validation, actions, authorization, focus, responsive behavior and theme lifecycles. The existing Tailwind/Bootstrap surfaces supply styling within their respective boundaries. Adding a dependency remains a human gate.
+- A UI-bearing handoff identifies the changed reading order, grouping, visible decision information, primary action and responsive transformation, with a concise component-choice reason. Reuse the accepted plan and brief; settle ordinary choices within delegated authority. Rendered confirmation must demonstrate the intended improvement. Repeated containers, hidden essential facts or ambiguous next actions remain owned defects despite passing tests or skill/tool invocation.
 - Record an authority-backed deferral as a separate GitHub Issue only when the user authorizes that external write. Discard ideas with no authority or purposeful MVP role.
 
 ## 7. Verification and handoff

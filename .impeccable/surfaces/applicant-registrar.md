@@ -19,19 +19,20 @@ Use the current [#57 contract](https://github.com/yosoykyle/SIA-TALA/issues/57),
 
 ## Selected direction
 
-- **APP-001 / Home:** Reference, state, responsible party, relevant remarks/deadline, and one permitted next action lead. Compact readiness and history follow. Reduce explanatory clutter and technical identifiers in the ordinary reading path.
-- **APP-002 / Application:** Preserve the accepted five-step native Wizard and the adopted minimum intake in PRD 02 Section 10. Make progress, step validation, Save draft, review, and submission clear. Correction mode reopens only named fields/files.
-- **APP-003 / Requirements and APP-004 / acknowledgment:** Distinguish the selected private preliminary copies, external paper requirements, the single Registrar clearance, current/superseded digital evidence, and the version-bound acknowledgment. Use one native digital-review Table plus a compact clearance summary; no individual physical-document tracking. Preserve private access and truthful historical facts.
-- **REG-A01 / Admissions:** Five meaningful count tabs support triage. Search, active filters, owner/action, readiness, deadlines, and activity must be easy to scan. Compare supported native stacked/Split/Stack configurations where a wide table obscures the task; keep required information reachable.
-- **REG-A02 / Applicant Record:** Current state and one primary action lead, followed by the relevant facts and inspectable evidence. Progressively disclose history and technical/email details. Preserve contextual setup and assisted drafts; Applicant owns final submission.
+- **Shared shell:** One compact school-identity area leads. Role/workspace context identifies the current service separately; Powered by TALA occupies a quiet footer. Page headings describe the task or person, with application references secondary. Preserve approved artwork, readable branding, theme controls and complete authorized navigation.
+- **APP-001 / Home:** Current situation, responsible office, relevant deadline and permitted next step or waiting condition lead. Show the preliminary review, admission decision and Registrar clearance as distinct concise facts. Compact application context follows; history and acknowledgments remain reachable. Information needed to understand the current state stays visible.
+- **APP-002 / Application:** Preserve the accepted five-step journey and adopted minimum intake in PRD 02 Section 10. Group related inputs, show understandable progress and keep Save draft, validation and submission truthful. Place each instruction with the field or action it explains. Correction mode reopens only named fields/files.
+- **APP-003 / Requirements and APP-004 / acknowledgment:** Users recognize the selected private preliminary copies, current review result, external paper instructions, Registrar clearance and version-bound acknowledgment. The exact authorized file is easy to open at the review step. Current evidence and relevant instructions remain visible; superseded files and historical outputs are reachable in their own context.
+- **REG-A01 / Admissions:** The accepted five operational groups support triage. Staff recognize the applicant, state, responsible party and next action before technical references. Search, filters, counts, deadlines and activity retain their meaning across desktop/mobile. Choose the supported composition by scanability and review efficiency.
+- **REG-A02 / Applicant Record:** The person/task heading, current situation and permitted action lead. Keep the evidence needed for the decision visible with its review controls, followed by supporting facts and attributable history. Preserve contextual setup and assisted drafts; the Applicant owns final submission.
 
 ## Visual and component judgment
 
 Inherit green-led actions, supporting blue, neutral light/dark native surfaces, Inter, Heroicons, school-first artwork, and secondary Powered by TALA from DESIGN.md. Use native sidebar/mobile drawer behavior and ordinary scrolling. The layout reference supplies supporting visual evidence.
 
-Impeccable leads hierarchy, copy, cognitive-load, and composition assessment. Relevant design skills support the actual problem; Boost and official installed-version Filament documentation support component/API choices; Serena traces existing code. Evaluate the incumbent against a suitable supported native arrangement before preserving a demonstrated weakness. A changed palette, a passing detector, or a skill invocation alone does not prove improved usability.
+Impeccable leads hierarchy, copy, cognitive-load and composition assessment. Relevant skills address the actual problem. Use Laravel Boost, the official Filament documentation and demo to research the relevant range of capabilities, styling and extension points for the installed version; Serena traces existing behavior. Compare supported implementations against the user task and use focused customization within the existing stack when it improves the outcome. Preserve framework validation, authorization, actions, focus and theme behavior. Rendered evidence must demonstrate the chosen improvement.
 
-Apply the shared setup and unavailable-action contract in baseline Section 3.2 and the UI Blueprint. Preserve a visible safe reason, owner and remedy for authorized blocked work. Use Impeccable-led native composition and the accepted five-step plan.
+Apply the shared setup and unavailable-action contract in baseline Section 3.2 and the UI Blueprint. Preserve a visible safe reason, owner and remedy for authorized blocked work. Use Impeccable-led task composition and the accepted five-step plan.
 
 ## Scope and stable concern mapping
 
@@ -41,7 +42,8 @@ Apply the shared setup and unavailable-action contract in baseline Section 3.2 a
 | F18–F19 | Draft/save placement, Wizard progress, validation, and hierarchy; APP-002, AC5/AC8/AC9 |
 | S04 | Correct inspectable private evidence beside review; APP-003, REG-A02, AC2/AC4 |
 | F32–F35, M03–M04 | Admissions triage, density, contextual setup/assisted entry, and next actions; REG-A01/REG-A02, AC3/AC6/AC8/AC9 |
-| F24–F25 | Recovery states reached by this journey; AC8/AC9 |
+| F24–F25, S11 | Recovery states reached by this journey; AC8/AC9 |
+| S10, S12, M02 | Purposeful intake, explicit LRN availability, conditional contacts, field-specific date/year validation and understandable labels; APP-002, AC5/AC8/AC9 |
 
 This mapping does not mark any concern resolved. F20–F21 and other authentication/account/role surfaces retain their owning scope; downstream scheduling, enrollment/finance/COR, academic records, and public redesign remain outside #57. Shared changes receive proportionate regression checks.
 
@@ -58,7 +60,7 @@ The single-sign-in direction is clarified in the local identity PRD and UI Bluep
 
 One append-only Cleared / Action needed Registrar enrollment-clearance result is bound to the current submitted application and admission decision, with actor/time, a safe recovery instruction when needed and an attributable correction history. Missing or stale clearance is never treated as Cleared. Legacy individual credential records remain historical evidence; they cannot silently fabricate the new result. PRD 04 consumes the same derived readiness and revalidates it before finalization. Reuse the accepted plan and five-step journey; no duplicate planning or adoption gate remains. No paper custody, individual physical-document checklist or office workflow is added.
 
-The baseline and PRODUCT.md now state the minimum outcomes retained in every journey, including public school discovery and access. The Blueprint selects purpose-driven native composition across the system; actual rendered acceptance belongs to each owning child. PRDs 04/06 define registration/payment order, Accounting-owned versioned amounts and external refunds with verified local corrections. Exact published amounts and requirements are operational source data. The refund-evidence sequencing finding belongs to the coordinated finance journey and does not expand #57. These local document changes are unpublished; this brief grants no new execution assignment.
+The baseline and PRODUCT.md now state the minimum outcomes retained in every journey, including public school discovery and access. The Blueprint defines information and interaction outcomes across the system; DESIGN.md and the matching briefs govern researched composition, and actual rendered acceptance belongs to each owning child. PRDs 04/06 define registration/payment order, Accounting-owned versioned amounts and external refunds with verified local corrections. Exact published amounts and requirements are operational source data. The refund-evidence sequencing finding belongs to the coordinated finance journey and does not expand #57. This brief grants no execution assignment.
 
 ## States, interaction, and proof
 

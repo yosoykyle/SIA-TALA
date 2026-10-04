@@ -230,7 +230,7 @@ It is keyed to one official-output request or issuance reference and includes th
 | Output source | Current Term Account and authorized requester | Owning role | Source is available, current, and accessible | Hard blocker for output | Generate SOA/acknowledgment/export | Refresh source or correct authorization |
 | Automatic retention disposal | MVP product boundary | Institution/privacy owner remains responsible externally | Not provided in this MVP | No disposal action exists | None inside TALA | Handle lawful retention schedules, privacy requests, legal holds, and secure disposal outside TALA |
 
-Passed readiness rows remain collapsed. Every failed result names the owner, source, effect, and safe next action. Missing PayMongo disables only checkout; missing SMTP never reverses a payment posting.
+Successful readiness checks use a concise summary with accessible source detail. Every failed result names the owner, source, effect, and safe next action. Missing PayMongo disables only checkout; missing SMTP never reverses a payment posting.
 
 ## 6. States, Permissions, and Actions
 
@@ -421,7 +421,7 @@ The page does not execute provider controls, shell commands, restores, test paym
 
 #### Governance & Audit
 
-One read-only page uses four tabs:
+One read-only page covers four evidence groups:
 
 1. Institutional Changes
 2. System Events
@@ -450,7 +450,7 @@ Production recovery is an external operational responsibility, not a Clinic 6 pr
 
 ## 11. UI Interaction Contract
 
-The Clinic 6 UI Surface Blueprint owns capability coverage, hierarchy, states and responsive/accessibility outcomes. This section fixes product content and action ownership. Impeccable leads composition using native components suited to each task.
+The Clinic 6 UI Surface Blueprint owns capability coverage, hierarchy, states and responsive/accessibility outcomes. This section fixes product content and action ownership. DESIGN.md and the matching surface brief govern Impeccable-led composition and framework research.
 
 #### Primary navigation
 
@@ -463,7 +463,7 @@ System Administrator has **System Health** and **Governance & Audit**. Students 
 
 #### Page inventory
 
-| Page | User and purpose | Required information order | Fields, filters, actions, and evidence |
+| Page | User and purpose | Required information and priority | Fields, filters, actions, and evidence |
 |---|---|---|---|
 | Fee Plans | Accounting publishes the Program-and-Term authority | Current published plan, action-needed Drafts, upcoming Terms | Term/Program/state/search; reference, version, total, authority, readiness; `New draft`, `Continue`, `View` |
 | Fee Plan detail | Accounting prepares and publishes one version | Identity/authority, charge lines, obligations, readiness, history | Visible labels for authority/date; editable ordered rows only in Draft; `Save draft`, `Publish plan`; successor action on Published |

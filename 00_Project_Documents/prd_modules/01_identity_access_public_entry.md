@@ -205,7 +205,7 @@ TALA does not provide a first-run setup wizard. Deployment and System Administra
 | Accessibility information | TALA-authored description of implemented and tested keyboard, focus, label/error, zoom/reflow, contrast, reduced-motion, and assistance behavior | Product authority; implementation evidence proves each claim | The one-page Public Gateway exposes only behavior supported by the accepted UI and tests | Missing or unsupported copy is an implementation defect; it is not a client-information blocker | Explain access behavior and assistance | Correct the implementation or the claim; never assert unverified conformance |
 | Application-entry availability | Current Clinic 2 Admission Cycle projection | Registrar/Clinic 2 | A published current cycle says entry is open | New account creation through Apply unavailable; existing sign-in remains | Show **Apply** and accept Applicant registration | Clinic 2 publishes/opens an authorized cycle; Clinic 1 never edits the date |
 
-Readiness is derived and failed-first. Passed checks remain collapsed. Applicant registration availability is derived from the current Clinic 2 entry projection; it is not controlled by a manually asserted mail-ready flag or by externally hosted support/privacy/accessibility pages. A runtime mail failure after an account transaction does not erase the account or reverse another institutional transaction; it records failure, presents a safe retry/support path, and allows an authorized resend. Real sender delivery and production configuration remain deployment evidence, while implementation acceptance uses the configured test environment and mail fakes without contacting a real provider.
+Readiness is derived and failed-first. Successful checks use a concise summary with accessible source detail. Applicant registration availability is derived from the current Clinic 2 entry projection; it is not controlled by a manually asserted mail-ready flag or by externally hosted support/privacy/accessibility pages. A runtime mail failure after an account transaction does not erase the account or reverse another institutional transaction; it records failure, presents a safe retry/support path, and allows an authorized resend. Real sender delivery and production configuration remain deployment evidence, while implementation acceptance uses the configured test environment and mail fakes without contacting a real provider.
 
 The first System Administrator is created through a controlled deployment/operator procedure with documented authority. The product does not introduce a publicly reachable bootstrap wizard.
 
@@ -377,7 +377,7 @@ Clinic 1 capability coverage, hierarchy, states and responsive/accessibility out
 
 ### 10.1 Users & Access table
 
-Required columns:
+Required account-list information:
 
 - Displayed name
 - Verified email
@@ -415,7 +415,7 @@ There is no delete, archive, password input, role creation, or permission editin
 
 ### 10.2 Account detail
 
-Use an infolist ordered as:
+Account review requires the following information, with current state and permitted action readily identifiable:
 
 1. Account state and next action
 2. Staff access profile when applicable
@@ -428,7 +428,7 @@ Technical IDs and evidence references remain secondary detail.
 
 ### 10.3 Presentation rules
 
-- Tables carry queues; infolists carry read-only facts; forms collect actual input; Sections/Tabs disclose secondary evidence; Action Groups contain secondary row actions.
+- Queue, account-detail and input presentations follow the task-specific composition in DESIGN.md and the matching surface brief. Keep current work and decision facts visible; group secondary history and controls without obscuring recovery.
 - A wizard is not used for registration because the form is only email/password. Staff invitation is a focused form, not a workflow builder.
 - The public page and authentication family use one school-branded **Sign in** entry without a pre-authentication role menu or **Choose another workspace** link. Authorized multi-role choice and switching remain available after authentication; verification/recovery retain necessary support and safe account exit.
 - Public and authenticated decisions follow the UI Blueprint's ethical presentation standard: defaults disclose their source and remain reversible; persisted progress and saved state are factual; consequential actions are never preselected; and warnings name the real consequence, owner, date/source, and recovery path without pressure.
@@ -445,7 +445,7 @@ Technical IDs and evidence references remain secondary detail.
 - Authentication and security forms remain single-column at narrow widths.
 - Authentication fields support correct autocomplete, paste, and password managers.
 - Users & Access hides or stacks secondary columns while preserving identity, state, and next action.
-- Row actions remain in one labelled Action Group.
+- Current row actions have clear labels, priority and consequences.
 - Focus is visible and not obscured; labels and instructions are programmatically associated; errors identify fields, announce a summary, and focus the first error; state changes include screen-reader status text.
 - Interactive targets meet the WCAG 2.2 minimum and use comfortable touch sizing where practical.
 - Content remains usable at 200% zoom, in high-contrast mode, and with reduced motion.
