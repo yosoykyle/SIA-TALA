@@ -137,7 +137,7 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
         $report = app(TAL96D5E1ExplorationPersonaCatalog::class)->report();
 
         $this->assertSame('PASS', $report['coverage_state']);
-        $this->assertSame(28, $report['personas']);
+        $this->assertSame(29, $report['personas']);
         $this->assertSame(49, $report['student_profiles']);
         $this->assertSame(47, $report['current_students']);
         $this->assertSame(2, $report['historical_case_profiles']);

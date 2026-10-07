@@ -25,7 +25,9 @@ class TalaPanelTheme
                 ? 'sm' : null);
 
         $action->extraAttributes(fn (): array => filled($action->getIcon())
-            && ($action->getTable() === null || $action->getRecord() !== null)
+            && ($action->getTable() === null
+                || $action->getRecord() !== null
+                || in_array($action->getName(), ['openFilters', 'openColumnManager'], true))
             ? ['aria-label' => trim(strip_tags((string) $action->getLabel()))] : [], merge: true);
 
         $action->extraModalWindowAttributes([

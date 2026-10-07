@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Components\AccessibleSidebar;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
+use App\Models\ChecklistItem;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\WorkspaceNavigationSearchProvider;
+use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
@@ -81,6 +83,22 @@ class WorkspaceNavigationSearchTest extends TestCase
         Livewire::test(ListAdmissionApplications::class)
             ->assertSee('aria-label="Filter applications"', false)
             ->assertSee('aria-label="Columns"', false);
+    }
+
+    public function test_record_action_accessible_name_waits_for_its_record(): void
+    {
+        $this->signIn(User::StaffRoleRegistrar, ['approve-documents']);
+        $table = Livewire::test(ListAdmissionApplications::class)->instance()->getTable();
+        $action = Action::make('reviewChecklistItem')
+            ->table($table)
+            ->icon('heroicon-o-check')
+            ->label(fn (ChecklistItem $record): string => 'Review item '.$record->getKey());
+
+        $this->assertArrayNotHasKey('aria-label', $action->getExtraAttributes());
+
+        $action->record(ChecklistItem::factory()->make(['id' => 42]));
+
+        $this->assertSame('Review item 42', $action->getExtraAttributes()['aria-label']);
     }
 
     public function test_sidebar_uses_the_native_page_finder_and_registrar_context(): void
