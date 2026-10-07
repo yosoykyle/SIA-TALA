@@ -48,14 +48,16 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         private readonly CanonicalTalaSchedulingDataset $canonicalDataset,
     ) {}
 
-    public function run(): void
+    public function run(bool $includeLegacyApplicantStates = true): void
     {
         $term = $this->presentationTerm();
         $this->assertMinSchedulingBaseline($term);
 
         $this->gradeAndLifecycleStates->run();
 
-        $this->ensureApplicantAcceptanceStates($term);
+        if ($includeLegacyApplicantStates) {
+            $this->ensureApplicantAcceptanceStates($term);
+        }
         $this->ensureIrregularAwaitingPublication($term);
         $due = $this->ensureFinanceEnrollment('DIT-1A-001', $term);
         $partial = $this->ensureFinanceEnrollment('DIT-1A-002', $term);

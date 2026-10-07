@@ -662,7 +662,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $login->set('data.multiFactor.app.code', $totpB)
             ->call('authenticate')
             ->assertHasNoErrors()
-            ->assertRedirect('/admin/admission-applications');
+            ->assertRedirect('/admin/admissions/admission-applications');
 
         // 9. Fully authenticated as User B
         $this->assertAuthenticatedAs($userB);

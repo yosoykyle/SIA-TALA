@@ -113,7 +113,7 @@ class ApplicantWorkspaceTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
         $this->assertSame(Application::getUrl(), Application::getNavigationUrl());
 
-        $application = AdmissionApplication::factory()->recycle(Term::firstOrFail())->create([
+        $application = AdmissionApplication::factory()->recycle(Term::factory()->create())->create([
             'user_id' => $user->id,
         ]);
         $this->assertSame(Application::getUrl(['application' => $application->id]), Application::getNavigationUrl());

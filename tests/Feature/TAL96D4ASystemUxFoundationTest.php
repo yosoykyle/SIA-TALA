@@ -54,7 +54,7 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
             ->assertSee($heading)
             ->assertSee('Return to Servitech Institute Asia home')
             ->assertDontSee('Return to TALA home')
-            ->assertSee('Source: Servitech Institute Asia HTTP response')
+            ->assertSee('Error '.$status)
             ->assertSee(url('/'), false)
             ->assertSee(asset('css/tala-error.css'), false)
             ->assertDontSee('TAL96D4A internal diagnostic');

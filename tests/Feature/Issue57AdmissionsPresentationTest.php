@@ -1295,6 +1295,9 @@ class Issue57AdmissionsPresentationTest extends TestCase
     {
         $registrarRole = Role::findByName(User::StaffRoleRegistrar, 'web');
         $registrarRole->revokePermissionTo('approve-documents');
+        $evaluationPermission = Permission::findOrCreate('evaluate-transferees', 'web');
+        $couldEvaluateTransferees = $registrarRole->hasPermissionTo($evaluationPermission);
+        $registrarRole->revokePermissionTo($evaluationPermission);
 
         try {
             $setupRegistrar = User::factory()->create(['status' => User::StatusActive]);
@@ -1318,6 +1321,9 @@ class Issue57AdmissionsPresentationTest extends TestCase
             $this->actingAs($deniedApplicant)->get("/admin/admission-applications/{$application->id}")->assertForbidden();
         } finally {
             $registrarRole->givePermissionTo('approve-documents');
+            if ($couldEvaluateTransferees) {
+                $registrarRole->givePermissionTo('evaluate-transferees');
+            }
         }
 
         $authorizedRegistrar = $this->registrar();

@@ -19,6 +19,7 @@ use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\OfficialCredentialResult;
 use App\Models\Program;
+use App\Models\RegistrarEnrollmentClearance;
 use App\Models\RegistrationCaseEvent;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -249,9 +250,12 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
                 'authority_reference' => 'Stale verification intake voucher #STALE-1',
             ]);
 
-        // Stale transition: Credential is invalidated after staff mounted the action
-        $application->credentialResults()->update([
-            'result' => OfficialCredentialResult::ResultActionNeeded,
+        // Stale transition: Registrar clearance is revoked after staff mounted the action.
+        $priorClearance = $application->enrollmentClearances()->whereDoesntHave('successor')->sole();
+        RegistrarEnrollmentClearance::factory()->forAdmittedApplication($application)->create([
+            'supersedes_clearance_id' => $priorClearance->id,
+            'recorded_by' => $registrar->id,
+            'reason' => 'External school checks require further review.',
         ]);
 
         $testable->callMountedAction()
@@ -783,9 +787,15 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
 
         $application->update(['current_submission_version_id' => $version->id]);
 
-        AdmissionDecision::factory()->create([
+        $decision = AdmissionDecision::factory()->create([
             'admission_application_id' => $application->id,
+            'application_submission_version_id' => $version->id,
             'decision' => AdmissionDecision::DecisionAdmitted,
+        ]);
+        RegistrarEnrollmentClearance::factory()->forAdmittedApplication($application)->create([
+            'result' => RegistrarEnrollmentClearance::ResultCleared,
+            'external_checks_confirmed' => true,
+            'recorded_by' => $decision->decided_by,
         ]);
 
         OfficialCredentialResult::factory()->verified()->create([

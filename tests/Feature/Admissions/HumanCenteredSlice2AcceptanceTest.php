@@ -184,7 +184,7 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
             ->assertSee('Step 1 of 5')
             ->assertSee('Step 5 of 5')
             ->assertSeeHtml('x-bind:aria-current=')
-            ->assertSee('This Application has not been saved yet.');
+            ->assertSee('Draft has not been saved yet.');
 
         [$cycle, $program] = $this->openCycle();
         app(SaveAdmissionApplication::class)->execute(
@@ -201,7 +201,7 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
         Livewire::withQueryParams(['applicant' => $applicant->id])
             ->actingAs($this->registrar())
             ->test(AssistedAdmissionApplication::class)
-            ->assertSee('Prepare the Applicant\'s Draft; do not submit for them', false)
+            ->assertSee('The Applicant remains the owner.')
             ->assertSee('Save Applicant Draft')
             ->assertDontSee('Submit application');
     }
@@ -230,7 +230,7 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
         Livewire::actingAs($applicant)
             ->test(ApplicantApplicationPage::class)
             ->assertSeeHtml('startStep: 2')
-            ->assertSee('Your persisted Application is up to date.');
+            ->assertSee('Saved progress restored.');
     }
 
     public function test_scope_changes_bind_the_current_requirement_set_and_initialize_dynamic_evidence_state(): void
@@ -327,6 +327,7 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
             'prior_school_name' => 'Synthetic Senior High School',
             'prior_school_country_code' => 'PH',
             'prior_school_completion_year' => now()->year - 1,
+            'lrn_availability' => 'NotIssued',
             'privacy_acknowledged' => true,
             'accuracy_declared' => true,
         ];

@@ -3,9 +3,8 @@
 namespace Tests\Feature;
 
 use App\Actions\SystemAdministration\TAL96D5E1ExplorationPersonaCatalog;
+use App\Models\AdmissionApplication;
 use App\Models\ApplicantIntake;
-use App\Models\ChecklistItem;
-use App\Models\DocumentEvidence;
 use App\Models\PaymentAttempt;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -14,6 +13,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Group;
@@ -42,7 +42,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         try {
             $this->artisan('acceptance:seed-tal96d5e1-exploration')
                 ->expectsOutputToContain('coverage_state=PASS')
-                ->expectsOutputToContain('personas=28')
+                ->expectsOutputToContain('personas=29')
                 ->expectsOutputToContain('denied_login_personas=1')
                 ->expectsOutputToContain('student_profiles=49')
                 ->expectsOutputToContain('current_students=47')
@@ -66,14 +66,15 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         ];
         $unverifiedStaff = 'registrar.unverified.demo@example.test';
         $applicants = [
-            'applicant.demo@example.test' => [ApplicantIntake::StatusDraft, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusApplicantPending],
-            'applicant.review.demo@example.test' => [ApplicantIntake::StatusPending, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusApplicantPending],
-            'applicant.action-required.demo@example.test' => [ApplicantIntake::StatusActionRequired, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusApplicantActionRequired],
-            'applicant.evaluation.demo@example.test' => [ApplicantIntake::StatusForEvaluation, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusApplicantForEvaluation],
-            'applicant.approved.demo@example.test' => [ApplicantIntake::StatusApproved, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusApplicantApproved],
-            'applicant.withdrawn.demo@example.test' => [ApplicantIntake::StatusWithdrawn, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusApplicantWithdrawn],
-            'applicant.transfer.demo@example.test' => [ApplicantIntake::StatusDraft, ApplicantIntake::AdmissionCategoryTransfer, ApplicantIntake::CredentialBasisTransferCredentials, User::StatusApplicantPending],
-            'applicant.returning.demo@example.test' => [ApplicantIntake::StatusDraft, ApplicantIntake::AdmissionCategoryReturning, ApplicantIntake::CredentialBasisPriorStudentRecord, User::StatusApplicantPending],
+            'applicant.demo@example.test' => [AdmissionApplication::StateDraft, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusActive],
+            'applicant.review.demo@example.test' => [AdmissionApplication::StateSubmitted, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusActive],
+            'applicant.action-required.demo@example.test' => [AdmissionApplication::StateActionNeeded, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusActive],
+            'applicant.evaluation.demo@example.test' => [AdmissionApplication::StateSubmitted, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusActive],
+            'applicant.approved.demo@example.test' => [AdmissionApplication::StateAdmitted, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusActive],
+            'applicant.ready.demo@example.test' => [AdmissionApplication::StateAdmitted, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusActive],
+            'applicant.withdrawn.demo@example.test' => [AdmissionApplication::StateWithdrawn, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusActive],
+            'applicant.transfer.demo@example.test' => [AdmissionApplication::StateDraft, ApplicantIntake::AdmissionCategoryTransfer, ApplicantIntake::CredentialBasisTransferCredentials, User::StatusActive],
+            'applicant.not-admitted.demo@example.test' => [AdmissionApplication::StateNotAdmitted, ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, User::StatusActive],
         ];
         $activeStudents = [
             'student.demo@example.test' => StudentProfile::StandingRegular,
@@ -100,7 +101,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
             ...array_keys($activeStudents),
             $unverifiedStudent,
         ];
-        $this->assertCount(28, array_unique($personaEmails));
+        $this->assertCount(29, array_unique($personaEmails));
 
         foreach ($activeStaff as $email) {
             $staff = User::query()->where('email', $email)->sole();
@@ -113,59 +114,50 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         $this->assertTrue($staffBoundary->canAuthenticate());
         $this->assertTrue($staffBoundary->hasRole(User::StaffRoleRegistrar));
 
-        foreach ($applicants as $email => [$intakeStatus, $category, $basis, $userStatus]) {
+        foreach ($applicants as $email => [$applicationState, $category, $basis, $userStatus]) {
             $applicant = User::query()->where('email', $email)->sole();
-            $intake = ApplicantIntake::query()->whereBelongsTo($applicant)->whereBelongsTo($this->presentationTerm())->sole();
+            $application = AdmissionApplication::query()->canonical()->whereBelongsTo($applicant, 'user')->where('term_id', $this->presentationTerm()->id)->sole();
 
             $this->assertNotNull($applicant->email_verified_at);
             $this->assertTrue($applicant->hasRole('applicant'));
             $this->assertSame($userStatus, $applicant->status);
-            $this->assertSame($intakeStatus, $intake->status);
-            $this->assertSame($category, $intake->admission_category);
-            $this->assertSame($basis, $intake->credential_basis);
-            $this->assertNull($intake->modality_preference);
+            $this->assertSame($applicationState, $application->application_state);
+            $this->assertSame($category, $application->admission_category);
+            $this->assertSame($basis, $application->credential_basis);
+            $this->assertNull($application->modality_preference);
         }
 
-        $actionRequiredIntake = ApplicantIntake::query()
-            ->whereBelongsTo(User::query()->where('email', 'applicant.action-required.demo@example.test')->sole())
-            ->whereBelongsTo($this->presentationTerm())
-            ->sole();
-        $this->assertTrue($actionRequiredIntake->checklistItems()
-            ->where('verification_status', ChecklistItem::VerificationRejected)
-            ->exists());
-        $this->assertTrue(DocumentEvidence::query()
-            ->whereHas(
-                'checklistItem',
-                fn ($query) => $query->whereBelongsTo($actionRequiredIntake),
-            )
-            ->where('status', DocumentEvidence::StatusRejected)
-            ->exists());
+        $actionNeeded = AdmissionApplication::query()->canonical()
+            ->whereBelongsTo(User::query()->where('email', 'applicant.action-required.demo@example.test')->sole(), 'user')->sole();
+        $this->assertSame(1, $actionNeeded->correctionRequests()->where('state', 'Active')->count());
+        $this->assertTrue($actionNeeded->evidenceVersions()->whereHas('preliminaryReviews', fn ($query) => $query->where('result', 'ActionNeeded'))->exists());
 
+        $readiness = app(ReadyApplicantProjectionQuery::class);
+        $awaitingReview = AdmissionApplication::query()->canonical()
+            ->whereBelongsTo(User::query()->where('email', 'applicant.review.demo@example.test')->sole(), 'user')->sole();
+        $this->assertNotNull($awaitingReview->current_submission_version_id);
+        $this->assertGreaterThan(0, $awaitingReview->evidenceVersions()->count());
+        $this->assertFalse($readiness->preliminaryReviewIsComplete($awaitingReview));
         foreach (['applicant.evaluation.demo@example.test', 'applicant.approved.demo@example.test'] as $email) {
-            $resolvedIntake = ApplicantIntake::query()
-                ->whereBelongsTo(User::query()->where('email', $email)->sole())
-                ->whereBelongsTo($this->presentationTerm())
-                ->sole();
-
-            $this->assertGreaterThan(0, $resolvedIntake->checklistItems()->count());
-            $this->assertSame(
-                0,
-                $resolvedIntake->checklistItems()
-                    ->where('verification_status', '!=', ChecklistItem::VerificationVerified)
-                    ->count(),
-            );
+            $reviewed = AdmissionApplication::query()->canonical()
+                ->whereBelongsTo(User::query()->where('email', $email)->sole(), 'user')->sole();
+            $this->assertGreaterThan(0, $reviewed->evidenceVersions()->count());
+            $this->assertTrue($readiness->preliminaryReviewIsComplete($reviewed));
+            $this->assertFalse($readiness->forApplication($reviewed)['ready']);
         }
+        $ready = AdmissionApplication::query()->canonical()
+            ->whereBelongsTo(User::query()->where('email', 'applicant.ready.demo@example.test')->sole(), 'user')->sole();
+        $this->assertTrue($readiness->forApplication($ready)['ready']);
+        $this->assertSame(1, $ready->enrollmentClearances()->where('result', 'Cleared')->count());
 
-        $withdrawnIntake = ApplicantIntake::query()
-            ->whereBelongsTo(User::query()->where('email', 'applicant.withdrawn.demo@example.test')->sole())
-            ->whereBelongsTo($this->presentationTerm())
-            ->sole();
-        $this->assertTrue(DB::table('activity_log')
-            ->where('subject_type', ApplicantIntake::class)
-            ->where('subject_id', $withdrawnIntake->id)
-            ->where('event', 'applicant_intake_withdrawn')
-            ->where('properties', 'like', '%Plans changed before submission.%')
-            ->exists());
+        $withdrawn = AdmissionApplication::query()->canonical()
+            ->whereBelongsTo(User::query()->where('email', 'applicant.withdrawn.demo@example.test')->sole(), 'user')->sole();
+        $withdrawal = $withdrawn->events()->where('event_type', 'Withdrawn')->sole();
+        $this->assertSame($withdrawn->user_id, $withdrawal->actor_id);
+        $this->assertSame('Synthetic withdrawn history for exploration.', $withdrawal->payload['reason']);
+        $notAdmitted = AdmissionApplication::query()->canonical()
+            ->whereBelongsTo(User::query()->where('email', 'applicant.not-admitted.demo@example.test')->sole(), 'user')->sole();
+        $this->assertSame('NotAdmitted', $notAdmitted->decisions()->whereDoesntHave('successor')->sole()->decision);
 
         foreach ($activeStudents as $email => $standing) {
             $student = User::query()->where('email', $email)->sole();

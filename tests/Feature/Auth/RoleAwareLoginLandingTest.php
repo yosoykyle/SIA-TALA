@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -80,7 +82,7 @@ class RoleAwareLoginLandingTest extends TestCase
                 'role' => User::StaffRoleRegistrar,
                 'status' => User::StatusActive,
                 'path' => '/admin',
-                'expectedText' => 'Dashboard',
+                'expectedText' => 'Application queue',
             ],
             'applicant sees Applicant Workspace dashboard' => [
                 'role' => 'applicant',
@@ -106,7 +108,12 @@ class RoleAwareLoginLandingTest extends TestCase
     ): void {
         $user = $this->userWithRole($role, $status);
 
-        $this->actingAs($user)
+        if ($role === User::StaffRoleRegistrar) {
+            $this->actingAs($user)->get($path)
+                ->assertRedirect(AdmissionApplicationResource::getUrl(panel: 'admin'));
+        }
+
+        $this->followingRedirects()->actingAs($user)
             ->get($path)
             ->assertOk()
             ->assertSee($expectedText);
@@ -135,6 +142,10 @@ class RoleAwareLoginLandingTest extends TestCase
         ]);
 
         $user->assignRole($role);
+
+        if ($role === User::StaffRoleRegistrar) {
+            $user->givePermissionTo(Permission::findOrCreate('approve-documents', 'web'));
+        }
 
         if (in_array($role, User::staffRoleNames(), true)) {
             $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');

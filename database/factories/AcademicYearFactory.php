@@ -17,7 +17,9 @@ class AcademicYearFactory extends Factory
      */
     public function definition(): array
     {
-        $startYear = fake()->unique()->numberBetween(2026, 2099);
+        do {
+            $startYear = fake()->unique()->numberBetween(2026, 2099);
+        } while (AcademicYear::query()->where('label', "{$startYear}-".($startYear + 1))->exists());
 
         return [
             'label' => "{$startYear}-".($startYear + 1),

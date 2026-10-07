@@ -4,7 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Pages\AcademicApprovals;
-use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
+use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -89,15 +89,16 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $applicantDashboard = file_get_contents(resource_path('views/filament/applicant/pages/dashboard.blade.php'));
-        $this->assertStringContainsString('Pages\\Requirements::getUrl()', $applicantDashboard);
+        $this->assertStringContainsString('Pages\\Requirements::getUrl([\'application\' => $application->id])', $applicantDashboard);
         $this->assertStringContainsString('Review requirements', $applicantDashboard);
 
         $registrar = $this->userWithRole(User::StaffRoleRegistrar, User::StatusActive);
         $this->actingAs($registrar)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleRegistrar]);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
-        Livewire::test(ListAdmissionApplications::class)
-            ->assertActionExists('admissionCycles')
-            ->assertActionHasUrl('admissionCycles', AdmissionCycleResource::getUrl());
+        $this->get(AdmissionApplicationResource::getUrl())
+            ->assertOk()
+            ->assertSee('Admission cycles')
+            ->assertSee(AdmissionCycleResource::getUrl(), false);
 
         $academicHead = $this->userWithRole(User::StaffRoleAcademicHead, User::StatusActive);
         $this->actingAs($academicHead)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAcademicHead]);
@@ -203,6 +204,11 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         ]);
 
         $user->assignRole($role);
+
+        if (in_array($role, User::staffRoleNames(), true)) {
+            $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+            $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
+        }
 
         if ($role === 'student') {
             StudentProfile::factory()->create([

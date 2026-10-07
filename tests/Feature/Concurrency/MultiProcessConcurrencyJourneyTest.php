@@ -49,6 +49,7 @@ use App\Models\Program;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrarEnrollmentClearance;
 use App\Models\Room;
 use App\Models\Section;
 use App\Models\StudentLifecycleChange;
@@ -1434,11 +1435,19 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
             ->create(['submitted_by' => $application->user_id]);
 
         $application->update(['current_submission_version_id' => $submission->id]);
-        $decision = AdmissionDecision::factory()->admitted()->for($application, 'application')->create();
+        $decision = AdmissionDecision::factory()->admitted()->for($application, 'application')->create([
+            'application_submission_version_id' => $submission->id,
+        ]);
+        RegistrarEnrollmentClearance::factory()->forAdmittedApplication($application)->create([
+            'result' => RegistrarEnrollmentClearance::ResultCleared,
+            'external_checks_confirmed' => true,
+            'recorded_by' => $decision->decided_by,
+        ]);
 
         $this->registerCleanup(function () use ($application, $cycle, $requirementSet, $submission, $decision) {
             $user = $application->user;
             DB::table('applicant_intakes')->where('id', $application->id)->update(['current_submission_version_id' => null]);
+            DB::table('registrar_enrollment_clearances')->where('admission_application_id', $application->id)->delete();
             DB::table('admission_decisions')->where('id', $decision->id)->delete();
             DB::table('application_submission_versions')->where('id', $submission->id)->delete();
             DB::table('applicant_intakes')->where('id', $application->id)->delete();

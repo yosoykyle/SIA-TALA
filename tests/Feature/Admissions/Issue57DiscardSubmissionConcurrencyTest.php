@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Role;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
@@ -47,25 +48,30 @@ class Issue57DiscardSubmissionConcurrencyTest extends TestCase
         $connection->setTransactionManager(new DatabaseTransactionsManager);
         $this->assertSame('test_tala_db', $connection->selectOne('SELECT DATABASE() AS db')->db);
         $application = $user = $cycle = $set = $requirement = null;
+        $createdTerm = $createdProgram = null;
+        $createdRole = null;
         $path = $workerPath = null;
         $worker = null;
         Mail::fake();
 
         try {
-            $this->assertNotNull(Term::query()->value('id'), 'Retained test schema needs a Term.');
-            $this->assertNotNull(Program::query()->value('id'), 'Retained test schema needs a Program.');
             $connection->beginTransaction();
+            if (! Role::query()->where('name', 'applicant')->where('guard_name', 'web')->exists()) {
+                $createdRole = Role::findOrCreate('applicant', 'web');
+            }
+            $term = Term::query()->first() ?? ($createdTerm = Term::factory()->create());
+            $program = Program::query()->first() ?? ($createdProgram = Program::factory()->create());
             $user = User::factory()->create(['status' => User::StatusActive]);
             $user->assignRole('applicant');
             $cycle = AdmissionCycle::factory()->published()->create([
-                'term_id' => Term::query()->value('id'), 'registrar_owner_id' => $user->id,
+                'term_id' => $term->id, 'registrar_owner_id' => $user->id,
             ]);
             $set = AdmissionRequirementSet::factory()->create(['admission_cycle_id' => $cycle->id]);
             $requirement = AdmissionRequirement::factory()->create(['admission_requirement_set_id' => $set->id]);
             $set->update(['state' => AdmissionRequirementSet::StatePublished, 'effective_at' => now()->subMinute(), 'published_at' => now()]);
             $application = AdmissionApplication::factory()->create([
                 'user_id' => $user->id, 'admission_cycle_id' => $cycle->id,
-                'program_id' => Program::query()->value('id'), 'accuracy_declared_at' => now(),
+                'program_id' => $program->id, 'accuracy_declared_at' => now(),
                 'first_name' => 'Race'.str()->ulid(), 'privacy_notice_reference' => $cycle->privacy_notice_reference,
             ]);
             $path = "admission-applications/{$application->id}/requirements/{$requirement->id}/race.txt";
@@ -127,7 +133,7 @@ class Issue57DiscardSubmissionConcurrencyTest extends TestCase
             while ($connection->transactionLevel() > 0) {
                 $connection->rollBack();
             }
-            $connection->transaction(function () use ($connection, $application, $user, $cycle, $set, $requirement): void {
+            $connection->transaction(function () use ($connection, $application, $user, $cycle, $set, $requirement, $createdTerm, $createdProgram, $createdRole): void {
                 if ($application !== null) {
                     $connection->table('operational_events')->where('related_record_type', AdmissionApplication::class)->where('related_record_id', $application->id)->delete();
                     foreach (['admission_application_events', 'identity_match_reviews', 'document_evidence'] as $table) {
@@ -149,6 +155,16 @@ class Issue57DiscardSubmissionConcurrencyTest extends TestCase
                 if ($user !== null) {
                     $connection->table('model_has_roles')->where('model_type', User::class)->where('model_id', $user->id)->delete();
                     $connection->table('users')->where('id', $user->id)->delete();
+                }
+                if ($createdTerm !== null) {
+                    $connection->table('terms')->where('id', $createdTerm->id)->delete();
+                    $connection->table('academic_years')->where('id', $createdTerm->academic_year_id)->delete();
+                }
+                if ($createdProgram !== null) {
+                    $connection->table('programs')->where('id', $createdProgram->id)->delete();
+                }
+                if ($createdRole !== null) {
+                    $connection->table('roles')->where('id', $createdRole->id)->delete();
                 }
             });
             if ($path !== null) {

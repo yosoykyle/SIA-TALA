@@ -55,7 +55,7 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
         $accounting->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
         $accounting->saveAppAuthenticationRecoveryCodes(['stored-code']);
 
-        $this->actingAs($accounting)
+        $this->followingRedirects()->actingAs($accounting)
             ->get('/admin')
             ->assertOk()
             ->assertSeeText('Fee Plans')

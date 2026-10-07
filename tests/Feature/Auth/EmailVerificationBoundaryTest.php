@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Http\Responses\ApplicantRegistrationResponse;
 use App\Http\Responses\RoleAwareLoginResponse;
 use App\Models\StudentProfile;
@@ -11,6 +12,7 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -129,8 +131,15 @@ class EmailVerificationBoundaryTest extends TestCase
     ): void {
         $user = $this->userWithRole($role, $status, verified: true);
 
+        if ($panel === 'admin') {
+            $this->actingAs($user)->get('/admin')
+                ->assertRedirect(AdmissionApplicationResource::getUrl(panel: 'admin'));
+        }
+
         $this->actingAs($user)
-            ->get("/{$panel}")
+            ->get($panel === 'admin'
+                ? AdmissionApplicationResource::getUrl(panel: 'admin')
+                : "/{$panel}")
             ->assertOk();
     }
 
@@ -142,6 +151,10 @@ class EmailVerificationBoundaryTest extends TestCase
         ]);
 
         $user->assignRole($role);
+
+        if ($role === User::StaffRoleRegistrar) {
+            $user->givePermissionTo(Permission::findOrCreate('approve-documents', 'web'));
+        }
 
         if ($verified && in_array($role, User::staffRoleNames(), true)) {
             $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');

@@ -60,7 +60,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
     {
         $term = $this->presentationTerm();
         $this->ensureHistoricalCompletionPersonas();
-        $this->operationalStates->run();
+        $this->operationalStates->run(includeLegacyApplicantStates: false);
 
         $program = Program::query()->where('code', 'DBM')->sole();
         $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();

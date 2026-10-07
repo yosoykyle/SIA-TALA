@@ -14,6 +14,7 @@ use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationSubmissionVersion;
 use App\Models\Enrollment;
+use App\Models\RegistrarEnrollmentClearance;
 use App\Models\RegistrationCaseEvent;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
@@ -452,7 +453,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->test(ApplicantDashboard::class)
             ->assertSee('Ready for enrollment')
             ->assertSee('Enrollment has not opened yet. The official academic calendar package is being prepared by the Registrar.')
-            ->assertSee('Wait for the Registrar to announce the enrollment schedule.')
+            ->assertSee('Enrollment has not opened yet.')
             ->assertActionHidden('startRegistration')
             ->assertDontSee('Click Start enrollment to begin your Registration Case.');
 
@@ -494,8 +495,8 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Livewire::actingAs($application->user)
             ->test(ApplicantDashboard::class)
-            ->assertSee('Enrollment is open until')
-            ->assertSee('Enrollment is open. Click Start enrollment to begin your Registration Case.')
+            ->assertSee('Enrollment is open.')
+            ->assertSee('Enrollment is open. Start enrollment to begin your Registration Case.')
             ->assertActionVisible('startRegistration');
     }
 
@@ -1242,7 +1243,14 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->create(['submitted_by' => $application->user_id]);
         $application->update(['current_submission_version_id' => $submission->id]);
 
-        AdmissionDecision::factory()->admitted()->for($application, 'application')->create();
+        $decision = AdmissionDecision::factory()->admitted()->for($application, 'application')->create([
+            'application_submission_version_id' => $submission->id,
+        ]);
+        RegistrarEnrollmentClearance::factory()->forAdmittedApplication($application)->create([
+            'result' => RegistrarEnrollmentClearance::ResultCleared,
+            'external_checks_confirmed' => true,
+            'recorded_by' => $decision->decided_by,
+        ]);
 
         return [$application->refresh(), $term];
     }

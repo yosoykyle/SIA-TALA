@@ -115,15 +115,15 @@ class Application extends Page
             ->first(['id', 'application_state']);
 
         if (! $application instanceof AdmissionApplication) {
-            return static::getUrl();
+            return static::getUrl(panel: 'applicant');
         }
 
         return in_array($application->application_state, [
             AdmissionApplication::StateDraft,
             AdmissionApplication::StateActionNeeded,
         ], true)
-            ? static::getUrl(['application' => $application->id])
-            : Dashboard::getUrl(['application' => $application->id]);
+            ? static::getUrl(['application' => $application->id], panel: 'applicant')
+            : Dashboard::getUrl(['application' => $application->id], panel: 'applicant');
     }
 
     protected function getHeaderActions(): array

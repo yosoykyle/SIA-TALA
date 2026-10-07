@@ -308,7 +308,7 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
 
         [$application, $applicant, $cycle] = $this->createDraftApplication();
 
-        $term2 = Term::factory()->recycle($cycle->term->academicYear)->create();
+        $term2 = Term::factory()->recycle($cycle->term->academicYear)->create(['label' => 'Unrelated terminal application term']);
         $cycle2 = AdmissionCycle::factory()->published()->create(['term_id' => $term2->id]);
         $terminalApp = AdmissionApplication::factory()->create([
             'user_id' => $applicant->id,

@@ -107,7 +107,9 @@ class ApplicantPanelProvider extends PanelProvider
     {
         return NavigationItem::make($label)
             ->icon($component::getNavigationIcon())
-            ->url(fn (): string => $component::getNavigationUrl())
+            ->url(fn (): string => $component === Application::class
+                ? Application::getNavigationUrl()
+                : $component::getUrl(panel: 'applicant'))
             ->isActiveWhen(fn (): bool => request()->routeIs($routeName));
     }
 }

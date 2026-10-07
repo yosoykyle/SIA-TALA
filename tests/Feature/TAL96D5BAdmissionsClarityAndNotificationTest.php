@@ -27,8 +27,8 @@ class TAL96D5BAdmissionsClarityAndNotificationTest extends TestCase
 
     public function test_canonical_admissions_resources_use_plain_operating_labels(): void
     {
-        $this->assertSame('Admissions', AdmissionApplicationResource::getNavigationLabel());
-        $this->assertSame('Admission Cycles', AdmissionCycleResource::getNavigationLabel());
+        $this->assertSame('Application queue', AdmissionApplicationResource::getNavigationLabel());
+        $this->assertSame('Admission cycles', AdmissionCycleResource::getNavigationLabel());
     }
 
     public function test_applicant_home_explains_the_safe_empty_state_without_handover_language(): void
@@ -38,7 +38,7 @@ class TAL96D5BAdmissionsClarityAndNotificationTest extends TestCase
         Livewire::actingAs($applicant)
             ->test(Dashboard::class)
             ->assertSee('No application yet')
-            ->assertSee('one Application per published Admission Cycle')
+            ->assertSee('Start an application for an open admission cycle.')
             ->assertDontSee('Approved for handover')
             ->assertDontSee('payment unlock');
     }
@@ -50,7 +50,7 @@ class TAL96D5BAdmissionsClarityAndNotificationTest extends TestCase
         Livewire::actingAs($applicant)
             ->test(Requirements::class)
             ->assertSee('Requirements are not available yet')
-            ->assertSee('version-bound Requirement Set')
+            ->assertSee('Submit your application to see its requirements and review results.')
             ->assertSee('Open application')
             ->assertDontSee('Upload replacement');
     }

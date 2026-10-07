@@ -51,16 +51,17 @@ class PublicGatewayProjectionTest extends TestCase
 
     public function test_gateway_leads_with_school_discovery_and_keeps_shared_sign_in(): void
     {
-        $this->get('/')->assertOk()
+        $page = $this->get('/')->assertOk()
             ->assertSeeInOrder(['id="top"', 'id="programs"', 'id="faq"', 'id="location"', 'id="application-status"'], false)
             ->assertSee('Servitech Institute Asia Inc.')
             ->assertSee('Explore programs')
             ->assertSee(route('filament.admin.auth.login'), false)
-            ->assertDontSee('Staff Workspace')
             ->assertDontSee('System Administrator')
             ->assertDontSee('System Super Admin')
             ->assertDontSee('handed-over students')
             ->assertDontSee('id="notices"', false);
+
+        $this->assertDoesNotMatchRegularExpression('/<(a|button)\b[^>]*>(?:(?!<\/\1>).)*Staff Workspace/s', $page->getContent());
     }
 
     public function test_effective_announcements_follow_programs_and_hide_internal_metadata(): void

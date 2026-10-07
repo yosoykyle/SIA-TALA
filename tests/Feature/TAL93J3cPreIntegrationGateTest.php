@@ -52,7 +52,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
 
         $this->assertSame([], $resources);
         $this->assertSame(['Application', 'Dashboard', 'Requirements'], $pages);
-        $this->assertSame(['Application', 'Dashboard', 'Requirements'], $navigation);
+        $this->assertSame(['Application', 'Dashboard'], $navigation);
     }
 
     /**
@@ -107,9 +107,9 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         return [
             'registrar' => ['role' => User::StaffRoleRegistrar, 'allowed' => [
                 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
-                'AdmissionApplicationResource', 'AdmissionCycleResource', 'AssistedAdmissionApplication', 'CalendarEventResource',
+                'AdmissionApplicationResource', 'AdmissionCycleResource', 'Admissions', 'AssistedAdmissionApplication', 'CalendarEventResource',
                 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CompletionAndTor', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
-                'Dashboard', 'DuplicateProfileResolutionResource', 'EnrollmentResource',
+                'StaffEntry', 'DuplicateProfileResolutionResource', 'EnrollmentResource',
                 'FacultyQualificationResource', 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'GradesAndCompletion', 'ImportBatchResource',
                 'ProgramResource', 'RoomResource', 'ScheduleGenerationRunResource',
@@ -117,24 +117,24 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource', 'TranscriptRequestResource',
             ]],
             'accounting' => ['role' => User::StaffRoleAccounting, 'allowed' => [
-                'Dashboard', 'EnrollmentResource', 'FeePlanResource', 'StudentLifecycleChangeResource',
+                'StaffEntry', 'EnrollmentResource', 'FeePlanResource', 'StudentLifecycleChangeResource',
                 'StudentProfileResource', 'TranscriptRequestResource',
             ]],
             'faculty' => ['role' => User::StaffRoleFaculty, 'allowed' => [
-                'CalendarEventResource', 'Dashboard', 'FacultyGradeRoster', 'FacultyQualificationResource',
+                'CalendarEventResource', 'StaffEntry', 'FacultyGradeRoster', 'FacultyQualificationResource',
                 'FacultySchedule', 'GradeRosterResource', 'MyAvailability',
             ]],
             'academic head' => ['role' => User::StaffRoleAcademicHead, 'allowed' => [
                 'AcademicApprovals', 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
                 'CalendarEventResource', 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CompletionAndTor', 'CourseResource', 'CourseSpecificationResource',
-                'CurriculumVersionResource', 'Dashboard', 'EnrollmentResource', 'FacultyQualificationResource',
+                'CurriculumVersionResource', 'StaffEntry', 'EnrollmentResource', 'FacultyQualificationResource',
                 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'ImportBatchResource', 'ProgramResource', 'RoomResource',
                 'ScheduleGenerationRunResource', 'SchedulingDemandResource', 'SectionMeetingResource',
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource',
             ]],
             'system super admin' => ['role' => User::StaffRoleSystemSuperAdmin, 'allowed' => [
-                'Dashboard', 'FaqEntryResource', 'GovernanceAudit',
+                'StaffEntry', 'FaqEntryResource', 'GovernanceAudit',
                 'PublicContent', 'PublicNoticeResource',
                 'StudentLifecycleChangeResource',
                 'SystemHealth', 'UserResource',
@@ -172,6 +172,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
 
         foreach ($manifest as &$entry) {
             $entry['allowed'] = array_values(array_diff($entry['allowed'], [
+                'StaffEntry',
                 'CompletionAndTor',
                 'TranscriptRequestResource',
             ]));
@@ -205,7 +206,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     private static function registeredPages(): array
     {
         return [
-            'Dashboard',
+            'StaffEntry',
             'AssistedAdmissionApplication',
             'CatalogCurriculaWorkbench',
             'TermPlanningWorkbench',
@@ -219,6 +220,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'CompletionAndTor',
             'SystemHealth',
             'GovernanceAudit',
+            'Admissions',
             'PublicContent',
         ];
     }

@@ -16,6 +16,7 @@ use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
+use Filament\Facades\Filament;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -106,9 +107,10 @@ class StudentPanelProvider extends PanelProvider
      */
     private function navigationItem(string $component, string $label): NavigationItem
     {
-        /** @var NavigationItem $item */
-        $item = $component::getNavigationItems()[0];
-
-        return $item->label($label);
+        return NavigationItem::make($label)
+            ->key($component)
+            ->icon($component::getNavigationIcon())
+            ->url(fn (): string => $component::getUrl(panel: 'student'))
+            ->isActiveWhen(fn (): bool => original_request()->routeIs($component::getRouteName(Filament::getPanel('student'))));
     }
 }

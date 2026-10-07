@@ -54,6 +54,7 @@ use App\Models\OperationalEvent;
 use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrarEnrollmentClearance;
 use App\Models\RegistrationAdjustmentFinanceConfirmation;
 use App\Models\RegistrationCaseEvent;
 use App\Models\RegistrationLateAuthority;
@@ -199,6 +200,15 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         }
 
         $successor = app(ConfirmRegistrationIdentity::class)->execute($case->fresh(), $application->user);
+        $source = $application->fresh();
+        $priorClearance = $source->enrollmentClearances()->whereDoesntHave('successor')->sole();
+        RegistrarEnrollmentClearance::factory()->forAdmittedApplication($source)->create([
+            'result' => RegistrarEnrollmentClearance::ResultCleared,
+            'external_checks_confirmed' => true,
+            'recorded_by' => $registrar->id,
+            'supersedes_clearance_id' => $priorClearance->id,
+            'reason' => 'Registrar rechecked the changed identity source.',
+        ]);
         $official = app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
 
         $this->assertSame(2, $case->identityConfirmationVersions()->count());
@@ -546,8 +556,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(ConfirmRegistrationProposal::class)->execute($proposal1->fresh(), $application1->user);
 
         // Case 2: Concurrently prepares and confirms proposal for the same section before placement occurs
-        [$application2] = $this->readyApplicant(AdmissionApplication::PathFirstYear, $term);
-        $application2->update(['program_id' => $application1->program_id]);
+        [$application2] = $this->readyApplicant(AdmissionApplication::PathFirstYear, $term, $application1->program_id);
         $case2 = app(StartRegistrationCase::class)->forReadyApplicant($application2->fresh(), $term, $application2->user);
         $proposal2 = app(PrepareRegistrationProposal::class)->execute($case2, $registrar, [$section->id], $case2->lock_version);
         app(IssueRegistrationProposal::class)->execute($proposal2, $registrar);
@@ -1552,7 +1561,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
     }
 
     /** @return array{AdmissionApplication, Term} */
-    private function readyApplicant(string $applicationPath = AdmissionApplication::PathFirstYear, ?Term $term = null): array
+    private function readyApplicant(string $applicationPath = AdmissionApplication::PathFirstYear, ?Term $term = null, ?int $programId = null): array
     {
         if (! $term instanceof Term) {
             $term = Term::factory()->create(['state' => Term::StateActive]);
@@ -1563,6 +1572,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             'term_id' => $term->id,
             'application_state' => AdmissionApplication::StateAdmitted,
             'application_path' => $applicationPath,
+            ...($programId !== null ? ['program_id' => $programId] : []),
         ]);
         $application->user->update(['status' => User::StatusActive]);
         $application->user->assignRole('applicant');
@@ -1574,7 +1584,14 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->for($requirementSet, 'requirementSet')
             ->create(['submitted_by' => $application->user_id]);
         $application->update(['current_submission_version_id' => $submission->id]);
-        AdmissionDecision::factory()->admitted()->for($application, 'application')->create();
+        $decision = AdmissionDecision::factory()->admitted()->for($application, 'application')->create([
+            'application_submission_version_id' => $submission->id,
+        ]);
+        RegistrarEnrollmentClearance::factory()->forAdmittedApplication($application)->create([
+            'result' => RegistrarEnrollmentClearance::ResultCleared,
+            'external_checks_confirmed' => true,
+            'recorded_by' => $decision->decided_by,
+        ]);
 
         return [$application->refresh(), $term];
     }

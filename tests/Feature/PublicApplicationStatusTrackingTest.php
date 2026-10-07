@@ -32,7 +32,7 @@ class PublicApplicationStatusTrackingTest extends TestCase
     {
         Mail::fake();
         $owner = $this->owner();
-        $application = AdmissionApplication::factory()->recycle(Term::query()->firstOrFail())->submitted()->create([
+        $application = AdmissionApplication::factory()->recycle(Term::factory()->create())->submitted()->create([
             'user_id' => $owner->id,
             'email' => 'private-contact@example.test',
             'first_name' => 'PrivateFirstname',
@@ -63,7 +63,7 @@ class PublicApplicationStatusTrackingTest extends TestCase
         foreach (['missing', 'mismatched', 'disabled', 'unverified', 'wrong-role'] as $case) {
             Mail::fake();
             $owner = $this->owner();
-            $application = AdmissionApplication::factory()->recycle(Term::query()->firstOrFail())->submitted()->create(['user_id' => $owner->id]);
+            $application = AdmissionApplication::factory()->recycle(Term::factory()->create())->submitted()->create(['user_id' => $owner->id]);
             if ($case === 'disabled') {
                 $owner->update(['status' => User::StatusDisabled]);
             }
@@ -88,7 +88,7 @@ class PublicApplicationStatusTrackingTest extends TestCase
         Mail::fake();
         $this->freezeTime();
         $owner = $this->owner();
-        $application = AdmissionApplication::factory()->recycle(Term::query()->firstOrFail())->submitted()->create(['user_id' => $owner->id]);
+        $application = AdmissionApplication::factory()->recycle(Term::factory()->create())->submitted()->create(['user_id' => $owner->id]);
         $this->post(route('applications.status.request'), ['reference' => $application->application_reference, 'email' => $owner->email]);
         $url = Mail::queued(ApplicationStatusLinkMail::class)->first()->statusUrl;
         $this->get($url.'&changed=1')->assertForbidden()->assertSee('This status link is unavailable')->assertDontSee($application->application_reference);
@@ -114,14 +114,14 @@ class PublicApplicationStatusTrackingTest extends TestCase
     {
         Mail::fake();
         $owner = $this->owner();
-        $application = AdmissionApplication::factory()->recycle(Term::query()->firstOrFail())->submitted()->create(['user_id' => $owner->id]);
+        $application = AdmissionApplication::factory()->recycle(Term::factory()->create())->submitted()->create(['user_id' => $owner->id]);
         for ($attempt = 0; $attempt < 4; $attempt++) {
             $this->post(route('applications.status.request'), ['reference' => $application->application_reference, 'email' => $owner->email])
                 ->assertSessionHas('tracking_status', PublicApplicationStatusController::Confirmation);
         }
         Mail::assertQueued(ApplicationStatusLinkMail::class, 3);
         $other = $this->owner();
-        $otherApplication = AdmissionApplication::factory()->recycle(Term::query()->firstOrFail())->submitted()->create(['user_id' => $other->id]);
+        $otherApplication = AdmissionApplication::factory()->recycle(Term::factory()->create())->submitted()->create(['user_id' => $other->id]);
         Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('Mail unavailable'));
         $this->post(route('applications.status.request'), ['reference' => $otherApplication->application_reference, 'email' => $other->email])
             ->assertSessionHas('tracking_status', PublicApplicationStatusController::Confirmation);
@@ -139,7 +139,7 @@ class PublicApplicationStatusTrackingTest extends TestCase
 
     public function test_new_references_are_readable_unique_and_do_not_rewrite_existing_values(): void
     {
-        $existing = AdmissionApplication::factory()->recycle(Term::query()->firstOrFail())->submitted()->create(['application_reference' => 'APP-2026-AAAA-AAAA-AAAA']);
+        $existing = AdmissionApplication::factory()->recycle(Term::factory()->create())->submitted()->create(['application_reference' => 'APP-2026-AAAA-AAAA-AAAA']);
         $sequence = 0;
         Str::createRandomStringsUsing(function (int $length) use (&$sequence): string {
             return str_repeat($sequence++ === 0 ? 'A' : 'B', $length);
@@ -157,7 +157,7 @@ class PublicApplicationStatusTrackingTest extends TestCase
     {
         Mail::fake();
         $owner = $this->owner();
-        $application = AdmissionApplication::factory()->recycle(Term::query()->firstOrFail())->submitted()->create(['user_id' => $owner->id]);
+        $application = AdmissionApplication::factory()->recycle(Term::factory()->create())->submitted()->create(['user_id' => $owner->id]);
         $this->post(route('applications.status.request'), ['reference' => $application->application_reference, 'email' => $owner->email]);
         $url = Mail::queued(ApplicationStatusLinkMail::class)->first()->statusUrl;
         $owner->syncRoles([]);
@@ -173,7 +173,7 @@ class PublicApplicationStatusTrackingTest extends TestCase
         Mail::fake();
         for ($attempt = 0; $attempt < 6; $attempt++) {
             $owner = $this->owner();
-            $application = AdmissionApplication::factory()->recycle(Term::query()->firstOrFail())->submitted()->create(['user_id' => $owner->id]);
+            $application = AdmissionApplication::factory()->recycle(Term::factory()->create())->submitted()->create(['user_id' => $owner->id]);
             $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.57'])
                 ->post(route('applications.status.request'), ['reference' => $application->application_reference, 'email' => $owner->email])
                 ->assertSessionHas('tracking_status', PublicApplicationStatusController::Confirmation);
@@ -185,7 +185,7 @@ class PublicApplicationStatusTrackingTest extends TestCase
     {
         Mail::fake();
         $owner = $this->owner();
-        $application = AdmissionApplication::factory()->recycle(Term::query()->firstOrFail())->submitted()->create(['user_id' => $owner->id]);
+        $application = AdmissionApplication::factory()->recycle(Term::factory()->create())->submitted()->create(['user_id' => $owner->id]);
         $application->admissionCycle->update(['support_contact' => '<script>tracking-xss</script>']);
         $this->post(route('applications.status.request'), ['reference' => $application->application_reference, 'email' => $owner->email]);
         $url = Mail::queued(ApplicationStatusLinkMail::class)->first()->statusUrl;
@@ -206,7 +206,7 @@ class PublicApplicationStatusTrackingTest extends TestCase
 
     public function test_reference_allocation_exhaustion_is_actionable_and_preserves_the_existing_record(): void
     {
-        $existing = AdmissionApplication::factory()->recycle(Term::query()->firstOrFail())->submitted()
+        $existing = AdmissionApplication::factory()->recycle(Term::factory()->create())->submitted()
             ->create(['application_reference' => 'APP-2026-AAAA-AAAA-AAAA']);
         Str::createRandomStringsUsing(fn (int $length): string => str_repeat('A', $length));
         try {

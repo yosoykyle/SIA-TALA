@@ -49,22 +49,24 @@ class TAL96D5E1B2BAdmissionsWorkQueueTest extends TestCase
     public function test_registrar_work_queue_uses_journey_states_and_business_filters_without_bulk_decisions(): void
     {
         $registrar = $this->registrar();
+        $application = AdmissionApplication::factory()->transferee()->submitted()->create();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::actingAs($registrar)
             ->test(ListAdmissionApplications::class)
             ->assertSee('Needs review')
             ->assertSee('Waiting for applicant')
-            ->assertSee('Official credentials')
+            ->assertSee('Registrar clearance')
             ->assertSee('Ready for enrollment')
-            ->assertSee('History')
+            ->assertSee('Closed applications')
+            ->assertCanSeeTableRecords([$application])
+            ->assertSee('Transferee')
             ->assertTableColumnExists('applicant')
             ->assertTableColumnExists('scope')
             ->assertTableColumnExists('application_state')
             ->assertTableColumnExists('owner_next_action')
-            ->assertTableColumnExists('application_path')
             ->assertTableColumnExists('correction_status')
-            ->assertTableColumnExists('updated_at')
+            ->assertTableColumnExists('last_activity_at')
             ->assertTableFilterExists('admission_cycle_id')
             ->assertTableFilterExists('program_id')
             ->assertTableFilterExists('application_path')

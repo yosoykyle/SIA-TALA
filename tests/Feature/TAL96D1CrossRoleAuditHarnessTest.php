@@ -111,11 +111,11 @@ final class TAL96D1CrossRoleAuditHarnessTest extends TestCase
         return [
             ['email' => 'applicant.demo@example.test', 'panel' => 'applicant', 'route' => 'filament.applicant.pages.dashboard'],
             ['email' => 'student.demo@example.test', 'panel' => 'student', 'route' => 'filament.student.pages.dashboard'],
-            ['email' => 'registrar.demo@example.test', 'panel' => 'admin', 'route' => 'filament.admin.pages.dashboard'],
-            ['email' => 'accounting.demo@example.test', 'panel' => 'admin', 'route' => 'filament.admin.pages.dashboard'],
-            ['email' => 'faculty.demo@example.test', 'panel' => 'admin', 'route' => 'filament.admin.pages.dashboard'],
-            ['email' => 'academic-head.demo@example.test', 'panel' => 'admin', 'route' => 'filament.admin.pages.dashboard'],
-            ['email' => 'system-admin.demo@example.test', 'panel' => 'admin', 'route' => 'filament.admin.pages.dashboard'],
+            ['email' => 'registrar.demo@example.test', 'panel' => 'admin', 'route' => 'filament.admin.pages.staff-entry'],
+            ['email' => 'accounting.demo@example.test', 'panel' => 'admin', 'route' => 'filament.admin.pages.staff-entry'],
+            ['email' => 'faculty.demo@example.test', 'panel' => 'admin', 'route' => 'filament.admin.pages.staff-entry'],
+            ['email' => 'academic-head.demo@example.test', 'panel' => 'admin', 'route' => 'filament.admin.pages.staff-entry'],
+            ['email' => 'system-admin.demo@example.test', 'panel' => 'admin', 'route' => 'filament.admin.pages.staff-entry'],
         ];
     }
 }
