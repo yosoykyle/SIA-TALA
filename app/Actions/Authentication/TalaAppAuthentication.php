@@ -72,6 +72,10 @@ class TalaAppAuthentication extends AppAuthentication
     public function getActions(): array
     {
         $actions = parent::getActions();
+
+        foreach ($actions as $action) {
+            $action->button()->color('gray');
+        }
         $user = Filament::auth()->user();
 
         if (! ($user instanceof User) || ! $user->isStaffCapable()) {

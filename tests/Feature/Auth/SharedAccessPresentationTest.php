@@ -35,7 +35,11 @@ class SharedAccessPresentationTest extends TestCase
     public function test_server_failure_rendering_does_not_require_authentication_data_or_compiled_assets(): void
     {
         Auth::shouldReceive('user')->never();
-        $this->view('errors.500')->assertSee('Source: Servitech Institute Asia HTTP response 500 (Powered by TALA)')
+        $this->view('errors.500')->assertSee('Servitech Institute Asia')
+            ->assertSee('Error 500')
+            ->assertSee('Powered by TALA')
+            ->assertSee('The request outcome is unconfirmed.')
+            ->assertSee('Contact school support')
             ->assertSee('System Administration')
             ->assertSee('Return to Servitech Institute Asia home')
             ->assertDontSee('Return to TALA home')

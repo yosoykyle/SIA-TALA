@@ -1,4 +1,21 @@
-<x-filament-panels::page>
+<x-filament-panels::page
+    x-data="{
+        changed: false,
+        failed: false,
+        unsubscribe: null,
+        init() {
+            this.unsubscribe = window.Livewire.interceptRequest(({ request, onError, onFailure }) => {
+                if (! Array.from(request.messages).some(message => message.component.id === this.$wire.$id)) return;
+                onError(({ preventDefault }) => { preventDefault(); this.failed = true; this.changed = true; });
+                onFailure(() => { this.failed = true; this.changed = true; });
+            });
+        },
+        destroy() { this.unsubscribe?.(); }
+    }"
+    x-on:draft-saved.window="changed = false; failed = false"
+    x-on:sync-action-modals.window="if ($event.detail.id === $wire.$id && $event.detail.newActionNestingIndex === null) $nextTick(() => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => { if (document.activeElement === document.body) document.querySelector('[data-application-options]')?.focus({ preventScroll: true }); }))))"
+    x-on:beforeunload.window="if (changed) { $event.preventDefault(); $event.returnValue = ''; }"
+>
     @if (! $this->admissionsAreOpen() && ! $this->hasExistingDraft())
         <x-filament::section>
             <x-slot name="heading">Applications are currently closed</x-slot>
@@ -14,21 +31,12 @@
             </x-filament::callout>
         </x-filament::section>
     @else
-        @if ($this->hasExistingDraft())
-            <x-filament::callout color="info" icon="heroicon-m-bookmark-square">
-                <x-slot name="heading">Continuing the same application</x-slot>
-                <x-slot name="description">
-                    Save partial work at any step. Submission creates an immutable version; only a later scoped correction can reopen named facts or evidence.
-                </x-slot>
-            </x-filament::callout>
-        @endif
-
         @php($activeCorrection = $this->activeCorrectionRequest())
         @if ($activeCorrection)
             <x-filament::callout :color="$activeCorrection->isOverdue() ? 'danger' : 'warning'" icon="heroicon-m-exclamation-triangle">
                 <x-slot name="heading">
-                    {{ $activeCorrection->isOverdue() ? 'Correction overdue' : 'Scoped correction active' }} —
-                    {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}
+                    {{ $activeCorrection->isOverdue() ? 'Correction overdue' : 'Corrections requested' }} —
+                    {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }} (Asia/Manila)
                 </x-slot>
                 <x-slot name="description">
                     {{ $activeCorrection->applicant_instruction }} The due time does not lock or reject this Application; submit only the named corrections.
@@ -38,36 +46,41 @@
             <x-filament::callout color="warning" icon="heroicon-m-lock-closed">
                 <x-slot name="heading">First submission is closed</x-slot>
                 <x-slot name="description">
-                    Your safe draft remains available, but the server will reject submission until an authorized extension or reopening.
+                    Inspect or discard your saved Draft. Saving, uploading, and first submission are unavailable because this Draft's Admission Cycle is closed or canceled. Contact the Registrar for Cycle guidance.
                 </x-slot>
             </x-filament::callout>
         @endif
 
-        <div
-            class="rounded-lg border border-gray-200 bg-white/70 px-4 py-3 text-sm shadow-sm dark:border-white/10 dark:bg-white/5"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-        >
-            <span wire:dirty wire:target="data">Unsaved changes — save this Draft before leaving.</span>
-            <span wire:loading wire:target="saveDraft">Saving your Application to TALA.</span>
-            <span wire:loading.remove wire:target="saveDraft">{{ $this->saveStatusMessage }}</span>
-        </div>
-
-        <form wire:submit="submitApplication" class="space-y-6" novalidate>
+        <form wire:submit="submitApplication" class="space-y-6" novalidate x-on:input="changed = true" x-on:change="changed = true">
             {{ $this->form }}
-
-            <div class="tala-action-block">
-                <x-filament::button
-                    type="button"
-                    color="gray"
-                    icon="heroicon-m-bookmark-square"
-                    wire:click="saveDraft"
-                    wire:loading.attr="disabled"
-                    wire:target="saveDraft,submitApplication"
-                >
-                    Save draft
-                </x-filament::button>
+        <div x-cloak x-show="failed" role="alert">
+            <x-filament::callout color="warning" icon="heroicon-m-exclamation-triangle">
+                <x-slot name="heading">Progress could not be confirmed</x-slot>
+                <x-slot name="description">Keep this page open to preserve your entered work. When the connection returns, check Home before repeating a save or submission. TALA will not repeat the action automatically.</x-slot>
+            </x-filament::callout>
+        </div>
+            <div class="tala-draft-status" role="status" aria-live="polite" aria-atomic="true" x-show="! failed">
+                <span wire:loading class="tala-draft-status-message">
+                    <x-filament::icon icon="heroicon-o-arrow-path" class="size-5 shrink-0" />
+                    Saving or checking your work…
+                </span>
+                <div wire:loading.remove>
+                    @if ($this->saveStatus === 'failed')
+                        <x-filament::callout color="warning" icon="heroicon-o-exclamation-triangle">
+                            <x-slot name="heading">Save incomplete</x-slot>
+                            <x-slot name="description">{{ $this->saveStatusMessage }}</x-slot>
+                        </x-filament::callout>
+                    @else
+                        <span x-show="changed" data-draft-dirty class="tala-draft-status-message">
+                            <x-filament::icon icon="heroicon-o-pencil-square" class="size-5 shrink-0" />
+                            Unsaved changes. Save and continue, or use Application options to save and exit.
+                        </span>
+                        <span x-show="! changed" class="tala-draft-status-message">
+                            <x-filament::icon :icon="$this->saveStatus === 'saved' ? 'heroicon-o-check-circle' : 'heroicon-o-clock'" class="size-5 shrink-0" />
+                            {{ $this->saveStatusMessage }}
+                        </span>
+                    @endif
+                </div>
             </div>
         </form>
     @endif

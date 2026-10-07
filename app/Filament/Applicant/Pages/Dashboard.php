@@ -4,6 +4,7 @@ namespace App\Filament\Applicant\Pages;
 
 use App\Actions\Admissions\AdmissionNotificationLedger;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
+use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Actions\Enrollment\CancelRegistrationCase;
 use App\Actions\Enrollment\ConfirmRegistrationIdentity;
@@ -22,12 +23,10 @@ use App\Models\Payment;
 use App\Models\Program;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Term;
-use App\Models\TermCalendarPackage;
-use App\Models\TermCalendarWindow;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
-use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
@@ -43,6 +42,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Url;
 use Throwable;
 
 class Dashboard extends BaseDashboard implements HasTable
@@ -50,6 +50,14 @@ class Dashboard extends BaseDashboard implements HasTable
     use InteractsWithTable;
 
     protected string $view = 'filament.applicant.pages.dashboard';
+
+    #[Url(as: 'application')]
+    public ?int $sourceApplicationId = null;
+
+    public function getTitle(): string
+    {
+        return 'Applicant Home';
+    }
 
     public function mount(): void
     {
@@ -72,7 +80,31 @@ class Dashboard extends BaseDashboard implements HasTable
 
     protected function getHeaderActions(): array
     {
-        return [
+        $actions = [
+            Action::make('discardDraft')
+                ->label('Discard draft')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->outlined()
+                ->requiresConfirmation()
+                ->modalSubmitActionLabel('Discard draft')
+                ->modalDescription('Only this unsubmitted draft and its temporary uploads will be removed. Submitted history is never deleted.')
+                ->visible(function (): bool {
+                    $application = $this->currentApplication();
+
+                    return $application instanceof AdmissionApplication
+                        && $application->application_state === AdmissionApplication::StateDraft
+                        && $application->current_submission_version_id === null;
+                })
+                ->action(function (): void {
+                    $application = $this->currentApplication();
+                    $applicant = Auth::user();
+                    abort_unless($application instanceof AdmissionApplication && $applicant instanceof User, 404);
+
+                    app(DiscardAdmissionApplication::class)->execute($application, $applicant);
+                    Notification::make()->title('Draft discarded')->success()->send();
+                    $this->redirect(self::getUrl());
+                }),
             Action::make('startRegistration')
                 ->label('Start enrollment')
                 ->icon('heroicon-o-play')
@@ -350,6 +382,18 @@ class Dashboard extends BaseDashboard implements HasTable
                     }
                 }),
         ];
+
+        $secondary = [];
+        $primary = [];
+        foreach ($actions as $action) {
+            if (in_array($action->getName(), ['withdrawApplication', 'resendFailedNotification'], true)) {
+                $secondary[] = $action;
+            } else {
+                $primary[] = $action;
+            }
+        }
+
+        return [...$primary, ActionGroup::make($secondary)->label('More actions')->icon('heroicon-o-ellipsis-horizontal')];
     }
 
     public function table(Table $table): Table
@@ -360,7 +404,7 @@ class Dashboard extends BaseDashboard implements HasTable
                 ->with(['admissionCycle', 'program', 'currentSubmissionVersion'])
                 ->where('user_id', Auth::id()))
             ->columns([
-                TextColumn::make('application_reference')->label('Reference')->placeholder('Draft')->searchable(),
+                TextColumn::make('application_reference')->label('Reference')->placeholder('Draft')->searchable()->copyable()->wrap(),
                 TextColumn::make('scope')
                     ->label('Cycle / Program')
                     ->state(function (AdmissionApplication $record): string {
@@ -383,11 +427,16 @@ class Dashboard extends BaseDashboard implements HasTable
                     ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
                 TextColumn::make('updated_at')->label('Last activity')->dateTime()->sortable(),
             ])
+            ->stackedOnMobile()
+            ->extraAttributes(['class' => 'tala-applicant-history-table'])
             ->recordActions([
                 Action::make('continue')
-                    ->label('Continue')
+                    ->button()
+                    ->label(fn (?AdmissionApplication $record): string => $record?->application_state === AdmissionApplication::StateDraft
+                        && ! app(ReadyApplicantProjectionQuery::class)->draftCycleIsOpen($record)
+                            ? 'Inspect saved draft' : 'Continue')
                     ->icon('heroicon-o-pencil-square')
-                    ->url(fn (): string => Application::getUrl())
+                    ->url(fn (AdmissionApplication $record): string => Application::getUrl(['application' => $record->id]))
                     ->visible(fn (AdmissionApplication $record): bool => in_array($record->application_state, [
                         AdmissionApplication::StateDraft,
                         AdmissionApplication::StateActionNeeded,
@@ -409,7 +458,7 @@ class Dashboard extends BaseDashboard implements HasTable
 
     public function currentApplication(): ?AdmissionApplication
     {
-        return AdmissionApplication::query()
+        $query = AdmissionApplication::query()
             ->canonical()
             ->with([
                 'admissionCycle',
@@ -422,9 +471,11 @@ class Dashboard extends BaseDashboard implements HasTable
                 'decisions',
                 'events',
             ])
-            ->where('user_id', Auth::id())
-            ->latest('updated_at')
-            ->first();
+            ->where('user_id', Auth::id());
+
+        return $this->sourceApplicationId !== null
+            ? $query->findOrFail($this->sourceApplicationId)
+            : $query->latest('updated_at')->first();
     }
 
     public function registrationCase(): ?Enrollment
@@ -499,13 +550,7 @@ class Dashboard extends BaseDashboard implements HasTable
 
     public function responsibleParty(AdmissionApplication $application): string
     {
-        return match ($application->application_state) {
-            AdmissionApplication::StateDraft,
-            AdmissionApplication::StateActionNeeded => 'Applicant',
-            AdmissionApplication::StateSubmitted,
-            AdmissionApplication::StateAdmitted => 'Registrar',
-            default => 'No active task',
-        };
+        return app(ReadyApplicantProjectionQuery::class)->responsibleParty($application);
     }
 
     public function nextAction(AdmissionApplication $application): string
@@ -513,24 +558,14 @@ class Dashboard extends BaseDashboard implements HasTable
         if ($application->application_state === AdmissionApplication::StateAdmitted) {
             $projection = app(ReadyApplicantProjectionQuery::class)->forApplication($application);
             if ($projection['ready'] ?? false) {
-                if ($this->registrationCase() instanceof Enrollment) {
-                    return 'Continue your active Registration Case below.';
-                }
-
-                $availability = $this->enrollmentAvailability($application);
-
-                return match ($availability['status']) {
-                    'open' => 'Enrollment is open. Click Start enrollment to begin your Registration Case.',
-                    'upcoming', 'closed' => $availability['explanation'],
-                    default => 'Enrollment has not opened yet. Wait for the Registrar to announce the enrollment schedule.',
-                };
+                return app(ReadyApplicantProjectionQuery::class)->enrollmentNextAction($application);
             }
 
-            return 'Complete the due official credential instructions.';
+            return 'Follow the Registrar instructions for external school checks and enrollment clearance.';
         }
 
         return match ($application->application_state) {
-            AdmissionApplication::StateDraft => 'Complete and submit the five-step Application.',
+            AdmissionApplication::StateDraft => app(ReadyApplicantProjectionQuery::class)->draftNextAction($application),
             AdmissionApplication::StateActionNeeded => 'Respond only to the scoped correction items.',
             AdmissionApplication::StateSubmitted => 'Wait for Registrar review; monitor Requirements for an instruction.',
             AdmissionApplication::StateNotAdmitted => 'Review the retained decision explanation.',
@@ -539,96 +574,13 @@ class Dashboard extends BaseDashboard implements HasTable
         };
     }
 
-    /** @return array{available: bool, status: string, explanation: string, opens_at: ?CarbonImmutable, closes_at: ?CarbonImmutable} */
     public function enrollmentAvailability(?AdmissionApplication $application = null): array
     {
         $application ??= $this->currentApplication();
 
-        if (! $application instanceof AdmissionApplication || $application->term_id === null) {
-            return [
-                'available' => false,
-                'status' => 'unavailable',
-                'explanation' => 'Term enrollment window is not available.',
-                'opens_at' => null,
-                'closes_at' => null,
-            ];
-        }
-
-        $term = $application->term;
-
-        if (! $term) {
-            return [
-                'available' => false,
-                'status' => 'unavailable',
-                'explanation' => 'Term record is not found.',
-                'opens_at' => null,
-                'closes_at' => null,
-            ];
-        }
-
-        $package = TermCalendarPackage::query()
-            ->where('term_id', $term->id)
-            ->where('state', TermCalendarPackage::StateActive)
-            ->latest('version')
-            ->first();
-
-        if (! $package) {
-            return [
-                'available' => false,
-                'status' => 'not_configured',
-                'explanation' => 'Enrollment has not opened yet. The official academic calendar package is being prepared by the Registrar.',
-                'opens_at' => null,
-                'closes_at' => null,
-            ];
-        }
-
-        $window = $package->windows()
-            ->where('window_type', TermCalendarWindow::TypeEnrollment)
-            ->first();
-
-        if (! $window) {
-            return [
-                'available' => false,
-                'status' => 'not_configured',
-                'explanation' => 'Enrollment has not opened yet. The enrollment window has not been scheduled for this Term.',
-                'opens_at' => null,
-                'closes_at' => null,
-            ];
-        }
-
-        $timezone = (string) config('app.timezone');
-        $opensAt = CarbonImmutable::parse((string) $window->opens_on, $timezone)->startOfDay();
-        $cutoff = filled($window->cutoff_at) ? (string) $window->cutoff_at : '23:59:59';
-        $closesAt = CarbonImmutable::parse($window->closes_on->toDateString().' '.$cutoff, $timezone);
-        $now = CarbonImmutable::now($timezone);
-
-        if ($now->lt($opensAt)) {
-            return [
-                'available' => false,
-                'status' => 'upcoming',
-                'explanation' => 'Enrollment will open on '.$opensAt->timezone(config('app.display_timezone'))->format('F j, Y, g:i A').'.',
-                'opens_at' => $opensAt,
-                'closes_at' => $closesAt,
-            ];
-        }
-
-        if ($now->gt($closesAt)) {
-            return [
-                'available' => false,
-                'status' => 'closed',
-                'explanation' => 'Ordinary enrollment for this Term closed on '.$closesAt->timezone(config('app.display_timezone'))->format('F j, Y, g:i A').'. Contact the Registrar if you require late-enrollment assistance.',
-                'opens_at' => $opensAt,
-                'closes_at' => $closesAt,
-            ];
-        }
-
-        return [
-            'available' => true,
-            'status' => 'open',
-            'explanation' => 'Enrollment is open until '.$closesAt->timezone(config('app.display_timezone'))->format('F j, Y, g:i A').'.',
-            'opens_at' => $opensAt,
-            'closes_at' => $closesAt,
-        ];
+        return $application instanceof AdmissionApplication
+            ? app(ReadyApplicantProjectionQuery::class)->enrollmentAvailability($application)
+            : ['available' => false, 'status' => 'unavailable', 'explanation' => 'Term enrollment window is not available.', 'opens_at' => null, 'closes_at' => null];
     }
 
     private function canWithdraw(): bool

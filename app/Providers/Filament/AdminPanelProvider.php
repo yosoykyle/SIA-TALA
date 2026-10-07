@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Actions\Authentication\TalaAppAuthentication;
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Clusters\Admissions;
 use App\Filament\Clusters\PublicContent;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
@@ -18,6 +19,7 @@ use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\GovernanceAudit;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Pages\MyAvailability;
+use App\Filament\Pages\StaffEntry;
 use App\Filament\Pages\SystemHealth;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
@@ -52,6 +54,8 @@ use App\Filament\Resources\Users\UserResource;
 use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
 use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use App\Http\Middleware\EnsureStaffMfaIsEnabled;
+use App\Models\AdmissionApplication;
+use App\Models\AdmissionCycle;
 use App\Models\FaqEntry;
 use App\Models\User;
 use App\Support\TalaPanelTheme;
@@ -64,7 +68,6 @@ use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationItem;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Widgets\AccountWidget;
@@ -151,7 +154,7 @@ class AdminPanelProvider extends PanelProvider
                 DuplicateProfileResolutionResource::class,
             ])
             ->pages([
-                Dashboard::class,
+                StaffEntry::class,
                 AssistedAdmissionApplication::class,
                 CatalogCurriculaWorkbench::class,
                 TermPlanningWorkbench::class,
@@ -185,6 +188,55 @@ class AdminPanelProvider extends PanelProvider
 
                     return redirect(FaqEntryResource::getUrl('edit', ['record' => $faq]));
                 })->whereNumber('record')->name('legacy-faq.edit');
+
+                Route::get('admission-applications', function (): RedirectResponse {
+                    Gate::authorize('viewAny', AdmissionApplication::class);
+
+                    $query = request()->getQueryString();
+
+                    return redirect(AdmissionApplicationResource::getUrl().($query ? '?'.$query : ''));
+                })->name('resources.admission-applications.index');
+
+                Route::get('admission-applications/{record}', function (string $record): RedirectResponse {
+                    $application = AdmissionApplication::query()->findOrFail($record);
+                    Gate::authorize('view', $application);
+
+                    $query = request()->getQueryString();
+
+                    return redirect(AdmissionApplicationResource::getUrl('view', ['record' => $application]).($query ? '?'.$query : ''));
+                })->whereNumber('record')->name('resources.admission-applications.view');
+
+                Route::get('admission-cycles', function (): RedirectResponse {
+                    Gate::authorize('viewAny', AdmissionCycle::class);
+
+                    $query = request()->getQueryString();
+
+                    return redirect(AdmissionCycleResource::getUrl().($query ? '?'.$query : ''));
+                })->name('resources.admission-cycles.index');
+
+                Route::get('admission-cycles/create', function (): RedirectResponse {
+                    Gate::authorize('create', AdmissionCycle::class);
+
+                    return redirect(AdmissionCycleResource::getUrl('create'));
+                })->name('resources.admission-cycles.create');
+
+                Route::get('admission-cycles/{record}', function (string $record): RedirectResponse {
+                    $cycle = AdmissionCycle::query()->findOrFail($record);
+                    Gate::authorize('view', $cycle);
+
+                    $query = request()->getQueryString();
+
+                    return redirect(AdmissionCycleResource::getUrl('view', ['record' => $cycle]).($query ? '?'.$query : ''));
+                })->whereNumber('record')->name('resources.admission-cycles.view');
+
+                Route::get('admission-cycles/{record}/edit', function (string $record): RedirectResponse {
+                    $cycle = AdmissionCycle::query()->findOrFail($record);
+                    Gate::authorize('update', $cycle);
+
+                    $query = request()->getQueryString();
+
+                    return redirect(AdmissionCycleResource::getUrl('edit', ['record' => $cycle]).($query ? '?'.$query : ''));
+                })->whereNumber('record')->name('resources.admission-cycles.edit');
             })
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $this->staffNavigation($builder))
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
@@ -227,7 +279,7 @@ class AdminPanelProvider extends PanelProvider
 
         $components = match ($selectedContext) {
             User::StaffRoleRegistrar => [
-                'Admissions' => AdmissionApplicationResource::class,
+                'Admissions' => Admissions::class,
                 'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
                 'Term Planning' => TermPlanningWorkbench::class,
                 'Students & Enrollment' => EnrollmentResource::class,
@@ -257,23 +309,15 @@ class AdminPanelProvider extends PanelProvider
         return $builder->items($this->labeledNavigationItems($components));
     }
 
-    /**
-     * @param  array<string, class-string>  $components
-     * @return list<NavigationItem>
-     */
     private function labeledNavigationItems(array $components): array
     {
-        return collect($components)
-            ->flatMap(function (string $component, string $label): array {
-                if (! $component::canAccess()) {
-                    return [];
-                }
+        return collect($components)->flatMap(function (string $component, string $label): array {
+            if (! $component::canAccess()) {
+                return [];
+            }
 
-                return collect($component::getNavigationItems())
-                    ->map(fn (NavigationItem $item): NavigationItem => $item->label($label))
-                    ->all();
-            })
-            ->values()
-            ->all();
+            return collect($component::getNavigationItems())
+                ->map(fn (NavigationItem $item): NavigationItem => $item->label($label))->all();
+        })->values()->all();
     }
 }

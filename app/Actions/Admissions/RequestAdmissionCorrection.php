@@ -31,6 +31,7 @@ class RequestAdmissionCorrection
         string $applicantInstruction,
         string $responsibleParty,
         CarbonInterface $dueAt,
+        ?int $expectedSubmissionVersionId = null,
     ): ApplicationCorrectionRequest {
         $this->authorize($actor);
         $validated = Validator::make([
@@ -52,8 +53,16 @@ class RequestAdmissionCorrection
         ])->validate();
         $dueAt = CarbonImmutable::instance($dueAt);
 
-        return DB::transaction(function () use ($application, $actor, $validated, $dueAt): ApplicationCorrectionRequest {
+        $expectedSubmissionVersionId ??= $application->current_submission_version_id;
+
+        return DB::transaction(function () use ($application, $actor, $validated, $dueAt, $expectedSubmissionVersionId): ApplicationCorrectionRequest {
             $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
+
+            if ($locked->current_submission_version_id !== $expectedSubmissionVersionId) {
+                throw ValidationException::withMessages([
+                    'application_state' => 'The submitted version changed. Refresh and review it before requesting correction.',
+                ]);
+            }
 
             if ($locked->application_state !== AdmissionApplication::StateSubmitted) {
                 throw ValidationException::withMessages([
@@ -181,6 +190,8 @@ class RequestAdmissionCorrection
             'prior_school_country_code', 'prior_school_completion_year', 'lrn',
             'prior_college_identifier', 'guardian_full_name', 'guardian_relationship',
             'guardian_mobile', 'privacy_acknowledged', 'accuracy_declared',
+            'lrn_availability', 'gender', 'civil_status', 'current_barangay',
+            'current_street_address', 'current_postal_code', 'prior_school_address',
         ];
         $normalized = [];
 
@@ -192,6 +203,7 @@ class RequestAdmissionCorrection
                     ? AdmissionRequirement::query()
                         ->where('id', $scope['admission_requirement_id'])
                         ->where('admission_requirement_set_id', $requirementSetId)
+                        ->where('requires_preliminary_evidence', true)
                         ->first()
                     : null;
                 $valid = $requirement instanceof AdmissionRequirement;
@@ -203,7 +215,7 @@ class RequestAdmissionCorrection
 
             if (! $valid) {
                 throw ValidationException::withMessages([
-                    'scopes' => 'Every correction item must name an applicable field or evidence requirement.',
+                    'scopes' => 'Every correction item must name an applicable field or preliminary digital-evidence requirement.',
                 ]);
             }
 

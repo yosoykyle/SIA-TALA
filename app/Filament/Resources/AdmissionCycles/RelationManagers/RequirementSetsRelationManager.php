@@ -44,8 +44,12 @@ class RequirementSetsRelationManager extends RelationManager
                             ])
                             ->required(),
                         TextInput::make('version')->numeric()->minValue(1)->required(),
-                        TextInput::make('authority_reference')->required()->maxLength(255),
-                        DateTimePicker::make('effective_at')->native(false)->required(),
+                        TextInput::make('authority_reference')->label('Requirement policy source')
+                            ->helperText('Identify the approved school policy establishing this version. Publisher identity and time are recorded separately.')
+                            ->placeholder('Approved requirements policy or memo reference')->required()->maxLength(255),
+                        DateTimePicker::make('effective_at')->label('Effective from (Manila time)')
+                            ->helperText('Controls when this requirement version may apply. Existing submitted versions retain their original requirements.')
+                            ->placeholder('Select date and time')->prefixIcon('heroicon-o-calendar-days')->native(false)->required(),
                         Select::make('replaces_requirement_set_id')
                             ->label('Replaces version')
                             ->options(fn (Get $get): array => AdmissionRequirementSet::query()
@@ -69,7 +73,9 @@ class RequirementSetsRelationManager extends RelationManager
                     ->schema([
                         TextInput::make('code')->required()->maxLength(64),
                         TextInput::make('label')->required()->maxLength(160),
-                        TextInput::make('authority_reference')->required()->maxLength(255),
+                        TextInput::make('authority_reference')->label('Requirement source reference')
+                            ->helperText('Identify the policy provision establishing this particular requirement.')
+                            ->placeholder('Policy or memo reference and relevant provision')->required()->maxLength(255),
                         Textarea::make('purpose')->required()->maxLength(1000)->columnSpanFull(),
                         Select::make('credential_classification')
                             ->label('Credential classification')
@@ -152,8 +158,9 @@ class RequirementSetsRelationManager extends RelationManager
             ->recordActions([
                 Action::make('publish')
                     ->label('Publish version')
+                    ->modalSubmitActionLabel('Publish requirement version')
                     ->icon('heroicon-o-check-badge')
-                    ->color('success')
+                    ->color('primary')
                     ->requiresConfirmation()
                     ->modalDescription('Publishing makes this exact requirement version immutable. Review every path, authority, method, and due stage first.')
                     ->schema([

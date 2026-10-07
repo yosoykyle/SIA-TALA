@@ -3,7 +3,7 @@
     margin: 12mm;
 
     @bottom-center {
-        content: "Page " counter(page) " of " counter(pages);
+        content: 'Page ' counter(page) ' of ' counter(pages);
         font: 10px Arial, Helvetica, sans-serif;
     }
 }
@@ -11,204 +11,111 @@
 :root {
     color-scheme: light;
     color: #111;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: var(--tala-font-body);
+    font-size: 13px;
 }
 
-body {
-    margin: 0;
-    background: #eceff3;
-    line-height: 1.45;
-}
-
+body { margin: 0; background: #eceff3; line-height: 1.45; }
 main {
     box-sizing: border-box;
     width: min(210mm, 100%);
-    min-height: 297mm;
     margin: 24px auto;
     padding: 12mm;
     background: #fff;
 }
-
-header {
-    padding-bottom: 12px;
-    border-bottom: 3px solid #111;
-}
-
-h1 {
-    margin: 8px 0 0;
-    font-size: 22px;
-    letter-spacing: .06em;
-}
-
-h2 {
-    margin: 22px 0 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #555;
-    font-size: 16px;
-}
-
-p {
-    margin: 5px 0;
-}
-
-dl {
-    display: grid;
-    grid-template-columns: minmax(130px, 1fr) 2fr;
-    gap: 5px 14px;
-    margin: 10px 0;
-}
-
-dt {
+.document { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.document > :is(thead, tbody) > tr > td { padding: 0; vertical-align: top; }
+.document-header { padding-block: 0 12px; border-bottom: 2px solid #333; }
+.issuer { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.issuer img { width: 18mm; height: 18mm; object-fit: contain; }
+.issuer strong { font-size: 16px; }
+h1 { margin: 8px 0 0; font-size: 22px; line-height: 1.25; }
+h2 { margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #555; font-size: 16px; break-after: avoid; }
+h3 { margin: 0 0 4px; font-size: 13px; }
+p { margin: 5px 0; }
+.application-reference, .applicant-identity { overflow-wrap: anywhere; }
+.application-reference { color: #333; }
+.applicant-identity { font-size: 12px; }
+.version-status {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
     font-weight: 700;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
-
-dd {
-    margin: 0;
-    overflow-wrap: anywhere;
+.version-status.is-current {
+    background: #e6f4ea;
+    color: #137333;
+    border: 1px solid #ceead6;
 }
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
+.version-status.is-historical {
+    background: #fef7e0;
+    color: #b06000;
+    border: 1px solid #feefc3;
 }
-
-th,
-td {
-    padding: 7px;
-    border: 1px solid #555;
-    text-align: left;
-    vertical-align: top;
-}
-
-th {
-    background: #eee;
-}
-
-.version-status,
-.notice {
-    font-weight: 700;
-}
-
-.notice {
-    margin-top: 18px;
-    padding: 10px;
-    border: 2px solid #111;
-}
-
-.controls {
-    display: flex;
-    width: min(210mm, 100%);
-    margin: 14px auto;
-    gap: 8px;
-}
-
-.controls a,
-.controls button {
+.notice { font-weight: 700; }
+dl { display: grid; grid-template-columns: minmax(130px, 1fr) 2fr; gap: 5px 14px; margin: 10px 0; }
+dt { font-weight: 600; }
+dd { margin: 0; overflow-wrap: anywhere; }
+.receipt-evidence { padding-block: 10px; border-bottom: 1px solid #777; break-inside: avoid; }
+.receipt-evidence dl { font-size: 12px; margin-bottom: 0; }
+.document > tbody > tr:has(.receipt-evidence) { break-inside: avoid; }
+.document > tbody > tr:has(> td > h2) { break-after: avoid; }
+.notice { margin-top: 18px; padding-block: 10px; border-top: 1px solid #555; break-inside: avoid; }
+footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #555; font-size: 11px; break-inside: avoid; }
+.controls { display: flex; box-sizing: border-box; width: min(210mm, 100%); margin: 14px auto; gap: 8px; flex-wrap: wrap; }
+.controls a, .controls button {
     padding: 9px 14px;
-    border: 1px solid #111;
+    min-height: 40px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #85858f;
+    border-radius: 6px;
     background: #fff;
     color: #111;
     font: inherit;
     text-decoration: none;
     cursor: pointer;
 }
+.controls svg { width: 18px; height: 18px; }
+.controls button { background: var(--tala-brand); color: #fff; border-color: var(--tala-brand-strong); }
+.controls :is(a, button):focus-visible { outline: 3px solid #1456a0; outline-offset: 3px; }
 
-.controls a:focus-visible,
-.controls button:focus-visible {
-    outline: 3px solid #1456a0;
-    outline-offset: 3px;
+@media (forced-colors: none) {
+    .controls :is(a, button) {
+        background-image: var(--tala-control-gloss);
+        box-shadow: var(--tala-control-depth);
+    }
+    .controls :is(a, button):active { box-shadow: var(--tala-control-pressed); }
 }
 
-footer {
-    margin-top: 24px;
-    padding-top: 8px;
-    border-top: 1px solid #555;
-    font-size: 11px;
+@media (forced-colors: active) {
+    .controls :is(a, button) {
+        background-image: none;
+        box-shadow: none;
+        border-color: ButtonText;
+    }
 }
 
-@media (max-width: 640px) {
-    main {
-        min-height: 100vh;
-        margin: 0;
-        padding: 18px;
-    }
-
-    .controls {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 10px;
-    }
-
-    dl {
-        grid-template-columns: 1fr;
-    }
-
-    dt {
-        margin-top: 6px;
-    }
-
-    table,
-    thead,
-    tbody,
-    th,
-    td,
-    tr {
-        display: block;
-    }
-
-    thead {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-    }
-
-    tr {
-        margin-bottom: 8px;
-        border: 1px solid #555;
-    }
-
-    td {
-        border: 0;
-        border-bottom: 1px solid #ddd;
-    }
-
-    td::before {
-        content: attr(data-label) ": ";
-        font-weight: 700;
-    }
+@media screen and (max-width: 640px) {
+    main { margin: 0; padding: 18px; }
+    .controls { margin: 0; padding: 10px; }
+    dl { grid-template-columns: 1fr; gap: 2px; }
+    dt:not(:first-child) { margin-top: 6px; }
 }
 
 @media print {
-    body {
-        background: #fff;
-    }
-
-    main {
-        width: auto;
-        min-height: auto;
-        margin: 0;
-        padding: 0;
-    }
-
-    .controls {
-        display: none !important;
-    }
-
-    .document-header {
-        position: running(document-header);
-        break-after: avoid;
-    }
-
-    thead {
-        display: table-header-group;
-    }
-
-    tr,
-    .notice,
-    footer {
-        break-inside: avoid;
-    }
+    body { background: #fff; color: #000; }
+    main { width: 100%; margin: 0; padding: 0; }
+    .controls, .tala-copy-reference, .tala-reference-feedback { display: none !important; }
+    .document { width: 100%; }
+    .document > thead { display: table-header-group; break-inside: avoid; page-break-inside: avoid; }
+    .document-header { break-inside: avoid; break-after: avoid; }
+    tr, section, .receipt-evidence, .notice, footer { break-inside: avoid; page-break-inside: avoid; }
+    h2, h3 { break-after: avoid; page-break-after: avoid; }
 }

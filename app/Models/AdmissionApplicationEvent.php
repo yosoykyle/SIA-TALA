@@ -33,6 +33,8 @@ class AdmissionApplicationEvent extends Model
 
     public const TypeCredentialResultRecorded = 'CredentialResultRecorded';
 
+    public const TypeEnrollmentClearanceRecorded = 'RegistrarEnrollmentClearanceRecorded';
+
     public const TypeReadinessBecameTrue = 'ReadinessBecameTrue';
 
     public const TypeReadinessBecameFalse = 'ReadinessBecameFalse';
@@ -93,6 +95,7 @@ class AdmissionApplicationEvent extends Model
             self::TypeReopened,
             self::TypeDecisionRecorded,
             self::TypeCredentialResultRecorded,
+            self::TypeEnrollmentClearanceRecorded,
             self::TypeReadinessBecameTrue,
             self::TypeReadinessBecameFalse,
         ];

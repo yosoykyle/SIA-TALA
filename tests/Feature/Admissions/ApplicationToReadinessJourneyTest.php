@@ -3,7 +3,9 @@
 namespace Tests\Feature\Admissions;
 
 use App\Actions\Admissions\AdmissionNotificationLedger;
+use App\Actions\Admissions\SubmitAdmissionApplication;
 use App\Filament\Applicant\Pages\Application as ApplicationPage;
+use App\Filament\Applicant\Pages\Dashboard;
 use App\Filament\Applicant\Pages\Dashboard as ApplicantDashboard;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
@@ -25,6 +27,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\View;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -67,7 +70,8 @@ class ApplicationToReadinessJourneyTest extends TestCase
         $this->assertContains(AdmissionCycleResource::class, $resources);
     }
 
-    public function test_five_step_applicant_page_submits_one_versioned_application_without_creating_student_records(): void
+    #[DataProvider('submissionFollowUpFailureProvider')]
+    public function test_five_step_applicant_page_submits_one_versioned_application_without_creating_student_records(bool $followUpFails): void
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
         $program = Program::factory()->create(['is_active' => true]);
@@ -95,7 +99,16 @@ class ApplicationToReadinessJourneyTest extends TestCase
         $applicant->assignRole('applicant');
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
 
-        Livewire::actingAs($applicant)
+        if ($followUpFails) {
+            $submit = app(SubmitAdmissionApplication::class);
+            $this->mock(SubmitAdmissionApplication::class)
+                ->shouldReceive('execute')->once()->andReturnUsing(function (...$arguments) use ($submit): never {
+                    $submit->execute(...$arguments);
+                    throw new \RuntimeException('Synthetic failure after submission completed.');
+                });
+        }
+
+        $component = Livewire::actingAs($applicant)
             ->test(ApplicationPage::class)
             ->fillForm([
                 'admission_cycle_id' => $cycle->id,
@@ -114,16 +127,30 @@ class ApplicationToReadinessJourneyTest extends TestCase
                 'prior_school_country_code' => 'PH',
                 'credential_basis' => AdmissionApplication::CredentialSeniorHighSchool,
                 'prior_school_completion_year' => 2025,
+                'lrn_availability' => 'NotIssued',
                 'privacy_acknowledged' => true,
                 'accuracy_declared' => true,
             ])
             ->call('submitApplication')
             ->assertHasNoFormErrors();
 
+        $this->assertNotSame('failed', $component->get('saveStatus'), $component->get('saveStatusMessage'));
         $application = AdmissionApplication::query()->where('user_id', $applicant->id)->sole();
         $this->assertSame(AdmissionApplication::StateSubmitted, $application->application_state);
         $this->assertSame(1, $application->submissionVersions()->count());
+        $this->assertMatchesRegularExpression('/^APP-\\d{4}-(?:[2-9A-HJKMNP-Z]{4}-){2}[2-9A-HJKMNP-Z]{4}$/', $application->application_reference);
         $this->assertSame(0, StudentProfile::query()->where('user_id', $applicant->id)->count());
+        $component->assertRedirect(Dashboard::getUrl(['application' => $application->id]));
+        if ($followUpFails) {
+            $component->assertSet('saveStatus', 'saved')
+                ->assertSet('saveStatusMessage', 'Your Application was submitted. A follow-up step could not finish. Open Home to check your submitted version and notification status.');
+        }
+    }
+
+    /** @return array<string, array{bool}> */
+    public static function submissionFollowUpFailureProvider(): array
+    {
+        return ['normal submission' => [false], 'failure after submission' => [true]];
     }
 
     public function test_applicant_can_retry_only_a_failed_admissions_update_without_changing_application_state(): void
@@ -216,14 +243,15 @@ class ApplicationToReadinessJourneyTest extends TestCase
                 'version' => $version,
             ]))
             ->assertOk()
-            ->assertSee('APPLICATION ACKNOWLEDGMENT')
+            ->assertSee('Application acknowledgment')
             ->assertSee('APP-2026-0001')
             ->assertSee('Captured Cycle')
             ->assertSee('Captured Program')
             ->assertSee('First Year')
             ->assertSee(asset('css/tala-application-acknowledgment.css'), false)
-            ->assertSee('href="'.route('filament.applicant.pages.dashboard').'"', false)
-            ->assertSee('not an admission certificate');
+            ->assertSee('href="'.route('filament.applicant.pages.dashboard', ['application' => $application->id]).'"', false)
+            ->assertSee('unavailable in this historical snapshot')
+            ->assertSee('Admission and official enrollment are recorded separately.');
 
         $printCss = file_get_contents(public_path('css/tala-application-acknowledgment.css'));
         $this->assertIsString($printCss);
@@ -276,6 +304,25 @@ class ApplicationToReadinessJourneyTest extends TestCase
             ]))
             ->assertOk()
             ->assertSee('Back to Applicant Record');
+
+        foreach (['needs_review', 'waiting_for_applicant', 'official_credentials', 'ready_for_enrollment', 'history'] as $queue) {
+            $this->actingAs($registrar)->get(route('admissions.application.acknowledgment', [
+                'application' => $application, 'version' => $version, 'queue' => $queue,
+            ]))->assertOk()->assertSee('href="'.e(AdmissionApplicationResource::getUrl('view', [
+                'record' => $application, 'queue' => $queue,
+            ])).'"', false);
+        }
+
+        $this->actingAs($registrar)->get(route('admissions.application.acknowledgment', [
+            'application' => $application, 'version' => $version, 'queue' => 'unrecognized',
+        ]))->assertOk()->assertSee('href="'.e(AdmissionApplicationResource::getUrl('view', [
+            'record' => $application,
+        ])).'"', false)->assertDontSee('queue=unrecognized', false);
+
+        $this->actingAs($applicant)->get(route('admissions.application.acknowledgment', [
+            'application' => $application, 'version' => $version, 'queue' => 'history',
+        ]))->assertOk()->assertSee('href="'.route('filament.applicant.pages.dashboard', ['application' => $application->id]).'"', false)
+            ->assertDontSee('queue=history', false);
     }
 
     public function test_acknowledgment_render_failure_does_not_record_false_success(): void

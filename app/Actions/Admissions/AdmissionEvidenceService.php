@@ -49,41 +49,63 @@ class AdmissionEvidenceService
         ?ApplicationSubmissionVersion $submissionVersion = null,
     ): DocumentEvidence {
         $this->authorize($application, $actor);
-        $this->assertApplicantEvidenceScope($application, $requirement, $actor);
-        $this->assertRequirementApplies($application, $requirement, $submissionVersion);
         $this->validateFile($file);
-
         $checksum = hash_file('sha256', $file->getRealPath());
-        $directory = "admission-applications/{$application->id}/requirements/{$requirement->id}";
-        $path = Storage::disk($this->disk)->putFile($directory, $file);
-
-        if (! is_string($path)) {
-            throw ValidationException::withMessages([
-                'evidence' => 'The private evidence file could not be stored. Try again or contact support.',
-            ]);
-        }
+        $path = null;
 
         try {
-            return DocumentEvidence::query()->create([
-                'checklist_item_id' => null,
-                'admission_application_id' => $application->id,
-                'admission_requirement_id' => $requirement->id,
-                'application_submission_version_id' => $submissionVersion?->id,
-                'disk' => $this->disk,
-                'path' => $path,
-                'checksum' => $checksum,
-                'mime_type' => $file->getMimeType(),
-                'size_bytes' => $file->getSize(),
-                'evidence_method' => 'DIGITAL_UPLOAD',
-                'status' => DocumentEvidence::StatusSubmitted,
-                'uploaded_by' => $actor->id,
-                'uploaded_at' => now(config('app.timezone')),
-                'reviewed_by' => null,
-                'reviewed_at' => null,
-                'replaces_document_evidence_id' => null,
-            ]);
+            return DB::transaction(function () use ($application, $requirement, $actor, $file, $submissionVersion, $checksum, &$path): DocumentEvidence {
+                $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
+                $this->authorize($locked, $actor);
+                if ($locked->privacy_acknowledged_at === null
+                    || $locked->privacy_notice_reference !== $locked->admissionCycle()->firstOrFail()->privacy_notice_reference) {
+                    throw ValidationException::withMessages(['privacy_acknowledged' => 'Acknowledge the current privacy notice before uploading a private copy.']);
+                }
+                if (str_contains(strtolower($requirement->label), 'photo') && ! str_starts_with((string) $file->getMimeType(), 'image/')) {
+                    throw ValidationException::withMessages(['evidence' => 'Upload the ID photo as a JPEG or PNG image.']);
+                }
+                $this->assertApplicantEvidenceScope($locked, $requirement, $actor);
+                $this->assertRequirementApplies($locked, $requirement, $submissionVersion);
+                if ($locked->evidenceVersions()
+                    ->where('admission_requirement_id', $requirement->id)
+                    ->where('checksum', $checksum)
+                    ->exists()) {
+                    throw ValidationException::withMessages([
+                        "evidence.{$requirement->id}" => 'This exact file is already retained. Choose a different corrected copy.',
+                    ]);
+                }
+                $directory = "admission-applications/{$locked->id}/requirements/{$requirement->id}";
+                $path = Storage::disk($this->disk)->putFile($directory, $file);
+
+                if (! is_string($path)) {
+                    throw ValidationException::withMessages([
+                        'evidence' => 'The private evidence file could not be stored. Try again or contact support.',
+                    ]);
+                }
+
+                return DocumentEvidence::query()->create([
+                    'checklist_item_id' => null,
+                    'admission_application_id' => $application->id,
+                    'admission_requirement_id' => $requirement->id,
+                    'application_submission_version_id' => $submissionVersion?->id,
+                    'disk' => $this->disk,
+                    'path' => $path,
+                    'checksum' => $checksum,
+                    'mime_type' => $file->getMimeType(),
+                    'size_bytes' => $file->getSize(),
+                    'evidence_method' => 'DIGITAL_UPLOAD',
+                    'status' => DocumentEvidence::StatusSubmitted,
+                    'uploaded_by' => $actor->id,
+                    'uploaded_at' => now(config('app.timezone')),
+                    'reviewed_by' => null,
+                    'reviewed_at' => null,
+                    'replaces_document_evidence_id' => null,
+                ]);
+            });
         } catch (Throwable $exception) {
-            Storage::disk($this->disk)->delete($path);
+            if (is_string($path)) {
+                Storage::disk($this->disk)->delete($path);
+            }
 
             throw $exception;
         }
@@ -148,20 +170,47 @@ class AdmissionEvidenceService
     {
         $this->authorize($application, $actor);
 
-        $temporaryEvidence = $application->evidenceVersions()
-            ->whereNull('application_submission_version_id')
-            ->whereDoesntHave('preliminaryReviews')
-            ->get();
+        DB::transaction(function () use ($application, $actor): void {
+            $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
+            $this->authorize($locked, $actor);
 
-        DB::transaction(function () use ($temporaryEvidence): void {
+            if ($locked->application_state !== AdmissionApplication::StateDraft
+                || $locked->current_submission_version_id !== null
+                || $locked->submissionVersions()->exists()
+                || $locked->evidenceVersions()->where(function ($query): void {
+                    $query->whereNotNull('application_submission_version_id')->orWhereHas('preliminaryReviews');
+                })->exists()) {
+                throw ValidationException::withMessages([
+                    'application_state' => 'Only an unsubmitted Draft may have temporary evidence discarded.',
+                ]);
+            }
+
+            $temporaryEvidence = $locked->evidenceVersions()
+                ->whereNull('application_submission_version_id')
+                ->whereDoesntHave('preliminaryReviews')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($temporaryEvidence as $evidence) {
+                $this->assertStoredPathBelongsToEvidence($evidence, $locked);
+            }
+
             foreach ($temporaryEvidence as $evidence) {
                 $evidence->delete();
             }
-        }, attempts: 3);
 
-        foreach ($temporaryEvidence as $evidence) {
-            Storage::disk($evidence->disk)->delete($evidence->path);
-        }
+            DB::afterCommit(function () use ($temporaryEvidence): void {
+                foreach ($temporaryEvidence as $evidence) {
+                    try {
+                        if (! Storage::disk($evidence->disk)->delete($evidence->path)) {
+                            throw new \RuntimeException('Discarded temporary evidence could not be removed from private storage.');
+                        }
+                    } catch (Throwable $exception) {
+                        report($exception);
+                    }
+                }
+            });
+        }, attempts: 3);
     }
 
     private function authorize(AdmissionApplication $application, User $actor): void
@@ -240,5 +289,18 @@ class AdmissionEvidenceService
                 File::types(['pdf', 'jpg', 'jpeg', 'png'])->max(10 * 1024),
             ]],
         )->validate();
+
+        $header = file_get_contents($file->getRealPath(), false, null, 0, 8);
+        $matchesType = is_string($header) && match ($file->getMimeType()) {
+            'application/pdf' => str_starts_with($header, '%PDF-'),
+            'image/jpeg' => str_starts_with($header, "\xFF\xD8\xFF"),
+            'image/png' => $header === "\x89PNG\r\n\x1A\n",
+            default => false,
+        };
+        if (! $matchesType) {
+            throw ValidationException::withMessages([
+                'evidence' => 'The file contents must match a PDF, JPEG, or PNG review copy.',
+            ]);
+        }
     }
 }

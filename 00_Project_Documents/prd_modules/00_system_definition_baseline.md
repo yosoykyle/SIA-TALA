@@ -137,6 +137,10 @@ The accepted presentation model is:
 
 `Role work queue → shared authoritative record → one primary action → contextual evidence and history`
 
+Draft interaction follows one preparation contract: identify what is saved versus unsaved, allow incomplete preparation where the owning schema and PRD permit it, resume the same source, offer Save and exit with a truthful destination, and confirm discard only when that domain allows it. Publication/submission readiness remains separate from preparation validation. Reuse native save/status/validation components and vocabulary; each domain retains its own minimum identity, ownership, versioning and Submit/Activate/Issue/Publish/Release transition. No generic Draft workflow or deletion engine is introduced.
+
+Inputs have an explicit task purpose: identity, operational choice, policy source, external approval/evidence or internal review basis. Derive actor/time/current source from authoritative records. Require a separate reference only where it establishes an actual policy source, external fact or consequential authorization under the owning PRD. Developer unfamiliarity alone changes no requirement. Explain the source with a relevant example; preserve historical references and protected content.
+
 TALA does not create separate role-owned copies of the same application, student, enrollment, timetable, grade, or account state. Every role projection retains the same identifier, status vocabulary, owner, effective date, and next action.
 
 Approved workspace map:

@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Filament\Applicant\Pages\Application;
+use App\Filament\Applicant\Pages\Dashboard;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationSubmissionVersion;
+use App\Models\Term;
 use App\Models\User;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -53,7 +56,7 @@ class ApplicantWorkspaceTest extends TestCase
             ->assertOk()
             ->assertSee('Servitech Institute Asia — Applicant Workspace')
             ->assertSee('No application yet')
-            ->assertSee('Current and earlier Applications');
+            ->assertSee('Current and earlier applications');
     }
 
     public function test_requirements_empty_state_explains_its_version_boundary_and_links_to_application(): void
@@ -76,15 +79,16 @@ class ApplicantWorkspaceTest extends TestCase
         $this->assertIsString($source);
         $this->assertIsString($view);
         foreach ([
-            'Application choice',
+            'Choice',
             'Identity and contact',
-            'Prior education',
-            'Preliminary evidence',
+            'Education',
+            'Review copies',
             'Review and submit',
         ] as $step) {
             $this->assertStringContainsString("Step::make('{$step}')", $source);
         }
-        $this->assertStringContainsString('Save draft', $view);
+        $this->assertStringContainsString('Unsaved changes.', $view);
+        $this->assertStringContainsString("Action::make('saveAndExit')", $source);
         $this->assertStringContainsString('Submit application', file_get_contents(
             resource_path('views/filament/applicant/components/application-submit-action.blade.php'),
         ));
@@ -100,6 +104,39 @@ class ApplicantWorkspaceTest extends TestCase
             ->assertOk()
             ->assertSee('Requirements are not available yet')
             ->assertSee('Open application');
+    }
+
+    public function test_application_navigation_follows_the_owned_current_case_without_opening_an_empty_form(): void
+    {
+        $user = $this->applicant();
+        $this->actingAs($user);
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $this->assertSame(Application::getUrl(), Application::getNavigationUrl());
+
+        $application = AdmissionApplication::factory()->recycle(Term::firstOrFail())->create([
+            'user_id' => $user->id,
+        ]);
+        $this->assertSame(Application::getUrl(['application' => $application->id]), Application::getNavigationUrl());
+
+        $foreign = AdmissionApplication::factory()->recycle($application->term)->create([
+            'updated_at' => now()->addHour(),
+        ]);
+
+        foreach ([
+            AdmissionApplication::StateDraft,
+            AdmissionApplication::StateActionNeeded,
+            AdmissionApplication::StateSubmitted,
+            AdmissionApplication::StateAdmitted,
+            AdmissionApplication::StateNotAdmitted,
+            AdmissionApplication::StateWithdrawn,
+        ] as $state) {
+            $application->forceFill(['application_state' => $state])->save();
+            $expected = in_array($state, [AdmissionApplication::StateDraft, AdmissionApplication::StateActionNeeded], true)
+                ? Application::getUrl(['application' => $application->id])
+                : Dashboard::getUrl(['application' => $application->id]);
+            $this->assertSame($expected, Application::getNavigationUrl());
+            $this->get('/applicant')->assertOk()->assertSee('href="'.$expected.'"', false);
+        }
     }
 
     public function test_submitted_application_projects_status_and_separate_preliminary_and_official_requirements(): void
@@ -136,15 +173,15 @@ class ApplicantWorkspaceTest extends TestCase
             ->assertOk()
             ->assertSee('APP-2026-TEST-001')
             ->assertSee('Submitted')
-            ->assertSee('Preliminary evidence readiness')
-            ->assertSee('Official credential readiness')
+            ->assertSee('Preliminary copies')
+            ->assertSee('Registrar clearance')
             ->assertDontSee('Student Record Created');
 
         $this->actingAs($user)
             ->get('/applicant/requirements')
             ->assertOk()
-            ->assertSee('Preliminary digital review')
-            ->assertSee('Official credential verification')
+            ->assertSee('Digital review copies')
+            ->assertSee('Registrar enrollment clearance')
             ->assertSee('Form 138 or equivalent')
             ->assertDontSee('Blocks Handover');
     }

@@ -5,6 +5,7 @@ namespace Tests\Feature\Admissions;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
 use App\Actions\Admissions\RecordAdmissionDecision;
 use App\Actions\Admissions\RecordOfficialCredentialResult;
+use App\Actions\Admissions\RecordRegistrarEnrollmentClearance;
 use App\Actions\Admissions\RequestAdmissionCorrection;
 use App\Actions\Admissions\ResolveAdmissionIdentity;
 use App\Actions\Admissions\SaveAdmissionApplication;
@@ -119,7 +120,7 @@ class AdmissionReviewReadinessActionsTest extends TestCase
         }
     }
 
-    public function test_identity_decision_credential_reversal_and_ready_projection_remain_append_only(): void
+    public function test_identity_credential_history_and_current_registrar_clearance_remain_append_only(): void
     {
         [$application, $requirement, $nonCoreRequirement] = $this->submittedApplication();
         $application->admissionCycle->forceFill([
@@ -179,6 +180,13 @@ class AdmissionReviewReadinessActionsTest extends TestCase
             exceptionExpiresAt: now()->addDays(7),
         );
 
+        $this->assertFalse(app(ReadyApplicantProjectionQuery::class)->forApplication($application->fresh())['ready']);
+        $clearance = app(RecordRegistrarEnrollmentClearance::class)->execute(
+            $application->fresh(), $registrar, 'Cleared', true,
+            expectedDecisionId: $admitted->id,
+            expectedSubmissionVersionId: $application->current_submission_version_id,
+        );
+
         $projection = app(ReadyApplicantProjectionQuery::class)->forApplication($application->fresh());
         $this->assertTrue($projection['ready']);
         $this->assertSame($application->application_reference, $projection['application_reference']);
@@ -196,9 +204,21 @@ class AdmissionReviewReadinessActionsTest extends TestCase
             authorityReference: 'Synthetic reversal authority',
             expectedCurrentResultId: $verified->id,
         );
-        $this->assertFalse(
+        $this->assertTrue(
             app(ReadyApplicantProjectionQuery::class)->forApplication($application->fresh())['ready'],
+            'Legacy credential history cannot replace the current Registrar clearance.',
         );
+        $replacementClearance = app(RecordRegistrarEnrollmentClearance::class)->execute(
+            $application->fresh(), $registrar, 'ActionNeeded', false,
+            safeInstruction: 'Contact the Registrar about the external credential check.',
+            reason: 'External school checks require correction.',
+            expectedCurrentClearanceId: $clearance->id,
+            expectedDecisionId: $admitted->id,
+            expectedSubmissionVersionId: $application->current_submission_version_id,
+        );
+        $this->assertSame($clearance->id, $replacementClearance->supersedes_clearance_id);
+        $this->assertSame(2, $application->enrollmentClearances()->count());
+        $this->assertFalse(app(ReadyApplicantProjectionQuery::class)->forApplication($application->fresh())['ready']);
         $this->assertNotContains($application->id, app(ReadyApplicantProjectionQuery::class)->readyApplicationIds());
 
         try {

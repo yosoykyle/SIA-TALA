@@ -144,7 +144,7 @@ class AdmissionNotificationLedger
             }
 
             $payload = is_array($locked->payload) ? $locked->payload : [];
-            unset($payload['queued_at'], $payload['delivery']);
+            unset($payload['queued_at'], $payload['enqueue_requested_at'], $payload['delivery']);
             $payload['retry_authorized_at'] = now(config('app.timezone'))->toIso8601String();
             $payload['retry_authorized_by'] = $actor->id;
             $locked->forceFill([
@@ -191,7 +191,7 @@ class AdmissionNotificationLedger
         $payload = is_array($event->payload) ? $event->payload : [];
         $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
         $reference = $this->payloadString($payload, 'application_reference', 'Your application');
-        [$subject, $heading, $lines, $actionLabel, $path] = match ($event->event_type) {
+        [$subject, $heading, $lines, $actionLabel] = match ($event->event_type) {
             OperationalEvent::TypeAdmissionApplicationSubmitted,
             OperationalEvent::TypeAdmissionApplicationResubmitted => [
                 "{$institution} — Application received",
@@ -204,7 +204,6 @@ class AdmissionNotificationLedger
                     'Your submitted version is preserved for Registrar review.',
                 ],
                 'View your application',
-                '/applicant/application',
             ],
             OperationalEvent::TypeAdmissionCorrectionRequested => [
                 "{$institution} — Action needed for your application",
@@ -216,7 +215,6 @@ class AdmissionNotificationLedger
                     'Due: '.$this->payloadString($payload, 'due_at', 'See application portal'),
                 ],
                 'Review required corrections',
-                '/applicant/application',
             ],
             OperationalEvent::TypeAdmissionApplicationAdmitted => [
                 "{$institution} — Admission result available",
@@ -224,10 +222,9 @@ class AdmissionNotificationLedger
                 [
                     "Application reference: {$reference}",
                     $this->payloadString($payload, 'applicant_explanation', 'Your safe admission result is available in your application portal.'),
-                    ...$this->payloadStringList($payload, 'credential_instructions', ['Review your official credential instructions in your application portal.']),
+                    ...$this->payloadStringList($payload, 'credential_instructions', ['Review the Registrar instructions for external school checks and enrollment clearance in your application portal.']),
                 ],
                 'View admission result',
-                '/applicant/application',
             ],
             OperationalEvent::TypeAdmissionApplicationNotAdmitted => [
                 "{$institution} — Admission result available",
@@ -238,7 +235,6 @@ class AdmissionNotificationLedger
                     'Support: '.$this->payloadString($payload, 'support_contact', 'See the official support path in your application portal.'),
                 ],
                 'View admission history',
-                '/applicant/application',
             ],
             OperationalEvent::TypeAdmissionReadyForEnrollment => [
                 "{$institution} — Ready to start enrollment",
@@ -248,8 +244,7 @@ class AdmissionNotificationLedger
                     'Your admission requirements due before registration are satisfied.',
                     'This is not yet proof of official enrollment.',
                 ],
-                'Start enrollment',
-                '/applicant',
+                'View readiness checkpoint',
             ],
             OperationalEvent::TypeAdmissionApplicationWithdrawn => [
                 "{$institution} — Application withdrawal recorded",
@@ -260,7 +255,6 @@ class AdmissionNotificationLedger
                     'Support: '.$this->payloadString($payload, 'support_contact', 'See the official support path in your application portal.'),
                 ],
                 'View application history',
-                '/applicant/application',
             ],
             default => throw ValidationException::withMessages(['event_type' => 'Unsupported admissions email type.']),
         };
@@ -272,7 +266,7 @@ class AdmissionNotificationLedger
             heading: $heading,
             safeLines: $lines,
             actionLabel: $actionLabel,
-            actionUrl: url($path),
+            actionUrl: route('filament.applicant.pages.dashboard', ['application' => $event->related_record_id]),
         );
     }
 
@@ -287,11 +281,11 @@ class AdmissionNotificationLedger
 
             $payload = is_array($locked->payload) ? $locked->payload : [];
 
-            if (isset($payload['queued_at'])) {
+            if (isset($payload['queued_at']) || isset($payload['enqueue_requested_at'])) {
                 return $locked;
             }
 
-            $payload['queued_at'] = now(config('app.timezone'))->toIso8601String();
+            $payload['enqueue_requested_at'] = now(config('app.timezone'))->toIso8601String();
             $locked->forceFill(['payload' => $payload])->save();
             $recipient = is_array($locked->recipient_snapshot) ? $locked->recipient_snapshot : [];
             $email = $recipient['email'] ?? null;
@@ -300,11 +294,17 @@ class AdmissionNotificationLedger
                 return $this->markFailed($locked, 'The admissions notification recipient is unavailable.');
             }
 
-            try {
-                Mail::to($email)->queue($this->mailFor($locked));
-            } catch (Throwable $exception) {
-                return $this->markFailed($locked, 'The admissions mail could not be queued: '.class_basename($exception));
-            }
+            DB::afterCommit(function () use ($locked, $email): void {
+                try {
+                    Mail::to($email)->queue($this->mailFor($locked));
+                    $fresh = $locked->fresh();
+                    $payload = is_array($fresh->payload) ? $fresh->payload : [];
+                    $payload['queued_at'] = now(config('app.timezone'))->toIso8601String();
+                    $fresh->forceFill(['payload' => $payload])->save();
+                } catch (Throwable $exception) {
+                    $this->markFailed($locked, 'The admissions mail could not be queued: '.class_basename($exception));
+                }
+            });
 
             return $locked->refresh();
         }, attempts: 3);

@@ -23,6 +23,7 @@ class AdmissionDecision extends Model
     /** @var list<string> */
     protected $fillable = [
         'admission_application_id',
+        'application_submission_version_id',
         'decision',
         'reason',
         'authority_reference',

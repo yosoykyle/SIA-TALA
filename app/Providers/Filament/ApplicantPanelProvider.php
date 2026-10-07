@@ -37,6 +37,7 @@ class ApplicantPanelProvider extends PanelProvider
     {
         return TalaPanelTheme::configure($panel)
             ->id('applicant')
+            ->globalSearch(false)
             ->path('applicant')
             ->login(ContextualLogin::class)
             ->registration(RegisterApplicant::class)
@@ -106,7 +107,7 @@ class ApplicantPanelProvider extends PanelProvider
     {
         return NavigationItem::make($label)
             ->icon($component::getNavigationIcon())
-            ->url(fn (): string => route($routeName))
+            ->url(fn (): string => $component::getNavigationUrl())
             ->isActiveWhen(fn (): bool => request()->routeIs($routeName));
     }
 }

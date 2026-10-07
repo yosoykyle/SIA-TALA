@@ -213,7 +213,7 @@ The first System Administrator is created through a controlled deployment/operat
 
 ### 6.1 Public to verified Applicant
 
-1. Public visitor opens TALA and sees Servitech/TALA identity, current application availability, factual active Programs, the connected learner journey, in-page FAQ, institution/location context, and official support.
+1. Public visitor recognizes Servitech first, reads a factual school introduction, and explores active Programs with source-backed names, duration and per-program admission availability before returning-applicant administration. Current effective school Announcements, concise FAQ, configured location and official contact support inform discovery. Compact source-derived admission availability/deadline and the Asia/Manila clock support the available Apply action; internal cycle codes, versions, checked timestamps and system mechanics stay outside visitor copy.
 2. When entry is open, **Apply** opens Applicant account registration. When closed, the page explains that applications are closed while preserving Applicant sign-in for existing accounts.
 3. Registration collects only email, password, confirmation, and acknowledgement of the linked privacy notice. The acknowledgement records that the notice was presented; it is not blanket consent for later application, education, credential, or financial processing. The single notice names actual purposes, data categories, recipients, rights/contact, retention responsibility and applicable processing bases. Ordinary personal-data bases under Data Privacy Act Section 12 and sensitive-information exceptions under Section 13 are distinguished. The institution/privacy owner must establish the applicable basis before production collection; TALA records notice/version facts and any specific consent required by the owning journey without introducing a consent-management subsystem.
 4. The primary action is **Create account**. Account creation does not create an application.
@@ -226,7 +226,7 @@ Expired, already-used, malformed, throttled, and mail-failure paths must state w
 
 ### 6.2 Sign in and workspace resolution
 
-1. Public entry offers one **Sign in** action; the visitor does not select Applicant, Student, or Staff before authentication.
+1. Public entry offers one **Sign in** function through the shared credential route; the same action may repeat where useful. The visitor does not select Applicant, Student, or Staff before authentication.
 2. The account's authorized roles and security state determine eligible destinations after authentication. Public entry never grants or discloses a role.
 3. The user signs in with verified email and password.
 4. Unknown email or wrong password receives the same generic failure.
@@ -294,9 +294,17 @@ Clinic 4 owns the transaction:
 
 ### 6.8 Bounded public content
 
-System Administrator may create, edit, publish/unpublish, and order concise notices and FAQ entries. Notices may use publication windows in Asia/Manila. Invalid or unsafe optional notice links are rejected. Public rendering includes published FAQs and currently effective published notices.
+System Administrator may create, edit, publish/unpublish, and order concise notices and FAQ entries. Notices may use publication windows in Asia/Manila. Invalid or unsafe optional notice links are rejected. Public rendering includes published FAQs and currently effective published notices. Announcements cover factual school guidance beyond admissions and remain independent of the admission cycle. Their masthead announcement cards and native Announcements anchor appear when effective notices exist or the notice source is unavailable; an available source with no effective notices creates no empty announcement card or anchor.
 
-Programs are not Public Content records. The Public Gateway projects active Program facts and intake availability from Clinic 2 authority. Location uses the configured approved map reference with an external-link fallback. Hero media is limited to a small tracked or approved-object-storage asset set selected through deployment/configuration; it is never an arbitrary gallery. Moving media must be muted, include a poster and visible pause/stop control, preserve all meaning in text, and become static when reduced motion is requested.
+Programs are not Public Content records. The Public Gateway projects active Program facts and intake availability from Clinic 2 authority. Location shows a configured nonblank institutional address and a provider-generated HTTPS Google Maps embed supplied through `institution.public.map_embed_url`, with an approved external-map fallback. The embed accepts only `google.com` or `www.google.com` at `/maps/embed`, without user credentials or a nonstandard port; guessed identifiers, API keys and new provider infrastructure remain outside this boundary. School photography or video is an optional approved enhancement; its absence does not block the Public Gateway when the factual school identity, content and primary actions are complete. Hero media is limited to a small tracked or approved-object-storage asset set selected through deployment/configuration; it is never an arbitrary gallery. Approved video media is muted and includes a poster. Authored CSS ambient motion uses a static composition as its fallback and requires no video asset or poster file. Continuing movement retains a visible pause/stop control, preserves all meaning in text, and becomes static under reduced motion. School facts and primary native navigation, access and status-request actions remain usable without hero media or its scripting.
+
+### 6.9 Public application-status access
+
+The Public Gateway offers **Check application status** beside Apply and one **Sign in** entry. A visitor supplies an Application reference and account email. Every request receives the same neutral confirmation, including an unknown reference, mismatched email, ineligible account, throttling or queue failure. Send a status link only to the existing Application owner's current verified email when that account is active and has Applicant access. This is bounded read-only possession verification, not application-reference authentication or a workspace session. The existing sign-in route authenticates credentials and resolves authorized roles on the server.
+
+The emailed link is signed, expires after 15 minutes and contains an opaque 64-character token. Its cached scope binds the Application, owner and verified-email identity. Each read checks signature, expiry, cached scope, current ownership, account activity, Applicant access and the unchanged verified-email binding. A valid link shows only PRD 02's safe status projection. It grants no evidence, acknowledgment, private reasons, history or mutation access and never creates an authenticated session or bypasses Staff MFA.
+
+Limit requests to five per IP per minute and three per email per 15 minutes; limit status reads to 30 per minute. Invalid, expired or no-longer-eligible links return a generic unavailable response without confirming record existence. Tracking responses prohibit storage and indexing and use a no-referrer policy. Ordinary Sign in and support remain available. No delivery failure changes an Application or claims that mail arrived.
 
 ## 7. Authentication and Session Policy
 
@@ -335,6 +343,8 @@ The stricter Staff policy applies across all panels for a multi-role account.
 | Disable or reactivate | Account email | State, effective time, support; no sensitive internal reason | Access-change evidence reference | Access action remains effective and authorized resend is available | No internal reason or authority evidence in mail |
 | Staff-role change | Account email | Added/removed workspace context and support | Access-change evidence reference | Role action remains effective and authorized resend is available | No mail for teaching assignment or routine queue movement |
 | Official enrollment and COR ready | Account email | Clinic 4's secure enrollment/COR notice; on first enrollment, Student access is active | Clinic 4 official-enrollment event and COR version | Enrollment never rolls back; Clinic 4 owns authorized resend | No duplicate Student-activation email |
+
+Public application-status requests queue a code-defined email only after the eligible owner/reference match. It contains the scoped 15-minute status link and ordinary Sign in alternative, without private evidence, identity/contact details or attachments. The public request response remains uniform when dispatch fails. This access-request email creates no admission event or recurring reminder.
 
 Templates are code-defined. Delivery is queued, retried, and recorded without creating a notification-center product.
 
@@ -441,7 +451,7 @@ Technical IDs and evidence references remain secondary detail.
 - Public and learner-facing pages qualify at 360 × 800 CSS pixels and larger.
 - Public and authentication pages provide semantic landmarks, a visible-on-focus skip link, and consistently placed official support.
 - Access cards stack on mobile.
-- The single Sign in action is a semantic link usable by focus, click, tap, and keyboard. Role authorization and Staff session/MFA policy are enforced after credentials are verified, independently of the entry link.
+- The shared Sign in action may repeat where useful and is a semantic link usable by focus, click, tap, and keyboard. Role authorization and Staff session/MFA policy are enforced after credentials are verified, independently of the entry link.
 - Authentication and security forms remain single-column at narrow widths.
 - Authentication fields support correct autocomplete, paste, and password managers.
 - Users & Access hides or stacks secondary columns while preserving identity, state, and next action.
@@ -449,8 +459,8 @@ Technical IDs and evidence references remain secondary detail.
 - Focus is visible and not obscured; labels and instructions are programmatically associated; errors identify fields, announce a summary, and focus the first error; state changes include screen-reader status text.
 - Interactive targets meet the WCAG 2.2 minimum and use comfortable touch sizing where practical.
 - Content remains usable at 200% zoom, in high-contrast mode, and with reduced motion.
-- The Public Gateway remains one Bootstrap page. Programs, notices, FAQ, institution/location and map context, and support remain in the page body; the navigation uses in-page anchors and single public sign-in. Support, Privacy Notice, and Accessibility may use the approved bounded Bootstrap modal treatment rather than separate public pages. Each modal is full-screen below Bootstrap's small breakpoint and wide, centered, and scrollable on larger screens, with a labelled title, close control, Escape dismissal, contained focus, and focus restoration.
-- Approved hero media never carries task meaning by itself. Moving media is muted, pausable, has a poster, and becomes static under reduced motion. Missing media or an unavailable map embed leaves the textual content and external map fallback intact.
+- The Public Gateway remains one Bootstrap page. Home, Programs, conditional Announcements, Visit and FAQ use native in-page anchors with an accurate current-section cue. The school-first introduction and Explore programs lead the masthead. Compact admission availability and effective school Announcements share one clearly labelled card stack with manual Previous/Next controls and position; their authoritative sources stay independent. Announcements navigation reveals the notice card and accurately identifies the current destination. Programs follow the masthead and precede the returning-applicant form. Check application status reaches the request form directly without a redundant collapsible heading. Direct-hash entry, visible server validation/confirmation and entered values remain supported. The existing uniform confirmation and verified-owner 15-minute private-link contract remain unchanged. The map iframe has a meaningful title, lazy loading, a minimum 200-pixel height and an external-link fallback. Support copy serves actual admissions, location, access, privacy and accessibility needs. The privacy notice covers reference/email status requests as well as account journeys, using established purposes and bases without inventing institutional approvals. One shared sign-in function remains available. Support, Privacy Notice, and Accessibility may use the approved bounded Bootstrap modal treatment rather than separate public pages. Each modal is full-screen below Bootstrap's small breakpoint and wide, centered, and scrollable on larger screens, with a labelled title, close control, Escape dismissal, contained focus, and focus restoration.
+- Approved hero media never carries task meaning by itself. Approved video is muted and has a poster; authored CSS ambient motion has a static composition fallback. Continuing movement is pausable and becomes static under reduced motion, including when scripting is unavailable. Missing media or an unavailable map embed leaves the textual content and external map fallback intact.
 - The registration Privacy Notice link opens `/?modal=privacy` in a new tab so entered Filament form data remains intact while the same Public Gateway notice is shown; the notice is not duplicated inside Filament.
 - Session-expiry warning allows the user to continue when the security policy permits without removing the accepted idle timeout.
 - 403, 404, 419, 429, unexpected error, and temporary-unavailable pages preserve TALA identity and provide one safe recovery route.
@@ -505,7 +515,7 @@ The implemented module must prove:
 - Official-enrollment hook granting Student access idempotently without a second account or Student number
 - Notice publication windows and safe links; FAQ publish/unpublish; one display order per content type
 - Factual Program projection from current Program/Admission Cycle authority without duplicate marketing records
-- Approved hero-media and map fallback behavior, including pause/poster/reduced-motion and no dependency on media for meaning
+- Approved hero-media and map fallback behavior, including a visible pause control for continuing movement, video poster or static CSS fallback, reduced motion, and no dependency on media or scripting for meaning
 - Ethical defaults, persisted progress/saved state, active choice for consequential actions, factual warnings, and visible alternatives
 - Native search and role/state/verification/date filters with active indicators
 - Empty, loading, validation, error, keyboard, screen-reader, desktop, and mobile behavior

@@ -13,6 +13,7 @@ use App\Models\Term;
 use App\Models\User;
 use Filament\Auth\Notifications\VerifyEmail;
 use Filament\Facades\Filament;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -36,7 +37,9 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('Create Applicant account')
-            ->assertSee(route('filament.applicant.auth.login'), false)
+            ->assertSee(route('filament.admin.auth.login'), false)
+            ->assertDontSee('Staff Workspace')
+            ->assertDontSee('Student Hub')
             ->assertSee(route('filament.applicant.auth.register'), false)
             ->assertSee('id="privacyModal"', false)
             ->assertSee('id="accessibilityModal"', false);
@@ -52,16 +55,23 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             ->assertSee(route('filament.applicant.auth.register'), false)
             ->assertSee('https://www.facebook.com/servitechinstituteasiaph', false)
             ->assertSee('0947 737 9208')
-            ->assertSee('Applicant Privacy Notice')
+            ->assertSee('Privacy Notice')
+            ->assertSee('id="privacyModal"', false)
             ->assertSee('modal-fullscreen-sm-down', false);
     }
 
     public function test_missing_admission_cycle_keeps_existing_applicant_sign_in_available(): void
     {
+        AdmissionCycle::query()->where('state', AdmissionCycle::StatePublished)->update(['state' => AdmissionCycle::StateDraft]);
+
         $this->get('/')
             ->assertOk()
-            ->assertSee('No published admission cycle is available')
-            ->assertSee(route('filament.applicant.auth.login'), false)
+            ->assertViewHas('admissionState', 'Missing')
+            ->assertSee('Ask Admissions about applying')
+            ->assertSee('Existing accounts can still sign in.')
+            ->assertSee(route('filament.admin.auth.login'), false)
+            ->assertDontSee('Staff Workspace')
+            ->assertDontSee('Student Hub')
             ->assertDontSee(route('filament.applicant.auth.register'), false);
     }
 
@@ -258,6 +268,13 @@ class ApplicantAccountEntryJourneyTest extends TestCase
     {
         $admissionsWindow = $this->openAdmissions();
         $this->configureReadyApplicantEntry();
+        AdmissionCycle::query()
+            ->whereKeyNot($admissionsWindow->id)
+            ->where('state', AdmissionCycle::StatePublished)
+            ->where('opens_at', '<=', now())
+            ->where('closes_at', '>', now())
+            ->whereHas('term', fn (Builder $query): Builder => $query->where('state', Term::StateActive))
+            ->update(['closes_at' => now()->subMinute()]);
         $admissionsWindow->update(['closes_at' => now()->subMinute()]);
 
         $this->expectException(ValidationException::class);
@@ -491,7 +508,8 @@ class ApplicantAccountEntryJourneyTest extends TestCase
 
     private function openAdmissions(): AdmissionCycle
     {
-        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $term = Term::query()->where('state', Term::StateActive)->first()
+            ?? Term::factory()->create(['state' => Term::StateActive]);
 
         return AdmissionCycle::factory()->for($term)->published()->create([
             'opens_at' => now()->subDay(),

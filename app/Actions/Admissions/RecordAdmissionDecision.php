@@ -6,6 +6,7 @@ use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirement;
+use App\Models\Enrollment;
 use App\Models\IdentityMatchReview;
 use App\Models\OperationalEvent;
 use App\Models\PreliminaryEvidenceReview;
@@ -30,15 +31,18 @@ class RecordAdmissionDecision
         User $actor,
         string $decision,
         string $reason,
-        string $authorityReference,
+        ?string $authorityReference,
         string $applicantExplanation,
         ?int $expectedCurrentDecisionId = null,
+        ?int $expectedSubmissionVersionId = null,
+        bool $requiresExternalApproval = false,
     ): AdmissionDecision {
         $this->authorize($actor);
+        $expectedSubmissionVersionId ??= $application->current_submission_version_id;
         $validated = Validator::make([
             'decision' => $decision,
             'reason' => trim($reason),
-            'authority_reference' => trim($authorityReference),
+            'authority_reference' => filled($authorityReference) ? trim($authorityReference) : null,
             'applicant_explanation' => trim($applicantExplanation),
         ], [
             'decision' => ['required', Rule::in([
@@ -46,7 +50,7 @@ class RecordAdmissionDecision
                 AdmissionDecision::DecisionNotAdmitted,
             ])],
             'reason' => ['required', 'string', 'max:2000'],
-            'authority_reference' => ['required', 'string', 'max:255'],
+            'authority_reference' => ['nullable', 'string', 'max:255'],
             'applicant_explanation' => ['required', 'string', 'max:2000'],
         ])->validate();
 
@@ -55,8 +59,16 @@ class RecordAdmissionDecision
             $actor,
             $validated,
             $expectedCurrentDecisionId,
+            $expectedSubmissionVersionId,
+            $requiresExternalApproval,
         ): AdmissionDecision {
             $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
+            if ($locked->current_submission_version_id !== $expectedSubmissionVersionId) {
+                throw ValidationException::withMessages([
+                    'decision' => 'The submitted version changed. Refresh and review the current version before recording a decision.',
+                ]);
+            }
+
             $current = $locked->decisions()
                 ->whereDoesntHave('successor')
                 ->lockForUpdate()
@@ -65,6 +77,13 @@ class RecordAdmissionDecision
             if (($current?->id) !== $expectedCurrentDecisionId) {
                 throw ValidationException::withMessages([
                     'decision' => 'The current admission decision changed. Refresh before recording a successor.',
+                ]);
+            }
+
+            if (($current instanceof AdmissionDecision || $requiresExternalApproval)
+                && blank($validated['authority_reference'])) {
+                throw ValidationException::withMessages([
+                    'authority_reference' => 'Enter the separate approval reference for a replacement decision or exceptional approval.',
                 ]);
             }
 
@@ -94,9 +113,12 @@ class RecordAdmissionDecision
                 ]);
             }
 
-            $this->assertPreliminaryReviewComplete($locked);
+            if ($validated['decision'] === AdmissionDecision::DecisionAdmitted) {
+                $this->assertPreliminaryReviewComplete($locked);
+            }
             $wasReady = $this->readiness->forApplication($locked)['ready'];
             $recorded = $locked->decisions()->create([
+                'application_submission_version_id' => $locked->current_submission_version_id,
                 'decision' => $validated['decision'],
                 'reason' => $validated['reason'],
                 'authority_reference' => $validated['authority_reference'],
@@ -119,6 +141,7 @@ class RecordAdmissionDecision
                 'payload' => [
                     'decision' => $recorded->decision,
                     'supersedes_decision_id' => $current?->id,
+                    'requires_external_approval' => $requiresExternalApproval,
                 ],
                 'occurred_at' => $recorded->decided_at,
             ]);
@@ -166,6 +189,21 @@ class RecordAdmissionDecision
                 }
             }
 
+            if ($current instanceof AdmissionDecision && ! $isReady) {
+                foreach (Enrollment::query()->where('admission_application_id', $locked->id)->lockForUpdate()->get() as $case) {
+                    $case->registrationEvents()->create([
+                        'sequence' => ((int) $case->registrationEvents()->max('sequence')) + 1,
+                        'event_type' => $case->officially_enrolled_at === null ? 'AdmissionDecisionActionNeeded' : 'AdmissionsDiscrepancyRequiresRegistrar',
+                        'from_outcome' => $case->canonical_outcome,
+                        'to_outcome' => $case->canonical_outcome,
+                        'reason' => 'Admission decision #'.$recorded->id.' supersedes #'.$current->id.' for submission version #'.$recorded->application_submission_version_id.'. Registrar must resolve the changed admissions source for this learner and Term before the next authorized action.',
+                        'authority_reference' => $recorded->authority_reference,
+                        'actor_id' => $actor->id,
+                        'recorded_at' => $recorded->decided_at,
+                    ]);
+                }
+            }
+
             return $recorded;
         }, attempts: 3);
     }
@@ -187,15 +225,17 @@ class RecordAdmissionDecision
             ->get();
 
         foreach ($requirements as $requirement) {
-            $accepted = $application->evidenceVersions()
+            $evidence = $application->evidenceVersions()
                 ->where('admission_requirement_id', $requirement->id)
-                ->whereHas('preliminaryReviews', function ($query): void {
-                    $query->where('result', PreliminaryEvidenceReview::ResultAccepted)
-                        ->whereDoesntHave('successor');
-                })
-                ->exists();
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+            $review = $evidence?->preliminaryReviews()
+                ->whereDoesntHave('successor')
+                ->lockForUpdate()
+                ->first();
 
-            if (! $accepted) {
+            if ($review?->result !== PreliminaryEvidenceReview::ResultAccepted) {
                 throw ValidationException::withMessages([
                     'preliminary_evidence' => 'Every pre-decision requirement needs an acceptable current preliminary review.',
                 ]);

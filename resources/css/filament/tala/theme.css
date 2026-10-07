@@ -7,8 +7,8 @@
 @source '../../../../resources/views/components/**/*';
 
 .fi-body {
-    background: var(--tala-canvas);
-    color: var(--tala-text);
+    background: var(--gray-50);
+    color: var(--gray-950);
     font-family: var(--tala-font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -21,45 +21,20 @@
     text-wrap: balance;
 }
 
+.fi-body :is(.fi-input-wrp, input[type='checkbox'], input[type='radio']) {
+    border: 1px solid color-mix(in srgb, var(--gray-500) 60%, var(--gray-400));
+}
+
+.dark .fi-body :is(.fi-input-wrp, input[type='checkbox'], input[type='radio']) {
+    border-color: var(--gray-400);
+}
+
 .fi-header-heading, .fi-simple-header-heading { font-size: 1.5rem; }
 .fi-section-header-heading, .fi-modal-heading { font-size: 1.125rem; }
 
-.fi-topbar, .fi-sidebar, .fi-sidebar-header {
-    background: var(--tala-brand-strong);
-    color: var(--tala-on-brand);
-}
-
-.fi-body-has-topbar .fi-sidebar-header { background: var(--tala-brand-strong); }
-.fi-sidebar-nav { padding: 1rem 1.25rem; }
-.fi-sidebar-item-label { white-space: normal; line-height: 1.4; }
-.fi-sidebar-item-btn { min-height: 2.75rem; }
-
-.fi-sidebar-item .fi-sidebar-item-btn > .fi-sidebar-item-label,
-.fi-sidebar-item .fi-sidebar-item-btn > .fi-icon,
-.fi-sidebar .fi-logo,
-.fi-topbar :is(.fi-logo, .fi-icon-btn > .fi-icon),
-.tala-drawer-heading .fi-icon {
-    color: var(--tala-on-brand);
-}
-
-.fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
-    background: var(--tala-brand);
-    outline: 1px solid #93c5fd;
-    outline-offset: -1px;
-}
-
-.fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-sidebar-item-label {
-    font-weight: 600;
-}
-
-@media (hover: hover) {
-    .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:hover {
-        background: var(--tala-brand);
-    }
-}
-
-.fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:focus-visible {
-    background: var(--tala-brand);
+@media (forced-colors: none) {
+.fi-body .fi-section-header .fi-icon.fi-color-info { color: var(--info-600); }
+.dark .fi-body .fi-section-header .fi-icon.fi-color-info { color: var(--info-400); }
 }
 
 .fi-body :is(a, button, input, textarea, select, [tabindex]):focus-visible {
@@ -68,8 +43,27 @@
 }
 
 .fi-sidebar :focus-visible, .fi-topbar :focus-visible {
-    outline-color: var(--tala-accent) !important;
+    outline-color: var(--tala-focus) !important;
 }
+
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn { background-color: var(--primary-100); }
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn > :is(.fi-sidebar-item-label, .fi-icon) { color: var(--primary-800); }
+.dark .fi-sidebar-item.fi-active > .fi-sidebar-item-btn { background-color: color-mix(in srgb, var(--primary-400) 18%, var(--gray-900)); }
+.dark .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > :is(.fi-sidebar-item-label, .fi-icon) { color: var(--primary-200); }
+
+.fi-body :is(.fi-modal-description, .fi-no-notification-title, .fi-no-notification-body, .fi-dropdown-list-item-label) { overflow-wrap: anywhere; }
+.fi-body :is(.fi-callout-main, .fi-no-notification-main, .fi-modal-description, .fi-dropdown-list-item-label) { min-width: 0; }
+.fi-body :is(.fi-callout-description, .fi-modal-description, .fi-no-notification-body) { max-inline-size: 65ch; line-height: 1.5; }
+.fi-panel-applicant :is(.fi-section-header-description, .fi-fo-field-wrp-helper-text, .fi-in-text, .fi-sc-text) { max-inline-size: 65ch; line-height: 1.5; }
+.fi-panel-applicant :is(.fi-in-text, .fi-sc-text, .fi-fo-field-wrp-error-message, .fi-ta-text-item, .filepond--file-info-main, .filepond--file-status-main) { overflow-wrap: anywhere; }
+.fi-panel-applicant :is(.tala-application-task, .tala-application-context-facts, .tala-journey-facts, .tala-record-group) { min-width: 0; }
+.fi-panel-applicant .tala-brand__attribution { font-size: 0.75rem; }
+.tala-record-groups { display: grid; gap: 1.5rem; }
+.tala-record-group { display: grid; gap: 0.75rem; }
+.tala-record-group h3 { font-size: 1rem; font-weight: 600; line-height: 1.5; }
+.tala-record-group p, .tala-record-group dd { overflow-wrap: anywhere; }
+.tala-record-description { color: var(--tala-muted); font-size: 0.875rem; max-inline-size: 65ch; }
+.tala-review-summary .fi-in-text { font-size: 1rem; }
 
 .fi-sidebar-host, .tala-sidebar-host { display: contents; }
 .tala-sidebar-host > div { display: contents; }
@@ -103,13 +97,13 @@
     justify-content: center;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     flex-shrink: 0;
-    width: 2.25rem;
-    height: 2.25rem;
+    width: 56px;
+    height: 56px;
 }
 .fi-topbar .tala-brand__crest {
     display: block !important;
-    width: 100%;
-    height: 100%;
+    width: 48px;
+    height: 48px;
     object-fit: contain;
 }
 .fi-topbar .tala-brand__text {
@@ -129,19 +123,19 @@
     font-size: 0.6875rem;
 }
 .fi-topbar .tala-brand__star {
-    width: 0.875rem;
-    height: 0.875rem;
+    width: 32px;
+    height: 32px;
 }
-.fi-sidebar { transition-property: transform, width; transition-duration: 150ms; }
 .fi-sidebar-nav { overscroll-behavior: contain; }
 .fi-main { min-width: 0; }
-.fi-section, .fi-ta-ctn, .fi-modal-window { border-radius: 0.75rem; }
-.fi-input-wrp, .fi-body :is(input[type='checkbox'], input[type='radio']) { border: 1px solid var(--tala-control-border); }
+.fi-header-heading, .fi-section-header-heading { overflow-wrap: anywhere; }
+
+
 .fi-ta-text-item { font-variant-numeric: tabular-nums; }
 .fi-badge { min-height: 1.5rem; }
 
 .fi-simple-layout {
-    background: var(--tala-canvas);
+    background: var(--gray-50);
     min-height: 100dvh;
 }
 
@@ -169,15 +163,16 @@
 .fi-auth-layout.media-cover .fi-auth-card { background: var(--tala-surface); }
 .fi-auth-layout .fi-auth-content-section { min-width: 0; }
 .fi-auth-layout .tala-brand, .fi-simple-layout .tala-brand { flex-wrap: wrap; }
-.fi-auth-layout .tala-crest-plate, .fi-simple-layout .tala-crest-plate { width: 3.5rem; height: 3.5rem; }
-.fi-auth-layout .tala-brand__crest, .fi-simple-layout .tala-brand__crest { width: 100%; height: 100%; display: block; }
-.fi-auth-layout .tala-brand__star, .fi-simple-layout .tala-brand__star { width: 1rem; height: 1rem; }
+.fi-auth-layout .tala-crest-plate, .fi-simple-layout .tala-crest-plate { width: 58px; height: 58px; }
+.fi-auth-layout .tala-brand__crest, .fi-simple-layout .tala-brand__crest { width: 48px; height: 48px; display: block; }
+.fi-auth-layout .tala-brand__star, .fi-simple-layout .tala-brand__star { width: 48px; height: 48px; }
 .fi-auth-layout .tala-brand__name, .fi-simple-layout .tala-brand__name { max-width: min(28rem, 100%); text-wrap: balance; }
 .fi-auth-layout .fi-logo, .fi-simple-layout .fi-logo { margin-bottom: 1.5rem; }
 .fi-simple-layout .fi-simple-main { margin-block: 1rem; }
 .fi-auth-layout .fi-btn, .fi-simple-layout .fi-btn { min-height: 2.75rem; }
 
 @media (min-width: 64rem) {
+    .tala-mobile-workspace-identity { display: none; }
     .tala-drawer-heading { display: none; }
 
     .fi-sidebar:not(.fi-sidebar-open) .fi-sidebar-item-label {
@@ -187,6 +182,14 @@
 }
 
 @media (max-width: 63.999rem) {
+    .tala-mobile-workspace-identity {
+        padding-block: 0.75rem 1rem;
+        border-bottom: 1px solid var(--gray-200);
+    }
+
+    .tala-mobile-workspace-identity .tala-brand__name { font-size: 0.875rem; }
+    .dark .tala-mobile-workspace-identity { border-color: var(--gray-800); }
+
     .tala-term-planning-page .fi-header {
         align-items: stretch;
         flex-direction: column;
@@ -253,3 +256,228 @@
     .fi-sidebar-item.fi-active > .fi-sidebar-item-btn { outline: 2px solid Highlight; }
     .fi-body :is(:focus, :focus-visible) { outline: 3px solid Highlight !important; outline-style: solid !important; }
 }
+
+.dark .fi-body { background: var(--gray-950); color: var(--gray-50); }
+.fi-sidebar-header { min-height: 5rem; height: auto; padding-block: 0.75rem; }
+.fi-sidebar .tala-brand__name { font-size: 0.875rem; }
+
+.tala-workspace-context { font-size: 0.8125rem; font-weight: 600; color: var(--tala-muted); margin: 0; }
+.tala-sidebar-attribution { padding: 0.75rem 1.5rem; }
+.tala-mobile-attribution, .tala-auth-attribution { padding-block: 1.5rem; }
+.tala-auth-attribution { display: flex; justify-content: center; padding-block: 0.75rem; }
+.tala-auth-attribution .tala-brand__star { width: 24px; height: 24px; }
+.tala-auth-attribution .tala-brand__attribution { gap: 0.5rem; font-size: 0.875rem; }
+.fi-body :is(.fi-auth-layout, .fi-simple-layout) .fi-one-time-code-input-ctn { margin-inline: auto; justify-content: center; gap: 0.25rem; }
+.fi-body :is(.fi-auth-layout, .fi-simple-layout) .fi-one-time-code-input-digit { width: clamp(2rem, calc((100vw - 5.25rem) / 6), 2.75rem); min-width: 0; height: 2.75rem; font-size: 1rem; }
+@media (forced-colors: none) {
+    .fi-body :is(.fi-auth-layout, .fi-simple-layout) .fi-one-time-code-input-digit:not([aria-invalid='true']):not(:disabled):not(:focus) { border: 1px solid var(--gray-500); }
+    .fi-body .fi-one-time-code-input-digit:not([aria-invalid='true']):not(:disabled):not(:focus) { border-color: var(--gray-500); }
+    .dark .fi-body .fi-one-time-code-input-digit:not([aria-invalid='true']):not(:disabled):not(:focus) { border-color: var(--gray-400); }
+}
+.tala-return-route a { display: inline-flex; align-items: center; min-height: 2.75rem; color: var(--tala-link); text-decoration: underline; text-underline-offset: 0.2em; }
+.tala-application-summary { display: grid; gap: 1.5rem; }
+.tala-application-summary p { margin: 0; line-height: 1.6; }
+.tala-application-task-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(15rem, 1fr); gap: 2rem; align-items: start; }
+.tala-application-task { display: grid; justify-items: start; gap: 1rem; }
+.tala-application-summary .tala-application-next-action { font-size: 1.25rem; font-weight: 600; line-height: 1.4; max-width: 32ch; text-wrap: balance; }
+.tala-application-context-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; padding-inline-start: 1.5rem; border-inline-start: 1px solid var(--gray-200); }
+.dark .tala-application-context-facts { border-color: var(--gray-800); }
+.tala-application-context-facts dt { color: var(--tala-muted); font-size: 0.875rem; }
+.tala-application-context-facts dd { margin-block-start: 0.25rem; font-size: 0.875rem; font-weight: 500; overflow-wrap: anywhere; }
+.tala-application-context-facts small { display: block; color: var(--tala-muted); font-weight: 400; font-size: inherit; }
+.tala-application-context { font-size: 0.875rem; color: var(--tala-muted); overflow-wrap: anywhere; }
+.tala-journey-facts { display: grid; gap: 1rem; grid-template-columns: repeat(3, minmax(0, 1fr)); padding-block-start: 1rem; border-top: 1px solid var(--gray-200); }
+.dark .tala-journey-facts { border-color: var(--gray-800); }
+.tala-journey-facts dt { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--tala-muted); }
+.tala-journey-facts dd { margin-block-start: 0.5rem; font-weight: 600; }
+.tala-journey-facts small { display: block; font-size: 0.75rem; font-weight: 400; color: var(--tala-muted); margin-block-start: 0.25rem; }
+@media (min-width: 40rem) and (max-width: 79.999rem) {
+    .tala-applicant-history-table .fi-ta-table { table-layout: fixed; }
+    .tala-applicant-history-table .fi-ta-actions-header-cell { width: 8rem; }
+    .tala-applicant-history-table .fi-ta-header-cell { padding-inline: 0.5rem; overflow-wrap: anywhere; }
+    .tala-applicant-history-table .fi-ta-text { padding-inline: 0.5rem; }
+    .tala-applicant-history-table :is(.fi-ta-text-item, .fi-ta-text-description, .fi-ta-header-cell-sort-btn) { white-space: normal; overflow-wrap: anywhere; }
+    .tala-applicant-history-table .fi-ta-actions { flex-wrap: wrap; padding-inline: 0.5rem; }
+    .tala-applicant-history-table .fi-ta-actions .fi-btn { white-space: normal; padding-inline: 0.5rem; }
+}
+.tala-admissions-queue .fi-tabs { flex-wrap: wrap; overflow: visible; }
+.tala-admissions-queue .fi-tabs-item { white-space: normal; }
+.fi-body .fi-tabs-item { display: inline-flex; align-items: center; gap: 0.5rem; }
+.fi-body .fi-tabs-item .fi-badge { align-self: center; margin-block: 0; }
+.fi-body .fi-sc:has(.tala-registrar-current-task) { align-items: start; }
+.tala-registrar-current-task .fi-in-text { line-height: 1.45; }
+.tala-registrar-current-task .fi-in-text-item { overflow-wrap: anywhere; }
+.tala-admissions-queue .fi-ta-text-item-description { overflow-wrap: anywhere; }
+.fi-ta-header-toolbar {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+.fi-ta-header-toolbar > div {
+    min-width: 0;
+}
+.fi-ta-header-toolbar .fi-ta-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.fi-ta-header-toolbar > .fi-ta-actions:not(:has(button, a)) { display: none; }
+
+.fi-body:has(.fi-layout) .tala-crest-plate {
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 3px;
+    box-shadow: none;
+}
+.fi-body:has(.fi-layout) .tala-crest-plate .tala-brand__crest { width: 2rem; height: 2rem; }
+.fi-body:has(.fi-layout) .tala-brand { gap: 0.625rem; }
+.fi-body:has(.fi-layout) .tala-brand__name { font-weight: 600; line-height: 1.4; }
+.fi-body:has(.fi-layout) .tala-brand__star { width: 1.5rem; height: 1.5rem; }
+.fi-body:has(.fi-layout) .fi-sidebar-header { min-height: 4.5rem; padding: 0.75rem 1rem; gap: 0.625rem; }
+.fi-body:has(.fi-layout) .fi-sidebar-header-logo-ctn { flex: 1; min-width: 0; }
+.fi-body:has(.fi-layout) .fi-sidebar-open .fi-sidebar-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'identity toggle';
+    gap: 0.75rem;
+}
+.fi-body:has(.fi-layout) .fi-sidebar-open .fi-sidebar-header-logo-ctn { grid-area: identity; }
+.fi-body:has(.fi-layout) .fi-sidebar .fi-logo { margin-inline-start: 0; }
+.fi-body:has(.fi-layout) .fi-sidebar-open .fi-sidebar-close-collapse-sidebar-btn { grid-area: toggle; }
+.fi-body:has(.fi-layout) .tala-brand__school { display: block; font-size: 1rem; line-height: 1.3; }
+.fi-body:has(.fi-layout) .tala-brand__institution { display: block; font-size: 0.8125rem; font-weight: 500; }
+.fi-body:has(.fi-layout) .fi-sidebar-header-controls { padding-inline: 1rem; }
+.fi-body:has(.fi-layout) .fi-sidebar-header-controls::after { margin-inline: 0; }
+.fi-sidebar .fi-global-search-ctn { display: block; width: 100%; padding: 0; margin: 0; }
+.fi-sidebar .fi-global-search { width: 100%; padding: 0; }
+.tala-collapsed-nav-search { display: flex; margin-inline: auto; width: 2.5rem; height: 2.5rem; }
+.tala-workspace-search-shortcut { display: contents; }
+.fi-body:has(.fi-layout) .fi-sidebar-nav { padding: 0.75rem 1rem 1rem; gap: 1rem; scrollbar-gutter: auto; }
+.fi-body:has(.fi-layout) .fi-sidebar-nav-groups { margin-inline: 0; }
+.fi-body:has(.fi-layout) .fi-sidebar:not(.fi-sidebar-open) .fi-sidebar-nav { padding-inline: 1rem; }
+.tala-drawer-close-inline { flex-shrink: 0; }
+.tala-drawer-close-inline .fi-btn { width: 2.75rem; min-width: 2.75rem; min-height: 2.75rem; padding-inline: 0; }
+.tala-draft-status { padding: 1rem 1.5rem; margin-block-start: 0.75rem; border-block-start: 1px solid var(--gray-200); color: var(--tala-muted); font-size: 0.875rem; line-height: 1.5; }
+.dark .tala-draft-status { border-color: var(--gray-800); }
+.tala-draft-status-message { display: inline-flex; gap: 0.625rem; align-items: start; }
+.fi-body:has(.fi-layout) .tala-sidebar-attribution { padding-block: 0.5rem; }
+.fi-body:has(.fi-layout) .fi-sidebar .fi-user-menu-trigger {
+    text-align: start;
+    justify-content: flex-start;
+    min-height: 2.75rem;
+    padding: 0.5rem;
+    border: 1px solid var(--gray-200);
+    border-radius: 0.75rem;
+    background-color: var(--gray-50);
+    transition: background-color 120ms, box-shadow 120ms;
+}
+.fi-body:has(.fi-layout) .fi-sidebar .fi-user-menu-trigger:hover { background-color: var(--gray-100); }
+.dark .fi-body:has(.fi-layout) .fi-sidebar .fi-user-menu-trigger {
+    background-color: var(--gray-900);
+    border-color: var(--gray-700);
+}
+.dark .fi-body:has(.fi-layout) .fi-sidebar .fi-user-menu-trigger:hover { background-color: var(--gray-800); }
+.fi-body:has(.fi-layout) .fi-sidebar .fi-user-menu-trigger:focus-visible { outline: 2px solid var(--primary-600); outline-offset: 3px; }
+.fi-body:has(.fi-layout) .fi-sidebar:not(.fi-sidebar-open) .fi-user-menu-trigger { justify-content: center; padding: 0.375rem; width: 2.75rem; margin-inline: auto; }
+.fi-body:has(.fi-layout) .fi-sidebar:not(.fi-sidebar-open) .fi-sidebar-footer { margin-inline: 0.875rem; }
+.fi-body:has(.fi-layout) .fi-sidebar:not(.fi-sidebar-open) .fi-user-menu-trigger .fi-avatar { width: 1.75rem; height: 1.75rem; }
+@media (forced-colors: active) {
+    .fi-body:has(.fi-layout) .fi-sidebar .fi-user-menu-trigger { border-color: ButtonText; box-shadow: none; }
+}
+.fi-body:has(.fi-layout) .fi-sidebar .fi-user-menu-trigger-text {
+    flex: 1;
+    min-width: 0;
+    text-align: start;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+}
+.fi-body:has(.fi-layout) .tala-drawer-heading .fi-icon-btn {
+    background-color: var(--primary-50);
+    border: 1px solid var(--primary-200);
+    border-radius: 0.5rem;
+}
+.dark .fi-body:has(.fi-layout) .tala-drawer-heading .fi-icon-btn {
+    background-color: color-mix(in srgb, var(--primary-400) 12%, transparent);
+    border-color: var(--primary-700);
+}
+.fi-body:has(.fi-layout) .fi-sc-wizard .fi-section {
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+}
+.fi-body:has(.fi-layout) .fi-sc-wizard .fi-section-header,
+.fi-body:has(.fi-layout) .fi-sc-wizard .fi-section-content { padding-inline: 0; }
+.fi-body:has(.fi-layout) .fi-sc-wizard .fi-section-header { padding-block-start: 0; }
+
+@media (min-width: 48rem) {
+    .fi-body:has(.fi-layout) .fi-sc-wizard-header-step-btn {
+        padding-inline: 1rem;
+        column-gap: 0.75rem;
+    }
+}
+
+@media (max-width: 63.999rem) {
+    .fi-ta-header-toolbar { flex-wrap: wrap; align-items: flex-start; }
+    .fi-ta-header-toolbar > div:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; width: 100%; gap: 0.75rem; }
+    .fi-ta-header-toolbar .fi-ta-search-field { flex: 1 0 100%; width: 100%; }
+    .fi-ta-header-toolbar .fi-ta-search-field .fi-input-wrp { min-height: 2.75rem; }
+    .fi-ta-header-toolbar .fi-icon-btn { min-width: 2.75rem; min-height: 2.75rem; margin: 0; }
+    .tala-application-task-grid { grid-template-columns: 1fr; gap: 1.5rem; }
+    .tala-application-context-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); border: 0; padding: 0; }
+    .fi-body:has(.fi-layout) .fi-sidebar-item-btn { min-height: 2.75rem; }
+    .fi-body:has(.fi-layout) .fi-layout-sidebar-toggle-btn-ctn {
+        position: absolute;
+        inset-block-start: 1rem;
+        inset-inline-start: 1rem;
+        padding: 0;
+        z-index: 10;
+    }
+    .fi-body:has(.fi-layout) .fi-icon-btn.fi-layout-sidebar-toggle-btn { min-width: 2.75rem; min-height: 2.75rem; }
+    .fi-body:has(.fi-layout) .tala-mobile-workspace-identity {
+        min-height: 4.5rem;
+        padding-block: 1rem;
+        padding-inline-start: 3.5rem;
+        border: 0;
+    }
+    .fi-body:has(.fi-layout) .fi-header .fi-breadcrumbs { display: flex; }
+    .fi-body:has(.fi-layout) .fi-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: start;
+        gap: 0.75rem;
+    }
+    .fi-body:has(.fi-layout) .fi-header > div { min-inline-size: 0; }
+    .fi-body:has(.fi-layout) .fi-header-actions-ctn,
+    .fi-body:has(.fi-layout) .fi-header-actions-ctn > .fi-ac { width: 100%; flex-wrap: wrap; justify-content: flex-start; }
+    .fi-body:has(.fi-layout) .fi-header-actions-ctn .fi-icon-btn { min-width: 2.75rem; min-height: 2.75rem; }
+    .fi-body:has(.fi-layout) .fi-btn { min-height: 2.75rem; }
+    .fi-body:has(.fi-layout) .tala-mobile-attribution { padding-block: 1rem; }
+}
+@media (min-width: 64rem) {
+    .tala-drawer-close-inline { display: none; }
+    .tala-mobile-attribution { display: none; }
+    .fi-sidebar:not(.fi-sidebar-open) :is(.tala-workspace-context, .tala-sidebar-attribution) { display: none; }
+}
+@media (max-width: 39.999rem) {
+    .fi-panel-applicant :is(.fi-callout-description, .fi-section-header-description, .fi-fo-field-wrp-helper-text, .fi-in-text, .fi-sc-text, .tala-application-context-facts dd, .tala-draft-status) { font-size: 1rem; }
+    .fi-panel-applicant :is(.fi-modal-description, .fi-no-notification-body) { font-size: 1rem; }
+    .tala-application-context-facts { grid-template-columns: 1fr; gap: 0.875rem; }
+    .tala-application-context-facts > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 0.75rem; }
+    .tala-application-context-facts dd { margin: 0; }
+    .tala-draft-status { padding-inline: 1rem; }
+    .tala-journey-facts { grid-template-columns: 1fr; gap: 0.75rem; }
+    .tala-journey-facts > div { display: grid; grid-template-columns: 1fr 1.5fr; gap: 0.75rem; }
+    .tala-journey-facts dd { margin: 0; }
+    .tala-application-context { font-size: 1rem; }
+}
+
+@media (forced-colors: active) {
+    .fi-sidebar-item.fi-active > .fi-sidebar-item-btn,
+    .dark .fi-sidebar-item.fi-active > .fi-sidebar-item-btn { background: Highlight; color: HighlightText; }
+    .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > :is(.fi-sidebar-item-label, .fi-icon),
+    .dark .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > :is(.fi-sidebar-item-label, .fi-icon) { color: HighlightText; }
+}
+
+.tala-table-loading { padding: 0.5rem 1rem; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--gray-700); }
+.dark .tala-table-loading { color: var(--gray-200); }
+@media (prefers-reduced-motion: reduce) { .tala-table-loading .fi-loading-indicator { animation: none; } }

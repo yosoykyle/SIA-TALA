@@ -145,12 +145,23 @@ class SchoolFirstCommunicationsTest extends TestCase
 
     public function test_panel_brand_component_renders_concise_accessible_name_without_duplication(): void
     {
-        $view = $this->blade('<x-tala-panel-brand workspace="Servitech Institute Asia — Student Hub" />');
+        $view = $this->blade('<x-tala-panel-brand />');
 
-        $view->assertSee('alt="" aria-hidden="true" class="tala-brand__crest"', false)
-            ->assertSee('alt="" aria-hidden="true" class="tala-brand__star"', false)
-            ->assertSee('Servitech Institute Asia — Student Hub')
+        $view->assertSee(asset('images/brand/servitech-crest.webp'), false)
+            ->assertSee('alt="" aria-hidden="true" class="tala-brand__crest"', false)
+            ->assertDontSee('tala-brand__star', false)
+            ->assertDontSee('Powered by TALA')
             ->assertDontSee('alt="Servitech Institute Asia"', false);
+
+        $document = new \DOMDocument;
+        @$document->loadHTML((string) $view);
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//span[@class="tala-brand__name"][normalize-space(.)="Servitech Institute Asia"]')->length);
+
+        $this->blade('<x-tala-panel-brand placement="attribution" />')
+            ->assertSee('Powered by TALA')
+            ->assertSee('alt="" aria-hidden="true" class="tala-brand__star"', false)
+            ->assertDontSee('tala-brand__crest', false);
     }
 
     public function test_connection_mail_identity_is_configurable_with_sentinel_name(): void
@@ -346,8 +357,9 @@ class SchoolFirstCommunicationsTest extends TestCase
         $this->assertStringNotContainsString('landing-brand-name" data-navbar-contrast-target', $response->getContent());
         $this->assertStringNotContainsString('landing-attribution" data-navbar-contrast-target', $response->getContent());
 
-        // Crest plate is rendered
-        $response->assertSee('landing-crest-plate', false);
+        // The outlined screen crest replaces the boxed plate on the public surface
+        $response->assertSee(asset('images/brand/servitech-crest-outlined-192.webp'), false);
+        $response->assertDontSee('landing-crest-plate', false);
     }
 
     public function test_shared_markdown_mail_header_has_single_meaningful_link_and_accessible_footer_contrast(): void

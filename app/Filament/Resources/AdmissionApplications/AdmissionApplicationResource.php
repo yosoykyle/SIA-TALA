@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AdmissionApplications;
 
+use App\Filament\Clusters\Admissions;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
 use App\Filament\Resources\AdmissionApplications\Schemas\AdmissionApplicationInfolist;
@@ -13,21 +14,28 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use UnitEnum;
+use Illuminate\Database\Eloquent\Model;
 
 class AdmissionApplicationResource extends Resource
 {
     protected static ?string $model = AdmissionApplication::class;
 
+    protected static ?string $cluster = Admissions::class;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedInboxStack;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Registrar';
+    protected static ?string $navigationLabel = 'Application queue';
 
-    protected static ?string $navigationLabel = 'Admissions';
+    protected static ?int $navigationSort = 1;
 
     protected static ?string $pluralModelLabel = 'Admissions';
 
     protected static ?string $recordTitleAttribute = 'application_reference';
+
+    public static function getRecordTitle(?Model $record): string
+    {
+        return collect([$record?->first_name, $record?->last_name])->filter()->implode(' ') ?: 'Application';
+    }
 
     public static function infolist(Schema $schema): Schema
     {
@@ -69,13 +77,14 @@ class AdmissionApplicationResource extends Resource
                 'admissionCycle',
                 'term',
                 'program',
-                'currentSubmissionVersion.requirementSet',
+                'currentSubmissionVersion.requirementSet.requirements',
                 'correctionRequests.items',
                 'decisions',
                 'credentialResults.requirement',
                 'identityMatchReviews',
                 'evidenceVersions.admissionRequirement',
-                'evidenceVersions.preliminaryReviews',
+                'evidenceVersions.preliminaryReviews.reviewer',
+                'evidenceVersions.preliminaryReviews.successor',
                 'events',
             ]);
     }

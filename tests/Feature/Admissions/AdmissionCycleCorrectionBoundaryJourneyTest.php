@@ -18,6 +18,7 @@ use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationCorrectionItem;
 use App\Models\ApplicationCorrectionRequest;
 use App\Models\ApplicationSubmissionVersion;
+use App\Models\Term;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -146,6 +147,26 @@ class AdmissionCycleCorrectionBoundaryJourneyTest extends TestCase
         }
     }
 
+    public function test_cancelled_cycle_preserves_an_existing_named_correction_and_its_resubmission(): void
+    {
+        [$application, $registrar] = $this->reviewableApplication([
+            'closes_at' => now()->addDay(), 'correction_closes_at' => now()->addDays(2),
+        ]);
+        $reference = $application->application_reference;
+        $version = $application->current_submission_version_id;
+        $request = $this->requestCorrection($application, $registrar, now()->addHour());
+        app(ChangeAdmissionCycle::class)->cancel($application->admissionCycle, $registrar,
+            'Synthetic intake cancellation.', 'Synthetic Registrar authority');
+        app(SaveAdmissionApplication::class)->execute($application->user, $application->admissionCycle->fresh(),
+            ['current_province' => 'Cavite', 'privacy_acknowledged' => true, 'accuracy_declared' => true], $application->fresh());
+        $submitted = app(SubmitAdmissionApplication::class)->execute($application->fresh(), $application->user);
+        $this->assertSame($reference, $submitted->application_reference);
+        $this->assertNotSame($version, $submitted->current_submission_version_id);
+        $this->assertSame(2, $submitted->submissionVersions()->count());
+        $this->assertSame(ApplicationCorrectionRequest::StateCompleted, $request->fresh()->state);
+        $this->assertSame(AdmissionCycle::StateCancelled, $submitted->admissionCycle->state);
+    }
+
     public function test_public_and_correction_boundaries_change_independently_with_history(): void
     {
         [$application, $registrar] = $this->reviewableApplication([
@@ -229,6 +250,8 @@ class AdmissionCycleCorrectionBoundaryJourneyTest extends TestCase
 
     public function test_public_availability_ignores_the_correction_boundary(): void
     {
+        AdmissionCycle::query()->where('state', AdmissionCycle::StatePublished)
+            ->update(['closes_at' => now()->subSecond()]);
         [$application] = $this->reviewableApplication([
             'closes_at' => now()->subSecond(),
             'correction_closes_at' => now()->addDay(),
@@ -249,8 +272,8 @@ class AdmissionCycleCorrectionBoundaryJourneyTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)
             ->test(ViewAdmissionCycle::class, ['record' => $application->admissionCycle->id])
-            ->assertSee('Public closing')
-            ->assertSee('New-correction closing')
+            ->assertSee('New applications close')
+            ->assertSee('New correction requests end')
             ->assertActionVisible('extendCorrectionBoundary');
 
         Livewire::actingAs($registrar)
@@ -282,7 +305,11 @@ class AdmissionCycleCorrectionBoundaryJourneyTest extends TestCase
     /** @param array<string, mixed> $cycleData @return array{AdmissionApplication, User} */
     private function reviewableApplication(array $cycleData): array
     {
-        $application = AdmissionApplication::factory()->submitted()->create();
+        $application = AdmissionApplication::factory()->submitted()->create([
+            'admission_cycle_id' => AdmissionCycle::factory()->create([
+                'term_id' => Term::query()->value('id') ?? Term::factory()->create()->id,
+            ])->id,
+        ]);
         $cycle = $application->admissionCycle;
         $cycle->forceFill(array_merge([
             'state' => AdmissionCycle::StatePublished,

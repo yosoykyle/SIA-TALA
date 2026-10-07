@@ -72,6 +72,8 @@ use App\Support\TalaPanelTheme;
 use Filament\Actions\Action;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as FilamentLoginResponse;
 use Filament\Support\Facades\FilamentTimezone;
+use Filament\Support\Facades\FilamentView;
+use Filament\Tables\View\TablesRenderHook;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
@@ -165,6 +167,10 @@ class AppServiceProvider extends ServiceProvider
     {
         FilamentTimezone::set((string) config('app.display_timezone', 'Asia/Manila'));
         Action::configureUsing(TalaPanelTheme::configureActionModal(...));
+        FilamentView::registerRenderHook(
+            TablesRenderHook::CONTENT_BEFORE,
+            fn () => view('filament.components.table-loading'),
+        );
 
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Activity::class, ActivityPolicy::class);

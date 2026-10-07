@@ -9,6 +9,7 @@ use App\Models\ApplicationCorrectionItem;
 use App\Models\ApplicationCorrectionRequest;
 use App\Models\Program;
 use App\Models\User;
+use App\Queries\Admissions\AssistedDraftApplicantQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Arr;
@@ -37,6 +38,15 @@ class SaveAdmissionApplication
             $assistanceAuthorityReference,
             $assistanceEvidenceReference,
         );
+        if ($assistedBy instanceof User
+            && (($data['optional_identity_consent'] ?? false) === true
+                || filled($data['gender'] ?? null)
+                || filled($data['civil_status'] ?? null))) {
+            throw ValidationException::withMessages([
+                'optional_identity_consent' => 'The Applicant must personally consent before optional identity details can be collected.',
+            ]);
+        }
+
         $validated = Validator::make($data, $this->draftRules())->validate();
 
         return DB::transaction(function () use (
@@ -63,6 +73,15 @@ class SaveAdmissionApplication
                 throw new AuthorizationException('Applicants may edit only their own application.');
             }
 
+            if ($assistedBy instanceof User
+                && ! app(AssistedDraftApplicantQuery::class)
+                    ->eligible($lockedApplication?->id, $lockedCycle->id)
+                    ->whereKey($applicant->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'application_state' => 'This Applicant is no longer eligible for assisted draft preparation in this cycle. Return to Admissions and check their current application.',
+                ]);
+            }
+
             if (! $lockedApplication instanceof AdmissionApplication) {
                 $this->assertCycleOpen($lockedCycle);
                 $lockedApplication = new AdmissionApplication([
@@ -82,8 +101,17 @@ class SaveAdmissionApplication
                     ]);
                 }
 
-                $this->assertCorrectionScope($lockedApplication, array_keys($validated));
+                $this->assertCorrectionScope($lockedApplication, [
+                    ...array_keys($validated),
+                    ...(($validated['optional_identity_consent'] ?? null) === false ? ['gender', 'civil_status'] : []),
+                ]);
             } else {
+                if ($assistedBy instanceof User) {
+                    throw ValidationException::withMessages([
+                        'application_state' => 'Registrar-assisted entry may prepare an unsubmitted Draft only.',
+                    ]);
+                }
+
                 throw ValidationException::withMessages([
                     'application_state' => 'Submitted application facts are read-only unless a Registrar correction names them.',
                 ]);
@@ -102,6 +130,18 @@ class SaveAdmissionApplication
                 $attributes['accuracy_declared_at'] = now(config('app.timezone'));
             }
 
+            if (($validated['optional_identity_consent'] ?? false) === true) {
+                $attributes['optional_identity_notice_reference'] = $lockedCycle->privacy_notice_reference;
+                $attributes['optional_identity_consent_purpose'] = 'Identity-record comparison';
+                $attributes['optional_identity_consented_at'] = $lockedApplication->optional_identity_consented_at ?? now(config('app.timezone'));
+            } elseif (array_key_exists('optional_identity_consent', $validated)) {
+                $attributes['gender'] = null;
+                $attributes['civil_status'] = null;
+                $attributes['optional_identity_notice_reference'] = null;
+                $attributes['optional_identity_consent_purpose'] = null;
+                $attributes['optional_identity_consented_at'] = null;
+            }
+
             $lockedApplication->fill($attributes);
             $canonical = [
                 'admission_cycle_id' => $lockedCycle->id,
@@ -113,6 +153,10 @@ class SaveAdmissionApplication
                 $canonical['admission_category'] = ApplicantIntake::AdmissionCategoryTransfer;
             } elseif ($lockedApplication->application_path === AdmissionApplication::PathFirstYear) {
                 $canonical['admission_category'] = ApplicantIntake::AdmissionCategoryFirstTimeCollege;
+
+                if ($lockedApplication->application_state === AdmissionApplication::StateDraft) {
+                    $canonical['prior_college_identifier'] = null;
+                }
             }
 
             $lockedApplication->forceFill($canonical)->save();
@@ -165,12 +209,12 @@ class SaveAdmissionApplication
 
         return Validator::make([
             'reason' => trim((string) $assistanceReason),
-            'authority_reference' => trim((string) $assistanceAuthorityReference),
-            'evidence_reference' => trim((string) $assistanceEvidenceReference),
+            'authority_reference' => filled($assistanceAuthorityReference) ? trim((string) $assistanceAuthorityReference) : null,
+            'evidence_reference' => filled($assistanceEvidenceReference) ? trim((string) $assistanceEvidenceReference) : null,
         ], [
             'reason' => ['required', 'string', 'max:1000'],
-            'authority_reference' => ['required', 'string', 'max:255'],
-            'evidence_reference' => ['required', 'string', 'max:255'],
+            'authority_reference' => ['nullable', 'string', 'max:255'],
+            'evidence_reference' => ['nullable', 'string', 'max:255'],
         ])->validate();
     }
 
@@ -202,6 +246,9 @@ class SaveAdmissionApplication
             ->pluck('scope_key')
             ->all() ?? [];
         $submissionDeclarations = ['privacy_acknowledged', 'accuracy_declared'];
+        if (array_intersect($allowedFields, ['gender', 'civil_status']) !== []) {
+            $submissionDeclarations[] = 'optional_identity_consent';
+        }
         $unscoped = array_values(array_diff($keys, $allowedFields, $submissionDeclarations));
 
         if (! $activeRequest instanceof ApplicationCorrectionRequest || $unscoped !== []) {
@@ -226,6 +273,10 @@ class SaveAdmissionApplication
             throw ValidationException::withMessages([
                 'prior_school_country_code' => 'This Applicant path currently supports Philippine prior-school records only. Contact the Registrar at '.config('institution.public.support_phone').' for the authorized process; no unsupported change was saved.',
             ]);
+        }
+
+        if (in_array($attributes['lrn_availability'] ?? null, ['NotIssued', 'NotAvailable'], true) && filled($attributes['lrn'] ?? null)) {
+            throw ValidationException::withMessages(['lrn' => 'Clear the LRN when its availability is Not issued or Not available.']);
         }
 
         $path = $attributes['application_path'] ?? null;
@@ -280,14 +331,14 @@ class SaveAdmissionApplication
             'middle_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'last_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'extension_name' => ['sometimes', 'nullable', 'string', 'max:50'],
-            'birth_date' => ['sometimes', 'nullable', 'date', 'before_or_equal:today'],
+            'birth_date' => ['sometimes', 'nullable', 'date', 'before_or_equal:'.now('Asia/Manila')->toDateString()],
             'citizenship_country_code' => ['sometimes', 'nullable', 'string', 'size:2'],
             'phone' => ['sometimes', 'nullable', 'regex:/^09\d{9}$/'],
             'current_city_municipality' => ['sometimes', 'nullable', 'string', 'between:1,120'],
             'current_province' => ['sometimes', 'nullable', 'string', 'between:1,120'],
             'prior_school_name' => ['sometimes', 'nullable', 'string', 'between:1,160'],
             'prior_school_country_code' => ['sometimes', 'nullable', 'string', 'size:2'],
-            'prior_school_completion_year' => ['sometimes', 'nullable', 'integer', 'digits:4', 'max:'.now(config('app.timezone'))->year],
+            'prior_school_completion_year' => ['sometimes', 'nullable', 'integer', 'digits:4', 'max:'.now('Asia/Manila')->year],
             'lrn' => ['sometimes', 'nullable', 'regex:/^\d{12}$/'],
             'prior_college_identifier' => ['sometimes', 'nullable', 'string', 'between:1,64'],
             'guardian_full_name' => ['sometimes', 'nullable', 'string', 'max:160'],
@@ -295,6 +346,14 @@ class SaveAdmissionApplication
             'guardian_mobile' => ['sometimes', 'nullable', 'regex:/^09\d{9}$/'],
             'privacy_acknowledged' => ['sometimes', 'boolean'],
             'accuracy_declared' => ['sometimes', 'boolean'],
+            'optional_identity_consent' => ['sometimes', 'boolean'],
+            'gender' => ['sometimes', 'nullable', 'string', 'between:1,40', 'prohibited_unless:optional_identity_consent,true'],
+            'civil_status' => ['sometimes', 'nullable', 'string', 'between:1,40', 'prohibited_unless:optional_identity_consent,true'],
+            'lrn_availability' => ['sometimes', 'nullable', Rule::in(['Provided', 'NotIssued', 'NotAvailable'])],
+            'current_barangay' => ['sometimes', 'nullable', 'string', 'between:1,120'],
+            'current_street_address' => ['sometimes', 'nullable', 'string', 'between:1,160'],
+            'current_postal_code' => ['sometimes', 'nullable', 'regex:/^\\d{4}$/'],
+            'prior_school_address' => ['sometimes', 'nullable', 'string', 'between:1,160'],
         ];
     }
 
@@ -318,6 +377,13 @@ class SaveAdmissionApplication
             'prior_school_country_code',
             'prior_school_completion_year',
             'lrn',
+            'lrn_availability',
+            'gender',
+            'civil_status',
+            'current_barangay',
+            'current_street_address',
+            'current_postal_code',
+            'prior_school_address',
             'prior_college_identifier',
             'guardian_full_name',
             'guardian_relationship',

@@ -6,10 +6,13 @@ use App\Actions\Authentication\UserSessionService;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Auth\MultiFactor\Contracts\MultiFactorAuthenticationProvider;
 use Filament\Auth\Pages\EditProfile;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Text;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\Rules\Password;
@@ -23,59 +26,43 @@ class AccountSecurity extends EditProfile
 
     public function content(Schema $schema): Schema
     {
+        $user = $this->getUser();
+        $showMfa = $user instanceof User && ($user->isStaffCapable()
+            || collect(Filament::getMultiFactorAuthenticationProviders())
+                ->contains(fn (MultiFactorAuthenticationProvider $provider): bool => $provider->isEnabled($user)));
+
         return $schema->components([
-            $this->getFormContentComponent(),
-            ...Arr::wrap($this->getMultiFactorAuthenticationContentComponent()),
-            Section::make('Authorized access and sessions')
-                ->description('These contexts come from your approved account access. Choosing a workspace never grants a role.')
-                ->schema([
-                    Text::make(function (): string {
-                        $user = $this->getUser();
-
-                        if (! $user instanceof User) {
-                            return 'No authorized workspace is available.';
-                        }
-
-                        $contexts = app(WorkspaceContextResolver::class)->availableContexts($user);
-
-                        return 'Authorized contexts: '.collect($contexts)->pluck('label')->implode(', ');
-                    }),
-                    Text::make(function (): string {
-                        $user = $this->getUser();
-
-                        if (! $user instanceof User) {
-                            return 'Session policy unavailable.';
-                        }
-
-                        $minutes = app(UserSessionService::class)->idleTimeoutMinutes($user);
-                        $remember = app(UserSessionService::class)->rememberAllowed($user)
-                            ? 'Remember device is optional.'
-                            : 'Remember device is unavailable for Staff-capable accounts.';
-
-                        return "Session guidance: {$minutes}-minute idle timeout. {$remember}";
-                    }),
-                    Text::make(function (): string {
-                        $user = $this->getUser();
-
-                        if (! $user instanceof User || ! $user->isStaffCapable()) {
-                            return 'Identity source: this account profile.';
-                        }
-
-                        $identifier = $user->staffAccessProfile?->staff_identifier;
-
-                        return 'Staff identity: '.$user->getFilamentName().(filled($identifier) ? " ({$identifier})" : '');
-                    }),
-                    Action::make('switchWorkspace')
-                        ->label('Switch workspace')
-                        ->url(route('workspace-chooser'))
-                        ->visible(function (): bool {
-                            $user = $this->getUser();
-
-                            return $user instanceof User
-                                && count(app(WorkspaceContextResolver::class)->availableContexts($user)) > 1;
-                        }),
+            Grid::make(['default' => 1, 'lg' => 3])->schema([
+                Section::make('Email and password')
+                    ->description('Manage your sign-in details. Confirm your current password when making a change.')
+                    ->schema([$this->getFormContentComponent()])
+                    ->columnSpan(['default' => 1, 'lg' => 2]),
+                Grid::make(1)->schema([
+                    ...($showMfa ? Arr::wrap($this->getMultiFactorAuthenticationContentComponent()) : []),
+                    Section::make('Access and sessions')->compact()->schema([
+                        TextEntry::make('availableWorkspaces')->label('Available workspaces')
+                            ->state(fn (): string => collect(app(WorkspaceContextResolver::class)->availableContexts($this->getUser()))->pluck('label')->implode(', ')),
+                        TextEntry::make('automaticSignOut')->label('Automatic sign-out')
+                            ->state(fn (): string => app(UserSessionService::class)->idleTimeoutMinutes($this->getUser()).' minutes of inactivity'),
+                        TextEntry::make('rememberDevice')->label('Remember device')
+                            ->state(fn (): string => app(UserSessionService::class)->rememberAllowed($this->getUser()) ? 'Optional at sign-in' : 'Unavailable for Staff-capable accounts'),
+                        TextEntry::make('staffIdentity')->label('Staff identity')
+                            ->state(fn (): string => $this->getUser()->getFilamentName().(filled($this->getUser()->staffAccessProfile?->staff_identifier) ? ' ('.$this->getUser()->staffAccessProfile->staff_identifier.')' : ''))
+                            ->visible(fn (): bool => $this->getUser() instanceof User && $this->getUser()->isStaffCapable()),
+                        Action::make('switchWorkspace')->label('Switch workspace')->icon('heroicon-o-arrows-right-left')
+                            ->url(route('workspace-chooser'))->color('gray')
+                            ->visible(fn (): bool => count(app(WorkspaceContextResolver::class)->availableContexts($this->getUser())) > 1),
+                    ]),
                 ]),
+            ]),
         ]);
+    }
+
+    public function form(Schema $schema): Schema
+    {
+        $schema = parent::form($schema);
+
+        return $schema->inlineLabel(false)->columns(2);
     }
 
     protected function getNameFormComponent(): TextInput
@@ -113,6 +100,7 @@ class AccountSecurity extends EditProfile
 
         return $component
             ->rule(Password::min(15)->max(64)->uncompromised())
-            ->helperText('Use 15–64 characters. Spaces and password-manager paste are allowed.');
+            ->helperText('Use 15–64 characters. Spaces and password-manager paste are allowed.')
+            ->columnSpanFull();
     }
 }

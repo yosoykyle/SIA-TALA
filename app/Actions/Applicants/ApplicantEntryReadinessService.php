@@ -47,7 +47,7 @@ class ApplicantEntryReadinessService
     }
 
     /**
-     * @return array{support: ?string, support_phone: string, support_phone_uri: string, privacy: string, accessibility: string, map: ?string}
+     * @return array{support: ?string, support_phone: string, support_phone_uri: string, privacy: string, accessibility: string, map: ?string, map_embed: ?string}
      */
     public function officialReferences(): array
     {
@@ -58,7 +58,30 @@ class ApplicantEntryReadinessService
             'privacy' => route('home', ['modal' => 'privacy']),
             'accessibility' => route('home', ['modal' => 'accessibility']),
             'map' => $this->validatedHttpsReference('map_url'),
+            'map_embed' => $this->validatedMapEmbedReference(),
         ];
+    }
+
+    private function validatedMapEmbedReference(): ?string
+    {
+        $reference = $this->validatedHttpsReference('map_embed_url');
+
+        if ($reference === null || filter_var($reference, FILTER_VALIDATE_URL) === false) {
+            return null;
+        }
+
+        $parts = parse_url($reference);
+
+        if (($parts['scheme'] ?? null) !== 'https'
+            || ! in_array($parts['host'] ?? null, ['www.google.com', 'google.com'], true)
+            || ($parts['path'] ?? null) !== '/maps/embed'
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || (isset($parts['port']) && $parts['port'] !== 443)) {
+            return null;
+        }
+
+        return $reference;
     }
 
     private function validatedHttpsReference(string $key): ?string

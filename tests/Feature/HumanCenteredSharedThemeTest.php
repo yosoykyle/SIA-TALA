@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\PublicNotices\PublicNoticeResource;
+use App\Support\WorkspaceNavigationSearchProvider;
 use Caresome\FilamentAuthDesigner\AuthDesignerConfigRepository;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
@@ -20,9 +21,9 @@ class HumanCenteredSharedThemeTest extends TestCase
     public function test_authentication_keeps_landmarks_recovery_and_context_without_staff_remember_device(): void
     {
         $response = $this->get('/admin/login')->assertOk()
-            ->assertSee('Sign in to Staff')
+            ->assertSee('Sign in to TALA')
             ->assertSee('<main', false)
-            ->assertSee('Choose another workspace')
+            ->assertSee('Return to school home')
             ->assertSee('Contact school support')
             ->assertDontSee('Remember me')
             ->assertDontSee('Remember device');
@@ -63,7 +64,11 @@ class HumanCenteredSharedThemeTest extends TestCase
             $this->assertTrue($panel->hasDarkMode());
             $this->assertFalse($panel->hasDarkModeForced());
             $this->assertSame(ThemeMode::System, $panel->getDefaultThemeMode());
-            $this->assertNull($panel->getGlobalSearchProvider());
+            if ($panelId === 'applicant') {
+                $this->assertNull($panel->getGlobalSearchProvider());
+            } else {
+                $this->assertInstanceOf(WorkspaceNavigationSearchProvider::class, $panel->getGlobalSearchProvider());
+            }
             $this->assertFalse($panel->isProfilePageSimple());
         }
     }
@@ -115,25 +120,23 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->assertStringContainsString("event.matches ? 'dark' : 'light'", $script);
     }
 
-    public function test_public_arrival_keeps_the_accepted_admission_and_connected_journey_hierarchy(): void
+    public function test_public_arrival_keeps_school_discovery_and_guarded_access_with_native_navigation(): void
     {
         $view = file_get_contents(resource_path('views/welcome.blade.php'));
         $styles = file_get_contents(public_path('landing/css/styles.css'));
 
         $this->assertStringContainsString('id="admission-status-title"', $view);
-        $this->assertStringContainsString('id="journey-title"', $view);
-        $this->assertStringContainsString('class="learner-journey', $view);
         $this->assertStringContainsString('class="program-list', $view);
         $this->assertStringNotContainsString('class="workspace-card', $view);
         $this->assertStringNotContainsString('class="portal-overview', $view);
-        $this->assertStringContainsString('class="dropdown public-sign-in', $view);
-        $this->assertStringContainsString('font-size: 1.875rem;', $styles);
+        $this->assertStringContainsString('public-sign-in', $view);
+        $this->assertStringContainsString('id="application-status"', $view);
+        $this->assertStringNotContainsString('dropdown public-sign-in', $view);
         $this->assertStringNotContainsString('6vw, 5.6rem', $styles);
         $this->assertStringContainsString('env(safe-area-inset-bottom)', $styles);
         $script = file_get_contents(public_path('landing/js/main.js'));
         $this->assertStringContainsString('window.bootstrap.Collapse.getOrCreateInstance', $script);
         $this->assertStringContainsString("navigation.addEventListener('hidden.bs.collapse'", $script);
-        $this->assertStringContainsString('destination.focus({ preventScroll: true })', $script);
         $this->assertStringContainsString("navigation.querySelector('a[href]')?.focus({ preventScroll: true })", $script);
     }
 
@@ -154,7 +157,9 @@ class HumanCenteredSharedThemeTest extends TestCase
         $theme = file_get_contents(resource_path('css/filament/tala/theme.css'));
         $foundation = file_get_contents(public_path('css/tala-foundation.css'));
 
-        $this->assertStringContainsString(".fi-input-wrp, .fi-body :is(input[type='checkbox'], input[type='radio']) { border: 1px solid var(--tala-control-border); }", $theme);
+        $this->assertStringContainsString(".fi-body :is(.fi-input-wrp, input[type='checkbox'], input[type='radio'])", $theme);
+        $this->assertMatchesRegularExpression('/\.fi-body :is\(\.fi-input-wrp, input\[type=\'checkbox\'\], input\[type=\'radio\'\]\)\s*\{\s*border: 1px solid [^;]*var\(--gray-500\)[^;]*;/s', $theme);
+        $this->assertStringContainsString('border-color: var(--gray-400);', $theme);
         $this->assertStringContainsString('--tala-control-border: #64748b;', $foundation);
         $this->assertStringContainsString('--tala-control-border: #94a3b8;', $foundation);
     }
@@ -169,15 +174,15 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->assertStringContainsString('x-on:resize.window.debounce.50ms=', $sidebar);
         $this->assertStringContainsString('x-on:resize.window="if (window.innerWidth >= 1024) mobile = false"', $sidebar);
         $this->assertStringContainsString('x-trap.inert.noscroll.noreturn=', $sidebar);
-        $this->assertStringContainsString("document.querySelector('.fi-topbar-open-sidebar-btn')?.focus", $sidebar);
-        $this->assertStringContainsString('.fi-sidebar .fi-logo,', $theme);
+        $this->assertStringContainsString("document.querySelector('.fi-layout-sidebar-toggle-btn, .fi-topbar-open-sidebar-btn')?.focus", $sidebar);
         $this->assertStringContainsString("@include('filament-panels::livewire.sidebar')", $sidebar);
     }
 
-    public function test_panel_skip_link_and_action_modals_restore_keyboard_focus(): void
+    public function test_action_modals_restore_focus_without_adding_a_duplicate_panel_skip_link(): void
     {
         $skipLink = file_get_contents(resource_path('views/filament/components/skip-link.blade.php'));
-        $this->assertStringContainsString("document.getElementById('tala-main-content')?.focus({ preventScroll: true })", $skipLink);
+        $this->assertStringNotContainsString('<a ', $skipLink);
+        $this->assertStringContainsString('hidden aria-hidden="true"', $skipLink);
         $this->assertStringContainsString('rememberActionGroup(actionGroup)', $skipLink);
         $this->assertStringContainsString('window.talaActionGroupReturnHref', $skipLink);
         $this->assertStringContainsString("window.addEventListener('modal-closed'", $skipLink);

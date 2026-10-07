@@ -5,12 +5,14 @@ namespace App\Actions\Admissions;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionCycle;
+use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationCorrectionItem;
 use App\Models\ApplicationCorrectionRequest;
 use App\Models\ApplicationSubmissionVersion;
 use App\Models\OperationalEvent;
 use App\Models\User;
+use App\Support\AdmissionApplicationReference;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Arr;
@@ -91,7 +93,7 @@ class SubmitAdmissionApplication
             $submittedAt = CarbonImmutable::now(config('app.timezone'));
 
             if ($firstSubmission && blank($locked->application_reference)) {
-                $locked->application_reference = 'APP-'.$submittedAt->year.'-'.Str::upper((string) Str::ulid());
+                $locked->application_reference = AdmissionApplicationReference::generate($submittedAt->year);
             }
 
             $snapshot = Arr::only($locked->getAttributes(), $this->snapshotAttributes());
@@ -110,6 +112,9 @@ class SubmitAdmissionApplication
                 $locked->program()->firstOrFail()->getAttributes(),
                 ['id', 'code', 'name'],
             );
+            $snapshot['application_state_at_submission'] = AdmissionApplication::StateSubmitted;
+            $snapshot['requirement_set'] = Arr::only($requirementSet->getAttributes(), ['id', 'version', 'application_path']);
+            $snapshot['requirements'] = $this->requirementSnapshot($locked, $requirementSet);
 
             $submission = $locked->submissionVersions()->create([
                 'admission_requirement_set_id' => $requirementSet->id,
@@ -180,6 +185,39 @@ class SubmitAdmissionApplication
         }
     }
 
+    /** @return list<array<string, mixed>> */
+    private function requirementSnapshot(AdmissionApplication $application, AdmissionRequirementSet $set): array
+    {
+        return $set->requirements()->orderBy('display_order')->orderBy('id')->get()
+            ->map(function (AdmissionRequirement $requirement) use ($application): array {
+                $evidence = $application->evidenceVersions()
+                    ->where('admission_requirement_id', $requirement->id)
+                    ->latest('id')->lockForUpdate()->first();
+                $review = $evidence?->preliminaryReviews()->whereDoesntHave('successor')->first();
+                $credential = $application->credentialResults()
+                    ->where('admission_requirement_id', $requirement->id)
+                    ->whereDoesntHave('successor')->first();
+
+                return [
+                    ...Arr::only($requirement->getAttributes(), [
+                        'id', 'code', 'label', 'due_stage', 'official_submission_method',
+                        'applicant_instructions', 'requires_preliminary_evidence', 'display_order',
+                    ]),
+                    'evidence' => $evidence === null ? null : Arr::only($evidence->getAttributes(), [
+                        'id', 'application_submission_version_id', 'checksum', 'mime_type', 'size_bytes',
+                        'evidence_method', 'status', 'uploaded_at', 'replaces_document_evidence_id',
+                    ]),
+                    'preliminary_review' => $review === null ? null : Arr::only($review->getAttributes(), [
+                        'id', 'result', 'reviewed_at',
+                    ]),
+                    'preliminary_result' => $review?->result ?? ($evidence === null
+                        ? ($requirement->requires_preliminary_evidence ? 'NotSubmitted' : 'NotRequired')
+                        : 'UnderReview'),
+                    'official_credential_result' => $credential?->result,
+                ];
+            })->all();
+    }
+
     private function validateCompleteApplication(
         AdmissionApplication $application,
         AdmissionCycle $cycle,
@@ -194,15 +232,23 @@ class SubmitAdmissionApplication
             'credential_basis' => ['required', Rule::in($this->credentialBasesFor($application->application_path))],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'birth_date' => ['required', 'date', 'before_or_equal:today'],
+            'birth_date' => ['required', 'date', 'before_or_equal:'.now('Asia/Manila')->toDateString()],
             'citizenship_country_code' => ['required', 'string', 'size:2', Rule::in(['PH'])],
             'phone' => ['required', 'regex:/^09\d{9}$/'],
             'current_city_municipality' => ['required', 'string', 'between:1,120'],
             'current_province' => ['required', 'string', 'between:1,120'],
             'prior_school_name' => ['required', 'string', 'between:1,160'],
             'prior_school_country_code' => ['required', 'string', 'size:2'],
-            'prior_school_completion_year' => ['required', 'integer', 'digits:4', 'max:'.now(config('app.timezone'))->year],
-            'lrn' => ['nullable', 'digits:12'],
+            'prior_school_completion_year' => ['required', 'integer', 'digits:4', 'max:'.now('Asia/Manila')->year],
+            'lrn_availability' => ['required', Rule::in(['Provided', 'NotIssued', 'NotAvailable'])],
+            'lrn' => [Rule::requiredIf($application->lrn_availability === 'Provided'), 'nullable', 'regex:/^\\d{12}$/',
+                Rule::prohibitedIf(in_array($application->lrn_availability, ['NotIssued', 'NotAvailable'], true))],
+            'gender' => ['nullable', 'string', 'between:1,40'],
+            'civil_status' => ['nullable', 'string', 'between:1,40'],
+            'current_barangay' => ['nullable', 'string', 'between:1,120'],
+            'current_street_address' => ['nullable', 'string', 'between:1,160'],
+            'current_postal_code' => ['nullable', 'regex:/^\\d{4}$/'],
+            'prior_school_address' => ['nullable', 'string', 'between:1,160'],
             'privacy_acknowledged_at' => ['required', 'date'],
             'accuracy_declared_at' => ['required', 'date'],
         ])->validate();
@@ -213,7 +259,16 @@ class SubmitAdmissionApplication
             ]);
         }
 
-        if (CarbonImmutable::parse($application->birth_date)->age < 18) {
+        if ((filled($application->gender) || filled($application->civil_status))
+            && ($application->optional_identity_consented_at === null
+                || $application->optional_identity_notice_reference !== $cycle->privacy_notice_reference
+                || $application->optional_identity_consent_purpose !== 'Identity-record comparison')) {
+            throw ValidationException::withMessages(['optional_identity_consent' => 'Agree to identity-record comparison before supplying optional sex/civil-status details, or clear those values.']);
+        }
+
+        if (CarbonImmutable::parse($application->birth_date->toDateString(), config('app.display_timezone'))
+            ->diffInYears(CarbonImmutable::today(config('app.display_timezone'))) < 18
+            || filled($application->guardian_full_name) || filled($application->guardian_relationship) || filled($application->guardian_mobile)) {
             Validator::make($attributes, [
                 'guardian_full_name' => ['required', 'string', 'max:160'],
                 'guardian_relationship' => ['required', 'string', 'between:1,60'],
@@ -309,6 +364,16 @@ class SubmitAdmissionApplication
             'prior_school_country_code',
             'prior_school_completion_year',
             'lrn',
+            'lrn_availability',
+            'gender',
+            'civil_status',
+            'current_barangay',
+            'current_street_address',
+            'current_postal_code',
+            'prior_school_address',
+            'optional_identity_notice_reference',
+            'optional_identity_consent_purpose',
+            'optional_identity_consented_at',
             'prior_college_identifier',
             'guardian_full_name',
             'guardian_relationship',

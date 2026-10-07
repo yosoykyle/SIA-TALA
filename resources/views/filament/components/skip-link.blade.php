@@ -1,6 +1,4 @@
-<a
-    href="#tala-main-content"
-    class="tala-skip-link"
+<span hidden aria-hidden="true"
     x-init="
         const rememberActionGroup = (actionGroup) => {
             window.talaActionGroupReturnFocus = actionGroup;
@@ -48,5 +46,4 @@
             window.setTimeout(window.talaRestoreActionGroupFocus, 0);
         });
     "
-    x-on:click="$nextTick(() => document.getElementById('tala-main-content')?.focus({ preventScroll: true }))"
->Skip to main content</a>
+></span>

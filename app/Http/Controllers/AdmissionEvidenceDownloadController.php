@@ -23,7 +23,11 @@ class AdmissionEvidenceDownloadController extends Controller
         abort_unless($evidence->admission_application_id !== null, 404);
 
         $contents = $evidenceService->contents($evidence, $actor);
-        $extension = match ($evidence->mime_type) {
+        $inline = $request->routeIs('admissions.evidence.view');
+        $mime = $inline ? (new \finfo(FILEINFO_MIME_TYPE))->buffer($contents) : $evidence->mime_type;
+        abort_if($inline && ! in_array($mime, ['application/pdf', 'image/jpeg', 'image/png'], true), 415, 'This file can be downloaded for review.');
+
+        $extension = match ($mime) {
             'application/pdf' => 'pdf',
             'image/jpeg' => 'jpg',
             'image/png' => 'png',
@@ -31,8 +35,8 @@ class AdmissionEvidenceDownloadController extends Controller
         };
 
         return response($contents, 200, [
-            'Content-Type' => $evidence->mime_type,
-            'Content-Disposition' => sprintf('attachment; filename="evidence-%d.%s"', $evidence->id, $extension),
+            'Content-Type' => $mime,
+            'Content-Disposition' => sprintf('%s; filename="evidence-%d.%s"', $inline ? 'inline' : 'attachment', $evidence->id, $extension),
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);

@@ -2,7 +2,7 @@
 
 namespace App\Actions\SystemAdministration;
 
-use App\Models\ApplicantIntake;
+use App\Models\AdmissionApplication;
 use App\Models\Enrollment;
 use App\Models\GradeRosterRow;
 use App\Models\GraduationSnapshot;
@@ -64,67 +64,35 @@ final class TAL96D5E1ExplorationPersonaCatalog
     }
 
     /**
-     * @return array<string, array{label:string,intake_status:string,admission_category:string,credential_basis:string,user_status:string}>
+     * @return array<string, array{label:string,application_state:string,application_path:string,credential_basis:string,user_status:string,reviewed:bool,ready:bool}>
      */
     public function applicants(): array
     {
         return [
-            'applicant.demo@example.test' => [
-                'label' => 'First-time applicant with an editable draft',
-                'intake_status' => ApplicantIntake::StatusDraft,
-                'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
-                'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-                'user_status' => User::StatusApplicantPending,
-            ],
-            'applicant.review.demo@example.test' => [
-                'label' => 'First-time applicant pending Registrar review',
-                'intake_status' => ApplicantIntake::StatusPending,
-                'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
-                'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-                'user_status' => User::StatusApplicantPending,
-            ],
-            'applicant.action-required.demo@example.test' => [
-                'label' => 'First-time applicant with rejected evidence to replace',
-                'intake_status' => ApplicantIntake::StatusActionRequired,
-                'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
-                'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-                'user_status' => User::StatusApplicantActionRequired,
-            ],
-            'applicant.evaluation.demo@example.test' => [
-                'label' => 'First-time applicant ready for admission evaluation',
-                'intake_status' => ApplicantIntake::StatusForEvaluation,
-                'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
-                'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-                'user_status' => User::StatusApplicantForEvaluation,
-            ],
-            'applicant.approved.demo@example.test' => [
-                'label' => 'First-time applicant approved for controlled handover',
-                'intake_status' => ApplicantIntake::StatusApproved,
-                'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
-                'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-                'user_status' => User::StatusApplicantApproved,
-            ],
-            'applicant.withdrawn.demo@example.test' => [
-                'label' => 'Withdrawn applicant retained as non-actionable history',
-                'intake_status' => ApplicantIntake::StatusWithdrawn,
-                'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
-                'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-                'user_status' => User::StatusApplicantWithdrawn,
-            ],
-            'applicant.transfer.demo@example.test' => [
-                'label' => 'Transferee with an editable draft',
-                'intake_status' => ApplicantIntake::StatusDraft,
-                'admission_category' => ApplicantIntake::AdmissionCategoryTransfer,
-                'credential_basis' => ApplicantIntake::CredentialBasisTransferCredentials,
-                'user_status' => User::StatusApplicantPending,
-            ],
-            'applicant.returning.demo@example.test' => [
-                'label' => 'Returning student with an editable draft',
-                'intake_status' => ApplicantIntake::StatusDraft,
-                'admission_category' => ApplicantIntake::AdmissionCategoryReturning,
-                'credential_basis' => ApplicantIntake::CredentialBasisPriorStudentRecord,
-                'user_status' => User::StatusApplicantPending,
-            ],
+            'applicant.demo@example.test' => $this->applicantDefinition('Editable first-year Draft', AdmissionApplication::StateDraft),
+            'applicant.review.demo@example.test' => $this->applicantDefinition('Submitted; current evidence awaits Registrar review', AdmissionApplication::StateSubmitted),
+            'applicant.action-required.demo@example.test' => $this->applicantDefinition('Action needed; replace only named evidence', AdmissionApplication::StateActionNeeded),
+            'applicant.evaluation.demo@example.test' => $this->applicantDefinition('Current preliminary evidence accepted; decision pending', AdmissionApplication::StateSubmitted, reviewed: true),
+            'applicant.approved.demo@example.test' => $this->applicantDefinition('Admitted; official credentials outstanding', AdmissionApplication::StateAdmitted, reviewed: true),
+            'applicant.ready.demo@example.test' => $this->applicantDefinition('Admitted and ready for enrollment; registration remains downstream', AdmissionApplication::StateAdmitted, reviewed: true, ready: true),
+            'applicant.withdrawn.demo@example.test' => $this->applicantDefinition('Withdrawn application retained as read-only history', AdmissionApplication::StateWithdrawn),
+            'applicant.transfer.demo@example.test' => $this->applicantDefinition('Editable transferee Draft', AdmissionApplication::StateDraft, path: AdmissionApplication::PathTransferee),
+            'applicant.not-admitted.demo@example.test' => $this->applicantDefinition('Not admitted; attributable result and support path', AdmissionApplication::StateNotAdmitted, reviewed: true),
+        ];
+    }
+
+    /** @return array{label:string,application_state:string,application_path:string,credential_basis:string,user_status:string,reviewed:bool,ready:bool} */
+    private function applicantDefinition(string $label, string $state, string $path = AdmissionApplication::PathFirstYear, bool $reviewed = false, bool $ready = false): array
+    {
+        return [
+            'label' => $label,
+            'application_state' => $state,
+            'application_path' => $path,
+            'credential_basis' => $path === AdmissionApplication::PathTransferee
+                ? AdmissionApplication::CredentialTransfer : AdmissionApplication::CredentialSeniorHighSchool,
+            'user_status' => User::StatusActive,
+            'reviewed' => $reviewed,
+            'ready' => $ready,
         ];
     }
 
@@ -321,8 +289,8 @@ final class TAL96D5E1ExplorationPersonaCatalog
         $checkpointReady = $detectedCheckpoint !== 'invalid'
             && ($expectedCheckpoint === self::CheckpointAuto
                 || $expectedCheckpoint === $detectedCheckpoint);
-        $passes = count($personaEmails) === 28
-            && count(array_unique($personaEmails)) === 28
+        $passes = count($personaEmails) === 29
+            && count(array_unique($personaEmails)) === 29
             && $staffReady
             && $applicantsReady
             && $studentsReady
@@ -399,16 +367,16 @@ final class TAL96D5E1ExplorationPersonaCatalog
                 return false;
             }
 
-            $intake = ApplicantIntake::query()
+            $application = AdmissionApplication::query()->canonical()
                 ->whereBelongsTo($user)
-                ->whereBelongsTo($term)
+                ->where('term_id', $term->id)
+                ->whereHas('admissionCycle', fn ($query) => $query->where('code', 'ISSUE57-EXPLORATION'))
                 ->first();
 
-            if (! $intake instanceof ApplicantIntake
-                || $intake->status !== $definition['intake_status']
-                || $intake->admission_category !== $definition['admission_category']
-                || $intake->credential_basis !== $definition['credential_basis']
-                || $intake->modality_preference !== null) {
+            if (! $application instanceof AdmissionApplication
+                || $application->application_state !== $definition['application_state']
+                || $application->application_path !== $definition['application_path']
+                || $application->credential_basis !== $definition['credential_basis']) {
                 return false;
             }
         }

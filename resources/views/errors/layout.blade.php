@@ -10,7 +10,11 @@
     <link rel="stylesheet" href="{{ asset('css/tala-foundation.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-error.css') }}">
 </head>
-<body>
+@php
+    $admissionRecovery = request()->is('applicant*', 'admin/admission*', 'admissions/evidence/*', 'outputs/applications/*')
+        || ($statusCode === 403 && auth()->user() instanceof \App\Models\User && (auth()->user()->hasRole('applicant') || auth()->user()->hasRole(\App\Models\User::StaffRoleRegistrar)));
+@endphp
+<body @class(['admission-recovery' => $admissionRecovery]) data-recovery-code="{{ $statusCode }}">
     <a class="tala-skip-link" href="#error-content">Skip to main content</a>
     @php
         $authenticatedUser = $statusCode === 403 && auth()->user() instanceof \App\Models\User ? auth()->user() : null;
@@ -34,14 +38,10 @@
                 </span>
                 <span class="brand-text">
                     <span class="brand-name">Servitech Institute Asia</span>
-                    <span class="brand-attribution">
-                        <img src="{{ asset('talalogo.png') }}" alt="" aria-hidden="true" class="brand-star" width="16" height="16">
-                        <span>Powered by TALA</span>
-                    </span>
                 </span>
             </a>
 
-            <p class="status-code">Error {{ $statusCode }}</p>
+            @unless ($admissionRecovery)<p class="status-code">Error {{ $statusCode }}</p>@endunless
             <h1 id="error-title">{{ $pageTitle }}</h1>
             <p class="summary">{{ $summary }}</p>
 
@@ -61,8 +61,14 @@
                     <a class="primary-action" href="{{ url('/') }}">Return to Servitech Institute Asia home</a>
                 @endif
             </div>
-            <p class="support-note">Source: Servitech Institute Asia HTTP response {{ $statusCode }} (Powered by TALA). System Administration handles technical access and service recovery; the responsible school office handles your underlying request.</p>
-            <p class="support-note"><a class="secondary-action" href="{{ route('home', ['modal' => 'support']) }}">Contact school support</a></p>
+            <p class="support-note"><a href="{{ route('home', ['modal' => 'support']) }}">Contact school support</a></p>
+            @if ($admissionRecovery)
+                <p class="status-code">HTTP {{ $statusCode }}</p>
+            @endif
+            <footer class="error-attribution">
+                <img src="{{ asset('talalogo.png') }}" alt="" aria-hidden="true" width="48" height="48">
+                <span>Powered by TALA</span>
+            </footer>
         </article>
     </main>
 
@@ -84,7 +90,7 @@
                 <a class="secondary-action" href="{{ url($workspacePath) }}">Stay in {{ $workspaceName }}</a>
             </div>
         </dialog>
-        <script src="{{ asset('js/tala-error.js') }}" defer></script>
     @endif
+    <script src="{{ asset('js/tala-error.js') }}" defer></script>
 </body>
 </html>

@@ -47,6 +47,7 @@ class AdmissionApplicationFactory extends Factory
             'prior_school_country_code' => 'PH',
             'prior_school_completion_year' => (int) now()->subYear()->format('Y'),
             'lrn' => null,
+            'lrn_availability' => 'NotIssued',
             'prior_college_identifier' => null,
             'guardian_full_name' => null,
             'guardian_relationship' => null,

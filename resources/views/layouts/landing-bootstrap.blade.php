@@ -25,5 +25,6 @@
 
     <script src="{{ asset('landing/vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('landing/js/main.js') }}"></script>
+    <script src="{{ asset('js/tala-reference.js') }}" defer></script>
 </body>
 </html>

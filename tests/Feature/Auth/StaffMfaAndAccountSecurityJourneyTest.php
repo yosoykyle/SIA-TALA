@@ -400,8 +400,53 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->assertOk()
             ->assertSee('Account Security')
             ->assertSee('Staff-capable account email changes are managed by a System Administrator.')
-            ->assertSee('Authorized access and sessions')
-            ->assertSee('30-minute idle timeout');
+            ->assertSee('Access and sessions')
+            ->assertSee('30 minutes of inactivity');
+    }
+
+    public function test_unenrolled_applicant_account_security_omits_inapplicable_mfa_setup(): void
+    {
+        $applicant = User::factory()->create();
+        $applicant->assignRole('applicant');
+
+        $this->actingAs($applicant)
+            ->get(route('filament.applicant.auth.profile'))
+            ->assertOk()
+            ->assertSee('Email and password')
+            ->assertSee('Access and sessions')
+            ->assertDontSee('Authenticator app');
+    }
+
+    public function test_staff_capable_applicant_retains_native_mfa_management(): void
+    {
+        $staff = User::factory()->create();
+        $staff->assignRole(['applicant', User::StaffRoleFaculty]);
+        $staff->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $staff->saveAppAuthenticationRecoveryCodes(['stored-code']);
+        $staff->acknowledgeRecoveryCodeStorage();
+
+        $this->actingAs($staff)
+            ->withSession([WorkspaceContextResolver::SessionKey => 'applicant'])
+            ->get(route('filament.applicant.auth.profile'))
+            ->assertOk()
+            ->assertSee('Authenticator app')
+            ->assertSee('Staff identity')
+            ->assertSee('Staff-capable account email changes are managed by a System Administrator.');
+    }
+
+    public function test_enrolled_applicant_retains_native_mfa_management(): void
+    {
+        $applicant = User::factory()->create();
+        $applicant->assignRole('applicant');
+        $applicant->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $applicant->saveAppAuthenticationRecoveryCodes(['stored-code']);
+        $applicant->acknowledgeRecoveryCodeStorage();
+
+        $this->actingAs($applicant)
+            ->get(route('filament.applicant.auth.profile'))
+            ->assertOk()
+            ->assertSee('Authenticator app')
+            ->assertSee('Enabled');
     }
 
     public function test_learner_email_change_keeps_the_old_address_and_alerts_both_addresses_until_verification(): void
@@ -458,7 +503,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $this->assertNull($login->get('userUndertakingMultiFactorAuthentication'));
         $this->assertNull($login->get('data.email'));
         $this->assertNull($login->get('data.password'));
-        $this->assertSame('Sign in to Staff', $login->instance()->getHeading());
+        $this->assertSame('Sign in to TALA', $login->instance()->getHeading());
     }
 
     public function test_restarting_mfa_challenge_allows_second_account_to_authenticate_without_credential_leak(): void

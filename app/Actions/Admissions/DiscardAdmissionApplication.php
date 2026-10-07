@@ -29,7 +29,7 @@ class DiscardAdmissionApplication
             throw new AuthorizationException('Only the Applicant owner or an authorized Registrar assistant may discard this unsubmitted Draft.');
         }
 
-        $locked = DB::transaction(function () use ($application): AdmissionApplication {
+        DB::transaction(function () use ($application, $actor, $applicant): void {
             $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
 
             if ($locked->application_state !== AdmissionApplication::StateDraft
@@ -40,22 +40,18 @@ class DiscardAdmissionApplication
                 ]);
             }
 
-            return $locked;
-        }, attempts: 3);
+            $this->evidenceService->discardTemporaryEvidence($locked, $actor);
 
-        $this->evidenceService->discardTemporaryEvidence($locked, $actor);
+            if ($actor->id !== $applicant->id) {
+                activity()
+                    ->performedOn($locked)
+                    ->causedBy($actor)
+                    ->event('admission_assisted_draft_discarded')
+                    ->withProperties(['applicant_user_id' => $applicant->id])
+                    ->log('Registrar-assisted unsubmitted Application Draft discarded.');
+            }
 
-        if ($actor->id !== $applicant->id) {
-            activity()
-                ->performedOn($locked)
-                ->causedBy($actor)
-                ->event('admission_assisted_draft_discarded')
-                ->withProperties(['applicant_user_id' => $applicant->id])
-                ->log('Registrar-assisted unsubmitted Application Draft discarded.');
-        }
-
-        DB::transaction(function () use ($locked): void {
-            AdmissionApplication::query()->lockForUpdate()->findOrFail($locked->id)->delete();
+            $locked->delete();
         }, attempts: 3);
     }
 }

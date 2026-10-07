@@ -5,10 +5,15 @@ namespace Tests\Feature\Admissions;
 use App\Actions\Admissions\AdmissionNotificationLedger;
 use App\Mail\AdmissionsTransactionalMail;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionCycle;
+use App\Models\ApplicationCorrectionRequest;
 use App\Models\OperationalEvent;
+use App\Models\Term;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -88,12 +93,12 @@ class AdmissionTransactionalMailTest extends TestCase
         ];
 
         foreach ($expectedSubjects as $eventType => $expectedSubject) {
-            Mail::assertQueued(AdmissionsTransactionalMail::class, function (AdmissionsTransactionalMail $mail) use ($recipient, $eventType, $expectedSubject): bool {
+            Mail::assertQueued(AdmissionsTransactionalMail::class, function (AdmissionsTransactionalMail $mail) use ($application, $recipient, $eventType, $expectedSubject): bool {
                 return $mail->hasTo($recipient->email)
                     && $mail->operationalEventType === $eventType
                     && $mail->subjectLine === $expectedSubject
                     && $mail->afterCommit === true
-                    && str_starts_with($mail->actionUrl, url('/applicant'))
+                    && $mail->actionUrl === route('filament.applicant.pages.dashboard', ['application' => $application->id])
                     && ! str_contains(json_encode($mail->safeLines, JSON_THROW_ON_ERROR), 'LRN')
                     && ! str_contains(json_encode($mail->safeLines, JSON_THROW_ON_ERROR), 'evidence');
             });
@@ -157,9 +162,74 @@ class AdmissionTransactionalMailTest extends TestCase
         $this->assertNotEmpty($event->payload['delivery']['transport_message_id'] ?? null);
     }
 
+    public function test_delivered_correction_link_remains_owned_and_accessible_after_resubmission(): void
+    {
+        $application = $this->application();
+        $application->forceFill(['application_state' => AdmissionApplication::StateActionNeeded])->save();
+        $correction = ApplicationCorrectionRequest::factory()->for($application, 'application')->create();
+        $ledger = app(AdmissionNotificationLedger::class);
+        $event = $ledger->recordPending($application, $application->user,
+            OperationalEvent::TypeAdmissionCorrectionRequested, 'correction-request:'.$correction->id,
+            ['application_reference' => $application->application_reference]);
+        $deliveredUrl = $ledger->mailFor($event)->actionUrl;
+
+        $correction->forceFill(['state' => ApplicationCorrectionRequest::StateCompleted, 'completed_at' => now()])->save();
+        $application->forceFill(['application_state' => AdmissionApplication::StateSubmitted])->save();
+
+        $this->actingAs($application->user)->get($deliveredUrl)->assertOk()->assertSee($application->application_reference);
+        $outsider = $this->application()->user;
+        $this->actingAs($outsider)->get($deliveredUrl)->assertNotFound();
+    }
+
+    public function test_actual_after_commit_enqueue_exception_preserves_application_and_records_retryable_failure(): void
+    {
+        $application = $this->application();
+        $ledger = app(AdmissionNotificationLedger::class);
+        config(['queue.default' => 'database']);
+        $enqueueAttempts = 0;
+        Queue::createPayloadUsing(function () use (&$enqueueAttempts): array {
+            $enqueueAttempts++;
+            throw new RuntimeException('synthetic enqueue exception with confidential queue configuration');
+        });
+
+        try {
+            $event = DB::transaction(function () use ($application, $ledger, &$enqueueAttempts): OperationalEvent {
+                $application->forceFill(['application_state' => AdmissionApplication::StateSubmitted])->save();
+                $event = $ledger->queuePending($application, $application->user,
+                    OperationalEvent::TypeAdmissionApplicationSubmitted, 'enqueue-failure:'.$application->id,
+                    ['application_reference' => $application->application_reference]);
+                $this->assertSame(0, $enqueueAttempts);
+                $this->assertSame(OperationalEvent::StatusPending, $event->fresh()->status);
+                $this->assertArrayNotHasKey('queued_at', $event->fresh()->payload);
+
+                return $event;
+            });
+        } finally {
+            Queue::createPayloadUsing(null);
+        }
+
+        $this->assertSame(1, $enqueueAttempts);
+        $this->assertSame(AdmissionApplication::StateSubmitted, $application->fresh()->application_state);
+        $this->assertSame(OperationalEvent::StatusFailed, $event->fresh()->status);
+        $this->assertNotNull($event->fresh()->failed_at);
+        $this->assertArrayNotHasKey('queued_at', $event->fresh()->payload);
+        $this->assertStringNotContainsString('confidential', json_encode($event->fresh()->diagnostics, JSON_THROW_ON_ERROR));
+
+        Mail::fake();
+        $retried = $ledger->resend($event->fresh(), $application->user);
+        $this->assertSame(OperationalEvent::StatusPending, $retried->status);
+        $this->assertArrayHasKey('queued_at', $retried->fresh()->payload);
+        $ledger->resend($retried, $application->user);
+        Mail::assertQueuedCount(1);
+    }
+
     private function application(): AdmissionApplication
     {
-        $application = AdmissionApplication::factory()->submitted()->create();
+        $application = AdmissionApplication::factory()->submitted()->create([
+            'admission_cycle_id' => AdmissionCycle::factory()->create([
+                'term_id' => Term::query()->value('id') ?? Term::factory()->create()->id,
+            ])->id,
+        ]);
         $application->user->forceFill(['status' => User::StatusActive])->save();
         $application->user->assignRole('applicant');
 

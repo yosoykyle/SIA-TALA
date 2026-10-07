@@ -415,47 +415,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
 
     private function ensureApplicantPersonas(Term $term, Program $program, User $registrar): void
     {
-        foreach ($this->catalog->applicants() as $email => $definition) {
-            $applicant = User::query()->where('email', $email)->first();
-
-            if (! $applicant instanceof User) {
-                [$firstName, $lastName] = $this->applicantIdentity($email);
-                $applicant = $this->ensureUser(
-                    email: $email,
-                    firstName: $firstName,
-                    lastName: $lastName,
-                    status: $definition['user_status'],
-                    verified: true,
-                );
-            } else {
-                $applicant->forceFill([
-                    'status' => $definition['user_status'],
-                    'email_verified_at' => '2025-12-01 08:00:00',
-                ])->save();
-            }
-
-            $applicant->syncRoles(['applicant']);
-            $intake = $this->ensureApplicantIntake(
-                applicant: $applicant,
-                term: $term,
-                program: $program,
-                definition: $definition,
-                registrar: $registrar,
-            );
-
-            if (in_array($intake->status, [
-                ApplicantIntake::StatusPending,
-                ApplicantIntake::StatusActionRequired,
-                ApplicantIntake::StatusForEvaluation,
-                ApplicantIntake::StatusApproved,
-            ], true)) {
-                $this->ensureChecklistState($intake, $registrar);
-            }
-
-            if ($intake->status === ApplicantIntake::StatusWithdrawn) {
-                $this->ensureWithdrawalAudit($intake, $applicant);
-            }
-        }
+        app(Issue57AdmissionsExplorationSeeder::class)->ensure($term, $program, $registrar);
     }
 
     /**

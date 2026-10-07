@@ -21,6 +21,10 @@ The institutional boundary is deliberate:
 
 The normal path is public Applicant self-service. Registrar-assisted entry is a bounded exception that uses the same application, requirement version, validation, decision, and history; it does not create a second workflow.
 
+For ordinary assistance, require an eligible Applicant owner and a short reason before Registrar draft entry becomes available. Record the assisting Registrar, Applicant owner and time with the existing attributable draft-save evidence. A separate approval reference and an office-evidence reference are optional supporting details when an existing authorization or office-held record is relevant; routine help requires neither a separate approval nor a new approval process. Preserve any references already recorded in history. Office references identify existing records and must not contain private evidence content.
+
+Registrar assistance can prepare, save or discard an unsubmitted Draft only. It cannot edit a submitted application or complete the Applicant's scoped correction. The Applicant reviews their declarations and performs first submission. Assistance context precedes the shared five-step form without creating another Applicant step or locking unrelated sections. Missing assistance context prevents assisted writes and shows a field-specific validation message; it must not claim that a file failed or an application was partly saved when neither happened.
+
 ## 2. Evidence and Policy Basis
 
 This contract is grounded in:
@@ -55,7 +59,7 @@ An applicant with foreign citizenship or foreign-issued credentials receives a c
 1. Clinic 1 provides a verified Applicant account.
 2. While a published Admission Cycle is open, the applicant starts one application for one accepting program.
 3. The applicant completes a five-step form and may save a partial draft.
-4. First submission assigns a stable application reference and freezes the submitted snapshot.
+4. First submission assigns a stable application reference and freezes the submitted snapshot. New references use `APP-{four-digit year}-{three groups of four random characters}`, for example `APP-2026-ABCD-EFGH-JK23`. The 12-character suffix excludes I, L, O, 0 and 1. Allocation checks up to ten candidates against existing references; a database unique constraint remains authoritative. Existing references remain unchanged, including submitted snapshots, acknowledgments and retained history. The reference identifies the record and grants no access by itself.
 5. Registrar reviews the submitted facts and preliminary digital evidence.
 6. A problem produces one scoped correction request naming only the affected fields or evidence, instructions, responsible party, and deadline.
 7. Registrar records the review outcome: `Admitted` requires acceptable preliminary evidence and resolved identity warnings; `NotAdmitted` records its review basis and a safe explanation.
@@ -109,7 +113,8 @@ Derived projections are:
 
 ### 5.4 Decisions and reconsideration
 
-- Registrar owns routine `Admitted` and `NotAdmitted` decisions.
+- Registrar owns routine `Admitted` and `NotAdmitted` decisions. For an ordinary first decision, the recorded Registrar, time, internal reason and safe applicant explanation supply attributable authority; a separately entered approval reference is optional.
+- A replacement decision or explicitly identified exceptional approval requires a separate approval reference. Retain the exceptional-approval classification in the decision event. Recording that classification does not waive identity, preliminary-evidence, authorization or current-version guards, and creates no additional approval workflow.
 - Appeals occur outside TALA.
 - A reconsidered or erroneous decision is corrected through an append-only superseding decision containing the previous decision reference, reason, authority, safe applicant explanation, actor, and time.
 - A superseding decision never edits or erases the earlier decision.
@@ -122,11 +127,11 @@ Derived projections are:
 | Admission Cycle `Draft` | Create or revise cycle | Registrar | Admissions-cycle management | Valid target term and bounded vocabulary | Draft cycle and readiness findings | No public effect until publication | Registrar sees failed-first readiness; Public sees nothing |
 | Admission Cycle `Published` / derived open or closed | Publish, extend, close, or reopen | Registrar | Recorded publication/date-change authority | Every publication blocker passes, including valid public and correction boundaries; stale action rejected | Immutable publication/change evidence and current public-entry/correction projection | Later authorized date change supersedes current dates without erasing history | Clinic 1/Public derives entry availability; existing review continues when closed |
 | Admission Cycle `Cancelled` | Cancel cycle | Registrar | Recorded cancellation authority and safe explanation | Authorized action; affected records identified | New starts and first submissions stop; existing correction, review, decision and clearance work resolves under its recorded authority | Cancellation is retained; any later replacement is a distinct authorized cycle/version; no automatic adverse decision or clearance reversal | Applicants see safe explanation/support and applicable existing actions; Registrar retains history |
-| Application `Draft` | Start, save, inspect, or discard | Applicant or bounded Registrar-assisted entry | Own account or authorized assistance | Cycle open for start/save; inspect/discard remains available after close/cancellation; one application per account/cycle | Partial application and temporary evidence, or removal on discard | First submission supersedes editability; discard exists only before submission | Applicant sees own progress; Registrar sees no review queue until submission |
+| Application `Draft` | Start, save, inspect, or discard | Applicant or bounded Registrar-assisted entry | Own account or authorized assistance; assisted selection rechecked before navigation and saving | Cycle open for assisted preparation/start/save; picker includes only an available unsubmitted Draft or unused open intake. Prior submitted/terminal history permits a separate unused intake; submitted cases and corrections are excluded from assisted edits. Inspect/discard remains available after close/cancellation; one application per account/cycle | Partial application and temporary evidence, or removal on discard | First submission supersedes editability; discard exists only before submission | Applicant sees own progress; Registrar sees no review queue until submission |
 | Application `Submitted` | First submission or corrected-item resubmission | Applicant | Own application | First submission requires the public application window; corrected resubmission requires an active scoped request; required fields/declarations valid; stale snapshot rejected | Stable reference and immutable submitted snapshot | Later resubmission adds a version; it never rewrites the prior snapshot | Registrar queue shows action needed; Applicant sees acknowledgment/history |
 | Application `ActionNeeded` | Issue scoped correction | Registrar | Application-review authority | Named fields/evidence, consolidated instruction, owner, and due date on or before the current correction boundary | Correction request and bounded reopened items | Resubmission supersedes the active request while preserving it in history; overdue remains actionable | Applicant sees only actionable scope; Registrar sees waiting/overdue state |
 | `Withdrawn` | Self-withdraw, record offline withdrawal, or reopen | Applicant or Registrar | Self-service before registration; recorded authority for offline withdrawal/reopen | Submitted/ActionNeeded/Admitted; Clinic 4 registration not started; cycle permits reopen | Withdrawal or reopened submitted application using the same reference | History is immutable; reopening supersedes current state without deletion | Applicant and Registrar see history; Clinic 4 ready projection disappears |
-| `Admitted` / `NotAdmitted` | Record decision | Registrar | Admissions-decision authority | Current application and review; `Admitted` requires resolved identity warnings and acceptable required preliminary evidence; `NotAdmitted` requires a recorded review basis and safe explanation | Append-only decision and safe applicant projection | Reconsideration creates a superseding decision; earlier decision remains | Applicant sees safe result; no Student identity or enrollment is created |
+| `Admitted` / `NotAdmitted` | Record decision | Registrar | Recorded Registrar authority for an ordinary first decision; separate approval reference for replacement or explicitly exceptional approval | Current application and review; `Admitted` requires resolved identity warnings and acceptable required preliminary evidence; `NotAdmitted` requires a recorded review basis and safe explanation | Append-only decision and safe applicant projection | Reconsideration creates a superseding decision; earlier decision remains | Applicant sees safe result; no Student identity or enrollment is created |
 | Registrar enrollment clearance | Record cleared or action needed after external school checks | Registrar | Enrollment-clearance authority | Current admitted application and submitted version; identity warnings resolved; current external school result confirmed | One attributable current result with predecessor history | A changed result appends a successor; stale action changes nothing | Applicant sees safe clearance/instruction; Clinic 4 consumes only current readiness |
 | `ReadyForEnrollment` | Recalculate from authoritative admissions facts | TALA | Derived only; no user override | Current admitted decision, resolved identity warnings and current matching `Cleared` result | Read-only readiness projection | Changed decision/clearance or stale source removes readiness and flags affected consumers; no copied application | Clinic 4 sees the same ready application; no Student identity is created |
 
@@ -158,6 +163,10 @@ An Admission Cycle contains:
 - Publication, revision, cancellation, and responsible-authority evidence.
 
 Stored lifecycle is `Draft`, `Published`, or `Cancelled`. `Scheduled`, `Open`, and `Closed` are derived from publication and date/time.
+
+A cycle Draft may be saved with its applicant-facing name, unique stable code and target term before owner, dates, program/path scope, guidance or privacy notice are complete. These missing publication prerequisites appear in readiness and block Publish, not preparation. Continue setup resumes the same Draft; Save and exit returns to its overview. Confirmed discard is available only for a never-used Draft with no Application reference, requirement set or retained event. Other domain Drafts retain their own minimum persisted identity and final transition.
+
+Dates and times are explicit future school schedules in Asia/Manila, persisted as UTC instants. Location does not determine a deadline. Date pickers preserve existing seconds and precise values. The recorded instant is the selected date/time; no device-location, whole-day or end-of-day inference changes it or its boundary comparison. Current/proposed values and the distinct public-closing, new-correction and active-correction consequences remain visible.
 
 ### 7.1 Publication hard blockers
 
@@ -279,7 +288,7 @@ LRN availability is Provided, NotIssued or NotAvailable. Provided requires the a
 
 Show plain data-use guidance and obtain the current privacy-notice acknowledgement before first private evidence upload. Retain its version and acknowledgement fact. PRD 01 owns the single notice and lawful-processing distinction; notice acknowledgement, optional sensitive-field consent and final accuracy declaration are separate facts. Validate specific consent before accepting either optional value at every save, update or submit seam. If a crafted or stale request supplies values without consent, reject that group with a clear error and a clear-values recovery; all other independent steps remain usable. Upload only the selected preliminary copies in the published path's requirement set, with distinct PSA birth certificate and 2x2 ID photo labels. The published version preserves the baseline requiredness; physical school documents are explained by the path/cycle instruction and handled outside TALA.
 
-Keep the final review and affirmative accuracy declaration before Submit application. Save draft and Save and continue must actually persist a draft; Continue alone must not imply persistence. A changed notice requires acknowledgement before a later upload/submission. Historical missing declaration facts remain visibly unavailable, never fabricated.
+Keep the final review and affirmative accuracy declaration before Submit application. Save and continue and Save and exit must actually persist a draft; Continue alone must not imply persistence. A changed notice requires acknowledgement before a later upload/submission. Historical missing declaration facts remain visibly unavailable, never fabricated.
 
 ### 10.5 Exact validation and exceptions
 
@@ -296,7 +305,7 @@ Keep the final review and affirmative accuracy declaration before Submit applica
 | Previous school | Required name 1–160 characters; optional location/address 1–160. Other allows truthful entry; Registrar checks supporting facts. No live lookup dependency |
 | Educational attainment/year | Published supported credential basis; required exactly four-digit graduation year no later than the current Asia/Manila year. Malformed/future input receives a field-specific correction message |
 | LRN | Provided requires exactly 12 digits as text; NotIssued/NotAvailable retains the explicit fact. Verified collisions and unresolved identity warnings block **Admitted**, without disclosing another person's record |
-| Prior-college identifier | Transferee-only when available; trimmed 1–64 characters preserving the issuing school's reference format. Render safely and retain punctuation and leading zeroes |
+| Prior-college identifier | Transferee-only when available; trimmed 1–64 characters preserving the issuing school's reference format. Render safely and retain punctuation and leading zeroes. A First Year Draft clears this hidden value, including after a path change; submitted snapshots and named correction scope remain protected |
 | Evidence | Applicable immutable requirement version; one validated private PDF/JPEG/PNG up to 10 MiB per version. A photo uses an image; a multipage document uses one PDF. Only designated preliminary copies are uploaded |
 | Declarations | Notice acknowledgement before evidence upload; affirmative accuracy declaration at final submission; snapshots retain the applicable facts/version |
 
@@ -334,6 +343,10 @@ Registrar owns the external paper-document check and follow-up. Clinic 4 consume
 
 ### 12.1 Home
 
+Application references remain complete, selectable and copyable through a shared labelled control with success/failure feedback. Native tables may use their native copy affordance. Resubmission, withdrawal, reopening and replacement decisions preserve the first issued reference; readable grouping creates no second identifier.
+
+The public tracking view, reached only through PRD 01's expiring verified-owner email link, shows a fixed plain-language current status, next step or waiting condition, and the published cycle support contact. It excludes identity/contact facts, correction text, evidence, acknowledgments, private reasons and history. Protected work continues through ordinary authenticated Applicant access. The tracking view derives current facts and grants no mutation permission.
+
 Information order:
 
 1. Plain-language current situation, responsible office, relevant deadline and permitted next step or waiting condition.
@@ -345,6 +358,8 @@ Information order:
 
 Home is a status-first task page. A compact progress indicator explains the factual application, review, decision and Registrar-clearance stages without introducing stored workflow states. Its current stage, nearest deadline and one permitted next action lead; secondary readiness and historical details remain reachable through progressive disclosure.
 
+Conditional coverage includes no application, open/closed intake, saved Draft inspection and discard, save/validation failure, scoped and overdue corrections, consent-gated optional details, LRN availability, transferee education, minor-contact requirements, evidence availability/replacement, admission outcomes, pending or ActionNeeded clearance, withdrawal, history and version-bound acknowledgment. Each applicable state requires evidence; the presence of a hidden control does not establish its usability or correct authorization. Registration/payment surfaces already reachable after readiness retain PRDs 04/06 ownership. Admissions creates no fee, payment obligation or official Student; the UI explains the next office and handoff.
+
 ### 12.2 Application
 
 Use one native five-step Filament Wizard:
@@ -355,7 +370,7 @@ Use one native five-step Filament Wizard:
 4. Preliminary evidence.
 5. Review and submit.
 
-The Wizard provides visible **Save draft**, step-level validation, a server-side closing-time recheck, accessible error summaries with field-level links, and a single-column mobile layout. Submitted fields are read-only unless reopened by a scoped correction request.
+The Wizard provides visible **Save and continue** progression and secondary **Save and exit**, step-level validation, a server-side closing-time recheck, accessible error summaries with field-level links, and a single-column mobile layout. Submitted fields are read-only unless reopened by a scoped correction request.
 
 Use plain applicant-facing labels, including First name, Last name, Suffix, Email address and Educational Background, while retaining the underlying identity and validation semantics. Group related fields responsively and retain labels/requiredness when a placeholder disappears. Do not lock unrelated sections merely to reduce scrolling. A save/continue label must describe an actual save; failed saves retain input and show the owning field or source error.
 
@@ -387,7 +402,7 @@ Use one native Filament table with operational-count tabs:
 - Waiting for applicant.
 - Registrar clearance.
 - Ready for enrollment.
-- History.
+- Closed applications, retaining the existing terminal-history membership and records.
 
 Columns:
 
@@ -533,7 +548,7 @@ All identities use `example.test`; dates, references, credentials, and authoriti
 | Correction request/resubmission | Registrar names exact fields/evidence, responsible party, consolidated instruction, and due date on or before the current correction boundary; Applicant edits only that scope | **Request correction** shows reopened items, due date, Applicant message/email, and no decision effect | Exactly one active correction request. New issuance after the boundary requires authorized extension. Missing its deadline marks overdue/action-needed, never rejected/withdrawn; an active request remains resubmittable and each version is preserved |
 | Evidence version | Applicant/Registrar within the relevant requirement and state | File uses the common private-evidence primitive; multipage evidence is one PDF; requirement/source/version must match | Replacement creates a new version. Unsubmitted temporary evidence may be removed with Draft discard; submitted/reviewed evidence never deletes |
 | Identity warning resolution | Registrar with bounded identity-review authority | LRN Provided requires exactly 12 digits as text; NotIssued/NotAvailable remains explicit. A verified duplicate against another credential blocks `Admitted`; exact normalized name+birth date is a private warning only | **Resolve identity warning** never exposes the other record to Applicant. No merge is automatic; stale evidence changes nothing |
-| Admissions decision/supersession | Registrar; current submitted review and valid program/path; `Admitted` requires resolved identity warnings and acceptable preliminary evidence; `NotAdmitted` records its review basis and safe explanation | **Record admission decision** shows Applicant result, credential/readiness effects and email. **Supersede decision** shows both versions and requires reason/authority | One current decision; correction appends an authorized successor. Earlier decisions and messages remain immutable |
+| Admissions decision/supersession | Registrar; current submitted review and valid program/path; `Admitted` requires resolved identity warnings and acceptable preliminary evidence; `NotAdmitted` records its review basis and safe explanation | **Record admission decision** shows Applicant result, credential/readiness effects and email. An ordinary first decision records the Registrar's authority without requiring a separate reference. **Supersede decision** or explicitly exceptional approval requires a separate approval reference | One current decision; correction appends an authorized successor. Earlier decisions and messages remain immutable |
 | Registrar enrollment clearance | Registrar; admitted application/current decision and submitted version; `Cleared` requires confirmed external prerequisites and identity resolution; `ActionNeeded` identifies pending external checks | **Record enrollment clearance** names the ready/not-ready effect, actor/time and any safe instruction; a changed result requires reason | Atomic stale/version guards; append-only successor; invalidation refreshes the same `ReadyApplicantProjection` and flags an active registration case |
 
 The Application data contract requires requiredness, format, range, uniqueness, immutability, and cross-record validation for legal identity, birth date, contact, prior school, program/path, LRN when present, declarations, and evidence. Duplicate, stale, concurrent, inaccessible, and partial failures create no admissions mutation. `ReadyForEnrollment` remains derived and idempotent; it cannot create a Student, placement, assessment, or copied handoff record.

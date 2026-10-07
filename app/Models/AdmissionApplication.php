@@ -72,6 +72,16 @@ class AdmissionApplication extends Model
         'prior_school_country_code',
         'prior_school_completion_year',
         'lrn',
+        'lrn_availability',
+        'gender',
+        'civil_status',
+        'current_barangay',
+        'current_street_address',
+        'current_postal_code',
+        'prior_school_address',
+        'optional_identity_notice_reference',
+        'optional_identity_consent_purpose',
+        'optional_identity_consented_at',
         'prior_college_identifier',
         'guardian_full_name',
         'guardian_relationship',
@@ -96,6 +106,7 @@ class AdmissionApplication extends Model
             'birth_date' => 'date',
             'prior_school_completion_year' => 'integer',
             'privacy_acknowledged_at' => 'datetime',
+            'optional_identity_consented_at' => 'datetime',
             'accuracy_declared_at' => 'datetime',
             'submitted_at' => 'datetime',
         ];
@@ -154,6 +165,12 @@ class AdmissionApplication extends Model
     public function decisions(): HasMany
     {
         return $this->hasMany(AdmissionDecision::class, 'admission_application_id');
+    }
+
+    /** @return HasMany<RegistrarEnrollmentClearance, $this> */
+    public function enrollmentClearances(): HasMany
+    {
+        return $this->hasMany(RegistrarEnrollmentClearance::class, 'admission_application_id');
     }
 
     /** @return HasMany<OfficialCredentialResult, $this> */

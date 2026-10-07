@@ -9,6 +9,7 @@ use App\Http\Controllers\FinanceStatementController;
 use App\Http\Controllers\GradeRosterOutputController;
 use App\Http\Controllers\PaymentAcknowledgementController;
 use App\Http\Controllers\PaymentEvidenceDownloadController;
+use App\Http\Controllers\PublicApplicationStatusController;
 use App\Http\Controllers\PublicGatewayController;
 use App\Http\Controllers\StaffEmailChangeController;
 use App\Http\Controllers\StaffInvitationActivationController;
@@ -21,6 +22,12 @@ use App\Http\Controllers\WorkspaceContextController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', PublicGatewayController::class)->name('home');
+Route::post('/application-status', [PublicApplicationStatusController::class, 'store'])
+    ->name('applications.status.request');
+Route::get('/application-status/{token}', [PublicApplicationStatusController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->middleware('throttle:30,1')
+    ->name('applications.status.show');
 
 Route::get('/staff-activation/{invitation}', [StaffInvitationActivationController::class, 'show'])
     ->name('staff-invitations.activate');
@@ -48,6 +55,8 @@ Route::middleware('auth')->group(function (): void {
     )->name('admissions.application.acknowledgment');
     Route::get('/admissions/evidence/{evidence}', AdmissionEvidenceDownloadController::class)
         ->name('admissions.evidence.download');
+    Route::get('/admissions/evidence/{evidence}/view', AdmissionEvidenceDownloadController::class)
+        ->name('admissions.evidence.view');
     Route::get('/outputs/finance/statement/{assessment}', FinanceStatementController::class)
         ->name('finance.statement');
     Route::get('/outputs/finance/payment-acknowledgement/{payment}', PaymentAcknowledgementController::class)

@@ -44,6 +44,7 @@ class AdmissionCyclePolicy
         return $this->canManage($user)
             && $admissionCycle->state === AdmissionCycle::StateDraft
             && ! $admissionCycle->events()->exists()
+            && ! $admissionCycle->applications()->exists()
             && ! $admissionCycle->requirementSets()->exists();
     }
 

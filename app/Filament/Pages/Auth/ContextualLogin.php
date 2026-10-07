@@ -246,7 +246,7 @@ class ContextualLogin extends Login
             User::StaffRoleFaculty => 'Faculty',
             User::StaffRoleAcademicHead => 'Academic Head',
             User::StaffRoleSystemSuperAdmin => 'System Administrator',
-            default => Filament::getCurrentOrDefaultPanel()->getId() === 'admin' ? 'Staff' : 'TALA',
+            default => 'TALA',
         };
 
         return "Sign in to {$label}";

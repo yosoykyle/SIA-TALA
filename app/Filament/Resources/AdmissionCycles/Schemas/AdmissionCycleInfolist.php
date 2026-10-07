@@ -7,6 +7,7 @@ use App\Models\AdmissionCycle;
 use App\Models\AdmissionCycleEvent;
 use App\Models\Program;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
@@ -15,43 +16,14 @@ class AdmissionCycleInfolist
     public static function configure(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
-                Section::make('Cycle and current authority')
-                    ->schema([
-                        TextEntry::make('code'),
-                        TextEntry::make('label'),
-                        TextEntry::make('state')->badge(),
-                        TextEntry::make('term.label')->label('Target term'),
-                        TextEntry::make('opens_at')->label('Opening')->dateTime(),
-                        TextEntry::make('closes_at')->label('Public closing')->dateTime(),
-                        TextEntry::make('correction_closes_at')->label('New-correction closing')->dateTime()->placeholder('Not set'),
-                        TextEntry::make('registrarOwner.email')->label('Registrar owner'),
-                        TextEntry::make('support_contact'),
-                        TextEntry::make('privacy_notice_reference'),
-                    ])
-                    ->columns(2)
-                    ->columnSpanFull(),
-                Section::make('Programs and paths')
-                    ->schema([
-                        TextEntry::make('program_acceptance')
-                            ->label('Accepted scope')
-                            ->state(fn (AdmissionCycle $record): string => $record->programs
-                                ->map(function (Program $program): string {
-                                    $pivot = $program->getRelation('pivot');
-                                    $paths = collect([
-                                        data_get($pivot, 'accepts_first_year') ? 'First year' : null,
-                                        data_get($pivot, 'accepts_transferee') ? 'Transferee' : null,
-                                    ])->filter()->implode(', ');
-
-                                    return "{$program->name}: ".($paths ?: 'No path enabled');
-                                })->implode("\n"))
-                            ->listWithLineBreaks(),
-                    ])
-                    ->columnSpanFull(),
-                Section::make('Failed-first publication readiness')
+                Section::make('Publication checks')
+                    ->compact()
+                    ->visible(fn (AdmissionCycle $record): bool => app(AdmissionCycleReadinessService::class)->for($record)['blockers'] !== [])
                     ->schema([
                         TextEntry::make('readiness')
-                            ->label('Source → owner → reason → recovery')
+                            ->label('Setup findings and next steps')
                             ->state(function (AdmissionCycle $record): string {
                                 if (! class_exists(AdmissionCycleReadinessService::class)) {
                                     return 'Readiness service is unavailable; publication remains blocked.';
@@ -71,6 +43,58 @@ class AdmissionCycleInfolist
                             ->listWithLineBreaks(),
                     ])
                     ->columnSpanFull(),
+                Grid::make(['default' => 1, 'lg' => 2])->schema([
+                    Section::make('Intake')
+                        ->compact()
+                        ->schema([
+                            TextEntry::make('availability')->label('Applications')
+                                ->state(fn (AdmissionCycle $record): string => match (true) {
+                                    $record->state === AdmissionCycle::StateDraft => 'Draft — finish setup before publication',
+                                    $record->state === AdmissionCycle::StateCancelled => 'Cancelled',
+                                    $record->state !== AdmissionCycle::StatePublished || ! $record->opens_at || ! $record->closes_at => 'Application window unavailable — review the cycle dates',
+                                    $record->opens_at->isFuture() => 'Scheduled',
+                                    $record->closes_at <= now() => 'Closed — existing reviews continue',
+                                    default => 'Open for new applications',
+                                })->badge()
+                                ->color(fn (AdmissionCycle $record): string => $record->state === AdmissionCycle::StatePublished && $record->opens_at?->isPast() && $record->closes_at?->isFuture() ? 'success' : 'gray'),
+                            TextEntry::make('term.label')->label('Target term')->placeholder('Not selected'),
+                            TextEntry::make('program_acceptance')
+                                ->label('Programs and entry paths')
+                                ->state(fn (AdmissionCycle $record): array => $record->programs
+                                    ->map(function (Program $program): string {
+                                        $pivot = $program->getRelation('pivot');
+                                        $paths = collect([
+                                            data_get($pivot, 'accepts_first_year') ? 'First year' : null,
+                                            data_get($pivot, 'accepts_transferee') ? 'Transferee' : null,
+                                        ])->filter()->implode(', ');
+
+                                        return "{$program->name}: ".($paths ?: 'No path enabled');
+                                    })->values()->all() ?: ['Choose accepting programs before publication.'])
+                                ->listWithLineBreaks()->limitList(3)->expandableLimitedList(),
+                            TextEntry::make('registrarOwner.email')->label('Responsible Registrar')->placeholder('Assign before publication'),
+                        ]),
+                    Section::make('Application dates')
+                        ->description('All times are Asia/Manila.')
+                        ->compact()
+                        ->schema([
+                            TextEntry::make('opens_at')->label('Applications open')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
+                            TextEntry::make('closes_at')->label('New applications close')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set')
+                                ->helperText('Stops new starts and first submissions. Existing reviews continue.'),
+                            TextEntry::make('correction_closes_at')->label('New correction requests end')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set')
+                                ->helperText('Active corrections remain available after this boundary.'),
+                        ]),
+                ])->columnSpanFull(),
+                Section::make('Applicant guidance and source details')
+                    ->compact()
+                    ->schema([
+                        TextEntry::make('applicant_instructions')->label('Instructions for applicants')->columnSpanFull(),
+                        TextEntry::make('support_contact')->label('Admissions support contact'),
+                        TextEntry::make('privacy_notice_reference')->label('Approved privacy notice reference'),
+                        TextEntry::make('code')->label('Internal cycle code')->copyable(),
+                        TextEntry::make('publication_summary')->label('Publication checks')
+                            ->state(fn (AdmissionCycle $record): string => app(AdmissionCycleReadinessService::class)->for($record)['blockers'] === []
+                                ? 'All setup checks passed' : 'Resolve the setup findings before publication'),
+                    ])->columns(['default' => 1, 'md' => 2])->collapsible()->collapsed()->columnSpanFull(),
                 Section::make('Publication and date-change history')
                     ->schema([
                         TextEntry::make('event_history')
@@ -89,7 +113,7 @@ class AdmissionCycleInfolist
                                 ))->implode("\n") ?: 'No publication or change event yet.')
                             ->listWithLineBreaks(),
                     ])
-                    ->collapsible()
+                    ->collapsible()->collapsed()
                     ->columnSpanFull(),
             ]);
     }

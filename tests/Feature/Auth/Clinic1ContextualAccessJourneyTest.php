@@ -52,7 +52,7 @@ class Clinic1ContextualAccessJourneyTest extends TestCase
     public static function staffEntryDestinations(): array
     {
         return [
-            'Registrar' => [User::StaffRoleRegistrar, '/admin/admission-applications'],
+            'Registrar' => [User::StaffRoleRegistrar, '/admin/admissions/admission-applications'],
             'Accounting' => [User::StaffRoleAccounting, '/admin/fee-plans'],
             'Faculty' => [User::StaffRoleFaculty, '/admin/my-availability'],
             'Academic Head' => [User::StaffRoleAcademicHead, '/admin/academic-approvals'],
@@ -130,7 +130,7 @@ class Clinic1ContextualAccessJourneyTest extends TestCase
             ->set('data.password', 'a secure password 2026')
             ->call('authenticate')
             ->assertHasNoErrors()
-            ->assertRedirect('/admin/admission-applications');
+            ->assertRedirect('/admin/admissions/admission-applications');
 
         $this->assertAuthenticatedAs($user);
         $this->assertSame(User::StaffRoleRegistrar, session(WorkspaceContextResolver::SessionKey));

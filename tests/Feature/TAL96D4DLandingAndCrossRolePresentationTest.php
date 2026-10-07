@@ -18,7 +18,7 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_public_landing_explains_the_three_workspace_boundaries_without_script_dependent_headings(): void
+    public function test_public_landing_leads_with_school_discovery_without_script_dependent_headings(): void
     {
         $this->openAdmissions();
 
@@ -26,17 +26,15 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
             ->assertOk()
             ->assertSee('href="#main-content"', false)
             ->assertSee('id="main-content"', false)
-            ->assertSee('One connected learner journey')
-            ->assertSee('Create and verify your Applicant account.')
-            ->assertSee('View enrollment, schedules, finance, and academic records.')
-            ->assertSee('Manage verified school operations according to your role.')
-            ->assertSee('Sign in to your workspace')
-            ->assertSee('Frequently asked questions')
+            ->assertSee('Explore programs')
+            ->assertSee('Servitech Institute Asia Inc.')
+            ->assertSee('Check application status')
+            ->assertSee('Account email')
+
+            ->assertSee('id="faq-title"', false)
             ->assertDontSee('OUR MISSION')
-            ->assertDontSee('<iframe', false)
+            ->assertSee('title="Map showing Servitech Institute Asia Inc. campus location"', false)
             ->assertSee(route('filament.applicant.auth.register'), false)
-            ->assertSee(route('filament.applicant.auth.login'), false)
-            ->assertSee(route('filament.student.auth.login'), false)
             ->assertSee(route('filament.admin.auth.login'), false)
             ->assertDontSee('typewriter', false)
             ->assertDontSee('image-placeholder-placeholder', false)
@@ -117,7 +115,6 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertStringContainsString('padding-bottom: 1rem !important;', $styles);
         $this->assertGreaterThanOrEqual(5, substr_count($landing, 'data-navbar-contrast-target'));
         $this->assertStringContainsString('data-navbar-contrast-surface="dark"', $landing);
-        $this->assertStringContainsString('class="admission-status" data-navbar-contrast-surface="theme"', $landing);
         $this->assertStringContainsString('data-navbar-contrast-surface="theme"', $landing);
         $this->assertStringContainsString('document.elementsFromPoint', $script);
         $this->assertStringContainsString('window.requestAnimationFrame', $script);
@@ -130,7 +127,7 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertStringNotContainsString('navbar-light-theme', $styles);
     }
 
-    public function test_tala_logo_surfaces_share_the_approved_brand_radius_and_journey_does_not_fake_progress(): void
+    public function test_tala_logo_surfaces_share_the_approved_brand_radius_and_public_discovery_does_not_fake_progress(): void
     {
         $landingStyles = file_get_contents(public_path('landing/css/styles.css'));
         $errorStyles = file_get_contents(public_path('css/tala-error.css'));
@@ -141,9 +138,11 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertIsString($errorStyles);
         $this->assertIsString($filamentStyles);
         $this->assertIsString($provider);
-        $this->assertGreaterThanOrEqual(2, substr_count($landingStyles, 'border-radius: 22.37%;'));
+        $this->assertMatchesRegularExpression('/\.landing-attribution-mark\s*\{[^}]*border-radius: 22\.37%;/s', $landingStyles);
+        $this->assertGreaterThanOrEqual(2, substr_count(file_get_contents(resource_path('views/welcome.blade.php')), 'class="landing-attribution-mark"'));
         $landing = file_get_contents(resource_path('views/welcome.blade.php'));
-        $this->assertStringContainsString('class="learner-journey row', $landing);
+        $this->assertStringContainsString('id="programs"', $landing);
+        $this->assertStringNotContainsString('class="learner-journey row', $landing);
         $this->assertStringNotContainsString('aria-current="step"', $landing);
         $this->assertStringNotContainsString('role="progressbar"', $landing);
         $this->assertStringContainsString('border-radius: 22.37%;', $errorStyles);
@@ -152,7 +151,7 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertStringContainsString('tala-filament.css', file_get_contents(resource_path('css/filament/tala/theme.css')));
     }
 
-    public function test_landing_keeps_external_location_guidance_without_an_embedded_map_or_global_button_margins(): void
+    public function test_landing_keeps_embedded_and_external_location_guidance_without_global_button_margins(): void
     {
         $landing = file_get_contents(resource_path('views/welcome.blade.php'));
         $styles = file_get_contents(public_path('landing/css/styles.css'));
@@ -160,7 +159,8 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertIsString($landing);
         $this->assertIsString($styles);
         $this->assertStringContainsString('Open in Google Maps', $landing);
-        $this->assertStringNotContainsString('<iframe', $landing);
+        $this->assertStringContainsString('loading="lazy"', $landing);
+        $this->assertStringContainsString('referrerpolicy="strict-origin-when-cross-origin"', $landing);
         $this->assertStringNotContainsString('.btn { margin-top:', $styles);
     }
 
@@ -178,14 +178,18 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
             $this->assertInstanceOf(View::class, $logo);
             $markup = $logo->render();
 
-            $this->assertStringContainsString(asset('talalogo.png'), $markup);
             $this->assertStringContainsString(asset('images/brand/servitech-crest.webp'), $markup);
-            $this->assertStringContainsString($panel->getBrandName(), $markup);
+            $this->assertStringContainsString('Servitech Institute Asia', preg_replace('/\s+/', ' ', strip_tags($markup)));
+            $this->assertStringNotContainsString('Powered by TALA', $markup);
             $this->assertStringContainsString('alt="" aria-hidden="true"', $markup);
             $this->assertStringNotContainsString('alt="Servitech Institute Asia"', $markup);
         }
 
-        $this->assertSame(array_replace(Color::Blue, [600 => '#1D4ED8', 700 => '#1E3A8A']), $admin->getColors()['primary']);
+        $attribution = view('components.tala-panel-brand', ['placement' => 'attribution'])->render();
+        $this->assertStringContainsString(asset('talalogo.png'), $attribution);
+        $this->assertStringContainsString('Powered by TALA', $attribution);
+
+        $this->assertSame(Color::generatePalette('#2F7D3B'), $admin->getColors()['primary']);
         $this->assertSame($admin->getColors()['primary'], $applicant->getColors()['primary']);
         $this->assertSame($admin->getColors()['primary'], $student->getColors()['primary']);
     }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
+use App\Models\AcademicYear;
 use App\Models\AdmissionCycle;
 use App\Models\Term;
 use App\Models\User;
@@ -28,29 +29,30 @@ class PublicLandingAndFilamentAuthTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('TALA')
+            ->assertSee('Check application status')
+            ->assertSee('<h2 class="section-title" id="application-status-title">Check application status</h2>', false)
+            ->assertDontSee('tracking-disclosure', false)
+            ->assertSee('Email status link')
+            ->assertSee('data-hero-motion-toggle', false)
+            ->assertSee('aria-pressed="false"', false)
+            ->assertSee('Pause motion')
+            ->assertSee(route('applications.status.request'), false)
+            ->assertDontSee('Choose a sign-in workspace')
             ->assertSee('class="tala-skip-link" href="#main-content"', false)
             ->assertSee('class="tala-skip-link__icon"', false)
             ->assertSee('<main id="main-content" tabindex="-1">', false)
             ->assertSee('Create Applicant account')
-            ->assertSee('Applicant sign in')
-            ->assertSee('Student sign in')
-            ->assertSee('Staff sign in')
             ->assertSee(route('filament.applicant.auth.register'), false)
-            ->assertSee(route('filament.applicant.auth.login'), false)
-            ->assertSee(route('filament.student.auth.login'), false)
             ->assertSee(route('filament.admin.auth.login'), false)
             ->assertSee(asset('landing/vendor/bootstrap/css/bootstrap.min.css'), false)
             ->assertSee(asset('landing/css/styles.css'), false)
             ->assertSee('tala-public-icon', false)
             ->assertDontSee('bootstrap-icons.min.css', false)
             ->assertDontSee('class="bi ', false)
-            ->assertSee('data-bs-toggle="dropdown"', false)
             ->assertSee('data-bs-target="#privacyModal"', false)
             ->assertSee('modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down', false)
             ->assertSee('Open in Google Maps')
-            ->assertDontSee('<iframe', false)
-            ->assertSee('Applicant Workspace')
-            ->assertSee('Student Hub')
+            ->assertSee('title="Map showing Servitech Institute Asia Inc. campus location"', false)
             ->assertDontSee('Student Registration')
             ->assertDontSee('applicant.login')
             ->assertDontSee('student.login')
@@ -104,11 +106,11 @@ class PublicLandingAndFilamentAuthTest extends TestCase
 
     public function test_role_filament_panels_share_the_admin_primary_color(): void
     {
-        $institutionalBlue = array_replace(Color::Blue, [600 => '#1D4ED8', 700 => '#1E3A8A']);
+        $institutionalGreen = Color::generatePalette('#2F7D3B');
 
-        $this->assertSame($institutionalBlue, $this->configuredPrimaryColor(AdminPanelProvider::class));
-        $this->assertSame($institutionalBlue, $this->configuredPrimaryColor(ApplicantPanelProvider::class));
-        $this->assertSame($institutionalBlue, $this->configuredPrimaryColor(StudentPanelProvider::class));
+        $this->assertSame($institutionalGreen, $this->configuredPrimaryColor(AdminPanelProvider::class));
+        $this->assertSame($institutionalGreen, $this->configuredPrimaryColor(ApplicantPanelProvider::class));
+        $this->assertSame($institutionalGreen, $this->configuredPrimaryColor(StudentPanelProvider::class));
     }
 
     public function test_applicant_filament_registration_assigns_applicant_role(): void
@@ -148,7 +150,8 @@ class PublicLandingAndFilamentAuthTest extends TestCase
             'api.pwnedpasswords.com/*' => Http::response('', 200),
         ]);
 
-        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $academicYear = AcademicYear::query()->first() ?? AcademicYear::factory()->create();
+        $term = Term::factory()->for($academicYear)->create(['state' => Term::StateActive]);
 
         return AdmissionCycle::factory()->for($term)->published()->create([
             'opens_at' => now()->subDay(),

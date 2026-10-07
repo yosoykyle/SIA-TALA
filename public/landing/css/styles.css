@@ -6,19 +6,40 @@
     --tala-surface-muted: var(--tala-canvas);
     --tala-radius-sm: 0.375rem;
     --tala-radius: 0.5rem;
-    --tala-radius-lg: 0.75rem;
+    --tala-radius-lg: 1rem;
     --tala-shadow: 0 1.25rem 3.5rem rgba(18, 39, 74, 0.12);
     --tala-navbar-height: 5rem;
+    --landing-hero: #102c20;
+    --landing-hero-muted: #eaf4ed;
+    --landing-accent: var(--tala-brand);
+    --landing-accent-soft: rgb(47 125 59 / 10%);
+    --landing-open: #256331;
+    --landing-gold: #805b16;
+    --landing-programs-canvas: #f1f7f2;
+    --landing-visit-canvas: #f1f5fc;
+    --landing-icon-tile: #2f7d3b;
+    --landing-icon-tile-ink: #ffffff;
+    --landing-scrollbar: #9aa6b2;
     scroll-padding-top: calc(var(--tala-navbar-height) + 1rem);
 }
 
 [data-bs-theme="dark"] {
     --tala-blue-soft: #162b52;
     --tala-shadow: 0 1.25rem 3.5rem rgba(0, 0, 0, 0.28);
+    --landing-accent: #86c79a;
+    --landing-accent-soft: rgb(134 199 154 / 14%);
+    --landing-open: #86c79a;
+    --landing-gold: #ebca90;
+    --landing-programs-canvas: #0f1b15;
+    --landing-visit-canvas: #0e1626;
+    --landing-icon-tile: #2f7d3b;
+    --landing-icon-tile-ink: #ffffff;
+    --landing-scrollbar: #4b5868;
 }
 
 html {
     scroll-behavior: smooth;
+    scrollbar-color: var(--landing-scrollbar) transparent;
 }
 
 body {
@@ -26,7 +47,16 @@ body {
     color: var(--tala-ink);
     font-family: var(--tala-font-body);
     line-height: 1.6;
-    min-width: 20rem;
+}
+
+::selection {
+    background: rgb(47 125 59 / 24%);
+    color: inherit;
+}
+
+input,
+textarea {
+    caret-color: var(--landing-accent);
 }
 
 .container {
@@ -50,27 +80,30 @@ button:focus-visible,
     outline-offset: 0.2rem;
 }
 
+.tala-public-icon { display: inline-block; width: 1em; height: 1em; vertical-align: -0.125em; flex: none; }
+
+/* Protected navigation background — foreground recomposed below. */
 .navbar {
     padding-bottom: 1rem !important;
     padding-top: 1rem !important;
     transition: background-color 400ms ease;
 }
 
-.landing-crest-plate {
-    background-color: #ffffff;
-    border: 1px solid rgba(226, 232, 240, 0.9);
-    border-radius: 0.5rem;
-    padding: 4px;
-    display: inline-flex;
+.landing-brand {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    flex-shrink: 0;
-    width: 2.625rem;
-    height: 2.625rem;
+    gap: 0.625rem;
+    min-width: 0;
+    margin-inline-end: 1rem;
+    padding-block: 0;
+    text-decoration: none;
 }
 
-.landing-crest { width: 100%; height: 100%; object-fit: contain; }
+.landing-brand-crest { width: 2.75rem; height: 2.75rem; }
+.landing-brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; text-align: start; }
+.landing-brand-name { font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.01em; }
+.landing-attribution { display: inline-flex; align-items: center; gap: 0.3rem; margin-top: 0.125rem; font-size: 0.75rem; font-weight: 500; line-height: 1.2; }
+
 .landing-attribution-mark {
     border-radius: 22.37%;
     width: 0.875rem;
@@ -78,51 +111,36 @@ button:focus-visible,
     flex-shrink: 0;
     display: inline-block;
 }
-.landing-brand-text { line-height: 1.2; }
-.landing-brand-name { font-size: 1.0625rem; font-weight: 700; }
-.landing-attribution { font-size: 0.75rem; font-weight: 500; line-height: 1.2; }
-
-.landing-brand-logo {
-    border-radius: 22.37%;
-    width: 0.875rem;
-    height: 0.875rem;
-}
-.hero-support-link { background: transparent; border: 0; color: inherit; padding: 0.5rem 0; text-align: start; text-decoration: underline; text-underline-offset: 0.2em; min-height: 2.75rem; }
-.hero-actions :focus-visible { outline-color: var(--tala-accent); }
-.public-content-card { padding: 1.5rem; background: var(--tala-surface); border: 1px solid var(--tala-border); border-radius: var(--tala-radius-sm); overflow-wrap: anywhere; }
-.public-content-card h3 { font-size: 1.125rem; line-height: 1.4; }
-.public-content-card a { color: var(--tala-link); text-underline-offset: 0.2em; }
-.public-content-message { white-space: pre-line; }
-.public-content-meta { color: var(--tala-muted); font-size: 0.875rem; margin-top: 1rem; margin-bottom: 0; }
 
 .navbar-nav .nav-link {
-    font-size: 0.85rem;
+    border-radius: var(--tala-radius);
+    font-size: 0.875rem;
     font-weight: 500;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.01em;
+    padding-inline: 0.75rem !important;
 }
 
-.navbar .dropdown-menu {
-    border: 1px solid var(--tala-border);
-    border-radius: var(--tala-radius-sm);
-    box-shadow: var(--tala-shadow);
-    min-width: 13rem;
-    padding: 0.5rem;
-}
-
-.navbar .dropdown-item {
-    border-radius: 0.6rem;
-    font-weight: 700;
-    padding: 0.7rem 0.8rem;
-}
-
-.navbar .dropdown-item:focus,
-.navbar .dropdown-item:hover {
-    background: rgba(13, 63, 158, 0.1);
-    color: var(--tala-blue);
-}
+.navbar .nav-link[aria-current="location"] { font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.35em; }
 
 .navbar [data-navbar-contrast-target] {
     transition: color 160ms ease;
+}
+
+@media (forced-colors: none) {
+    .navbar [data-navbar-contrast-target]:not([data-navbar-foreground]) {
+        background-color: var(--tala-brand-strong);
+        color: var(--tala-on-brand);
+        border-radius: var(--tala-radius);
+    }
+
+    .navbar .landing-brand-text:not([data-navbar-foreground]) {
+        padding: 0.2rem 0.35rem;
+        overflow-wrap: anywhere;
+    }
+
+    .navbar .landing-brand-text:not([data-navbar-foreground]) :is(.landing-brand-name, .landing-attribution) {
+        color: inherit;
+    }
 }
 
 .navbar [data-navbar-contrast-target][data-navbar-foreground="black"],
@@ -213,279 +231,606 @@ button:focus-visible,
     mask: linear-gradient(0deg, transparent 2.5rem, #000 3rem);
 }
 
+.public-sign-in {
+    flex: none;
+    gap: 0.5rem;
+    margin-inline-start: auto;
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    font-size: 0.875rem;
+    line-height: 1;
+}
+
+.public-sign-in .tala-public-icon { width: 1.125rem; height: 1.125rem; }
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    line-height: 1.25;
+    min-height: 2.75rem;
+    padding: 0.625rem 1.125rem;
+}
+
+.btn .tala-public-icon { width: 1.125rem; height: 1.125rem; }
+
+/* Strong brand green keeps white labels at or above 4.5:1 under the shared gloss highlight. */
+.btn-primary-custom { background-color: var(--tala-brand-strong); border: 1px solid #1d4f27; color: var(--tala-on-brand); }
+.btn-primary-custom:hover, .btn-primary-custom:focus-visible { background-color: #1d4f27; border-color: #1d4f27; color: var(--tala-on-brand); }
+
+.btn-secondary-custom { background-color: var(--tala-surface); border: 1px solid var(--tala-control-border); color: var(--tala-text); }
+.btn-secondary-custom:hover, .btn-secondary-custom:focus-visible { background-color: var(--tala-canvas); border-color: var(--tala-control-border); color: var(--tala-text); }
+
+.btn-hero-quiet { background-color: rgb(255 255 255 / 8%); border: 1px solid rgb(255 255 255 / 55%); color: #ffffff; }
+.btn-hero-quiet:hover, .btn-hero-quiet:focus-visible { background-color: rgb(255 255 255 / 16%); border-color: #ffffff; color: #ffffff; }
+
+.btn-hero-solid { background-color: #ffffff; border: 1px solid #ffffff; color: var(--landing-hero); }
+.btn-hero-solid:hover, .btn-hero-solid:focus-visible { background-color: #e6f2ea; border-color: #e6f2ea; color: var(--landing-hero); }
+
+.text-link {
+    color: var(--tala-link);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+    text-underline-offset: 0.2em;
+}
+
+.text-link:hover {
+    color: var(--tala-link);
+    text-decoration-color: currentColor;
+}
+
+button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-height: 2.75rem; text-align: start; }
+
+/* Masthead */
 .hero-section {
-    background:
-        radial-gradient(circle at 85% 18%, rgba(83, 153, 255, 0.34), transparent 31rem),
-        radial-gradient(circle at 10% 80%, rgba(46, 205, 255, 0.16), transparent 28rem),
-        linear-gradient(135deg, #071a3d 0%, #0d3f9e 58%, #1456d9 100%);
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: var(--landing-hero);
     color: #ffffff;
-    min-height: 36rem;
-    padding: calc(var(--tala-navbar-height) + 2rem) 0 3rem;
+    padding-block: calc(var(--tala-navbar-height) + 2.5rem) 1.5rem;
 }
 
-.hero-kicker,
-.section-kicker {
-    font-size: 0.78rem;
-    font-weight: 800;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
+.hero-section :focus-visible { outline-color: var(--tala-accent); }
+
+.hero-ambient {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+    background:
+        radial-gradient(90% 70% at 88% 0%, #194632 0%, rgb(25 70 50 / 0%) 70%),
+        linear-gradient(180deg, #0f2a1e 0%, var(--landing-hero) 55%, #0c2318 100%);
 }
 
-.hero-kicker {
-    color: #a9c9ff;
+.hero-ambient__light,
+.hero-ambient__arc {
+    position: absolute;
+    border-radius: 50%;
+    will-change: transform, opacity;
 }
+
+/* Blueprint dark-surface identity colours: primary green #6ACB7C, TALA blue #6EB4FF, restrained gold #EBCA90, crest crimson #B4113F. */
+.hero-ambient__light {
+    animation: hero-drift-a 22s ease-in-out infinite alternate;
+}
+
+.hero-ambient__light--green {
+    width: 64vmax;
+    height: 64vmax;
+    left: -20vmax;
+    top: -26vmax;
+    background: radial-gradient(closest-side, rgb(106 203 124 / 42%), rgb(106 203 124 / 0%));
+}
+
+.hero-ambient__light--blue {
+    width: 52vmax;
+    height: 52vmax;
+    right: -18vmax;
+    top: -14vmax;
+    background: radial-gradient(closest-side, rgb(110 180 255 / 32%), rgb(110 180 255 / 0%));
+    animation-name: hero-drift-b;
+    animation-duration: 26s;
+    animation-delay: -9s;
+}
+
+.hero-ambient__light--gold {
+    width: 40vmax;
+    height: 40vmax;
+    left: 4vmax;
+    top: 22%;
+    background: radial-gradient(closest-side, rgb(235 202 144 / 26%), rgb(235 202 144 / 0%));
+    animation-duration: 30s;
+    animation-delay: -14s;
+    animation-direction: alternate-reverse;
+}
+
+.hero-ambient__light--crimson {
+    width: 46vmax;
+    height: 46vmax;
+    right: 6vmax;
+    bottom: -28vmax;
+    background: radial-gradient(closest-side, rgb(180 17 63 / 26%), rgb(180 17 63 / 0%));
+    animation-name: hero-drift-b;
+    animation-duration: 34s;
+    animation-delay: -20s;
+}
+
+.hero-ambient__arc {
+    width: 84vmax;
+    height: 84vmax;
+    right: -46vmax;
+    top: -34vmax;
+    border: 1px dashed rgb(235 202 144 / 24%);
+    animation: hero-turn 90s linear infinite;
+}
+
+@keyframes hero-drift-a {
+    0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.85; }
+    50% { transform: translate3d(12vmax, 6vmax, 0) scale(1.2); opacity: 1; }
+    100% { transform: translate3d(4vmax, 12vmax, 0) scale(1.08); opacity: 0.9; }
+}
+
+@keyframes hero-drift-b {
+    0% { transform: translate3d(0, 0, 0) scale(1.1); opacity: 0.8; }
+    50% { transform: translate3d(-12vmax, 8vmax, 0) scale(0.95); opacity: 1; }
+    100% { transform: translate3d(-4vmax, -6vmax, 0) scale(1.22); opacity: 0.85; }
+}
+
+@keyframes hero-turn {
+    to { transform: rotate(360deg); }
+}
+
+.hero-section:not(.is-motion-enhanced) .hero-ambient > * { animation: none; }
+.hero-section:not(.is-motion-enhanced) .hero-motion-toggle { display: none; }
+
+.hero-section.is-motion-paused .hero-ambient > *,
+.hero-section.is-offscreen .hero-ambient > * {
+    animation-play-state: paused;
+}
+
+.school-identity {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.75rem;
+    padding-block-end: 2.5rem;
+}
+
+.school-identity-crest {
+    width: clamp(8.5rem, 24vw, 18rem);
+    height: auto;
+    filter: drop-shadow(0 1.25rem 2rem rgb(0 0 0 / 35%));
+    animation: crest-arrive 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes crest-arrive {
+    from { opacity: 0.55; transform: translateY(0.75rem) scale(0.95); }
+    to { opacity: 1; transform: none; }
+}
+
+.btn .tala-public-icon { transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+.hero-actions .btn-primary-custom:hover .tala-public-icon { transform: translateY(2px); }
+.btn-hero-quiet:hover .tala-public-icon,
+.public-sign-in:hover .tala-public-icon { transform: translateX(2px); }
+
+.school-identity-copy { min-width: 0; }
 
 .display-headline {
-    font-size: 1.875rem;
+    font-size: clamp(2.5rem, 5vw, 4.25rem);
     font-weight: 700;
-    letter-spacing: -0.025em;
-    line-height: 1.25;
-    max-width: 28ch;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    margin-block: 0 1.25rem;
 }
 
 .hero-lead {
-    color: rgba(255, 255, 255, 0.78);
-    font-size: 1rem;
-    margin: 1.5rem 0 0;
-    max-width: 39rem;
+    color: var(--landing-hero-muted);
+    font-size: 1.1875rem;
+    letter-spacing: 0.005em;
+    line-height: 1.6;
+    max-width: 44ch;
+    margin: 0;
+    text-wrap: pretty;
 }
 
-.btn {
-    border-radius: 0.75rem;
-    font-weight: 600;
-    min-height: 2.9rem;
-    padding: 0.7rem 1.15rem;
+.hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    margin-block-start: 2rem;
 }
 
-.btn-primary-custom {
-    background: #ffffff;
-    border: 1px solid #ffffff;
-    color: #0d3f9e;
+.hero-updates {
+    display: grid;
+    gap: 0.75rem;
 }
 
-.btn-primary-custom:hover,
-.btn-primary-custom:focus-visible {
-    background: #eaf1ff;
-    border-color: #eaf1ff;
-    color: #072b72;
+.hero-updates__stack {
+    display: grid;
+    gap: 1rem;
 }
 
-.btn-secondary-custom {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.55);
-    color: #ffffff;
-}
-
-.btn-secondary-custom:hover,
-.btn-secondary-custom:focus-visible {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: #ffffff;
-    color: #ffffff;
-}
-
-.admission-status {
-    background: var(--tala-surface);
-    border: 1px solid var(--tala-border);
+.update-card {
+    min-width: 0;
+    padding: 1.5rem;
+    border: 1px solid rgb(255 255 255 / 16%);
     border-radius: var(--tala-radius-lg);
-    color: var(--tala-ink);
-    padding: 2rem;
+    background: rgb(7 26 18 / 74%);
+    box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 22%);
+    color: #ffffff;
     overflow-wrap: anywhere;
 }
 
-.admission-status h2 {
-    font-size: 1.5rem;
-    line-height: 1.25;
-    margin-bottom: 1rem;
+.update-card--notice { background: rgb(9 24 46 / 76%); border-color: rgb(110 180 255 / 26%); }
+
+.update-card__type {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    margin: 0 0 1rem;
+    font-size: 0.8125rem;
+    font-weight: 650;
 }
 
-.admission-source {
-    border-top: 1px solid var(--tala-border);
-    color: var(--tala-muted);
-    font-size: 0.875rem;
-    padding-top: 1rem;
-}
-
-.hero-entry-state {
-    align-self: center;
-    font-weight: 600;
-}
-
-.hero-availability {
-    max-width: 60ch;
-}
-
-.tala-public-icon { display: inline-block; width: 1em; height: 1em; vertical-align: -0.125em; flex: none; }
-
-.public-sign-in {
-    flex: none;
-    margin-inline-start: auto;
-}
-
-.public-sign-in > button {
-    min-height: 2.75rem;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    border: 1px solid currentColor;
-    border-radius: var(--tala-radius-sm);
-}
-
-.context-choices h3,
-.learner-journey h3,
-.program-row h3 {
-    font-size: 1.125rem;
-    line-height: 1.4;
-    margin-bottom: 0.5rem;
-}
-
-.context-choices p,
-.learner-journey p,
-.program-row p {
-    color: var(--tala-muted);
-    margin-bottom: 0;
-}
-
-.context-choices .text-link {
+.update-card__type > span:first-of-type {
     display: inline-flex;
     align-items: center;
-    min-height: 2.75rem;
-    margin-top: 0.5rem;
+    padding: 0.125rem 0.625rem;
+    border-radius: 999px;
+    background: rgb(106 203 124 / 18%);
+    color: #c9f0d1;
 }
 
-.journey-heading {
-    border-top: 1px solid var(--tala-border);
-    margin-top: 3rem;
-    padding-top: 3rem;
-    margin-bottom: 1.5rem;
+.update-card__type .tala-public-icon { width: 1.125rem; height: 1.125rem; color: #8de698; }
+.update-card--notice .update-card__type > span:first-of-type { background: rgb(110 180 255 / 18%); color: #d6e9ff; }
+.update-card--notice .update-card__type .tala-public-icon { color: #6eb4ff; }
+.update-card__date { color: var(--landing-hero-muted); font-weight: 500; }
+
+.update-card__title { margin: 0 0 0.5rem; color: #ffffff; font-size: 1.25rem; font-weight: 650; line-height: 1.35; }
+.update-card__message { max-width: 70ch; margin: 0 0 0.5rem; color: var(--landing-hero-muted); white-space: pre-line; }
+
+.admission-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem 2rem;
+}
+
+/* Enhanced stack: every card shares one grid cell so the stack keeps the tallest card's height. */
+.hero-updates.is-enhanced .hero-updates__stack {
+    position: relative;
+    isolation: isolate;
+    gap: 0;
+    padding-bottom: 0.75rem;
+}
+
+.hero-updates.is-enhanced .hero-updates__stack::before,
+.hero-updates.is-enhanced .hero-updates__stack::after {
+    content: "";
+    grid-area: 1 / 1;
+    z-index: -1;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: var(--tala-radius-lg);
+    background: rgb(7 26 18 / 45%);
+    transform: translateY(0.75rem) scale(0.96);
+    transform-origin: bottom center;
+}
+
+.hero-updates.is-enhanced .hero-updates__stack::after { transform: translateY(0.375rem) scale(0.98); background: rgb(7 26 18 / 60%); }
+
+.hero-updates.is-enhanced .update-card {
+    grid-area: 1 / 1;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(2.5rem);
+    transition: opacity 420ms cubic-bezier(0.2, 0.7, 0.2, 1), transform 420ms cubic-bezier(0.2, 0.7, 0.2, 1), visibility 0s linear 420ms;
+}
+
+.hero-updates.is-enhanced.is-reverse .update-card { transform: translateX(-2.5rem); }
+.hero-updates.is-enhanced .update-card.is-leaving { transform: translateX(-2.5rem); }
+.hero-updates.is-enhanced.is-reverse .update-card.is-leaving { transform: translateX(2.5rem); }
+
+.hero-updates.is-enhanced .update-card.is-active {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition-delay: 0s;
+}
+
+.hero-updates__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+}
+
+.hero-updates__pager { display: inline-flex; align-items: center; gap: 0.5rem; }
+.hero-updates__position { min-width: 4.5rem; color: var(--landing-hero-muted); font-size: 0.875rem; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+
+.hero-round-control {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 34%);
+    border-radius: 999px;
+    background-color: rgb(255 255 255 / 8%);
+    color: #ffffff;
+}
+
+.hero-round-control:hover { background-color: rgb(255 255 255 / 16%); }
+.hero-round-control .tala-public-icon { width: 1.25rem; height: 1.25rem; }
+
+.admission-status h2 {
+    color: #ffffff;
+    font-size: 1.25rem;
+    font-weight: 650;
+    line-height: 1.35;
+    margin: 0 0 0.25rem;
+}
+
+.admission-intake p,
+.hero-availability {
+    color: var(--landing-hero-muted);
+    font-size: 0.875rem;
+    margin-block: 0.25rem;
+    max-width: 48ch;
+}
+
+.admission-paths { font-size: 0.9375rem; }
+
+.admission-deadline { margin: 0; align-self: center; }
+.admission-deadline dt { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem; font-size: 0.875rem; font-weight: 500; color: var(--landing-hero-muted); }
+.admission-deadline dd { margin: 0; color: #ffffff; font-size: 1.125rem; font-weight: 650; line-height: 1.4; text-wrap: pretty; font-variant-numeric: tabular-nums; }
+.admission-deadline dd span { display: block; font-size: 0.8125rem; font-weight: 400; color: var(--landing-hero-muted); }
+
+.admission-entry {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+}
+
+.admission-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1.25rem;
+}
+
+.hero-inline-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.75rem;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: #ffffff;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    text-align: start;
+    text-decoration: underline;
+    text-decoration-color: rgb(255 255 255 / 45%);
+    text-underline-offset: 0.25em;
+}
+
+.hero-inline-link--inline { display: inline; min-height: 0; vertical-align: baseline; }
+
+.hero-inline-link:hover,
+.hero-inline-link:focus-visible {
+    color: #ffffff;
+    text-decoration-color: #ffffff;
+    text-decoration-thickness: 2px;
+}
+
+.hero-motion-toggle {
+    margin-inline-start: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.75rem;
+    padding: 0 0.875rem;
+    border: 1px solid rgb(255 255 255 / 30%);
+    border-radius: 999px;
+    background-color: rgb(255 255 255 / 6%);
+    color: var(--landing-hero-muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.hero-motion-toggle:hover { background-color: rgb(255 255 255 / 12%); color: #ffffff; }
+.hero-motion-toggle .tala-public-icon { width: 1rem; height: 1rem; }
+.hero-motion-toggle__play,
+.hero-motion-toggle[aria-pressed="true"] .hero-motion-toggle__pause { display: none; }
+.hero-motion-toggle[aria-pressed="true"] .hero-motion-toggle__play { display: inline-block; }
+
+/* Sections */
+.section-block { padding-block: clamp(3.5rem, 7vw, 6rem); }
+.programs-section { background: var(--landing-programs-canvas); }
+.application-tracking { background: var(--tala-surface-muted); }
+.faq-section { background: var(--tala-surface); }
+.institution-section { background: var(--landing-visit-canvas); }
+
+.section-title {
+    color: var(--tala-ink);
+    font-size: clamp(1.875rem, 3vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.12;
+    margin-block-end: 0.75rem;
+}
+
+.section-title--display { font-size: clamp(2.125rem, 4vw, 3.25rem); letter-spacing: -0.035em; line-height: 1.05; }
+
+.section-lead {
+    color: var(--tala-muted);
+    font-size: 1.125rem;
+    line-height: 1.6;
+    margin: 0;
+    max-width: 58ch;
+    text-wrap: pretty;
+}
+
+.catalog-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.25rem 2rem;
+    margin-block-end: 2rem;
+}
+
+.catalog-heading > div { min-width: 0; }
+
+.catalog-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.625rem;
+    margin: 1rem 0 0;
+    color: var(--tala-muted);
+    font-size: 0.9375rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.catalog-summary strong { color: var(--landing-open); font-size: 1.25rem; font-weight: 700; }
+.catalog-heading > .btn { flex-shrink: 0; }
+
+/* Program catalog: compact comparison tiles that reflow for one, several or many Programs. */
+.program-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+    gap: 0.75rem;
 }
 
 .program-row {
     display: grid;
-    grid-template-columns: 4rem minmax(0, 1fr) minmax(0, 1fr);
-    gap: 1.5rem;
-    align-items: start;
-    padding: 1.5rem 0;
-    border-top: 1px solid var(--tala-border);
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.125rem 0.75rem;
+    min-width: 0;
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--tala-border);
+    border-radius: 0.875rem;
+    background: var(--tala-surface);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
     overflow-wrap: anywhere;
 }
 
-.program-row:last-child {
-    border-bottom: 1px solid var(--tala-border);
+.program-mark {
+    grid-row: span 2;
+    align-self: start;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0.4375rem;
+    border-radius: 0.625rem;
+    background: var(--landing-icon-tile);
+    color: var(--landing-icon-tile-ink);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 22%), 0 2px 4px rgb(15 23 42 / 12%);
 }
 
 .program-row h3 {
-    margin-bottom: 0;
+    color: var(--tala-ink);
+    font-size: 1rem;
+    font-weight: 650;
+    line-height: 1.35;
+    margin: 0;
+    text-wrap: pretty;
 }
 
-.program-code {
-    justify-self: start;
-    color: var(--tala-link);
-    background: var(--tala-blue-soft);
-    border-radius: var(--tala-radius-sm);
-    padding: 0.25rem 0.5rem;
+.program-facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.125rem 0.75rem;
+    margin: 0;
+}
+
+.program-fact { display: flex; align-items: center; }
+.program-fact dd { margin: 0; }
+.program-duration { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--tala-muted); font-size: 0.875rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.program-availability {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--tala-muted);
     font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 500;
 }
 
-.section-block {
-    padding: 3rem 0;
+.program-availability.is-open { color: var(--landing-open); font-weight: 600; }
+
+.program-empty {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--tala-border);
+    border-radius: var(--tala-radius-lg);
+    background: var(--tala-surface);
+    color: var(--tala-muted);
 }
 
-.features-section,
-.faq-section {
+.program-empty .tala-public-icon { margin-top: 0.3rem; color: var(--landing-accent); }
+
+/* FAQ */
+.discovery-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem;
+}
+
+.discovery-intro,
+.discovery-content { min-width: 0; }
+.discovery-intro > .btn { margin-block-start: 1.5rem; }
+
+.faq-section--compact { padding-block: clamp(2rem, 4vw, 3rem); }
+
+.faq-help {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 1rem 1.25rem;
+    padding: 1.5rem;
+    border: 1px solid var(--tala-border);
+    border-radius: var(--tala-radius-lg);
     background: var(--tala-surface-muted);
 }
 
-.section-heading {
-    margin: 0 0 1.5rem;
-    max-width: 46rem;
-}
-
-.section-kicker {
-    color: var(--tala-blue);
-    margin-bottom: 0.55rem;
-}
-
-.section-title {
-    color: var(--tala-ink);
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.25;
-    margin-bottom: 1rem;
-}
-
-.section-lead {
-    color: var(--tala-muted);
-    font-size: 1rem;
-    margin: 0 auto;
-    max-width: 44rem;
-}
-
-
-
-.btn-black-action {
-    background: var(--tala-ink);
-    border: 1px solid var(--tala-ink);
-    color: var(--tala-surface);
-}
-
-.btn-black-action:hover,
-.btn-black-action:focus-visible {
-    background: var(--tala-blue);
-    border-color: var(--tala-blue);
-    color: #ffffff;
-}
-
-.text-link {
-    color: var(--tala-blue);
-    font-weight: 600;
-    text-decoration: none;
-}
-
-.text-link:hover {
-    text-decoration: underline;
-    text-underline-offset: 0.2rem;
-}
-
-.institution-card {
-    align-items: center;
-    background: var(--tala-surface);
-    border: 1px solid var(--tala-border);
-    border-radius: var(--tala-radius);
-    box-shadow: var(--tala-shadow);
-    display: flex;
-    gap: 2rem;
-    justify-content: space-between;
-    padding: clamp(1.5rem, 4vw, 3rem);
-}
-
-.institution-card .section-lead {
-    max-width: 52rem;
-}
-
-.about-section {
-    background: var(--tala-surface);
-}
+.faq-help > .btn { grid-column: 1 / -1; justify-self: start; }
+.faq-help__mark { width: 2.5rem; height: 2.5rem; color: var(--landing-gold); align-self: start; }
+.faq-help__copy { min-width: 0; color: var(--tala-muted); }
+.faq-help__title { color: var(--tala-ink); font-size: 1.25rem; font-weight: 650; line-height: 1.35; margin: 0 0 0.25rem; }
 
 .accordion-custom {
     display: grid;
-    gap: 0.8rem;
+    gap: 0.75rem;
 }
 
 .accordion-custom .accordion-item {
     background: var(--tala-surface);
     border: 1px solid var(--tala-border);
-    border-radius: var(--tala-radius-sm);
+    border-radius: var(--tala-radius-lg);
     color: var(--tala-ink);
     overflow: hidden;
 }
 
 .accordion-custom .accordion-button {
-    background: var(--tala-surface);
+    background-color: var(--tala-surface);
     color: var(--tala-ink);
     font-weight: 600;
-    padding: 1.25rem 1.35rem;
+    padding: 1.125rem 1.25rem;
 }
 
 .faq-question {
@@ -498,22 +843,16 @@ button:focus-visible,
 }
 
 .faq-category {
-    color: var(--tala-blue);
-    font-size: 0.75rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    line-height: 1.2;
-    text-transform: uppercase;
+    color: var(--landing-gold);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.3;
 }
 
 .accordion-custom .accordion-button:not(.collapsed) {
-    background: var(--tala-blue-soft);
+    background-color: var(--landing-accent-soft);
     box-shadow: none;
-    color: var(--tala-blue-dark);
-}
-
-[data-bs-theme="dark"] .accordion-custom .accordion-button:not(.collapsed) {
-    color: #b9d0ff;
+    color: var(--tala-ink);
 }
 
 .accordion-custom .accordion-button:focus {
@@ -523,64 +862,171 @@ button:focus-visible,
 
 .accordion-custom .accordion-body {
     color: var(--tala-muted);
-    padding: 1.2rem 1.35rem 1.4rem;
+    padding: 1.125rem 1.25rem 1.375rem;
     text-align: left;
+    white-space: pre-line;
 }
 
-.empty-guidance {
-    align-items: flex-start;
-    background: var(--tala-surface);
-    border: 1px dashed var(--tala-border);
-    border-radius: var(--tala-radius);
-    color: var(--tala-muted);
-    display: flex;
+/* Visit */
+.visit-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem;
+}
+
+.visit-details,
+.visit-map { min-width: 0; }
+.visit-map { display: flex; flex-direction: column; }
+
+.visit-facts {
+    display: grid;
     gap: 1rem;
-    padding: 1.4rem;
-    text-align: left;
+    margin: 1.75rem 0 0;
 }
 
-.empty-guidance .tala-public-icon {
-    color: var(--tala-blue);
-    font-size: 1.4rem;
+.visit-fact dt { display: flex; align-items: center; gap: 0.4rem; color: var(--tala-muted); font-size: 0.8125rem; font-weight: 600; }
+.visit-fact dt .tala-public-icon { color: var(--landing-accent); }
+.visit-fact dd { margin: 0.125rem 0 0; font-size: 1.125rem; font-variant-numeric: tabular-nums; }
+.visit-fact .text-link { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.institution-address { font-style: normal; color: var(--tala-ink); }
+
+.visit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
 }
 
-.empty-guidance strong {
-    color: var(--tala-ink);
+.institution-map {
+    display: block;
+    flex: 1 1 auto;
+    width: 100%;
+    height: clamp(20rem, 70vw, 26rem);
+    min-height: 200px;
+    border: 0;
+    border-radius: var(--tala-radius-lg);
+    box-shadow: 0 1rem 2.5rem rgb(15 23 42 / 12%);
 }
 
+.location-guidance {
+    display: grid;
+    justify-items: start;
+    align-content: center;
+    gap: 1rem;
+    min-height: 20rem;
+    padding: 2rem;
+    background: var(--tala-surface-muted);
+    border: 1px solid var(--tala-border);
+    border-radius: var(--tala-radius-lg);
+    color: var(--tala-muted);
+}
+
+.location-guidance > .tala-public-icon { width: 2rem; height: 2rem; color: var(--landing-accent); }
+
+/* Returning-applicant status request */
+.tracking-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem;
+}
+
+.tracking-intro { min-width: 0; }
+.tracking-help { color: var(--tala-muted); margin: 1.25rem 0 0; max-width: 55ch; }
+
+.tracking-form-panel {
+    min-width: 0;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border: 1px solid var(--tala-border);
+    border-radius: var(--tala-radius-lg);
+    background: var(--tala-surface);
+}
+
+.application-tracking .form-label { font-weight: 600; }
+.tracking-reference-input { font-variant-numeric: tabular-nums; text-transform: uppercase; }
+.tracking-reference-input::placeholder { text-transform: none; color: var(--tala-muted); opacity: 0.8; }
+
+.tracking-confirmation,
+.tracking-error-summary {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin: 0 0 1.25rem;
+    padding: 1rem 1.125rem;
+    border-radius: 0.75rem;
+}
+
+.tracking-confirmation { border: 1px solid color-mix(in srgb, var(--landing-open) 45%, transparent); background: color-mix(in srgb, var(--landing-open) 10%, var(--tala-surface)); color: var(--tala-ink); }
+.tracking-confirmation .tala-public-icon { width: 1.5rem; height: 1.5rem; margin-top: 0.125rem; color: var(--landing-open); }
+.tracking-confirmation__title { font-weight: 650; }
+.tracking-confirmation:focus-visible { outline: 0.2rem solid var(--tala-focus); outline-offset: 0.2rem; }
+.tracking-error-summary { border: 1px solid var(--bs-form-invalid-border-color); background: color-mix(in srgb, var(--bs-form-invalid-border-color) 8%, var(--tala-surface)); color: var(--tala-ink); }
+.tracking-error-summary .tala-public-icon { width: 1.25rem; height: 1.25rem; margin-top: 0.15rem; color: var(--bs-form-invalid-color); }
+
+.tracking-submit__spinner { display: none; width: 1.125rem; height: 1.125rem; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: tracking-spin 700ms linear infinite; }
+.tracking-submit.is-sending { cursor: progress; }
+.tracking-submit.is-sending .tracking-submit__icon { display: none; }
+.tracking-submit.is-sending .tracking-submit__spinner { display: inline-block; }
+
+@keyframes tracking-spin { to { transform: rotate(360deg); } }
+.application-tracking .form-control { min-height: 2.75rem; border-color: var(--tala-control-border); }
+.application-tracking .form-control:focus { border-color: var(--landing-accent); box-shadow: 0 0 0 0.2rem rgb(47 125 59 / 25%); }
+
+/* Footer — protected background; foreground regrouped. */
 .footer-section {
     background: #071326;
     color: #b9c5d8;
     padding: 3rem 0 calc(4.5rem + env(safe-area-inset-bottom));
 }
 
+.footer-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2.5rem;
+}
+
 .footer-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
     color: #ffffff;
-    font-size: 1.25rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    text-decoration: none;
 }
 
-.footer-brand:hover {
-    color: #ffffff;
-}
-
-.footer-logo {
-    border-radius: 22.37%;
-    height: 3rem;
-    margin-right: 0.7rem;
-    object-fit: contain;
-    width: 3rem;
-}
+.footer-brand:hover { color: #ffffff; }
+.footer-brand-crest { width: 3.5rem; height: 3.5rem; }
 
 .footer-desc {
     color: #98a8c1;
-    max-width: 34rem;
+    margin: 1rem 0 0;
+    max-width: 30rem;
 }
 
-.footer-link {
-    color: #c7d2e3;
+.footer-navigation {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2rem 1.5rem;
+}
+
+.footer-heading {
+    color: #ffffff;
+    font-size: 0.875rem;
     font-weight: 650;
+    letter-spacing: 0.01em;
+    margin-bottom: 0.5rem;
+}
+
+.footer-link-group ul { display: grid; gap: 0; margin: 0; }
+
+.footer-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.5rem;
+    color: #c7d2e3;
+    font-weight: 500;
     text-decoration: none;
 }
 
@@ -595,12 +1041,33 @@ button:focus-visible,
     background: transparent;
     border: 0;
     padding: 0;
+    text-align: start;
+}
+
+.footer-divider {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1.5rem;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    color: #8392aa;
+    font-size: 0.86rem;
+}
+
+.footer-attribution { display: inline-flex; align-items: center; gap: 0.4rem; color: #b9c5d8; }
+
+/* Informational modals */
+.tala-info-modal .modal-dialog {
+    --bs-modal-width: 56rem;
 }
 
 .tala-info-modal .modal-content {
     background: var(--tala-surface);
     border: 0;
-    border-radius: var(--tala-radius);
+    border-radius: var(--tala-radius-lg);
     color: var(--tala-ink);
 }
 
@@ -622,11 +1089,21 @@ button:focus-visible,
     margin-bottom: 0;
 }
 
+.tala-info-modal .btn-close {
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border-radius: 0.75rem;
+    background-size: 0.875rem;
+}
+
+.tala-info-modal .btn-close:hover { background-color: var(--tala-canvas); }
+
 .modal-action-list {
     align-items: flex-start;
     display: flex;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 0.75rem;
     margin: 1.5rem 0;
 }
 
@@ -636,13 +1113,7 @@ button:focus-visible,
 }
 
 .privacy-notice-copy {
-    max-width: 75ch;
-}
-
-.footer-divider {
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
-    color: #8392aa;
-    font-size: 0.86rem;
+    max-width: none;
 }
 
 .bottom-blur-strip {
@@ -704,11 +1175,10 @@ button:focus-visible,
 
 .btn-scroll-top {
     align-items: center;
-    background: var(--tala-blue);
-    border: 0;
+    background-color: var(--tala-brand);
+    border: 1px solid var(--tala-brand-strong);
     border-radius: 999px;
     bottom: 1.75rem;
-    box-shadow: 0 0.7rem 1.8rem rgba(13, 63, 158, 0.32);
     color: #ffffff;
     display: flex;
     height: 3rem;
@@ -724,6 +1194,10 @@ button:focus-visible,
     z-index: 1050;
 }
 
+.btn-scroll-top:hover { background-color: var(--tala-brand-strong); }
+button.btn-scroll-top { transition: opacity 160ms ease, transform 160ms ease, box-shadow 120ms ease-out, background-color 120ms ease-out; }
+.btn-scroll-top .tala-public-icon { width: 1.25rem; height: 1.25rem; }
+
 .btn-scroll-top.visible {
     opacity: 1;
     pointer-events: auto;
@@ -731,59 +1205,110 @@ button:focus-visible,
     transform: translateY(0);
 }
 
+/* Public application-status page */
+.tala-status-page { max-width: 44rem; margin-inline: auto; padding: clamp(1rem, 4vw, 3rem); overflow-wrap: anywhere; }
+.tala-status-heading { margin-block: 2rem; }
+.tala-status-heading .tala-brand { margin-bottom: 2rem; }
+.tala-status-page h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; }
+.tala-status-page h2 { font-size: 1.5rem; margin-top: 2rem; }
+
+@media (min-width: 36rem) {
+    .footer-navigation { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 48rem) {
+    .school-identity {
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr);
+        align-items: center;
+        gap: 3rem;
+        padding-block: 1rem 3.5rem;
+    }
+
+    .school-identity-crest { justify-self: center; }
+    .discovery-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 3rem; }
+    .faq-help { grid-template-columns: auto minmax(0, 1fr) auto; padding: 1.5rem 1.75rem; }
+    .faq-help > .btn { grid-column: auto; }
+}
+
+@media (min-width: 62rem) {
+    .admission-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.2fr); align-items: center; gap: 2rem; }
+    .update-card { padding: 1.5rem 2rem; }
+    .admission-entry { align-items: flex-end; text-align: end; }
+    .admission-links { justify-content: flex-end; }
+    .visit-layout { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3rem; align-items: stretch; }
+    .institution-map { height: 100%; min-height: 28rem; }
+    .tracking-layout { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3rem; align-items: start; }
+    .footer-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 3rem; }
+}
+
 @media (max-width: 991.98px) {
     .navbar-collapse {
         order: 4;
+        max-height: calc(100dvh - 5rem);
+        overflow-y: auto;
     }
 
-    .navbar-toggler {
-        min-height: 2.75rem;
+    .navbar .navbar-toggler {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.75rem;
+        height: 2.75rem;
         margin-inline-start: 0.5rem;
-        padding: 0.5rem;
+        padding: 0;
+        border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+        border-radius: 0.75rem;
+        background-color: color-mix(in srgb, currentColor 8%, transparent);
     }
+
+    .navbar .navbar-toggler-icon { width: 1.375rem; height: 1.375rem; }
 
     .navbar-nav .nav-link {
+        display: flex;
+        align-items: center;
         min-height: 2.75rem;
-    }
-
-    .institution-card {
-        align-items: flex-start;
-        flex-direction: column;
     }
 }
 
+@media (max-width: 47.98rem) {
+    .hero-section { padding-block-start: calc(var(--tala-navbar-height) + 1.25rem); }
+    .school-identity { gap: 1.25rem; padding-block-end: 2rem; }
+    .school-identity-crest { width: 7.5rem; }
+    .hero-lead { font-size: 1.0625rem; }
+    .update-card { padding: 1.25rem; }
+    .location-guidance { min-height: 12rem; padding: 1.5rem; }
+}
+
 @media (max-width: 575.98px) {
-    .hero-section {
-        min-height: auto;
-        padding-bottom: 2rem;
-    }
-
-    .hero-actions {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .admission-status {
-        padding: 1.5rem;
-    }
-
-    .program-row {
-        grid-template-columns: 3.5rem minmax(0, 1fr);
-        gap: 0.5rem 1rem;
-    }
-
-    .program-row p {
-        grid-column: 2;
-    }
-
-    .section-block {
-        padding: 2rem 0;
-    }
+    .landing-brand { gap: 0.5rem; margin-inline-end: 0.5rem; }
+    .landing-brand-crest { width: 2.25rem; height: 2.25rem; }
+    .landing-brand-name { max-width: 8.5rem; font-size: 0.875rem; line-height: 1.15; white-space: normal; }
+    .navbar .landing-attribution { display: none; }
+    .landing-brand { flex: 1 1 0; }
+    .landing-brand-crest { flex: none; }
+    .public-sign-in { padding-inline: 0.625rem; gap: 0.375rem; }
+    .navbar .navbar-toggler { flex: none; margin-inline-start: 0.375rem; }
+    .hero-actions > .btn { flex: 1 1 100%; }
 
     .btn-scroll-top {
         bottom: calc(3.5rem + env(safe-area-inset-bottom));
         height: 2.75rem;
         width: 2.75rem;
+    }
+}
+
+@media (max-width: 359.98px) {
+    .public-sign-in { width: 2.75rem; padding-inline: 0; }
+    .public-sign-in > span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
     }
 }
 
@@ -794,4 +1319,31 @@ button:focus-visible,
         scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
     }
+
+    .hero-ambient > * { animation: none !important; }
+    .hero-motion-toggle { display: none; }
+    .school-identity-crest { animation: none; }
+    .btn .tala-public-icon { transition: none; }
+    .tracking-submit__spinner { animation: none; border-right-color: currentColor; opacity: 0.6; }
+}
+
+@media (forced-colors: active) {
+    .hero-ambient,
+    .hero-motion-toggle { display: none; }
+    .hero-updates.is-enhanced .update-card { transition: none; transform: none; }
+    .program-row,
+    .update-card,
+    .faq-help,
+    .tracking-form-panel,
+    .tracking-confirmation,
+    .tracking-error-summary { border: 1px solid CanvasText; }
+    .program-mark { forced-color-adjust: auto; border: 1px solid CanvasText; }
+}
+
+@media print {
+    .hero-ambient,
+    .hero-motion-toggle,
+    .hero-updates__controls,
+    .bottom-blur-strip,
+    .btn-scroll-top { display: none !important; }
 }

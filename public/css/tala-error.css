@@ -57,13 +57,13 @@ body {
     justify-content: center;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     flex-shrink: 0;
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 58px;
+    height: 58px;
 }
 
 .brand img.brand-crest {
-    width: 100%;
-    height: 100%;
+    width: 48px;
+    height: 48px;
     border-radius: 0;
 }
 
@@ -91,8 +91,8 @@ body {
 }
 
 .brand img.brand-star {
-    width: 1rem;
-    height: 1rem;
+    width: 48px;
+    height: 48px;
     border-radius: 22.37%;
 }
 
@@ -321,4 +321,48 @@ h1 {
         scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
     }
+}
+
+/* Reached admissions recovery: readable static content, optional decoration. */
+.admission-recovery { background: #fafafa; color: #18181b; isolation: isolate; }
+.admission-recovery::before, .admission-recovery::after {
+    content: ''; position: fixed; z-index: -1; pointer-events: none;
+    width: 36rem; height: 36rem; border-radius: 50%; filter: blur(72px); opacity: .2; transform: scale(1.06);
+    background: #2f7d3b; top: -12rem; left: -12rem;
+}
+.admission-recovery::after { background: #1d4ed8; top: auto; left: auto; bottom: -14rem; right: -14rem; }
+.admission-recovery[data-recovery-code='419']::before { background: #a16207; }
+.admission-recovery[data-recovery-code='403']::before { background: #b45309; }
+.admission-recovery .error-card { background: transparent; border: 0; box-shadow: none; text-align: center; }
+.admission-recovery .brand, .admission-recovery .error-actions { justify-content: center; }
+.admission-recovery .next-step { background: transparent; border: 0; padding: 0; }
+.admission-recovery .primary-action { background: #2f7d3b; color: white; box-shadow: inset 0 1px 0 rgb(255 255 255 / 16%), 0 1px 2px rgb(0 0 0 / 12%); }
+.admission-recovery .status-code { color: #52525b; font-size: .75rem; letter-spacing: 0; font-weight: 400; }
+.admission-recovery .brand { margin-bottom: 2rem; }
+.error-attribution { display: flex; align-items: center; justify-content: center; gap: .5rem; margin-top: 2rem; color: var(--tala-muted); font-size: .75rem; }
+.error-attribution img { width: 48px; height: 48px; object-fit: contain; }
+.support-note a { display: inline-flex; align-items: center; min-height: 2.75rem; color: inherit; text-underline-offset: .2em; }
+.support-note a:focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 3px; }
+[hidden] { display: none !important; }
+@keyframes recovery-bloom {
+    from { opacity: .12; transform: scale(.94); }
+    45% { opacity: .2; transform: scale(1.06); }
+    75% { opacity: .16; transform: scale(1.02); }
+    to { opacity: .2; transform: scale(1.06); }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .admission-recovery:is([data-motion='running'], [data-motion='paused'])::before,
+    .admission-recovery:is([data-motion='running'], [data-motion='paused'])::after { animation: recovery-bloom var(--recovery-duration, 0ms) ease-out both; animation-play-state: paused; }
+    .admission-recovery[data-motion='running']::before, .admission-recovery[data-motion='running']::after { animation-play-state: running; }
+}
+@media (prefers-color-scheme: dark) {
+    .admission-recovery { background: #09090b; color: #fafafa; }
+    .admission-recovery .error-card, .admission-recovery .next-step { background: transparent; }
+    .admission-recovery .status-code { color: #a1a1aa; }
+    .error-attribution { color: #cbd5e1; }
+}
+@media print, (forced-colors: active) {
+    .admission-recovery::before, .admission-recovery::after { display: none !important; }
+    .admission-recovery, .admission-recovery .error-card { background: Canvas; color: CanvasText; animation: none; }
+    .admission-recovery .primary-action { background: ButtonFace; color: ButtonText; border: 1px solid ButtonText; box-shadow: none; }
 }

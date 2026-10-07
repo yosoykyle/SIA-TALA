@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AdmissionCycles;
 
+use App\Filament\Clusters\Admissions;
 use App\Filament\Resources\AdmissionCycles\Pages\CreateAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\Pages\EditAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\Pages\ListAdmissionCycles;
@@ -17,17 +18,18 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use UnitEnum;
 
 class AdmissionCycleResource extends Resource
 {
     protected static ?string $model = AdmissionCycle::class;
 
+    protected static ?string $cluster = Admissions::class;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDateRange;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Registrar';
+    protected static ?string $navigationLabel = 'Admission cycles';
 
-    protected static ?string $navigationLabel = 'Admission Cycles';
+    protected static ?int $navigationSort = 2;
 
     protected static ?string $recordTitleAttribute = 'code';
 

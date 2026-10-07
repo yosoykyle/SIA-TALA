@@ -5,7 +5,7 @@
     x-data="{ mobile: window.innerWidth < 1024 }"
     x-init="$watch('$store.sidebar.isOpen', (open) => {
         if (mobile && ! open) {
-            $nextTick(() => document.querySelector('.fi-topbar-open-sidebar-btn')?.focus({ preventScroll: true }));
+            $nextTick(() => document.querySelector('.fi-layout-sidebar-toggle-btn, .fi-topbar-open-sidebar-btn')?.focus({ preventScroll: true }));
         }
     })"
     x-on:resize.window="if (window.innerWidth >= 1024) mobile = false"
