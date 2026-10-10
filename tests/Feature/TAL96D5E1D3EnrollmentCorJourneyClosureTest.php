@@ -176,6 +176,8 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
 
     public function test_irregular_student_waits_on_the_active_term_without_a_proposal_reservation_or_solver_run(): void
     {
+        $this->travelTo('2026-10-10 10:00:00');
+
         $student = User::factory()->create([
             'status' => User::StatusActive,
             'email_verified_at' => now(),
@@ -205,6 +207,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
             'student_type' => null,
             'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
             'status_reason' => 'Historical enrollment must not become current.',
+            'updated_at' => now()->addMinute(),
         ]);
         $solverRunsBefore = ScheduleGenerationRun::query()->count();
 

@@ -241,7 +241,7 @@ class Enrollment extends Page
 
     private function currentEnrollment(): ?EnrollmentRecord
     {
-        return EnrollmentRecord::query()
+        $enrollments = EnrollmentRecord::query()
             ->with([
                 'term',
                 'currentProposalVersion.items.section',
@@ -250,8 +250,20 @@ class Enrollment extends Page
                 'termAccount',
                 'currentCorVersion',
             ])
-            ->where('credential_user_id', $this->actor()->id)
+            ->where('credential_user_id', $this->actor()->id);
+
+        $activeEnrollment = (clone $enrollments)
+            ->select('enrollments.*')
+            ->join('terms', 'terms.id', '=', 'enrollments.term_id')
+            ->where('terms.state', Term::StateActive)
+            ->orderByDesc('terms.starts_on')
+            ->orderByDesc('terms.id')
+            ->orderByDesc('enrollments.id')
+            ->first();
+
+        return $activeEnrollment ?? $enrollments
             ->latest('updated_at')
+            ->latest('id')
             ->first();
     }
 
