@@ -110,7 +110,6 @@ Include all six domains. `Clear` means inspected with no actionable finding; `No
 Use one table ordered by severity, then reach and leverage:
 
 | # | Severity | Domain | Location | Before | After | Why |
-
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | HIGH | Accessibility | `src/Dialog.tsx:42` | `<button><XIcon /></button>` | Add `aria-label="Close"` and hide the icon from the accessibility tree | The icon-only control has no accessible name |
 

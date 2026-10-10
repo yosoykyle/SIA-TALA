@@ -5,15 +5,10 @@
 ```bash
 php artisan make:filament-resource Customer
 php artisan make:filament-resource Customer --generate          # auto-generates form/table from DB schema
-
 php artisan make:filament-resource Customer --simple             # modal-based CRUD (single page)
-
 php artisan make:filament-resource Customer --soft-deletes       # adds soft delete support
-
 php artisan make:filament-resource Customer --view               # adds a dedicated View page
-
 php artisan make:filament-resource Customer --model --migration --factory  # scaffolds model too
-
 ```
 
 ## Generated Structure (v5)
@@ -21,7 +16,6 @@ php artisan make:filament-resource Customer --model --migration --factory  # sca
 ```
 app/Filament/Resources/
 ├── CustomerResource.php              # Main resource class
-
 ├── CustomerResource/
 │   ├── Pages/
 │   │   ├── CreateCustomer.php
@@ -29,10 +23,8 @@ app/Filament/Resources/
 │   │   └── ListCustomers.php
 │   ├── Schemas/
 │   │   └── CustomerForm.php          # Extracted form schema class
-
 │   └── Tables/
 │       └── CustomersTable.php        # Extracted table class
-
 ```
 
 ## Resource Class Structure

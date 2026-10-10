@@ -39,15 +39,10 @@ grep -oE 'style="[^"]*(transform|filter|mask)[^"]*"' page.html | head
 
 ```bash
 grep -oE ':root\{[^}]*\}' style.css | head -1 | tr ';' '\n'      # the token layer
-
 grep -oE '@layer [a-z]+' style.css | sort -u                      # Tailwind v4 emits theme/base/components/utilities
-
 grep -oE '@media[^{]*\(m(in|ax)-width:[^)]*\)' style.css | sort -u # real breakpoints
-
 grep -oE '@font-face\{[^}]*\}' style.css | head                    # families, weights, formats
-
 grep -oE '@keyframes [a-zA-Z-]+' style.css | sort -u               # named animations
-
 ```
 
 To understand a custom utility, grep its class name in the stylesheet and read the declaration whole. That is how `gradient-ease-in-out` turns into its mechanism, a generated stop list built with `color-mix()` and relative color syntax rather than twelve hand-written stops.
@@ -56,19 +51,12 @@ To understand a custom utility, grep its class name in the stylesheet and read t
 
 ```bash
 grep -ocE '__NEXT_DATA__|/_next/static' page.html          # Next.js
-
 grep -oc 'self.__next_f' page.html                          # App Router with RSC payload
-
 grep -ocE '__NUXT__|/_nuxt/' page.html                      # Nuxt
-
 grep -ocE '__remixContext|___gatsby|astro-island' page.html  # Remix, Gatsby, Astro
-
 grep -oc 'class="[^"]*svelte-' page.html                     # Svelte
-
 grep -oc 'data-radix-' page.html                             # Radix primitives
-
 grep -oc 'bg-linear-to' page.html                            # Tailwind v4 (v3 wrote bg-gradient-to)
-
 grep -oE '<meta name="generator"[^>]*>' page.html
 ```
 

@@ -25,6 +25,7 @@
         "mcp-development",
         "livewire-development",
         "tailwindcss-development",
+        "filament-development",
         "better-accessibility",
         "better-colors",
         "better-interface",
@@ -39,6 +40,7 @@
         "laravel-filament",
         "laravel-permission-development",
         "laravel-security",
+        "laravel-simplifier",
         "laravel-verification",
         "variant"
     ]
