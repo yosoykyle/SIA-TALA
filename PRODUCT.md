@@ -44,7 +44,7 @@ Operates in the daily administrative and academic cycle of Servitech Institute A
 ## Brand Commitments
 
 - **School-First Institutional Branding:** "Servitech Institute Asia Inc." (or "Servitech Institute Asia") identifies the service at public entry and in the authenticated shell. Page headings name the user's task or person being reviewed. Official outputs and transactional notifications identify the school as issuer.
-- **Secondary System Attribution:** Authenticated shells place "Powered by TALA" in a quiet footer, separate from the school identity and workspace context. Official outputs retain their source-appropriate "Generated through TALA" attribution.
+- **Secondary System Attribution:** Student and Staff shells place "Powered by TALA" in a quiet footer, separate from the school identity and workspace context. The Applicant panel omits TALA attribution and workspace labels, showing Servitech Institute Asia with the signed-in Applicant's name. Official outputs retain their source-appropriate "Generated through TALA" attribution.
 - **Recognizable Visual Identity:** Apply the October 2 owner-selected school-first direction: neutral light/dark surfaces, green-led primary actions, supporting TALA blue, restrained gold/yellow cues, Inter typography, native Heroicons, full-color institutional crest, and secondary TALA attribution. Existing page layouts and controls are evidence to assess, not requirements to preserve or import.
 - **Tone & Voice:** Authoritative, clean, professional, academic, reassuring, transparent, and precise. Generic labels like "TALA Staff Workspace" without the institution name are prohibited.
 

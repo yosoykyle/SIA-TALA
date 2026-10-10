@@ -38,10 +38,8 @@ class RequirementSetsRelationManager extends RelationManager
                 Section::make('Version authority')
                     ->schema([
                         Select::make('application_path')
-                            ->options([
-                                AdmissionCycle::PathFirstYear => 'First year',
-                                AdmissionCycle::PathTransferee => 'Transferee',
-                            ])
+                            ->label('Student type')
+                            ->options(AdmissionCycle::studentTypeOptions())
                             ->required(),
                         TextInput::make('version')->numeric()->minValue(1)->required(),
                         TextInput::make('authority_reference')->label('Requirement policy source')
@@ -142,8 +140,8 @@ class RequirementSetsRelationManager extends RelationManager
                 TextColumn::make('version')
                     ->sortable(),
                 TextColumn::make('application_path')
-                    ->label('Path')
-                    ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
+                    ->label('Student type')
+                    ->formatStateUsing(fn (string $state): string => AdmissionCycle::studentTypeLabel($state)),
                 TextColumn::make('state')->badge(),
                 TextColumn::make('requirements_count')->counts('requirements')->label('Requirements'),
                 TextColumn::make('authority_reference')->wrap(),

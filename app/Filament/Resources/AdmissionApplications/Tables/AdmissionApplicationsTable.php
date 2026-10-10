@@ -68,7 +68,7 @@ class AdmissionApplicationsTable
                     ->description(function (AdmissionApplication $record): string {
                         $cycle = $record->getRelation('admissionCycle');
 
-                        return str($record->application_path)->headline().' · '.($cycle instanceof AdmissionCycle ? $cycle->code : 'Cycle unavailable');
+                        return AdmissionCycle::studentTypeLabel($record->application_path).' · '.($cycle instanceof AdmissionCycle ? $cycle->code : 'Cycle unavailable');
                     })
                     ->tooltip(fn (AdmissionApplication $record): ?string => $record->program?->name)
                     ->wrap()
@@ -246,11 +246,8 @@ class AdmissionApplicationsTable
                     ->searchable()
                     ->preload(),
                 SelectFilter::make('application_path')
-                    ->label('Path')
-                    ->options([
-                        AdmissionApplication::PathFirstYear => 'First year',
-                        AdmissionApplication::PathTransferee => 'Transferee',
-                    ]),
+                    ->label('Student type')
+                    ->options(AdmissionCycle::studentTypeOptions()),
                 SelectFilter::make('application_state')
                     ->label('State')
                     ->options([

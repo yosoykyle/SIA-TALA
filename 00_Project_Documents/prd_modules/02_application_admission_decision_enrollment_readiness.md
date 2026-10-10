@@ -270,6 +270,8 @@ Existing historical per-document results remain attributable, read-only legacy e
 
 Admission Cycle/target term, accepting Program and first-year/transferee path are required. Use the current published choices; do not ask for modality, preferred time or classes at admission.
 
+Reader-facing Applicant and Registrar surfaces label the path **Student type**, with the values **Freshman** (the first-year path) and **Transferee**, matching the Registrar's terminology (owner decision D1, October 10, 2026, #48 F68). The stored path values, submitted snapshots and the regulatory first-year/transferee wording in this PRD remain unchanged.
+
 ### 10.2 Personal and contact information
 
 Required: first/last name, birth date, citizenship, verified read-only Email address, Mobile number, City/municipality and Province. Middle name and Suffix are optional. Name values remain the person's official-record facts although labels omit internal "legal" wording.

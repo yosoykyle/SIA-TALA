@@ -171,7 +171,7 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $student = (new StudentPanelProvider($this->app))->panel(new Panel);
 
         $this->assertSame('Servitech Institute Asia — Staff Workspace', $admin->getBrandName());
-        $this->assertSame('Servitech Institute Asia — Applicant Workspace', $applicant->getBrandName());
+        $this->assertSame('Servitech Institute Asia', $applicant->getBrandName());
         $this->assertSame('Servitech Institute Asia — Student Hub', $student->getBrandName());
         foreach ([$admin, $applicant, $student] as $panel) {
             $logo = $panel->getBrandLogo();

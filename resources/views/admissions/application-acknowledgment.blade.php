@@ -54,7 +54,7 @@
                 <dt>Admission Cycle</dt><dd>{{ $source['admission_cycle'] }}{{ filled($source['admission_cycle_code']) ? ' ('.$source['admission_cycle_code'].')' : '' }}</dd>
                 <dt>Target term</dt><dd>{{ $source['term'] }}</dd>
                 <dt>Program</dt><dd>{{ $source['program'] }}</dd>
-                <dt>Path</dt><dd>{{ str($source['application_path'])->headline() }}</dd>
+                <dt>Student type</dt><dd>{{ \App\Models\AdmissionCycle::studentTypeLabel($source['application_path']) }}</dd>
             </dl>
         </section>
         </td></tr>

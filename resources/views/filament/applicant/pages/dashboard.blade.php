@@ -67,7 +67,7 @@
                         @if ($application->application_state === \App\Models\AdmissionApplication::StateDraft)
                             <div><dt>Applications close</dt><dd>{{ $application->admissionCycle?->closes_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') ?? 'Unavailable' }} (Asia/Manila)</dd></div>
                         @endif
-                        <div><dt>Program and entry path</dt><dd>{{ $application->program?->name ?? 'Program not selected' }}<small>{{ str($application->application_path)->headline() }}</small></dd></div>
+                        <div><dt>Program and student type</dt><dd>{{ $application->program?->name ?? 'Program not selected' }}<small>{{ \App\Models\AdmissionCycle::studentTypeLabel($application->application_path) }}</small></dd></div>
                         <div><dt>Reference</dt><dd><x-application-reference :value="$application->application_reference" /></dd></div>
                     </dl>
                     </div>

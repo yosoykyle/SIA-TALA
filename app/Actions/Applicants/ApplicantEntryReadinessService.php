@@ -2,6 +2,8 @@
 
 namespace App\Actions\Applicants;
 
+use App\Models\AdmissionCycle;
+
 class ApplicantEntryReadinessService
 {
     public function __construct(
@@ -30,8 +32,8 @@ class ApplicantEntryReadinessService
         }
 
         $paths = collect([
-            $cycle->programs()->wherePivot('accepts_first_year', true)->exists() ? 'First year' : null,
-            $cycle->programs()->wherePivot('accepts_transferee', true)->exists() ? 'Transferee' : null,
+            $cycle->programs()->wherePivot('accepts_first_year', true)->exists() ? AdmissionCycle::studentTypeLabel(AdmissionCycle::PathFirstYear) : null,
+            $cycle->programs()->wherePivot('accepts_transferee', true)->exists() ? AdmissionCycle::studentTypeLabel(AdmissionCycle::PathTransferee) : null,
         ])->filter()->values()->all();
 
         return [

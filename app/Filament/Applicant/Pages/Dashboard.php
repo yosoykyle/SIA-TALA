@@ -419,8 +419,8 @@ class Dashboard extends BaseDashboard implements HasTable
                     })
                     ->wrap(),
                 TextColumn::make('application_path')
-                    ->label('Path')
-                    ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
+                    ->label('Student type')
+                    ->formatStateUsing(fn (string $state): string => AdmissionCycle::studentTypeLabel($state)),
                 TextColumn::make('application_state')
                     ->label('State')
                     ->badge()

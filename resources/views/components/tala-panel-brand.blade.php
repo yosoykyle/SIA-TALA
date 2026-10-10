@@ -1,4 +1,4 @@
-@props(['workspace' => null, 'placement' => 'identity', 'crest' => 'plate'])
+@props(['workspace' => null, 'placement' => 'identity', 'crest' => 'plate', 'person' => null])
 @if ($placement === 'attribution')
     <span class="tala-brand__attribution" translate="no">
         <img src="{{ asset('talalogo.png') }}" alt="" aria-hidden="true" class="tala-brand__star" width="32" height="32">
@@ -15,6 +15,9 @@
     @endif
     <span class="tala-brand__text">
         <span class="tala-brand__name"><span class="tala-brand__school">Servitech</span> <span class="tala-brand__institution">Institute Asia</span></span>
+        @if (filled($person))
+            <span class="tala-brand__person" data-tala-brand-person><span class="fi-sr-only">Signed in as </span>{{ $person }}</span>
+        @endif
     </span>
 </span>
 @endif
