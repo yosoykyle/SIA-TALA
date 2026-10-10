@@ -119,7 +119,7 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
         return match ($this->authorizedWorkspacePath()) {
             '/admin' => 'Staff Workspace',
             '/student' => 'Student Hub',
-            '/applicant' => 'Applicant Workspace',
+            '/applicant' => 'your application',
             default => null,
         };
     }

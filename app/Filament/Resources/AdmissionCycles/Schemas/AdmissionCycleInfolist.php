@@ -59,16 +59,16 @@ class AdmissionCycleInfolist
                                 ->color(fn (AdmissionCycle $record): string => $record->state === AdmissionCycle::StatePublished && $record->opens_at?->isPast() && $record->closes_at?->isFuture() ? 'success' : 'gray'),
                             TextEntry::make('term.label')->label('Target term')->placeholder('Not selected'),
                             TextEntry::make('program_acceptance')
-                                ->label('Programs and entry paths')
+                                ->label('Programs and student types')
                                 ->state(fn (AdmissionCycle $record): array => $record->programs
                                     ->map(function (Program $program): string {
                                         $pivot = $program->getRelation('pivot');
                                         $paths = collect([
-                                            data_get($pivot, 'accepts_first_year') ? 'First year' : null,
-                                            data_get($pivot, 'accepts_transferee') ? 'Transferee' : null,
+                                            data_get($pivot, 'accepts_first_year') ? AdmissionCycle::studentTypeLabel(AdmissionCycle::PathFirstYear) : null,
+                                            data_get($pivot, 'accepts_transferee') ? AdmissionCycle::studentTypeLabel(AdmissionCycle::PathTransferee) : null,
                                         ])->filter()->implode(', ');
 
-                                        return "{$program->name}: ".($paths ?: 'No path enabled');
+                                        return "{$program->name}: ".($paths ?: 'No student type enabled');
                                     })->values()->all() ?: ['Choose accepting programs before publication.'])
                                 ->listWithLineBreaks()->limitList(3)->expandableLimitedList(),
                             TextEntry::make('registrarOwner.email')->label('Responsible Registrar')->placeholder('Assign before publication'),

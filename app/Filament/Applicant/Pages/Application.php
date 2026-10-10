@@ -7,6 +7,7 @@ use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Actions\Admissions\ResolveAdmissionRequirementSet;
 use App\Actions\Admissions\SaveAdmissionApplication;
 use App\Actions\Admissions\SubmitAdmissionApplication;
+use App\Filament\Components\ResumableWizard;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirement;
@@ -34,7 +35,6 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
-use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Concerns\RestrictsFileUploadsToSchemaComponents;
 use Filament\Schemas\Schema;
@@ -184,14 +184,14 @@ class Application extends Page
             ->components([
                 ...$this->assistanceComponents(),
                 Hidden::make('requirement_set_id'),
-                Wizard::make([
+                ResumableWizard::make([
                     Step::make('Choice')
                         ->afterValidation(fn () => $this->saveBeforeContinuing())
                         ->disabled(fn (): bool => ! $this->draftWorkIsAvailable())
                         ->description('Step 1 of 5')
                         ->icon(Heroicon::OutlinedAcademicCap)
                         ->schema([
-                            Section::make('Choose your admission cycle and program')
+                            Section::make("Let's get your application started.")
                                 ->schema([
                                     Select::make('admission_cycle_id')
                                         ->label('Admission Cycle')
@@ -208,11 +208,8 @@ class Application extends Page
                                         ->disabled(fn (): bool => $this->currentApplication() instanceof AdmissionApplication)
                                         ->required(fn (): bool => ! $this->savingDraft),
                                     Radio::make('application_path')
-                                        ->label('Applying as')
-                                        ->options([
-                                            AdmissionApplication::PathFirstYear => 'First year',
-                                            AdmissionApplication::PathTransferee => 'Transferee',
-                                        ])
+                                        ->label('Student type')
+                                        ->options(AdmissionCycle::studentTypeOptions())
                                         ->live()
                                         ->afterStateUpdated(function (Set $set, Get $get): void {
                                             $this->refreshRequirementState(
@@ -431,7 +428,7 @@ class Application extends Page
                                     TextEntry::make('review_choice')->label('Application choice')->listWithLineBreaks()
                                         ->state(fn (Get $get): array => [
                                             $this->programOptions((int) $get('admission_cycle_id'), (string) $get('application_path'))[(int) $get('program_id')] ?? 'Program not selected',
-                                            str((string) $get('application_path'))->headline()->toString(),
+                                            AdmissionCycle::studentTypeLabel((string) $get('application_path')),
                                         ]),
                                     TextEntry::make('review_identity')->label('Personal information')->listWithLineBreaks()
                                         ->state(fn (Get $get): array => [
@@ -473,6 +470,7 @@ class Application extends Page
                     ->previousAction(fn (Action $action): Action => $action->label('Back')->icon(Heroicon::OutlinedArrowLeft)->button()->color('gray')->outlined())
                     ->skippable(fn (): bool => $this->isReadOnlyDraftInspection())
                     ->startOnStep(fn (): int => $this->resumeStep())
+                    ->reachedStep(fn (): int => $this->resumeStep())
                     ->submitAction($this->submissionIsAvailable()
                         ? view('filament.applicant.components.application-submit-action')
                         : null)

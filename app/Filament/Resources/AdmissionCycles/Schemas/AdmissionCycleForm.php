@@ -56,10 +56,10 @@ class AdmissionCycleForm
                 ])->columns(['default' => 1, 'lg' => 3])->columnSpanFull(),
             Section::make('Who can apply')
                 ->compact()
-                ->description('The selected entry paths apply to each selected program.')
+                ->description('The selected student types apply to each selected program.')
                 ->schema([
-                    CheckboxList::make('accepted_paths')->label('Entry paths')
-                        ->options([AdmissionCycle::PathFirstYear => 'First year', AdmissionCycle::PathTransferee => 'Transferee'])
+                    CheckboxList::make('accepted_paths')->label('Student types')
+                        ->options(AdmissionCycle::studentTypeOptions())
                         ->default([AdmissionCycle::PathFirstYear, AdmissionCycle::PathTransferee])->dehydrated(false),
                     Select::make('programs')->label('Accepting programs')->placeholder('Choose programs accepting applicants')
                         ->relationship('programs', 'name')->multiple()->searchable()->preload()->default([])

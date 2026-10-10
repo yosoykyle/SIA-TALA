@@ -18,7 +18,7 @@ Application reference: #{{ $applicantIntakeId }}
 {{ $nextAction }}
 
 <x-mail::button :url="$actionUrl">
-Open Applicant Workspace
+Open your application
 </x-mail::button>
 
 Regards,<br>

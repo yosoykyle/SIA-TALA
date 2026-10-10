@@ -39,7 +39,7 @@
                         {{ collect([$application->first_name, $application->middle_name, $application->last_name])->filter()->implode(' ') }}
                     </h4>
                     <p class="text-xs text-slate-600 dark:text-gray-400">
-                        {{ $application->program?->name }} ({{ $application->program?->code }}) · {{ str($application->application_path)->headline() }} · {{ $application->admissionCycle?->label }}
+                        {{ $application->program?->name }} ({{ $application->program?->code }}) · {{ \App\Models\AdmissionCycle::studentTypeLabel($application->application_path) }} · {{ $application->admissionCycle?->label }}
                     </p>
                     <p class="text-xs font-medium text-slate-700 dark:text-gray-300">
                         Exact Term: <span class="font-semibold">{{ $application->term?->label ?? 'Unassigned' }}</span>
