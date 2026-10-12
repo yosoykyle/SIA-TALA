@@ -54,7 +54,7 @@ class Clinic1ContextualAccessJourneyTest extends TestCase
         return [
             'Registrar' => [User::StaffRoleRegistrar, '/admin/admissions/admission-applications'],
             'Accounting' => [User::StaffRoleAccounting, '/admin/fee-plans'],
-            'Faculty' => [User::StaffRoleFaculty, '/admin/my-availability'],
+            'Faculty' => [User::StaffRoleFaculty, '/admin/faculty-schedule'],
             'Academic Head' => [User::StaffRoleAcademicHead, '/admin/academic-approvals'],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, '/admin/users'],
         ];
@@ -318,7 +318,7 @@ class Clinic1ContextualAccessJourneyTest extends TestCase
         session()->put(WorkspaceContextResolver::SessionKey, 'student');
 
         $this->get('/admin/login?context=faculty')
-            ->assertRedirect('/admin/my-availability');
+            ->assertRedirect('/admin/faculty-schedule');
 
         $this->assertSame(User::StaffRoleFaculty, session(WorkspaceContextResolver::SessionKey));
     }

@@ -31,11 +31,15 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\Url;
 use UnitEnum;
 
 final class CatalogCurriculaWorkbench extends Page implements HasTable
 {
     use InteractsWithTable;
+
+    #[Url]
+    public ?int $oversightTermId = null;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBookOpen;
 
@@ -61,7 +65,8 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         if (auth()->user()?->hasRole(User::StaffRoleAcademicHead)) {
-            return [];
+            return [Action::make('returnToOversight')->label('Academic Oversight')->color('gray')
+                ->url(AcademicApprovals::getUrl(['termId' => $this->oversightTermId]))];
         }
 
         return [

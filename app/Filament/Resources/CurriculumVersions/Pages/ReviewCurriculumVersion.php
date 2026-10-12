@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CurriculumVersions\Pages;
 use App\Actions\AcademicSetup\AcademicReadinessService;
 use App\Actions\AcademicSetup\CurriculumVersionLifecycleService;
 use App\Actions\AcademicSetup\CurriculumWorkbenchService;
+use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Resources\CourseSpecifications\CourseSpecificationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Models\CourseComponent;
@@ -13,12 +14,12 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Term;
 use App\Models\User;
+use App\Support\RoomEquipment;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
@@ -27,9 +28,13 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Livewire\Attributes\Url;
 
 class ReviewCurriculumVersion extends ManageRelatedRecords
 {
+    #[Url]
+    public ?int $oversightTermId = null;
+
     protected static string $resource = CurriculumVersionResource::class;
 
     protected static string $relationship = 'entries';
@@ -384,8 +389,7 @@ class ReviewCurriculumVersion extends ManageRelatedRecords
                         ->label('Default Room Type')
                         ->options(CourseComponent::roomTypeOptions())
                         ->nullable(),
-                    TagsInput::make('required_room_feature_keys')
-                        ->label('Required Room Features'),
+                    RoomEquipment::select('required_room_feature_keys')->multiple()->label('Required room equipment'),
                     Select::make('modality_restriction')
                         ->label('Component Modality')
                         ->options(CourseSpecification::modalityOptions())
@@ -433,6 +437,9 @@ class ReviewCurriculumVersion extends ManageRelatedRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('returnToOversight')->label('Academic Oversight')->color('gray')
+                ->url(AcademicApprovals::getUrl(['termId' => $this->oversightTermId]))
+                ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? false),
             Action::make('editCurriculumRows')
                 ->label('Open full curriculum record')
                 ->icon(Heroicon::OutlinedArrowTopRightOnSquare)

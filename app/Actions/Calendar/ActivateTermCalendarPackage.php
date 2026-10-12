@@ -13,11 +13,13 @@ final class ActivateTermCalendarPackage
 {
     public function __construct(private readonly TermCalendarPackageReadinessService $readiness) {}
 
-    public function execute(TermCalendarPackage $package, User $actor): TermCalendarPackage
+    public function execute(TermCalendarPackage $package, User $actor, ?string $expectedToken = null): TermCalendarPackage
     {
         Gate::forUser($actor)->authorize('update', $package->term);
 
-        return DB::transaction(function () use ($package, $actor): TermCalendarPackage {
+        $expectedToken ??= $package->concurrencyToken();
+
+        return DB::transaction(function () use ($package, $actor, $expectedToken): TermCalendarPackage {
             Term::query()->whereKey($package->term_id)->lockForUpdate()->firstOrFail();
             $packages = TermCalendarPackage::query()
                 ->where('term_id', $package->term_id)
@@ -31,6 +33,10 @@ final class ActivateTermCalendarPackage
             }
 
             Gate::forUser($actor)->authorize('update', $locked->term);
+
+            if (! hash_equals($locked->concurrencyToken(), $expectedToken)) {
+                throw ValidationException::withMessages(['package_id' => 'This calendar source changed. Close and reopen activation to review the latest facts.']);
+            }
 
             if ($locked->state !== TermCalendarPackage::StateDraft) {
                 throw ValidationException::withMessages(['state' => 'Only a Draft Term Calendar Package can be activated.']);

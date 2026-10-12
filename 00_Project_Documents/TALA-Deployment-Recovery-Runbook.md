@@ -98,3 +98,10 @@ Application deployment, provider configuration, backup execution, isolated resto
 For an application deployment, retain the last accepted application revision and database rollback decision before migration. If the evidence-ingestion or display revision is defective, stop new ingestion, preserve every existing operational event, restore the preceding application revision, and apply only an evidence-safe database rollback approved for that deployment. Never delete evidence to make a rollback appear successful.
 
 Provider or dashboard work may be performed technically through an authorized CLI, API, or dashboard session. Institutional consent, billing, legal/privacy decisions, custody, and account ownership remain human decisions. No production activation is complete until ownership, monitoring, current generations, alert delivery, and measured isolated-restore evidence are approved.
+
+## Mail sender identity and environment URL verification
+
+Environment configuration must explicitly verify transactional mail sender identity and application URL bindings:
+- **Mail Sender Identity:** Set `MAIL_FROM_ADDRESS` to an institution-authorized, provider-verified sender before enabling delivery. The `hello@example.com` fallback is a setup placeholder, not an institutional address. `MAIL_FROM_NAME` defaults to `INSTITUTION_NAME`; an explicitly configured sender name is preserved. Notifications and transactional messages identify the institution first, with Powered by TALA / APP_NAME as secondary attribution.
+- **Application URL Binding:** Set `APP_URL` to the serving scheme, host, and port of each environment (for example, `http://127.0.0.1:8016` for the isolated preview). Verify generated mail links from both web requests and queued/console execution, and restart long-running queue workers after configuration changes. Configuring the example file does not verify the running environment.
+- **Environment Verification Boundary:** Modifying local or preview configurations does not imply or certify verification across remote or production environments. Unverified remote configurations remain deferred until authorized synchronization.

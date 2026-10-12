@@ -158,7 +158,7 @@ final class TAL77CalendarSchedulingBlockTest extends TestCase
 
     public function test_new_route_is_registered_and_legacy_availability_routes_remain_unreachable(): void
     {
-        $this->assertTrue(Route::has('filament.admin.resources.calendar-events.index'));
+        $this->assertTrue(Route::has('filament.admin.term-planning.resources.calendar-events.index'));
 
         foreach ([
             'filament.admin.resources.faculty-availability-periods.index',

@@ -20,6 +20,8 @@ use Filament\Tables\Table;
 
 class HoldsRelationManager extends RelationManager
 {
+    protected static bool $isLazy = false;
+
     protected static string $relationship = 'holds';
 
     public function table(Table $table): Table

@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\SchedulePublishService;
-use App\Filament\Pages\TermPlanningWorkbench;
+use App\Filament\Pages\TermClasses;
+use App\Filament\Pages\TermResources;
+use App\Filament\Pages\TermTimetable;
+use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\AcademicYear;
 use App\Models\CandidateScheduleRow;
@@ -23,6 +26,7 @@ use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -41,6 +45,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->seed(DatabaseSeeder::class);
 
         foreach (User::staffRoleNames() as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
@@ -54,12 +59,19 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $academicYear = $this->getOrCreateAcademicYear();
         $term = Term::factory()->for($academicYear, 'academicYear')->create();
-        TermCalendarPackage::factory()->for($term)->create([
+        $package = TermCalendarPackage::factory()->for($term)->create([
             'state' => TermCalendarPackage::StateActive,
             'activated_at' => now(),
         ]);
 
-        $mockRun = ScheduleGenerationRun::factory()->create([
+        $offering = $this->createTermOffering($term);
+        $class = Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $package->id, 'confirmed_at' => now(),
+        ]);
+        $group = SectionDeliveryGroup::factory()->for($class, 'section')->create();
+        SchedulingDemand::factory()->for($offering, 'termOffering')->for($group, 'sectionDeliveryGroup')->create();
+        Room::factory()->create(['is_active' => true]);
+        $mockRun = ScheduleGenerationRun::factory()->make([
             'term_id' => $term->id,
             'status' => ScheduleGenerationRun::StatusQueued,
             'requested_by' => $registrar->id,
@@ -69,10 +81,14 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         $service->shouldReceive('generate')
             ->once()
             ->withArgs(fn (Term $t, User $u) => $t->id === $term->id && $u->id === $registrar->id)
-            ->andReturn($mockRun);
+            ->andReturnUsing(function () use ($mockRun): ScheduleGenerationRun {
+                $mockRun->save();
+
+                return $mockRun;
+            });
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, [
+            ->test(TermTimetable::class, [
                 'termId' => $term->id,
                 'viewTab' => 'generate',
             ])
@@ -134,27 +150,14 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         ]);
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, [
+            ->test(TermTimetable::class, [
                 'termId' => $term->id,
                 'viewTab' => 'generate',
             ])
-            ->assertSee("Run #{$run->id}")
-            ->assertSee('Under Review')
-            ->assertSee('CP-SAT: FEASIBLE')
-            ->assertSee('0 Collisions')
-            ->assertSee('Weekly Time-Block Matrix')
+            ->assertViewHas('activeRun', fn ($activeRun): bool => $activeRun->id === $run->id)
+            ->assertSee('Under Review')->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'FEASIBLE')
+            ->assertSee('0 recorded clashes')->assertSee('Whole Term')->assertSee('Meeting list')
             ->assertSee('TEST-RM-101')
-            ->call('toggleControlDeck')
-            ->assertSet('isControlDeckCollapsed', true)
-            ->assertSee('Expand Deck')
-            ->call('toggleControlDeck')
-            ->assertSet('isControlDeckCollapsed', false)
-            ->call('setCandidateViewMode', 'table')
-            ->assertSet('candidateViewMode', 'table')
-            ->assertSee('Candidate Schedule Meeting Records')
-            ->assertSee('TEST-RM-101')
-            ->call('setCandidateViewMode', 'matrix')
-            ->assertSet('candidateViewMode', 'matrix')
             ->assertActionVisible('acceptCandidate')
             ->assertActionVisible('rejectCandidate')
             ->callAction('acceptCandidate', [
@@ -205,15 +208,24 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ],
         ]);
 
+        $diagnostics = Livewire::actingAs($registrar)
+            ->test(ViewScheduleGenerationRun::class, ['record' => $run->id])
+            ->assertSee('What happens next')
+            ->assertSee('Sections & classes')
+            ->assertSee('Faculty & rooms');
+        $sourceUrls = array_map(fn ($item): string => $item->getUrl(), $diagnostics->instance()->getSubNavigation());
+        $this->assertContains(TermClasses::getUrl(['termId' => $term->id]), $sourceUrls);
+        $this->assertContains(TermResources::getUrl(['termId' => $term->id]), $sourceUrls);
+
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, [
+            ->test(TermTimetable::class, [
                 'termId' => $term->id,
                 'viewTab' => 'generate',
             ])
-            ->assertSee('Solver Outcome: INFEASIBLE')
+            ->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'INFEASIBLE')
             ->assertSee('The CP-SAT solver proved no schedule exists satisfying all hard constraints.')
-            ->assertSee('Room capacity exceeded by section demand.')
-            ->assertSee('Actionable Recovery Steps')
+            ->assertViewHas('solverOutcome', fn (array $outcome): bool => data_get($outcome, 'conflicts.0.description') === 'Room capacity exceeded by section demand.')
+            ->assertSee('Inspect generation diagnostics and validation findings')
             ->assertActionVisible('retrySolverRun')
             ->callAction('retrySolverRun')
             ->assertHasNoActionErrors()
@@ -297,7 +309,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             });
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, [
+            ->test(TermTimetable::class, [
                 'termId' => $term->id,
                 'viewTab' => 'generate',
             ])
@@ -309,10 +321,10 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->assertHasNoActionErrors()
             ->assertNotified('Official Timetable Published')
             ->assertSet('viewTab', 'published')
-            ->assertSee('Official Published Timetable')
-            ->assertSee('Official Version 1')
+            ->assertSee('Official v1')
+            ->assertSee('v1')
             ->assertSee('REG-AUTH-2026-TEST-01')
-            ->assertSee('Print Official A4 Timetable (Landscape)');
+            ->assertSee('Print official timetable');
 
         $this->assertDatabaseHas('published_timetable_versions', [
             'term_id' => $term->id,
@@ -339,7 +351,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         ]);
 
         Livewire::actingAs($academicHead)
-            ->test(TermPlanningWorkbench::class, [
+            ->test(TermTimetable::class, [
                 'termId' => $term->id,
                 'viewTab' => 'generate',
             ])
@@ -376,15 +388,15 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         ]);
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, [
+            ->test(TermTimetable::class, [
                 'termId' => $term->id,
-                'viewTab' => 'published',
+                'timetableState' => 'official',
                 'selectedVersionId' => 999999,
             ])
             ->assertSet('selectedVersionId', null)
-            ->assertSee('Official Published Timetable')
+            ->assertSee('Official v1')
             ->assertSee('REG-TEST-FALLBACK-01')
-            ->assertSee('Official Version 1')
+            ->assertSee('v1')
             ->call('selectPublishedVersion', 888888)
             ->assertSet('selectedVersionId', null)
             ->assertSee('REG-TEST-FALLBACK-01');
@@ -422,6 +434,10 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         $run = ScheduleGenerationRun::factory()->create([
             'term_id' => $term->id,
             'status' => ScheduleGenerationRun::StatusUnderReview,
+            'input_snapshot' => ['term' => ['scheduling_days' => [1, 2], 'scheduling_day_starts_at' => '08:00', 'scheduling_day_ends_at' => '17:00', 'teaching_grid_rows' => [
+                ['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '17:00'],
+                ['day_of_week' => 2, 'starts_at' => '08:00', 'ends_at' => '17:00'],
+            ]]],
         ]);
 
         $faculty = $this->staff(User::StaffRoleFaculty);
@@ -444,18 +460,20 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         ]);
 
         $testable = Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, [
+            ->test(TermTimetable::class, [
                 'termId' => $term->id,
                 'viewTab' => 'generate',
             ]);
 
-        $matrixHours = $testable->viewData('matrixHours');
-        $this->assertSame(range(8, 16), $matrixHours);
+        $presentation = $testable->viewData('candidatePresentation');
+        $this->assertSame(['Monday', 'Tuesday'], array_column($presentation['days'], 'label'));
+        $this->assertSame('8:00 AM', $presentation['ticks'][0]['label']);
+        $this->assertSame('5:00 PM', $presentation['ticks'][array_key_last($presentation['ticks'])]['label']);
 
-        $testable->assertSee('08:00')
-            ->assertSee('16:00')
-            ->assertDontSee('07:00')
-            ->assertDontSee('20:00');
+        $testable->call('showTimetableView', 'faculty')->set('viewFilter', $faculty->name)->assertSee('8:00 AM')
+            ->assertSee('4:00 PM')
+            ->assertDontSee('7:00 AM')
+            ->assertDontSee('8:00 PM');
     }
 
     public function test_weekly_matrix_renders_truthful_meeting_duration_and_spanning_hours(): void
@@ -474,6 +492,10 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             'candidate_state' => null,
             'candidate_version' => 1,
             'runtime_ms' => 1200,
+            'input_snapshot' => ['term' => [
+                'scheduling_days' => [1],
+                'teaching_grid_rows' => [['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '17:00']],
+            ]],
         ]);
 
         $faculty = $this->staff(User::StaffRoleFaculty);
@@ -496,18 +518,39 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         ]);
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, [
+            ->test(TermTimetable::class, [
                 'termId' => $term->id,
                 'viewTab' => 'generate',
             ])
-            ->assertSee('08:00–10:00')
+            ->call('showTimetableView', 'faculty')->set('viewFilter', $faculty->name)
+            ->assertSee('8:00 AM–10:00 AM')
             ->assertSee('2h')
             ->assertSee('RM-DUR-101')
-            ->assertSee('Continuing until 10:00')
-            ->assertSee('cont. (2h)')
-            ->call('setCandidateViewMode', 'table')
-            ->assertSee('Duration')
-            ->assertSee('2h');
+            ->assertDontSee('Continuing until')
+            ->assertSee('Teacher')->assertDontSee('Weekly overview')->assertSee('2h')
+            ->assertViewHas('candidatePresentation', fn (array $presentation): bool => $presentation['meetings'][0]['duration'] === '2h');
+    }
+
+    public function test_switching_terms_clears_review_filters_and_keeps_the_new_context(): void
+    {
+        $first = Term::factory()->create();
+        $second = Term::factory()->create();
+
+        Livewire::actingAs($this->staff(User::StaffRoleRegistrar))
+            ->test(TermTimetable::class, ['termId' => $first->id, 'viewTab' => 'generate'])
+            ->set('candidateFilterFaculty', '123')
+            ->set('candidateFilterRoom', '456')
+            ->set('candidateFilterSection', 'old-section')
+            ->set('candidateFilterModality', 'old-modality')
+            ->call('selectTerm', $second->id)
+            ->assertSet('termId', $second->id)
+            ->assertSet('viewTab', 'generate')
+            ->assertSet('selectedRunId', null)
+            ->assertSet('selectedVersionId', null)
+            ->assertSet('candidateFilterFaculty', null)
+            ->assertSet('candidateFilterRoom', null)
+            ->assertSet('candidateFilterSection', null)
+            ->assertSet('candidateFilterModality', null);
     }
 
     private function createTermOffering(Term $term): TermOffering

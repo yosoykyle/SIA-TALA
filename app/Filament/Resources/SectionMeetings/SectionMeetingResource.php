@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SectionMeetings;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
 use App\Filament\Resources\SectionMeetings\Pages\ViewSectionMeeting;
 use App\Filament\Resources\SectionMeetings\Schemas\SectionMeetingInfolist;
@@ -18,6 +19,8 @@ use UnitEnum;
 
 class SectionMeetingResource extends Resource
 {
+    protected static ?string $cluster = TermPlanningCluster::class;
+
     protected static ?string $model = SectionMeeting::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
@@ -39,10 +42,7 @@ class SectionMeetingResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleAcademicHead,
-        ]) ?? false;
+        return false;
     }
 
     public static function canCreate(): bool

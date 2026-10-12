@@ -65,8 +65,8 @@ class FilamentRegistrationStabilizationTest extends TestCase
             'faq entries' => ['route' => 'filament.admin.public-content.resources.faq-entries.index'],
             'public notices' => ['route' => 'filament.admin.public-content.resources.public-notices.index'],
             'legacy faq recovery' => ['route' => 'filament.admin.legacy-faq.index'],
-            'scheduling blocks' => ['route' => 'filament.admin.resources.calendar-events.index'],
-            'schedule generation runs' => ['route' => 'filament.admin.resources.schedule-generation-runs.index'],
+            'scheduling blocks' => ['route' => 'filament.admin.term-planning.resources.calendar-events.index'],
+            'schedule generation runs' => ['route' => 'filament.admin.term-planning.resources.schedule-generation-runs.index'],
         ];
     }
 

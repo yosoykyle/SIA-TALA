@@ -29,7 +29,7 @@ class TAL96D5BSharedFoundationTest extends TestCase
         );
     }
 
-    public function test_staff_sidebar_uses_the_canonical_flat_task_navigation_without_legacy_groups(): void
+    public function test_staff_sidebar_groups_registrar_destinations_by_purpose(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -45,6 +45,6 @@ class TAL96D5BSharedFoundationTest extends TestCase
             ->values()
             ->all();
 
-        $this->assertSame([], $groupLabels);
+        $this->assertSame(['Learner work', 'Academic setup'], $groupLabels);
     }
 }

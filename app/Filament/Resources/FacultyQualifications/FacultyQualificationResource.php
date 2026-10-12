@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\FacultyQualifications;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\FacultyQualifications\Pages\CreateFacultyQualification;
 use App\Filament\Resources\FacultyQualifications\Pages\EditFacultyQualification;
 use App\Filament\Resources\FacultyQualifications\Pages\ListFacultyQualifications;
@@ -21,6 +22,8 @@ use UnitEnum;
 
 class FacultyQualificationResource extends Resource
 {
+    protected static ?string $cluster = TermPlanningCluster::class;
+
     protected static ?string $model = FacultyQualification::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
@@ -29,7 +32,7 @@ class FacultyQualificationResource extends Resource
 
     protected static ?string $navigationLabel = 'Faculty Qualifications';
 
-    protected static ?string $modelLabel = 'Faculty Qualification';
+    protected static ?string $modelLabel = 'Faculty qualification';
 
     protected static ?string $pluralModelLabel = 'Faculty Qualifications';
 
@@ -50,6 +53,11 @@ class FacultyQualificationResource extends Resource
         }
 
         return 'Registrar';
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
     }
 
     public static function form(Schema $schema): Schema

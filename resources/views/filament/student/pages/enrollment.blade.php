@@ -115,28 +115,24 @@
                 icon="heroicon-o-list-bullet"
             >
                 <div x-data="{ checkpointTab: 'all' }" class="space-y-4">
-                    <div class="flex gap-2 border-b border-gray-200 pb-3 dark:border-white/10" role="tablist" aria-label="Checkpoint sections">
-                        <button
+                    <x-tala-navigation label="Checkpoint sections">
+                        <x-filament::tabs.item
                             type="button"
-                            role="tab"
-                            :aria-selected="checkpointTab === 'all'"
-                            :class="checkpointTab === 'all' ? 'fi-tabs-item fi-active font-semibold text-primary-600 dark:text-primary-400' : 'fi-tabs-item text-gray-600 dark:text-gray-400'"
+                            alpine-active="checkpointTab === 'all'"
+                            x-bind:aria-current="checkpointTab === 'all' ? 'true' : null"
                             x-on:click="checkpointTab = 'all'"
-                            class="rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-white/5"
                         >
                             All checkpoints
-                        </button>
-                        <button
+                        </x-filament::tabs.item>
+                        <x-filament::tabs.item
                             type="button"
-                            role="tab"
-                            :aria-selected="checkpointTab === 'status'"
-                            :class="checkpointTab === 'status' ? 'fi-tabs-item fi-active font-semibold text-primary-600 dark:text-primary-400' : 'fi-tabs-item text-gray-600 dark:text-gray-400'"
+                            alpine-active="checkpointTab === 'status'"
+                            x-bind:aria-current="checkpointTab === 'status' ? 'true' : null"
                             x-on:click="checkpointTab = 'status'"
-                            class="rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-gray-100 dark:hover:bg-white/5"
                         >
                             Status overview
-                        </button>
-                    </div>
+                        </x-filament::tabs.item>
+                    </x-tala-navigation>
                     <div role="status" aria-live="polite" class="sr-only" x-text="checkpointTab === 'all' ? 'Showing all 5 registration checkpoints' : 'Showing registration status overview'">
                         Showing all 5 registration checkpoints
                     </div>

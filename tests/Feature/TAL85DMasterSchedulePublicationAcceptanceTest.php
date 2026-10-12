@@ -27,6 +27,7 @@ use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -169,10 +170,10 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
                 ->all(),
         );
 
-        $this->assertTrue(Route::has('filament.admin.resources.section-meetings.index'));
-        $this->assertTrue(Route::has('filament.admin.resources.section-meetings.view'));
-        $this->assertFalse(Route::has('filament.admin.resources.section-meetings.create'));
-        $this->assertFalse(Route::has('filament.admin.resources.section-meetings.edit'));
+        $this->assertTrue(Route::has('filament.admin.term-planning.resources.section-meetings.index'));
+        $this->assertTrue(Route::has('filament.admin.term-planning.resources.section-meetings.view'));
+        $this->assertFalse(Route::has('filament.admin.term-planning.resources.section-meetings.create'));
+        $this->assertFalse(Route::has('filament.admin.term-planning.resources.section-meetings.edit'));
 
         $this->assertTrue(Gate::forUser($registrar)->allows('publish', $newRun));
         $this->assertFalse(Gate::forUser($academicHead)->allows('publish', $newRun));
@@ -323,6 +324,17 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
             'label' => 'TAL-85D Term '.$this->sourceCounter,
             'state' => Term::StateActive,
         ]);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        foreach ([1, 2, 3, 4, 5, 6] as $day) {
+            $package->teachingGridRows()->create([
+                'day_of_week' => $day,
+                'starts_at' => '07:00:00',
+                'ends_at' => '21:00:00',
+                'breaks' => [],
+            ]);
+        }
         $program = Program::factory()->create(['code' => 'T85D'.str_pad((string) $this->sourceCounter, 2, '0', STR_PAD_LEFT)]);
         $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive]);
         $course = Course::factory()->create(['code' => 'T85D'.$this->sourceCounter]);

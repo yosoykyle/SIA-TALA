@@ -150,8 +150,8 @@ Approved workspace map:
 - **Student:** Home, Enrollment, Academics, Finance, and Profile
 - **Registrar:** Admissions; Catalog & Curricula; Term Planning; Students & Enrollment; Grades & Completion
 - **Accounting:** Fee Plans; Student Accounts with Accounts, Payment Exceptions, and TOR Clearance tabs
-- **Faculty:** My Availability; My Schedule; Grade Rosters
-- **Academic Head:** read-only Academic Oversight linking source-owned academic authority, timetable, grade/progress, lifecycle, and completion evidence
+- **Faculty:** Schedule & Availability, with My Schedule and My Availability sibling tasks; Grade Rosters
+- **Academic Head:** read-only Academic Oversight for understanding academic readiness, inspecting source-owned exceptions, and tracing calendar, curriculum, timetable, grade/progress, lifecycle and completion evidence to its responsible office. The landing surface prioritizes relevant findings and direct domain drill-ins rather than the Registrar's preparation sequence. Institutional approval remains outside TALA where the owning PRD specifies it; inspection grants no producer action.
 - **System Administrator:** Users & Access; Public Content; System Health; Governance & Audit
 
 Academic Head is not a universal co-approver. System Administrator does not decide academic calendars, curricula, fees, enrollment eligibility, payments, or grades.

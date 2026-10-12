@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Scheduling\ClassPlanningWorkflow;
 use App\Filament\Pages\ClassPlanning;
+use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
@@ -68,13 +69,9 @@ final class TAL96D5E1D2TimetablingOperatingJourneyTest extends TestCase
             'filters' => ['term_id' => ['value' => $term->id]],
         ]);
 
-        Livewire::actingAs($registrar)
+        Livewire::actingAs($registrar)->withQueryParams(['termId' => $term->id])
             ->test(ClassPlanning::class)
-            ->set('termId', $term->id)
-            ->assertActionHasUrl('termOfferings', $offeringsUrl)
-            ->assertActionHasUrl('requirements', $requirementsUrl)
-            ->assertActionHasUrl('generatedTimetables', $runsUrl)
-            ->assertActionHasUrl('publishedTimetable', $publishedUrl);
+            ->assertRedirect(TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'classes']));
 
         $stages = collect(app(ClassPlanningWorkflow::class)->present($term)['stages'])
             ->keyBy('key');

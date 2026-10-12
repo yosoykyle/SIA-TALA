@@ -21,10 +21,14 @@ The owner's stated scope and exclusions govern the request. Boundaries define pe
 1. Read the Issue, durable handoff, relevant authority, Git state, and current evidence.
 2. Use a sufficient accepted Issue contract or linked plan; plan separately only for a missing or materially changed decision. Check only task-applicable prerequisites.
 3. Name the assigned executor, bounded scope, actual delivery method, and material safeguards. UI work identifies the matching accepted Impeccable brief.
-4. Execute within the authorized boundary and return criterion-level evidence.
-5. Independently review the result. Complete and publish under their corresponding authorization, which may be given in one request. Maintain one acceptance ledger and reuse valid evidence.
+4. Execute and verify within the authorized boundary, then stop in the executor chat for the owner's hands-on review. No automatic report to the orchestrator.
+5. Apply the owner's authorized refinements and refresh affected evidence. Wait for explicit owner permission to report.
+6. With that permission, return one consolidated criterion-level report covering original implementation and owner additions. The orchestrator then reviews and may hand remediation back; repeat owner review/permission after remediation.
+7. Complete and publish under their corresponding authorization, which may be given in one request after the applicable review/report gate. Maintain one acceptance ledger and reuse valid evidence.
 
 The owner selects the environment and recipient. Orchestration counterparts coordinate and review; an assigned executor implements and verifies. Platform and session details belong to the task handoff.
+
+The [Protocol's reporting sequence](TALA-Orchestrator-Protocol.md#owner-review-before-executor-reporting) governs delegated work. A return-chat link or old automatic-report instruction never substitutes for human permission. Issues/PRDs are living records; the owner decides their author and bounded update scope per case under Protocol Section 8.
 
 ## Name the endpoint once
 

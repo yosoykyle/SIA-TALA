@@ -15,6 +15,7 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -72,6 +73,33 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             $result['solver_statistics'],
             data_get($context['run']->fresh()->diagnostics, 'solver_result.solver_statistics'),
         );
+    }
+
+    public function test_legacy_captured_grid_is_validated_without_using_or_rewriting_the_different_live_package(): void
+    {
+        $this->freezeTime();
+        $context = $this->context();
+        $captured = $context['run']->fresh()->input_snapshot;
+        $capturedHash = $context['run']->fresh()->input_hash;
+        $this->assertArrayNotHasKey('teaching_grid_rows', $captured['term']);
+        $this->assertSame(60, $captured['term']['scheduling_slot_minutes']);
+        $context['term']->update([
+            'scheduling_days' => [2],
+            'scheduling_slot_minutes' => 30,
+            'scheduling_day_starts_at' => '13:00:00',
+            'scheduling_day_ends_at' => '16:00:00',
+        ]);
+        $package = TermCalendarPackage::factory()->for($context['term'])->create(['state' => TermCalendarPackage::StateActive]);
+        $package->teachingGridRows()->create(['day_of_week' => 2, 'starts_at' => '13:00:00', 'ends_at' => '16:00:00', 'breaks' => []]);
+
+        $validation = app(ScheduleAssignmentValidationService::class)->validate($context['run']->fresh(), $this->validResult($context));
+
+        $this->assertTrue($validation->passes(), json_encode($validation->findings(), JSON_THROW_ON_ERROR));
+        $this->assertSame([], $validation->blockingFindings());
+        $this->assertSame(1, $validation->candidateRows()[0]['day_of_week']);
+        $this->assertSame('08:00:00', $validation->candidateRows()[0]['starts_at']);
+        $this->assertSame($captured, $context['run']->fresh()->input_snapshot);
+        $this->assertSame($capturedHash, $context['run']->fresh()->input_hash);
     }
 
     public function test_warning_only_result_is_accepted_without_becoming_a_hard_violation(): void

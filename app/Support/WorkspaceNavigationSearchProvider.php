@@ -2,6 +2,28 @@
 
 namespace App\Support;
 
+use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
+use App\Filament\Pages\FacultySchedule;
+use App\Filament\Pages\MyAvailability;
+use App\Filament\Pages\TermPlanningWorkbench;
+use App\Filament\Resources\AcademicYears\AcademicYearResource;
+use App\Filament\Resources\CalendarEvents\CalendarEventResource;
+use App\Filament\Resources\Courses\CourseResource;
+use App\Filament\Resources\CourseSpecifications\CourseSpecificationResource;
+use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
+use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
+use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
+use App\Filament\Resources\ImportBatches\ImportBatchResource;
+use App\Filament\Resources\Programs\ProgramResource;
+use App\Filament\Resources\Rooms\RoomResource;
+use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
+use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
+use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
+use App\Filament\Resources\Sections\SectionResource;
+use App\Filament\Resources\TermOfferings\TermOfferingResource;
+use App\Filament\Resources\Terms\TermResource;
+use App\Models\User;
 use Filament\Facades\Filament;
 use Filament\GlobalSearch\GlobalSearchResult;
 use Filament\GlobalSearch\GlobalSearchResults;
@@ -24,10 +46,28 @@ class WorkspaceNavigationSearchProvider implements GlobalSearchProvider
             $items = [...$items, ...$this->visibleItems($group->getItems())];
         }
 
+        $workspaceUrls = array_map(fn (NavigationItem $item): ?string => $item->getUrl(), $items);
+
         foreach (Filament::getResources() as $resource) {
             $cluster = $resource::getCluster();
-            if ($cluster !== null && $resource::shouldRegisterNavigation() && $cluster::canAccess() && $resource::canAccess()) {
+            if ($cluster !== null && in_array($cluster::getUrl(), $workspaceUrls, true) && $resource::shouldRegisterNavigation() && $cluster::canAccess() && $resource::canAccess()) {
                 $items = [...$items, ...$this->visibleItems($resource::getNavigationItems())];
+            }
+        }
+
+        if ($panel->getId() === 'admin' && $user instanceof User) {
+            $items = [...$items, ...$this->registrarSetupItems($user)];
+            $contexts = app(WorkspaceContextResolver::class);
+            $selected = $contexts->selected($user);
+            if ($selected === null) {
+                $available = $contexts->availableContexts($user);
+                $selected = count($available) === 1 ? array_key_first($available) : null;
+            }
+            if ($selected === User::StaffRoleFaculty && MyAvailability::canAccess()) {
+                $items[] = NavigationItem::make('My Availability')->url(MyAvailability::getUrl());
+                if (FacultySchedule::canAccess()) {
+                    $items[] = NavigationItem::make('My Schedule')->url(FacultySchedule::getUrl());
+                }
             }
         }
 
@@ -44,6 +84,60 @@ class WorkspaceNavigationSearchProvider implements GlobalSearchProvider
         }
 
         return $results;
+    }
+
+    /** @return list<NavigationItem> */
+    private function registrarSetupItems(User $user): array
+    {
+        $contexts = app(WorkspaceContextResolver::class);
+        $selected = $contexts->selected($user);
+
+        if ($selected === null) {
+            $available = $contexts->availableContexts($user);
+            $selected = count($available) === 1 ? array_key_first($available) : null;
+        }
+
+        if ($selected !== User::StaffRoleRegistrar) {
+            return [];
+        }
+
+        $items = [];
+
+        foreach ([
+            AcademicYearResource::class,
+            TermResource::class,
+            TermOfferingResource::class,
+            SectionResource::class,
+            RoomResource::class,
+            FacultyQualificationResource::class,
+            FacultyTermLoadOverrideResource::class,
+            CalendarEventResource::class,
+            SchedulingDemandResource::class,
+            ScheduleGenerationRunResource::class,
+            SectionMeetingResource::class,
+            ProgramResource::class,
+            CourseResource::class,
+            CourseSpecificationResource::class,
+            CurriculumVersionResource::class,
+            ImportBatchResource::class,
+        ] as $resource) {
+            if ($resource::canAccess()) {
+                $resourceItems = $this->visibleItems($resource::getNavigationItems());
+                if ($resourceItems === [] && $resource::hasPage('index')) {
+                    $resourceItems = [
+                        NavigationItem::make($resource::getNavigationLabel())
+                            ->url($resource::getUrl('index')),
+                    ];
+                }
+                $items = [...$items, ...$resourceItems];
+            }
+        }
+
+        if (TermPlanningWorkbench::canAccess()) {
+            $items = [...$items, ...TermPlanningCluster::workspaceNavigation(request()->integer('termId') ?: null, '')];
+        }
+
+        return $items;
     }
 
     /** @param iterable<NavigationItem> $items

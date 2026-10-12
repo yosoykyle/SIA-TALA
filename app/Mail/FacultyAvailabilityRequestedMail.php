@@ -41,7 +41,7 @@ class FacultyAvailabilityRequestedMail extends Mailable implements ShouldQueue
         $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
 
         return new Envelope(
-            subject: "{$institution} — Action required: declare your teaching availability",
+            subject: "{$institution} — Action required: submit your teaching availability",
         );
     }
 

@@ -33,11 +33,11 @@ Shared semantic roles update the earlier blue-primary/Solarized direction. Appro
 - **Branding:** original supplied crest/TALA colors, readable scale, balanced alignment. Avoid decorative logo plates and navbar gradients. Symbol-only crops must center the visible artwork. School branding and Powered by TALA attribution have separate roles.
 - **Icons:** retain native Filament Heroicons/control icons. Archived Lucide examples do not mandate replacing native icons.
 
-### Button finish
+### Button finish: skeuomorphic Aqua-like buttons
 
-Apply restrained same-hue lighting to **filled buttons**: a small top highlight, shallow gradient, and soft shadow. Neutral controls receive quieter dark-mode shading. Preserve distinct outlined, link, navigation, selected, focus, loading, and disabled roles; do not turn every clickable element into a raised tile. Pressed controls can reduce depth; disabled controls stay flat.
+The current owner term is **skeuomorphic Aqua-like buttons**. Use DESIGN.md's shared full action and shallow navigation variants: restrained same-hue lighting, a small top highlight, lower-edge definition, soft depth and a depressed current/pressed state. Preserve outlined/link/focus/loading/disabled semantics. Ordinary text links, menu rows, disclosures and reorder controls stay quiet. Reuse native Filament/Bootstrap components and shared tokens rather than copying per-screen treatments. The archived layout samples and their earlier surface/font examples below are supporting historical evidence; current DESIGN.md and the UI Surface Blueprint own the paired runtime values and shared-component principle. The light palette is preserved; dark layer separation and rim definition use solid surfaces. Floating menus and search results remain opaque with no backdrop blur.
 
-This approved tactile influence is cosmetic styling, not a claim that modern Adwaita is skeuomorphic. The samples use the documented Filament `.fi-btn` hook and Bootstrap button classes/variables. Preserve native focus rings and behavior. Verify foreground contrast across the gradient and interaction states. Forced-color mode removes decorative shading. Share definitions rather than adding per-screen overrides.
+Skeuomorphic Aqua-like buttons are the existing cosmetic control family; Adwaita supplies restraint and paired-theme inspiration. The samples use the documented Filament `.fi-btn` hook and Bootstrap button classes/variables. Preserve native focus rings and behavior. Verify foreground contrast across the gradient and interaction states. Forced-color mode removes decorative shading. Share definitions rather than adding per-screen overrides.
 
 ## Adapt through native APIs
 

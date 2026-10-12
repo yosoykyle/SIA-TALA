@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Actions\Scheduling\ClassPlanningWorkflow;
 use App\Actions\Scheduling\TermSchedulingReadinessService;
+use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\ClassPlanning;
+use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\SchedulingDemands\Pages\ListSchedulingDemands;
@@ -47,7 +49,7 @@ final class TAL96D5E1B2CClassPlanningTest extends TestCase
     }
 
     #[Test]
-    public function class_planning_is_one_role_truthful_entry_with_six_ordered_stages(): void
+    public function legacy_class_planning_redirects_to_the_owning_term_workbench(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         Term::factory()->create([
@@ -58,21 +60,19 @@ final class TAL96D5E1B2CClassPlanningTest extends TestCase
         $this->actingAs($registrar);
 
         Livewire::test(ClassPlanning::class)
-            ->assertSee('Class Planning')
-            ->assertSeeInOrder([
-                'Prerequisites',
-                'Offerings and Sections',
-                'Teaching Resources',
-                'Schedule Requirements',
-                'Generated Timetables',
-                'Published Timetable',
-            ])
-            ->assertSee('Registrar')
-            ->assertSee('What blocks progress')
-            ->assertSee('Next action');
+            ->assertRedirect(TermPlanningWorkbench::getUrl(['viewTab' => 'classes']));
 
         $this->assertSame('Class Planning', ClassPlanning::getNavigationLabel());
-        $this->assertTrue(ClassPlanning::shouldRegisterNavigation());
+        $this->assertFalse(ClassPlanning::shouldRegisterNavigation());
+    }
+
+    #[Test]
+    public function academic_readiness_remains_an_accessible_source(): void
+    {
+        $this->actingAs($this->staff(User::StaffRoleRegistrar));
+
+        Livewire::test(AcademicReadiness::class)
+            ->assertSuccessful();
     }
 
     #[Test]
@@ -126,12 +126,11 @@ final class TAL96D5E1B2CClassPlanningTest extends TestCase
 
         Livewire::actingAs($academicHead)
             ->test(ClassPlanning::class)
-            ->assertActionVisible('termOfferings')
-            ->assertActionHidden('sections');
+            ->assertRedirect(TermPlanningWorkbench::getUrl(['viewTab' => 'classes']));
 
         $this->actingAs($academicHead)
             ->get(ClassPlanning::getUrl())
-            ->assertOk();
+            ->assertRedirect(TermPlanningWorkbench::getUrl(['viewTab' => 'classes']));
 
         $this->actingAs($systemAdmin)
             ->get(ClassPlanning::getUrl())

@@ -132,7 +132,7 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         $this->assertSame($existingEnrollment->id, $casesMap[$application->id]->id);
 
         $rendered = $modalView->render();
-        $this->assertStringContainsString('Open case &rarr;', $rendered);
+        $this->assertStringContainsString('Open case', $rendered);
         $this->assertStringContainsString($existingEnrollment->case_reference, $rendered);
 
         // 3. Directly accessing the case on ViewEnrollment succeeds

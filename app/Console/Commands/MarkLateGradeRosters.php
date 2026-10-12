@@ -22,8 +22,10 @@ class MarkLateGradeRosters extends Command
             ->chunkById(100, function ($rosters) use ($windows, &$count): void {
                 foreach ($rosters as $roster) {
                     if ($windows->finalizationClosed($roster)) {
-                        $roster->update(['state' => GradeRoster::StateLateNotSubmitted]);
-                        $count++;
+                        $count += GradeRoster::query()
+                            ->whereKey($roster->id)
+                            ->whereIn('state', [GradeRoster::StateDraft, GradeRoster::StateReturned])
+                            ->update(['state' => GradeRoster::StateLateNotSubmitted]);
                     }
                 }
             });

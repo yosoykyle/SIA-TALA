@@ -29,6 +29,8 @@ use Illuminate\Validation\ValidationException;
 
 class RequirementSetsRelationManager extends RelationManager
 {
+    protected static bool $isLazy = false;
+
     protected static string $relationship = 'requirementSets';
 
     public function form(Schema $schema): Schema

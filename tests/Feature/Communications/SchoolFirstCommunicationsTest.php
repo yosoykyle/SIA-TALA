@@ -24,6 +24,42 @@ use Tests\TestCase;
 
 class SchoolFirstCommunicationsTest extends TestCase
 {
+    public function test_global_mail_sender_uses_school_identity_and_preserves_explicit_sender_configuration(): void
+    {
+        $keys = ['INSTITUTION_NAME', 'MAIL_FROM_NAME', 'MAIL_FROM_ADDRESS'];
+        $originalEnvironment = [];
+
+        foreach ($keys as $key) {
+            $originalEnvironment[$key] = [$_ENV[$key] ?? null, $_SERVER[$key] ?? null, getenv($key)];
+            unset($_ENV[$key], $_SERVER[$key]);
+            putenv($key);
+        }
+
+        try {
+            $_ENV['INSTITUTION_NAME'] = $_SERVER['INSTITUTION_NAME'] = 'Sentinel Polytechnic Academy';
+            $mailConfiguration = require config_path('mail.php');
+            $this->assertSame('Sentinel Polytechnic Academy', $mailConfiguration['from']['name']);
+            $this->assertSame('hello@example.com', $mailConfiguration['from']['address']);
+
+            $_ENV['MAIL_FROM_NAME'] = $_SERVER['MAIL_FROM_NAME'] = 'Sentinel Registrar';
+            $_ENV['MAIL_FROM_ADDRESS'] = $_SERVER['MAIL_FROM_ADDRESS'] = 'registrar@sentinel.example';
+            $mailConfiguration = require config_path('mail.php');
+            $this->assertSame('Sentinel Registrar', $mailConfiguration['from']['name']);
+            $this->assertSame('registrar@sentinel.example', $mailConfiguration['from']['address']);
+        } finally {
+            foreach ($originalEnvironment as $key => [$environmentValue, $serverValue, $processValue]) {
+                unset($_ENV[$key], $_SERVER[$key]);
+                if ($environmentValue !== null) {
+                    $_ENV[$key] = $environmentValue;
+                }
+                if ($serverValue !== null) {
+                    $_SERVER[$key] = $serverValue;
+                }
+                putenv($processValue === false ? $key : "{$key}={$processValue}");
+            }
+        }
+    }
+
     public function test_academic_record_changed_mail_subjects_lead_with_institution_name(): void
     {
         $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
@@ -171,8 +207,10 @@ class SchoolFirstCommunicationsTest extends TestCase
 
         $mail = new TestConnectionMail;
         $this->assertSame('Sentinel Polytechnic Academy — Mail Connection Test (Powered by TALA Platform)', $mail->envelope()->subject);
-        $this->assertStringContainsString('Sentinel Polytechnic Academy', $mail->content()->htmlString);
-        $this->assertStringContainsString('(Powered by TALA Platform)', $mail->content()->htmlString);
+        $rendered = $mail->render();
+        $this->assertStringContainsString('This is an automated mail self-test for Sentinel Polytechnic Academy triggered from System Health by the signed-in administrator (Powered by TALA Platform).', $rendered);
+        $this->assertStringContainsString('images/brand/servitech-crest.webp', $rendered);
+        $this->assertStringContainsString('© '.date('Y').' Sentinel Polytechnic Academy · Powered by TALA Platform.', $rendered);
     }
 
     public function test_representative_messages_render_school_first_presentation_with_secondary_tala_attribution(): void
@@ -234,8 +272,9 @@ class SchoolFirstCommunicationsTest extends TestCase
 
         // 5. Connection Test Mail
         $connectionMail = new TestConnectionMail;
-        $this->assertStringContainsString($institution, $connectionMail->content()->htmlString);
-        $this->assertStringContainsString("(Powered by {$app})", $connectionMail->content()->htmlString);
+        $renderedConnection = $connectionMail->render();
+        $this->assertStringContainsString($institution, $renderedConnection);
+        $this->assertStringContainsString("(Powered by {$app})", $renderedConnection);
     }
 
     public function test_shared_markdown_mail_chrome_renders_school_first_header_and_footer(): void
@@ -279,7 +318,7 @@ class SchoolFirstCommunicationsTest extends TestCase
             dueAt: '2026-10-01',
             availabilityUrl: 'https://example.com/availability',
         );
-        $this->assertSame("{$institution} — Action required: declare your teaching availability", $facultyMail->envelope()->subject);
+        $this->assertSame("{$institution} — Action required: submit your teaching availability", $facultyMail->envelope()->subject);
 
         $officialEnrollmentMail = new OfficialEnrollmentMail(
             operationalEventId: 2,
@@ -395,8 +434,8 @@ class SchoolFirstCommunicationsTest extends TestCase
         $this->assertStringContainsString('talalogo.png', $headerHtml);
         $this->assertStringContainsString("Powered by {$app}", $headerHtml);
 
-        // Footer contrast: must use accessible slate-600 #475569 instead of low-contrast #a1a1aa
-        $this->assertStringContainsString('color: #475569', $rendered);
+        // Shared palette footer ink remains readable on the neutral canvas.
+        $this->assertStringContainsString('color: #52525c', $rendered);
         $this->assertStringNotContainsString('color: #a1a1aa', $rendered);
     }
 }

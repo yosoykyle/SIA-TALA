@@ -60,7 +60,20 @@ class TalaPanelTheme
                 'logout' => fn (Action $action): Action => $action
                     ->url(null)
                     ->postToUrl(false)
-                    ->alpineClickHandler("close(); \$el.closest('.fi-user-menu').querySelector('.fi-user-menu-trigger').focus(); \$dispatch('open-modal', { id: 'tala-sign-out' })"),
+                    ->alpineClickHandler(<<<'JS'
+                        close();
+                        const mobile = window.innerWidth < 1024;
+                        if (mobile) {
+                            $store.sidebar.close();
+                        }
+                        $nextTick(() => {
+                            const trigger = mobile
+                                ? document.querySelector('.fi-layout-sidebar-toggle-btn, .fi-topbar-open-sidebar-btn')
+                                : $el.closest('.fi-user-menu')?.querySelector('.fi-user-menu-trigger');
+                            trigger?.focus({ preventScroll: true });
+                            $dispatch('open-modal', { id: 'tala-sign-out' });
+                        });
+                        JS),
                 'profile' => fn (Action $action): Action => $action
                     ->label('Account security')
                     ->icon('heroicon-o-shield-check'),
@@ -75,6 +88,7 @@ class TalaPanelTheme
             ->renderHook(PanelsRenderHook::HEAD_END, fn (): HtmlString => new HtmlString(self::isApplicantPanel($panel) ? '<script src="'.e(asset('js/tala-wizard.js')).'"></script>' : ''))
             ->renderHook(PanelsRenderHook::BODY_START, fn (): View => view('filament.components.skip-link'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.content-anchor'))
+            ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.form-accessibility'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): HtmlString => new HtmlString(
                 '<div class="tala-mobile-workspace-identity">'.self::brand($panel)->render().'</div>',
             ))

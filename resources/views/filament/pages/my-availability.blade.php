@@ -1,76 +1,22 @@
 <x-filament-panels::page>
-    <div class="space-y-6">
-        <x-filament::section>
-            <x-slot name="heading">Exact Term</x-slot>
-            <x-slot name="description">
-                Your declaration belongs to one Term only. It is never copied to another Term and does not edit a published timetable by itself.
-            </x-slot>
-
-            <div class="flex flex-wrap gap-2">
-                @forelse ($terms as $option)
-                    <x-filament::button
-                        :color="$term?->id === $option->id ? 'primary' : 'gray'"
-                        :outlined="$term?->id !== $option->id"
-                        type="button"
-                        wire:click="selectTerm({{ $option->id }})"
-                    >
-                        {{ $option->academicYear?->label }} · {{ $option->label }}
-                    </x-filament::button>
-                @empty
-                    <p class="text-sm text-gray-600 dark:text-gray-300">No Term is available. Contact the Registrar; Faculty cannot create a Term from this page.</p>
-                @endforelse
-            </div>
-        </x-filament::section>
-
+    <div class="tala-faculty-workflow space-y-4">
+        <div class="tala-faculty-work-header">@include('filament.components.faculty-term-context', ['contextStatus' => $currentDeclaration ? 'Response recorded · v'.$currentDeclaration->version : ($term ? ($availabilityRequested ? 'Availability requested — submit your response' : 'No availability request for this Term') : null)])
+        @include('filament.components.faculty-task-navigation')</div>
         @if ($term)
-            <div class="grid gap-4 md:grid-cols-3">
-                <x-filament::section compact>
-                    <x-slot name="heading">Request state</x-slot>
-                    <p class="text-sm text-gray-700 dark:text-gray-200">
-                        {{ $availabilityRequested ? 'Action requested by the Registrar' : ($hasDeclaration ? 'Declaration already recorded' : 'No request for this exact Term') }}
-                    </p>
-                </x-filament::section>
-                <x-filament::section compact>
-                    <x-slot name="heading">Due date</x-slot>
-                    <p class="text-sm text-gray-700 dark:text-gray-200">
-                        {{ $availabilityDueAt?->timezone(config('app.display_timezone'))->format('M j, Y g:i A') ?? 'Unavailable — contact the Registrar' }}
-                    </p>
-                </x-filament::section>
-                <x-filament::section compact>
-                    <x-slot name="heading">Institutional capacity evidence</x-slot>
-                    <p class="text-sm text-gray-700 dark:text-gray-200">
-                        {{ $qualificationCount }} active course qualification(s) · {{ $termUnitLimit !== null ? $termUnitLimit.' unit limit' : 'No unit limit recorded' }}
-                    </p>
-                </x-filament::section>
-            </div>
-
-            @if (! $availabilityRequested && ! $hasDeclaration)
-                <x-filament::section icon="heroicon-o-information-circle" icon-color="warning">
-                    <x-slot name="heading">Availability request not available</x-slot>
-                    <x-slot name="description">
-                        The Registrar must issue the exact-Term action request before your first declaration. No schedule or role is inferred from this unavailable state.
-                    </x-slot>
-                </x-filament::section>
-            @endif
-        @endif
-
-        @if ($hasPublishedImpact)
-            <x-filament::section icon="heroicon-o-exclamation-triangle" icon-color="warning">
-                <x-slot name="heading">Published timetable review required</x-slot>
-                <x-slot name="description">
-                    Your latest correction conflicts with at least one current assignment. The published timetable remains official until the Registrar validates and publishes a complete successor.
-                </x-slot>
-            </x-filament::section>
-        @endif
-
-        {{ $this->table }}
-
-        <x-filament::section compact>
-            <x-slot name="heading">Historical unavailable-time records</x-slot>
-            <x-slot name="description">
-                Earlier scheduling-block records remain read-only evidence. New Faculty declarations use this page.
-            </x-slot>
-            <x-filament::link :href="$historicalBlocksUrl">View historical records</x-filament::link>
-        </x-filament::section>
+            <p class="tala-work-footnote">Your availability helps the Registrar plan teaching assignments.</p>
+            <section class="tala-availability-answer tala-task-work" aria-label="Current availability">
+                <div class="tala-task-heading"><div>
+                    @if ($currentDeclaration)<h2>{{ $currentDeclaration->declaration === \App\Models\FacultyAvailabilityDeclaration::DeclarationAvailable ? 'Can teach this Term' : 'Cannot teach this Term' }}</h2>
+                        <p class="text-sm">{{ $this->availabilitySummary($currentDeclaration) }}</p>
+                    @else<h2>{{ $availabilityRequested ? 'Submit your availability response' : 'Contact the Registrar for an availability request' }}</h2>@endif
+                    <p><strong>Response due:</strong> {{ $availabilityDueAt?->timezone(config('app.display_timezone'))->format('M j, Y g:i A') ?? 'Unavailable — contact the Registrar' }} · Asia/Manila</p>
+                </div>{{ $this->declareAvailabilityAction }}</div>
+                @if (! $availabilityRequested && ! $hasDeclaration)<p class="mt-2 text-sm">Contact the Registrar to request availability for this exact Term before submitting your first response.</p>@endif
+                @if ($hasPublishedImpact)<p role="status" class="mt-3 text-sm"><strong>Official timetable review required.</strong> Your latest answer conflicts with a current assignment. Registrar must publish a validated successor; current meetings remain official. <x-filament::link :href="\App\Filament\Pages\FacultySchedule::getUrl(['termId' => $term->id])">View official schedule</x-filament::link></p>@endif
+                <details class="mt-3 text-sm"><summary>Current Term request and response source</summary><p>{{ $availabilityDeadlineSource ?: 'Deadline source unavailable' }} · Registrar</p>@if ($currentDeclaration)<p>Response v{{ $currentDeclaration->version }} · {{ \App\Support\DisplayDateTime::format($currentDeclaration->declared_at) }}</p>@endif<p>Availability updates help the Registrar plan; current official meetings remain unchanged.</p></details>
+            </section>
+            <section class="tala-task-work"><div class="tala-task-heading"><h2>Availability history</h2></div>{{ $this->table }}@if ($hasHistoricalBlocks)<p class="mt-3 text-sm"><x-filament::link :href="$historicalBlocksUrl">Older unavailable-time records</x-filament::link></p>@endif</section>
+        @else<p>Select a Term to see its request, due date and your answer.</p>@endif
     </div>
+    <x-filament-actions::modals />
 </x-filament-panels::page>

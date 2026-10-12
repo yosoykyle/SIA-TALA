@@ -7,7 +7,8 @@ use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Actions\Calendar\TermCalendarPackageReadinessService;
 use App\Filament\Applicant\Pages\Dashboard as ApplicantDashboard;
-use App\Filament\Pages\TermPlanningWorkbench;
+use App\Filament\Pages\TermCalendar;
+use App\Filament\Pages\TermClasses;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
@@ -21,6 +22,7 @@ use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Database\Seeders\DatabaseSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +42,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->seed(DatabaseSeeder::class);
 
         foreach (User::staffRoleNames() as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
@@ -68,19 +71,19 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
-            ->assertSee('Draft Calendar Packages')
-            ->assertSee('Action required')
-            ->assertSee('The Enrollment window is missing or invalid')
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
+            ->assertSee('Teaching calendar')
+            ->assertSee('Not configured')
+            ->assertSee('Activity dates do not gate class planning.')
             ->assertSee('No approved teaching day is recorded');
 
         // 2. Add required windows and teaching grid rows to make the draft valid
         $this->addValidWindowsAndGridToPackage($invalidDraft);
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
-            ->assertSee('Draft Calendar Packages')
-            ->assertSee('Ready for activation — all required checks passed');
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
+            ->assertSee('Teaching calendar · Draft v1')
+            ->assertSee('Review the draft above, then activate it.');
     }
 
     public function test_registrar_can_correct_invalid_draft_package_in_place_and_retry_activation(): void
@@ -143,7 +146,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         ];
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->callAction('correctDraftCalendarPackage', data: $correctedData)
             ->assertNotified('Draft Calendar Package corrected');
 
@@ -158,7 +161,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // Now activate the corrected draft
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->callAction('activateCalendarPackage', data: ['package_id' => $draft->id])
             ->assertNotified('Calendar Package activated');
 
@@ -188,7 +191,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // When only Active and Closed packages exist, the action is hidden on the workbench
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertActionHidden('correctDraftCalendarPackage');
 
         // When a Draft package is also present, the action is available
@@ -200,7 +203,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // Attempting to correct active package must fail validation
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->callAction('correctDraftCalendarPackage', data: [
                 'package_id' => $activePackage->id,
                 'administrative_starts_on' => '2026-08-01',
@@ -226,7 +229,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // Attempting to correct closed package must fail validation
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->callAction('correctDraftCalendarPackage', data: [
                 'package_id' => $closedPackage->id,
                 'administrative_starts_on' => '2026-08-01',
@@ -274,14 +277,14 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // AcademicHead has no header actions (read-only oversight)
         Livewire::actingAs($academicHead)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term1->id])
+            ->test(TermCalendar::class, ['termId' => $term1->id])
             ->assertActionHidden('recordCalendarPackage')
             ->assertActionHidden('correctDraftCalendarPackage')
             ->assertActionHidden('activateCalendarPackage');
 
         // Cross-term: Registrar on Term 1 attempting to correct Term 2's package fails validation
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term1->id])
+            ->test(TermCalendar::class, ['termId' => $term1->id])
             ->assertActionVisible('recordCalendarPackage')
             ->assertActionVisible('correctDraftCalendarPackage')
             ->callAction('correctDraftCalendarPackage', data: [
@@ -306,10 +309,14 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         $this->assertSame('TERM2-DRAFT', $draftTerm2->fresh()->authority_reference);
 
+        $draftTerm1->update(['authority_date' => '2026-07-15']);
+        $this->addValidWindowsAndGridToPackage($draftTerm1);
+
         // Cross-term: Registrar on Term 1 attempting to activate Term 2's package fails validation
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term1->id])
+            ->test(TermCalendar::class, ['termId' => $term1->id])
             ->assertActionVisible('activateCalendarPackage')
+            ->assertActionEnabled('activateCalendarPackage')
             ->callAction('activateCalendarPackage', data: [
                 'package_id' => $draftTerm2->id,
             ])
@@ -591,7 +598,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // Mount the workbench and open the correctDraftCalendarPackage modal
         $component = Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertActionVisible('correctDraftCalendarPackage')
             ->mountAction('correctDraftCalendarPackage');
 
@@ -643,7 +650,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
         $component = Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertActionVisible('correctDraftCalendarPackage')
             ->mountAction('correctDraftCalendarPackage');
 
@@ -695,7 +702,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // Registrar A mounts workbench and opens form
         $component = Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertActionVisible('correctDraftCalendarPackage')
             ->mountAction('correctDraftCalendarPackage');
 
@@ -760,7 +767,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // Mount workbench and open correctDraftCalendarPackage modal
         $component = Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertActionVisible('correctDraftCalendarPackage')
             ->mountAction('correctDraftCalendarPackage');
 
@@ -926,7 +933,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // 7b. Genuinely conflicting overlapping dated exceptions: contradictory teaching effect (blocks vs does not block)
         $compatibleException->update([
-            'exception_type' => 'InformationOnly',
+            'exception_type' => 'MakeUpAllowed',
             'label' => 'Conflicting Observance',
             'blocks_teaching' => false,
         ]);
@@ -980,14 +987,22 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertActionVisible('activateCalendarPackage')
+            ->assertActionDisabled('activateCalendarPackage')
             ->callAction('activateCalendarPackage', data: [
                 'package_id' => $draft->id,
             ])
-            ->assertHasErrors(['package_id', 'readiness'])
-            ->assertNotified('Cannot activate Calendar Package')
+            ->assertActionNotMounted('activateCalendarPackage')
             ->assertSee('A recurring teaching-grid break falls outside the approved daily teaching interval.');
+
+        try {
+            app(ActivateTermCalendarPackage::class)->execute($draft->fresh(), $registrar);
+            $this->fail('The server must reject an unready teaching calendar independently of its disabled control.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('package_id', $exception->errors());
+            $this->assertArrayHasKey('readiness', $exception->errors());
+        }
 
         // Verify draft and term states remain Draft
         $freshDraft = $draft->fresh();
@@ -1026,7 +1041,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
         $testable = Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertActionVisible('activateCalendarPackage')
             ->mountAction('activateCalendarPackage')
             ->assertActionMounted('activateCalendarPackage')
@@ -1049,9 +1064,14 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertSame(Term::StateActive, $term->fresh()->state);
 
         // Workbench visibly displays Active state
-        $testable->assertSee('Active v1')
-            ->assertSee('Term state: Active')
+        $testable->assertSee('Calendar active')
+            ->assertSee('Teaching calendar · Active v1')
             ->assertActionHidden('activateCalendarPackage');
+
+        $this->assertContains(
+            TermClasses::getUrl(['termId' => $term->id]),
+            array_map(fn ($item): string => $item->getUrl(), $testable->instance()->getWorkspaceNavigation()),
+        );
     }
 
     public function test_multiple_drafts_require_explicit_selection_with_distinguishing_information(): void
@@ -1088,7 +1108,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
         $testable = Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertActionVisible('activateCalendarPackage')
             ->mountAction('activateCalendarPackage')
             ->assertSchemaStateSet(['package_id' => null])
@@ -1102,7 +1122,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertSame(Term::StateDraft, $term->fresh()->state);
 
         // Explicitly choose Draft 2 and activate
-        $testable->setActionData(['package_id' => $draft2->id])
+        $testable->setActionData(['package_id' => $draft2->id, 'concurrency_token' => $draft2->concurrencyToken()])
             ->assertMountedActionModalSee('DRAFT-AUTH-V2')
             ->assertMountedActionModalSee('All required checks passed')
             ->callMountedAction()
@@ -1114,7 +1134,45 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertNotNull($draft2->fresh()->activated_at);
     }
 
-    public function test_mounted_action_with_unready_draft_displays_blockers_and_rejects_activation(): void
+    public function test_older_ready_draft_can_be_selected_and_activated_while_newer_invalid_draft_is_preserved(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create(['state' => Term::StateDraft]);
+        $olderReady = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateDraft,
+            'version' => 1,
+            'authority_reference' => 'OLDER-READY-AUTH',
+            'authority_date' => '2026-07-01',
+            'administrative_starts_on' => '2026-08-01',
+            'administrative_ends_on' => '2026-12-31',
+            'classes_start_on' => '2026-08-15',
+            'classes_end_on' => '2026-12-15',
+        ]);
+        $this->addValidWindowsAndGridToPackage($olderReady);
+        $newerInvalid = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateDraft,
+            'version' => 2,
+            'authority_reference' => 'NEWER-INVALID-AUTH',
+        ]);
+        $newerBefore = $newerInvalid->fresh()->getAttributes();
+        $this->assertTrue(app(TermCalendarPackageReadinessService::class)->for($olderReady)['ready']);
+        $this->assertFalse(app(TermCalendarPackageReadinessService::class)->for($newerInvalid)['ready']);
+        Filament::setCurrentPanel(Filament::getPanel('staff'));
+
+        Livewire::actingAs($registrar)->test(TermCalendar::class, ['termId' => $term->id])
+            ->assertActionEnabled('activateCalendarPackage')->mountAction('activateCalendarPackage')
+            ->assertSchemaStateSet(['package_id' => null])
+            ->setActionData(['package_id' => $olderReady->id, 'concurrency_token' => $olderReady->fresh()->concurrencyToken()])
+            ->assertMountedActionModalSee('OLDER-READY-AUTH')->assertMountedActionModalSee('All required checks passed')
+            ->callMountedAction()->assertHasNoActionErrors()->assertNotified('Calendar Package activated');
+
+        $this->assertSame(TermCalendarPackage::StateActive, $olderReady->fresh()->state);
+        $this->assertNotNull($olderReady->fresh()->activated_at);
+        $this->assertSame(Term::StateActive, $term->fresh()->state);
+        $this->assertSame($newerBefore, $newerInvalid->fresh()->getAttributes());
+    }
+
+    public function test_mounted_action_rejects_tampering_to_an_unready_draft_and_displays_its_blockers(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create(['state' => Term::StateDraft]);
@@ -1139,12 +1197,22 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ],
         ]);
 
+        $readyDraft = TermCalendarPackage::factory()->for($term)->create([
+            ...$draft->getAttributes(),
+            'id' => null,
+            'version' => 2,
+            'authority_reference' => 'READY-AUTH-002',
+        ]);
+        $this->addValidWindowsAndGridToPackage($readyDraft);
+
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertActionVisible('activateCalendarPackage')
+            ->assertActionEnabled('activateCalendarPackage')
             ->mountAction('activateCalendarPackage')
+            ->setActionData(['package_id' => $draft->id, 'concurrency_token' => $draft->fresh()->concurrencyToken()])
             ->assertMountedActionModalSee('Action required')
             ->assertMountedActionModalSee('A recurring teaching-grid break falls outside the approved daily teaching interval')
             ->callMountedAction()
@@ -1154,6 +1222,8 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertSame(TermCalendarPackage::StateDraft, $draft->fresh()->state);
         $this->assertNull($draft->fresh()->activated_at);
         $this->assertSame(Term::StateDraft, $term->fresh()->state);
+        $this->assertSame(TermCalendarPackage::StateDraft, $readyDraft->fresh()->state);
+        $this->assertNull($readyDraft->fresh()->activated_at);
     }
 
     public function test_unexpected_failure_during_activation_halts_cleanly_with_actionable_notification(): void
@@ -1182,7 +1252,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class, ['termId' => $term->id])
+            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertActionVisible('activateCalendarPackage')
             ->mountAction('activateCalendarPackage')
             ->callMountedAction()

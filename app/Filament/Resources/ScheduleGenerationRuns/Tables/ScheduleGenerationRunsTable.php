@@ -38,7 +38,7 @@ class ScheduleGenerationRunsTable
                     ->state(fn (ScheduleGenerationRun $record): string => ScheduleGenerationRun::statusOptions()[$record->status] ?? str($record->status)->headline())
                     ->badge()
                     ->color(fn (ScheduleGenerationRun $record): string => ScheduleGenerationRun::statusColors()[$record->status] ?? 'gray')
-                    ->searchable(),
+                    ->searchable(['status']),
                 TextColumn::make('assignment_summary')
                     ->label('Assignments')
                     ->state(fn (ScheduleGenerationRun $record): string => "{$record->candidate_rows_count} candidate assignments"),

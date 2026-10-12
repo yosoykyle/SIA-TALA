@@ -9,12 +9,14 @@ use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
@@ -30,72 +32,89 @@ use Livewire\Attributes\On;
 
 class CandidateRowsRelationManager extends RelationManager
 {
+    protected static bool $isLazy = false;
+
     protected static string $relationship = 'candidateRows';
 
-    protected static ?string $title = 'Candidate Assignments';
+    protected static ?string $title = 'Candidate assignments';
 
     public function infolist(Schema $schema): Schema
     {
         return $schema
             ->components([
-                Section::make('Assignment')
+                Section::make('Candidate meeting')
                     ->schema([
-                        TextEntry::make('status')
-                            ->badge()
-                            ->color(fn (string $state): string => self::statusColor($state)),
-                        TextEntry::make('schedulingDemand.demand_key')
-                            ->label('Demand'),
-                        TextEntry::make('schedulingDemand.sectionDeliveryGroup.section.code')
-                            ->label('Section')
-                            ->placeholder('-'),
-                        TextEntry::make('schedulingDemand.courseComponent.component_type')
-                            ->label('Component')
-                            ->formatStateUsing(fn (?string $state): string => self::headline($state))
-                            ->placeholder('-'),
-                        TextEntry::make('schedulingDemand.modality')
-                            ->label('Teaching mode')
-                            ->badge()
-                            ->formatStateUsing(fn (?string $state): string => self::modalityLabel($state))
-                            ->placeholder('-'),
-                        TextEntry::make('faculty.name')
-                            ->label('Faculty')
-                            ->placeholder('-'),
-                        TextEntry::make('room.code')
-                            ->label('Room')
-                            ->placeholder('-'),
-                        TextEntry::make('day_of_week')
-                            ->label('Day')
-                            ->formatStateUsing(fn (?int $state): string => $state === null ? '-' : (SectionMeeting::dayOptions()[$state] ?? '-')),
-                        TextEntry::make('starts_at')
-                            ->label('Start')
-                            ->placeholder('-'),
-                        TextEntry::make('ends_at')
-                            ->label('End')
-                            ->placeholder('-'),
-                        TextEntry::make('time_block_key')
-                            ->placeholder('-'),
+                        Group::make([
+                            TextEntry::make('status')
+                                ->label('Validation')
+                                ->badge()
+                                ->formatStateUsing(fn (string $state): string => self::statusOptions()[$state] ?? self::headline($state))
+                                ->color(fn (string $state): string => self::statusColor($state)),
+                            TextEntry::make('schedulingDemand.courseComponent.courseSpecification.course.code')
+                                ->label('Course code')
+                                ->placeholder('Not recorded'),
+                            TextEntry::make('schedulingDemand.sectionDeliveryGroup.section.code')
+                                ->label('Class')
+                                ->placeholder('-')
+                                ->columnSpanFull(),
+                            TextEntry::make('schedulingDemand.courseComponent.component_type')
+                                ->label('Component')
+                                ->formatStateUsing(fn (?string $state): string => self::headline($state))
+                                ->placeholder('-'),
+                            TextEntry::make('schedulingDemand.modality')
+                                ->label('Teaching mode')
+                                ->badge()
+                                ->formatStateUsing(fn (?string $state): string => self::modalityLabel($state))
+                                ->placeholder('-'),
+                            TextEntry::make('faculty.name')
+                                ->label('Faculty')
+                                ->placeholder('-')
+                                ->columnSpanFull(),
+                            TextEntry::make('room.code')
+                                ->label('Room')
+                                ->placeholder('-'),
+                            TextEntry::make('day_of_week')
+                                ->label('Day')
+                                ->formatStateUsing(fn (?int $state): string => $state === null ? '-' : (SectionMeeting::dayOptions()[$state] ?? '-')),
+                            TextEntry::make('starts_at')
+                                ->label('Start')
+                                ->formatStateUsing(fn (string $state): string => CarbonImmutable::parse($state)->format('g:i A'))
+                                ->placeholder('-'),
+                            TextEntry::make('ends_at')
+                                ->label('End')
+                                ->formatStateUsing(fn (string $state): string => CarbonImmutable::parse($state)->format('g:i A'))
+                                ->placeholder('-'),
+                        ])->dense()->columns(['default' => 2]),
                     ])
-                    ->columns(2),
-                Section::make('Review Payload')
+                    ->compact(),
+                Section::make('Source and validation details')
+                    ->collapsible()
+                    ->collapsed()
                     ->schema([
+                        TextEntry::make('schedulingDemand.demand_key')
+                            ->label('Scheduling demand reference')
+                            ->placeholder('Not recorded'),
+                        TextEntry::make('time_block_key')
+                            ->label('Time block reference')
+                            ->placeholder('Not recorded'),
                         TextEntry::make('score_summary')
-                            ->label('Original Solver Scores')
+                            ->label('Recorded solver scores')
                             ->state(fn (CandidateScheduleRow $record): array => self::scoreItems($record->scores))
                             ->listWithLineBreaks()
                             ->bulleted()
-                            ->placeholder('-'),
+                            ->placeholder('Not recorded'),
                         TextEntry::make('warning_summary')
                             ->label('Warnings')
                             ->state(fn (CandidateScheduleRow $record): array => self::payloadMessages($record->warnings))
                             ->listWithLineBreaks()
                             ->bulleted()
-                            ->placeholder('-'),
+                            ->placeholder(fn (CandidateScheduleRow $record): string => is_array($record->warnings) && ($record->warnings === [] || ($record->warnings['items'] ?? null) === []) ? 'None recorded' : 'Not recorded'),
                         TextEntry::make('violation_summary')
                             ->label('Violations')
                             ->state(fn (CandidateScheduleRow $record): array => self::payloadMessages($record->violations))
                             ->listWithLineBreaks()
                             ->bulleted()
-                            ->placeholder('-'),
+                            ->placeholder(fn (CandidateScheduleRow $record): string => is_array($record->violations) && ($record->violations === [] || ($record->violations['items'] ?? null) === []) ? 'None recorded' : 'Not recorded'),
                     ])
                     ->columns([
                         'default' => 1,
@@ -127,7 +146,7 @@ class CandidateRowsRelationManager extends RelationManager
                     ->placeholder('Original')
                     ->color(fn (?string $state): string => in_array($state, ['RequestedRepair', 'RepairImpact'], true) ? 'warning' : 'gray'),
                 TextColumn::make('schedulingDemand.courseComponent.courseSpecification.course.code')
-                    ->label('Course')
+                    ->label('Course code')
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('schedulingDemand.demand_key')
@@ -136,7 +155,7 @@ class CandidateRowsRelationManager extends RelationManager
                     ->wrap()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('schedulingDemand.sectionDeliveryGroup.section.code')
-                    ->label('Section')
+                    ->label('Class')
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('schedulingDemand.courseComponent.component_type')
@@ -197,7 +216,8 @@ class CandidateRowsRelationManager extends RelationManager
             ->recordActions([
                 ActionGroup::make([
                     ViewAction::make()
-                        ->label('Review evidence'),
+                        ->label('View meeting details')
+                        ->modalHeading('Candidate meeting details'),
                     $this->correctAssignmentAction(),
                     $this->findValidRepairAction(),
                 ]),
@@ -379,7 +399,7 @@ class CandidateRowsRelationManager extends RelationManager
             return '-';
         }
 
-        return mb_substr((string) $record->starts_at, 0, 5).' - '.mb_substr((string) $record->ends_at, 0, 5);
+        return CarbonImmutable::parse($record->starts_at)->format('g:i A').' - '.CarbonImmutable::parse($record->ends_at)->format('g:i A');
     }
 
     private static function headline(?string $value): string

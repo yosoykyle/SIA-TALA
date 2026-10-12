@@ -18,7 +18,9 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
+use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -127,7 +129,7 @@ final class TAL85CSchedulingDemandReadinessAcceptanceTest extends TestCase
         $findingKeys = $demand->readinessFindingKeys();
 
         $this->assertSame(SchedulingDemand::ValidationActionRequired, $demand->validation_state);
-        $this->assertContains('missing_active_scheduling_window', $findingKeys);
+        $this->assertContains('missing_active_core_calendar', $findingKeys);
         $this->assertContains('delivery_group_expected_count_exceeds_section_capacity', $findingKeys);
         $this->assertContains('missing_active_faculty_qualification', $findingKeys);
         $this->assertContains('missing_suitable_room', $findingKeys);
@@ -222,6 +224,9 @@ final class TAL85CSchedulingDemandReadinessAcceptanceTest extends TestCase
 
         $this->assertSame(SchedulingDemand::ValidationActionRequired, $demand->validation_state);
         $this->assertContains('fixed_day_outside_scheduling_grid', $findingKeys);
+        $source['group']->update(['delivery_override' => ['fixed_day_of_week' => 1, 'fixed_start_time' => '17:13:00']]);
+        app(GenerateSchedulingDemand::class)->forTerm($this->staff(User::StaffRoleRegistrar), $source['term']->fresh());
+        $findingKeys = $demand->fresh()->readinessFindingKeys();
         $this->assertContains('fixed_start_outside_scheduling_grid', $findingKeys);
         $this->assertContains('fixed_time_exceeds_scheduling_day', $findingKeys);
     }
@@ -282,14 +287,17 @@ final class TAL85CSchedulingDemandReadinessAcceptanceTest extends TestCase
         ]);
 
         if ($withCalendar) {
-            CalendarEvent::factory()->for($term)->create([
-                'event_type' => CalendarEvent::TypeWindow,
-                'scope_type' => CalendarEvent::ScopeInstitution,
-                'process_key' => CalendarEvent::ProcessScheduling,
-                'start_at' => now()->subDay(),
-                'end_at' => now()->addWeek(),
-                'state' => CalendarEvent::StateActive,
+            $package = TermCalendarPackage::factory()->for($term)->create([
+                'state' => TermCalendarPackage::StateActive,
             ]);
+            foreach ([1, 2, 3, 4, 5] as $day) {
+                TermTeachingGridRow::factory()->for($package, 'package')->create([
+                    'day_of_week' => $day,
+                    'starts_at' => '08:00:00',
+                    'ends_at' => '18:00:00',
+                    'breaks' => [],
+                ]);
+            }
         }
 
         $program = Program::factory()->create(['code' => 'TC'.str_pad((string) $this->scopeCounter, 2, '0', STR_PAD_LEFT)]);

@@ -24,11 +24,11 @@ class FacultyTermLoadOverridesTable
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('default_max_units_snapshot')
-                    ->label('Default Max Units')
+                    ->label('Base teaching-load limit (units)')
                     ->numeric(decimalPlaces: 2)
                     ->sortable(),
                 TextColumn::make('approved_overload_units')
-                    ->label('Approved Overload')
+                    ->label('Approved additional units')
                     ->numeric(decimalPlaces: 2)
                     ->sortable(),
                 TextColumn::make('authority')

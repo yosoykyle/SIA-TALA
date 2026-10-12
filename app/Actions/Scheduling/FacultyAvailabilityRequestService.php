@@ -4,8 +4,10 @@ namespace App\Actions\Scheduling;
 
 use App\Filament\Pages\MyAvailability;
 use App\Mail\FacultyAvailabilityRequestedMail;
+use App\Models\FacultyAvailabilityDeadline;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\OperationalEvent;
+use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -21,13 +23,13 @@ class FacultyAvailabilityRequestService
      * @param  list<int>  $facultyUserIds
      * @return EloquentCollection<int, OperationalEvent>
      */
-    public function request(TermCalendarPackage $package, array $facultyUserIds, User $actor): EloquentCollection
+    public function request(TermCalendarPackage $package, array $facultyUserIds, User $actor, ?string $expectedPackageToken = null, ?int $expectedDeadlineId = null): EloquentCollection
     {
         if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             abort(403);
         }
 
-        if ($package->state !== TermCalendarPackage::StateActive || $package->faculty_availability_due_at === null) {
+        if ($package->state !== TermCalendarPackage::StateActive || $package->facultyAvailabilityDueAt() === null) {
             throw ValidationException::withMessages([
                 'calendar_package' => 'Activate an exact-Term Calendar Package with a Faculty availability deadline before sending requests.',
             ]);
@@ -59,23 +61,33 @@ class FacultyAvailabilityRequestService
             ]);
         }
 
-        $alreadyDeclared = FacultyAvailabilityDeclaration::query()
-            ->where('term_id', $package->term_id)
-            ->whereIn('faculty_user_id', $facultyUserIds)
-            ->pluck('faculty_user_id');
-
-        if ($alreadyDeclared->isNotEmpty()) {
-            throw ValidationException::withMessages([
-                'faculty_user_ids' => 'A selected Faculty member has already declared for this Term. Routine saves and corrections do not create another request email.',
-            ]);
-        }
-
         $created = [];
+        $compatiblePackageIds = [];
+        $expectedPackageToken ??= $package->concurrencyToken();
+        $expectedDeadlineId ??= (int) FacultyAvailabilityDeadline::query()->where('term_id', $package->term_id)->latest('id')->value('id');
 
-        DB::transaction(function () use ($package, $faculty, &$created): void {
+        DB::transaction(function () use ($package, $faculty, &$created, &$compatiblePackageIds, $expectedPackageToken, $expectedDeadlineId): void {
+            Term::query()->whereKey($package->term_id)->lockForUpdate()->firstOrFail();
+            if (FacultyAvailabilityDeclaration::query()->where('term_id', $package->term_id)->whereIn('faculty_user_id', $faculty->modelKeys())->exists()) {
+                throw ValidationException::withMessages(['faculty_user_ids' => 'A selected Faculty member has already declared for this Term. Routine saves and corrections do not create another request email.']);
+            }
             $locked = TermCalendarPackage::query()->whereKey($package->id)->lockForUpdate()->firstOrFail();
+            if ($locked->state !== TermCalendarPackage::StateActive || $locked->facultyAvailabilityDueAt() === null) {
+                throw ValidationException::withMessages(['calendar_package' => 'The calendar or deadline changed. Review the Active exact-Term core and recorded deadline before requesting availability.']);
+            }
+            if (! hash_equals($locked->concurrencyToken(), $expectedPackageToken)
+                || (int) FacultyAvailabilityDeadline::query()->where('term_id', $locked->term_id)->latest('id')->value('id') !== $expectedDeadlineId) {
+                throw ValidationException::withMessages(['calendar_package' => 'The calendar or deadline source changed. Reopen the request form and review the current facts.']);
+            }
+            $deadline = $locked->facultyAvailabilityDueAt();
+            $compatiblePackageIds = $locked->compatibleCoreSourceIds();
 
             foreach ($faculty as $recipient) {
+                if (OperationalEvent::query()->where('related_record_type', TermCalendarPackage::class)
+                    ->whereIn('related_record_id', $compatiblePackageIds)->where('user_id', $recipient->id)
+                    ->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)->exists()) {
+                    continue;
+                }
                 $event = OperationalEvent::query()->firstOrCreate(
                     [
                         'event_domain' => OperationalEvent::DomainNotifications,
@@ -99,7 +111,8 @@ class FacultyAvailabilityRequestService
                         'payload' => [
                             'term_id' => (int) $locked->term_id,
                             'request_generation' => (int) $locked->version,
-                            'due_at' => CarbonImmutable::parse((string) $locked->faculty_availability_due_at)->toIso8601String(),
+                            'due_at' => $deadline->toIso8601String(),
+                            'deadline_source_id' => FacultyAvailabilityDeadline::query()->where('term_id', $locked->term_id)->latest('id')->value('id'),
                             'availability_url' => MyAvailability::getUrl(['termId' => $locked->term_id]),
                         ],
                     ],
@@ -117,7 +130,7 @@ class FacultyAvailabilityRequestService
 
         return OperationalEvent::query()
             ->where('related_record_type', TermCalendarPackage::class)
-            ->where('related_record_id', $package->id)
+            ->whereIn('related_record_id', $compatiblePackageIds)
             ->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)
             ->whereIn('user_id', $facultyUserIds)
             ->orderBy('id')
@@ -169,13 +182,18 @@ class FacultyAvailabilityRequestService
 
         $package->loadMissing('term');
         $payload = is_array($event->payload) ? $event->payload : [];
+        if (blank($payload['due_at'] ?? null)) {
+            $this->markFailed($event, 'The request has no captured deadline. Review its exact-Term source before delivery.');
+
+            return;
+        }
 
         try {
             Mail::to($recipient)->queue(new FacultyAvailabilityRequestedMail(
                 operationalEventId: (int) $event->id,
                 recipientName: (string) $recipient->name,
                 termLabel: (string) $package->term?->label,
-                dueAt: CarbonImmutable::parse((string) $package->faculty_availability_due_at)
+                dueAt: CarbonImmutable::parse((string) ($payload['due_at'] ?? ''))
                     ->timezone(config('app.display_timezone'))
                     ->format('M j, Y g:i A').' Asia/Manila',
                 availabilityUrl: (string) ($payload['availability_url'] ?? MyAvailability::getUrl(['termId' => $package->term_id])),

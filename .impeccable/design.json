@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-11T00:40:28.7961583Z",
+  "title": "Design System: Servitech Institute Asia — TALA",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "shadow-surface-light",
+        "value": "0 1px 2px rgb(9 9 11 / 5%), 0 2px 6px -2px rgb(9 9 11 / 6%), 0 10px 24px -12px rgb(9 9 11 / 10%)",
+        "purpose": "Extracted shared light material depth."
+      },
+      {
+        "name": "shadow-overlay-light",
+        "value": "0 2px 4px rgb(9 9 11 / 6%), 0 12px 28px -6px rgb(9 9 11 / 16%), 0 24px 56px -16px rgb(9 9 11 / 18%)",
+        "purpose": "Extracted shared light material depth."
+      },
+      {
+        "name": "shadow-seated-light",
+        "value": "0 0 #0000",
+        "purpose": "Extracted shared light material depth."
+      },
+      {
+        "name": "inset-well-light",
+        "value": "inset 0 1px 2px rgb(9 9 11 / 7%)",
+        "purpose": "Extracted shared light material depth."
+      },
+      {
+        "name": "rim-inset-light",
+        "value": "inset 0 1px 0 var(--tala-rim)",
+        "purpose": "Extracted shared light material depth."
+      },
+      {
+        "name": "shadow-surface-dark",
+        "value": "0 1px 2px rgb(0 0 0 / 45%), 0 8px 20px -10px rgb(0 0 0 / 55%)",
+        "purpose": "Extracted shared dark material depth."
+      },
+      {
+        "name": "shadow-overlay-dark",
+        "value": "0 2px 6px rgb(0 0 0 / 40%), 0 20px 48px -12px rgb(0 0 0 / 70%)",
+        "purpose": "Extracted shared dark material depth."
+      },
+      {
+        "name": "shadow-seated-dark",
+        "value": "0 0 #0000",
+        "purpose": "Extracted shared dark material depth."
+      },
+      {
+        "name": "inset-well-dark",
+        "value": "inset 0 1px 2px rgb(0 0 0 / 35%)",
+        "purpose": "Extracted shared dark material depth."
+      },
+      {
+        "name": "rim-inset-dark",
+        "value": "inset 0 1px 0 var(--tala-rim)",
+        "purpose": "Extracted shared dark material depth."
+      },
+      {
+        "name": "navigation-depth-light",
+        "value": "inset 0 1px 0 rgb(255 255 255 / 28%), inset 0 -1px 0 rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 6%)",
+        "purpose": "Extracted shallow skeuomorphic Aqua-like buttons navigation depth."
+      },
+      {
+        "name": "navigation-depth-dark",
+        "value": "inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(0 0 0 / 22%), 0 1px 2px rgb(0 0 0 / 20%)",
+        "purpose": "Extracted shallow skeuomorphic Aqua-like buttons navigation depth."
+      }
+    ],
+    "motion": [
+      {
+        "name": "account-material-transition",
+        "value": "background-color 120ms, box-shadow 120ms",
+        "purpose": "Existing shared account hover transition; reduced motion retains instant feedback."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-text",
+        "value": "640px"
+      },
+      {
+        "name": "desktop-sidebar",
+        "value": "1024px"
+      }
+    ],
+    "sourceFiles": [
+      "public/css/tala-foundation.css",
+      "resources/css/filament/tala/theme.css",
+      "public/landing/css/styles.css",
+      "resources/views/components/tala-navigation.blade.php",
+      "resources/views/components/tala-timetable.blade.php",
+      "resources/css/tala-timetable.css",
+      "resources/css/tala-term-planning.css"
+    ],
+    "typographyMeta": {
+      "section": {
+        "displayName": "Native section heading",
+        "purpose": "Existing native 18px section headings are a documented shared type step; Inter and the approved identity remain."
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Skeuomorphic Aqua-like action button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Full skeuomorphic Aqua-like buttons variant; native semantic color, state and focus remain authoritative.",
+      "html": "<button class=\"ds-action\">Save changes</button>",
+      "css": ".ds-action{background:var(--tala-brand);color:var(--tala-on-brand);background-image:var(--tala-control-gloss);border:1px solid transparent;border-radius:8px;padding:8px 16px;min-height:44px;font:600 14px var(--tala-font-body);box-shadow:var(--tala-control-depth)}.ds-action:hover{background-color:var(--tala-brand-strong)}.ds-action:active{background-image:none;box-shadow:var(--tala-control-pressed)}.ds-action:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+    },
+    {
+      "name": "Editable field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Inset editable field; native validation rings take priority.",
+      "html": "<label class=\"ds-field\">Name<input placeholder=\"Enter name\"></label>",
+      "css": ".ds-field{display:grid;gap:6px;color:var(--tala-text);font:14px var(--tala-font-body)}.ds-field input{background:var(--tala-surface);color:var(--tala-text);border:1px solid var(--tala-control-border);border-radius:8px;padding:8px 12px;box-shadow:var(--tala-inset-well);font:inherit;min-height:28px}.ds-field input:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+    },
+    {
+      "name": "Content surface",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Solid readable content with one elevation per stack.",
+      "html": "<section class=\"ds-surface\"><strong>Application review</strong><p>Review the next action for this application.</p></section>",
+      "css": ".ds-surface{background:var(--tala-surface);color:var(--tala-text);border:1px solid var(--tala-edge);border-radius:12px;padding:24px;box-shadow:var(--tala-rim-inset),var(--tala-shadow-surface);font:14px/1.5 var(--tala-font-body)}.ds-surface p{color:var(--tala-muted);margin-bottom:0}"
+    },
+    {
+      "name": "Current location",
+      "kind": "nav",
+      "description": "Shallow skeuomorphic Aqua-like buttons navigation variant; current location is depressed/seated.",
+      "html": "<nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">Admissions</a><a href=\"#\">Term Planning</a></nav>",
+      "css": ".ds-nav{display:grid;gap:4px;background:var(--tala-chrome);padding:12px;border-radius:12px;font:14px var(--tala-font-body)}.ds-nav a{color:var(--tala-text);padding:10px;border-radius:8px;text-decoration:none;background-image:var(--tala-control-gloss);box-shadow:var(--tala-navigation-depth)}.ds-nav a[aria-current]{background:color-mix(in srgb,var(--tala-brand) 14%,var(--tala-surface));box-shadow:inset 0 0 0 1px var(--tala-selected-edge),var(--tala-control-pressed);font-weight:600}.ds-nav a:hover{background:var(--tala-surface-sunken)}.ds-nav a:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+    },
+    {
+      "name": "Tab selection",
+      "kind": "nav",
+      "description": "Shared native navigation with shallow skeuomorphic Aqua-like buttons and depressed current selection; callers own state and URLs.",
+      "html": "<nav class=\"ds-tabs\"><a href=\"#\" aria-current=\"page\">Application queue</a><a href=\"#\">Admission cycles</a></nav>",
+      "css": ".ds-tabs{display:flex;gap:4px;flex-wrap:wrap;background:var(--tala-surface-sunken);padding:8px;border:1px solid var(--tala-edge);border-radius:12px;box-shadow:var(--tala-inset-well);font:14px var(--tala-font-body)}.ds-tabs a{padding:8px 12px;border-radius:8px;color:var(--tala-muted);text-decoration:none;background:var(--tala-surface);background-image:var(--tala-control-gloss);box-shadow:var(--tala-navigation-depth)}.ds-tabs a[aria-current]{background:var(--tala-surface);color:var(--tala-text);font-weight:600;box-shadow:inset 0 0 0 1px var(--tala-selected-edge),var(--tala-control-pressed)}.ds-tabs a:hover{color:var(--tala-text)}.ds-tabs a:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+    },
+    {
+      "name": "Quiet record link",
+      "kind": "nav",
+      "description": "Ordinary record/source navigation retains text-link semantics and visible focus.",
+      "html": "<a class=\"ds-link\" href=\"#source\">Inspect calendar source</a>",
+      "css": ".ds-link{color:var(--tala-link);font:14px var(--tala-font-body);text-decoration:underline;text-underline-offset:.2em}.ds-link:hover{ text-decoration-thickness:2px}.ds-link:focus-visible{outline:2px solid var(--tala-focus);outline-offset:3px}"
+    },
+    {
+      "name": "Source status",
+      "kind": "chip",
+      "description": "Text identifies source state; color alone never establishes official publication or readiness.",
+      "html": "<span class=\"ds-status\">Official v1</span>",
+      "css": ".ds-status{display:inline-block;padding:4px 8px;color:var(--tala-text);background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:6px;font:12px var(--tala-font-body)}"
+    },
+    {
+      "name": "Opaque choice menu",
+      "kind": "custom",
+      "description": "Native menus retain their keyboard lifecycle; this specimen demonstrates shared solid material and name-first identity.",
+      "html": "<section class=\"ds-menu\"><button>Hospitality management <small>HR</small></button><button>Mathematics <small>Math</small></button></section>",
+      "css": ".ds-menu{background:var(--tala-overlay);color:var(--tala-text);border-radius:12px;padding:8px;box-shadow:var(--tala-shadow-overlay);font:14px var(--tala-font-body)}.ds-menu button{display:block;width:100%;text-align:start;padding:10px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit}.ds-menu small{color:var(--tala-muted)}.ds-menu button:hover{background:var(--tala-surface-sunken)}.ds-menu button:focus-visible{outline:2px solid var(--tala-focus);outline-offset:1px}"
+    },
+    {
+      "name": "Working records",
+      "kind": "custom",
+      "description": "Human identity leads; comparable quantities align with tabular numerals and structural dividers.",
+      "html": "<table class=\"ds-records\"><tr><th>Course</th><th>Weekly meetings</th></tr><tr><td>Mathematics<br><small>Class reference</small></td><td>2</td></tr></table>",
+      "css": ".ds-records{width:100%;border-collapse:collapse;text-align:start;color:var(--tala-text);font:14px/1.5 var(--tala-font-body);font-variant-numeric:tabular-nums}.ds-records th,.ds-records td{padding:12px;border-bottom:1px solid var(--tala-edge)}.ds-records th,.ds-records small{color:var(--tala-muted)}"
+    },
+    {
+      "name": "Meeting inspection",
+      "kind": "button",
+      "description": "Course/time/location-first command opens a native bounded details dialog; it is not a toggle.",
+      "html": "<button class=\"ds-meeting\"><strong>Mathematics</strong><span>Monday 8:00–9:00 AM</span><span>Room 1</span></button>",
+      "css": ".ds-meeting{display:grid;gap:4px;width:100%;text-align:start;background:var(--tala-surface-sunken);color:var(--tala-text);padding:12px;border:1px solid var(--tala-edge);border-radius:8px;font:14px var(--tala-font-body)}.ds-meeting span{color:var(--tala-muted)}.ds-meeting:hover{border-color:var(--tala-control-border)}.ds-meeting:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Clear Institutional Operations",
+    "overview": "Use neutral light/dark surfaces, green-led primary actions, supporting TALA blue, Inter typography, and restrained tactile controls. Preserve institutional artwork, framework boundaries, and evidence-backed UX review. Servitech Institute Asia Inc. leads; TALA appears secondarily as “Powered by TALA” outside the Applicant panel and its account-entry pages, following the October 10 owner decisions F65/F66 (Issue #59 D3/D2).\n\nEach operating surface makes its task, current state, responsible owner, primary action, and recovery path easy to understand. Assess existing screens and prototype specimens against the owning product and UI contracts. Laravel Boost and installed-version official framework documentation are the primary implementation references; the official Filament demo provides optional examples of native composition and behavior. `00_Project_Documents/design-evidence/layout/` supplies supporting visual evidence. Current visual decisions belong to this document and the UI Surface Blueprint. Use native Heroicons for production interface icons.",
+    "keyCharacteristics": [
+      "Neutral surfaces, green-led actions, supporting TALA blue, restrained gold/yellow cues, and full-color institutional artwork.",
+      "Clear hierarchy and task-oriented language across public, Applicant, Student, Faculty, and Staff experiences.",
+      "Operational layouts suited to the information being used, not a universal dense-table or card pattern.",
+      "Formal, version-bound, monochrome-capable official outputs with the school as issuer."
+    ],
+    "rules": [
+      "TALA uses one material grammar across Filament and Bootstrap. Call the existing control family **skeuomorphic Aqua-like buttons** consistently. Action buttons, eligible icon actions, the account trigger, public menu trigger and action-style links use its full highlight, lower edge, modest elevation and depressed press state. Frequently used sidebar navigation, native tabs/task selectors, theme selection and pagination use a shallower member of the same family; the current choice stays depressed/seated and distinguishable from an action. These priorities follow task structure, not measured usage telemetry. Editable fields and standalone navigation tracks use inset depth. Surfaces hold content: solid, softly elevated and hairline-edged, with a top rim in dark appearance. Floating menus and search results use solid opaque overlays with no backdrop blur. Reuse the explicit foundation selector whitelist; ordinary text links, menu rows, record expansion, input-affix icons, notification close, section toggles, sort headers, wizard steps and reorder handles retain quiet native presentation. Preserve native semantic palettes, focus, loading/disabled meaning and forced-colors behavior. Shared delayed table indicators reflect real pending work without hiding existing results.",
+      "**Shared component principle:** Similar intent across areas and roles consumes the same installed component and shared styling. Prefer native framework reuse over a parallel component library. `x-tala-navigation` is a thin layout/attribute wrapper around `x-filament::tabs`; native `tabs.item` owns links, buttons, current state, icons and badges. Term timetable view selectors, Grades, Student Academics and Student Enrollment consume it; Term workspace pages consume the existing cluster navigation provider through that native tabs wrapper after the selected-Term context; native resource tabs in Admissions/Enrollments/Payments/Applicant Intakes already consume the underlying shared components. Keep labels, summaries, URLs, authorization and state in the owning surface. Keep ordinary view navigation distinct from wizard progression, disclosures and an ARIA tab widget with its own keyboard contract. Extract an additional abstraction only for demonstrated repeated intent, never to replace framework behavior or create speculative variants. Public Bootstrap uses its own native components with shared foundation tokens.",
+      "The shared ladder is canvas → neutral chrome → solid content surface → floating overlay. Preserve the owner's approved light palette and existing action finish. Dark appearance uses explicit lightness separation, stronger rim/edge definition and soft shadow; more shadow alone cannot separate near-black layers. Its canvas/chrome/content/overlay values are `#111114`/`#1B1B20`/`#242429`/`#303036`, with sunken fields/tracks `#16161A`. Keep one visible elevation per nested content stack. Navigation chrome stays opaque and neutral. Skeuomorphic Aqua-like buttons use full action and shallow navigation variants, with seated current states; inset fields communicate editing. Native validation and focus rings remain authoritative. Check text across the brightest gloss stop as well as the base fill; native inactive/selected navigation labels in dark mode use readable shared muted/primary-300 values.",
+      "Data hierarchy: show scope and purpose, working records and critical facts, truthful state and next action, then supporting detail and technical/history evidence. Missing or unmeasured is unavailable, never zero. A deadline or record count does not establish complete readiness. Use one shared candidate/official timetable with frozen source geometry, accurate durations, visible overlaps and captured institutional breaks, a whole-Term captured student-group-by-day overview, focused section/teacher/room weekly views and an equivalent native meeting list. Native persistent Overview, Calendar, Sections & classes, Faculty & rooms and Timetable cluster navigation replaces the former numbered task cards. Program/year coverage is source-backed and advisory where not set up; shared classes count once globally. Student section means TermCohort, class means the course offering. No learner classification or home year is inferred. Choose owned record pages, contextual creation/preparation slide-overs and centered atomic command modals by task intent; calendar recording uses a focused native wizard. Preserve context and explicit return paths. Existing class confirmation/cohort/demand guards remain; grading-teacher assignment belongs to Grades & Completion. Learner categories and individual advising retain PRD 04 authority. These directions record local scope, with rendered verification Partial/Unverified until the owning review checks them.",
+      "Equivalent commands, selections, record inspections and record-management destinations share native components and interaction behavior across roles. Role authorization controls available work, rather than changing what an identically named control does.",
+      "Classes and Student sections use the same role-safe Class details dialog. Linked-class inspection resolves the exact-Term class source independently of Classes-only filters; sustained Registrar management is separately permission-bound. Meeting details retains command semantics. Each role keeps its own task hierarchy while sharing controls.",
+      "Connected #58 role composition: one exact-Term scope region, native task navigation, actual records. Faculty uses the compact centered task pair; Head inspects selected-Term source rows and institution-wide curriculum separately. Shallow tactile selections remain depressed when current; Print is gray, modifying commands green. Course titles precede codes. Display uses 12-hour Asia/Manila time while source minutes/geometry remain unchanged. A bounded keyboard-accessible full-window calendar retains all meetings/overlaps/breaks with sticky day/time references and a visible range; mobile has an equivalent agenda. Native generation scope table uses a bounded focusable named horizontal-scroll region, preserves all rows/empty advisories and counts shared classes once; display filters do not narrow generation. Required history/source/criteria and role ownership remain. Owner acceptance OPEN. Initial Medium review failed quota; fresh Light independent disposition: ship for eight role captures, inspected dialogs/output and refreshed generation only; root supplies browser journeys. No whole-app acceptance, new score or measured contrast/zoom/motion/performance claim.",
+      "October 11 owner refinement supersedes affected ship findings; acceptance OPEN. Native Faculty filters: explicit width, max two columns/full-span Course/mobile one, searchable owned options, gray Reset. Term leads stacked status/source, exams secondary only on Schedule. Green opaque Aqua-like meeting inspection preserves geometry and does not imply validity. ALL modal X controls use utility Aqua-like material, overriding the quiet-close whitelist. Linked course-specification title and course/class/room codes share owned screen/output search. Schedule & Availability is the approved consolidated navigation with Grade Rosters and task aliases retained. Availability purpose/request/due/Submit/Correct leads; progressive weekly Yes/No is UI-only, seeds one blank row, validates minimum one and retains drafts. Read-only own history re-resolves actor/Term and shows complete stored response without invented request association. PRD rules unchanged; root owns browser review and Issue writes."
+    ],
+    "dos": [
+      "Lead visible school services and official documents with Servitech Institute Asia Inc.; keep “Powered by TALA” secondary outside the Applicant panel and its account-entry pages. Preserve official-output “Generated through TALA” attribution.",
+      "Apply the October 2 school-first visual direction while refining terminology, workflow, hierarchy, and components where evidence warrants it.",
+      "Preserve native Light/Dark/System behavior, readable contrast, visible focus, and meaning that does not depend on color alone.",
+      "Choose a component for the user's task; use focused custom UI within Laravel/Filament when native presentation is inadequate."
+    ],
+    "donts": [
+      "Treat historical prototype layouts or today's production screens as automatically approved compositions.",
+      "Force scheduling into a table-only view, or use a visual grid without an accessible equivalent.",
+      "Add decorative density, redundant cards, or arbitrary new theme elements that slow ordinary tasks."
+    ]
+  }
+}

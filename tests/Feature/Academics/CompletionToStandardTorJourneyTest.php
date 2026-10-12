@@ -19,7 +19,6 @@ use App\Actions\Grades\SaveFinalGradeResult;
 use App\Actions\Grades\SubmitGradeRoster;
 use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Mail\AcademicRecordChangedMail;
-use App\Models\CalendarEvent;
 use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
@@ -35,6 +34,8 @@ use App\Models\Section;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\TranscriptIssuanceEvent;
 use App\Models\TranscriptRequest;
@@ -377,12 +378,15 @@ class CompletionToStandardTorJourneyTest extends TestCase
             'units_snapshot' => $specification->credit_units,
             'added_at' => now(),
         ]);
-        CalendarEvent::factory()->create([
-            'term_id' => $term->id,
-            'process_key' => 'grade_entry',
-            'state' => CalendarEvent::StateActive,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => now(),
+        ]);
+        TermCalendarWindow::factory()->for($package, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeGradeEntry,
+            'opens_on' => now()->subDay()->toDateString(),
+            'closes_on' => now()->addDay()->toDateString(),
+            'cutoff_at' => '23:59:59',
         ]);
 
         return compact('registrar', 'accounting', 'faculty', 'student', 'term', 'section');

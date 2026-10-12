@@ -13,15 +13,15 @@ class FacultyTermLoadOverrideInfolist
     {
         return $schema
             ->components([
-                Section::make('Approved Term Load Override')
+                Section::make('Approved Faculty load')
                     ->schema([
                         TextEntry::make('faculty.name')->label('Faculty'),
                         TextEntry::make('term.label')->label('Term'),
                         TextEntry::make('default_max_units_snapshot')
-                            ->label('Default Max Units')
+                            ->label('Base teaching-load limit (units)')
                             ->numeric(decimalPlaces: 2),
                         TextEntry::make('approved_overload_units')
-                            ->label('Approved Overload')
+                            ->label('Approved additional units')
                             ->numeric(decimalPlaces: 2),
                         TextEntry::make('authority'),
                         IconEntry::make('is_active')->label('Active')->boolean(),

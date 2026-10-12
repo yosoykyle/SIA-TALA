@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SchedulingDemands;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\SchedulingDemands\Pages\ListSchedulingDemands;
 use App\Filament\Resources\SchedulingDemands\Pages\ViewSchedulingDemand;
 use App\Filament\Resources\SchedulingDemands\Schemas\SchedulingDemandInfolist;
@@ -17,6 +18,8 @@ use UnitEnum;
 
 class SchedulingDemandResource extends Resource
 {
+    protected static ?string $cluster = TermPlanningCluster::class;
+
     protected static ?string $model = SchedulingDemand::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
@@ -40,10 +43,7 @@ class SchedulingDemandResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleAcademicHead,
-        ]) ?? false;
+        return false;
     }
 
     public static function infolist(Schema $schema): Schema

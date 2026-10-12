@@ -1,7 +1,6 @@
 <div class="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-sm dark:border-white/10 dark:bg-gray-800/60">
     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3 dark:border-white/10">
         <div>
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Target Term</span>
             <h3 class="text-base font-semibold text-slate-900 dark:text-white">
                 {{ $term->academicYear?->label }} · {{ $term->label }}
             </h3>
@@ -71,7 +70,7 @@
                 </ul>
             @else
                 <p class="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
-                    All calendar authority, date bounds, operational windows, and teaching grid checks have passed. Ready for activation.
+                    Core authority, dates, teaching grid, breaks and exceptions passed. Entered operational dates are checked; missing dates block their consuming action only.
                 </p>
             @endif
         </div>
@@ -108,7 +107,7 @@
                 @foreach ($missingCoreTypes as $missingType)
                     <div class="rounded-md border border-dashed border-amber-300 bg-amber-50/50 p-2.5 dark:border-amber-500/30 dark:bg-amber-950/20">
                         <p class="font-medium text-amber-900 dark:text-amber-200">{{ $typeLabels[$missingType] ?? $missingType }}</p>
-                        <p class="text-xs text-amber-700 dark:text-amber-400">Not recorded</p>
+                        <p class="text-xs text-amber-700 dark:text-amber-400">Dates not configured · Registrar supplies approved dates for this action.</p>
                     </div>
                 @endforeach
             </div>

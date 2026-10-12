@@ -31,6 +31,7 @@ use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\TimetableRevision;
 use App\Models\User;
@@ -92,6 +93,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($owned['faculty'])
             ->test(FacultySchedule::class)
+            ->set('scheduleView', 'list')
             ->assertCanSeeTableRecords([$owned['meeting']])
             ->assertCanNotSeeTableRecords([
                 $other['meeting'],
@@ -234,10 +236,12 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
         $currentMeeting = SectionMeeting::query()->findOrFail($events->sole()->section_meeting_id);
         Livewire::actingAs($fixture['faculty'])
             ->test(FacultySchedule::class)
+            ->set('scheduleView', 'list')
             ->assertCanNotSeeTableRecords([$fixture['meeting']]);
 
         Livewire::actingAs($replacementFaculty)
             ->test(FacultySchedule::class)
+            ->set('scheduleView', 'list')
             ->assertCanSeeTableRecords([$currentMeeting])
             ->assertSee('Tuesday')
             ->assertSee('9:00 AM - 12:00 PM')
@@ -267,6 +271,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixture['faculty'])
             ->test(FacultySchedule::class)
+            ->set('scheduleView', 'list')
             ->assertCanSeeTableRecords([$fixture['meeting']]);
         Livewire::actingAs($fixture['student'])
             ->test(ScheduleView::class)
@@ -294,6 +299,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixture['faculty'])
             ->test(FacultySchedule::class)
+            ->set('scheduleView', 'list')
             ->assertCanNotSeeTableRecords([$fixture['meeting']]);
         Livewire::actingAs($fixture['student'])
             ->test(ScheduleView::class)
@@ -358,6 +364,17 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             'state' => Term::StateActive,
             'default_max_units' => 21.00,
         ]);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        foreach ([1, 2, 3, 4, 5, 6] as $day) {
+            $package->teachingGridRows()->create([
+                'day_of_week' => $day,
+                'starts_at' => '07:00:00',
+                'ends_at' => '21:00:00',
+                'breaks' => [],
+            ]);
+        }
         $curriculum = CurriculumVersion::factory()
             ->for($studentContext['program'])
             ->create(['state' => CurriculumVersion::StateActive]);

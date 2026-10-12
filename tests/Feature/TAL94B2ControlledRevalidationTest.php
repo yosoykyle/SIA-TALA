@@ -25,6 +25,7 @@ use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -193,7 +194,8 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
         $this->assertValidationCode($fixed, 'fixed_day_mismatch');
 
         $grid = $this->context();
-        $grid['term']->update(['scheduling_day_starts_at' => '09:00:00']);
+        TermCalendarPackage::query()->where('term_id', $grid['term']->id)->firstOrFail()
+            ->teachingGridRows()->update(['starts_at' => '09:00:00']);
         $this->assertValidationCode($grid, 'assignment_outside_operating_grid');
 
         $load = $this->context();
@@ -379,6 +381,17 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
             'state' => Term::StateActive,
             'default_max_units' => 21.00,
         ]);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        foreach ([1, 2, 3, 4, 5, 6] as $day) {
+            $package->teachingGridRows()->create([
+                'day_of_week' => $day,
+                'starts_at' => '07:00:00',
+                'ends_at' => '21:00:00',
+                'breaks' => [],
+            ]);
+        }
         $faculty = $this->staff(User::StaffRoleFaculty);
         $room = Room::factory()->create([
             'code' => 'B2-R'.$this->contextCounter,

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sections;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\Sections\Pages\CreateSection;
 use App\Filament\Resources\Sections\Pages\EditSection;
 use App\Filament\Resources\Sections\Pages\ListSections;
@@ -11,7 +12,6 @@ use App\Filament\Resources\Sections\Schemas\SectionForm;
 use App\Filament\Resources\Sections\Schemas\SectionInfolist;
 use App\Filament\Resources\Sections\Tables\SectionsTable;
 use App\Models\Section;
-use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -21,13 +21,19 @@ use UnitEnum;
 
 class SectionResource extends Resource
 {
+    protected static ?string $cluster = TermPlanningCluster::class;
+
     protected static ?string $model = Section::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
     protected static string|UnitEnum|null $navigationGroup = 'Registrar';
 
-    protected static ?string $navigationLabel = 'Section Planning';
+    protected static ?string $navigationLabel = 'Classes';
+
+    protected static ?string $modelLabel = 'class';
+
+    protected static ?string $pluralModelLabel = 'classes';
 
     protected static ?int $navigationSort = 29;
 
@@ -35,7 +41,7 @@ class SectionResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false;
+        return false;
     }
 
     public static function form(Schema $schema): Schema

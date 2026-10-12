@@ -28,6 +28,7 @@ use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\TimetableRevision;
 use App\Models\User;
@@ -350,6 +351,17 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
             'state' => Term::StateActive,
             'default_max_units' => 21.00,
         ]);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        foreach ([1, 2, 3, 4, 5, 6] as $day) {
+            $package->teachingGridRows()->create([
+                'day_of_week' => $day,
+                'starts_at' => '07:00:00',
+                'ends_at' => '21:00:00',
+                'breaks' => [],
+            ]);
+        }
         $faculty = $this->staff(User::StaffRoleFaculty);
         $room = Room::factory()->create([
             'code' => 'D3B-R'.$this->contextCounter.'A',

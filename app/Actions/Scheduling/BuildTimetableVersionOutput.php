@@ -2,6 +2,7 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Models\CourseComponent;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
@@ -81,7 +82,7 @@ final class BuildTimetableVersionOutput
                 'course' => (string) $meeting->schedulingDemand?->courseComponent?->courseSpecification?->course?->code,
                 'description' => (string) $meeting->schedulingDemand?->courseComponent?->courseSpecification?->title,
                 'section' => (string) $meeting->classOffering?->code,
-                'component' => str((string) $meeting->schedulingDemand?->courseComponent?->component_type)->headline()->toString(),
+                'component' => CourseComponent::typeOptions()[$meeting->schedulingDemand?->courseComponent?->component_type] ?? str((string) $meeting->schedulingDemand?->courseComponent?->component_type)->lower()->headline()->toString(),
                 'day' => SectionMeeting::dayOptions()[(int) $meeting->day_of_week] ?? 'Unscheduled',
                 'time' => $this->timeRange($meeting),
                 'room' => $this->roomLabel($meeting),

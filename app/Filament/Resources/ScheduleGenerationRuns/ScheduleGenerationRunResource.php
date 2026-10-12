@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ScheduleGenerationRuns;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\CandidateRowsRelationManager;
@@ -19,6 +20,8 @@ use UnitEnum;
 
 class ScheduleGenerationRunResource extends Resource
 {
+    protected static ?string $cluster = TermPlanningCluster::class;
+
     protected static ?string $model = ScheduleGenerationRun::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCpuChip;
@@ -40,10 +43,7 @@ class ScheduleGenerationRunResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleAcademicHead,
-        ]) ?? false;
+        return false;
     }
 
     public static function infolist(Schema $schema): Schema

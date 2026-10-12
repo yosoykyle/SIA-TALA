@@ -2,11 +2,11 @@
 
 namespace App\Filament\Resources\Rooms;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\Rooms\Pages\CreateRoom;
 use App\Filament\Resources\Rooms\Pages\EditRoom;
 use App\Filament\Resources\Rooms\Pages\ListRooms;
 use App\Filament\Resources\Rooms\Pages\ViewRoom;
-use App\Filament\Resources\Rooms\RelationManagers\FeaturesRelationManager;
 use App\Filament\Resources\Rooms\Schemas\RoomForm;
 use App\Filament\Resources\Rooms\Schemas\RoomInfolist;
 use App\Filament\Resources\Rooms\Tables\RoomsTable;
@@ -22,6 +22,8 @@ use UnitEnum;
 
 class RoomResource extends Resource
 {
+    protected static ?string $cluster = TermPlanningCluster::class;
+
     protected static ?string $model = Room::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2;
@@ -41,6 +43,11 @@ class RoomResource extends Resource
         }
 
         return 'Registrar';
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
     }
 
     public static function form(Schema $schema): Schema
@@ -68,9 +75,7 @@ class RoomResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            FeaturesRelationManager::class,
-        ];
+        return [];
     }
 
     public static function getPages(): array

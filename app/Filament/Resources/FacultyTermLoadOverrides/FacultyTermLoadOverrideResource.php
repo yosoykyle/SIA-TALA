@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\FacultyTermLoadOverrides;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\FacultyTermLoadOverrides\Pages\CreateFacultyTermLoadOverride;
 use App\Filament\Resources\FacultyTermLoadOverrides\Pages\EditFacultyTermLoadOverride;
 use App\Filament\Resources\FacultyTermLoadOverrides\Pages\ListFacultyTermLoadOverrides;
@@ -21,6 +22,8 @@ use UnitEnum;
 
 class FacultyTermLoadOverrideResource extends Resource
 {
+    protected static ?string $cluster = TermPlanningCluster::class;
+
     protected static ?string $model = FacultyTermLoadOverride::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
@@ -44,6 +47,11 @@ class FacultyTermLoadOverrideResource extends Resource
         }
 
         return 'Registrar';
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
     }
 
     public static function form(Schema $schema): Schema

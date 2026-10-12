@@ -27,6 +27,8 @@ use Illuminate\Support\Facades\Gate;
 
 class MembersRelationManager extends RelationManager
 {
+    protected static bool $isLazy = false;
+
     protected static string $relationship = 'members';
 
     public function form(Schema $schema): Schema

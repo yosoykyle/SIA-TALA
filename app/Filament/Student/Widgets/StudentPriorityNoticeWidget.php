@@ -9,6 +9,8 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class StudentPriorityNoticeWidget extends BaseWidget
 {
+    protected static bool $isLazy = false;
+
     protected static ?int $sort = -1;
 
     protected ?string $pollingInterval = null;

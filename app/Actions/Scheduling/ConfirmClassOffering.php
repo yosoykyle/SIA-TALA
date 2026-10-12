@@ -5,9 +5,11 @@ namespace App\Actions\Scheduling;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumVersion;
 use App\Models\Section;
+use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCohort;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -28,9 +30,17 @@ final class ConfirmClassOffering
         return DB::transaction(function () use ($section, $actor, $cohortExpectedCounts, $additionalAuthorityReference): Section {
             $locked = Section::query()->whereKey($section)->lockForUpdate()->firstOrFail();
             Gate::forUser($actor)->authorize('update', $locked);
-            $locked->loadMissing(['calendarPackage', 'courseRevision.course', 'cohorts']);
+            $locked->loadMissing(['calendarPackage.term', 'termOffering', 'courseRevision.course', 'cohorts']);
 
-            if ($locked->calendarPackage?->state !== TermCalendarPackage::StateActive) {
+            if (in_array($locked->state, [Section::StateClosed, Section::StateCancelled], true)
+                || $locked->calendarPackage?->term?->state === Term::StateClosed
+                || ($locked->termOffering !== null && $locked->calendarPackage !== null
+                    && (int) $locked->termOffering->term_id !== (int) $locked->calendarPackage->term_id)) {
+                throw ValidationException::withMessages(['section' => 'Confirmation requires an available class in its exact open Term.']);
+            }
+
+            $active = $locked->calendarPackage ? TermCalendarPackage::query()->where('term_id', $locked->calendarPackage->term_id)->where('state', TermCalendarPackage::StateActive)->lockForUpdate()->first() : null;
+            if (! $active || ! $locked->calendarPackage->isActivatedCoreSource() || $locked->calendarPackage->coreSignature() !== $active->coreSignature()) {
                 throw ValidationException::withMessages(['calendar_package' => 'Class confirmation requires the active package for this exact Term.']);
             }
 
@@ -84,6 +94,16 @@ final class ConfirmClassOffering
                 throw ValidationException::withMessages(['authority_reference' => 'An Additional Class Offering requires its external authority reference.']);
             }
 
+            if ($locked->confirmed_at !== null) {
+                $currentCounts = $locked->cohorts->pluck('pivot.expected_count', 'id')->all();
+                if ($currentCounts != $cohortExpectedCounts
+                    || ($additionalAuthorityReference !== null && $additionalAuthorityReference !== $locked->authority_reference)) {
+                    throw ValidationException::withMessages(['cohorts' => 'Confirmed class facts have changed. Refresh the class before continuing.']);
+                }
+
+                return $locked;
+            }
+
             $locked->cohorts()->sync(collect($cohortExpectedCounts)->mapWithKeys(
                 fn (int $expected, int|string $cohortId): array => [(int) $cohortId => ['expected_count' => $expected]],
             )->all());
@@ -94,6 +114,54 @@ final class ConfirmClassOffering
             ])->save();
 
             return $locked->fresh(['cohorts', 'calendarPackage', 'courseRevision']);
+        }, attempts: 5);
+    }
+
+    /**
+     * Confirm a batch of class offerings in a single transaction.
+     *
+     * @param  list<array{section: Section, cohort_counts: array<int, int>, authority_reference?: string|null}>  $items
+     * @return Collection<int, Section>
+     *
+     * @throws ValidationException
+     */
+    public function batch(User $actor, array $items, ?int $expectedTermId = null): Collection
+    {
+        if ($items === []) {
+            return collect();
+        }
+
+        return DB::transaction(function () use ($actor, $items, $expectedTermId): Collection {
+            $seenReferences = [];
+            $seenIds = [];
+            $batchTermId = $expectedTermId;
+            $lockedItems = [];
+
+            foreach ($items as $index => $item) {
+                $section = $item['section'] ?? null;
+                if (! $section instanceof Section || ! $section->exists) {
+                    throw ValidationException::withMessages(["items.{$index}.section" => 'An existing Class Offering is required.']);
+                }
+                $locked = Section::query()->whereKey($section)->lockForUpdate()->firstOrFail();
+                Gate::forUser($actor)->authorize('update', $locked);
+                $locked->load(['calendarPackage', 'termOffering']);
+                $sectionTermId = $locked->calendarPackage?->term_id;
+                if ($sectionTermId === null || ($batchTermId !== null && (int) $sectionTermId !== (int) $batchTermId)) {
+                    throw ValidationException::withMessages(["items.{$index}.section" => 'All classes must belong to the selected exact Term.']);
+                }
+                $batchTermId = (int) $sectionTermId;
+                $reference = $locked->class_reference ?: $locked->code;
+                if (in_array($reference, $seenReferences, true) || in_array($locked->id, $seenIds, true)) {
+                    throw ValidationException::withMessages(["items.{$index}.class_reference" => 'Each Class Offering must appear only once in the batch.']);
+                }
+                $seenReferences[] = $reference;
+                $seenIds[] = $locked->id;
+                $lockedItems[] = [...$item, 'section' => $locked];
+            }
+
+            return collect($lockedItems)->map(fn (array $item): Section => $this->execute(
+                $item['section'], $actor, $item['cohort_counts'] ?? [], $item['authority_reference'] ?? null,
+            ));
         }, attempts: 5);
     }
 }

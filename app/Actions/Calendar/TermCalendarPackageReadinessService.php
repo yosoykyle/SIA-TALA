@@ -21,10 +21,6 @@ final class TermCalendarPackageReadinessService
             $blockers[] = $this->blocker('calendar_authority_missing', 'Term Calendar Package', 'Registrar', 'The external calendar authority is incomplete.', 'Record its approval reference and date.', 'Correct the Draft package and retry activation.');
         }
 
-        if ($package->faculty_availability_due_at === null) {
-            $blockers[] = $this->blocker('faculty_availability_deadline_missing', 'Teaching resources', 'Registrar', 'The Faculty availability deadline is missing.', 'Record the exact action deadline before requesting declarations.', 'Correct the Draft package and retry activation.');
-        }
-
         $administrativeStartsOn = CarbonImmutable::parse((string) $package->administrative_starts_on);
         $administrativeEndsOn = CarbonImmutable::parse((string) $package->administrative_ends_on);
         $classesStartOn = CarbonImmutable::parse((string) $package->classes_start_on);
@@ -37,35 +33,14 @@ final class TermCalendarPackageReadinessService
             $blockers[] = $this->blocker('calendar_bounds_invalid', 'Term Calendar Package', 'Registrar', 'Administrative and class dates are contradictory.', 'Correct the inclusive date bounds.', 'Retain the Draft package until all date bounds are valid.');
         }
 
-        $facultyAvailabilityDueAt = $package->faculty_availability_due_at === null
-            ? null
-            : CarbonImmutable::parse((string) $package->faculty_availability_due_at);
-
-        if ($facultyAvailabilityDueAt !== null
-            && ($facultyAvailabilityDueAt->lt($administrativeStartsOn->startOfDay())
-                || $facultyAvailabilityDueAt->gt($classesStartOn->endOfDay()))) {
-            $blockers[] = $this->blocker('faculty_availability_deadline_invalid', 'Teaching resources', 'Registrar', 'The Faculty availability deadline is outside the approved planning interval.', 'Place the deadline within the administrative start and class-start bounds.', 'Correct the Draft package and retry activation.');
-        }
-
-        foreach ([TermCalendarWindow::TypeEnrollment, TermCalendarWindow::TypeExaminationPeriod, TermCalendarWindow::TypeGradeEntry] as $windowType) {
-            $window = $package->windows->firstWhere('window_type', $windowType);
-
-            if ($window === null
-                || CarbonImmutable::parse((string) $window->closes_on)
-                    ->lt(CarbonImmutable::parse((string) $window->opens_on))) {
-                $blockers[] = $this->blocker('window_'.strtolower($windowType).'_invalid', 'Operational windows', 'Registrar', "The {$windowType} window is missing or invalid.", "Record a valid {$windowType} window.", 'Correct the Draft package and retry activation.');
-            }
-        }
-
         foreach ($package->windows as $window) {
             $opensOn = CarbonImmutable::parse((string) $window->opens_on);
             $closesOn = CarbonImmutable::parse((string) $window->closes_on);
 
             if (! array_key_exists($window->window_type, TermCalendarWindow::typeOptions())
                 || $closesOn->lt($opensOn)
-                || $opensOn->lt($administrativeStartsOn)
-                || $closesOn->gt($administrativeEndsOn)) {
-                $blockers[] = $this->blocker('operational_window_invalid', 'Operational windows', 'Registrar', 'An operational window has an unsupported type or falls outside the exact-Term administrative bounds.', 'Correct the affected window without inferring dates from another Term.', 'Retain the Draft package until every window is valid.');
+                || ($window->cutoff_at !== null && ! preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/', (string) $window->cutoff_at))) {
+                $blockers[] = $this->blocker('operational_window_invalid', 'Operational windows', 'Registrar', 'An entered operational window has an unsupported type, contradictory dates or invalid cutoff.', 'Correct the affected dates against this exact Term\'s approved consumer period and calendar authority.', 'Retain the Draft package until every entered window is valid.');
                 break;
             }
         }
@@ -78,7 +53,7 @@ final class TermCalendarPackageReadinessService
             $starts = strtotime((string) $row->starts_at);
             $ends = strtotime((string) $row->ends_at);
 
-            if ($starts === false || $ends === false || $ends <= $starts || ($starts % 1800) !== 0 || ($ends % 1800) !== 0) {
+            if ($row->day_of_week < 1 || $row->day_of_week > 7 || $starts === false || $ends === false || $ends <= $starts || ($starts % 1800) !== 0 || ($ends % 1800) !== 0) {
                 $blockers[] = $this->blocker('teaching_grid_invalid', 'Weekly teaching grid', 'Registrar', 'A teaching-grid row is contradictory or not aligned to the fixed 30-minute grid.', 'Correct the affected teaching day.', 'Retain the Draft package until the grid is valid.');
                 break;
             }
@@ -134,7 +109,17 @@ final class TermCalendarPackageReadinessService
             $blocksTeaching = (bool) $exception->blocks_teaching;
             $normalizedType = strtolower(str_replace([' ', '_', '-'], '', (string) $exception->exception_type));
 
+            if (($normalizedType === 'informationonly' && $blocksTeaching)
+                || ($normalizedType === 'noclasses' && ! $blocksTeaching)
+                || ($normalizedType === 'makeupallowed' && $blocksTeaching)) {
+                $blockers[] = $this->blocker('dated_exception_effect_invalid', 'Dated exceptions', 'Registrar', 'A dated exception contradicts its recorded instructional effect.', 'Correct the NoClasses, MakeUpAllowed or InformationOnly effect against the approved source.', 'Retain the Draft package until the exception is consistent.');
+                break;
+            }
+
             foreach ($exceptionsList as $existingEx) {
+                if ($normalizedType === 'informationonly' || $existingEx['type'] === 'informationonly') {
+                    continue;
+                }
                 if ($exStarts->lte($existingEx['ends']) && $exEnds->gte($existingEx['starts'])) {
                     $isConflict = false;
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\CalendarEvents;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\CalendarEvents\Pages\CreateCalendarEvent;
 use App\Filament\Resources\CalendarEvents\Pages\EditCalendarEvent;
 use App\Filament\Resources\CalendarEvents\Pages\ListCalendarEvents;
@@ -19,6 +20,8 @@ use UnitEnum;
 
 class CalendarEventResource extends Resource
 {
+    protected static ?string $cluster = TermPlanningCluster::class;
+
     protected static ?string $model = CalendarEvent::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
@@ -36,21 +39,21 @@ class CalendarEventResource extends Resource
     {
         return self::isFacultyWorkspace()
             ? 'My Unavailable Times'
-            : 'Scheduling Blocks';
+            : 'Weekly unavailable times';
     }
 
     public static function getModelLabel(): string
     {
         return self::isFacultyWorkspace()
             ? 'unavailable time'
-            : 'scheduling block';
+            : 'weekly unavailable time';
     }
 
     public static function getPluralModelLabel(): string
     {
         return self::isFacultyWorkspace()
             ? 'unavailable times'
-            : 'scheduling blocks';
+            : 'weekly unavailable times';
     }
 
     public static function getNavigationGroup(): string|UnitEnum|null

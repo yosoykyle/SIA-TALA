@@ -1,0 +1,7 @@
+@if ($coverage)
+    <div class="tala-generation-content space-y-4 text-sm">
+        <p><strong>{{ $coverage['summary']['class_count'] }} unique {{ $coverage['summary']['class_count'] === 1 ? 'class' : 'classes' }} · {{ $coverage['summary']['section_count'] }} {{ $coverage['summary']['section_count'] === 1 ? 'student section' : 'student sections' }} · {{ $coverage['summary']['meeting_count'] }} weekly {{ $coverage['summary']['meeting_count'] === 1 ? 'meeting' : 'meetings' }}</strong></p>
+        <div class="tala-record-table" tabindex="0" role="region" aria-label="Recorded whole-Term scope. Scroll horizontally for all columns."><table class="tala-planning-table tala-generation-scope"><caption class="sr-only">Recorded whole-Term generation scope</caption><thead><tr><th scope="col">Program</th><th scope="col">Curriculum year</th><th scope="col">Classes</th><th scope="col">Meetings</th><th scope="col">Status</th></tr></thead><tbody>            @foreach (array_merge($coverage['rows'], $coverage['additional']) as $row)<tr><th scope="row">{{ $row['program_name'] }}</th><td>{{ $row['year_level'] ?: 'Year not associated' }}</td><td>{{ $row['class_count'] }}</td><td>{{ $row['meeting_count'] }}</td><td>{{ $row['status'] }}@if (! $row['class_count'])<span>No classes to generate</span>@endif</td></tr>@endforeach        </tbody></table></div>
+        <p>Shared classes count once. Display filters do not narrow this scope. Rows without classes remain advisory.</p>
+    </div>
+@endif

@@ -28,7 +28,11 @@ class TestConnectionMail extends Mailable
         $app = (string) config('app.name', 'TALA');
 
         return new Content(
-            htmlString: "This is an automated mail self-test for {$institution} triggered from System Health by the signed-in administrator (Powered by {$app}).",
+            markdown: 'mail.test-connection',
+            with: [
+                'institution' => $institution,
+                'app' => $app,
+            ],
         );
     }
 }

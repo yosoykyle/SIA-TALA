@@ -87,6 +87,11 @@ class Term extends Model
         return $this->hasMany(TermCalendarPackage::class);
     }
 
+    public function hasActivatedCalendar(): bool
+    {
+        return $this->calendarPackages()->where(fn ($query) => $query->where('state', TermCalendarPackage::StateActive)->orWhereNotNull('activated_at')->orWhereNotNull('closed_at'))->exists();
+    }
+
     /** @return HasMany<PublishedTimetableVersion, $this> */
     public function timetableVersions(): HasMany
     {

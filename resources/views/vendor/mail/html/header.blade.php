@@ -6,10 +6,10 @@
 <img src="{{ rtrim(config('app.url'), '/') . '/images/brand/servitech-crest.webp' }}" width="34" height="34" alt="" aria-hidden="true" style="display: inline-block; margin: 0 auto; border: 0; outline: none; text-decoration: none; width: 34px; height: 34px; object-fit: contain; vertical-align: middle;">
 </span>
 <span style="display: inline-block; vertical-align: middle; text-align: left;">
-<span style="display: block; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; color: #1e3a8a; line-height: 1.25; margin: 0;">
+<span style="display: block; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; color: #256331; line-height: 1.25; margin: 0;">
 {{ config('institution.name', 'Servitech Institute Asia Inc.') }}
 </span>
-<span style="display: block; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 500; color: #64748b; line-height: 1.4; margin-top: 3px;">
+<span style="display: block; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 500; color: #52525c; line-height: 1.4; margin-top: 3px;">
 <img src="{{ rtrim(config('app.url'), '/') . '/talalogo.png' }}" width="12" height="12" alt="" aria-hidden="true" style="display: inline-block; vertical-align: -1px; margin-right: 4px; width: 12px; height: 12px; border-radius: 3px; object-fit: contain;">Powered by {{ config('app.name', 'TALA') }}
 </span>
 </span>

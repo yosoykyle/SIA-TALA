@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ScheduleGenerationRuns\Schemas;
 
+use App\Actions\Calendar\TermTeachingGrid;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Models\CandidateScheduleRow;
 use App\Models\CourseComponent;
@@ -44,7 +45,7 @@ final class CandidateScheduleReviewForm
     {
         return [
             Repeater::make('assignments')
-                ->label('Complete Replacement Assignments')
+                ->label('Complete replacement assignments')
                 ->helperText('Every required demand meeting is listed. TALA validates the complete set before replacing any candidate rows.')
                 ->schema([
                     Hidden::make('scheduling_demand_id'),
@@ -129,9 +130,7 @@ final class CandidateScheduleReviewForm
     private static function assignmentFields(ScheduleGenerationRun $run): array
     {
         $term = $run->term;
-        $slotMinutes = $term instanceof Term
-            ? max(1, (int) $term->scheduling_slot_minutes)
-            : 30;
+        $slotMinutes = (int) data_get($run->input_snapshot, 'term.scheduling_slot_minutes', $term instanceof Term ? app(TermTeachingGrid::class)->slotMinutes($term) : 30);
 
         return [
             Select::make('faculty_user_id')
@@ -157,13 +156,13 @@ final class CandidateScheduleReviewForm
                 ->options(self::dayOptions($run))
                 ->required(),
             TimePicker::make('starts_at')
-                ->label('Start Time')
+                ->label('Start time')
                 ->timezone((string) config('app.timezone'))
                 ->seconds(false)
                 ->minutesStep($slotMinutes)
                 ->required(),
             TimePicker::make('ends_at')
-                ->label('End Time')
+                ->label('End time')
                 ->timezone((string) config('app.timezone'))
                 ->seconds(false)
                 ->minutesStep($slotMinutes)
@@ -177,13 +176,13 @@ final class CandidateScheduleReviewForm
     {
         return [
             TextInput::make('override_authority')
-                ->label('Override Authority')
+                ->label('Approval authority')
                 ->helperText('Record the approving person, office, or policy authority.')
                 ->maxLength(255)
                 ->required(),
             Textarea::make('override_reason')
                 ->label('Reason')
-                ->helperText('Explain why this correction or Manual Schedule Override is institutionally necessary.')
+                ->helperText('Explain why this candidate adjustment is needed. The complete candidate must pass validation before acceptance or publication.')
                 ->rows(3)
                 ->maxLength(2000)
                 ->required()
@@ -255,11 +254,11 @@ final class CandidateScheduleReviewForm
     private static function dayOptions(ScheduleGenerationRun $run): array
     {
         $term = $run->term;
-        $allowedDays = $term instanceof Term ? $term->getAttribute('scheduling_days') : null;
+        $allowedDays = data_get($run->input_snapshot, 'term.scheduling_days', $term instanceof Term ? array_column(app(TermTeachingGrid::class)->rows($term), 'day_of_week') : []);
         $days = SectionMeeting::dayOptions();
 
         if (! is_array($allowedDays) || $allowedDays === []) {
-            return $days;
+            return data_get($run->input_snapshot, 'term_calendar_package') !== null ? [] : $days;
         }
 
         return collect($allowedDays)

@@ -114,7 +114,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'GradesAndCompletion', 'ImportBatchResource',
                 'ProgramResource', 'RoomResource', 'ScheduleGenerationRunResource',
                 'SchedulingDemandResource', 'SectionMeetingResource', 'SectionResource',
-                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource', 'TranscriptRequestResource',
+                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermPlanningCluster', 'TermOverview', 'TermCalendar', 'TermClasses', 'TermResources', 'TermTimetable', 'TermResource', 'TranscriptRequestResource',
             ]],
             'accounting' => ['role' => User::StaffRoleAccounting, 'allowed' => [
                 'StaffEntry', 'EnrollmentResource', 'FeePlanResource', 'StudentLifecycleChangeResource',
@@ -131,7 +131,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'ImportBatchResource', 'ProgramResource', 'RoomResource',
                 'ScheduleGenerationRunResource', 'SchedulingDemandResource', 'SectionMeetingResource',
-                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource',
+                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermPlanningCluster', 'TermOverview', 'TermCalendar', 'TermClasses', 'TermResources', 'TermTimetable', 'TermResource',
             ]],
             'system super admin' => ['role' => User::StaffRoleSystemSuperAdmin, 'allowed' => [
                 'StaffEntry', 'FaqEntryResource', 'GovernanceAudit',
@@ -150,7 +150,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         $manifest = self::roleAccessManifest();
         $manifest['faculty']['allowed'] = array_values(array_diff(
             $manifest['faculty']['allowed'],
-            ['CalendarEventResource', 'GradeRosterResource'],
+            ['CalendarEventResource', 'GradeRosterResource', 'FacultyQualificationResource', 'MyAvailability'],
         ));
         $manifest['registrar']['allowed'] = array_values(array_diff(
             $manifest['registrar']['allowed'],
@@ -173,6 +173,17 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         foreach ($manifest as &$entry) {
             $entry['allowed'] = array_values(array_diff($entry['allowed'], [
                 'StaffEntry',
+                'ClassPlanning',
+                'TermPlanningWorkbench',
+                'TermResource',
+                'TermOfferingResource',
+                'SectionResource',
+                'SectionMeetingResource',
+                'FacultyQualificationResource',
+                'FacultyTermLoadOverrideResource',
+                'RoomResource',
+                'SchedulingDemandResource',
+                'ScheduleGenerationRunResource',
                 'CompletionAndTor',
                 'TranscriptRequestResource',
             ]));
@@ -210,6 +221,11 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'AssistedAdmissionApplication',
             'CatalogCurriculaWorkbench',
             'TermPlanningWorkbench',
+            'TermOverview',
+            'TermCalendar',
+            'TermClasses',
+            'TermResources',
+            'TermTimetable',
             'AcademicApprovals',
             'AcademicReadiness',
             'ClassPlanning',
@@ -222,6 +238,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'GovernanceAudit',
             'Admissions',
             'PublicContent',
+            'TermPlanningCluster',
         ];
     }
 

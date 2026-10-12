@@ -7,19 +7,24 @@ use App\Actions\Scheduling\ReviewTimetableCandidate;
 use App\Actions\Scheduling\SchedulePublicationImpactService;
 use App\Actions\Scheduling\SchedulePublishService;
 use App\Actions\Scheduling\ScheduleSolverRetryService;
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
+use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\PublishedScheduleRevisionForm;
 use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
 use App\Models\SectionMeeting;
 use App\Models\User;
+use App\Support\HasTermPlanningContext;
+use App\Support\TimetablePresentation;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Navigation\NavigationItem;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
-use Filament\Schemas\Components\View;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
@@ -29,7 +34,32 @@ use Livewire\Attributes\On;
 
 class ViewScheduleGenerationRun extends ViewRecord
 {
+    use HasTermPlanningContext;
+
     protected static string $resource = ScheduleGenerationRunResource::class;
+
+    public function termPlanningReturnUrl(): string
+    {
+        $run = $this->run();
+        $versionId = $run->timetableVersions()->where('term_id', $run->term_id)->latest('version')->value('id');
+
+        return TermTimetable::getUrl($versionId
+            ? ['termId' => $run->term_id, 'selectedVersionId' => $versionId]
+            : ['termId' => $run->term_id, 'selectedRunId' => $run->id]);
+    }
+
+    /** @return array<NavigationItem> */
+    public function getSubNavigation(): array
+    {
+        $items = TermPlanningCluster::workspaceNavigation($this->run()->term_id, 'generate');
+        foreach ($items as $item) {
+            if ($item->getLabel() === TermTimetable::getNavigationLabel()) {
+                $item->url($this->termPlanningReturnUrl());
+            }
+        }
+
+        return $items;
+    }
 
     /**
      * @return list<Action|ActionGroup>
@@ -57,16 +87,18 @@ class ViewScheduleGenerationRun extends ViewRecord
 
     public function getSubheading(): string
     {
-        return 'Review assignments and validation evidence first. Publishing is a separate Registrar decision that makes the timetable official.';
+        return $this->termPlanningContextDescription().(ScheduleGenerationRun::statusOptions()[$this->record->status] ?? $this->record->status);
     }
 
     public function content(Schema $schema): Schema
     {
         return $schema->components([
             $this->getInfolistContentComponent(),
-            View::make('filament.resources.schedule-generation-runs.candidate-weekly-view')
-                ->viewData(fn (): array => $this->candidateWeeklyViewData()),
-            $this->getRelationManagersContentComponent(),
+            Section::make('Assignment corrections and run history')
+                ->description('Open the assignment table to inspect or correct individual meetings. Candidate review, publication and revision histories remain available here.')
+                ->schema([$this->getRelationManagersContentComponent()])
+                ->collapsible()
+                ->collapsed(),
         ]);
     }
 
@@ -121,12 +153,12 @@ class ViewScheduleGenerationRun extends ViewRecord
     public function revisePublishedScheduleAction(): Action
     {
         return Action::make('revisePublishedSchedule')
-            ->label('Prepare / publish timetable revision')
+            ->label('Revise official timetable')
             ->icon(Heroicon::OutlinedPencilSquare)
             ->color('warning')
-            ->modalHeading('Revise Published Timetable')
-            ->modalDescription('Prepare one immutable Draft revision and its exact Clinic 4 impact work. The same action publishes only after every affected registration outcome is resolved and the whole timetable passes revalidation again.')
-            ->modalSubmitActionLabel('Prepare or Publish Revision')
+            ->modalHeading('Revise official timetable')
+            ->modalDescription('Record the approved change and its reason. A draft revision records any affected registrations. Publication requires every affected registration outcome to be resolved and the complete timetable to pass validation; if those checks pass, this action publishes the revision.')
+            ->modalSubmitActionLabel('Validate and publish revision')
             ->modalWidth(Width::SevenExtraLarge)
             ->fillForm(fn (): array => [
                 'change_type' => null,
@@ -325,8 +357,8 @@ class ViewScheduleGenerationRun extends ViewRecord
             && $run->canBePublished();
     }
 
-    /** @return array{days:array<int, array{label:string,rows:list<array<string, mixed>>}>,hasRows:bool} */
-    private function candidateWeeklyViewData(): array
+    /** @return array{presentation:array<string, mixed>} */
+    public function candidateWeeklyViewData(): array
     {
         $rows = $this->run()->candidateRows()
             ->with([
@@ -334,30 +366,14 @@ class ViewScheduleGenerationRun extends ViewRecord
                 'room',
                 'schedulingDemand.courseComponent.courseSpecification.course',
                 'schedulingDemand.sectionDeliveryGroup.section',
+                'schedulingDemand.termOffering.curriculumEntry.courseSpecification.course',
             ])
             ->orderBy('day_of_week')
             ->orderBy('starts_at')
             ->orderBy('id')
-            ->get()
-            ->map(fn ($row): array => [
-                'id' => (int) $row->id,
-                'day' => (int) $row->day_of_week,
-                'time' => substr((string) $row->starts_at, 0, 5).'–'.substr((string) $row->ends_at, 0, 5),
-                'course' => (string) (data_get($row, 'schedulingDemand.courseComponent.courseSpecification.course.code') ?: 'Course unavailable'),
-                'section' => (string) (data_get($row, 'schedulingDemand.sectionDeliveryGroup.section.code') ?: 'Class unavailable'),
-                'faculty' => (string) (data_get($row, 'faculty.name') ?: 'Faculty unavailable'),
-                'place' => (string) (data_get($row, 'room.code') ?: data_get($row, 'schedulingDemand.modality') ?: 'Location unavailable'),
-                'status' => (string) $row->status,
-            ]);
+            ->get();
 
-        $days = collect(SectionMeeting::dayOptions())
-            ->mapWithKeys(fn (string $label, int $day): array => [$day => [
-                'label' => $label,
-                'rows' => $rows->where('day', $day)->values()->all(),
-            ]])
-            ->all();
-
-        return ['days' => $days, 'hasRows' => $rows->isNotEmpty()];
+        return ['presentation' => TimetablePresentation::forCandidate($this->run(), $rows)];
     }
 
     private function canReviewCandidate(): bool

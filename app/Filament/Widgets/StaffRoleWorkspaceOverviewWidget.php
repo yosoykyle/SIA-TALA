@@ -26,6 +26,8 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
 {
+    protected static bool $isLazy = false;
+
     protected int|string|array $columnSpan = 'full';
 
     protected ?string $pollingInterval = null;

@@ -26,8 +26,10 @@ final class ReadyTermPlanningProjection
         }
 
         $classes = Section::query()
-            ->where('term_calendar_package_id', $activePackage?->id)
-            ->get();
+            ->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $term->id))
+            ->with(['calendarPackage.teachingGridRows', 'calendarPackage.datedExceptions'])
+            ->get()
+            ->filter(fn (Section $section): bool => $activePackage && $section->calendarPackage->isActivatedCoreSource() && $section->calendarPackage->coreSignature() === $activePackage->coreSignature());
 
         if ($classes->isEmpty() || $classes->contains(fn (Section $section): bool => $section->confirmed_at === null)) {
             $blockers[] = $this->blocker('classes_not_confirmed', 'Cohorts and Class Offerings', 'Registrar', 'Every ready Class Offering must be confirmed.', 'Resolve class authority, cohorts, capacity, and meeting requirements.', 'Correct the affected Draft class and confirm it.');

@@ -21,6 +21,7 @@ use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -284,6 +285,20 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
      */
     private function source(Term $term): array
     {
+        if (! TermCalendarPackage::query()->where('term_id', $term->id)->exists()) {
+            $package = TermCalendarPackage::factory()->for($term)->create([
+                'state' => TermCalendarPackage::StateActive,
+            ]);
+            foreach ([1, 2, 3, 4, 5, 6] as $day) {
+                $package->teachingGridRows()->create([
+                    'day_of_week' => $day,
+                    'starts_at' => '07:00:00',
+                    'ends_at' => '21:00:00',
+                    'breaks' => [],
+                ]);
+            }
+        }
+
         $offering = TermOffering::factory()->for($term)->create([
             'modality' => TermOffering::ModalityFaceToFace,
         ]);

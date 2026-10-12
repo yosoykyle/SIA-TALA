@@ -24,6 +24,7 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -63,6 +64,8 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertStringContainsString('scheduling_demands=54', $output);
         $this->assertStringContainsString('admission_requirement_policies=10', $output);
         $this->assertStringContainsString('readiness=PASS', $output);
+        $package = TermCalendarPackage::query()->where('state', TermCalendarPackage::StateActive)->sole();
+        $this->assertSame([1, 2, 3, 4, 5, 6], $package->teachingGridRows()->orderBy('day_of_week')->pluck('day_of_week')->all());
         $this->assertStringContainsString('applicant=applicant.demo@example.test', $output);
         $this->assertStringContainsString('system-super-admin=system-admin.demo@example.test', $output);
 

@@ -261,6 +261,8 @@ These commands are examples for applicable code work, not a second mandatory tes
 
 The reviewer checks actual conformance and applicable failure/recovery paths, not just the executor's success report. A genuine capability gap stays Partial or Unverified and blocks completion.
 
+For delegated executor work, finish local implementation/verification and stop in the executor chat for the owner's hands-on review and refinements. Do not send an automatic report to the orchestrator. Only explicit owner permission authorizes the consolidated return covering original work and owner additions; orchestrator review and remediation handback follow that return. See the [Protocol's owner-review/report sequence](00_Project_Documents/TALA-Orchestrator-Protocol.md#owner-review-before-executor-reporting). Keep the Issue In Progress through review. The owner may authorize the orchestrator, executor or bounded helpers to update living Issues/PRDs per case; preserve the governing authority and write scope.
+
 ### 5. Publish through the applicable route and verify CI
 
 Complete selectively stages the exact accepted manifest and creates one bounded local commit. After publication is explicitly authorized and the preflight passes, manual CLI examples are:

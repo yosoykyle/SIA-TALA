@@ -233,6 +233,8 @@ Reuse a sufficient accepted Issue contract or direct task scope as the plan. Con
 
 <task_modes>
 - Tracked Work (`#NN`): Read named GitHub Issue. Transitions through Todo -> In Progress -> Done.
+- Delegated executor reporting follows Protocol Section 1: finish and wait in the executor chat for owner hands-on review/refinements; report original work plus owner additions to the orchestrator only with explicit owner permission. Orchestrator remediation handback occurs only after that permitted return. An earlier automatic-return instruction is superseded; no status change or test result grants reporting permission.
+- Issues and PRDs are living records. The owner decides per case which orchestrator, executor or bounded helper may update which records; preserve authority ownership, history and the corresponding material-decision/write scope.
 - Clear Direct Work (Untracked): Solo work operates directly on primary checkout (`main`) without creating extra branches, worktrees, or GitHub Issues. Follows the same 3 permission boundaries above.
 - Task-applicable verification follows Protocol Section 7. For behavior-preserving changes, adequate affected tests satisfy verification without an extra test-only edit; add or update tests when changed behavior lacks coverage. This project-specific coverage rule qualifies the generic test-edit instruction in the generated Boost block.
 - Compaction & Resumption: Re-anchor from recent messages, live git state, and issue comments before acting. Continue only within the authorized boundary.
