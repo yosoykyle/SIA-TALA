@@ -222,6 +222,8 @@ class SchoolFirstCommunicationsTest extends TestCase
         );
         $renderedApplicant = $applicantMail->render();
         $this->assertStringContainsString("{$institution} via {$app}", $renderedApplicant);
+        $this->assertStringContainsString('Open your application', $renderedApplicant);
+        $this->assertStringNotContainsString('Applicant Workspace', $renderedApplicant);
 
         // 4. Staff Notification
         $invitation = (new StaffInvitation)->forceFill(['id' => 1]);

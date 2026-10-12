@@ -49,7 +49,7 @@ class AdmissionCycleReadinessService
                 'accepting_programs',
                 'Admission Cycle program selection and active Program authority',
                 'Registrar',
-                'No active program accepts an enabled application path.',
+                'No active program accepts an enabled student type.',
                 'Select an active accepting program.',
                 'Activate or correct the Program authority, select it for the cycle, and rerun readiness.',
             );
@@ -64,13 +64,14 @@ class AdmissionCycleReadinessService
                     && $this->requirementSetCompleteness->isComplete($set));
 
             if (! $hasApplicableVersion) {
+                $studentType = AdmissionCycle::studentTypeLabel($path);
                 $blockers[] = $this->blocker(
                     'requirement_set_'.str($path)->snake(),
-                    "Published Admission Requirement Set for {$path}",
+                    "Published Admission Requirement Set for {$studentType} applicants",
                     'Registrar',
-                    "The {$path} path has no effective, complete published requirement version with its mandatory core credential and valid exception classifications.",
+                    "{$studentType} applicants have no effective, complete published requirement version with its mandatory core credential and valid exception classifications.",
                     'Publish an applicable requirement-set version.',
-                    'Complete and publish the path requirement version, then rerun readiness.',
+                    "Complete and publish the {$studentType} requirement version, then rerun readiness.",
                 );
             }
         }

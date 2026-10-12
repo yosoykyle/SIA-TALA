@@ -84,11 +84,11 @@ class RoleAwareLoginLandingTest extends TestCase
                 'path' => '/admin',
                 'expectedText' => 'Application queue',
             ],
-            'applicant sees Applicant Workspace dashboard' => [
+            'applicant sees school-first Applicant home' => [
                 'role' => 'applicant',
                 'status' => User::StatusActive,
                 'path' => '/applicant',
-                'expectedText' => 'Servitech Institute Asia — Applicant Workspace',
+                'expectedText' => 'Servitech Institute Asia',
             ],
             'student sees Student Hub dashboard' => [
                 'role' => 'student',

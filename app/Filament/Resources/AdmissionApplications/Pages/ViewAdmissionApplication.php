@@ -668,7 +668,7 @@ class ViewAdmissionApplication extends ViewRecord
     {
         return [
             'program_id' => 'Program choice',
-            'application_path' => 'First-year or transferee path',
+            'application_path' => 'Student type',
             'first_name' => 'First name', 'middle_name' => 'Middle name',
             'last_name' => 'Last name', 'extension_name' => 'Name suffix',
             'birth_date' => 'Date of birth', 'citizenship_country_code' => 'Citizenship',

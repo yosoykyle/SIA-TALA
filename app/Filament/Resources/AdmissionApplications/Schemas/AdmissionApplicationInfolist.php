@@ -5,6 +5,7 @@ namespace App\Filament\Resources\AdmissionApplications\Schemas;
 use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationEvent;
+use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirement;
 use App\Models\ApplicationCorrectionRequest;
@@ -60,7 +61,7 @@ class AdmissionApplicationInfolist
                                     TextEntry::make('situation')
                                         ->label('Current task')
                                         ->weight('semibold')
-                                        ->helperText(fn (AdmissionApplication $record): string => ($record->program?->name ?? 'Program unavailable').' · '.str($record->application_path)->headline())
+                                        ->helperText(fn (AdmissionApplication $record): string => ($record->program?->name ?? 'Program unavailable').' · '.AdmissionCycle::studentTypeLabel($record->application_path))
                                         ->state(fn (AdmissionApplication $record): string => match ($record->application_state) {
                                             AdmissionApplication::StateDraft => 'Draft preparation — Applicant submission remains required',
                                             AdmissionApplication::StateSubmitted => 'Application received — Registrar review is pending',
@@ -258,7 +259,7 @@ class AdmissionApplicationInfolist
                                         TextEntry::make('admissionCycle.label')->label('Admission cycle'),
                                         TextEntry::make('term.label')->label('Target term'),
                                         TextEntry::make('program.name')->label('Program'),
-                                        TextEntry::make('application_path')->label('Path')->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
+                                        TextEntry::make('application_path')->label('Student type')->formatStateUsing(fn (string $state): string => AdmissionCycle::studentTypeLabel($state)),
                                     ])
                                     ->columns(2),
                                 Section::make('Personal Details')

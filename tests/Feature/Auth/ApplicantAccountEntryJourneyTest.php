@@ -411,7 +411,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         $this->actingAs($applicant->fresh())
             ->get($verificationUrl)
             ->assertForbidden()
-            ->assertSee('Return to Applicant Workspace');
+            ->assertSee('Return to your application');
 
         $this->assertNotNull($applicant->fresh()->email_verified_at);
         $this->assertNull($applicant->fresh()->email_verification_nonce);

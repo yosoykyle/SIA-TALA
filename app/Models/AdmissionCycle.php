@@ -30,6 +30,24 @@ class AdmissionCycle extends Model
 
     public const PathTransferee = 'Transferee';
 
+    /**
+     * Reader-facing Student type labels for the unchanged canonical paths (PRD 02 §10.1).
+     *
+     * @return array<string, string>
+     */
+    public static function studentTypeOptions(): array
+    {
+        return [
+            self::PathFirstYear => 'Freshman',
+            self::PathTransferee => 'Transferee',
+        ];
+    }
+
+    public static function studentTypeLabel(?string $path): string
+    {
+        return self::studentTypeOptions()[$path] ?? (string) str((string) $path)->headline();
+    }
+
     /** @var list<string> */
     protected $fillable = [
         'code',

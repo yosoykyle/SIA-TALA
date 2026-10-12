@@ -50,7 +50,7 @@ class TalaPanelTheme
     {
         return $panel
             ->viteTheme('resources/css/filament/tala/theme.css')
-            ->brandLogo(fn (): View => view('components.tala-panel-brand', ['workspace' => $panel->getBrandName()]))
+            ->brandLogo(fn (): View => self::brand($panel))
             ->brandLogoHeight('auto')
             ->favicon(asset('talalogo.png'))
             ->colors(['primary' => Color::generatePalette('#2F7D3B'), 'gray' => Color::Zinc, 'info' => Color::generatePalette('#0C53C1')])
@@ -72,30 +72,67 @@ class TalaPanelTheme
             ->sidebarCollapsibleOnDesktop()
             ->sidebarWidth('17rem')
             ->sidebarLivewireComponent(AccessibleSidebar::class)
+            ->renderHook(PanelsRenderHook::HEAD_END, fn (): HtmlString => new HtmlString(self::isApplicantPanel($panel) ? '<script src="'.e(asset('js/tala-wizard.js')).'"></script>' : ''))
             ->renderHook(PanelsRenderHook::BODY_START, fn (): View => view('filament.components.skip-link'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.content-anchor'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): HtmlString => new HtmlString(
-                '<div class="tala-mobile-workspace-identity">'.view('components.tala-panel-brand', ['workspace' => $panel->getBrandName()])->render().'</div>',
+                '<div class="tala-mobile-workspace-identity">'.self::brand($panel)->render().'</div>',
             ))
             ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_START, fn (array $scopes): View => view('filament.components.auth-main-start', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
             ->renderHook(PanelsRenderHook::SIDEBAR_NAV_START, fn (): HtmlString => new HtmlString(
-                '<p class="tala-workspace-context">'.e(self::workspaceContext($panel)).'</p>',
+                self::isApplicantPanel($panel) ? '' : '<p class="tala-workspace-context">'.e(self::workspaceContext($panel)).'</p>',
             ))
             ->renderHook(PanelsRenderHook::SIDEBAR_NAV_START, fn (): View => view('filament.components.workspace-search'))
-            ->renderHook(PanelsRenderHook::SIDEBAR_FOOTER, fn (): HtmlString => new HtmlString(
-                '<div class="tala-sidebar-attribution">'.view('components.tala-panel-brand', ['placement' => 'attribution'])->render().'</div>',
-            ))
-            ->renderHook(PanelsRenderHook::CONTENT_END, fn (): HtmlString => new HtmlString(
-                '<footer class="tala-mobile-attribution">'.view('components.tala-panel-brand', ['placement' => 'attribution'])->render().'</footer>',
-            ))
-            ->renderHook(PanelsRenderHook::SIMPLE_PAGE_END, fn (): HtmlString => new HtmlString(
-                '<footer class="tala-auth-attribution">'.view('components.tala-panel-brand', ['placement' => 'attribution'])->render().'</footer>',
-            ))
+            ->renderHook(PanelsRenderHook::SIDEBAR_FOOTER, fn (): HtmlString => self::attribution($panel, '<div class="tala-sidebar-attribution">%s</div>'))
+            ->renderHook(PanelsRenderHook::CONTENT_END, fn (): HtmlString => self::attribution($panel, '<footer class="tala-mobile-attribution">%s</footer>'))
+            ->renderHook(PanelsRenderHook::SIMPLE_PAGE_END, fn (): HtmlString => self::attribution($panel, '<footer class="tala-auth-attribution">%s</footer>'))
             ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_END, fn (array $scopes): View => view('filament.components.auth-main-end', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
             ->renderHook(PanelsRenderHook::SIMPLE_PAGE_END, fn (array $scopes): View => view('filament.components.auth-recovery-links', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
             ->renderHook(PanelsRenderHook::SIDEBAR_LOGO_AFTER, fn (): HtmlString => new HtmlString(
                 view('filament.components.drawer-close', ['inline' => true])->render(),
             ));
+    }
+
+    /** School-first identity; the Applicant panel pairs it with the signed-in Applicant's name (UI Blueprint, #59 F65). */
+    private static function brand(Panel $panel): View
+    {
+        return view('components.tala-panel-brand', [
+            'workspace' => $panel->getBrandName(),
+            'person' => self::isApplicantPanel($panel) ? self::applicantName($panel) : null,
+        ]);
+    }
+
+    /** Secondary Powered by TALA attribution, omitted from the Applicant panel (#59 F66). */
+    private static function attribution(Panel $panel, string $wrapper): HtmlString
+    {
+        if (self::isApplicantPanel($panel)) {
+            return new HtmlString('');
+        }
+
+        return new HtmlString(sprintf($wrapper, view('components.tala-panel-brand', ['placement' => 'attribution'])->render()));
+    }
+
+    private static function isApplicantPanel(Panel $panel): bool
+    {
+        return $panel->getId() === 'applicant';
+    }
+
+    private static function applicantName(Panel $panel): ?string
+    {
+        $user = $panel->auth()->user();
+
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        if (filled($user->name)) {
+            return (string) $user->name;
+        }
+
+        $application = $user->currentAdmissionApplication;
+        $name = trim(implode(' ', array_filter([$application?->first_name, $application?->last_name], filled(...))));
+
+        return $name !== '' ? $name : null;
     }
 
     private static function workspaceContext(Panel $panel): string

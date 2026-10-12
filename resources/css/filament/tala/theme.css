@@ -260,6 +260,7 @@
 .dark .fi-body { background: var(--gray-950); color: var(--gray-50); }
 .fi-sidebar-header { min-height: 5rem; height: auto; padding-block: 0.75rem; }
 .fi-sidebar .tala-brand__name { font-size: 0.875rem; }
+.tala-brand__person { display: block; font-size: 0.8125rem; font-weight: 500; line-height: 1.35; color: var(--tala-muted); overflow-wrap: anywhere; }
 
 .tala-workspace-context { font-size: 0.8125rem; font-weight: 600; color: var(--tala-muted); margin: 0; }
 .tala-sidebar-attribution { padding: 0.75rem 1.5rem; }
@@ -408,6 +409,25 @@
 .fi-body:has(.fi-layout) .fi-sc-wizard .fi-section-header,
 .fi-body:has(.fi-layout) .fi-sc-wizard .fi-section-content { padding-inline: 0; }
 .fi-body:has(.fi-layout) .fi-sc-wizard .fi-section-header { padding-block-start: 0; }
+/* A completed step the Applicant returns to keeps its check; the ring marks it as current without relying on colour. */
+.fi-sc-wizard-header-step.fi-active.fi-completed .fi-sc-wizard-header-step-icon-ctn {
+    outline: 2px solid var(--primary-600);
+    outline-offset: 3px;
+}
+.dark .fi-sc-wizard-header-step.fi-active.fi-completed .fi-sc-wizard-header-step-icon-ctn { outline-color: var(--primary-400); }
+
+/* Applicant phones: keep every step in a compact numbered row so completed steps stay reachable (#59 F69). */
+@media (max-width: 47.999rem) {
+    .fi-panel-applicant .fi-sc-wizard-header { display: flex; overflow-x: auto; }
+    .fi-panel-applicant .fi-sc-wizard-header-step:not(.fi-active) { display: flex; flex: 0 0 auto; }
+    .fi-panel-applicant .fi-sc-wizard-header-step.fi-active { flex: 1 1 auto; min-width: 0; }
+    .fi-panel-applicant .fi-sc-wizard-header-step-btn { min-height: 2.75rem; padding: 0.75rem 0.25rem; column-gap: 0.5rem; }
+    .fi-panel-applicant .fi-sc-wizard-header-step-icon-ctn { width: 2rem; height: 2rem; }
+    .fi-panel-applicant .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-btn { padding-inline: 0.5rem 0.75rem; min-width: 0; }
+    .fi-panel-applicant .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-text { min-width: 0; }
+    .fi-panel-applicant .fi-sc-wizard-header-step.fi-active :is(.fi-sc-wizard-header-step-label, .fi-sc-wizard-header-step-description) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+    .fi-panel-applicant .fi-sc-wizard-header-step:not(.fi-active) .fi-sc-wizard-header-step-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 
 @media (min-width: 48rem) {
     .fi-body:has(.fi-layout) .fi-sc-wizard-header-step-btn {
