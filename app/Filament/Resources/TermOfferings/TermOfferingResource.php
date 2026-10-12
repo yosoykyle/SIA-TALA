@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources\TermOfferings;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\TermOfferings\Pages\ListTermOfferings;
 use App\Filament\Resources\TermOfferings\Tables\TermOfferingsTable;
 use App\Models\TermOffering;
-use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
@@ -13,6 +13,8 @@ use Filament\Tables\Table;
 
 class TermOfferingResource extends Resource
 {
+    protected static ?string $cluster = TermPlanningCluster::class;
+
     protected static ?string $model = TermOffering::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
@@ -35,7 +37,7 @@ class TermOfferingResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false;
+        return false;
     }
 
     public static function getPages(): array

@@ -33,10 +33,6 @@ class ScheduleSolverSnapshotService
 {
     private const ContractVersion = ScheduleGenerationRun::ContractVersion;
 
-    private const DefaultDayStartsAt = '07:00:00';
-
-    private const DefaultDayEndsAt = '21:00:00';
-
     public function __construct(private readonly ReadyTermPlanningProjection $readiness) {}
 
     /**
@@ -388,18 +384,25 @@ class ScheduleSolverSnapshotService
         bool $useCurrentSources = false,
         ?array $cohortIdsByDeliveryGroup = null,
     ): array {
-        $timeSlots = $this->timeSlots($term);
         $calendarPackage = TermCalendarPackage::query()
             ->with(['windows', 'teachingGridRows', 'datedExceptions'])
             ->where('term_id', $term->id)
             ->where('state', TermCalendarPackage::StateActive)
             ->first();
+        if (! $calendarPackage instanceof TermCalendarPackage || $calendarPackage->teachingGridRows->isEmpty()) {
+            throw ValidationException::withMessages([
+                'term_calendar_package' => 'An active term calendar package with an approved teaching grid is required before solver dispatch.',
+            ]);
+        }
+
+        $timeSlots = $this->timeSlots($calendarPackage);
         $demandPayload = $this->schedulingDemandsPayload(
             $demands,
             $term,
             $useCurrentSources,
             $cohortIdsByDeliveryGroup ?? $this->cohortIdsByDeliveryGroup($demands),
         );
+        $gridRows = $calendarPackage->teachingGridRows;
 
         return [
             'contract_version' => self::ContractVersion,
@@ -417,13 +420,14 @@ class ScheduleSolverSnapshotService
                 'label' => $term->label,
                 'starts_on' => $this->dateString($term->getAttribute('starts_on')),
                 'ends_on' => $this->dateString($term->getAttribute('ends_on')),
-                'scheduling_slot_minutes' => (int) $term->scheduling_slot_minutes,
-                'scheduling_days' => $this->schedulingDays($term),
-                'scheduling_day_starts_at' => $this->timeString($term->scheduling_day_starts_at) ?? self::DefaultDayStartsAt,
-                'scheduling_day_ends_at' => $this->timeString($term->scheduling_day_ends_at) ?? self::DefaultDayEndsAt,
+                'scheduling_slot_minutes' => 30,
+                'scheduling_days' => $gridRows->pluck('day_of_week')->map(fn ($day): int => (int) $day)->sort()->values()->all(),
+                'scheduling_day_starts_at' => $gridRows->min('starts_at'),
+                'scheduling_day_ends_at' => $gridRows->max('ends_at'),
+                'teaching_grid_rows' => $gridRows->map(fn ($row): array => $row->only(['day_of_week', 'starts_at', 'ends_at']))->values()->all(),
                 'default_max_units' => $term->default_max_units,
             ],
-            'term_calendar_package' => $calendarPackage instanceof TermCalendarPackage ? [
+            'term_calendar_package' => [
                 'term_calendar_package_id' => (int) $calendarPackage->id,
                 'version' => (int) $calendarPackage->version,
                 'authority_reference' => $calendarPackage->authority_reference,
@@ -436,7 +440,7 @@ class ScheduleSolverSnapshotService
                 'window_ids' => $calendarPackage->windows->pluck('id')->map(fn (mixed $id): int => (int) $id)->all(),
                 'teaching_grid_row_ids' => $calendarPackage->teachingGridRows->pluck('id')->map(fn (mixed $id): int => (int) $id)->all(),
                 'dated_exception_ids' => $calendarPackage->datedExceptions->pluck('id')->map(fn (mixed $id): int => (int) $id)->all(),
-            ] : null,
+            ],
             'time_slots' => $timeSlots,
             'subjects' => $this->subjectsPayload($demandPayload),
             'scheduling_demands' => $demandPayload,
@@ -448,8 +452,8 @@ class ScheduleSolverSnapshotService
             'faculty_availability' => $this->facultyAvailabilityPayload($term),
             'term_offerings' => $this->termOfferingsPayload($demandPayload),
             'student_cohort_groups' => $this->studentCohortGroupsPayload($demandPayload),
-            'calendar_blocks' => $this->calendarBlocksPayload($term),
-            'dated_exceptions' => $this->datedExceptionsPayload($term),
+            'calendar_blocks' => $this->calendarBlocksPayload($term, $calendarPackage),
+            'dated_exceptions' => $this->datedExceptionsPayload($term, $calendarPackage),
             'hard_constraints' => $this->hardConstraints(),
             'soft_constraints' => $this->softConstraints(),
             'constraint_profile' => [
@@ -460,7 +464,7 @@ class ScheduleSolverSnapshotService
             ],
             'fixed_assignments' => $this->fixedAssignmentsPayload($demandPayload),
             'optimization_settings' => [
-                'slot_granularity_minutes' => (int) $term->scheduling_slot_minutes,
+                'slot_granularity_minutes' => 30,
                 'candidate_schedule_mode' => 'provisional_only',
                 'publish_after_solver' => false,
             ],
@@ -470,54 +474,25 @@ class ScheduleSolverSnapshotService
     /**
      * @return list<array{time_slot_id:int,time_block_key:string,day_of_week:int,starts_at:string,ends_at:string,duration_minutes:int}>
      */
-    private function timeSlots(Term $term): array
+    private function timeSlots(TermCalendarPackage $calendarPackage): array
     {
-        $calendarPackage = TermCalendarPackage::query()
-            ->with('teachingGridRows')
-            ->where('term_id', $term->id)
-            ->where('state', TermCalendarPackage::StateActive)
-            ->first();
-        $slotMinutes = $calendarPackage instanceof TermCalendarPackage ? 30 : max(1, (int) $term->scheduling_slot_minutes);
-        if ($calendarPackage instanceof TermCalendarPackage && $calendarPackage->teachingGridRows->isNotEmpty()) {
-            $slots = [];
-            $id = 1;
-
-            foreach ($calendarPackage->teachingGridRows->sortBy(
-                fn ($gridRow): string => sprintf('%02d|%s', (int) $gridRow->day_of_week, (string) $gridRow->starts_at),
-            ) as $gridRow) {
-                $dayStart = $this->minutes($this->timeString($gridRow->starts_at) ?? self::DefaultDayStartsAt);
-                $dayEnd = $this->minutes($this->timeString($gridRow->ends_at) ?? self::DefaultDayEndsAt);
-
-                for ($startsAt = $dayStart; $startsAt + $slotMinutes <= $dayEnd; $startsAt += $slotMinutes) {
-                    $slots[] = [
-                        'time_slot_id' => $id++,
-                        'time_block_key' => 'D'.$gridRow->day_of_week.'-'.$this->compactTime($startsAt),
-                        'day_of_week' => (int) $gridRow->day_of_week,
-                        'starts_at' => $this->time($startsAt),
-                        'ends_at' => $this->time($startsAt + $slotMinutes),
-                        'duration_minutes' => $slotMinutes,
-                    ];
-                }
-            }
-
-            return $slots;
-        }
-
-        $dayStart = $this->minutes($this->timeString($term->scheduling_day_starts_at) ?? self::DefaultDayStartsAt);
-        $dayEnd = $this->minutes($this->timeString($term->scheduling_day_ends_at) ?? self::DefaultDayEndsAt);
+        $slotMinutes = 30;
         $slots = [];
         $id = 1;
 
-        foreach ($this->schedulingDays($term) as $day) {
-            for ($startsAt = $dayStart; $startsAt + $slotMinutes <= $dayEnd; $startsAt += $slotMinutes) {
-                $endsAt = $startsAt + $slotMinutes;
+        foreach ($calendarPackage->teachingGridRows->sortBy(
+            fn ($gridRow): string => sprintf('%02d|%s', (int) $gridRow->day_of_week, (string) $gridRow->starts_at),
+        ) as $gridRow) {
+            $dayStart = $this->minutes((string) $gridRow->starts_at);
+            $dayEnd = $this->minutes((string) $gridRow->ends_at);
 
+            for ($startsAt = $dayStart; $startsAt + $slotMinutes <= $dayEnd; $startsAt += $slotMinutes) {
                 $slots[] = [
                     'time_slot_id' => $id++,
-                    'time_block_key' => 'D'.$day.'-'.$this->compactTime($startsAt),
-                    'day_of_week' => $day,
+                    'time_block_key' => 'D'.$gridRow->day_of_week.'-'.$this->compactTime($startsAt),
+                    'day_of_week' => (int) $gridRow->day_of_week,
                     'starts_at' => $this->time($startsAt),
-                    'ends_at' => $this->time($endsAt),
+                    'ends_at' => $this->time($startsAt + $slotMinutes),
                     'duration_minutes' => $slotMinutes,
                 ];
             }
@@ -947,7 +922,7 @@ class ScheduleSolverSnapshotService
     /**
      * @return list<array<string, mixed>>
      */
-    private function calendarBlocksPayload(Term $term): array
+    private function calendarBlocksPayload(Term $term, ?TermCalendarPackage $package): array
     {
         $legacy = CalendarEvent::query()
             ->whereBelongsTo($term)
@@ -989,11 +964,6 @@ class ScheduleSolverSnapshotService
                 'starts_at' => $this->timeString($record->starts_at),
                 'ends_at' => $this->timeString($record->ends_at),
             ])->all();
-        $package = TermCalendarPackage::query()
-            ->with('teachingGridRows')
-            ->where('term_id', $term->id)
-            ->where('state', TermCalendarPackage::StateActive)
-            ->first();
         $packageBlocks = [];
 
         if ($package instanceof TermCalendarPackage) {
@@ -1075,13 +1045,8 @@ class ScheduleSolverSnapshotService
     }
 
     /** @return list<array<string, mixed>> */
-    private function datedExceptionsPayload(Term $term): array
+    private function datedExceptionsPayload(Term $term, ?TermCalendarPackage $package): array
     {
-        $package = TermCalendarPackage::query()
-            ->with('datedExceptions')
-            ->where('term_id', $term->id)
-            ->where('state', TermCalendarPackage::StateActive)
-            ->first();
         $calendarExceptions = $package instanceof TermCalendarPackage
             ? $package->datedExceptions->map(fn ($exception): array => [
                 'term_dated_exception_id' => (int) $exception->id,
@@ -1196,22 +1161,6 @@ class ScheduleSolverSnapshotService
     private function nullableInt(mixed $value): ?int
     {
         return $value === null || $value === '' ? null : (int) $value;
-    }
-
-    /**
-     * @return list<int>
-     */
-    private function schedulingDays(Term $term): array
-    {
-        $days = collect($term->scheduling_days ?? [1, 2, 3, 4, 5, 6])
-            ->map(fn (mixed $day): int => (int) $day)
-            ->filter(fn (int $day): bool => $day >= 1 && $day <= 7)
-            ->unique()
-            ->sort()
-            ->values()
-            ->all();
-
-        return $days !== [] ? $days : [1, 2, 3, 4, 5, 6];
     }
 
     /**

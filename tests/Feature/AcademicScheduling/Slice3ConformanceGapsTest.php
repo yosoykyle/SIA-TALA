@@ -495,6 +495,14 @@ final class Slice3ConformanceGapsTest extends TestCase
             'term_id' => $term->id,
             'state' => TermCalendarPackage::StateActive,
         ]);
+        foreach ([1, 2, 3, 4, 5, 6] as $day) {
+            $package->teachingGridRows()->create([
+                'day_of_week' => $day,
+                'starts_at' => '07:00:00',
+                'ends_at' => '21:00:00',
+                'breaks' => [],
+            ]);
+        }
         $specification = CourseSpecification::factory()->create(['state' => CourseSpecification::StateActive]);
         $component = CourseComponent::factory()->for($specification)->create([
             'weekly_contact_hours' => $weeklyHours,

@@ -5,11 +5,14 @@ namespace App\Filament\Resources\CalendarEvents\Pages;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Models\CalendarEvent;
 use App\Models\User;
+use App\Support\HasTermPlanningContext;
 use Filament\Resources\Pages\EditRecord;
 use LogicException;
 
 class EditCalendarEvent extends EditRecord
 {
+    use HasTermPlanningContext;
+
     protected static string $resource = CalendarEventResource::class;
 
     protected function getHeaderActions(): array
@@ -23,6 +26,8 @@ class EditCalendarEvent extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $data = $this->termPlanningFormData($data);
+
         /** @var User $actor */
         $actor = auth()->user();
 
@@ -57,5 +62,10 @@ class EditCalendarEvent extends EditRecord
             'state' => (string) ($data['state'] ?? CalendarEvent::StateActive),
             'authority' => $actor->name.' ('.($actor->getRoleNames()->first() ?? 'authorized staff').')',
         ];
+    }
+
+    protected function getRedirectUrl(): ?string
+    {
+        return $this->termId === null ? parent::getRedirectUrl() : $this->getResourceUrl('index');
     }
 }

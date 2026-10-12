@@ -3,16 +3,20 @@
 namespace Tests\Feature;
 
 use App\Actions\Grades\ManageTeachingAssignment;
+use App\Actions\Grades\PostAndReleaseGradeRoster;
+use App\Actions\Grades\SaveFinalGradeResult;
 use App\Actions\Grades\SaveGradeRosterDraft;
+use App\Actions\Grades\SubmitGradeRoster;
 use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Filament\Pages\FacultyGradeRoster;
-use App\Models\CalendarEvent;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\Section;
 use App\Models\StudentProfile;
+use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -123,6 +127,22 @@ class TAL89AGradesAcceptanceTest extends TestCase
         }
     }
 
+    #[Test]
+    public function registrar_releases_a_submitted_roster_after_the_grade_entry_window_closes(): void
+    {
+        $this->freezeTime();
+        [$faculty, $row, $registrar] = $this->rosterFixture();
+        app(SaveFinalGradeResult::class)->execute($row, '1.75', null, $faculty);
+        $submitted = app(SubmitGradeRoster::class)->execute($row->roster, $faculty);
+        $this->travel(3)->days();
+
+        $released = app(PostAndReleaseGradeRoster::class)->execute($submitted, $registrar);
+
+        $this->assertSame(GradeRoster::StateReleased, $released->state);
+        $this->assertSame('1.75', $row->fresh()->current_outcome_code);
+        $this->assertSame(1, $row->outcomeEvents()->count());
+    }
+
     /** @return array{User, GradeRosterRow, User, Section} */
     private function rosterFixture(): array
     {
@@ -146,11 +166,15 @@ class TAL89AGradesAcceptanceTest extends TestCase
             'units_snapshot' => 3,
             'added_at' => now(),
         ]);
-        CalendarEvent::factory()->create([
+        $package = TermCalendarPackage::factory()->create([
             'term_id' => $offering->term_id,
-            'process_key' => 'grade_entry',
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        TermCalendarWindow::factory()->for($package, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeGradeEntry,
+            'opens_on' => now('Asia/Manila')->subDay()->toDateString(),
+            'closes_on' => now('Asia/Manila')->addDay()->toDateString(),
+            'cutoff_at' => null,
         ]);
         app(ManageTeachingAssignment::class)->designate($section, $faculty, $registrar, 'REG-T03-DESIGNATED-001');
         $row = app(SynchronizeOfficialGradeRoster::class)->execute($section, $registrar)->rows->sole();

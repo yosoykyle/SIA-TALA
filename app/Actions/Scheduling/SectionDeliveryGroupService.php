@@ -2,10 +2,13 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Models\PublishedTimetableMeeting;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
+use App\Models\Term;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -20,6 +23,12 @@ class SectionDeliveryGroupService
      */
     public function prepareForSave(Section $section, array $data, ?SectionDeliveryGroup $group = null, ?User $actor = null): array
     {
+        if ($group && (int) $group->section_id !== (int) $section->id) {
+            throw ValidationException::withMessages(['name' => 'This delivery group belongs to another source section.']);
+        }
+        if (PublishedTimetableMeeting::query()->where('section_id', $section->id)->exists()) {
+            throw ValidationException::withMessages(['name' => 'Published class delivery inputs require an impact-checked timetable revision; they cannot be changed here.']);
+        }
         $prepared = $this->normalize($section, $data, $group);
 
         $validator = Validator::make($prepared, [
@@ -47,7 +56,8 @@ class SectionDeliveryGroupService
                 $validator->errors()->add('expected_count', 'Delivery-group expected count cannot exceed parent section capacity.');
             }
 
-            $allowedModalities = $section->termOffering?->courseSpecification()?->getAttribute('allowed_modalities');
+            $specification = $section->courseRevision ?? $section->termOffering?->courseSpecification();
+            $allowedModalities = $specification?->getAttribute('allowed_modalities');
 
             if (is_array($allowedModalities)
                 && ! in_array($prepared['modality'], $allowedModalities, true)) {
@@ -70,9 +80,17 @@ class SectionDeliveryGroupService
      */
     public function save(Section $section, array $data, ?SectionDeliveryGroup $group = null, ?User $actor = null): SectionDeliveryGroup
     {
-        $prepared = $this->prepareForSave($section, $data, $group, $actor);
-
-        return DB::transaction(function () use ($prepared, $group): SectionDeliveryGroup {
+        return DB::transaction(function () use ($section, $data, $group, $actor): SectionDeliveryGroup {
+            $termId = $section->calendarPackage()->value('term_id') ?? $section->termOffering()->value('term_id');
+            if (! $termId || ! Term::query()->whereKey($termId)->lockForUpdate()->first()) {
+                throw ValidationException::withMessages(['name' => 'The source section requires an existing exact-Term calendar or offering before delivery inputs can be changed.']);
+            }
+            $section = Section::query()->lockForUpdate()->findOrFail($section->id);
+            if ($actor) {
+                Gate::forUser($actor)->authorize('update', $section);
+            }
+            $group = $group ? SectionDeliveryGroup::query()->lockForUpdate()->findOrFail($group->id) : null;
+            $prepared = $this->prepareForSave($section, $data, $group, $actor);
             if ($group instanceof SectionDeliveryGroup) {
                 $group->forceFill($prepared)->save();
                 $saved = $group;
@@ -81,7 +99,7 @@ class SectionDeliveryGroupService
             }
 
             return $saved->refresh();
-        });
+        }, attempts: 5);
     }
 
     /**

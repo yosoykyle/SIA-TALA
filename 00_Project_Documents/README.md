@@ -47,6 +47,7 @@ Classification is determined by the first matching rule below. Every project-aut
 | [`design-evidence/`](design-evidence/) | Supporting evidence — historical comparison | Historical comparisons and other supporting design material; current reference directories require their explicit classification. No prototype independently grants product or implementation authority |
 | `prd_modules/_legacy/**` | Supporting evidence — replaced PRDs | Traceability and bounded salvage only; canonical 00–06 wins |
 | [`business-evidence/`](business-evidence/) | Supporting evidence — institutional material | Clarifies terminology, forms, and current/manual practice; cannot override accepted policy or product authority |
+| `feedback direction/**` | Supporting evidence — independent review and owner feedback | Read dated assessments with their stated source/runtime limits. Accepted refinements belong in their owning PRDs, UI Blueprint, DESIGN and Issue contract; historical Adopt/Reject judgments and raw observations remain traceable. Local-only review files stay outside the code PR unless separately selected for publication |
 | [`research paper/`](research%20paper/) | Supporting evidence — research | Technical and academic support; not an implementation contract |
 | `archive/raw-source-files/**`, `archive/PAPER/**`, `archive/0/**`, `archive/45 FINAL SORTTED/**`, `archive/archive system req/**` | Supporting evidence | Preserved source, research, or requirements inputs |
 | [`archive/project-progress/`](archive/project-progress/) | Implementation history | Superseded plans, benchmarks, audits, logs, and recovery notes |
@@ -57,7 +58,7 @@ Classification is determined by the first matching rule below. Every project-aut
 | Other files directly under `archive/` | Supporting evidence, implementation history, demonstration material, or obsolete/duplicate as catalogued by [`archive/README.md`](archive/README.md) | Never product or workflow authority |
 | [`cloud/scheduler-solver/README.md`](../cloud/scheduler-solver/README.md) | Implementation evidence | Describes the current solver implementation; Architecture and PRD 03 govern desired behavior |
 
-Dependencies, installed agent skills/plugins, caches, generated artifacts, `tmp/`, `migration_log.txt`, vendor documentation, and application source comments are excluded from this documentation inventory. Their presence never grants authority.
+Dependencies, installed agent skills/plugins, caches, generated artifacts, `tmp/`, `migration_log.txt`, vendor documentation, and application source comments are excluded from this documentation inventory. Their presence never grants authority. Excluded execution evidence, comparison captures, scratch logs, and temporary evaluation files (such as local review captures and solver experiment records) are implementation artifacts and are preserved privately outside repository tracking; they do not reside in the tracked repository and never create or override product authority.
 
 ## Historical test rule
 
@@ -68,6 +69,6 @@ Historical manual test cases and UAT documents are demonstration material. Autom
 - Keep one enforceable owner for each rule: PRDs for product fields/rules/actions, UI Blueprint for capability and interaction outcomes, Architecture for technical boundaries, and Protocol for delivery permissions. Derived summaries link to that owner. Impeccable leads composition; use sketches when they help resolve a design decision.
 - Update product authority before changing a settled product decision.
 - Update workflow authority before changing orchestration rules.
-- Keep live shared task status only in GitHub Issues; do not create a local shadow tracker.
+- Keep live concerns, implementation order and shared task status only in GitHub Issues; [#48](https://github.com/yosoykyle/SIA-TALA/issues/48) is the current coordination map and child Issues own bounded work. Integrate still-relevant feedback into those records, then archive source documents as evidence. Temporary publication inputs and execution reports do not become local shadow trackers.
 - Preserve historical material in the archive with an explicit scope boundary.
 - Delete only material proven redundant and recoverable; ignored or local-only evidence is preserved by default.

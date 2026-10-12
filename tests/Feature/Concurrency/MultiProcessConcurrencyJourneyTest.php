@@ -30,7 +30,6 @@ use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationSubmissionVersion;
-use App\Models\CalendarEvent;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CompletionReadinessVersion;
 use App\Models\Course;
@@ -351,15 +350,14 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $faculty = $this->createStaffUser(User::StaffRoleFaculty);
 
         $term = $this->createUniqueTerm();
-        $this->openTermCalendarPackage($term);
-        $gradeEntryEvent = CalendarEvent::factory()->create([
-            'term_id' => $term->id,
-            'process_key' => 'grade_entry',
-            'state' => CalendarEvent::StateActive,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
+        $package = $this->openTermCalendarPackage($term);
+        $gradeEntryWindow = TermCalendarWindow::factory()->for($package, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeGradeEntry,
+            'opens_on' => now()->subDay()->toDateString(),
+            'closes_on' => now()->addDay()->toDateString(),
+            'cutoff_at' => '23:59:59',
         ]);
-        $this->registerCleanup(fn () => $gradeEntryEvent->forceDelete());
+        $this->registerCleanup(fn () => $gradeEntryWindow->forceDelete());
 
         $program = Program::factory()->create();
         $this->registerCleanup(fn () => $program->forceDelete());
@@ -524,15 +522,14 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $faculty = $this->createStaffUser(User::StaffRoleFaculty);
 
         $term = $this->createUniqueTerm();
-        $this->openTermCalendarPackage($term);
-        $gradeEntryEvent = CalendarEvent::factory()->create([
-            'term_id' => $term->id,
-            'process_key' => 'grade_entry',
-            'state' => CalendarEvent::StateActive,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
+        $package = $this->openTermCalendarPackage($term);
+        $gradeEntryWindow = TermCalendarWindow::factory()->for($package, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeGradeEntry,
+            'opens_on' => now()->subDay()->toDateString(),
+            'closes_on' => now()->addDay()->toDateString(),
+            'cutoff_at' => '23:59:59',
         ]);
-        $this->registerCleanup(fn () => $gradeEntryEvent->forceDelete());
+        $this->registerCleanup(fn () => $gradeEntryWindow->forceDelete());
 
         $program = Program::factory()->create();
         $this->registerCleanup(fn () => $program->forceDelete());

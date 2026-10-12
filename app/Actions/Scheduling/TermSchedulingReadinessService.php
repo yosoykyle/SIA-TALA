@@ -2,7 +2,8 @@
 
 namespace App\Actions\Scheduling;
 
-use App\Models\CalendarEvent;
+use App\Actions\Calendar\TermCalendarPackageReadinessService;
+use App\Actions\Calendar\TermTeachingGrid;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
@@ -83,27 +84,16 @@ class TermSchedulingReadinessService
             $missingFields[] = 'active_state';
         }
 
-        if ((int) $term->scheduling_slot_minutes < 1) {
-            $missingFields[] = 'scheduling_slot_minutes';
-        }
-
-        if ($this->activeSchedulingWindowCount($term) === 0) {
-            $missingFields[] = 'active_scheduling_window';
+        $package = app(TermTeachingGrid::class)->activePackage($term);
+        if ($package) {
+            if (! app(TermCalendarPackageReadinessService::class)->for($package)['ready']) {
+                $missingFields[] = 'active_core_calendar';
+            }
+        } else {
+            $missingFields[] = 'active_core_calendar';
         }
 
         return array_values(array_unique($missingFields));
-    }
-
-    private function activeSchedulingWindowCount(Term $term): int
-    {
-        return CalendarEvent::query()
-            ->whereBelongsTo($term)
-            ->where('event_type', CalendarEvent::TypeWindow)
-            ->where('process_key', CalendarEvent::ProcessScheduling)
-            ->where('state', CalendarEvent::StateActive)
-            ->whereNotNull('start_at')
-            ->whereNotNull('end_at')
-            ->count();
     }
 
     /**

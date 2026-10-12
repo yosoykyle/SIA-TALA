@@ -4,6 +4,8 @@ namespace App\Actions\Scheduling;
 
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\StudentHub\RecordStudentScheduleAccess;
+use App\Filament\Pages\FacultySchedule;
+use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\PublishedTimetableMeeting;
@@ -13,6 +15,7 @@ use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\User;
 use App\Support\DisplayDateTime;
+use App\Support\FacultyScheduleFilters;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,11 +27,15 @@ class BuildOfficialScheduleOutput
     ) {}
 
     /**
-     * @return array{title:string,owner:string,generated_at:string,version_label:string,version_state:string,rows:list<array<string, string>>}
+     * @return array{title:string,owner:string,generated_at:string,version_label:string,version_state:string,is_faculty_output:bool,filter_description:string|null,back_url:string,back_label:string,rows:list<array<string, string>>}
      */
     public function forFaculty(User $faculty, Request $request): array
     {
         abort_unless($faculty->hasRole(User::StaffRoleFaculty), 403);
+
+        $request->validate(['scope' => ['sometimes', 'in:full,filtered'], 'view' => ['sometimes', 'in:week,list']]);
+        $filtered = $request->query('scope') === 'filtered';
+        $criteria = $filtered ? FacultyScheduleFilters::normalize($request->query()) : [];
 
         $requestedVersionId = $request->integer('timetable_version');
         $availableVersions = PublishedTimetableVersion::query()
@@ -40,6 +47,7 @@ class BuildOfficialScheduleOutput
             ? $availableVersions->firstWhere('id', $requestedVersionId)
             : ($availableVersions->count() === 1 ? $availableVersions->sole() : null);
         $meetings = SectionMeeting::query()
+            ->activeOfficial()
             ->with([
                 'scheduleRun',
                 'schedulingDemand.termOffering.term',
@@ -60,8 +68,18 @@ class BuildOfficialScheduleOutput
             )
             ->orderBy('day_of_week')
             ->orderBy('starts_at')
-            ->orderBy('id')
-            ->get();
+            ->orderBy('id');
+        $ownedMeetings = (clone $meetings)->get();
+        $meetings = FacultyScheduleFilters::apply($meetings, $criteria)->get();
+        $criteriaDescription = FacultyScheduleFilters::describe($criteria, $ownedMeetings);
+        $returnContext = ['termId' => $version?->term_id, 'scheduleView' => $request->query('view', 'week')];
+        foreach ($criteria as $field => $value) {
+            if ($field === 'search') {
+                $returnContext['tableSearch'] = $value;
+            } else {
+                $returnContext['tableFilters'][$field]['value'] = $value;
+            }
+        }
 
         if ($meetings->isNotEmpty()) {
             $versions = $meetings->pluck('scheduleRun.publication_version')->filter()->unique()->values();
@@ -79,6 +97,8 @@ class BuildOfficialScheduleOutput
                 'filter_summary' => json_encode([
                     'timetable_version_id' => $version?->id,
                     'faculty_user_id' => $faculty->id,
+                    'scope' => $filtered ? 'filtered' : 'full',
+                    'criteria' => $criteria,
                 ], JSON_THROW_ON_ERROR),
                 'row_count' => $meetings->count(),
                 'purpose' => 'Faculty opened their current official assigned schedule for printing or saving as PDF.',
@@ -91,7 +111,11 @@ class BuildOfficialScheduleOutput
         }
 
         return [
-            'title' => 'Faculty Assigned Schedule',
+            'title' => $filtered ? 'Faculty Filtered Schedule' : 'Faculty Assigned Schedule',
+            'is_faculty_output' => true,
+            'back_url' => FacultySchedule::getUrl($returnContext),
+            'back_label' => 'Back to My Schedule',
+            'filter_description' => $filtered ? $criteriaDescription : null,
             'owner' => $faculty->name,
             'generated_at' => DisplayDateTime::format(now(), 'F j, Y g:i A'),
             'version_label' => match (true) {
@@ -216,7 +240,7 @@ class BuildOfficialScheduleOutput
             'course' => (string) $meeting->schedulingDemand?->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
             'description' => (string) $meeting->schedulingDemand?->termOffering?->curriculumEntry?->courseSpecification?->title,
             'section' => (string) $meeting->schedulingDemand?->sectionDeliveryGroup?->section?->code,
-            'component' => str((string) $meeting->schedulingDemand?->courseComponent?->component_type)->headline()->toString(),
+            'component' => CourseComponent::typeOptions()[$meeting->schedulingDemand?->courseComponent?->component_type] ?? str((string) $meeting->schedulingDemand?->courseComponent?->component_type)->lower()->headline()->toString(),
             'day' => SectionMeeting::dayOptions()[(int) $meeting->day_of_week] ?? 'Unscheduled',
             'time' => $this->timeRange($meeting),
             'room' => $room instanceof Room ? $room->code : 'TBA',

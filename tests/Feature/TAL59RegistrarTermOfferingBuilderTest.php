@@ -15,6 +15,7 @@ use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Collection;
@@ -231,11 +232,40 @@ final class TAL59RegistrarTermOfferingBuilderTest extends TestCase
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
 
-        $this->assertTrue(Route::has('filament.admin.resources.term-offerings.index'));
+        $this->assertTrue(
+            Route::has('filament.admin.resources.term-offerings.index')
+            || Route::has('filament.admin.term-planning.resources.term-offerings.index')
+        );
 
         Livewire::actingAs($registrar)
             ->test(ListTermOfferings::class)
             ->assertOk();
+    }
+
+    public function test_regular_builder_requires_new_learner_counts_and_preserves_recorded_counts(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        [$term, $program, $curriculum, $entry] = $this->scope();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $parameters = ['termId' => $term->id, 'programId' => $program->id, 'curriculumVersionId' => $curriculum->id, 'yearLevel' => 'First Year'];
+        $component = Livewire::actingAs($registrar)->withQueryParams($parameters)
+            ->test(ListTermOfferings::class)->mountAction('buildRegularOfferings');
+        $rows = array_values($component->get('mountedActions.0.data.rows'));
+
+        $this->assertNull($rows[0]['expected_count']);
+        $this->assertNull(array_values(array_values($rows[0]['sections'])[0]['delivery_groups'])[0]['expected_count']);
+        $component->callMountedAction()->assertHasActionErrors();
+        $this->assertSame(0, TermOffering::query()->where('term_id', $term->id)->count());
+
+        $this->builder->regular($registrar, $term, $program, $curriculum, 'First Year', [
+            $this->regularRow($entry, 'RECORDED-COUNTS', expectedCount: 17, groupExpectedCount: 17),
+        ]);
+        $component = Livewire::actingAs($registrar)->withQueryParams($parameters)
+            ->test(ListTermOfferings::class)->mountAction('buildRegularOfferings');
+        $rows = array_values($component->get('mountedActions.0.data.rows'));
+
+        $this->assertSame(17, $rows[0]['expected_count']);
+        $this->assertSame(17, array_values(array_values($rows[0]['sections'])[0]['delivery_groups'])[0]['expected_count']);
     }
 
     /**

@@ -12,6 +12,8 @@ use Filament\Tables\Table;
 
 class FeaturesRelationManager extends RelationManager
 {
+    protected static bool $isLazy = false;
+
     protected static string $relationship = 'features';
 
     protected static ?string $title = 'Room Features';

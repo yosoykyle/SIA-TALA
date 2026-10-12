@@ -14,7 +14,7 @@ class SchedulingDemandInfolist
     {
         return $schema
             ->components([
-                Section::make('Source Links')
+                Section::make('Source records')
                     ->schema([
                         TextEntry::make('demand_key')
                             ->copyable(),
@@ -61,7 +61,7 @@ class SchedulingDemandInfolist
                     ])
                     ->columns(2)
                     ->columnSpanFull(),
-                Section::make('Demand Inputs')
+                Section::make('Meeting requirements')
                     ->schema([
                         TextEntry::make('required_duration_minutes')
                             ->label('Required Minutes')

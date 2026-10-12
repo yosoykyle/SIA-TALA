@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Terms;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\Terms\Pages\CreateTerm;
 use App\Filament\Resources\Terms\Pages\EditTerm;
 use App\Filament\Resources\Terms\Pages\ListTerms;
@@ -19,6 +20,8 @@ use UnitEnum;
 
 class TermResource extends Resource
 {
+    protected static ?string $cluster = TermPlanningCluster::class;
+
     protected static ?string $model = Term::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
@@ -38,6 +41,11 @@ class TermResource extends Resource
         }
 
         return 'Registrar';
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
     }
 
     public static function form(Schema $schema): Schema

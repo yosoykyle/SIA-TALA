@@ -3,11 +3,14 @@
 namespace App\Filament\Resources\Rooms\Pages;
 
 use App\Filament\Resources\Rooms\RoomResource;
+use App\Support\HasTermPlanningContext;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewRoom extends ViewRecord
 {
+    use HasTermPlanningContext;
+
     protected static string $resource = RoomResource::class;
 
     protected function getHeaderActions(): array

@@ -30,7 +30,6 @@ use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Student\Pages\Academics as StudentAcademics;
 use App\Mail\AcademicRecordChangedMail;
 use App\Models\AcademicDecision;
-use App\Models\CalendarEvent;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
@@ -406,8 +405,8 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $fixture = $this->fixture();
         $fixture['student']->user?->assignRole('student');
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
-        $package = TermCalendarPackage::factory()->create([
-            'term_id' => $fixture['term']->id,
+        $package = TermCalendarPackage::query()->where('term_id', $fixture['term']->id)->where('state', TermCalendarPackage::StateActive)->sole();
+        $package->update([
             'version' => 3,
             'state' => TermCalendarPackage::StateActive,
             'authority_reference' => 'BOARD-CALENDAR-2026-03',
@@ -878,12 +877,20 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             'units_snapshot' => $specification->credit_units,
             'added_at' => now(),
         ]);
-        CalendarEvent::factory()->create([
-            'term_id' => $term->id,
-            'process_key' => 'grade_entry',
-            'state' => CalendarEvent::StateActive,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
+        $package = TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)->first();
+        if ($package === null) {
+            $package = TermCalendarPackage::factory()->for($term)->create([
+                'version' => (int) TermCalendarPackage::query()->where('term_id', $term->id)->max('version') + 1,
+                'state' => TermCalendarPackage::StateActive,
+                'activated_at' => now(),
+            ]);
+        }
+        $package->windows()->firstOrCreate([
+            'window_type' => TermCalendarWindow::TypeGradeEntry,
+        ], [
+            'opens_on' => now()->subDay()->toDateString(),
+            'closes_on' => now()->addDay()->toDateString(),
+            'cutoff_at' => '23:59:59',
         ]);
 
         return compact('registrar', 'faculty', 'student', 'term', 'section') + ['course_enrollment' => $courseEnrollment];

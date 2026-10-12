@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Gate;
 
 class RevisionEventsRelationManager extends RelationManager
 {
+    protected static bool $isLazy = false;
+
     protected static string $relationship = 'revisionEvents';
 
     protected static ?string $title = 'Revision History';

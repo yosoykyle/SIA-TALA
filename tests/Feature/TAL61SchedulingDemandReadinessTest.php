@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Filament\Resources\SchedulingDemands\Pages\ListSchedulingDemands;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
-use App\Models\CalendarEvent;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
@@ -19,7 +18,9 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
+use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
@@ -156,7 +157,7 @@ final class TAL61SchedulingDemandReadinessTest extends TestCase
         $this->assertSame(1, $summary['action_required']);
         $this->assertSame(SchedulingDemand::ValidationActionRequired, $demand->validation_state);
         $this->assertContains('term_not_active', $findingKeys);
-        $this->assertContains('missing_active_scheduling_window', $findingKeys);
+        $this->assertContains('missing_active_core_calendar', $findingKeys);
         $this->assertContains('delivery_group_not_ready', $findingKeys);
         $this->assertContains('delivery_group_expected_count_exceeds_section_capacity', $findingKeys);
         $this->assertContains('missing_active_faculty_qualification', $findingKeys);
@@ -191,7 +192,7 @@ final class TAL61SchedulingDemandReadinessTest extends TestCase
 
         $this->generator->forTerm($registrar, $source['term']);
 
-        $this->assertTrue(Route::has('filament.admin.resources.scheduling-demands.index'));
+        $this->assertTrue(Route::has(SchedulingDemandResource::getRouteBaseName().'.index'));
 
         Livewire::actingAs($registrar)
             ->test(ListSchedulingDemands::class)
@@ -236,12 +237,14 @@ final class TAL61SchedulingDemandReadinessTest extends TestCase
         ]);
 
         if ($withCalendar) {
-            CalendarEvent::factory()->for($term)->create([
-                'event_type' => CalendarEvent::TypeWindow,
-                'process_key' => 'scheduling',
-                'start_at' => now()->addWeek(),
-                'end_at' => now()->addWeeks(2),
-                'state' => CalendarEvent::StateActive,
+            $package = TermCalendarPackage::factory()->for($term)->create([
+                'state' => TermCalendarPackage::StateActive,
+            ]);
+            TermTeachingGridRow::factory()->for($package, 'package')->create([
+                'day_of_week' => 1,
+                'starts_at' => '08:00:00',
+                'ends_at' => '18:00:00',
+                'breaks' => [],
             ]);
         }
 

@@ -160,8 +160,8 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->assertStringContainsString(".fi-body :is(.fi-input-wrp, input[type='checkbox'], input[type='radio'])", $theme);
         $this->assertMatchesRegularExpression('/\.fi-body :is\(\.fi-input-wrp, input\[type=\'checkbox\'\], input\[type=\'radio\'\]\)\s*\{\s*border: 1px solid [^;]*var\(--gray-500\)[^;]*;/s', $theme);
         $this->assertStringContainsString('border-color: var(--gray-400);', $theme);
-        $this->assertStringContainsString('--tala-control-border: #64748b;', $foundation);
-        $this->assertStringContainsString('--tala-control-border: #94a3b8;', $foundation);
+        $this->assertStringContainsString('--tala-control-border: #71717b;', $foundation);
+        $this->assertStringContainsString('--tala-control-border: #9f9fa9;', $foundation);
     }
 
     public function test_native_sidebar_keeps_collapsed_names_and_hides_the_closed_mobile_drawer(): void

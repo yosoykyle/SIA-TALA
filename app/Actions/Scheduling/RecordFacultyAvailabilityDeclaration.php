@@ -152,7 +152,7 @@ final class RecordFacultyAvailabilityDeclaration
             ->where('faculty_user_id', $faculty->id)
             ->whereHas('scheduleRun', fn ($query) => $query->where('term_id', $term->id))
             ->get(['id', 'day_of_week', 'starts_at', 'ends_at'])
-            ->filter(fn (SectionMeeting $meeting): bool => collect($intervals)->contains(
+            ->filter(fn (SectionMeeting $meeting): bool => $declaration->declaration === FacultyAvailabilityDeclaration::DeclarationUnavailable || collect($intervals)->contains(
                 fn (array $interval): bool => (int) $meeting->day_of_week === $interval['day_of_week']
                     && (string) $meeting->starts_at < $interval['ends_at']
                     && (string) $meeting->ends_at > $interval['starts_at'],

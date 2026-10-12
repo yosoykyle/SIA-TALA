@@ -40,18 +40,10 @@ class ClassPlanning extends Page
 
     public function mount(): void
     {
-        $requestedTermId = request()->integer('term');
-
-        $this->termId = Term::query()
-            ->when($requestedTermId > 0, fn ($query) => $query->whereKey($requestedTermId))
-            ->orderByRaw('state = ? desc', [Term::StateActive])
-            ->orderByDesc('starts_on')
-            ->value('id');
-
-        $this->termId ??= Term::query()
-            ->orderByRaw('state = ? desc', [Term::StateActive])
-            ->orderByDesc('starts_on')
-            ->value('id');
+        $this->redirect(TermPlanningWorkbench::getUrl([
+            'termId' => request()->integer('termId') ?: request()->integer('term') ?: null,
+            'viewTab' => 'classes',
+        ]));
     }
 
     public static function canAccess(): bool
@@ -64,7 +56,7 @@ class ClassPlanning extends Page
 
     public static function shouldRegisterNavigation(): bool
     {
-        return static::canAccess();
+        return false;
     }
 
     public function getTitle(): string

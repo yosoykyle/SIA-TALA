@@ -980,6 +980,11 @@ final class ScheduleAssignmentValidationService
         $schedulingDays = collect($term['scheduling_days'] ?? [])->map(fn (mixed $value): int => (int) $value)->all();
         $dayStart = $this->timeSeconds($term['scheduling_day_starts_at'] ?? null);
         $dayEnd = $this->timeSeconds($term['scheduling_day_ends_at'] ?? null);
+        if (is_array($term['teaching_grid_rows'] ?? null)) {
+            $dayRow = collect($term['teaching_grid_rows'])->firstWhere('day_of_week', $day);
+            $dayStart = $this->timeSeconds($dayRow['starts_at'] ?? null);
+            $dayEnd = $this->timeSeconds($dayRow['ends_at'] ?? null);
+        }
 
         if (! in_array($day, $schedulingDays, true)
             || $dayStart === null

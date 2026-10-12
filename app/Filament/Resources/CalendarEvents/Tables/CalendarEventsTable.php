@@ -13,13 +13,14 @@ class CalendarEventsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->description('Prevent recurring meetings during Faculty, room or school unavailable times. Record dated no-class exceptions in Calendar.')
             ->columns([
                 TextColumn::make('term.label')
-                    ->label('Term')
+                    ->label('Term')->visible(fn ($livewire): bool => $livewire->termId === null)
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('event_type')
-                    ->label('Block Type')
+                    ->label('Type')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => CalendarEvent::recurringBlockTypeOptions()[$state] ?? str($state)->headline()->toString()),
                 TextColumn::make('scope_type')
@@ -38,9 +39,9 @@ class CalendarEventsTable
                     ->label('Day')
                     ->formatStateUsing(fn (int $state): string => CalendarEvent::dayOptions()[$state] ?? '-'),
                 TextColumn::make('starts_at')
-                    ->label('Start'),
+                    ->label('From'),
                 TextColumn::make('ends_at')
-                    ->label('End'),
+                    ->label('To'),
                 TextColumn::make('state')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => CalendarEvent::stateOptions()[$state] ?? str($state)->headline()->toString()),
@@ -49,10 +50,10 @@ class CalendarEventsTable
             ])
             ->filters([
                 SelectFilter::make('term_id')
-                    ->label('Term')
+                    ->label('Term')->visible(fn ($livewire): bool => $livewire->termId === null)
                     ->relationship('term', 'label'),
                 SelectFilter::make('event_type')
-                    ->label('Block Type')
+                    ->label('Type')
                     ->options(CalendarEvent::recurringBlockTypeOptions()),
                 SelectFilter::make('scope_type')
                     ->label('Scope')

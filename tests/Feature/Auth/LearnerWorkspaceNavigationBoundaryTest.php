@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Pages\MyAvailability;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\StudentProfile;
@@ -76,9 +77,9 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
     public static function staffNavigation(): array
     {
         return [
-            'Registrar' => [User::StaffRoleRegistrar, ['Admissions', 'Catalog & Curricula', 'Term Planning', 'Students & Enrollment', 'Grades & Completion']],
+            'Registrar' => [User::StaffRoleRegistrar, ['Admissions', 'Students & Enrollment', 'Grades & Completion', 'Catalog & Curricula', 'Term Planning']],
             'Accounting' => [User::StaffRoleAccounting, ['Fee Plans', 'Student Accounts']],
-            'Faculty' => [User::StaffRoleFaculty, ['My Availability', 'My Schedule', 'Grade Rosters']],
+            'Faculty' => [User::StaffRoleFaculty, ['Schedule & Availability', 'Grade Rosters']],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight']],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit']],
         ];
@@ -104,17 +105,21 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         $this->actingAs($academicHead)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAcademicHead]);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::test(AcademicApprovals::class)
-            ->assertSee('Catalog & Curricula')
-            ->assertSee('Academic Readiness')
-            ->assertSee('Term Planning')
+            ->assertSee('Catalog & Curricula', false)
             ->assertSee('Grade Review')
-            ->assertSee('Lifecycle Exceptions');
+            ->assertSee('Lifecycle Exceptions')
+            ->assertSee('Student academic records');
 
         $provider = file_get_contents(app_path('Providers/Filament/AdminPanelProvider.php'));
-        $this->assertStringContainsString("'My Availability' => MyAvailability::class", $provider);
+        $this->assertStringContainsString('MyAvailability::class', $provider);
+        $this->assertStringContainsString("'Schedule & Availability' => FacultySchedule::class", $provider);
         $this->assertStringContainsString("'Public Content' => PublicContent::class", $provider);
         $this->assertStringNotContainsString("'Admission Cycles' =>", $provider);
         $this->assertStringNotContainsString("'My Unavailable Times' =>", $provider);
+
+        $faculty = $this->userWithRole(User::StaffRoleFaculty, User::StatusActive);
+        $this->actingAs($faculty)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleFaculty]);
+        $this->get(MyAvailability::getUrl())->assertOk();
     }
 
     public function test_applicant_dashboard_does_not_render_staff_workspace_surfaces(): void

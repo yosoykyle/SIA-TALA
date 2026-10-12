@@ -29,6 +29,7 @@ use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -362,6 +363,17 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
     private function publicationContext(User $faculty): array
     {
         $term = Term::factory()->create(['label' => 'TAL-94E2b Publication Term']);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        foreach ([1, 2, 3, 4, 5, 6] as $day) {
+            $package->teachingGridRows()->create([
+                'day_of_week' => $day,
+                'starts_at' => '07:00:00',
+                'ends_at' => '21:00:00',
+                'breaks' => [],
+            ]);
+        }
         $room = Room::factory()->create([
             'room_type' => Room::TypeLectureRoom,
             'capacity' => 40,

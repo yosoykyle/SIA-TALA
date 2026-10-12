@@ -6,11 +6,15 @@ use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverResponse;
+use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
+use App\Actions\Scheduling\PrepareClassOffering;
+use App\Actions\Scheduling\RecordTermCohort;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
 use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\ScheduleSolverDispatchLifecycleService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
+use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Jobs\ScheduleSolverDispatchJob;
@@ -32,7 +36,9 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
+use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
@@ -187,11 +193,13 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $source = $this->schedulingSource(withSecondComponent: false);
         $registrar = $this->staff(User::StaffRoleRegistrar);
 
-        $source['term']->update([
-            'scheduling_days' => [1, 2, 4, 6],
-            'scheduling_day_starts_at' => '08:00:00',
-            'scheduling_day_ends_at' => '18:00:00',
-        ]);
+        $package = TermCalendarPackage::query()->whereBelongsTo($source['term'])->sole();
+        $package->teachingGridRows()->delete();
+        foreach ([1, 2, 4, 6] as $day) {
+            TermTeachingGridRow::factory()->for($package, 'package')->create([
+                'day_of_week' => $day, 'starts_at' => '08:00:00', 'ends_at' => '18:00:00', 'breaks' => [],
+            ]);
+        }
         $source['lecture']->update([
             'required_room_feature_keys' => ['PROJECTOR'],
         ]);
@@ -542,7 +550,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('create', ScheduleGenerationRun::class));
         $this->assertFalse(Gate::forUser($academicHead)->allows('create', ScheduleGenerationRun::class));
         $this->assertFalse(Gate::forUser($faculty)->allows('viewAny', ScheduleGenerationRun::class));
-        $this->assertTrue(Route::has('filament.admin.resources.schedule-generation-runs.index'));
+        $this->assertTrue(Route::has(ListScheduleGenerationRuns::getRouteName()));
 
         Livewire::actingAs($registrar)
             ->test(ListScheduleGenerationRuns::class)
@@ -571,14 +579,17 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $this->assertInstanceOf(ListScheduleGenerationRuns::class, $page);
         $this->assertSame('5s', $page->getTable()->getPollingInterval());
 
-        $component->callAction('dispatchSolverRun', data: ['term_id' => $source['term']->id]);
+        Livewire::actingAs($registrar)
+            ->test(TermTimetable::class, ['termId' => $source['term']->id])
+            ->callAction('generateTimetable')
+            ->assertHasNoActionErrors();
 
         $run = ScheduleGenerationRun::query()->whereBelongsTo($source['term'])->sole();
 
         $component->assertNotified(
             Notification::make()
                 ->title('Timetable generation requested')
-                ->body("Request #{$run->id} captured the current ready requirements. Its status refreshes automatically every five seconds.")
+                ->body("Request #{$run->id} captured the current ready requirements. Its status refreshes automatically.")
                 ->success(),
         );
     }
@@ -630,13 +641,18 @@ final class TAL62SolverRunDispatchTest extends TestCase
             'default_max_units' => 21.00,
         ]);
 
-        CalendarEvent::factory()->for($term)->create([
-            'event_type' => CalendarEvent::TypeWindow,
-            'process_key' => 'scheduling',
-            'start_at' => now()->addWeek(),
-            'end_at' => now()->addWeeks(2),
-            'state' => CalendarEvent::StateActive,
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => now(),
         ]);
+        foreach ([1, 2, 3, 4, 5] as $day) {
+            TermTeachingGridRow::factory()->for($package, 'package')->create([
+                'day_of_week' => $day,
+                'starts_at' => '07:00:00',
+                'ends_at' => '18:00:00',
+                'breaks' => [],
+            ]);
+        }
 
         $program = Program::factory()->create(['code' => 'BS'.++$this->scopeCounter]);
         $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive]);
@@ -682,6 +698,19 @@ final class TAL62SolverRunDispatchTest extends TestCase
             'modality' => TermOffering::ModalityFaceToFace,
             'state' => SectionDeliveryGroup::StateReady,
         ]);
+
+        $preparer = $this->staff(User::StaffRoleRegistrar);
+        $cohort = app(RecordTermCohort::class)->execute($term, $preparer, [
+            'curriculum_version_id' => $curriculum->id,
+            'reference' => 'DISPATCH-COHORT-'.$this->scopeCounter,
+            'confirmed_count' => 30,
+        ]);
+        $prepared = app(PrepareClassOffering::class)->execute($term, $section, $preparer, [
+            'class_reference' => 'DISPATCH-CLASS-'.$this->scopeCounter,
+            'source' => Section::SourceRegular,
+            'delivery_mode' => TermOffering::ModalityFaceToFace,
+        ]);
+        app(ConfirmClassOffering::class)->execute($prepared, $preparer, [$cohort->id => 30]);
 
         if ($withFaculty) {
             $faculty = $this->staff(User::StaffRoleFaculty);

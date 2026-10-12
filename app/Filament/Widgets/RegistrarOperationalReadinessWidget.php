@@ -21,6 +21,8 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class RegistrarOperationalReadinessWidget extends StatsOverviewWidget
 {
+    protected static bool $isLazy = false;
+
     protected ?string $heading = 'Registrar Operating Order';
 
     protected ?string $description = 'Follow steps 1–6. Each card opens the authoritative records for that stage.';

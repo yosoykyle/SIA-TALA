@@ -35,15 +35,13 @@ class CalendarPhaseGateService
     {
         $window = $this->enrollmentWindow($termId, $at);
 
-        return $this->windowBounds($window)['closes_at'];
+        return $this->windowBounds($window)['closes_at']->utc();
     }
 
     public function finalEnrollmentCutoff(int $termId): CarbonImmutable
     {
         $this->assertTermExists($termId);
-        $window = $this->activePackage($termId)?->windows()
-            ->where('window_type', TermCalendarWindow::TypeEnrollment)
-            ->first();
+        $window = $this->configuredWindow($termId, TermCalendarWindow::TypeEnrollment);
 
         if (! $window instanceof TermCalendarWindow) {
             throw new CalendarGateViolation(
@@ -214,7 +212,12 @@ class CalendarPhaseGateService
         return $window;
     }
 
-    private function activePackage(int $termId): ?TermCalendarPackage
+    public function configuredWindow(int $termId, string $windowType): ?TermCalendarWindow
+    {
+        return $this->activePackage($termId)?->windows()->where('window_type', $windowType)->first();
+    }
+
+    public function activePackage(int $termId): ?TermCalendarPackage
     {
         return TermCalendarPackage::query()
             ->where('term_id', $termId)
@@ -224,12 +227,13 @@ class CalendarPhaseGateService
     }
 
     /** @return array{opens_at: CarbonImmutable, closes_at: CarbonImmutable} */
-    private function windowBounds(TermCalendarWindow $window): array
+    public function windowBounds(TermCalendarWindow $window): array
     {
-        $timezone = (string) config('app.timezone');
-        $opensAt = CarbonImmutable::parse((string) $window->opens_on, $timezone)->startOfDay();
-        $cutoff = filled($window->cutoff_at) ? (string) $window->cutoff_at : '23:59:59';
-        $closesAt = CarbonImmutable::parse($window->closes_on->toDateString().' '.$cutoff, $timezone);
+        $timezone = 'Asia/Manila';
+        $opensAt = CarbonImmutable::parse($window->opens_on->toDateString(), $timezone)->startOfDay();
+        $closesAt = filled($window->cutoff_at)
+            ? CarbonImmutable::parse($window->closes_on->toDateString().' '.$window->cutoff_at, $timezone)
+            : CarbonImmutable::parse($window->closes_on->toDateString(), $timezone)->endOfDay();
 
         return ['opens_at' => $opensAt, 'closes_at' => $closesAt];
     }

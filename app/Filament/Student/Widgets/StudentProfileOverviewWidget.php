@@ -13,6 +13,8 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class StudentProfileOverviewWidget extends BaseWidget
 {
+    protected static bool $isLazy = false;
+
     protected ?string $pollingInterval = null;
 
     protected function getStats(): array

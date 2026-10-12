@@ -2,6 +2,7 @@
 
 namespace App\Queries\Admissions;
 
+use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
@@ -10,7 +11,6 @@ use App\Models\Enrollment;
 use App\Models\IdentityMatchReview;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\RegistrarEnrollmentClearance;
-use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -39,6 +39,8 @@ use Illuminate\Support\Collection;
  */
 class ReadyApplicantProjectionQuery
 {
+    public function __construct(private readonly CalendarPhaseGateService $calendar) {}
+
     /** @return ReadyApplicantProjection */
     public function forApplication(AdmissionApplication $application): array
     {
@@ -236,11 +238,7 @@ class ReadyApplicantProjectionQuery
             ];
         }
 
-        $package = TermCalendarPackage::query()
-            ->where('term_id', $term->id)
-            ->where('state', TermCalendarPackage::StateActive)
-            ->latest('version')
-            ->first();
+        $package = $this->calendar->activePackage($term->id);
 
         if (! $package) {
             return [
@@ -266,11 +264,10 @@ class ReadyApplicantProjectionQuery
             ];
         }
 
-        $timezone = (string) config('app.display_timezone');
-        $opensAt = CarbonImmutable::parse((string) $window->opens_on, $timezone)->startOfDay();
-        $cutoff = filled($window->cutoff_at) ? (string) $window->cutoff_at : '23:59:59';
-        $closesAt = CarbonImmutable::parse($window->closes_on->toDateString().' '.$cutoff, $timezone);
-        $now = CarbonImmutable::now($timezone);
+        $bounds = $this->calendar->windowBounds($window);
+        $opensAt = $bounds['opens_at'];
+        $closesAt = $bounds['closes_at'];
+        $now = CarbonImmutable::now();
 
         if ($now->lt($opensAt)) {
             return [

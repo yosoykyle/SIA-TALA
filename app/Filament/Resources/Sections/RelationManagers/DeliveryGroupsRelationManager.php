@@ -12,6 +12,7 @@ use Filament\Actions\ViewAction;
 use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Section as FormSection;
 use Filament\Schemas\Schema;
@@ -19,24 +20,27 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class DeliveryGroupsRelationManager extends RelationManager
 {
+    protected static bool $isLazy = false;
+
     protected static string $relationship = 'deliveryGroups';
 
     public function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                FormSection::make('Delivery Group')
+                FormSection::make('Class delivery group')
                     ->schema([
                         TextInput::make('name')
-                            ->label('Group Name')
+                            ->label('Group name')
                             ->required()
                             ->maxLength(255),
                         TextInput::make('expected_count')
-                            ->label('Expected Count')
+                            ->label('Expected learners')
                             ->required()
                             ->integer()
                             ->minValue(0),
@@ -85,30 +89,31 @@ class DeliveryGroupsRelationManager extends RelationManager
                     ->options(SectionDeliveryGroup::stateOptions()),
             ])
             ->headerActions([
-                CreateAction::make()
-                    ->using(function (array $data): Model {
-                        return app(SectionDeliveryGroupService::class)->save(
-                            $this->ownerSection(),
-                            $data,
-                            null,
-                            $this->actor(),
-                        );
-                    }),
+                CreateAction::make()->label('Add delivery group')->slideOver()
+                    ->using(fn (array $data): Model => $this->saveDeliveryGroup($data)),
             ])
             ->recordActions([
                 ViewAction::make(),
-                EditAction::make()
+                EditAction::make()->slideOver()
                     ->using(function (Model $record, array $data): Model {
                         /** @var SectionDeliveryGroup $record */
-                        return app(SectionDeliveryGroupService::class)->save(
-                            $this->ownerSection(),
-                            $data,
-                            $record,
-                            $this->actor(),
-                        );
+                        return $this->saveDeliveryGroup($data, $record);
                     }),
             ])
             ->toolbarActions([]);
+    }
+
+    /** @param array<string, mixed> $data */
+    private function saveDeliveryGroup(array $data, ?SectionDeliveryGroup $group = null): SectionDeliveryGroup
+    {
+        try {
+            return app(SectionDeliveryGroupService::class)->save($this->ownerSection(), $data, $group, $this->actor());
+        } catch (ValidationException $exception) {
+            Notification::make()->title('Delivery group could not be saved')->body(collect($exception->errors())->flatten()->first())->danger()->persistent()->send();
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(
+                fn (array $messages, string $field): array => [$this->getMountedActionSchema()->getStatePath().'.'.$field => $messages],
+            )->all());
+        }
     }
 
     private function ownerSection(): Section

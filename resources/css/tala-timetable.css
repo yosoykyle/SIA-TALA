@@ -1,0 +1,149 @@
+.tala-timetable {
+    --timetable-slot-height: 2.5rem;
+    color: var(--tala-text);
+    min-inline-size: 0;
+}
+.tala-timetable-heading { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 1rem; }
+.tala-timetable-heading h3 { font-size: 1.125rem; font-weight: 650; }
+.tala-timetable-heading p, .tala-timetable-guide { color: var(--tala-muted); font-size: .875rem; line-height: 1.5; }
+.tala-timetable-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
+.tala-timetable-guide { margin-block: .75rem 1.25rem; max-inline-size: 75ch; }
+.tala-timetable-filters { margin-block-start: 1rem; }
+.tala-timetable summary { cursor: pointer; min-block-size: 2.75rem; padding-block: .75rem; }
+.tala-timetable-filter-fields { display: flex; align-items: end; flex-wrap: wrap; gap: .75rem; padding-block: .5rem; }
+.tala-timetable-filter-fields label { display: grid; gap: .375rem; font-size: .875rem; flex: 1 1 10rem; }
+.tala-timetable-filter-fields select { inline-size: 100%; min-block-size: 2.75rem; border: 1px solid var(--tala-control-border); border-radius: .5rem; background-color: var(--tala-surface); color: var(--tala-text); padding-inline: .75rem 2rem; }
+.tala-timetable :is(button, select, summary):focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 2px; }
+.tala-timetable-weekly { display: grid; grid-template-columns: 5.5rem repeat(var(--timetable-days), minmax(0, 1fr)); padding-block-end: 0; max-block-size:clamp(22rem, calc(100dvh - 22rem), 34rem); overflow:auto; overscroll-behavior:contain; scrollbar-color:var(--tala-control-border) var(--tala-surface-sunken); border:1px solid var(--tala-edge); border-radius:.5rem; }
+.tala-timetable-day { min-inline-size: 0; border-inline-start: 1px solid var(--tala-edge); }
+.tala-timetable-day-heading { font-size: .875rem; font-weight: 650; padding: .75rem .375rem; background: var(--tala-surface-sunken); text-align: center; }
+.tala-timetable-day-heading { position:sticky; inset-block-start:0; z-index:2; }
+.tala-timetable-day-body, .tala-timetable-axis-body { position: relative; block-size: calc(var(--timetable-slots) * var(--timetable-slot-height)); }
+.tala-timetable-axis-body > span { position: absolute; inset-inline-end: .5rem; transform: translateY(-50%); font-size: .75rem; color: var(--tala-muted); font-variant-numeric: tabular-nums; }
+.tala-timetable-axis-body > .tala-timetable-first-label { transform: translateY(0); }
+.tala-timetable-axis-body > .tala-timetable-last-label { transform: translateY(-100%); }
+.tala-timetable-rule { position: absolute; inline-size: 100%; border-block-start: 1px dashed var(--tala-edge); pointer-events: none; }
+.tala-timetable-hour-rule { border-block-start-style:solid; border-block-start-color: var(--tala-control-border); }
+.tala-timetable-axis-body > .tala-timetable-hour-label { font-weight: 650; color: var(--tala-text); }
+.tala-timetable-break { position:absolute; inline-size:100%; padding:.125rem .375rem; overflow:hidden; background:var(--tala-surface-sunken); color:var(--tala-muted); font-size:.75rem; line-height:1.3; border-block:1px dashed var(--tala-edge); pointer-events:none; }
+.tala-timetable-meeting { position: absolute; display: flex; flex-direction: column; align-items: start; gap: .125rem; padding: .375rem; text-align: start; font-size: .75rem; line-height: 1.3; overflow: hidden; overflow-wrap: anywhere; border: 1px solid var(--tala-edge); border-inline-start: 1px solid var(--tala-brand); border-radius: .375rem; background: var(--tala-surface); color: var(--tala-text); cursor: pointer; }
+.tala-timetable-meeting strong { font-weight: 700; }
+.tala-timetable-meeting:hover, .tala-timetable-meeting[aria-pressed="true"] { background: var(--tala-surface-raised, var(--tala-overlay)); box-shadow: var(--tala-control-pressed); z-index: 1; }
+.tala-timetable-meeting-time, .tala-timetable-list-time { font-variant-numeric: tabular-nums; }
+.tala-timetable-meeting-time { inline-size:100%; display:flex; justify-content:space-between; font-weight:500; order:2; }
+.tala-timetable-detail-cue { font-size:1rem; line-height:1; color:var(--tala-brand); }
+.tala-timetable-course-title { font-size:.875rem; font-weight:600; line-height:1.25; order:1; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.tala-timetable-meeting-code { color:var(--tala-muted); white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+.tala-timetable-meeting > .tala-timetable-meeting-room { font-size:.75rem; order:3; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+.tala-timetable-compact-meeting .tala-timetable-course-title { -webkit-line-clamp:1; font-size:.75rem; }
+.tala-timetable-compact-meeting .tala-timetable-meeting-room { display:none; }
+.tala-timetable-mobile-meeting { display:grid; grid-template-columns:9rem minmax(0,1fr) minmax(7rem,.5fr); align-items:center; gap:1rem; inline-size:100%; padding-block:1rem; text-align:start; font-size:.875rem; color:var(--tala-text); cursor:pointer; }
+.tala-timetable-meeting-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tala-timetable-laboratory { background: var(--tala-surface-sunken); border-style: dashed; }
+.tala-timetable-attention { font-weight: 650; }
+.tala-timetable-selection { background: var(--tala-surface-sunken); padding: .5rem 1rem 1rem; margin-block-end: 1rem; }
+.tala-timetable dl { display: flex; flex-wrap: wrap; gap: .75rem 2rem; padding-block: .75rem; font-size: .875rem; }
+.tala-timetable dt { color: var(--tala-muted); }
+.tala-timetable dd { margin-block-start: .125rem; }
+.tala-timetable-list { display: none; }
+.tala-timetable-list-active { display: block; }
+.tala-timetable-list:has(.tala-timetable-unplaced) { display: block; }
+.tala-timetable-list:not(.tala-timetable-list-active) .tala-timetable-list-meeting:not(.tala-timetable-unplaced) { display: none; }
+.tala-timetable-list-meeting { border-block-start: 1px solid var(--tala-edge); padding-inline: .5rem; }
+.tala-timetable-list-meeting > summary { display: grid; grid-template-columns: 9rem minmax(0, 1fr) minmax(7rem, .5fr); align-items: center; gap: 1rem; font-size: .875rem; }
+.tala-timetable-list-meeting > summary::after { content: 'View details'; color: var(--tala-muted); font-size: .75rem; }
+.tala-timetable-list-meeting[open] > summary::after { content: 'Hide details'; }
+.tala-timetable-list-title { display: block; color: var(--tala-muted); margin-block-start: .125rem; }
+.tala-timetable-mobile-guide { display: none; color: var(--tala-muted); font-size: .875rem; margin-block-end: .75rem; }
+.tala-timetable-empty { padding-block: 1rem; line-height: 1.5; max-inline-size: 65ch; }
+.tala-timetable [x-cloak] { display: none !important; }
+@media (max-width: 63.99rem) {
+    .tala-timetable-weekly { display: none; }
+    .tala-timetable-list { display: block; }
+    .tala-timetable-list:not(.tala-timetable-list-active) .tala-timetable-list-meeting:not(.tala-timetable-unplaced) { display: block; }
+    .tala-timetable-mobile-guide { display: block; }
+    .tala-timetable-list-meeting > summary { grid-template-columns: 7rem minmax(0, 1fr); gap: .5rem; }
+    .tala-timetable-list-meeting > summary > span:last-of-type { grid-column: 2; }
+    .tala-timetable-mobile-meeting { grid-template-columns:7rem minmax(0,1fr); gap:.5rem; }
+    .tala-timetable-mobile-meeting > span:last-of-type { grid-column:2; }
+    .tala-timetable-controls { inline-size: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .tala-timetable *, .tala-timetable *::before, .tala-timetable *::after { scroll-behavior: auto; }
+}
+
+.tala-timetable-axis { position:sticky; inset-inline-start:0; z-index:3; background:var(--tala-surface); }
+.tala-timetable-axis-body > span:not(.tala-timetable-hour-label):not(.tala-timetable-first-label):not(.tala-timetable-last-label) { visibility:hidden; }
+.tala-timetable-window { font-size:.75rem; color:var(--tala-muted); font-variant-numeric:tabular-nums; margin-block:.35rem .5rem; }
+.tala-timetable-weekly:focus-visible { outline:3px solid var(--tala-focus); outline-offset:3px; }
+.tala-timetable-focused .tala-timetable-meeting { padding:.25rem; gap:.0625rem; }
+.tala-timetable-focused .tala-timetable-meeting { font-size:.75rem; }
+.tala-timetable-focused .tala-timetable-meeting-class { display:none; }
+.tala-timetable-focused .tala-timetable-meeting-title { display:none; }
+
+.tala-timetable-master-grid {overflow-x:auto; background:var(--tala-surface); border:1px solid var(--tala-edge); border-radius:.75rem;}
+.tala-timetable-master table {width:100%;border-collapse:collapse;font-size:.875rem;font-variant-numeric:tabular-nums;}
+.tala-timetable-master caption {text-align:start;padding:1rem;color:var(--tala-muted);}
+.tala-timetable-master th,.tala-timetable-master td {padding:.75rem;vertical-align:top;border-block-start:1px solid var(--tala-edge);text-align:start;}
+.tala-timetable-master thead th {background:var(--tala-surface-sunken);font-weight:600;}
+.tala-timetable-master tbody th {width:12rem;}.tala-timetable-master tbody th span {display:block;color:var(--tala-muted);font-weight:400;margin-block-end:.35rem;}
+.tala-timetable-master-meeting {padding-block:.5rem;min-width:8rem;}.tala-timetable-master-meeting + .tala-timetable-master-meeting {border-block-start:1px solid var(--tala-edge);}
+.tala-timetable-master-meeting strong,.tala-timetable-master-meeting span {display:block;}.tala-timetable-master-meeting span {margin-block-start:.25rem;color:var(--tala-muted);}
+.tala-timetable-master-mobile {display:none;gap:1rem;}
+@media(max-width:40rem) {.tala-timetable-master-grid {display:none;}.tala-timetable-master-mobile {display:grid;}}
+
+.tala-timetable-master-meeting summary {cursor:pointer;min-block-size:2.75rem;line-height:1.5;overflow-wrap:anywhere;}
+.tala-timetable-master-meeting summary:focus-visible {outline:3px solid var(--tala-focus);outline-offset:2px;}
+
+/* Connected working grid: quiet geometry, readable course/time/location. */
+.tala-timetable-focused .tala-timetable-weekly { border:1px solid var(--tala-edge); border-radius:.5rem; padding-block-end:0; }
+.tala-timetable-focused .tala-timetable-day-heading { padding-block:.5rem; font-weight:600; }
+.tala-timetable-focused .tala-timetable-meeting { padding:.375rem .5rem; gap:.2rem; border-radius:.375rem; border-inline-start-width:1px; background:var(--tala-surface); }
+.tala-timetable-focused .tala-timetable-course-title { line-height:1.3; font-weight:600; }
+.tala-timetable-focused .tala-timetable-meeting-time { font-size:.75rem; font-weight:500; }
+.tala-timetable-focused .tala-timetable-meeting-code { display:none; }
+.tala-timetable-meeting .tala-timetable-meeting-room { color:var(--tala-muted); }
+.tala-timetable-mobile-meeting { padding:.75rem .25rem; }
+.tala-timetable-mobile-meeting strong { font-weight:600; line-height:1.4; }
+.tala-timetable-mobile-meeting .tala-timetable-list-time { color:var(--tala-muted); }
+
+/* Green identifies meeting inspection, never timetable validity or publication. */
+.tala-timetable, .tala-timetable-master {
+    --tala-meeting-surface:color-mix(in srgb,var(--tala-brand-strong) 80%,#000);
+}
+:is(.tala-timetable-meeting, .tala-timetable-focused .tala-timetable-meeting,
+    .tala-timetable-mobile-meeting, button.tala-timetable-master-meeting,
+    .tala-timetable-list-meeting > summary, .tala-timetable-master-meeting > summary) {
+    background-color:var(--tala-meeting-surface);
+    background-image:var(--tala-control-gloss);
+    color:var(--tala-on-brand);
+    border-color:var(--tala-brand-strong);
+    border-radius:.375rem;
+    box-shadow:var(--tala-control-depth);
+}
+:is(.tala-timetable-meeting, .tala-timetable-mobile-meeting, button.tala-timetable-master-meeting,
+    .tala-timetable-list-meeting > summary, .tala-timetable-master-meeting > summary):hover {
+    background-color:color-mix(in srgb,var(--tala-brand-strong) 88%,#000);
+}
+:is(.tala-timetable-meeting, .tala-timetable-focused .tala-timetable-meeting)[aria-pressed="true"],
+:is(.tala-timetable-meeting, .tala-timetable-mobile-meeting, button.tala-timetable-master-meeting):active,
+.tala-timetable-list-meeting[open] > summary, .tala-timetable-master-meeting[open] > summary {
+    background-color:var(--tala-meeting-surface);
+    box-shadow:var(--tala-control-pressed);
+}
+.tala-timetable-meeting :is(.tala-timetable-meeting-code, .tala-timetable-meeting-room, .tala-timetable-detail-cue),
+.tala-timetable-mobile-meeting :is(.tala-timetable-list-time, .tala-timetable-list-title),
+button.tala-timetable-master-meeting span, .tala-timetable-master-meeting > summary *,
+.tala-timetable-list-meeting > summary :is(.tala-timetable-list-time, .tala-timetable-list-title),
+.tala-timetable-list-meeting > summary::after { color:inherit; }
+:is(.tala-timetable-mobile-meeting, button.tala-timetable-master-meeting) { padding-inline:.5rem; }
+:is(.tala-timetable-meeting, .tala-timetable-mobile-meeting, button.tala-timetable-master-meeting):focus-visible {
+    outline:3px solid var(--tala-focus); outline-offset:2px;
+}
+@media (forced-colors:active) {
+    :is(.tala-timetable-meeting, .tala-timetable-focused .tala-timetable-meeting,
+        .tala-timetable-mobile-meeting, button.tala-timetable-master-meeting,
+        .tala-timetable-list-meeting > summary, .tala-timetable-master-meeting > summary) {
+        background:ButtonFace; color:ButtonText; border:1px solid ButtonText; box-shadow:none;
+    }
+}

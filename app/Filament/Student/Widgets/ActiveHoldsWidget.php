@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ActiveHoldsWidget extends BaseWidget
 {
+    protected static bool $isLazy = false;
+
     protected int|string|array $columnSpan = 'full';
 
     public function table(Table $table): Table

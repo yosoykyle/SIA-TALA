@@ -37,6 +37,7 @@ use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -105,7 +106,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $this->createStudents($programs, $curricula);
             $this->createRooms();
             $this->createFacultyReadiness($term, $registrar, $faculty, $specifications);
-            $this->createSchedulingWindow($term);
+            $this->createSchedulingWindow($term, $registrar);
             $this->createAdmissionsWindow($term);
             $this->createOfferings($term, $registrar, $programs, $curricula);
             $this->markDeliveryGroupsReady($registrar);
@@ -666,8 +667,31 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         ]);
     }
 
-    private function createSchedulingWindow(Term $term): void
+    private function createSchedulingWindow(Term $term, User $registrar): void
     {
+        $package = TermCalendarPackage::query()->create([
+            'term_id' => $term->id,
+            'version' => 1,
+            'state' => TermCalendarPackage::StateActive,
+            'administrative_starts_on' => $term->starts_on,
+            'administrative_ends_on' => $term->ends_on,
+            'classes_start_on' => $term->starts_on,
+            'classes_end_on' => $term->ends_on,
+            'authority_reference' => 'SYNTHETIC-CANONICAL-DATASET-CALENDAR',
+            'authority_date' => '2025-12-01',
+            'recorded_by' => $registrar->id,
+            'activated_at' => '2026-01-04 07:00:00',
+        ]);
+        $grid = $this->canonicalDataset->manifest()['operating_grid'];
+        foreach ($grid['days'] as $day) {
+            $package->teachingGridRows()->create([
+                'day_of_week' => $day,
+                'starts_at' => $grid['starts_at'],
+                'ends_at' => $grid['ends_at'],
+                'breaks' => [],
+            ]);
+        }
+
         CalendarEvent::query()->create([
             'term_id' => $term->id,
             'event_type' => CalendarEvent::TypeWindow,

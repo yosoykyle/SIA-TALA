@@ -4,9 +4,10 @@ namespace Tests\Feature;
 
 use App\Actions\Grades\AuthorizeLateGradeEncoding;
 use App\Actions\Grades\GradeWindowService;
-use App\Models\CalendarEvent;
 use App\Models\GradeRoster;
 use App\Models\LateGradeAuthorization;
+use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -90,12 +91,15 @@ class TAL89BLateGradeAuthorizationTest extends TestCase
     public function the_shared_grade_entry_window_never_reopens_retired_period_entry(): void
     {
         $roster = GradeRoster::factory()->create();
-        CalendarEvent::factory()->create([
+        $package = TermCalendarPackage::factory()->create([
             'term_id' => $roster->termOffering->term_id,
-            'process_key' => 'grade_entry',
-            'state' => CalendarEvent::StateActive,
-            'start_at' => now()->subMinute(),
-            'end_at' => now()->addMinute(),
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        TermCalendarWindow::factory()->for($package, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeGradeEntry,
+            'opens_on' => now('Asia/Manila')->toDateString(),
+            'closes_on' => now('Asia/Manila')->toDateString(),
+            'cutoff_at' => null,
         ]);
         $windows = app(GradeWindowService::class);
 

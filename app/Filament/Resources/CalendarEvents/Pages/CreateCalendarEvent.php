@@ -5,10 +5,13 @@ namespace App\Filament\Resources\CalendarEvents\Pages;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Models\CalendarEvent;
 use App\Models\User;
+use App\Support\HasTermPlanningContext;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateCalendarEvent extends CreateRecord
 {
+    use HasTermPlanningContext;
+
     protected static string $resource = CalendarEventResource::class;
 
     /**
@@ -17,6 +20,8 @@ class CreateCalendarEvent extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $data = $this->termPlanningFormData($data);
+
         /** @var User $actor */
         $actor = auth()->user();
 
@@ -54,5 +59,10 @@ class CreateCalendarEvent extends CreateRecord
             'state' => (string) ($data['state'] ?? CalendarEvent::StateActive),
             'authority' => $actor->name.' ('.($actor->getRoleNames()->first() ?? 'authorized staff').')',
         ];
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->termId === null ? parent::getRedirectUrl() : $this->getResourceUrl('index');
     }
 }

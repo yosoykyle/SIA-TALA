@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Scheduling\BuildOfficialScheduleOutput;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
+use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
 use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Filament\Pages\FacultySchedule;
+use App\Filament\Pages\MyAvailability;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\SchedulingDemands\Pages\ListSchedulingDemands;
@@ -18,6 +21,7 @@ use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
@@ -37,6 +41,7 @@ use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Filament\Notifications\Notification;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -322,6 +327,120 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         ]);
     }
 
+    #[Test]
+    public function faculty_week_list_and_filtered_print_share_owned_criteria_and_full_print_keeps_all_meetings(): void
+    {
+        $fixture = $this->scheduleFixture();
+        $other = $this->scheduleFixture();
+        $tuesday = $fixture['meeting']->replicate();
+        $tuesday->fill(['meeting_sequence' => 2, 'day_of_week' => 2])->save();
+        $criteria = ['course_id' => $fixture['course']->id, 'class_id' => $fixture['section']->id, 'room_id' => $fixture['room']->id, 'day_of_week' => 2, 'modality' => TermOffering::ModalityFaceToFace, 'search' => $fixture['course']->code];
+        $page = Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class)
+            ->set('tableSearch', $criteria['search']);
+        foreach (array_diff_key($criteria, ['search' => true]) as $field => $value) {
+            $page->filterTable($field, $value);
+        }
+        $this->assertSame([$tuesday->id], $page->instance()->getFilteredTableQuery()->pluck('id')->all());
+        $this->assertFalse($page->instance()->getTable()->isPaginated());
+        $this->assertNotNull($page->instance()->getTable()->getContent());
+        $page->assertSee('Tuesday')->callTableAction('listView')->assertSet('scheduleView', 'list')->assertCanSeeTableRecords([$tuesday])->assertCanNotSeeTableRecords([$fixture['meeting'], $other['meeting']]);
+        $this->assertTrue($page->instance()->getTable()->isPaginated());
+        $this->assertNull($page->instance()->getTable()->getContent());
+        $this->assertSame([$tuesday->id], $page->instance()->getFilteredTableQuery()->pluck('id')->all());
+        $page->callTableAction('weekView')->assertSet('scheduleView', 'week');
+        $this->assertSame([$tuesday->id], $page->instance()->getFilteredTableQuery()->pluck('id')->all());
+        $this->assertStringContainsString('day_of_week=2', $page->instance()->printFilteredScheduleAction()->getUrl());
+        $page->call('mountAction', 'viewMeeting', [], ['table' => true, 'recordKey' => (string) $tuesday->id])->assertSet('mountedActions.0.name', 'viewMeeting');
+        $this->assertSame('Class meeting', $page->instance()->getMountedAction()->getModalHeading());
+        $this->assertStringContainsString('Location', $page->instance()->getMountedAction()->getModalContent()->render());
+        $page->call('unmountAction');
+        $page->call('mountAction', 'viewMeeting', [], ['table' => true, 'recordKey' => (string) $other['meeting']->id])->assertSet('mountedActions', []);
+        $page->filterTable('day_of_week', 7)->assertSee('No meetings match your filters')->assertSee('Clear filters and search');
+        $page->call('clearScheduleFilters');
+        $this->assertCount(2, $page->instance()->getFilteredTableQuery()->get());
+
+        $output = app(BuildOfficialScheduleOutput::class)->forFaculty($fixture['faculty'], Request::create('/', 'GET', ['timetable_version' => $fixture['timetable']->id, 'scope' => 'filtered', 'view' => 'list', ...$criteria]));
+        $this->assertCount(1, $output['rows']);
+        $this->assertSame('Tuesday', $output['rows'][0]['day']);
+        $this->assertSame($fixture['course']->code, $output['rows'][0]['course']);
+        $this->assertSame('Faculty Filtered Schedule', $output['title']);
+        $this->assertStringContainsString('Day: Tuesday', $output['filter_description']);
+        parse_str(parse_url($output['back_url'], PHP_URL_QUERY), $returnContext);
+        $this->assertSame((string) $fixture['term']->id, $returnContext['termId']);
+        $this->assertSame('2', $returnContext['tableFilters']['day_of_week']['value']);
+        $this->assertSame($criteria['search'], $returnContext['tableSearch']);
+        $restored = Livewire::withQueryParams($returnContext)->actingAs($fixture['faculty'])->test(FacultySchedule::class)->assertSet('scheduleView', 'list');
+        $this->assertSame([$tuesday->id], $restored->instance()->getFilteredTableQuery()->pluck('id')->all());
+        $this->assertSame('Back to My Schedule', $output['back_label']);
+        $this->assertDatabaseHas('output_access_logs', ['output_type' => 'FACULTY_SCHEDULE', 'actor_user_id' => $fixture['faculty']->id, 'row_count' => 1]);
+
+        $full = app(BuildOfficialScheduleOutput::class)->forFaculty($fixture['faculty'], Request::create('/', 'GET', ['timetable_version' => $fixture['timetable']->id]));
+        $this->assertCount(2, $full['rows']);
+        $this->assertNull($full['filter_description']);
+        $tampered = app(BuildOfficialScheduleOutput::class)->forFaculty($fixture['faculty'], Request::create('/', 'GET', ['timetable_version' => $other['timetable']->id, 'scope' => 'filtered', 'faculty_user_id' => $other['faculty']->id, 'meeting_ids' => [$other['meeting']->id]]));
+        $this->assertSame([], $tampered['rows']);
+        $this->actingAs($fixture['faculty'])->getJson(route('faculty.schedule.print', ['scope' => 'filtered', 'day_of_week' => 8]))->assertUnprocessable();
+    }
+
+    #[Test]
+    public function faculty_course_title_search_matches_linked_specification_and_same_owned_output(): void
+    {
+        $fixture = $this->scheduleFixture();
+        $other = $this->scheduleFixture();
+        $specification = $fixture['meeting']->schedulingDemand->termOffering->curriculumEntry->courseSpecification;
+        $specification->update(['title' => 'Applied Research 100%_Studio']);
+        CourseSpecification::factory()->for($fixture['course'])->create(['title' => 'Unassociated special title']);
+        $second = $fixture['meeting']->replicate();
+        $second->fill(['meeting_sequence' => 2, 'day_of_week' => 2])->save();
+        $wrongActor = $fixture['meeting']->replicate();
+        $wrongActor->fill(['meeting_sequence' => 3, 'faculty_user_id' => $other['faculty']->id])->save();
+        $other['meeting']->update(['faculty_user_id' => $fixture['faculty']->id]);
+        $other['meeting']->schedulingDemand->termOffering->curriculumEntry->courseSpecification->update(['title' => 'Applied Research 100%_Studio']);
+
+        $page = Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class, ['termId' => $fixture['term']->id])->set('tableSearch', 'Applied Research');
+        $this->assertEqualsCanonicalizing([$fixture['meeting']->id, $second->id], $page->instance()->getFilteredTableQuery()->pluck('id')->all());
+        $page->callTableAction('listView')->assertCanSeeTableRecords([$fixture['meeting'], $second])->assertCanNotSeeTableRecords([$wrongActor, $other['meeting']]);
+        $output = app(BuildOfficialScheduleOutput::class)->forFaculty($fixture['faculty'], Request::create('/', 'GET', ['timetable_version' => $fixture['timetable']->id, 'scope' => 'filtered', 'search' => 'Applied Research']));
+        $this->assertCount(2, $output['rows']);
+        $this->assertStringContainsString('Search: Applied Research', $output['filter_description']);
+        $page->set('tableSearch', '100%_');
+        $this->assertCount(2, $page->instance()->getFilteredTableQuery()->get());
+        $page->set('tableSearch', 'Unassociated special title');
+        $this->assertSame([], $page->instance()->getFilteredTableQuery()->pluck('id')->all());
+        $unlinkedOutput = app(BuildOfficialScheduleOutput::class)->forFaculty($fixture['faculty'], Request::create('/', 'GET', ['timetable_version' => $fixture['timetable']->id, 'scope' => 'filtered', 'search' => 'Unassociated special title']));
+        $this->assertSame([], $unlinkedOutput['rows']);
+    }
+
+    #[Test]
+    public function faculty_whole_term_unavailability_flags_only_own_exact_term_official_assignments(): void
+    {
+        $fixture = $this->scheduleFixture();
+        $other = $this->scheduleFixture();
+        $other['meeting']->update(['faculty_user_id' => $fixture['faculty']->id]);
+        $sameTermOtherFaculty = $fixture['meeting']->replicate();
+        $sameTermOtherFaculty->fill(['faculty_user_id' => $other['faculty']->id, 'meeting_sequence' => 3])->save();
+        $pending = ScheduleGenerationRun::factory()->create(['term_id' => $fixture['term']->id, 'status' => ScheduleGenerationRun::StatusUnderReview]);
+        $record = app(RecordFacultyAvailabilityDeclaration::class);
+        $record->execute($fixture['term'], $fixture['faculty'], $fixture['faculty'], FacultyAvailabilityDeclaration::DeclarationAvailable, []);
+        $corrected = $record->execute($fixture['term'], $fixture['faculty'], $fixture['faculty'], FacultyAvailabilityDeclaration::DeclarationUnavailable, [], 'Cannot teach this Term');
+
+        $impact = DB::table('activity_log')->where('event', 'faculty_availability_revision_required')->where('subject_id', $corrected->id)->first();
+        $this->assertNotNull($impact);
+        $properties = json_decode($impact->properties, true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame([$fixture['meeting']->id], $properties['affected_section_meeting_ids']);
+        $this->assertSame('Stale', $pending->fresh()->candidate_state);
+        $this->assertTrue(SectionMeeting::query()->activeOfficial()->whereKey($fixture['meeting']->id)->exists());
+        $this->assertModelExists($other['meeting']);
+        $this->assertModelExists($sameTermOtherFaculty);
+        Livewire::actingAs($fixture['faculty'])->test(MyAvailability::class, ['termId' => $fixture['term']->id])->assertSee('Official timetable review required.');
+        $record->execute($fixture['term'], $fixture['faculty'], $fixture['faculty'], FacultyAvailabilityDeclaration::DeclarationAvailable, [], 'Can teach after all');
+        Livewire::actingAs($fixture['faculty'])->test(MyAvailability::class, ['termId' => $fixture['term']->id])->assertDontSee('Official timetable review required.');
+        $record->execute($fixture['term'], $fixture['faculty'], $fixture['faculty'], FacultyAvailabilityDeclaration::DeclarationUnavailable, [], 'Cannot teach this Term again');
+        $fixture['timetable']->update(['state' => PublishedTimetableVersion::StateSuperseded]);
+        Livewire::actingAs($fixture['faculty'])->test(MyAvailability::class, ['termId' => $fixture['term']->id])->assertDontSee('Official timetable review required.');
+        $this->assertDatabaseHas('activity_log', ['event' => 'faculty_availability_revision_required', 'subject_id' => $corrected->id]);
+    }
+
     private function createRun(User $registrar, array $diagnostics = []): ScheduleGenerationRun
     {
         return ScheduleGenerationRun::query()->create([
@@ -499,6 +618,10 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             'term',
             'course',
             'enrollment',
+            'meeting',
+            'timetable',
+            'room',
+            'section',
         );
     }
 

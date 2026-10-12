@@ -13,6 +13,7 @@ use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -21,6 +22,107 @@ use Tests\TestCase;
 class WorkspaceNavigationSearchTest extends TestCase
 {
     use DatabaseTransactions;
+
+    public function test_registrar_navigation_groups_keep_all_five_destinations_and_admissions_entry(): void
+    {
+        $user = $this->signIn(User::StaffRoleRegistrar, ['approve-documents']);
+
+        $groups = collect(Filament::getNavigation())->mapWithKeys(fn ($group): array => [
+            $group->getLabel() => collect($group->getItems())->map->getLabel()->all(),
+        ])->all();
+
+        $this->assertSame([
+            'Learner work' => ['Admissions', 'Students & Enrollment', 'Grades & Completion'],
+            'Academic setup' => ['Catalog & Curricula', 'Term Planning'],
+        ], $groups);
+        $this->assertSame('/admin/admissions/admission-applications', app(WorkspaceContextResolver::class)
+            ->destinationFor($user, User::StaffRoleRegistrar));
+    }
+
+    public function test_registrar_finds_essential_setup_and_catalog_destinations_without_private_records(): void
+    {
+        $user = $this->signIn(User::StaffRoleRegistrar, ['manage-schedules']);
+
+        foreach ([
+            'Academic Years', 'Terms', 'Term Offerings', 'Classes', 'Rooms',
+            'Faculty Qualifications', 'Faculty Term Load Overrides', 'Programs', 'Course Catalog',
+            'Course Specifications', 'Curriculum Versions', 'Import Batch Audit',
+            'Weekly unavailable times', 'Schedule Requirements', 'Generated Timetables', 'Published Timetable',
+        ] as $title) {
+            $this->assertContains($title, $this->titles($title));
+        }
+
+        $this->assertSame([], $this->titles($user->email));
+        $this->assertSame([], $this->titles('Users'));
+        $this->assertSame([], $this->titles('Duplicate'));
+    }
+
+    public function test_registrar_without_schedule_permission_cannot_find_sections(): void
+    {
+        $this->signIn(User::StaffRoleRegistrar);
+
+        $this->assertSame([], $this->titles('Section'));
+        $this->assertContains('Rooms', $this->titles('Rooms'));
+    }
+
+    #[DataProvider('otherStaffWorkspaces')]
+    public function test_other_workspaces_keep_their_navigation_and_exclude_registrar_setup(string $role, array $labels, array $permissions): void
+    {
+        $this->signIn($role, $permissions);
+
+        $this->assertSame($labels, collect(Filament::getNavigation())
+            ->flatMap(fn ($group) => $group->getItems())->map->getLabel()->values()->all());
+        foreach (['Term Offerings', 'Classes', 'Rooms', 'Faculty Qualifications', 'Programs', 'Admission cycles'] as $title) {
+            $this->assertSame([], $this->titles($title));
+        }
+    }
+
+    public function test_multi_role_accounting_context_excludes_registrar_setup_and_admissions_cluster(): void
+    {
+        $user = $this->signIn(User::StaffRoleRegistrar, ['approve-documents', 'manage-admission-setup', 'manage-schedules']);
+        $user->assignRole(Role::findOrCreate(User::StaffRoleAccounting, 'web'));
+        $this->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAccounting]);
+
+        foreach (['queue', 'cycle', 'Rooms', 'Term Offerings', 'Qualifications', 'Course Catalog'] as $query) {
+            $this->assertSame([], $this->titles($query));
+        }
+        $this->assertContains('Student Accounts', $this->titles('Student Accounts'));
+    }
+
+    public function test_multi_role_user_without_selected_context_gets_no_registrar_destinations(): void
+    {
+        $user = $this->signIn(User::StaffRoleRegistrar, ['approve-documents', 'manage-admission-setup']);
+        $user->assignRole(Role::findOrCreate(User::StaffRoleAccounting, 'web'));
+
+        $this->assertSame([], $this->titles('Rooms'));
+        $this->assertSame([], $this->titles('queue'));
+    }
+
+    public function test_system_administrator_keeps_authorized_public_content_cluster_search(): void
+    {
+        $this->signIn(User::StaffRoleSystemSuperAdmin, ['manage-faqs', 'manage-public-notices']);
+
+        $this->assertContains('FAQ', $this->titles('FAQ'));
+    }
+
+    public function test_faculty_finds_sibling_availability_without_a_duplicate_sidebar_destination(): void
+    {
+        $this->signIn(User::StaffRoleFaculty);
+
+        $this->assertContains('My Availability', $this->titles('Availability'));
+        $this->assertSame([], $this->titles('Term Planning'));
+    }
+
+    /** @return array<string, array{string, list<string>, list<string>}> */
+    public static function otherStaffWorkspaces(): array
+    {
+        return [
+            'Accounting' => [User::StaffRoleAccounting, ['Fee Plans', 'Student Accounts'], []],
+            'Faculty' => [User::StaffRoleFaculty, ['Schedule & Availability', 'Grade Rosters'], []],
+            'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight'], []],
+            'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit'], ['manage-faqs', 'manage-public-notices']],
+        ];
+    }
 
     public function test_setup_only_registrar_finds_cycles_without_an_application_queue_result(): void
     {

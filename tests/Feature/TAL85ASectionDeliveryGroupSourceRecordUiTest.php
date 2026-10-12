@@ -43,7 +43,7 @@ final class TAL85ASectionDeliveryGroupSourceRecordUiTest extends TestCase
     {
         $registrar = $this->registrar();
 
-        $this->assertTrue(Route::has('filament.admin.resources.sections.index'));
+        $this->assertTrue(Route::has('filament.admin.term-planning.resources.sections.index'));
 
         Livewire::actingAs($registrar)
             ->test(ListSections::class)

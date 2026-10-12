@@ -7,8 +7,9 @@ This guide gives practical examples of the [TALA Orchestrator Protocol](../TALA-
 1. Read the owning Issue, accepted plan and handoff, relevant canonical documents, current Git state, and existing evidence. Identify the authorized boundary and preserve unrelated work.
 2. Reuse a sufficient accepted Issue contract or linked plan and matching UI brief. Check only task-applicable prerequisites. Resolve a material change through the owning authority and task record before affected implementation.
 3. Under an authorized `LOCAL_EXECUTION` assignment, implement and verify the bounded scope. For UI work, use the applicable Impeccable brief, framework documentation, and representative rendered checks.
-4. Return evidence for each acceptance criterion, including failure and recovery behavior. The independent reviewer checks conformance and usability against the accepted contract.
-5. Under explicitly authorized `Complete #NN`, satisfy the completion gates and create the single bounded local commit. Under `Publish #NN`, follow the applicable publication path below. These effects may be authorized together in one request; do not stop for another approval already given.
+4. Stop at local readiness in the executor chat for the owner's hands-on review and authorized refinements. Do not automatically report to the orchestrator.
+5. After refinements, wait for explicit owner permission. Then send one consolidated criterion report, including original work, owner additions, failure/recovery evidence and remaining gaps. The orchestrator reviews only after this permitted return; any remediation handback repeats the owner-review/report sequence.
+6. Under explicitly authorized `Complete #NN`, satisfy the completion gates and create the single bounded local commit. Under `Publish #NN`, follow the applicable publication path below. These effects may be authorized together in one request after the applicable review/report gate; do not stop for another approval already given.
 
 These steps are continuous work within the named authorization, not required separate owner turns. A Complete request may finish remaining bounded implementation without a prior Implement turn. Maintain one acceptance ledger and reuse current evidence rather than repeat completed steps. Routine implementation choices stay with the assigned executor. Product decisions explicitly delegated to the orchestrator are resolved, recorded in their owning authority, and included in the handoff. A task assignment names its actual recipient and delivery method.
 
@@ -23,6 +24,8 @@ These steps are continuous work within the named authorization, not required sep
 Inspect the current branch, worktrees, and unrelated edits before setup. Selectively stage the exact accepted manifest at completion. Preserve pending documents, application work, tests, references, and other contributors' changes.
 
 ## Record a newly discovered concern
+
+Issues and PRDs remain living documents. The owner decides per case which orchestrator, executor or bounded helper updates the applicable record. Follow [Protocol Section 8](../TALA-Orchestrator-Protocol.md#8-authority-corrections-and-decision-records) for authorized corrections, domain ownership and material decisions; helper allocation or permission to send a report grants no blanket document rewrite.
 
 Check the active coordination register and owning Issue first. Expand an existing concern when it already owns the outcome. Record genuinely missing work with a stable identifier in the authorized coordination update.
 

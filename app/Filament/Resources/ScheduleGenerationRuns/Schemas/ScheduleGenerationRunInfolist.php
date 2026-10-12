@@ -6,6 +6,7 @@ use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
 use App\Filament\Resources\Rooms\RoomResource;
+use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Filament\Resources\Terms\TermResource;
@@ -16,6 +17,7 @@ use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\Term;
+use App\Support\DisplayDateTime;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
@@ -32,7 +34,8 @@ class ScheduleGenerationRunInfolist
     {
         return $schema
             ->components([
-                Section::make('Generated Timetable Summary')
+                Section::make('Review result')
+                    ->columnSpanFull()
                     ->extraAttributes(fn (ScheduleGenerationRun $record): array => in_array($record->status, [
                         ScheduleGenerationRun::StatusQueued,
                         ScheduleGenerationRun::StatusDispatching,
@@ -49,19 +52,46 @@ class ScheduleGenerationRunInfolist
                         TextEntry::make('requester.name')
                             ->label('Requested By')
                             ->placeholder('-'),
+                        TextEntry::make('candidate_state')
+                            ->label('Draft review')
+                            ->badge()
+                            ->color(fn (ScheduleGenerationRun $record): string => ScheduleGenerationRun::statusColors()[$record->status] ?? 'gray')
+                            ->formatStateUsing(fn (string $state): string => Str::headline($state))
+                            ->placeholder('Awaiting a candidate'),
+                        TextEntry::make('candidate_row_total')
+                            ->label('Candidate assignments')
+                            ->state(fn (ScheduleGenerationRun $record): int => $record->candidateRows()->count())
+                            ->numeric(),
+                        TextEntry::make('candidate_row_conflicts')
+                            ->label('Publication blockers')
+                            ->state(fn (ScheduleGenerationRun $record): int => $record->publicationSummary()['conflicts'])
+                            ->badge()
+                            ->color(fn (int $state): string => $state > 0 ? 'danger' : 'gray'),
+                        TextEntry::make('candidate_row_warnings')
+                            ->label('Assignment warnings')
+                            ->state(fn (ScheduleGenerationRun $record): int => $record->publicationSummary()['warnings'])
+                            ->badge()
+                            ->color(fn (int|string $state): string => is_numeric($state) && $state > 0 ? 'warning' : 'gray'),
+                        TextEntry::make('latest_validation')
+                            ->label('Latest validation evidence')
+                            ->state(fn (ScheduleGenerationRun $record): string => self::currentRevalidation($record) !== []
+                                ? 'Current revalidation: '.Str::headline((string) (self::currentRevalidation($record)['status'] ?? 'Unavailable'))
+                                : (self::solverSummary($record) !== []
+                                    ? 'Original validation result: '.Str::headline((string) (self::solverSummary($record)['status'] ?? 'Unavailable'))
+                                    : 'Awaiting validation evidence')),
+                        TextEntry::make('blocking_reason')
+                            ->label('Why this draft is blocked')
+                            ->state(fn (ScheduleGenerationRun $record): string => $record->finalSolverFailure()['message'] ?? data_get(self::solverSummary($record), 'message', 'Review the validation findings before requesting a new draft.'))
+                            ->visible(fn (ScheduleGenerationRun $record): bool => $record->status === ScheduleGenerationRun::StatusBlocked)
+                            ->columnSpanFull(),
                         TextEntry::make('live_status_guidance')
                             ->label('What happens next')
-                            ->state(fn (ScheduleGenerationRun $record): string => $record->status === ScheduleGenerationRun::StatusQueued
-                                ? 'The request is waiting for the timetable worker. This page refreshes automatically while it is active.'
-                                : 'The timetable worker is processing this request. Keep this page open; its status refreshes automatically.')
-                            ->visible(fn (ScheduleGenerationRun $record): bool => in_array($record->status, [
-                                ScheduleGenerationRun::StatusQueued,
-                                ScheduleGenerationRun::StatusDispatching,
-                            ], true))
+                            ->state(fn (ScheduleGenerationRun $record): string => self::nextStep($record))
                             ->columnSpanFull(),
                     ])
                     ->columns(3),
-                Section::make('Operations and Diagnostics')
+
+                Section::make('Technical diagnostics')->columnSpanFull()->collapsible()->collapsed()
                     ->description('Worker attempts and technical provenance for troubleshooting. These fields do not make the timetable official.')
                     ->schema([
                         TextEntry::make('dispatch_cycle')
@@ -144,26 +174,8 @@ class ScheduleGenerationRunInfolist
                     ])
                     ->collapsible()
                     ->collapsed(),
-                Section::make('Assignment Review')
-                    ->description('Review assignment coverage, warnings, and conflicts before considering publication.')
-                    ->schema([
-                        TextEntry::make('candidate_row_total')
-                            ->label('Candidate Assignments')
-                            ->state(fn (ScheduleGenerationRun $record): int => $record->candidateRows()->count())
-                            ->numeric(),
-                        TextEntry::make('candidate_row_conflicts')
-                            ->label('Conflicts')
-                            ->state(fn (ScheduleGenerationRun $record): int => $record->publicationSummary()['conflicts'])
-                            ->badge()
-                            ->color(fn (int $state): string => $state > 0 ? 'danger' : 'success'),
-                        TextEntry::make('candidate_row_warnings')
-                            ->label('Warnings')
-                            ->state(fn (ScheduleGenerationRun $record): int => $record->publicationSummary()['warnings'])
-                            ->badge()
-                            ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
-                    ])
-                    ->columns(3),
-                Section::make('Publication Status')
+                Section::make('Publication Status')->columnSpanFull()
+                    ->visible(fn (ScheduleGenerationRun $record): bool => $record->published_at !== null)
                     ->description('A generated timetable remains a proposal until the Registrar explicitly publishes it.')
                     ->schema([
                         TextEntry::make('publication_version')
@@ -174,8 +186,8 @@ class ScheduleGenerationRunInfolist
                             ->label('Published By')
                             ->placeholder('-'),
                         TextEntry::make('published_at')
-                            ->label('Published At')
-                            ->dateTime()
+                            ->label('Published (Asia/Manila)')
+                            ->state(fn (ScheduleGenerationRun $record): string => DisplayDateTime::format($record->published_at))
                             ->placeholder('-'),
                         TextEntry::make('publication_note')
                             ->label('Publication Note')
@@ -183,7 +195,9 @@ class ScheduleGenerationRunInfolist
                             ->columnSpanFull(),
                     ])
                     ->columns(3),
-                Section::make('Current Validation')
+                Section::make('Current Validation')->columnSpanFull()
+                    ->collapsible()
+                    ->collapsed()
                     ->schema([
                         TextEntry::make('current_validation_status')
                             ->label('Result')
@@ -200,22 +214,22 @@ class ScheduleGenerationRunInfolist
                             ->placeholder('-'),
                         TextEntry::make('current_validation_assigned')
                             ->label('Assigned')
-                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::currentSummary($record)['assigned_count'] ?? 0))
+                            ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::currentSummary($record), 'assigned_count'))
                             ->numeric(),
                         TextEntry::make('current_validation_unassigned')
                             ->label('Unassigned')
-                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::currentSummary($record)['unassigned_count'] ?? 0))
+                            ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::currentSummary($record), 'unassigned_count'))
                             ->numeric(),
                         TextEntry::make('current_validation_hard_violations')
                             ->label('Hard Violations')
-                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::currentSummary($record)['hard_violation_count'] ?? 0))
+                            ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::currentSummary($record), 'hard_violation_count'))
                             ->badge()
-                            ->color(fn (int $state): string => $state > 0 ? 'danger' : 'success'),
+                            ->color(fn (int|string $state): string => is_numeric($state) ? ($state > 0 ? 'danger' : 'success') : 'gray'),
                         TextEntry::make('current_validation_warnings')
                             ->label('Warnings')
-                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::currentSummary($record)['warning_count'] ?? 0))
+                            ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::currentSummary($record), 'warning_count'))
                             ->badge()
-                            ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
+                            ->color(fn (int|string $state): string => is_numeric($state) && $state > 0 ? 'warning' : 'gray'),
                     ])
                     ->columns([
                         'default' => 1,
@@ -223,7 +237,9 @@ class ScheduleGenerationRunInfolist
                         'xl' => 4,
                     ])
                     ->visible(fn (ScheduleGenerationRun $record): bool => self::currentRevalidation($record) !== []),
-                Section::make('Solution Quality')
+                Section::make('Solution Quality')->columnSpanFull()->collapsible()->collapsed()
+                    ->collapsible()
+                    ->collapsed()
                     ->description('These are optimization-quality measures for the generated timetable, not predictive accuracy or an accuracy score.')
                     ->schema([
                         TextEntry::make('solution_quality_status')
@@ -242,14 +258,14 @@ class ScheduleGenerationRunInfolist
                             ->state(fn (ScheduleGenerationRun $record): string => self::demandCoverage($record)),
                         TextEntry::make('solution_quality_hard_conflicts')
                             ->label('Hard Conflicts')
-                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::solverSummary($record)['hard_violation_count'] ?? 0))
+                            ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'hard_violation_count'))
                             ->badge()
-                            ->color(fn (int $state): string => $state > 0 ? 'danger' : 'success'),
+                            ->color(fn (int|string $state): string => is_numeric($state) ? ($state > 0 ? 'danger' : 'success') : 'gray'),
                         TextEntry::make('solution_quality_warnings')
                             ->label('Warnings')
-                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::solverSummary($record)['warning_count'] ?? 0))
+                            ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'warning_count'))
                             ->badge()
-                            ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
+                            ->color(fn (int|string $state): string => is_numeric($state) && $state > 0 ? 'warning' : 'gray'),
                         TextEntry::make('solution_quality_objective')
                             ->label('Objective Value')
                             ->state(fn (ScheduleGenerationRun $record): string => self::qualityNumber(
@@ -272,8 +288,9 @@ class ScheduleGenerationRunInfolist
                         'md' => 2,
                         'xl' => 4,
                     ])
-                    ->visible(fn (ScheduleGenerationRun $record): bool => self::solverResult($record) !== []),
-                Section::make('Original Solver Result')
+                    ->visible(fn (ScheduleGenerationRun $record): bool => self::solverStatistics($record) !== [] || is_numeric($record->objective_value)),
+                Section::make('Original Solver Result')->columnSpanFull()->collapsible()->collapsed()
+                    ->visible(fn (ScheduleGenerationRun $record): bool => self::solverResult($record) !== [])
                     ->description('Original provider response retained for technical comparison with current Laravel validation.')
                     ->schema([
                         TextEntry::make('solver_result_status')
@@ -283,22 +300,22 @@ class ScheduleGenerationRunInfolist
                             ->color(fn (string $state): string => in_array($state, ['optimal', 'feasible'], true) ? 'success' : ($state === '-' ? 'gray' : 'danger')),
                         TextEntry::make('solver_result_assigned')
                             ->label('Assigned')
-                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::solverSummary($record)['assigned_count'] ?? 0))
+                            ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'assigned_count'))
                             ->numeric(),
                         TextEntry::make('solver_result_unassigned')
                             ->label('Unassigned')
-                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::solverSummary($record)['unassigned_count'] ?? 0))
+                            ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'unassigned_count'))
                             ->numeric(),
                         TextEntry::make('solver_result_hard_violations')
                             ->label('Hard Violations')
-                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::solverSummary($record)['hard_violation_count'] ?? 0))
+                            ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'hard_violation_count'))
                             ->badge()
-                            ->color(fn (int $state): string => $state > 0 ? 'danger' : 'success'),
+                            ->color(fn (int|string $state): string => is_numeric($state) ? ($state > 0 ? 'danger' : 'success') : 'gray'),
                         TextEntry::make('solver_result_warnings')
                             ->label('Warnings')
-                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::solverSummary($record)['warning_count'] ?? 0))
+                            ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'warning_count'))
                             ->badge()
-                            ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
+                            ->color(fn (int|string $state): string => is_numeric($state) && $state > 0 ? 'warning' : 'gray'),
                     ])
                     ->columns([
                         'default' => 1,
@@ -307,7 +324,9 @@ class ScheduleGenerationRunInfolist
                     ])
                     ->collapsible()
                     ->collapsed(),
-                Section::make('Hard Constraint Checklist')
+                Section::make('Hard Constraint Checklist')->columnSpanFull()->collapsible()->collapsed()
+                    ->collapsible()
+                    ->collapsed()
                     ->description('Each listed rule comes from this run\'s captured solver input. Passed means Laravel revalidated the complete candidate and found no violation for that rule.')
                     ->schema([
                         RepeatableEntry::make('hard_constraint_checklist')
@@ -335,7 +354,9 @@ class ScheduleGenerationRunInfolist
                             ->columnSpanFull(),
                     ])
                     ->visible(fn (ScheduleGenerationRun $record): bool => self::hardConstraintRows($record) !== []),
-                Section::make('Soft Objective Evidence')
+                Section::make('Soft Objective Evidence')->columnSpanFull()->collapsible()->collapsed()
+                    ->collapsible()
+                    ->collapsed()
                     ->description('Soft objectives rank otherwise valid schedules. They are measured preferences, not pass/fail constraints or an accuracy score.')
                     ->schema([
                         RepeatableEntry::make('soft_objective_evidence')
@@ -358,8 +379,9 @@ class ScheduleGenerationRunInfolist
                             ->contained(false)
                             ->columnSpanFull(),
                     ])
-                    ->visible(fn (ScheduleGenerationRun $record): bool => self::softObjectiveRows($record) !== []),
-                Section::make('Validation Findings')
+                    ->visible(fn (ScheduleGenerationRun $record): bool => collect(self::softObjectiveRows($record))->contains('status', 'Measured')),
+                Section::make('Validation Findings')->columnSpanFull()
+                    ->visible(fn (ScheduleGenerationRun $record): bool => self::findingRows($record) !== [])
                     ->description(fn (ScheduleGenerationRun $record): string => self::currentRevalidation($record) !== []
                         ? 'Latest current-record revalidation findings.'
                         : 'Original solver-result validation findings.')
@@ -387,7 +409,13 @@ class ScheduleGenerationRunInfolist
                                 TextEntry::make('message')
                                     ->wrap(),
                                 TextEntry::make('source_label')
-                                    ->url(fn (Get $get): ?string => $get('source_url'))
+                                    ->url(function (Get $get, ViewScheduleGenerationRun $livewire): ?string {
+                                        $url = $get('source_url');
+
+                                        return filled($url) && $livewire->termId !== null
+                                            ? url()->query($url, ['termId' => $livewire->termId])
+                                            : $url;
+                                    })
                                     ->color(fn (Get $get): string => filled($get('source_url')) ? 'primary' : 'gray')
                                     ->wrap(),
                                 TextEntry::make('source_url')
@@ -408,6 +436,26 @@ class ScheduleGenerationRunInfolist
         return $latestAttempt === null
             ? 'No Attempts'
             : Str::headline(strtolower($latestAttempt->status));
+    }
+
+    private static function nextStep(ScheduleGenerationRun $record): string
+    {
+        if (in_array($record->candidate_state, ['Rejected', 'Stale', 'Superseded'], true)) {
+            return 'This candidate is '.strtolower($record->candidate_state).'. Return to Timetable to inspect the current request or prepare a successor.';
+        }
+
+        return match ($record->status) {
+            ScheduleGenerationRun::StatusQueued => 'Waiting for the timetable worker. This page refreshes automatically while the request is active.',
+            ScheduleGenerationRun::StatusDispatching => 'The timetable worker is processing this request. This page refreshes automatically while it is active.',
+            ScheduleGenerationRun::StatusBlocked => 'Review the validation findings and correct the linked source records. Return to Timetable to check readiness and prepare the next request.',
+            ScheduleGenerationRun::StatusFailed => 'Review the recorded failure under Operations and Diagnostics. The Registrar corrects class or resource findings in Sections & classes or Faculty & rooms. Contact the System Administrator for service failures. Return to Timetable and retry when available.',
+            ScheduleGenerationRun::StatusPublished => 'This timetable has been published. Return to Timetable to inspect the official version and print it. Published changes require controlled revision.',
+            ScheduleGenerationRun::StatusSuperseded => 'A newer request replaced this one. Return to Timetable to inspect the current candidate.',
+            ScheduleGenerationRun::StatusUnderReview => $record->candidate_state === 'Accepted'
+                ? 'Candidate review is accepted. The Registrar must record external sign-off and pass whole-timetable validation when publishing; this candidate remains non-official until then.'
+                : 'Inspect the timetable and validation findings. A Registrar can accept or reject the whole candidate; publication is a separate decision after acceptance.',
+            default => 'Review the recorded status and return to Timetable for this Term.',
+        };
     }
 
     /**
@@ -454,10 +502,21 @@ class ScheduleGenerationRunInfolist
     private static function demandCoverage(ScheduleGenerationRun $record): string
     {
         $summary = self::solverSummary($record);
+
+        if (! is_numeric($summary['assigned_count'] ?? null) || ! is_numeric($summary['unassigned_count'] ?? null)) {
+            return 'Not reported';
+        }
+
         $assigned = (int) ($summary['assigned_count'] ?? 0);
         $total = $assigned + (int) ($summary['unassigned_count'] ?? 0);
 
         return "{$assigned} of {$total} demands assigned";
+    }
+
+    /** @param array<string, mixed> $summary */
+    private static function recordedCount(array $summary, string $key): int|string
+    {
+        return is_numeric($summary[$key] ?? null) ? (int) $summary[$key] : 'Not reported';
     }
 
     private static function qualityNumber(mixed $value): string

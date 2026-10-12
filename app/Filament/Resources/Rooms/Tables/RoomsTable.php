@@ -2,9 +2,12 @@
 
 namespace App\Filament\Resources\Rooms\Tables;
 
+use App\Filament\Resources\Rooms\Schemas\RoomInfolist;
 use App\Models\Room;
+use App\Support\RoomEquipment;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -20,13 +23,13 @@ class RoomsTable
                 TextColumn::make('name')->searchable()->sortable()->placeholder('-'),
                 TextColumn::make('building')->searchable()->sortable()->placeholder('-'),
                 TextColumn::make('room_type')
-                    ->label('Room Type')
+                    ->label('Room type')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Room::typeOptions()[$state] ?? str($state)->headline()->toString()))
                     ->sortable(),
                 TextColumn::make('capacity')->numeric()->suffix(' seats')->sortable()->placeholder('-'),
                 TextColumn::make('features.feature_key')
-                    ->label('Features')
+                    ->label('Equipment')->formatStateUsing(fn (?string $state): string => RoomEquipment::label($state))
                     ->badge()
                     ->separator(',')
                     ->limitList(3)
@@ -39,7 +42,7 @@ class RoomsTable
             ])
             ->filters([
                 SelectFilter::make('room_type')
-                    ->label('Room Type')
+                    ->label('Room type')
                     ->options(Room::typeOptions()),
                 SelectFilter::make('is_active')->label('Active')->options([
                     '1' => 'Active',
@@ -47,7 +50,7 @@ class RoomsTable
                 ]),
             ])
             ->recordActions([
-                ViewAction::make(),
+                ViewAction::make()->url(null)->modalHeading(fn (Room $record): string => $record->code.' · '.$record->name)->schema(fn (Schema $schema): Schema => RoomInfolist::configure($schema)),
                 EditAction::make(),
             ])
             ->toolbarActions([])

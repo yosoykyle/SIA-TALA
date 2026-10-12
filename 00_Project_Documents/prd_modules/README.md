@@ -2,6 +2,8 @@
 
 This directory contains TALA's canonical product-definition baseline and six journey PRDs. Each PRD owns its module's product behavior. The Orchestrator Protocol governs delivery, and the owning Issues record progress and acceptance evidence.
 
+The current delivery order, concerns and completion record live in [#48](https://github.com/yosoykyle/SIA-TALA/issues/48) and its owning child Issues. Archived feedback and review files provide provenance, not a second live backlog. A merge does not automatically change product rules: reconcile the relevant PRD section before implementing an adopted behavior change. Keep presentation and shared design in their existing owners.
+
 The repository-wide [Documentation Authority Registry](../README.md) identifies product authority, workflow authority, operational status, evidence, implementation history, demonstration material, and obsolete/duplicate documents.
 
 The [TALA System Definition Baseline](./00_system_definition_baseline.md) owns the product goal, evidence hierarchy, shared terminology, operating rules, policy classes, coordinated acceptance institution, and cross-module ownership. Each journey PRD defines **what its module must do**. Replaced modules are preserved under [`_legacy/`](./_legacy/) as supporting evidence, not product rules.

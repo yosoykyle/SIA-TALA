@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\SchedulingDemands\Tables;
 
 use App\Actions\Scheduling\GenerateSchedulingDemand;
+use App\Filament\Resources\SchedulingDemands\Pages\ListSchedulingDemands;
+use App\Models\CourseComponent;
 use App\Models\SchedulingDemand;
 use App\Models\Term;
 use App\Models\TermOffering;
@@ -52,7 +54,7 @@ class SchedulingDemandsTable
                     ->label('Meeting requirement')
                     ->state(fn (SchedulingDemand $record): string => collect([
                         filled($record->courseComponent?->component_type)
-                            ? str($record->courseComponent->component_type)->headline()
+                            ? (CourseComponent::typeOptions()[$record->courseComponent->component_type] ?? str($record->courseComponent->component_type)->lower()->headline()->toString())
                             : null,
                         "{$record->required_duration_minutes} minutes",
                         TermOffering::modalityOptions()[$record->modality] ?? str($record->modality)->headline(),
@@ -119,6 +121,9 @@ class SchedulingDemandsTable
             ->color('primary')
             ->schema([
                 Select::make('term_id')
+                    ->default(fn (ListSchedulingDemands $livewire): ?int => $livewire->termId)
+                    ->disabled(fn (ListSchedulingDemands $livewire): bool => $livewire->termId !== null)
+                    ->dehydrated()
                     ->label('Term')
                     ->options(fn (): array => Term::query()
                         ->orderByDesc('starts_on')
@@ -130,14 +135,14 @@ class SchedulingDemandsTable
             ])
             ->visible(fn (): bool => auth()->user()?->can('create', SchedulingDemand::class) ?? false)
             ->requiresConfirmation()
-            ->action(function (array $data): void {
+            ->action(function (array $data, ListSchedulingDemands $livewire): void {
                 $actor = auth()->user();
 
                 if (! $actor instanceof User) {
                     return;
                 }
 
-                $term = Term::query()->findOrFail((int) $data['term_id']);
+                $term = Term::query()->findOrFail($livewire->termId ?? (int) $data['term_id']);
 
                 try {
                     $summary = app(GenerateSchedulingDemand::class)->forTerm($actor, $term);

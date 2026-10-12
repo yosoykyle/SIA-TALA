@@ -2,7 +2,8 @@
 
 namespace App\Actions\Enrollment;
 
-use App\Models\CalendarEvent;
+use App\Actions\Calendar\CalendarPhaseGateService;
+use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
@@ -13,6 +14,8 @@ use Illuminate\Support\Collection;
 
 class RegistrationShortageProjection
 {
+    public function __construct(private readonly CalendarPhaseGateService $calendar) {}
+
     /**
      * @return list<array{course:string,section:string,capacity:int,protected:int,available:int,alternatives:list<string>,owner:string,deadline:string|null,recovery:string,unmet_demand:int}>
      */
@@ -29,13 +32,11 @@ class RegistrationShortageProjection
             return [];
         }
 
-        $window = CalendarEvent::query()
-            ->academicCalendarWindows()
-            ->where('term_id', $enrollment->term_id)
-            ->where('process_key', CalendarEvent::ProcessEnrollment)
-            ->latest('end_at')
-            ->first();
-        $deadline = $window?->end_at;
+        try {
+            $deadline = $this->calendar->finalEnrollmentCutoff((int) $enrollment->term_id);
+        } catch (CalendarGateViolation) {
+            $deadline = null;
+        }
 
         return $proposal->items
             ->filter(function ($item): bool {

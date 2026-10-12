@@ -13,13 +13,16 @@ class FacultyQualificationInfolist
     {
         return $schema
             ->components([
-                Section::make('Approved Faculty Qualification')
+                Section::make('Approved Faculty qualification')
                     ->schema([
                         TextEntry::make('faculty.name')->label('Faculty'),
                         TextEntry::make('course.code')->label('Course'),
                         IconEntry::make('is_active')->label('Active')->boolean(),
-                        TextEntry::make('recorder.name')->label('Recorded By')->placeholder('-'),
-                        TextEntry::make('recorded_at')->dateTime(),
+                        TextEntry::make('recorder.name')->label('Recorded by')->placeholder('-'),
+                        TextEntry::make('recorded_at')
+                            ->label('Recorded at (Asia/Manila)')
+                            ->dateTime('M j, Y, g:i A')
+                            ->timezone('Asia/Manila'),
                         TextEntry::make('notes')->placeholder('-')->columnSpanFull(),
                     ])
                     ->columns(2)

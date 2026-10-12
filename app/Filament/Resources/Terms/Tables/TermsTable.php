@@ -36,7 +36,7 @@ class TermsTable
                     ->sortable(),
                 TextColumn::make('starts_on')->date()->sortable()->placeholder('-'),
                 TextColumn::make('ends_on')->date()->sortable()->placeholder('-'),
-                TextColumn::make('scheduling_slot_minutes')->label('Slot')->suffix(' min')->sortable(),
+                TextColumn::make('scheduling_slot_minutes')->label('Historical slot')->suffix(' min')->sortable(),
                 TextColumn::make('default_max_units')->label('Faculty Max Units')->placeholder('-')->toggleable(),
             ])
             ->filters([
@@ -45,7 +45,7 @@ class TermsTable
             ])
             ->recordActions([
                 ViewAction::make(),
-                EditAction::make(),
+                EditAction::make()->label(fn (Term $record): string => $record->hasActivatedCalendar() ? 'Faculty teaching-load default' : 'Edit Term identity'),
             ])
             ->toolbarActions([])
             ->defaultSort('starts_on', 'desc');

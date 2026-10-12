@@ -7,6 +7,7 @@ use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Term;
 use App\Models\User;
+use App\Support\HasTermPlanningContext;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
@@ -17,6 +18,8 @@ use Throwable;
 
 class ListScheduleGenerationRuns extends ListRecords
 {
+    use HasTermPlanningContext;
+
     protected static string $resource = ScheduleGenerationRunResource::class;
 
     public function getTitle(): string
@@ -26,7 +29,7 @@ class ListScheduleGenerationRuns extends ListRecords
 
     public function getSubheading(): string
     {
-        return 'Review every generation request and open its assignments, validation evidence, solution quality, and publication controls.';
+        return $this->termPlanningContextDescription().'Review every generation request and open its assignments, validation evidence, solution quality, and publication controls.';
     }
 
     protected function getHeaderActions(): array
@@ -47,7 +50,9 @@ class ListScheduleGenerationRuns extends ListRecords
                             ->all())
                         ->searchable()
                         ->required()
-                        ->default(fn (): ?int => request()->integer('term_id') ?: (int) request()->input('tableFilters.term_id.value') ?: null)
+                        ->default(fn (): ?int => $this->termId ?? (request()->integer('term_id') ?: (int) request()->input('tableFilters.term_id.value') ?: null))
+                        ->disabled(fn (): bool => $this->termId !== null)
+                        ->dehydrated()
                         ->helperText('Only ready Schedule Requirements are included. Generation is blocked while any requirement for the term still needs correction.'),
                 ])
                 ->modalHeading('Generate Timetable')
@@ -62,7 +67,7 @@ class ListScheduleGenerationRuns extends ListRecords
 
                     try {
                         $run = app(ScheduleGenerationService::class)->generate(
-                            Term::query()->findOrFail((int) $data['term_id']),
+                            Term::query()->findOrFail($this->termId ?? (int) $data['term_id']),
                             $actor,
                         );
 

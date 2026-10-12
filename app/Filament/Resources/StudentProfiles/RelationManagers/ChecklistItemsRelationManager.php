@@ -20,6 +20,8 @@ use Illuminate\Validation\ValidationException;
 
 class ChecklistItemsRelationManager extends RelationManager
 {
+    protected static bool $isLazy = false;
+
     protected static string $relationship = 'checklistItems';
 
     public function form(Schema $schema): Schema

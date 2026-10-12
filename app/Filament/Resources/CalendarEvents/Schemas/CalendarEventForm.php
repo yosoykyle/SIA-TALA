@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\CalendarEvents\Schemas;
 
+use App\Filament\Resources\CalendarEvents\Pages\CreateCalendarEvent;
+use App\Filament\Resources\CalendarEvents\Pages\EditCalendarEvent;
 use App\Models\CalendarEvent;
 use App\Models\User;
 use Filament\Forms\Components\Select;
@@ -15,11 +17,14 @@ class CalendarEventForm
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Recurring Master Schedule Block')
-                ->description('Recurring day/time blocks constrain weekly scheduling. Dated holidays and exceptions remain in the Academic Calendar occurrence workflow.')
+            Section::make('Weekly unavailable time')
+                ->description('Prevent meetings during these times for this Term. Record dated no-class exceptions in Calendar.')
                 ->schema([
                     Select::make('term_id')
                         ->relationship('term', 'label')
+                        ->default(fn (CreateCalendarEvent|EditCalendarEvent $livewire): ?int => $livewire->termId)
+                        ->hidden(fn (CreateCalendarEvent|EditCalendarEvent $livewire): bool => $livewire->termId !== null)
+                        ->dehydrated()
                         ->searchable()
                         ->preload()
                         ->required(),
@@ -30,7 +35,7 @@ class CalendarEventForm
                         ->visible(fn (): bool => self::isRegistrar()),
                     Select::make('scope_type')
                         ->options(CalendarEvent::recurringBlockScopeOptions())
-                        ->default(CalendarEvent::ScopeFaculty)
+                        ->default(fn (CreateCalendarEvent|EditCalendarEvent $livewire): string => $livewire->resourceView === 'rooms' ? CalendarEvent::ScopeRoom : CalendarEvent::ScopeFaculty)
                         ->required()
                         ->live()
                         ->visible(fn (): bool => self::isRegistrar()),
@@ -53,12 +58,12 @@ class CalendarEventForm
                         ->options(CalendarEvent::dayOptions())
                         ->required(),
                     TimePicker::make('starts_at')
-                        ->label('Starts At')
+                        ->label('From')
                         ->timezone((string) config('app.timezone'))
                         ->seconds(false)
                         ->required(),
                     TimePicker::make('ends_at')
-                        ->label('Ends At')
+                        ->label('To')
                         ->timezone((string) config('app.timezone'))
                         ->seconds(false)
                         ->after('starts_at')

@@ -6,6 +6,10 @@
     'pageOrientation' => 'portrait',
     'pageMargin' => '12mm',
     'logoSrc' => null,
+    'tactileToolbar' => false,
+    'backUrl' => null,
+    'backLabel' => 'Back',
+    'schedulePresentation' => false,
 ])
 
 @php
@@ -18,6 +22,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }} | {{ config('institution.name') }}</title>
+    @if ($schedulePresentation)<link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">@endif
     <style>
         :root {
             color: #111827;
@@ -51,6 +56,18 @@
             font-weight: 700;
             padding: 10px 14px;
         }
+        @if ($tactileToolbar)
+        .official-output-toolbar button {
+            background: linear-gradient(#a8e4ad, #5dc56a);
+            border: 1px solid #4b9954;
+            box-shadow: inset 0 1px 0 #e8f8ea, 0 2px 3px #0002;
+            color: #123b1a;
+            border-radius: 8px;
+        }
+        .official-output-toolbar button:focus-visible { outline: 2px solid #166534; outline-offset: 3px; }
+        @endif
+        .official-output-toolbar a { display: inline-block; margin-inline-end: 8px; padding: 10px 14px; border: 1px solid #9ca3af; border-radius: 8px; background: #ffffff; color: #111827; font-weight: 700; text-decoration: none; }
+        .official-output-toolbar a:focus-visible { outline: 2px solid #166534; outline-offset: 3px; }
 
         .official-output {
             background: #ffffff;
@@ -237,6 +254,21 @@
             }
         }
 
+        @if ($schedulePresentation)
+        :root { font-family: 'Inter Variable', Arial, sans-serif; font-size:14px; }
+        .official-output { padding:24px; }
+        .official-output-header { margin-bottom:16px; }
+        .schedule-owner { margin-block:12px; line-height:1.5; }
+        .schedule-table { font-size:13px; font-variant-numeric:tabular-nums; }
+        .schedule-table td,.schedule-table th { padding:10px 8px; vertical-align:top; }
+        .schedule-table th { text-align:start; }
+        .schedule-table tbody tr:nth-child(even) { background:#f6f8f6; }
+        .schedule-meeting-time { white-space:nowrap; font-weight:600; }
+        .schedule-course-title { font-weight:600; }
+        .schedule-source-code { color:#4b5563; font-size:.9em; }
+        @media print { .schedule-table { font-size:10px; } .schedule-table td,.schedule-table th { padding:6px; } .official-output { padding:0; } }
+        @endif
+
         @media print {
             thead {
                 display: table-header-group;
@@ -329,6 +361,7 @@
 </head>
 <body>
     <div class="official-output-toolbar">
+        @if ($backUrl)<a href="{{ $backUrl }}">{{ $backLabel }}</a>@endif
         <button type="button" onclick="window.print()">Print / Save as PDF</button>
     </div>
 

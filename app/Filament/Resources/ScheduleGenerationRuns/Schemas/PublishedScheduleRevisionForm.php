@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ScheduleGenerationRuns\Schemas;
 
+use App\Actions\Calendar\TermTeachingGrid;
 use App\Actions\Scheduling\ScheduleRevisionImpact;
 use App\Actions\Scheduling\ScheduleRevisionImpactService;
 use App\Models\Course;
@@ -34,17 +35,17 @@ final class PublishedScheduleRevisionForm
     {
         $term = $run->term;
         $slotMinutes = $term instanceof Term
-            ? max(1, (int) $term->scheduling_slot_minutes)
+            ? app(TermTeachingGrid::class)->slotMinutes($term)
             : 30;
 
         return [
             Select::make('change_type')
-                ->label('Change Type')
+                ->label('Change type')
                 ->options(ScheduleRevisionEvent::changeTypeOptions())
                 ->required()
                 ->live(),
             Select::make('section_meeting_ids')
-                ->label('Affected Meetings')
+                ->label('Affected meetings')
                 ->helperText('Select every linked official meeting that must change in this operation.')
                 ->options(self::meetingOptions($run))
                 ->multiple()
@@ -57,7 +58,7 @@ final class PublishedScheduleRevisionForm
                 ->live()
                 ->columnSpanFull(),
             Select::make('section_id')
-                ->label('Section to Cancel')
+                ->label('Section to cancel')
                 ->helperText('Cancellation applies to the whole Section, all active delivery groups, and all active official meetings.')
                 ->options(self::sectionOptions($run))
                 ->searchable()
@@ -67,7 +68,7 @@ final class PublishedScheduleRevisionForm
                 ->live()
                 ->columnSpanFull(),
             Select::make('replacement_room_id')
-                ->label('Replacement Room')
+                ->label('Replacement room')
                 ->options(self::roomOptions())
                 ->searchable()
                 ->preload()
@@ -89,13 +90,13 @@ final class PublishedScheduleRevisionForm
                 ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment)
                 ->live(),
             Select::make('day_of_week')
-                ->label('Replacement Day')
+                ->label('Replacement day')
                 ->options(self::dayOptions($run))
                 ->required(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
                 ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
                 ->live(),
             TimePicker::make('starts_at')
-                ->label('Replacement Start Time')
+                ->label('Replacement start time')
                 ->timezone((string) config('app.timezone'))
                 ->seconds(false)
                 ->minutesStep($slotMinutes)
@@ -103,7 +104,7 @@ final class PublishedScheduleRevisionForm
                 ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
                 ->live(),
             TimePicker::make('ends_at')
-                ->label('Replacement End Time')
+                ->label('Replacement end time')
                 ->timezone((string) config('app.timezone'))
                 ->seconds(false)
                 ->minutesStep($slotMinutes)
@@ -112,7 +113,7 @@ final class PublishedScheduleRevisionForm
                 ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
                 ->live(),
             Placeholder::make('authoritative_modality')
-                ->label('Authoritative Modality')
+                ->label('Recorded modality')
                 ->content(fn (Get $get): string => self::authoritativeModalitySummary(
                     $run,
                     $get('section_meeting_ids'),
@@ -130,14 +131,14 @@ final class PublishedScheduleRevisionForm
                 ->required()
                 ->columnSpanFull(),
             Textarea::make('reason')
-                ->label('Approved Reason')
+                ->label('Approved reason')
                 ->helperText('Record the institutionally approved operational reason for this revision.')
                 ->rows(3)
                 ->maxLength(2000)
                 ->required()
                 ->columnSpanFull(),
             Placeholder::make('impact_preview')
-                ->label('Impact Preview')
+                ->label('Impact preview')
                 ->content(fn (Get $get): HtmlString => self::previewContent($run, $get))
                 ->visible(fn (Get $get): bool => filled($get('change_type')))
                 ->columnSpanFull(),
@@ -447,11 +448,11 @@ final class PublishedScheduleRevisionForm
     /** @return array<int, string> */
     private static function dayOptions(ScheduleGenerationRun $run): array
     {
-        $allowedDays = $run->term?->getAttribute('scheduling_days');
+        $allowedDays = $run->term ? array_column(app(TermTeachingGrid::class)->rows($run->term), 'day_of_week') : [];
         $days = SectionMeeting::dayOptions();
 
         if (! is_array($allowedDays) || $allowedDays === []) {
-            return $days;
+            return $run->term && app(TermTeachingGrid::class)->activePackage($run->term) ? [] : $days;
         }
 
         return collect($allowedDays)

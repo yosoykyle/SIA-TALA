@@ -3,11 +3,39 @@
 namespace App\Filament\Resources\Rooms\Pages;
 
 use App\Filament\Resources\Rooms\RoomResource;
+use App\Support\HasTermPlanningContext;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Url;
 
 class EditRoom extends EditRecord
 {
+    use HasTermPlanningContext {
+        getCancelFormAction as protected contextualCancelFormAction;
+    }
+
+    #[Url]
+    public bool $returnToResources = false;
+
+    protected ?bool $hasDatabaseTransactions = true;
+
+    protected function beforeSave(): void
+    {
+        $keys = array_keys($this->data['features'] ?? []);
+        foreach ($this->record->features()->pluck('id') as $id) {
+            if (! in_array('record-'.$id, $keys, true)) {
+                throw ValidationException::withMessages(['data.features' => 'Existing equipment cannot be removed from this form. Reload the room and correct its equipment.']);
+            }
+        }
+    }
+
+    protected function getCancelFormAction(): Action
+    {
+        return $this->returnToResources ? Action::make('cancel')->label('Cancel')->color('gray')->url($this->termPlanningReturnUrl()) : $this->contextualCancelFormAction();
+    }
+
     protected static string $resource = RoomResource::class;
 
     protected function getHeaderActions(): array
@@ -15,5 +43,10 @@ class EditRoom extends EditRecord
         return [
             ViewAction::make(),
         ];
+    }
+
+    protected function getRedirectUrl(): ?string
+    {
+        return $this->returnToResources ? $this->termPlanningReturnUrl() : ($this->termId === null ? parent::getRedirectUrl() : $this->getResourceUrl('index'));
     }
 }

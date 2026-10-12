@@ -2,6 +2,8 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Actions\Calendar\TermCalendarPackageReadinessService;
+use App\Actions\Calendar\TermTeachingGrid;
 use App\Models\CalendarEvent;
 use App\Models\Course;
 use App\Models\CourseComponent;
@@ -369,22 +371,21 @@ class GenerateSchedulingDemand
 
     private function schedulingWindowCount(Term $term): int
     {
-        return CalendarEvent::query()
-            ->whereBelongsTo($term)
-            ->where('event_type', CalendarEvent::TypeWindow)
-            ->where('process_key', 'scheduling')
-            ->where('state', CalendarEvent::StateActive)
-            ->whereNotNull('start_at')
-            ->whereNotNull('end_at')
-            ->count();
+        $package = app(TermTeachingGrid::class)->activePackage($term);
+
+        if ($package) {
+            return app(TermCalendarPackageReadinessService::class)->for($package)['ready'] ? 1 : 0;
+        }
+
+        return 0;
     }
 
     /**
-     * @return list<array{id:int,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>
+     * @return list<array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>
      */
     private function recurringBlockingCalendarBlocks(Term $term): array
     {
-        return CalendarEvent::query()
+        $legacyBlocks = CalendarEvent::query()
             ->whereBelongsTo($term)
             ->where('blocks_scheduling', true)
             ->where('state', CalendarEvent::StateActive)
@@ -397,6 +398,7 @@ class GenerateSchedulingDemand
             ->get()
             ->map(fn (CalendarEvent $event): array => [
                 'id' => (int) $event->id,
+                'source_type' => 'calendar_event',
                 'scope_type' => (string) $event->scope_type,
                 'room_id' => $event->room_id === null ? null : (int) $event->room_id,
                 'faculty_user_id' => $event->faculty_user_id === null ? null : (int) $event->faculty_user_id,
@@ -408,12 +410,38 @@ class GenerateSchedulingDemand
             ])
             ->values()
             ->all();
+
+        $package = app(TermTeachingGrid::class)->activePackage($term);
+        $packageBlocks = [];
+
+        foreach ($package?->teachingGridRows ?? [] as $row) {
+            foreach ($row->breaks ?? [] as $break) {
+                if (! is_array($break) || blank($break['starts_at'] ?? null) || blank($break['ends_at'] ?? null)) {
+                    continue;
+                }
+
+                $packageBlocks[] = [
+                    'id' => (int) $row->id,
+                    'source_type' => 'term_teaching_grid_row',
+                    'scope_type' => CalendarEvent::ScopeInstitution,
+                    'room_id' => null,
+                    'faculty_user_id' => null,
+                    'event_type' => 'TeachingGridBreak',
+                    'process_key' => null,
+                    'day_of_week' => (int) $row->day_of_week,
+                    'starts_at' => $this->timeString($break['starts_at']),
+                    'ends_at' => $this->timeString($break['ends_at']),
+                ];
+            }
+        }
+
+        return [...$packageBlocks, ...$legacyBlocks];
     }
 
     /**
      * @param  array{fixed_faculty_user_id:int|null,fixed_room_id:int|null,fixed_day_of_week:int|null,fixed_start_time:string|null}  $fixedInputs
      * @param  list<array{faculty_user_id:int<0, max>,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>  $facultyLoadOptions
-     * @param  list<array{id:int,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>  $blockingCalendarBlocks
+     * @param  list<array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>  $blockingCalendarBlocks
      * @return list<array{key:string,severity:string,source_type:string,source_id:int|null,message:string}>
      */
     private function findings(
@@ -440,11 +468,7 @@ class GenerateSchedulingDemand
         }
 
         if ($schedulingWindowCount === 0) {
-            $findings[] = $this->finding('missing_active_scheduling_window', 'blocking', 'term', $term->id, 'No active Academic Calendar scheduling window is recorded for this term.');
-        }
-
-        if ((int) $term->scheduling_slot_minutes < 1) {
-            $findings[] = $this->finding('invalid_scheduling_slot_minutes', 'blocking', 'term', $term->id, 'The term must define a positive scheduling slot duration.');
+            $findings[] = $this->finding('missing_active_core_calendar', 'blocking', 'term', $term->id, 'Activate a valid approved core calendar for this exact Term before demand preparation.');
         }
 
         if (! $specification instanceof CourseSpecification || $specification->state !== CourseSpecification::StateActive) {
@@ -515,10 +539,13 @@ class GenerateSchedulingDemand
 
         $fixedDay = $fixedInputs['fixed_day_of_week'];
         $fixedStart = $this->minutesFromTime($fixedInputs['fixed_start_time']);
-        $schedulingDays = array_map('intval', $term->scheduling_days ?? []);
-        $dayStart = $this->minutesFromTime($this->timeString($term->scheduling_day_starts_at));
-        $dayEnd = $this->minutesFromTime($this->timeString($term->scheduling_day_ends_at));
-        $slotMinutes = (int) $term->scheduling_slot_minutes;
+        $grid = app(TermTeachingGrid::class);
+        $rows = collect($grid->rows($term));
+        $dayRow = $rows->firstWhere('day_of_week', $fixedDay);
+        $schedulingDays = $rows->pluck('day_of_week')->all();
+        $dayStart = $this->minutesFromTime($dayRow['starts_at'] ?? null);
+        $dayEnd = $this->minutesFromTime($dayRow['ends_at'] ?? null);
+        $slotMinutes = $grid->slotMinutes($term);
 
         if ($fixedDay !== null
             && $fixedDay >= 1
@@ -541,10 +568,10 @@ class GenerateSchedulingDemand
             $findings[] = $this->finding('fixed_time_exceeds_scheduling_day', 'blocking', 'term', $term->id, 'The fixed assignment duration must finish within the term scheduling day.');
         }
 
-        $conflictingBlockId = $this->conflictingCalendarBlockId($fixedInputs, $blockingCalendarBlocks, $durationMinutes);
+        $conflictingBlock = $this->conflictingCalendarBlock($fixedInputs, $blockingCalendarBlocks, $durationMinutes);
 
-        if ($conflictingBlockId !== null) {
-            $findings[] = $this->finding('fixed_time_conflicts_with_calendar_block', 'blocking', 'calendar_event', $conflictingBlockId, 'The fixed day/time override overlaps an active recurring scheduling block.');
+        if ($conflictingBlock !== null) {
+            $findings[] = $this->finding('fixed_time_conflicts_with_calendar_block', 'blocking', $conflictingBlock['source_type'], $conflictingBlock['id'], 'The fixed day/time override overlaps an active recurring scheduling block.');
         }
 
         return $findings;
@@ -576,9 +603,10 @@ class GenerateSchedulingDemand
 
     /**
      * @param  array{fixed_faculty_user_id:int|null,fixed_room_id:int|null,fixed_day_of_week:int|null,fixed_start_time:string|null}  $fixedInputs
-     * @param  list<array{id:int,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>  $blockingCalendarBlocks
+     * @param  list<array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>  $blockingCalendarBlocks
+     * @return array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}|null
      */
-    private function conflictingCalendarBlockId(array $fixedInputs, array $blockingCalendarBlocks, int $durationMinutes): ?int
+    private function conflictingCalendarBlock(array $fixedInputs, array $blockingCalendarBlocks, int $durationMinutes): ?array
     {
         if ($fixedInputs['fixed_day_of_week'] === null || $fixedInputs['fixed_start_time'] === null) {
             return null;
@@ -601,7 +629,7 @@ class GenerateSchedulingDemand
             $blockEnd = $this->minutesFromTime($block['ends_at']);
 
             if ($blockStart !== null && $blockEnd !== null && $fixedStart < $blockEnd && $fixedEnd > $blockStart) {
-                return (int) $block['id'];
+                return $block;
             }
         }
 
@@ -609,7 +637,7 @@ class GenerateSchedulingDemand
     }
 
     /**
-     * @param  array{id:int,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}  $block
+     * @param  array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}  $block
      * @param  array{fixed_faculty_user_id:int|null,fixed_room_id:int|null,fixed_day_of_week:int|null,fixed_start_time:string|null}  $fixedInputs
      */
     private function calendarBlockAppliesToFixedInputs(array $block, array $fixedInputs): bool

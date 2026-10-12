@@ -28,11 +28,13 @@ class FacultyQualificationsTable
                     ->boolean()
                     ->sortable(),
                 TextColumn::make('recorder.name')
-                    ->label('Recorded By')
+                    ->label('Recorded by')
                     ->searchable()
                     ->placeholder('-'),
                 TextColumn::make('recorded_at')
-                    ->dateTime()
+                    ->label('Recorded at (Asia/Manila)')
+                    ->dateTime('M j, Y, g:i A')
+                    ->timezone('Asia/Manila')
                     ->sortable(),
                 TextColumn::make('notes')
                     ->limit(40)

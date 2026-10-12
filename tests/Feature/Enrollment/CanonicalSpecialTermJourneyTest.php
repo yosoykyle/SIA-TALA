@@ -29,7 +29,6 @@ use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Models\ApprovedCoverage;
 use App\Models\Assessment;
-use App\Models\CalendarEvent;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
 use App\Models\CourseSpecification;
@@ -106,10 +105,11 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
             'closes_on' => now()->addMonth()->toDateString(),
             'cutoff_at' => '23:59:59',
         ]);
-        CalendarEvent::factory()->for($term)->create([
-            'process_key' => 'grade_entry',
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addMonth(),
+        TermCalendarWindow::factory()->for($calendarPackage, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeGradeEntry,
+            'opens_on' => now()->subDay()->toDateString(),
+            'closes_on' => now()->addMonth()->toDateString(),
+            'cutoff_at' => '23:59:59',
         ]);
         $curriculum = CurriculumVersion::factory()->create(['state' => CurriculumVersion::StateActive]);
         $student = User::factory()->create(['status' => User::StatusActive]);

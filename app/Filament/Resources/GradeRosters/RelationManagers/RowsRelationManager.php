@@ -28,6 +28,8 @@ use Illuminate\Support\Str;
 
 class RowsRelationManager extends RelationManager
 {
+    protected static bool $isLazy = false;
+
     protected static string $relationship = 'rows';
 
     protected static ?string $title = 'Official Result Rows';

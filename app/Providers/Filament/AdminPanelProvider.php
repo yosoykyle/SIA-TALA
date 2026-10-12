@@ -6,6 +6,7 @@ use App\Actions\Authentication\TalaAppAuthentication;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Clusters\Admissions;
 use App\Filament\Clusters\PublicContent;
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\AssistedAdmissionApplication;
@@ -21,7 +22,12 @@ use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\StaffEntry;
 use App\Filament\Pages\SystemHealth;
+use App\Filament\Pages\TermCalendar;
+use App\Filament\Pages\TermClasses;
+use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermPlanningWorkbench;
+use App\Filament\Pages\TermResources;
+use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
@@ -158,6 +164,11 @@ class AdminPanelProvider extends PanelProvider
                 AssistedAdmissionApplication::class,
                 CatalogCurriculaWorkbench::class,
                 TermPlanningWorkbench::class,
+                TermOverview::class,
+                TermCalendar::class,
+                TermClasses::class,
+                TermResources::class,
+                TermTimetable::class,
                 AcademicApprovals::class,
                 AcademicReadiness::class,
                 ClassPlanning::class,
@@ -171,6 +182,30 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverClusters(in: app_path('Filament/Clusters'), for: 'App\Filament\Clusters')
             ->authenticatedRoutes(function (): void {
+                foreach ([
+                    'terms' => TermResource::class,
+                    'term-offerings' => TermOfferingResource::class,
+                    'sections' => SectionResource::class,
+                    'scheduling-demands' => SchedulingDemandResource::class,
+                    'rooms' => RoomResource::class,
+                    'faculty-qualifications' => FacultyQualificationResource::class,
+                    'faculty-term-load-overrides' => FacultyTermLoadOverrideResource::class,
+                    'calendar-events' => CalendarEventResource::class,
+                    'schedule-generation-runs' => ScheduleGenerationRunResource::class,
+                    'section-meetings' => SectionMeetingResource::class,
+                ] as $legacySlug => $resource) {
+                    foreach (['index' => '', 'create' => '/create', 'view' => '/{record}', 'edit' => '/{record}/edit'] as $page => $suffix) {
+                        if (! array_key_exists($page, $resource::getPages())) {
+                            continue;
+                        }
+                        Route::get($legacySlug.$suffix, function (?string $record = null) use ($resource, $page): RedirectResponse {
+                            abort_unless($resource::canAccess(), 403);
+
+                            return redirect($resource::getUrl($page, [...request()->query(), ...($record ? ['record' => $record] : [])]));
+                        })->whereNumber('record')->name('legacy-term-planning.'.$legacySlug.'.'.$page);
+                    }
+                }
+
                 Route::get('faq-entries', function (): RedirectResponse {
                     Gate::authorize('viewAny', FaqEntry::class);
 
@@ -277,21 +312,24 @@ class AdminPanelProvider extends PanelProvider
             $selectedContext = count($available) === 1 ? array_key_first($available) : null;
         }
 
-        $components = match ($selectedContext) {
-            User::StaffRoleRegistrar => [
+        if ($selectedContext === User::StaffRoleRegistrar) {
+            return $builder->group('Learner work', $this->labeledNavigationItems([
                 'Admissions' => Admissions::class,
-                'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
-                'Term Planning' => TermPlanningWorkbench::class,
                 'Students & Enrollment' => EnrollmentResource::class,
                 'Grades & Completion' => GradesAndCompletion::class,
-            ],
+            ]))->group('Academic setup', $this->labeledNavigationItems([
+                'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
+                'Term Planning' => TermPlanningCluster::class,
+            ]));
+        }
+
+        $components = match ($selectedContext) {
             User::StaffRoleAccounting => [
                 'Fee Plans' => FeePlanResource::class,
                 'Student Accounts' => EnrollmentResource::class,
             ],
             User::StaffRoleFaculty => [
-                'My Availability' => MyAvailability::class,
-                'My Schedule' => FacultySchedule::class,
+                'Schedule & Availability' => FacultySchedule::class,
                 'Grade Rosters' => FacultyGradeRoster::class,
             ],
             User::StaffRoleAcademicHead => [

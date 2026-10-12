@@ -23,7 +23,8 @@ use App\Actions\Scheduling\ScheduleReleaseNotificationService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
 use App\Filament\Pages\MyAvailability;
-use App\Filament\Pages\TermPlanningWorkbench;
+use App\Filament\Pages\TermOverview;
+use App\Filament\Pages\TermTimetable;
 use App\Mail\FacultyAvailabilityRequestedMail;
 use App\Mail\ScheduleReleasedMail;
 use App\Models\CalendarEvent;
@@ -276,7 +277,7 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             ->assertSee('SYNTH-TIMETABLE-SIGNOFF-001')
             ->assertSee('Initial publication')
             ->assertSee('margin: 12mm', escape: false)
-            ->assertDontSee('Term Planning');
+            ->assertDontSee('fi-sidebar');
 
         $failedDelivery = OperationalEvent::query()
             ->where('related_record_type', PublishedTimetableVersion::class)
@@ -345,7 +346,7 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
 
         $readiness = app(TermCalendarPackageReadinessService::class)->for($first);
         $this->assertFalse($readiness['ready']);
-        $this->assertContains('window_enrollment_invalid', collect($readiness['blockers'])->pluck('code')->all());
+        $this->assertContains('teaching_grid_empty', collect($readiness['blockers'])->pluck('code')->all());
 
         foreach ([$first, $second] as $package) {
             $this->completeCalendar($package);
@@ -532,13 +533,11 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             ->assertSee('Import previews');
 
         $termPlanning = Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class)
-            ->call('selectTerm', $term->id)
-            ->call('showTab', 'generate')
-            ->assertSee('Generate & Review')
-            ->assertSee('Candidate Correction')
-            ->assertSee('one-meeting correction')
-            ->assertSee('Published Timetable');
+            ->test(TermTimetable::class, ['termId' => $term->id])
+            ->assertSee('Timetable')
+            ->assertSee('Overview')
+            ->assertSee('Sections & classes')
+            ->assertSee('Faculty & rooms');
 
         $this->assertSame(
             ['class' => 'tala-term-planning-page'],
@@ -560,7 +559,7 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         ]);
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class)
+            ->test(TermOverview::class)
             ->assertSet('termId', $first->id);
 
         $second = Term::factory()->create(['label' => 'Second Term']);
@@ -570,15 +569,15 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         ]);
 
         Livewire::actingAs($registrar)
-            ->test(TermPlanningWorkbench::class)
+            ->test(TermOverview::class)
             ->assertSet('termId', null)
-            ->assertSee('Select one exact Term');
+            ->assertSee('Choose a Term');
 
         Livewire::withQueryParams(['termId' => 999999])
             ->actingAs($registrar)
-            ->test(TermPlanningWorkbench::class)
+            ->test(TermOverview::class)
             ->assertSet('termId', null)
-            ->assertSee('Select one exact Term');
+            ->assertSee('Choose a Term');
     }
 
     public function test_candidate_acceptance_and_rejection_are_attributable_non_official_decisions(): void
@@ -721,15 +720,19 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $this->assertCount(1, $requests);
         $this->assertSame(1, OperationalEvent::query()
             ->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)
+            ->where('related_record_type', TermCalendarPackage::class)
+            ->where('related_record_id', $package->id)
+            ->where('user_id', $faculty->id)
             ->count());
         Mail::assertQueued(FacultyAvailabilityRequestedMail::class, 1);
 
         Livewire::actingAs($faculty)
-            ->test(MyAvailability::class)
+            ->test(MyAvailability::class, ['termId' => $term->id])
             ->assertSet('termId', $term->id)
             ->assertActionVisible('declareAvailability')
             ->callAction('declareAvailability', data: [
                 'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
+                'has_weekly_unavailability' => 'yes',
                 'hard_unavailability' => [[
                     'day_of_week' => 3,
                     'starts_at' => '13:00',
@@ -739,7 +742,7 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             ])
             ->assertHasNoActionErrors()
             ->assertNotified()
-            ->assertSee('Wednesday, 13:00–15:00');
+            ->assertSee('Wednesday, 1:00 PM–3:00 PM');
 
         $this->assertDatabaseHas('faculty_availability_declarations', [
             'term_id' => $term->id,

@@ -106,7 +106,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
 
         $this->assertTrue($service->enrollmentWindow($term->id, $evaluatedAt)->is($window));
         $this->assertTrue($service->enrollmentDeadline($term->id, $evaluatedAt)->equalTo(
-            CarbonImmutable::parse($window->closes_on->toDateString().' 17:00:00', config('app.timezone')),
+            CarbonImmutable::parse($window->closes_on->toDateString().' 17:00:00', 'Asia/Manila'),
         ));
     }
 

@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\Sections\Schemas;
 
+use App\Filament\Resources\Sections\Pages\CreateSection;
+use App\Filament\Resources\Sections\Pages\EditSection;
+use App\Filament\Resources\Sections\Pages\ListSections;
 use App\Models\Section;
 use App\Models\TermOffering;
 use Filament\Forms\Components\Select;
@@ -15,17 +18,17 @@ class SectionForm
     {
         return $schema
             ->components([
-                FormSection::make('Section Source Record')
-                    ->description('Create Registrar-owned section records that scheduling demand and enrollment placement consume later.')
+                FormSection::make('Class')
+                    ->description('One course taught to one or more linked student sections.')
                     ->schema([
                         Select::make('term_offering_id')
-                            ->label('Term Offering')
-                            ->options(fn (): array => self::termOfferingOptions())
+                            ->label('Offered course')
+                            ->options(fn (CreateSection|EditSection|ListSections $livewire): array => self::termOfferingOptions($livewire->termId))
                             ->searchable()
                             ->preload()
                             ->required(),
                         TextInput::make('code')
-                            ->label('Section Code')
+                            ->label('Class code')
                             ->required()
                             ->maxLength(255),
                         TextInput::make('capacity')
@@ -47,19 +50,21 @@ class SectionForm
     /**
      * @return array<int, string>
      */
-    private static function termOfferingOptions(): array
+    private static function termOfferingOptions(?int $termId): array
     {
         return TermOffering::query()
+            ->when($termId !== null, fn ($query) => $query->where('term_id', $termId))
             ->with(['term', 'curriculumEntry.courseSpecification.course'])
             ->orderByDesc('id')
             ->get()
             ->mapWithKeys(fn (TermOffering $offering): array => [
                 $offering->id => collect([
-                    $offering->term?->label,
+                    $offering->curriculumEntry?->courseSpecification?->title ?: 'Course title unavailable',
                     $offering->curriculumEntry?->courseSpecification?->course?->code,
-                    $offering->delivery_variant,
-                    $offering->modality,
-                    "Expected {$offering->expected_count}",
+                    $offering->term?->label,
+                    str((string) $offering->delivery_variant)->headline()->toString(),
+                    TermOffering::modalityOptions()[$offering->modality] ?? str((string) $offering->modality)->headline()->toString(),
+                    "{$offering->expected_count} expected learners",
                 ])->filter()->implode(' | '),
             ])
             ->all();

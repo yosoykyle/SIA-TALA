@@ -4,12 +4,25 @@
     --tala-on-brand: #ffffff;
     --tala-link: #1e3a8a;
     --tala-accent: #facc15;
-    --tala-canvas: #f8fafc;
+    --tala-canvas: #f4f4f5;
+    --tala-chrome: #ececee;
+    --tala-chrome-divider: #d4d4d8;
     --tala-surface: #ffffff;
-    --tala-text: #0f172a;
-    --tala-muted: #475569;
-    --tala-border: #cbd5e1;
-    --tala-control-border: #64748b;
+    --tala-surface-sunken: #f4f4f5;
+    --tala-overlay: #ffffff;
+    --tala-text: #18181b;
+    --tala-muted: #52525c;
+    --tala-border: #d4d4d8;
+    --tala-control-border: #71717b;
+    --tala-edge: rgb(9 9 11 / 9%);
+    --tala-edge-strong: rgb(9 9 11 / 14%);
+    --tala-rim: rgb(255 255 255 / 85%);
+    --tala-selected-edge: color-mix(in srgb, var(--primary-600, #2f7d3b) 28%, transparent);
+    --tala-shadow-surface: 0 1px 2px rgb(9 9 11 / 5%), 0 2px 6px -2px rgb(9 9 11 / 6%), 0 10px 24px -12px rgb(9 9 11 / 10%);
+    --tala-shadow-overlay: 0 2px 4px rgb(9 9 11 / 6%), 0 12px 28px -6px rgb(9 9 11 / 16%), 0 24px 56px -16px rgb(9 9 11 / 18%);
+    --tala-shadow-seated: 0 0 #0000;
+    --tala-inset-well: inset 0 1px 2px rgb(9 9 11 / 7%);
+    --tala-rim-inset: inset 0 1px 0 var(--tala-rim);
     --tala-focus: #a16207;
     --tala-font-body: 'Inter Variable', Inter, system-ui, sans-serif;
     --tala-font-heading: 'Inter Variable', Inter, system-ui, sans-serif;
@@ -17,12 +30,25 @@
 
 :root.dark,
 :root[data-bs-theme='dark'] {
-    --tala-canvas: #0f172a;
-    --tala-surface: #111827;
-    --tala-text: #f8fafc;
-    --tala-muted: #cbd5e1;
-    --tala-border: #64748b;
-    --tala-control-border: #94a3b8;
+    --tala-canvas: #111114;
+    --tala-chrome: #1b1b20;
+    --tala-chrome-divider: rgb(255 255 255 / 8%);
+    --tala-surface: #242429;
+    --tala-surface-sunken: #16161a;
+    --tala-overlay: #303036;
+    --tala-text: #fafafa;
+    --tala-muted: #d4d4d8;
+    --tala-border: #52525c;
+    --tala-control-border: #9f9fa9;
+    --tala-edge: rgb(255 255 255 / 16%);
+    --tala-edge-strong: rgb(255 255 255 / 22%);
+    --tala-rim: rgb(255 255 255 / 13%);
+    --tala-selected-edge: color-mix(in srgb, var(--primary-400, #6acb7c) 35%, transparent);
+    --tala-shadow-surface: 0 1px 2px rgb(0 0 0 / 45%), 0 8px 20px -10px rgb(0 0 0 / 55%);
+    --tala-shadow-overlay: 0 2px 6px rgb(0 0 0 / 40%), 0 20px 48px -12px rgb(0 0 0 / 70%);
+    --tala-shadow-seated: 0 0 #0000;
+    --tala-inset-well: inset 0 1px 2px rgb(0 0 0 / 35%);
+    --tala-rim-inset: inset 0 1px 0 var(--tala-rim);
     --tala-focus: #facc15;
     --tala-link: #93c5fd;
 }
@@ -186,12 +212,25 @@
 @media (prefers-color-scheme: dark) {
     :root[data-tala-system-appearance] {
         color-scheme: dark;
-        --tala-canvas: #0f172a;
-        --tala-surface: #111827;
-        --tala-text: #f8fafc;
-        --tala-muted: #cbd5e1;
-        --tala-border: #64748b;
-        --tala-control-border: #94a3b8;
+        --tala-canvas: #111114;
+        --tala-chrome: #1b1b20;
+        --tala-chrome-divider: rgb(255 255 255 / 8%);
+        --tala-surface: #242429;
+        --tala-surface-sunken: #16161a;
+        --tala-overlay: #303036;
+        --tala-text: #fafafa;
+        --tala-muted: #d4d4d8;
+        --tala-border: #52525c;
+        --tala-control-border: #9f9fa9;
+        --tala-edge: rgb(255 255 255 / 16%);
+        --tala-edge-strong: rgb(255 255 255 / 22%);
+        --tala-rim: rgb(255 255 255 / 13%);
+        --tala-selected-edge: color-mix(in srgb, var(--primary-400, #6acb7c) 35%, transparent);
+        --tala-shadow-surface: 0 1px 2px rgb(0 0 0 / 45%), 0 8px 20px -10px rgb(0 0 0 / 55%);
+        --tala-shadow-overlay: 0 2px 6px rgb(0 0 0 / 40%), 0 20px 48px -12px rgb(0 0 0 / 70%);
+        --tala-shadow-seated: 0 0 #0000;
+        --tala-inset-well: inset 0 1px 2px rgb(0 0 0 / 35%);
+        --tala-rim-inset: inset 0 1px 0 var(--tala-rim);
         --tala-focus: #facc15;
         --tala-link: #93c5fd;
     }
@@ -228,40 +267,99 @@
     --tala-control-gloss: linear-gradient(180deg, rgb(255 255 255 / 22%), rgb(255 255 255 / 4%) 48%, rgb(0 0 0 / 5%));
     --tala-control-depth: inset 0 1px 0 rgb(255 255 255 / 40%), inset 0 -1px 0 rgb(0 0 0 / 16%), 0 2px 3px rgb(0 0 0 / 10%);
     --tala-control-pressed: inset 0 1px 3px rgb(0 0 0 / 22%);
+    --tala-navigation-depth: inset 0 1px 0 rgb(255 255 255 / 28%), inset 0 -1px 0 rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 6%);
 }
 :root.dark, :root[data-bs-theme='dark'] {
     --tala-control-gloss: linear-gradient(180deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 2%) 48%, rgb(0 0 0 / 9%));
     --tala-control-depth: inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 -1px 0 rgb(0 0 0 / 24%), 0 2px 3px rgb(0 0 0 / 20%);
+    --tala-navigation-depth: inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(0 0 0 / 22%), 0 1px 2px rgb(0 0 0 / 20%);
+}
+@media (prefers-color-scheme: dark) {
+    :root[data-tala-system-appearance] {
+        --tala-control-gloss: linear-gradient(180deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 2%) 48%, rgb(0 0 0 / 9%));
+        --tala-control-depth: inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 -1px 0 rgb(0 0 0 / 24%), 0 2px 3px rgb(0 0 0 / 20%);
+        --tala-navigation-depth: inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(0 0 0 / 22%), 0 1px 2px rgb(0 0 0 / 20%);
+    }
 }
 @media (forced-colors: none) {
-    :is(.fi-btn, .fi-icon-btn:not(.fi-section-collapse-btn, .fi-ta-reorder-handle), .fi-sidebar-item-btn, .fi-user-menu-trigger,
-        .fi-tabs-item, .fi-dropdown-list-item, .fi-theme-switcher-btn, .fi-ta-record-collapse-btn,
-        .btn, .navbar-toggler, .tala-access-primary, .tala-workspace-choice, .tala-copy-reference,
+    .tala-access-card {
+        box-shadow: var(--tala-rim-inset), var(--tala-shadow-surface);
+    }
+
+    :is(.fi-btn, .fi-icon-btn:not(.fi-section-collapse-btn, .fi-ta-reorder-handle, .fi-sidebar-group-collapse-btn, .fi-sidebar-open-collapse-sidebar-btn, .fi-sidebar-close-collapse-sidebar-btn, .fi-layout-sidebar-toggle-btn, .fi-ta-record-collapse-btn, .fi-input-wrp .fi-icon-btn, .fi-modal-close-btn, .fi-no-notification-close-btn), .fi-user-menu-trigger,
+        .btn, .navbar-toggler, .tala-access-primary, .tala-copy-reference,
         .btn-scroll-top, .hero-motion-toggle, .hero-round-control,
         .error-actions .primary-action) {
         background-image: var(--tala-control-gloss);
         box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tala-control-depth);
         transition: box-shadow 120ms ease-out, background-color 120ms ease-out;
     }
-    :is(.fi-btn, .fi-icon-btn:not(.fi-section-collapse-btn, .fi-ta-reorder-handle), .fi-sidebar-item-btn, .fi-user-menu-trigger,
-        .fi-tabs-item, .fi-dropdown-list-item, .fi-theme-switcher-btn, .fi-ta-record-collapse-btn,
-        .btn, .navbar-toggler, .tala-access-primary, .tala-workspace-choice, .tala-copy-reference,
+    :is(.fi-btn, .fi-icon-btn:not(.fi-section-collapse-btn, .fi-ta-reorder-handle, .fi-sidebar-group-collapse-btn, .fi-sidebar-open-collapse-sidebar-btn, .fi-sidebar-close-collapse-sidebar-btn, .fi-layout-sidebar-toggle-btn, .fi-ta-record-collapse-btn, .fi-input-wrp .fi-icon-btn, .fi-modal-close-btn, .fi-no-notification-close-btn), .fi-user-menu-trigger,
+        .btn, .navbar-toggler, .tala-access-primary, .tala-copy-reference,
         .btn-scroll-top, .hero-motion-toggle, .hero-round-control,
         .error-actions .primary-action):active:not(:disabled):not(.fi-disabled):not([aria-disabled='true']) {
         box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tala-control-pressed);
     }
-    :is(.fi-btn, .fi-icon-btn:not(.fi-section-collapse-btn, .fi-ta-reorder-handle), .fi-sidebar-item-btn, .fi-user-menu-trigger,
-        .fi-tabs-item, .fi-dropdown-list-item, .fi-theme-switcher-btn, .fi-ta-record-collapse-btn,
-        .btn, .navbar-toggler, .tala-access-primary, .tala-workspace-choice, .tala-copy-reference,
+    :is(.fi-btn, .fi-icon-btn:not(.fi-section-collapse-btn, .fi-ta-reorder-handle, .fi-sidebar-group-collapse-btn, .fi-sidebar-open-collapse-sidebar-btn, .fi-sidebar-close-collapse-sidebar-btn, .fi-layout-sidebar-toggle-btn, .fi-ta-record-collapse-btn, .fi-input-wrp .fi-icon-btn, .fi-modal-close-btn, .fi-no-notification-close-btn), .fi-user-menu-trigger,
+        .btn, .navbar-toggler, .tala-access-primary, .tala-copy-reference,
         .btn-scroll-top, .hero-motion-toggle, .hero-round-control,
         .error-actions .primary-action):is(:disabled, .fi-disabled, [aria-disabled='true']) {
         background-image: none;
         box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
     }
 }
+@media screen and (forced-colors: none) {
+    /* Owner override: every modal close control shares the utility Aqua-like family. */
+    :is(.fi-modal-close-btn, .modal .btn-close) {
+        min-inline-size:2.5rem;
+        min-block-size:2.5rem;
+        border-radius:.5rem;
+        background-color:var(--tala-surface);
+        color:var(--tala-text);
+        opacity:1;
+        box-shadow:var(--tala-control-depth);
+    }
+    .fi-modal-close-btn { background-image:var(--tala-control-gloss); }
+    .modal .btn-close {
+        position:relative;
+        background-image:var(--tala-control-gloss);
+        background-size:100% 100%;
+        filter:none;
+    }
+    .modal .btn-close::before {
+        content:'';
+        position:absolute;
+        inset:0;
+        background-color:var(--tala-text);
+        mask:var(--bs-btn-close-bg) center / .875rem no-repeat;
+        pointer-events:none;
+    }
+    :is(.fi-modal-close-btn, .modal .btn-close):active { box-shadow:var(--tala-control-pressed); }
+    :is(.fi-modal-close-btn, .modal .btn-close):focus-visible { outline:3px solid var(--tala-focus); outline-offset:2px; }
+    /* Navigation shares the skeuomorphic Aqua-like button family at lower elevation. */
+    :is(.fi-tabs-item, .fi-pagination-item-btn, .fi-theme-switcher-btn,
+        .fi-sidebar-item-btn, .fi-layout-sidebar-toggle-btn, .fi-sidebar-open-collapse-sidebar-btn, .fi-sidebar-close-collapse-sidebar-btn) {
+        background-image: var(--tala-control-gloss);
+        box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tala-navigation-depth);
+    }
+    :is(.fi-tabs-item, .fi-pagination-item-btn) { background-color: var(--tala-surface); }
+    :is(.fi-tabs-item, .fi-pagination-item-btn, .fi-theme-switcher-btn,
+        .fi-sidebar-item-btn, .fi-layout-sidebar-toggle-btn, .fi-sidebar-open-collapse-sidebar-btn, .fi-sidebar-close-collapse-sidebar-btn):active:not(:disabled):not([aria-disabled='true']),
+    :is(.fi-tabs-item.fi-active, .fi-pagination-item-btn[aria-current='page'], .fi-theme-switcher-btn[aria-pressed='true']) {
+        box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tala-control-pressed);
+    }
+    :is(.fi-tabs-item, .fi-pagination-item-btn, .fi-theme-switcher-btn,
+        .fi-sidebar-item-btn):is(:disabled, .fi-disabled, [aria-disabled='true']) {
+        background-image: none;
+        box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    }
+}
+@media (pointer:coarse) {
+    :is(.fi-modal-close-btn, .modal .btn-close) { min-inline-size:2.75rem; min-block-size:2.75rem; }
+}
 @media (forced-colors: active) {
     :is(.fi-btn, .fi-icon-btn:not(.fi-section-collapse-btn, .fi-ta-reorder-handle), .fi-sidebar-item-btn, .fi-user-menu-trigger,
-        .fi-tabs-item, .fi-dropdown-list-item, .fi-theme-switcher-btn, .fi-ta-record-collapse-btn, .btn, .navbar-toggler, .tala-copy-reference,
+        .fi-tabs-item, .fi-pagination-item-btn, .fi-dropdown-list-item, .fi-theme-switcher-btn, .fi-ta-record-collapse-btn, .btn, .navbar-toggler, .tala-copy-reference,
         .btn-scroll-top, .hero-motion-toggle, .hero-round-control, .error-actions .primary-action) {
         background-image: none;
         box-shadow: none;
@@ -282,3 +380,32 @@
 .tala-copy-reference { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2rem; padding: 0.25rem 0.5rem; border: 1px solid var(--tala-control-border); border-radius: 0.375rem; background-color: var(--tala-surface); color: var(--tala-text); font: inherit; font-size: 0.875rem; cursor: pointer; }
 .tala-reference-feedback { font-size: 0.875rem; }
 .tala-copy-reference:focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 3px; }
+
+/* Shared record navigation remains a text link; action links retain native button material. */
+:is(.fi-body .fi-link, .text-link, .tala-access-help a) {
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1px;
+}
+:is(.fi-body .fi-link, .text-link, .tala-access-help a):is(:hover, :focus-visible) { text-decoration-line: underline; }
+:is(.fi-body .fi-link, .text-link, .tala-access-help a):focus-visible { outline: 2px solid var(--tala-focus); outline-offset: 3px; }
+.fi-body :is(.fi-ta-text-item-label, .fi-in-text-item-label) { overflow-wrap: anywhere; }
+.fi-body .fi-ta-header-cell-label { text-wrap: balance; }
+:is(.fi-body .fi-ta-cell, .table td) { font-variant-numeric: tabular-nums; }
+.dropdown-menu {
+    --bs-dropdown-bg: var(--tala-overlay);
+    --bs-dropdown-color: var(--tala-text);
+    --bs-dropdown-link-color: var(--tala-text);
+    --bs-dropdown-link-hover-color: var(--tala-text);
+    --bs-dropdown-link-hover-bg: var(--tala-surface-sunken);
+    --bs-dropdown-border-color: var(--tala-edge-strong);
+    box-shadow: var(--tala-shadow-overlay);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    :is(.fi-body .fi-btn, .fi-body .fi-tabs-item, .fi-body .fi-pagination-item-btn, .fi-body .fi-theme-switcher-btn, .btn, .navbar-toggler) { transition-duration: 0ms; }
+}
+
+@media print {
+    .tala-access-card { box-shadow: none; }
+}

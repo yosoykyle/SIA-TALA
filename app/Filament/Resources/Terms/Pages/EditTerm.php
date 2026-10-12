@@ -3,17 +3,70 @@
 namespace App\Filament\Resources\Terms\Pages;
 
 use App\Filament\Resources\Terms\TermResource;
+use App\Models\Term;
+use App\Support\ReturnsToTermPlanning;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 class EditTerm extends EditRecord
 {
+    use ReturnsToTermPlanning;
+
     protected static string $resource = TermResource::class;
+
+    /** @var array<string, string> */
+    protected array $extraBodyAttributes = ['class' => 'tala-term-record-page'];
+
+    public function getTitle(): string
+    {
+        return $this->record->hasActivatedCalendar() ? 'Faculty teaching-load default' : 'Edit Term identity';
+    }
 
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make(),
+            ViewAction::make()->url(fn (): string => TermResource::getUrl('view', ['record' => $this->record, 'viewTab' => $this->viewTab, 'resourceView' => $this->resourceView])),
+            Action::make('returnToPlanning')->label('Return to Term Planning')
+                ->color('gray')->url(fn (): string => $this->getRedirectUrl()),
         ];
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        return collect($data)->except(['state', 'scheduling_slot_minutes', 'scheduling_days', 'scheduling_day_starts_at', 'scheduling_day_ends_at'])->all();
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->termPlanningReturnUrl($this->record->id);
+    }
+
+    protected function getCancelFormAction(): Action
+    {
+        return Action::make('cancel')->label('Cancel and return to Term Planning')->color('gray')
+            ->url($this->getRedirectUrl());
+    }
+
+    protected function handleRecordUpdate(Model $record, array $data): Model
+    {
+        return DB::transaction(function () use ($record, $data): Term {
+            $term = Term::query()->whereKey($record)->lockForUpdate()->firstOrFail();
+            Gate::authorize('update', $term);
+            if ($term->hasActivatedCalendar()) {
+                foreach (['label', 'academic_year_id', 'type', 'starts_on', 'ends_on'] as $field) {
+                    if (array_key_exists($field, $data) && (string) $data[$field] !== (string) $term->getRawOriginal($field)) {
+                        throw ValidationException::withMessages(['label' => 'This Term has activated calendar history. Retain its recorded identity and dates; record approved calendar successors in Term Planning.']);
+                    }
+                }
+            }
+            $term->update($data);
+
+            return $term;
+        }, attempts: 3);
     }
 }

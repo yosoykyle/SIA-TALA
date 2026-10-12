@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\FacultyQualifications\Pages\CreateFacultyQualification;
+use App\Filament\Resources\FacultyQualifications\Pages\EditFacultyQualification;
 use App\Filament\Resources\FacultyQualifications\Pages\ListFacultyQualifications;
 use App\Filament\Resources\FacultyTermLoadOverrides\Pages\CreateFacultyTermLoadOverride;
+use App\Filament\Resources\FacultyTermLoadOverrides\Pages\EditFacultyTermLoadOverride;
 use App\Filament\Resources\FacultyTermLoadOverrides\Pages\ListFacultyTermLoadOverrides;
 use App\Filament\Resources\Rooms\Pages\CreateRoom;
 use App\Filament\Resources\Rooms\Pages\EditRoom;
@@ -49,10 +51,10 @@ final class TAL85BResourceReadinessSurfacesTest extends TestCase
 
     public function test_resource_readiness_routes_are_registered_and_legacy_availability_routes_remain_absent(): void
     {
-        $this->assertTrue(Route::has('filament.admin.resources.rooms.index'));
-        $this->assertTrue(Route::has('filament.admin.resources.faculty-qualifications.index'));
-        $this->assertTrue(Route::has('filament.admin.resources.faculty-term-load-overrides.index'));
-        $this->assertTrue(Route::has('filament.admin.resources.calendar-events.index'));
+        $this->assertTrue(Route::has('filament.admin.term-planning.resources.rooms.index'));
+        $this->assertTrue(Route::has('filament.admin.term-planning.resources.faculty-qualifications.index'));
+        $this->assertTrue(Route::has('filament.admin.term-planning.resources.faculty-term-load-overrides.index'));
+        $this->assertTrue(Route::has('filament.admin.term-planning.resources.calendar-events.index'));
 
         foreach ([
             'filament.admin.resources.faculty-availability-periods.index',
@@ -209,6 +211,78 @@ final class TAL85BResourceReadinessSurfacesTest extends TestCase
         Livewire::actingAs($academicHead)
             ->test(ListFacultyTermLoadOverrides::class)
             ->assertCanSeeTableRecords([$override]);
+    }
+
+    public function test_qualification_duplicate_pairs_are_recoverable_and_unchanged_pairs_can_be_edited(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $otherFaculty = $this->staff(User::StaffRoleFaculty);
+        $course = Course::factory()->create();
+        $qualification = FacultyQualification::factory()->for($faculty, 'faculty')->for($course)->for($registrar, 'recorder')->create();
+        $other = FacultyQualification::factory()->for($otherFaculty, 'faculty')->for($course)->for($registrar, 'recorder')->create();
+        $before = $qualification->fresh()->getAttributes();
+        $otherBefore = $other->fresh()->getAttributes();
+        $count = FacultyQualification::query()->count();
+
+        Livewire::actingAs($registrar)->test(CreateFacultyQualification::class)
+            ->fillForm([
+                'faculty_user_id' => $faculty->id, 'course_id' => $course->id,
+                'recorded_by' => $registrar->id, 'recorded_at' => now()->format('Y-m-d H:i'),
+                'is_active' => true, 'notes' => 'Duplicate mapping',
+            ])->call('create')->assertHasFormErrors(['faculty_user_id' => 'unique'])->assertNotNotified()->assertNoRedirect();
+        $this->assertSame($count, FacultyQualification::query()->count());
+        $this->assertSame($before, $qualification->fresh()->getAttributes());
+
+        Livewire::actingAs($registrar)->test(EditFacultyQualification::class, ['record' => $qualification->id])
+            ->fillForm(['notes' => 'Reviewed existing mapping'])->call('save')->assertHasNoFormErrors()->assertNotified();
+        $this->assertSame('Reviewed existing mapping', $qualification->fresh()->notes);
+        $this->assertSame($faculty->id, $qualification->fresh()->faculty_user_id);
+        $this->assertSame($course->id, $qualification->fresh()->course_id);
+        $reviewed = $qualification->fresh()->getAttributes();
+
+        Livewire::actingAs($registrar)->test(EditFacultyQualification::class, ['record' => $qualification->id])
+            ->fillForm(['faculty_user_id' => $otherFaculty->id, 'notes' => 'Conflicting edit'])
+            ->call('save')->assertHasFormErrors(['faculty_user_id' => 'unique'])->assertNotNotified()->assertNoRedirect();
+        $this->assertSame($reviewed, $qualification->fresh()->getAttributes());
+        $this->assertSame($otherBefore, $other->fresh()->getAttributes());
+        $this->assertSame($count, FacultyQualification::query()->count());
+    }
+
+    public function test_load_override_duplicate_pairs_are_recoverable_and_unchanged_pairs_can_be_edited(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $otherFaculty = $this->staff(User::StaffRoleFaculty);
+        $term = Term::factory()->create();
+        $override = FacultyTermLoadOverride::factory()->for($faculty, 'faculty')->for($term)->create();
+        $other = FacultyTermLoadOverride::factory()->for($otherFaculty, 'faculty')->for($term)->create();
+        $before = $override->fresh()->getAttributes();
+        $otherBefore = $other->fresh()->getAttributes();
+        $count = FacultyTermLoadOverride::query()->count();
+
+        Livewire::actingAs($registrar)->withQueryParams(['termId' => $term->id])->test(CreateFacultyTermLoadOverride::class)
+            ->fillForm([
+                'faculty_user_id' => $faculty->id, 'term_id' => $term->id,
+                'default_max_units_snapshot' => 21, 'approved_overload_units' => 3,
+                'authority' => 'Approved source', 'reason' => 'Duplicate override', 'is_active' => true,
+            ])->call('create')->assertHasFormErrors(['faculty_user_id' => 'unique'])->assertNotNotified()->assertNoRedirect();
+        $this->assertSame($count, FacultyTermLoadOverride::query()->count());
+        $this->assertSame($before, $override->fresh()->getAttributes());
+
+        Livewire::actingAs($registrar)->withQueryParams(['termId' => $term->id])->test(EditFacultyTermLoadOverride::class, ['record' => $override->id])
+            ->fillForm(['reason' => 'Reviewed existing override'])->call('save')->assertHasNoFormErrors()->assertNotified();
+        $this->assertSame('Reviewed existing override', $override->fresh()->reason);
+        $this->assertSame($faculty->id, $override->fresh()->faculty_user_id);
+        $this->assertSame($term->id, $override->fresh()->term_id);
+        $reviewed = $override->fresh()->getAttributes();
+
+        Livewire::actingAs($registrar)->withQueryParams(['termId' => $term->id])->test(EditFacultyTermLoadOverride::class, ['record' => $override->id])
+            ->fillForm(['faculty_user_id' => $otherFaculty->id, 'reason' => 'Conflicting edit'])
+            ->call('save')->assertHasFormErrors(['faculty_user_id' => 'unique'])->assertNotNotified()->assertNoRedirect();
+        $this->assertSame($reviewed, $override->fresh()->getAttributes());
+        $this->assertSame($otherBefore, $other->fresh()->getAttributes());
+        $this->assertSame($count, FacultyTermLoadOverride::query()->count());
     }
 
     private function staff(string $role): User

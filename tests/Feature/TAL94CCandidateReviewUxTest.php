@@ -20,6 +20,7 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
@@ -312,7 +313,7 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->assertSee('Current Validation')
             ->assertSee('Original Solver Score')
             ->assertSee('Original Solver Result')
-            ->assertSee('Candidate weekly view')
+            ->assertSee('Timetable')
             ->assertSee('Source Contract')
             ->assertSee('Historical compatibility: tal94-demand-v2 / balanced_v1.')
             ->assertSee('Current room capacity no longer satisfies the demand.')
@@ -336,6 +337,17 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             'scheduling_days' => [1, 2, 3, 4, 5, 6],
             'scheduling_slot_minutes' => 30,
         ]);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        foreach ([1, 2, 3, 4, 5, 6] as $day) {
+            $package->teachingGridRows()->create([
+                'day_of_week' => $day,
+                'starts_at' => '07:00:00',
+                'ends_at' => '21:00:00',
+                'breaks' => [],
+            ]);
+        }
         $faculty = $this->staff(User::StaffRoleFaculty);
         $room = Room::factory()->create([
             'code' => 'C-R'.$this->contextCounter,
