@@ -96,7 +96,9 @@ Derived projections are:
 
 - Draft fields remain editable.
 - While `Submitted` and before explicit authorized review starts, ordinary Applicant edits remain available. Each committed edit creates a validated successor submitted version; the stable reference and prior snapshots/evidence remain immutable. First-submission timing governs first submission, not an invented new deadline for editing an already submitted record.
+- A pre-review Student type change follows Section 8 within the application's bound Cycle and Term. A committed Submitted edit validates and records its facts, permitted evidence changes and successor snapshot atomically; a failed commit creates no partial successor.
 - Starting review records reviewer/time and the exact current source atomically. History viewing or read-only inspection does not lock editing. Once review starts, only fields/evidence named by an active correction request reopen; a final decision locks ordinary edits. Existing authorized correction, supersession and reopening paths retain their guards. No mandatory `UnderReview` application state or status rename is introduced.
+- The ordinary-edit boundary remains effective through correction/resubmission and withdrawal/reopening. Each review action rechecks the current source. Retained genuine review facts remain attributable evidence; read access, an unreviewed copy or a default projection never fabricates historical review start.
 - Correction and decision reasons offer common task-specific choices and **Other**. Private review basis and Applicant-safe instructions remain distinct. A correction request contains affected items, one consolidated applicant instruction, responsible party, a required due date/time on or before the Admission Cycle's correction boundary, actor, and time.
 - Registrar may issue a new scoped correction after public application closing and through the inclusive correction boundary. After that boundary, a new request requires an authorized correction-boundary extension.
 - An already active correction remains actionable after public closing, its due time, or the correction boundary. Overdue remains `ActionNeeded`; TALA never auto-rejects or withdraws the application.
@@ -217,7 +219,8 @@ Registrar owns bounded, versioned admission requirement sets. System Administrat
 
 - A published set is immutable.
 - A correction creates a replacement version with explicit effective timing.
-- A submitted application retains the requirement-set version under which it was submitted.
+- Each submitted version retains the requirement-set version under which it was submitted. Ordinary edits and corrections that retain Student type use the current submitted version's governing set; a newly published replacement does not silently change it.
+- Before explicit authorized review starts, Applicant may change Student type to a supported path within the same bound Cycle and Term. The committed successor uses the applicable effective published set for the new type and validates all required facts, declarations and permitted current evidence together. Show newly required and retained copies before commitment; retain every earlier snapshot, requirement-set reference and file. A failed change leaves the prior committed version intact. Section 5.2 governs timing and editability.
 - A replacement does not silently rewrite earlier submissions or results.
 
 Each requirement defines:
@@ -301,7 +304,7 @@ Keep the final review and affirmative accuracy declaration before Submit applica
 | Field/group | Contract |
 |---|---|
 | Application choice | Current published Cycle, accepting Program/path and one application per credential account/Cycle |
-| Names | Required first/last, optional middle/suffix using the shared name primitives; submitted facts change only through named correction |
+| Names | Required first/last, optional middle/suffix using the shared name primitives; editable in Draft or a validated pre-review Submitted successor, then only through named correction under Section 5.2 |
 | Birth date | Required valid typeable non-future date; age derived at submission. No invented numeric minimum age; qualifying prior education governs the supported path |
 | Citizenship | Required controlled country value; display label 1–100 characters |
 | Email and mobile | Verified email read-only; required mobile uses shared telephone validation |
