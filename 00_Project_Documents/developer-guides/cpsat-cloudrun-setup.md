@@ -1,6 +1,6 @@
 # Developer Guide: CP-SAT Scheduling Solver & Google Cloud Run Setup
 
-This guide provides the complete architecture overview, developer setup, Google Cloud CLI installation, and terminal verification commands for the **TALA CP-SAT Scheduling Solver** running on **Google Cloud Run**.
+This guide covers authorized live integration with the **TALA CP-SAT Scheduling Solver** on **Google Cloud Run**, plus cloud administration and integration verification. Ordinary local development starts with the local solver stub, mock payments and log mail described in [README](../../README.md) and [CONTRIBUTING](../../CONTRIBUTING.md#3-add-integration-credentials-only-when-needed).
 
 ---
 
@@ -10,11 +10,11 @@ There are **two distinct tiers** of access:
 
 | Tier | Purpose | What is Used? | Do they need GCP Login? |
 | :--- | :--- | :--- | :---: |
-| **Tier 1: Application Runtime (Local Laravel)** | Running timetable generation and solver tests inside Laravel. | **Service Account JSON Key** (`tala-dev-ocr-3s-aba571363fdf.json`) placed in `storage/app/private/credentials/`. | **NO.** The app authenticates machine-to-machine. |
+| **Tier 1: Live Solver Integration (Laravel Runtime)** | Running authorized Cloud Run integration from Laravel. | Restricted **Service Account JSON Key** in `storage/app/private/credentials/`, with supplied solver settings. | **NO.** The app authenticates machine-to-machine. |
 | **Tier 2: Cloud Admin & Deployment** | Deploying Python solver updates, viewing real-time Cloud Run logs, and inspecting GCP metrics. | **Personal Google Accounts** via Google Cloud CLI (`gcloud`) or the GCP Web Console. | **YES.** Collaborators log in with their own Gmail. |
 
 > [!IMPORTANT]
-> **To simply code, run, and test Laravel locally, teammates ONLY need the `.json` key file and the `.env` settings.** They do not need to install `gcloud` or log in to Google Cloud unless they are modifying the Python solver container or inspecting server logs.
+> **Ordinary local coding and testing require no Cloud Run credentials.** Request the restricted JSON key and solver settings privately only when the assigned integration task requires the live service. Runtime integration does not require `gcloud` or a personal Google Cloud sign-in; cloud administration and deployment use the separate Tier 2 access.
 
 ---
 
@@ -31,7 +31,7 @@ The Cloud Run solver is hosted under the Google Cloud Project **`tala-dev-ocr-3s
 
 ---
 
-## 3. Tier 1: Local Developer Setup (Running the App)
+## 3. Tier 1: Live Solver Integration Setup
 
 Follow these steps on any developer machine to connect local Laravel to the live Cloud Run solver:
 

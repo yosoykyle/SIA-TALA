@@ -188,94 +188,23 @@ While ngrok is running, open the built-in traffic inspector in your browser:
 
 ---
 
-## 8. Complete Working `.env` Template for the Team
+## 8. Scoped Payment Configuration
 
-Here is the complete template for local development. Redacted credentials can be requested from the project leads:
+Start ordinary local development with the example environment's mock payment driver, local solver stub and log mail. Follow [README](../../README.md) and [CONTRIBUTING](../../CONTRIBUTING.md#3-add-integration-credentials-only-when-needed); do not copy a teammate's whole environment.
+
+For an authorized PayMongo sandbox integration, apply only the relevant payment settings to your own local environment. Every value below is a placeholder; obtain restricted keys privately from the authorized owner.
 
 ```env
-APP_NAME=TALA
-APP_ENV=local
-APP_KEY=base64:M6OvOBJ40Po0YwunVJRA8nkNsCmKQYNprHK8KvOKWCM=
-APP_DEBUG=true
-# APP_URL=https://your-tunnel.ngrok-free.app (Uncomment and set during ngrok webhook testing)
-APP_URL=http://127.0.0.1:8000 
-
-APP_LOCALE=en
-APP_FALLBACK_LOCALE=en
-APP_FAKER_LOCALE=en_US
-
-APP_MAINTENANCE_DRIVER=file
-BCRYPT_ROUNDS=12
-
-LOG_CHANNEL=stack
-LOG_STACK=single
-LOG_LEVEL=debug
-
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=tala_db
-DB_USERNAME=root
-DB_PASSWORD=your_local_mysql_password
-
-SESSION_DRIVER=database
-SESSION_LIFETIME=120
-SESSION_ENCRYPT=false
-SESSION_PATH=/
-SESSION_DOMAIN=null
-
-BROADCAST_CONNECTION=log
-FILESYSTEM_DISK=local
-QUEUE_CONNECTION=database
-CACHE_STORE=database
-
-MEMCACHED_HOST=127.0.0.1
-REDIS_CLIENT=phpredis
-REDIS_HOST=127.0.0.1
-REDIS_PASSWORD=null
-REDIS_PORT=6379
-
-# --- Gmail SMTP ---
-MAIL_MAILER=smtp
-MAIL_SCHEME=null
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME=attalasys@gmail.com
-MAIL_PASSWORD=[REDACTED — Contact kylefbaluyot@iskolarngbayan.pup.edu.ph for shared credentials]
-MAIL_FROM_ADDRESS=attalasys@gmail.com
-MAIL_FROM_NAME="${APP_NAME}"
-
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_DEFAULT_REGION=us-east-1
-AWS_BUCKET=
-AWS_USE_PATH_STYLE_ENDPOINT=false
-
-VITE_APP_NAME="${APP_NAME}"
-
-# --- PayMongo Payment Gateway (Sandbox/Test Mode) ---
 TALA_PAYMENT_GATEWAY_DRIVER=paymongo
 PAYMONGO_LIVEMODE=false
-PAYMONGO_PUBLIC_KEY=[REDACTED — Contact kylefbaluyot@iskolarngbayan.pup.edu.ph]
-PAYMONGO_SECRET_KEY=[REDACTED — Contact kylefbaluyot@iskolarngbayan.pup.edu.ph]
-PAYMONGO_WEBHOOK_SIG=[REDACTED — Copy from Webhook Details in Dashboard]
-
-# --- OCR / Document Processing ---
-TALA_OCR_DRIVER=mock
-GOOGLE_CLOUD_PROJECT_ID=tala-dev-ocr-3s
-GOOGLE_APPLICATION_CREDENTIALS="storage/app/private/credentials/google-vision-dev.json"
-TALA_OCR_MONTHLY_CALL_LIMIT=100
-
-# --- CP-SAT Timetable Solver (Google Cloud Run) ---
-TALA_SCHEDULING_SOLVER_DRIVER=cloud_run
-TALA_SCHEDULING_SOLVER_AUTH=iam_private
-TALA_SCHEDULING_SOLVER_URL=https://tala-scheduler-solver-783866300038.asia-southeast1.run.app
-TALA_SCHEDULING_SOLVER_AUDIENCE=https://tala-scheduler-solver-783866300038.asia-southeast1.run.app
-TALA_SCHEDULING_SOLVER_CREDENTIALS="storage/app/private/credentials/tala-dev-ocr-3s-aba571363fdf.json"
-TALA_SCHEDULING_SOLVER_TIMEOUT_SECONDS=330
-TALA_SCHEDULING_SOLVER_CONNECT_TIMEOUT_SECONDS=10
+PAYMONGO_PUBLIC_KEY=<sandbox-public-key>
+PAYMONGO_SECRET_KEY=<sandbox-secret-key>
+PAYMONGO_WEBHOOK_SIG=<sandbox-webhook-signing-secret>
 ```
 
+Use the actual serving URL and the webhook, signing-header and payment-method settings described above. Preserve your own application key, database target and other environment settings. Follow the earlier APP_URL/tunnel steps only when the authorized integration needs public webhook delivery.
+
+Mail setup belongs to [SMTP setup](smtp-setup.md), live timetable integration to [Cloud Run setup](cpsat-cloudrun-setup.md), and public local tunnelling to [ngrok setup](ngrok-setup.md). Legacy OCR entries do not configure an active OCR client and are not part of admissions authority; request OCR setup only for a separately authorized task that identifies a working consumer.
+
 > [!TIP]
-> **Accessing Credentials:**  
-> For any redacted credential values, contact **`kylefbaluyot@iskolarngbayan.pup.edu.ph`** or consult the team's internal password vault.
+> Request integration credentials through the team's approved private sharing channel. Keep keys and signing secrets out of Git, Issues and chat.

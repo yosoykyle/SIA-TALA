@@ -375,7 +375,7 @@ Use one native five-step Filament Wizard:
 4. Preliminary evidence.
 5. Review and submit.
 
-The Wizard provides visible **Save and continue** progression and secondary **Save and exit**, step-level validation, a server-side closing-time recheck, accessible error summaries with field-level links, and a single-column mobile layout. Submitted fields are read-only unless reopened by a scoped correction request.
+The Wizard provides visible **Save and continue** progression and secondary **Save and exit**, step-level validation, accessible error summaries with field-level links and a single-column mobile layout. Recheck the applicable public window for Draft saving and first submission; do not apply that boundary as a new deadline for an already submitted version. Before explicit authorized review starts, Applicant edits append validated successor submitted versions. After review starts, only active correction scope reopens; final decisions lock ordinary edits. Prior submitted snapshots remain read-only.
 
 Use plain applicant-facing labels, including First name, Last name, Suffix, Email address and Educational Background, while retaining the underlying identity and validation semantics. Group related fields responsively and retain labels/requiredness when a placeholder disappears. Do not lock unrelated sections merely to reduce scrolling. A save/continue label must describe an actual save; failed saves retain input and show the owning field or source error.
 
