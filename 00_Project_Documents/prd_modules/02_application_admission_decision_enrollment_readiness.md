@@ -102,6 +102,7 @@ Derived projections are:
 - An already active correction remains actionable after public closing, its due time, or the correction boundary. Overdue remains `ActionNeeded`; TALA never auto-rejects or withdraws the application.
 - Corrected items return the application to `Submitted` for review.
 - The prior submitted snapshot, evidence version, review result, correction request, and resubmission remain in history.
+- Correction and resubmission retain every unaffected current upload and its source metadata. Only an authorized replacement creates a new evidence version; reopening the form or saving other facts never detaches a retained file or requires it to be uploaded again. Duplicate/conflicting input identifies the affected requirement and the permitted reuse or replacement remedy while preserving other input. Recheck application, requirement, evidence ownership and current-version scope; this introduces no cross-person or global checksum rejection policy.
 - Server-side guards prevent stale, unauthorized, or out-of-order edits even when a page remains open.
 
 ### 5.3 Discard, withdrawal, and reopening
@@ -350,7 +351,7 @@ Registrar owns the external paper-document check and follow-up. Clinic 4 consume
 
 Application references remain complete, selectable and copyable through a shared labelled control with success/failure feedback. Native tables may use their native copy affordance. Resubmission, withdrawal, reopening and replacement decisions preserve the first issued reference; readable grouping creates no second identifier.
 
-The public tracking view, reached only through PRD 01's expiring verified-owner email link, shows a fixed plain-language current status, next step or waiting condition, and the published cycle support contact. It excludes identity/contact facts, correction text, evidence, acknowledgments, private reasons and history. Protected work continues through ordinary authenticated Applicant access. The tracking view derives current facts and grants no mutation permission.
+Application status, relevant dates, correction instructions and the next permitted action belong to the authenticated Applicant's own Home/Application context. The Public Gateway has no application-status request or emailed tracking-link journey. Sign in resolves ownership and role authorization before any application facts appear; inaccessible or retired routes reveal no protected record.
 
 Information order:
 

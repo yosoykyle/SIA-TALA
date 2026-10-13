@@ -68,15 +68,13 @@ flowchart TB
   LOGIN -->|Access problem| RECOVER["Use account recovery or authorized access support"]
   RECOVER --> LOGIN
   ADMIN["System Administrator: invite staff and manage fixed role access"] -.-> ROLE
-  STATUS["Public: use private status link with uniform safe responses"]
-  ENTRY --> STATUS
   classDef askBox fill:#F1AC4B,stroke:#000000,color:#000000;
   classDef warnBox fill:#F87777,stroke:#000000,color:#000000;
   class CHOICE askBox;
   class RECOVER warnBox;
 ```
 
-Public content is bounded About/program information, current announcements and useful FAQ/location facts. New events/news and a general CMS are deferred. When Apply is unavailable, its reason is clear and Sign in remains available. The secure status link exposes no applicant directory or distinguishable account lookup.
+Public content is bounded About/program information, current announcements and useful FAQ/location facts. Apply is the main entry action; Programs browsing and source-backed Read more details remain available. New events/news and a general CMS are deferred. When Apply is unavailable, its reason is clear and Sign in remains available. Application status belongs to the signed-in Applicant's own Home; the public status-request/link journey is retired without deleting application or audit history.
 
 One account can carry several authorized roles; the active workspace keeps that context clear. Password reset, verified email changes, session recovery and staff MFA follow PRD 01. The System Administrator cannot grant academic or financial decision authority by editing a screen or bypassing a role check.
 
@@ -108,7 +106,7 @@ flowchart TB
 
 Registrar publishes source-backed cycles and requirement sets. An Applicant chooses ordinary program/type context rather than internal cycle identifiers. Ambiguous configuration goes to Registrar setup; existing application bindings stay stable. The form covers scope, personal/contact facts, Educational Background, preliminary evidence and review. Notice acknowledgment and optional sensitive-field consent remain separate.
 
-Draft saving and first submission recheck their public window. A submitted application can append validated successor versions until **explicit authorized review starts**; merely opening history or inspecting read-only facts does not start that lock. Afterwards only named correction scope reopens. Final decisions lock ordinary edits. A correction has its own due boundary and recovery; an overdue active correction does not automatically reject the application.
+Draft saving and first submission recheck their public window. A submitted application can append validated successor versions until **explicit authorized review starts**; merely opening history or inspecting read-only facts does not start that lock. Afterwards only named correction scope reopens. Final decisions lock ordinary edits. Corrections and resubmissions retain unaffected uploaded files and metadata; authorized replacement preserves prior versions. A correction has its own due boundary and recovery; an overdue active correction does not automatically reject the application.
 
 Use common correction/decision reasons plus Other, keeping the private decision basis separate from Applicant instructions. Review, evidence preview, identity resolution, decision and clearance share one working context. Combine admission and papers confirmation only when actual external checks are already satisfied; otherwise retain the single Mark papers complete follow-up. This creates readiness, not Student identity, fees or official enrollment.
 
