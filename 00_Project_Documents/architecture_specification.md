@@ -107,7 +107,7 @@ Most user actions use ordinary browser-to-Laravel request/response processing an
 
 TALA is therefore not primarily event-driven. Queues, notifications, and framework events are supporting execution patterns inside a transaction-centered application.
 
-Admissions submission, recorded pre-review successors, explicit review start, decisions, Registrar clearance, withdrawal and readiness commit locally before relevant email is dispatched. Combined admission/clearance revalidates all current facts and commits both effects atomically; private inspection alone never starts review. A mail failure cannot undo the authoritative admissions action.
+Admissions submission, recorded pre-review successors, scoped correction/resubmission, explicit review start, decisions, Registrar clearance, withdrawal and readiness commit locally before relevant email is dispatched. Student type correction requests bind the current submitted source and the target requirement-set version under PRD 02 Section 8; atomic successors preserve history and drive review/readiness from the corrected current source. Combined admission/clearance revalidates all current facts and commits both effects atomically; private inspection alone never starts review. A mail failure cannot undo the authoritative admissions action.
 
 ### 3.4 Data Architecture: Centralized Relational System of Record
 
