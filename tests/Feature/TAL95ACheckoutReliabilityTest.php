@@ -127,54 +127,18 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
         $this->assertSame('2500.00', $second['amount']);
     }
 
-    public function test_student_finance_checkout_ignores_tampered_livewire_due_state(): void
-    {
-        $fixture = $this->checkoutFixture();
-
-        Livewire::actingAs($fixture['student'])
-            ->test(Finance::class)
-            ->assertActionDoesNotExist('checkout');
-        $this->assertSame(0, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count());
-    }
-
-    public function test_student_finance_checkout_action_reuses_the_active_attempt(): void
-    {
-        $fixture = $this->checkoutFixture();
-
-        Livewire::actingAs($fixture['student'])
-            ->test(Finance::class)
-            ->assertActionDoesNotExist('checkout');
-        $this->assertSame(0, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count());
-    }
-
-    public function test_student_finance_checkout_action_shows_a_safe_provider_failure(): void
-    {
-        $fixture = $this->checkoutFixture();
-
-        Livewire::actingAs($fixture['student'])
-            ->test(Finance::class)
-            ->assertActionDoesNotExist('checkout')
-            ->assertSee('Submit payment evidence');
-    }
-
-    public function test_student_finance_checkout_action_uses_the_paymongo_v2_contract(): void
+    public function test_student_finance_keeps_manual_payment_evidence_without_legacy_checkout_side_effects(): void
     {
         $fixture = $this->checkoutFixture();
         Http::preventStrayRequests();
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertActionDoesNotExist('checkout');
+            ->assertActionDoesNotExist('checkout')
+            ->assertSee('Submit payment evidence');
+
+        $this->assertSame(0, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count());
         Http::assertNothingSent();
-    }
-
-    public function test_student_finance_disables_checkout_when_no_positive_due_exists(): void
-    {
-        $fixture = $this->checkoutFixture(positiveDue: false);
-
-        Livewire::actingAs($fixture['student'])
-            ->test(Finance::class)
-            ->assertActionDoesNotExist('checkout');
     }
 
     public function test_database_rejects_a_second_pending_or_under_review_attempt_for_one_assessment(): void
@@ -326,7 +290,7 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
     /**
      * @return array{student:User,profile:StudentProfile,term:Term,enrollment:Enrollment,account:TermAccount,assessment:Assessment}
      */
-    private function checkoutFixture(bool $positiveDue = true): array
+    private function checkoutFixture(): array
     {
         $student = User::factory()->create([
             'status' => User::StatusActive,
@@ -352,43 +316,41 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
             'version' => 1,
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
-            'subtotal' => $positiveDue ? '9000.00' : '0.00',
+            'subtotal' => '9000.00',
             'discount_total' => '0.00',
-            'total' => $positiveDue ? '9000.00' : '0.00',
-            'required_downpayment' => $positiveDue ? '2000.00' : '0.00',
+            'total' => '9000.00',
+            'required_downpayment' => '2000.00',
             'activated_at' => now(),
         ]);
         AssessmentObligation::factory()->for($assessment)->create([
             'sequence' => 1,
             'code' => 'CURRENT-DUE',
             'label' => 'Current amount due',
-            'amount' => $positiveDue ? '2000.00' : '1.00',
-            'due_at' => $positiveDue ? now()->subMinute() : now()->addDay(),
+            'amount' => '2000.00',
+            'due_at' => now()->subMinute(),
         ]);
         PaymentScheduleRow::query()->create([
             'assessment_id' => $assessment->id,
             'sequence' => 1,
             'category' => PaymentScheduleRow::CategoryDownpayment,
             'due_date' => now()->addWeek()->toDateString(),
-            'amount' => $positiveDue ? '2000.00' : '1.00',
-            'state' => $positiveDue ? PaymentScheduleRow::StateDue : 'paid',
+            'amount' => '2000.00',
+            'state' => PaymentScheduleRow::StateDue,
         ]);
 
-        if ($positiveDue) {
-            LedgerEntry::query()->create([
-                'student_profile_id' => $profile->id,
-                'term_id' => $term->id,
-                'enrollment_id' => $enrollment->id,
-                'direction' => LedgerEntry::DirectionCharge,
-                'category' => 'tuition',
-                'amount' => '9000.00',
-                'source_type' => Assessment::class,
-                'source_id' => $assessment->id,
-                'description' => 'TAL-95A checkout fixture',
-                'posted_at' => now(),
-                'state' => 'posted',
-            ]);
-        }
+        LedgerEntry::query()->create([
+            'student_profile_id' => $profile->id,
+            'term_id' => $term->id,
+            'enrollment_id' => $enrollment->id,
+            'direction' => LedgerEntry::DirectionCharge,
+            'category' => 'tuition',
+            'amount' => '9000.00',
+            'source_type' => Assessment::class,
+            'source_id' => $assessment->id,
+            'description' => 'TAL-95A checkout fixture',
+            'posted_at' => now(),
+            'state' => 'posted',
+        ]);
 
         return compact('student', 'profile', 'term', 'enrollment', 'account', 'assessment');
     }

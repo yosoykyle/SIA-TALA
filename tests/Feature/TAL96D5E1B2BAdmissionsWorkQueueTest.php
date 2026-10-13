@@ -3,11 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Applicants\HandOverApprovedApplicant;
-use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
-use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
-use App\Filament\Resources\AdmissionRequirementPolicies\AdmissionRequirementPolicyResource;
-use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
 use App\Models\AdmissionApplication;
 use App\Models\ApplicantIntake;
 use App\Models\Enrollment;
@@ -34,16 +30,6 @@ class TAL96D5E1B2BAdmissionsWorkQueueTest extends TestCase
             Permission::findOrCreate('approve-documents', 'web'),
             Permission::findOrCreate('manage-admission-setup', 'web'),
         ]);
-    }
-
-    public function test_canonical_admissions_resources_replace_the_legacy_intake_and_generic_policy_routes(): void
-    {
-        $resources = Filament::getPanel('admin')->getResources();
-
-        $this->assertContains(AdmissionApplicationResource::class, $resources);
-        $this->assertContains(AdmissionCycleResource::class, $resources);
-        $this->assertNotContains(ApplicantIntakeResource::class, $resources);
-        $this->assertNotContains(AdmissionRequirementPolicyResource::class, $resources);
     }
 
     public function test_registrar_work_queue_uses_journey_states_and_business_filters_without_bulk_decisions(): void

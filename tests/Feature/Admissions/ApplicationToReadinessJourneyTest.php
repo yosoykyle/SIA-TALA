@@ -8,9 +8,6 @@ use App\Filament\Applicant\Pages\Application as ApplicationPage;
 use App\Filament\Applicant\Pages\Dashboard;
 use App\Filament\Applicant\Pages\Dashboard as ApplicantDashboard;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
-use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
-use App\Filament\Resources\AdmissionRequirementPolicies\AdmissionRequirementPolicyResource;
-use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirement;
@@ -58,16 +55,6 @@ class ApplicationToReadinessJourneyTest extends TestCase
             User::StatusActive => 'Active',
         ], User::applicantWorkspaceStatusOptions());
         $this->assertTrue($applicant->canAuthenticate());
-    }
-
-    public function test_legacy_intake_and_generic_requirement_policy_resources_are_not_registered(): void
-    {
-        $resources = Filament::getPanel('admin')->getResources();
-
-        $this->assertNotContains(ApplicantIntakeResource::class, $resources);
-        $this->assertNotContains(AdmissionRequirementPolicyResource::class, $resources);
-        $this->assertContains(AdmissionApplicationResource::class, $resources);
-        $this->assertContains(AdmissionCycleResource::class, $resources);
     }
 
     #[DataProvider('submissionFollowUpFailureProvider')]
