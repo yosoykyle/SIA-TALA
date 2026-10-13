@@ -1,84 +1,18 @@
 # TALA System Architecture Specification
 
-## Table of Contents
+This document owns technical structure, runtime/data integrity, trust, integrations and operations. [PRDs](prd_modules/README.md) own policy, [Blueprint](ui_surface_blueprint.md) owns interface outcomes and [DESIGN.md](../DESIGN.md) owns appearance. Live delivery status belongs to GitHub.
 
-1. [Purpose, Scope, and Evidence Basis](#1-purpose-scope-and-evidence-basis)
-    - [Evidence Language](#11-evidence-language)
-2. [System Responsibility and Institutional Boundary](#2-system-responsibility-and-institutional-boundary)
-3. [Architectural Classification](#3-architectural-classification)
-    - [Application Architecture: Domain-Organized Layered Monolith](#31-application-architecture-domain-organized-layered-monolith)
-    - [System Topology: Hybrid Service-Integrated System](#32-system-topology-hybrid-service-integrated-system)
-    - [Integration Style: Request/Response with Asynchronous Supporting Workflows](#33-integration-style-requestresponse-with-asynchronous-supporting-workflows)
-    - [Data Architecture: Centralized Relational System of Record](#34-data-architecture-centralized-relational-system-of-record)
-    - [Why This Shape Was Selected](#35-why-this-shape-was-selected)
-    - [Why Microservices Were Not Selected](#36-why-microservices-were-not-selected)
-4. [Logical Domain Structure](#4-logical-domain-structure)
-    - [Admissions-to-Enrollment Boundary](#41-admissions-to-enrollment-boundary)
-    - [Academic-Authority-to-Enrollment Boundary](#42-academic-authority-to-enrollment-boundary)
-    - [Registration-to-Official-Enrollment Boundary](#43-registration-to-official-enrollment-boundary)
-    - [Official-Enrollment-to-Academic-Record Boundary](#44-official-enrollment-to-academic-record-boundary)
-5. [Runtime Component Architecture](#5-runtime-component-architecture)
-    - [Primary Request Flow](#51-primary-request-flow)
-    - [Queue Operations](#52-queue-operations)
-    - [Academic Timetabling Is Not Laravel Task Scheduling](#53-academic-timetabling-is-not-laravel-task-scheduling)
-6. [Data Architecture and Integrity](#6-data-architecture-and-integrity)
-    - [Why MySQL Fits the Domain](#61-why-mysql-fits-the-domain)
-    - [Transaction and Concurrency Rules](#62-transaction-and-concurrency-rules)
-    - [Auditability](#63-auditability)
-    - [Authority-Hardening Implementation Boundaries](#64-authority-hardening-implementation-boundaries)
-7. [User Interface Architecture](#7-user-interface-architecture)
-    - [Why Filament and Livewire Were Selected](#71-why-filament-and-livewire-were-selected)
-    - [Presentation Boundaries](#72-presentation-boundaries)
-    - [Authorization Rule](#73-authorization-rule)
-    - [Browser Failure Presentation Boundary](#74-browser-failure-presentation-boundary)
-8. [Security and Trust Boundaries](#8-security-and-trust-boundaries)
-9. [External Integrations](#9-external-integrations)
-    - [CP-SAT Scheduling Service](#91-cp-sat-scheduling-service)
-    - [PayMongo](#92-paymongo)
-    - [Transactional Email](#93-transactional-email)
-10. [Automatic Scheduling: Research and Product Justification](#10-automatic-scheduling-research-and-product-justification)
-    - [Comparison with Existing Approaches](#101-comparison-with-existing-approaches)
-    - [Why OR-Tools CP-SAT Was Selected](#102-why-or-tools-cp-sat-was-selected)
-11. [Dependency Architecture](#11-dependency-architecture)
-    - [Active PHP Runtime](#111-active-php-runtime)
-    - [Declared Packages Requiring Deliberate Disposition](#112-declared-packages-requiring-deliberate-disposition)
-    - [Frontend Runtime](#113-frontend-runtime)
-    - [Solver and Engineering Tooling](#114-solver-and-engineering-tooling)
-    - [Compatibility and Minimum Requirements](#115-compatibility-and-minimum-requirements)
-12. [Planned Deployment, Networking, and Operations](#12-planned-deployment-networking-and-operations)
-    - [Network Architecture for Deployment](#121-network-architecture-for-deployment)
-    - [OSI Networking Layer Mapping](#122-osi-networking-layer-mapping)
-    - [Backup, Recovery, and Operational Architecture](#123-backup-recovery-and-operational-architecture)
-    - [Degraded and Failure Behavior](#124-degraded-and-failure-behavior)
-    - [Capstone Acceptance versus Prospective Production](#125-capstone-acceptance-versus-prospective-production)
-13. [Estimated Deployment and Operating Costs in Philippine Peso](#13-estimated-deployment-and-operating-costs-in-philippine-peso)
-    - [Pricing Basis and Assumptions](#131-pricing-basis-and-assumptions)
-    - [Project Reference Fixed-Cost Baseline](#132-project-reference-fixed-cost-baseline)
-    - [Evaluated Optional Offline-Backup Hardware](#133-evaluated-optional-offline-backup-hardware)
-    - [Operating Scenarios](#134-operating-scenarios)
-    - [Variable and Conditional Charges](#135-variable-and-conditional-charges)
-14. [Traditional and Commercial SIS Cost Comparison](#14-traditional-and-commercial-sis-cost-comparison)
-15. [How the Client Saves Money: The Value Proposition](#15-how-the-client-saves-money-the-value-proposition)
-    - [How Savings Must Be Measured](#151-how-savings-must-be-measured)
-16. [SDLC and Architecture Governance](#16-sdlc-and-architecture-governance)
-    - [Refined SDLC Classification](#161-refined-sdlc-classification)
-    - [Evidence and Academic Integrity](#162-evidence-and-academic-integrity)
-17. [Risks and Decision Summary](#17-risks-and-decision-summary)
-    - [Principal Risks](#171-principal-risks)
-    - [Final Architecture Decisions](#172-final-architecture-decisions)
-18. [Sources and References](#18-sources-and-references)
-    - [Internal System Evidence](#181-internal-system-evidence)
-    - [Framework, Data, and Architecture Sources](#182-framework-data-and-architecture-sources)
-    - [Academic Record and Policy Sources](#183-academic-record-and-policy-sources)
-    - [Timetabling and Solver Sources](#184-timetabling-and-solver-sources)
-    - [Cost and Local-Market Sources](#185-cost-and-local-market-sources)
-    - [SDLC Sources](#186-sdlc-sources)
+## Technical reading path
+
+- [Scope/evidence language](#1-purpose-scope-and-evidence-basis)
+- [System boundary](#2-system-responsibility-and-institutional-boundary), [shape](#3-architectural-classification) and [domains](#4-logical-domain-structure)
+- [Runtime](#5-runtime-component-architecture), [data/integrity](#6-data-architecture-and-integrity) and [security](#8-security-and-trust-boundaries)
+- [UI](#7-user-interface-architecture) and [component responsibilities](#ui-implementation-responsibilities)
+- [Integrations](#9-external-integrations), [dependencies](#11-dependency-architecture) and [operations/recovery](#12-planned-deployment-networking-and-operations)
+- [Risks/decisions](#17-risks-and-decision-summary)
+- [Supporting rationale, estimates and sources](#supporting-rationale-estimates-and-sources)
 
 ## 1. Purpose, Scope, and Evidence Basis
-
-Public application tracking is a bounded read-only possession-verification route under PRDs 01/02. A reference/email request always returns uniform confirmation and sends mail only to an active verified Applicant owner's matching current address. Existing queued mail carries a signed 15-minute URL with an opaque 64-character token; cache scope binds Application, owner and verified-email identity. Each read rechecks signature, expiry, scope, current ownership and account/email eligibility before producing only fixed safe status, next step and published cycle support. No workspace session or public evidence URL is created. Private evidence, acknowledgment, reasons, history and mutations retain ordinary authentication and ownership checks.
-
-Existing rate limiting bounds requests to five/IP/minute and three/email/15 minutes and reads to 30/minute. Ineligible, throttled and queue-failed requests disclose no record existence; invalid/expired/ineligible reads return generic unavailable responses. Tracking responses use no-store, no-referrer and noindex headers. Signed tokens and private request details are excluded from user-facing errors. This route reuses installed routing, cache, queue/mail and rate-limit infrastructure without adding a service or dependency. The existing credential sign-in route already resolves authorized roles server-side; a single public Sign in entry does not change authentication policy.
 
 **T.A.L.A.** (Tertiary Academic Lifecycle Administration) is a college-focused student information and academic operations system designed for Servitech Institute Asia (SIA). It provides one governed digital record across applicant intake, admission decision, enrollment readiness, academic setup, scheduling, registration and official enrollment, assessment and payment evidence, official outputs, grades, learner self-service, contextual operational views/exports, and audit.
 
@@ -433,6 +367,46 @@ This is a presentation boundary, not a global exception transformation. Laravel 
 
 ---
 
+### UI implementation responsibilities
+
+Choose native components and supported configuration first, then existing compatible extensions. Consider a version-compatible plugin only for a demonstrated gap and with dependency approval; use focused custom UI when the justified workflow still requires it. Framework capability guides implementation effort, while canonical product requirements determine school capabilities. Use Boost and official Filament/Bootstrap documentation for APIs and native behavior, with the official demo when rendered examples help.
+
+**Shared component principle:** Similar intent across areas and roles consumes the same installed component and shared styling. Prefer native framework reuse over a parallel component library. `x-tala-navigation` is a thin layout/attribute wrapper around `x-filament::tabs`; native `tabs.item` owns links, buttons, current state, icons and badges. Term timetable view selectors, Grades, Student Academics and Student Enrollment consume it. Term workspace pages use native cluster sub-navigation; native resource tabs in Admissions/Enrollments/Payments/Applicant Intakes consume the same underlying framework components. Keep labels, summaries, URLs, authorization and state in the owning surface. Keep ordinary view navigation distinct from wizard progression, disclosures and an ARIA tab widget with its own keyboard contract. Extract an additional abstraction only for demonstrated repeated intent, never to replace framework behavior or create speculative variants. Public Bootstrap uses its own native components with shared foundation tokens.
+
+Conditional record views must retain the framework's native action-dialog host even when the table is absent. Verify opening, canceling and subsequent navigation in every view; a successful server response alone does not establish that the dialog is usable. Display deadline summaries and editing fields in the same explicitly named timezone, while preserving the canonical stored instant.
+
+
+Every entry in the Canonical UI Surface Coverage Inventory has one implementation disposition:
+
+| Disposition | Use |
+|---|---|
+| `NativeFilament` | Filament resources, Pages, Tables, Forms, Infolists, Tabs, Sections, Wizards, Actions, filters, notifications, or an ordinary composition of them satisfy the behavior |
+| `InstalledCompatibleDependency` | An already-installed compatible dependency fills one bounded capability that native Filament cannot provide alone |
+| `FocusedTALACustom` | A small TALA-owned Blade, Livewire, print, visualization, preview, or failure component is necessary and reuses native primitives where practical |
+| `PurposefullyExcluded` | The interaction is unnecessary, unsafe, externally owned, or deliberately outside the MVP; no placeholder page or generic subsystem is created |
+
+These dispositions describe responsibility, not route or class count. A custom Filament Page composed entirely from native Sections, Tables, Forms, Tabs, Infolists, and Actions remains `NativeFilament`. `FocusedTALACustom` is appropriate when native primitives alone do not make the actual task clear and usable, including the REG-T04 weekly timetable; retain an equivalent accessible table when a visual grid is used. New plugins remain a last resort after checking native, installed, and focused TALA-owned options.
+
+Filament v5 implementation conventions:
+
+1. Actions use `Filament\Actions`.
+2. Layout components use `Filament\Schemas\Components`.
+3. Read-only review presents the exact current source, version and decision facts through a task-appropriate composition.
+4. Business operations live in application actions or services, not Resource classes.
+5. Laravel policies protect resources and record actions. Hidden navigation is not an authorization boundary.
+6. Status badges use consistent semantic colors: warning for pending/action needed, success for accepted/posted/released, danger for rejected/blocked/voided, and info for advisory states.
+7. Bulk actions are used only when the same authorized decision can safely apply to every selected record.
+8. Native confirmation modals and Filament notifications provide action feedback.
+
+Impeccable leads the assessment of an operating surface's purpose, hierarchy, cognitive load, copy, composition, and responsive transformation. Use the relevant writing, layout, accessibility, color, typography, and UI skills where they resolve a specific problem. Laravel Boost, Serena, and installed-version official documentation support code tracing and implementation choices; tool use alone is not design evidence.
+
+Start with the user's task and the information needed for the current decision. Impeccable determines the reading order, grouping, action hierarchy and responsive composition. Match that composition to supported native configuration and reusable installed components. Where those options leave a demonstrated usability gap, use a focused Blade/Livewire layout with the existing Filament primitives and Tailwind theme. The public gateway uses its existing Bootstrap surface. Choose the smallest implementation that satisfies the task and preserves framework lifecycles.
+
+Research the relevant capabilities across the installed framework's documentation and official demo, including supported configuration, styling and extension points. Compare arrangements by what users can recognize, understand and complete. Current decision information stays visible; occasional history or technical evidence may be disclosed on demand. Group related facts before introducing another container. Select a control by the choice it represents, the number of options and the need to compare them. The demo supplies visual and interaction evidence; its business content remains separate from TALA's requirements.
+
+Record the accepted task-specific direction in `.impeccable/surfaces/`, derived from the owning Issue and canonical UI contract. Inspect representative desktop/mobile states in one bounded pass, fix the demonstrated problems together, and confirm the result once. Evidence must show the user-visible improvement and retained behavior. Check tool capability before scheduling a verification method; use truthful task-applicable evidence for the outcome and never label a simulation as a direct browser observation.
+
+
 ## 8. Security and Trust Boundaries
 
 | Boundary | Control |
@@ -466,6 +440,13 @@ The table above states target controls, not achieved production assurance. As of
 The private Cloud Run service and its dedicated invoker authorization are current configuration evidence; they do not settle external-host credential custody. Before production acceptance, the institution and its authorized infrastructure custodian must name the accountable owners and approve and evidence the mechanisms above. The independent-backup provider/tool and optional offline layer remain deployment selections; R2/restic and ORICO are evaluated candidates only. No named person, security-log retention duration, configured alert channel, implemented secret-custody mechanism, or achieved control is inferred here. PRD 01's bounded security evidence and PRD 06's plain not-recently-checked presentation with exact technical evidence on disclosure remain authoritative in the product UI.
 
 ---
+
+### Public possession-verification tracking
+
+Public application tracking is a bounded read-only possession-verification route under PRDs 01/02. A reference/email request always returns uniform confirmation and sends mail only to an active verified Applicant owner's matching current address. Existing queued mail carries a signed 15-minute URL with an opaque 64-character token; cache scope binds Application, owner and verified-email identity. Each read rechecks signature, expiry, scope, current ownership and account/email eligibility before producing only fixed safe status, next step and published cycle support. No workspace session or public evidence URL is created. Private evidence, acknowledgment, reasons, history and mutations retain ordinary authentication and ownership checks.
+
+Existing rate limiting bounds requests to five/IP/minute and three/email/15 minutes and reads to 30/minute. Ineligible, throttled and queue-failed requests disclose no record existence; invalid/expired/ineligible reads return generic unavailable responses. Tracking responses use no-store, no-referrer and noindex headers. Signed tokens and private request details are excluded from user-facing errors. This route reuses installed routing, cache, queue/mail and rate-limit infrastructure without adding a service or dependency. The existing credential sign-in route already resolves authorized roles server-side; a single public Sign in entry does not change authentication policy.
+
 
 ## 9. External Integrations
 
@@ -678,49 +659,6 @@ The production requirement is one dedicated automated mailbox on an institution-
 Production mail readiness requires the adopted provider's domain records, including applicable MX, SPF, DKIM, and DMARC records, to be configured and verified, plus a recorded authenticated delivery test. Hostinger Business Email Starter currently publishes a per-mailbox limit of 1,000 inbound and 1,000 outbound messages per rolling 24 hours; those limits must be rechecked in hPanel if the reference deployment is adopted for production. Gmail is limited to development or manual-delivery-test evidence and is not a production-provider candidate. Automated tests continue to use Laravel's array or log mail transport and must not depend on a live provider.
 
 Hostinger Email is the lean project reference provider because it can centralize the bounded SIS host, DNS, domain, and one automated mailbox under one institution-owned account. That reference choice is not a purchase or readiness claim, is not universally superior, and creates provider-concentration risk. Before real production, the institution must confirm ownership, procurement, delivery evidence, limits, DNS, privacy, and operational fit. Brevo remains an evaluated alternative candidate, not a priced commitment. Because Laravel keeps the SMTP contract provider-neutral and notifications queued, idempotent, and failure-safe, adopting or later changing the provider is a deployment-configuration decision rather than an application rewrite.
-
----
-
-## 10. Automatic Scheduling: Research and Product Justification
-
-University course timetabling is a constrained optimization problem, commonly described in research as the university course timetabling problem (UCTP). “UTC” is not one standardized product against which TALA can be compared. For a defensible comparison, TALA distinguishes the UCTP research problem from products such as UniTime and from conventional SIS implementations that primarily record or display schedules.
-
-Research and product basis: [OR-Tools constraint optimization](https://developers.google.com/optimization/cp/), [UniTime course timetabling](https://help.unitime.org/course-timetabling), and [Gu, Li, and Chen's 2025 UCTP review](https://doi.org/10.3390/computation13010010).
-
-### 10.1 Comparison with Existing Approaches
-
-| Dimension | TALA | UniTime | Conventional SIS / qualified Academico reference |
-| --- | --- | --- | --- |
-| Primary scope | Integrated institutional SIS with controlled course-timetable generation | Comprehensive academic scheduling platform | Institutional record management; scheduling commonly centers on encoded course times and events |
-| Optimization scope | Section meeting assignment for rooms, faculty, delivery groups, availability, and fixed institutional constraints | Course and examination timetabling, student sectioning, event management, and related scheduling functions | Product-dependent; an optimizer must not be assumed merely because schedule records exist |
-| Input ownership | Approved TALA records are snapshotted and versioned before generation | UniTime's own scheduling model and integrations | SIS records and administrator input |
-| Output control | Solver returns candidates; Laravel revalidates; authorized staff review, approve, and publish | Scheduling workflows are managed within UniTime | Staff encode, import, or generate records according to product capability |
-| Downstream effect | Published meetings directly drive faculty, student, COR, room, and operational views | UniTime can integrate with external student-information systems | Schedule data is displayed or exported within the system's available modules |
-| Institutional fit | Narrow, locally governed baseline designed around TALA's own academic and administrative rules | Broader mature scheduling platform with greater implementation and integration scope | Broadly configurable commercial or institutional workflow |
-
-TALA's defensible contribution is not a claim that it invented CP-SAT, solved UCTP in general, or is algorithmically superior to mature timetabling systems. Its contribution is the governed integration of optimization into one institutional record:
-
-- the exact approved inputs are preserved as an immutable scheduling snapshot;
-- hard constraints and objective policy are explicit and versioned;
-- solver output is treated as a candidate, not automatically as institutional truth;
-- Laravel independently validates returned assignments;
-- a human approval gate controls publication;
-- published meetings become the single source for student, faculty, room, and document projections; and
-- attempts, diagnostics, overrides, approvals, publication, and output access leave operational evidence.
-
-This narrower boundary is beneficial when the institution needs an integrated SIS and an explainable timetable workflow without adopting a separate enterprise scheduling platform. It is also an honest limitation: institutions needing examination scheduling, individual student sectioning, or large-scale multi-campus optimization may require a broader product or a later extension.
-
-### 10.2 Why OR-Tools CP-SAT Was Selected
-
-| Approach | Decision and justification |
-| --- | --- |
-| Google OR-Tools CP-SAT | Selected. It is open source, suited to integer and Boolean constraint models, supports hard constraints and weighted objectives, returns useful statuses, and can run in a separately scalable container. |
-| IBM CPLEX or Gurobi | Technically capable commercial alternatives. They were not selected for the baseline because license terms and recurring cost would weaken the low-cost deployment objective, while TALA's present model does not establish a need for their commercial feature sets. |
-| Genetic algorithms, simulated annealing, or other metaheuristics | Useful research alternatives, especially for very large or specialized formulations. They were not selected because constraint satisfaction, infeasibility behavior, and repeatable validation are more direct in the present CP-SAT model. |
-| Fully manual scheduling | Retained only as controlled correction and contingency. It has low software complexity but high staff effort, inconsistency risk, and limited ability to check many interacting constraints at once. |
-| Adopt UniTime as the scheduling core | A credible option for institutions needing UniTime's broader scheduling scope. It was not selected because TALA requires a bounded, native workflow tied directly to its own academic, finance, access, and publication rules. |
-
-Recent UCTP literature shows that exact solvers, commercial mathematical programming tools, constraint programming, metaheuristics, and hybrids are all used. That evidence supports CP-SAT as a reasonable engineering choice; it does not prove that TALA's current formulation outperforms other algorithms. Such a claim would require a disclosed benchmark dataset, common constraints, repeated runs, hardware and time limits, solution-quality measures, and statistical analysis.
 
 ---
 
@@ -1046,7 +984,123 @@ Larger datasets are permitted only as explicitly labelled synthetic structural o
 
 ---
 
+## 17. Risks and Decision Summary
+
+### 17.1 Principal Risks
+
+| Risk | Architectural response |
+| --- | --- |
+| A single primary web host and co-located MySQL form one failure domain | Require an independently controlled encrypted off-host repository, supplemental provider backup/snapshot where available, measured restore evidence, and explicit scale/separation triggers. Provider procurement, named-person assignment, automation, current generations, alert delivery, optional media, and achieved restore evidence remain unproved |
+| A selected off-host provider may process Philippine personal data outside a guaranteed Philippine location | Require institution-owned billing, privacy/DPO approval, processor and international-transfer safeguards, scoped credentials, client-side encryption, verified location/contract treatment, and a current provider review before production use; the R2 `apac` hint is candidate evidence, not a residency guarantee |
+| Backup credentials, optional media, or retention can fail independently of application availability | Keep controlled recovery-key copies, integrity checks, non-overlapping jobs, overdue alerting, provider-independent recovery evidence, and isolated restore tests; add offline media only when the approved deployment plan assigns custody and proves recovery |
+| The project-reference VPS, DNS, domain, and automated mailbox may share one Hostinger account | Institution ownership, MFA, delegated developer access, renewal calendar/contact, documented DNS/deployment records, provider-neutral SMTP, and an independent off-provider backup provide controlled handover and portable escape paths; centralization remains a concentration risk and production adoption is not yet evidenced |
+| Database queue/cache can contend with transactional workload | Index and monitor queue tables, bound retries and payloads, keep jobs idempotent, and move queue/cache to dedicated services when measurements justify it |
+| Solver service is externally hosted and may time out or be unreachable | Immutable request snapshot, authenticated calls, bounded timeout, visible failure, safe retry, Laravel revalidation, and no automatic publication |
+| Payment events can be duplicated, delayed, forged, or reordered | Verify signatures, persist provider identifiers, process idempotently, lock authoritative records, and never trust browser redirects |
+| Email can be delayed or rejected | Queue delivery, record failures, retry safely, and keep institutional state independent of delivery |
+| Email volume or delivery needs can exceed the selected mailbox | Measure peak traffic and delivery evidence, monitor the provider's current rolling limits, and quote an authenticated SMTP upgrade or fallback only when the evidence triggers it |
+| Incomplete curriculum, room, faculty, or calendar data can make schedules infeasible | Readiness validation, explicit diagnostics, correction workflow, and human review |
+| Declared but unused dependencies increase maintenance and supply-chain surface | Periodically prove responsibility, update deliberately, and remove only through a separately reviewed dependency change |
+| Provider prices, tax treatment, and exchange rates change | Date the estimate, retain formulas, monitor billing, and refresh quotations before procurement |
+| Capstone claims may outrun the available evidence | Separate implemented, tested, demonstrated, accepted, deployed, and measured claims |
+
+### 17.2 Final Architecture Decisions
+
+- Use one Laravel 12 application and one centralized MySQL record for cross-domain integrity. Reconsider the runtime before PHP 8.2 security support ends on December 31, 2026 and before Laravel 12 security support ends on February 24, 2027; any Laravel 13 move remains a separate dependency-compatibility, PHP-platform, and deployment decision rather than an implied immediate upgrade.
+- Organize the code by business responsibility while acknowledging that the current structure is a layered monolith, not a strictly isolated modular monolith.
+- Use synchronous requests for immediate workflows and queues for slow or externally dependent supporting work.
+- Keep domain state changes transactional; use events for notification and extension, not as the authoritative transaction.
+- Use Filament and Livewire for role-based institutional workspaces instead of introducing a separate SPA without a demonstrated requirement.
+- Use one shared responsive shell, deterministic role entry, consistent navigation, contextual breadcrumbs/back links, one-H1/one-primary-action hierarchy, and the approved TALA visual/component tokens from the UI Surface Blueprint. Its coverage inventory governs required behavior without prescribing a fixed route, page, component, or design-frame count.
+- Isolate OR-Tools in a private Python service because its runtime and scaling needs differ from the web application.
+- Treat solver output and payment redirects as untrusted inputs until Laravel validates authoritative evidence.
+- Keep preliminary review acceptance, admission, externally supported Registrar enrollment clearance, derived readiness and official-Student creation as distinct facts. Clinic 2 publishes one shared Ready Applicant projection; Clinic 4 alone creates the Student identity during official-enrollment finalization.
+- Keep academic authority, curriculum, calendar, Class Offerings, candidates, and published timetable versions as distinct exact-Term facts. Multiple First, Second, or Special Terms may operate concurrently; Clinic 3 prepares Draft Class Offerings from authoritative demand inputs and publishes one whole-term immutable timetable per exact Term; Registrar confirms offerings, CP-SAT never creates or merges them, and candidate repair never silently moves meetings or relies on hints as a minimal-change guarantee. Clinic 4 alone applies released academic facts to exact-Term eligibility, places students, reserves capacity, and produces the enrolled schedule/COR projection. Special Terms reuse this architecture with approved schedule/hour evidence and no Summer/tutorial subsystem or universal load default.
+- Keep the approved term-level Examination Period as a source-labelled informational projection across Registrar, Academic Head, Faculty, and Student contexts. Exact class arrangements remain Faculty-owned; no class-level exam record, scheduler, resources, generic events, email, output, or financial hold is introduced without a later exact central-schedule authority.
+- Keep curriculum evaluation distinct from exact-Term registration. Clinic 4 stores versioned proposed course registrations inside one Registration Case and uses five accountable checkpoints. Terminal reopening retains that same case and restores no checkpoint automatically. An unreleased or unsatisfied prerequisite excludes only its dependent course; a later satisfying result uses ordinary Adjustment rather than a provisional grade, permission record, standalone Study Plan, policy-driving Regular/Irregular status, generic override engine, or global financial hold.
+- Keep every-term finalization generic and atomic; first Student-profile/number/access creation is a conditional idempotent effect of the person's first official enrollment, not an admissions handover.
+- Keep final-grade calculation outside TALA and the official academic record inside it. Clinic 5 accepts one controlled final result per official roster row, releases complete rosters through Registrar, preserves immutable result/lifecycle/transcript history, and derives term weighted average, cumulative GWA, curriculum evaluation, factual academic enrollment effect, exact active-case impact review, and completion without a gradebook, policy DSL, what-if audit, or transcript-template editor. Every initial release, INC resolution, or correction recomputes affected cases but never mutates enrollment. Partial release produces **Grades not complete**, and fixed term/cumulative labels remove the per-term terminology workflow. Every `INC` has the fixed one-year completion deadline and nonautomatic `CompletionOverdue` state; without an authorized future extension it remains no-credit and requires a separate retake. Existing hard-coded `365`/`5.00` configuration and current-time-based deadline calculation remain quarantined implementation evidence and do not prove conformance.
+- Retain externally verified TESDA-linked competency evidence only when an approved Curriculum Version names the requirement. TESDA/accredited entities own assessment and certification; Registrar records append-only results. The default is tracked-only, while any completion effect requires exact Servitech curriculum authority. Do not create TESDA operations or infer grade, unit, average, prerequisite, finance, email, or TOR behavior.
+- Keep Accounting authority outside a general finance platform. Clinic 6 uses a fixed versioned Program-and-Term Fee Plan for ordinary cases, an exact externally calculated `AuthorizedIndividualAssessment` for the four bounded exceptions, one continuous same-human-subject/RegistrationCase Term Account, append-only Approved Coverage, exact current-due payment evidence, obligation-keyed postings with deterministic bounded application, append-only corrections, and bounded Clinic 4/5 projections without Fee Rule precedence, automated per-unit calculation, a silent percentage fallback, scholarship/accommodation management, generic allocation, prior-debt allocation, Billing Slip/OR mapping, global holds, or a report hub. `Person` is a documentation label for identity continuity, not a universal master record.
+- Use the fixed versioned **TALA Standard TOR — Servitech v1**. Registrar may issue it after PRD 05 readiness; physical signing, sealing, delivery, courier, and CAV remain external. Do not add a transcript-template builder or generic document engine.
+- Treat Account Statement/SOA and Payment Acknowledgment as authenticated non-tax outputs. Accounting remains responsible for any registered invoice or other BIR-required document outside TALA.
+- Keep HEMIS, Enrollment List, Promotional Report, List of Graduates, Special Order, CAV-supporting records, and other regulator-prescribed submission/certification work external until Servitech supplies an exact applicable authority and format. Retain trustworthy source records without adding speculative fields, a generic Reports surface, or a submission engine.
+- Show only locally recorded evidence in System Health; use plain language for provider and physical-backup facts that were not recently checked, with source/as-of/boundary under technical details. Keep Governance & Audit read-only and say **Automatic record disposal is not available in TALA. Follow the institution's approved privacy and records procedure.** Preserve the exact no-automatic-disposal boundary in technical detail without claiming to assess external compliance.
+- Use an institution-owned Hostinger account as the **project-selected reference deployment and costing baseline**: KVM 2 for the self-managed Laravel/MySQL/initial-queue topology, a bounded subdomain of a suitable existing institution-owned domain when available and otherwise a separately priced `.com` domain with Hostinger DNS, and Business Email Starter for one dedicated automated-sender mailbox. KVM 2 offers proportionate reference headroom for enrollment, grading, queues, integrations, backup activity, and near-term population growth, but it does not prove measured capacity, institutional procurement, or production readiness. Keep application and recovery contracts portable so the institution may adopt an equivalent provider if current evidence requires it.
+- Keep `.edu.ph` as an optional future institutional-identity upgrade or alias after PHNET recognition evidence and current institutional authorization are available. It does not block capstone acceptance or initial deployment, and neither an ordinary domain nor a `.edu.ph` registration is by itself proof of accreditation.
+- Keep Laravel SMTP provider-neutral while using Hostinger Business Email Starter as the project reference sender through authenticated `smtp.hostinger.com` with TLS/STARTTLS port 587 or documented SSL port 465. Require applicable MX, SPF, DKIM, DMARC, and delivery evidence before real production; keep Gmail development/manual-test only and automated tests on array/log transports; and retain Brevo only as an evaluated alternative candidate.
+- Require every selected host, domain, mailbox, backup, and recovery account to be institution-owned, MFA-protected, and governed by renewal and recovery controls. Use delegated developer access rather than shared owner credentials, keep secrets only in the deployment environment, and retain an independently controlled encrypted backup outside the primary-host failure and owner-account boundary.
+- Treat the six-hour RPO as a prospective target of no more than six hours of recent authoritative-data loss and the eight-hour RTO as a prospective target of restoring core service within eight elapsed hours after recovery is declared and prerequisites are available. They are project planning targets, not law, Servitech policy, SLA, capstone acceptance, current capability, or achieved results. The deployment runbook must define the adopted provider, cadence, retention, retry, alerting, key custody, and isolated-restore evidence needed to support them.
+- Keep Hostinger's included weekly backup and controlled snapshots supplemental in the project reference topology; do not include the optional paid daily-backup add-on in the fixed reference baseline or treat any same-provider backup as the independent six-hour layer.
+- Keep Cloudflare R2/restic as an evaluated independent-backup candidate and the client-owned ORICO enclosure as an evaluated optional offline-copy candidate. Neither is a live system, archive database, RAID requirement, TALA application surface, or approved procurement until the deployment gate is satisfied.
+- Keep the selected host, email, domain/DNS, backup-provider, billing, and recovery accounts institution-owned; assign named Infrastructure Custodian and privacy/DPO responsibilities; keep scoped provider credentials and controlled recovery-key copies; and do not claim operation until provider selection, procurement, automation, monitoring, and restore evidence exist.
+- Use a fixed lexicographic scheduling-quality hierarchy after hard feasibility; do not retain equal weights, editable constraint profiles, preferred times, generic overrides, or an accuracy percentage as product behavior.
+- Preserve the accepted 8-vCPU/16-GiB Cloud Run runtime default and its historical scaling evidence while treating formula, broader internal-contract, queue-behavior, and accepted-result conformance as unproven; keep the verified current Laravel timeout ordering distinct from the Cloud Run service request ceiling, and change the profile only when reconciled compatibility, workload, formulation, or telemetry evidence justifies it.
+- Use a lean single-node topology only with explicit recovery controls and measured upgrade triggers.
+- Measure value against total ownership cost and client baseline evidence, not infrastructure price alone.
+
+This target architecture is suitable to guide a bounded institutional deployment that prioritizes integrated records, local control, transparent business rules, and a lean project-reference fixed-cost baseline. It is not evidence that institutional procurement, production deployment, operational controls, complete TCO, or savings have been achieved, and it is not presented as a high-availability enterprise platform, a general-purpose timetabling suite, an offline-first application, or a substitute for operational governance.
+
+The architecture is aligned to the standalone PRDs and is ready to constrain separately planned journey-complete vertical implementation slices. These conceptual boundaries do not prescribe tables, classes, APIs, migrations, or implementation order, and they do not claim that current code already conforms.
+
+---
+
+## Supporting rationale, estimates and sources
+
+These preserved sections support architecture/capstone explanation. Dated prices, comparisons and estimates are not current quotations, procurement approval or achieved production evidence. Technical and capstone/production boundaries remain in Section 12.
+
+## 10. Automatic Scheduling: Research and Product Justification
+
+<details>
+<summary>Read supporting Automatic Scheduling: Research and Product Justification</summary>
+
+University course timetabling is a constrained optimization problem, commonly described in research as the university course timetabling problem (UCTP). “UTC” is not one standardized product against which TALA can be compared. For a defensible comparison, TALA distinguishes the UCTP research problem from products such as UniTime and from conventional SIS implementations that primarily record or display schedules.
+
+Research and product basis: [OR-Tools constraint optimization](https://developers.google.com/optimization/cp/), [UniTime course timetabling](https://help.unitime.org/course-timetabling), and [Gu, Li, and Chen's 2025 UCTP review](https://doi.org/10.3390/computation13010010).
+
+### 10.1 Comparison with Existing Approaches
+
+| Dimension | TALA | UniTime | Conventional SIS / qualified Academico reference |
+| --- | --- | --- | --- |
+| Primary scope | Integrated institutional SIS with controlled course-timetable generation | Comprehensive academic scheduling platform | Institutional record management; scheduling commonly centers on encoded course times and events |
+| Optimization scope | Section meeting assignment for rooms, faculty, delivery groups, availability, and fixed institutional constraints | Course and examination timetabling, student sectioning, event management, and related scheduling functions | Product-dependent; an optimizer must not be assumed merely because schedule records exist |
+| Input ownership | Approved TALA records are snapshotted and versioned before generation | UniTime's own scheduling model and integrations | SIS records and administrator input |
+| Output control | Solver returns candidates; Laravel revalidates; authorized staff review, approve, and publish | Scheduling workflows are managed within UniTime | Staff encode, import, or generate records according to product capability |
+| Downstream effect | Published meetings directly drive faculty, student, COR, room, and operational views | UniTime can integrate with external student-information systems | Schedule data is displayed or exported within the system's available modules |
+| Institutional fit | Narrow, locally governed baseline designed around TALA's own academic and administrative rules | Broader mature scheduling platform with greater implementation and integration scope | Broadly configurable commercial or institutional workflow |
+
+TALA's defensible contribution is not a claim that it invented CP-SAT, solved UCTP in general, or is algorithmically superior to mature timetabling systems. Its contribution is the governed integration of optimization into one institutional record:
+
+- the exact approved inputs are preserved as an immutable scheduling snapshot;
+- hard constraints and objective policy are explicit and versioned;
+- solver output is treated as a candidate, not automatically as institutional truth;
+- Laravel independently validates returned assignments;
+- a human approval gate controls publication;
+- published meetings become the single source for student, faculty, room, and document projections; and
+- attempts, diagnostics, overrides, approvals, publication, and output access leave operational evidence.
+
+This narrower boundary is beneficial when the institution needs an integrated SIS and an explainable timetable workflow without adopting a separate enterprise scheduling platform. It is also an honest limitation: institutions needing examination scheduling, individual student sectioning, or large-scale multi-campus optimization may require a broader product or a later extension.
+
+### 10.2 Why OR-Tools CP-SAT Was Selected
+
+| Approach | Decision and justification |
+| --- | --- |
+| Google OR-Tools CP-SAT | Selected. It is open source, suited to integer and Boolean constraint models, supports hard constraints and weighted objectives, returns useful statuses, and can run in a separately scalable container. |
+| IBM CPLEX or Gurobi | Technically capable commercial alternatives. They were not selected for the baseline because license terms and recurring cost would weaken the low-cost deployment objective, while TALA's present model does not establish a need for their commercial feature sets. |
+| Genetic algorithms, simulated annealing, or other metaheuristics | Useful research alternatives, especially for very large or specialized formulations. They were not selected because constraint satisfaction, infeasibility behavior, and repeatable validation are more direct in the present CP-SAT model. |
+| Fully manual scheduling | Retained only as controlled correction and contingency. It has low software complexity but high staff effort, inconsistency risk, and limited ability to check many interacting constraints at once. |
+| Adopt UniTime as the scheduling core | A credible option for institutions needing UniTime's broader scheduling scope. It was not selected because TALA requires a bounded, native workflow tied directly to its own academic, finance, access, and publication rules. |
+
+Recent UCTP literature shows that exact solvers, commercial mathematical programming tools, constraint programming, metaheuristics, and hybrids are all used. That evidence supports CP-SAT as a reasonable engineering choice; it does not prove that TALA's current formulation outperforms other algorithms. Such a claim would require a disclosed benchmark dataset, common constraints, repeated runs, hardware and time limits, solution-quality measures, and statistical analysis.
+
+---
+
+</details>
+
 ## 13. Estimated Deployment and Operating Costs in Philippine Peso
+
+<details>
+<summary>Read supporting Estimated Deployment and Operating Costs in Philippine Peso</summary>
 
 ### 13.1 Pricing Basis and Assumptions
 
@@ -1158,7 +1212,12 @@ The fixed-cost total deliberately excludes implementation labor, ongoing mainten
 
 ---
 
+</details>
+
 ## 14. Traditional and Commercial SIS Cost Comparison
+
+<details>
+<summary>Read supporting Traditional and Commercial SIS Cost Comparison</summary>
 
 Public Philippine SIS prices are commonly quoted per learner, while TALA's lean infrastructure is primarily per institution. The table below normalizes published commercial offers to **500 active learners for commercial comparison only**. Five hundred learners is **not an acceptance, population, load, or capacity dataset** for TALA. The comparison is not a claim that the products have identical modules, service levels, implementation work, ownership terms, or availability guarantees.
 
@@ -1191,7 +1250,12 @@ Commercial SIS products may justify a higher subscription through established su
 
 ---
 
+</details>
+
 ## 15. How the Client Saves Money: The Value Proposition
+
+<details>
+<summary>Read supporting How the Client Saves Money: The Value Proposition</summary>
 
 TALA's prospective economic proposition is **lower recurring license exposure plus locally governed integration**, not “almost free software” or achieved savings. Its known host/domain/one-mailbox floor does not grow directly with every enrolled learner, its principal frameworks and solver are open source, and intermittent optimization can use metered compute instead of a permanently provisioned solver server. Whether this becomes cheaper in production remains unproven until complete TCO and measured client outcomes exist.
 
@@ -1256,7 +1320,12 @@ The strongest defensible proposition is therefore: **TALA provides a lower-licen
 
 ---
 
+</details>
+
 ## 16. SDLC and Architecture Governance
+
+<details>
+<summary>Read supporting SDLC and Architecture Governance</summary>
 
 ### 16.1 Refined SDLC Classification
 
@@ -1301,68 +1370,12 @@ Repository evidence can establish implemented behavior. It cannot, by itself, es
 
 ---
 
-## 17. Risks and Decision Summary
-
-### 17.1 Principal Risks
-
-| Risk | Architectural response |
-| --- | --- |
-| A single primary web host and co-located MySQL form one failure domain | Require an independently controlled encrypted off-host repository, supplemental provider backup/snapshot where available, measured restore evidence, and explicit scale/separation triggers. Provider procurement, named-person assignment, automation, current generations, alert delivery, optional media, and achieved restore evidence remain unproved |
-| A selected off-host provider may process Philippine personal data outside a guaranteed Philippine location | Require institution-owned billing, privacy/DPO approval, processor and international-transfer safeguards, scoped credentials, client-side encryption, verified location/contract treatment, and a current provider review before production use; the R2 `apac` hint is candidate evidence, not a residency guarantee |
-| Backup credentials, optional media, or retention can fail independently of application availability | Keep controlled recovery-key copies, integrity checks, non-overlapping jobs, overdue alerting, provider-independent recovery evidence, and isolated restore tests; add offline media only when the approved deployment plan assigns custody and proves recovery |
-| The project-reference VPS, DNS, domain, and automated mailbox may share one Hostinger account | Institution ownership, MFA, delegated developer access, renewal calendar/contact, documented DNS/deployment records, provider-neutral SMTP, and an independent off-provider backup provide controlled handover and portable escape paths; centralization remains a concentration risk and production adoption is not yet evidenced |
-| Database queue/cache can contend with transactional workload | Index and monitor queue tables, bound retries and payloads, keep jobs idempotent, and move queue/cache to dedicated services when measurements justify it |
-| Solver service is externally hosted and may time out or be unreachable | Immutable request snapshot, authenticated calls, bounded timeout, visible failure, safe retry, Laravel revalidation, and no automatic publication |
-| Payment events can be duplicated, delayed, forged, or reordered | Verify signatures, persist provider identifiers, process idempotently, lock authoritative records, and never trust browser redirects |
-| Email can be delayed or rejected | Queue delivery, record failures, retry safely, and keep institutional state independent of delivery |
-| Email volume or delivery needs can exceed the selected mailbox | Measure peak traffic and delivery evidence, monitor the provider's current rolling limits, and quote an authenticated SMTP upgrade or fallback only when the evidence triggers it |
-| Incomplete curriculum, room, faculty, or calendar data can make schedules infeasible | Readiness validation, explicit diagnostics, correction workflow, and human review |
-| Declared but unused dependencies increase maintenance and supply-chain surface | Periodically prove responsibility, update deliberately, and remove only through a separately reviewed dependency change |
-| Provider prices, tax treatment, and exchange rates change | Date the estimate, retain formulas, monitor billing, and refresh quotations before procurement |
-| Capstone claims may outrun the available evidence | Separate implemented, tested, demonstrated, accepted, deployed, and measured claims |
-
-### 17.2 Final Architecture Decisions
-
-- Use one Laravel 12 application and one centralized MySQL record for cross-domain integrity. Reconsider the runtime before PHP 8.2 security support ends on December 31, 2026 and before Laravel 12 security support ends on February 24, 2027; any Laravel 13 move remains a separate dependency-compatibility, PHP-platform, and deployment decision rather than an implied immediate upgrade.
-- Organize the code by business responsibility while acknowledging that the current structure is a layered monolith, not a strictly isolated modular monolith.
-- Use synchronous requests for immediate workflows and queues for slow or externally dependent supporting work.
-- Keep domain state changes transactional; use events for notification and extension, not as the authoritative transaction.
-- Use Filament and Livewire for role-based institutional workspaces instead of introducing a separate SPA without a demonstrated requirement.
-- Use one shared responsive shell, deterministic role entry, consistent navigation, contextual breadcrumbs/back links, one-H1/one-primary-action hierarchy, and the approved TALA visual/component tokens from the UI Surface Blueprint. Its coverage inventory governs required behavior without prescribing a fixed route, page, component, or design-frame count.
-- Isolate OR-Tools in a private Python service because its runtime and scaling needs differ from the web application.
-- Treat solver output and payment redirects as untrusted inputs until Laravel validates authoritative evidence.
-- Keep preliminary review acceptance, admission, externally supported Registrar enrollment clearance, derived readiness and official-Student creation as distinct facts. Clinic 2 publishes one shared Ready Applicant projection; Clinic 4 alone creates the Student identity during official-enrollment finalization.
-- Keep academic authority, curriculum, calendar, Class Offerings, candidates, and published timetable versions as distinct exact-Term facts. Multiple First, Second, or Special Terms may operate concurrently; Clinic 3 prepares Draft Class Offerings from authoritative demand inputs and publishes one whole-term immutable timetable per exact Term; Registrar confirms offerings, CP-SAT never creates or merges them, and candidate repair never silently moves meetings or relies on hints as a minimal-change guarantee. Clinic 4 alone applies released academic facts to exact-Term eligibility, places students, reserves capacity, and produces the enrolled schedule/COR projection. Special Terms reuse this architecture with approved schedule/hour evidence and no Summer/tutorial subsystem or universal load default.
-- Keep the approved term-level Examination Period as a source-labelled informational projection across Registrar, Academic Head, Faculty, and Student contexts. Exact class arrangements remain Faculty-owned; no class-level exam record, scheduler, resources, generic events, email, output, or financial hold is introduced without a later exact central-schedule authority.
-- Keep curriculum evaluation distinct from exact-Term registration. Clinic 4 stores versioned proposed course registrations inside one Registration Case and uses five accountable checkpoints. Terminal reopening retains that same case and restores no checkpoint automatically. An unreleased or unsatisfied prerequisite excludes only its dependent course; a later satisfying result uses ordinary Adjustment rather than a provisional grade, permission record, standalone Study Plan, policy-driving Regular/Irregular status, generic override engine, or global financial hold.
-- Keep every-term finalization generic and atomic; first Student-profile/number/access creation is a conditional idempotent effect of the person's first official enrollment, not an admissions handover.
-- Keep final-grade calculation outside TALA and the official academic record inside it. Clinic 5 accepts one controlled final result per official roster row, releases complete rosters through Registrar, preserves immutable result/lifecycle/transcript history, and derives term weighted average, cumulative GWA, curriculum evaluation, factual academic enrollment effect, exact active-case impact review, and completion without a gradebook, policy DSL, what-if audit, or transcript-template editor. Every initial release, INC resolution, or correction recomputes affected cases but never mutates enrollment. Partial release produces **Grades not complete**, and fixed term/cumulative labels remove the per-term terminology workflow. Every `INC` has the fixed one-year completion deadline and nonautomatic `CompletionOverdue` state; without an authorized future extension it remains no-credit and requires a separate retake. Existing hard-coded `365`/`5.00` configuration and current-time-based deadline calculation remain quarantined implementation evidence and do not prove conformance.
-- Retain externally verified TESDA-linked competency evidence only when an approved Curriculum Version names the requirement. TESDA/accredited entities own assessment and certification; Registrar records append-only results. The default is tracked-only, while any completion effect requires exact Servitech curriculum authority. Do not create TESDA operations or infer grade, unit, average, prerequisite, finance, email, or TOR behavior.
-- Keep Accounting authority outside a general finance platform. Clinic 6 uses a fixed versioned Program-and-Term Fee Plan for ordinary cases, an exact externally calculated `AuthorizedIndividualAssessment` for the four bounded exceptions, one continuous same-human-subject/RegistrationCase Term Account, append-only Approved Coverage, exact current-due payment evidence, obligation-keyed postings with deterministic bounded application, append-only corrections, and bounded Clinic 4/5 projections without Fee Rule precedence, automated per-unit calculation, a silent percentage fallback, scholarship/accommodation management, generic allocation, prior-debt allocation, Billing Slip/OR mapping, global holds, or a report hub. `Person` is a documentation label for identity continuity, not a universal master record.
-- Use the fixed versioned **TALA Standard TOR — Servitech v1**. Registrar may issue it after PRD 05 readiness; physical signing, sealing, delivery, courier, and CAV remain external. Do not add a transcript-template builder or generic document engine.
-- Treat Account Statement/SOA and Payment Acknowledgment as authenticated non-tax outputs. Accounting remains responsible for any registered invoice or other BIR-required document outside TALA.
-- Keep HEMIS, Enrollment List, Promotional Report, List of Graduates, Special Order, CAV-supporting records, and other regulator-prescribed submission/certification work external until Servitech supplies an exact applicable authority and format. Retain trustworthy source records without adding speculative fields, a generic Reports surface, or a submission engine.
-- Show only locally recorded evidence in System Health; use plain language for provider and physical-backup facts that were not recently checked, with source/as-of/boundary under technical details. Keep Governance & Audit read-only and say **Automatic record disposal is not available in TALA. Follow the institution's approved privacy and records procedure.** Preserve the exact no-automatic-disposal boundary in technical detail without claiming to assess external compliance.
-- Use an institution-owned Hostinger account as the **project-selected reference deployment and costing baseline**: KVM 2 for the self-managed Laravel/MySQL/initial-queue topology, a bounded subdomain of a suitable existing institution-owned domain when available and otherwise a separately priced `.com` domain with Hostinger DNS, and Business Email Starter for one dedicated automated-sender mailbox. KVM 2 offers proportionate reference headroom for enrollment, grading, queues, integrations, backup activity, and near-term population growth, but it does not prove measured capacity, institutional procurement, or production readiness. Keep application and recovery contracts portable so the institution may adopt an equivalent provider if current evidence requires it.
-- Keep `.edu.ph` as an optional future institutional-identity upgrade or alias after PHNET recognition evidence and current institutional authorization are available. It does not block capstone acceptance or initial deployment, and neither an ordinary domain nor a `.edu.ph` registration is by itself proof of accreditation.
-- Keep Laravel SMTP provider-neutral while using Hostinger Business Email Starter as the project reference sender through authenticated `smtp.hostinger.com` with TLS/STARTTLS port 587 or documented SSL port 465. Require applicable MX, SPF, DKIM, DMARC, and delivery evidence before real production; keep Gmail development/manual-test only and automated tests on array/log transports; and retain Brevo only as an evaluated alternative candidate.
-- Require every selected host, domain, mailbox, backup, and recovery account to be institution-owned, MFA-protected, and governed by renewal and recovery controls. Use delegated developer access rather than shared owner credentials, keep secrets only in the deployment environment, and retain an independently controlled encrypted backup outside the primary-host failure and owner-account boundary.
-- Treat the six-hour RPO as a prospective target of no more than six hours of recent authoritative-data loss and the eight-hour RTO as a prospective target of restoring core service within eight elapsed hours after recovery is declared and prerequisites are available. They are project planning targets, not law, Servitech policy, SLA, capstone acceptance, current capability, or achieved results. The deployment runbook must define the adopted provider, cadence, retention, retry, alerting, key custody, and isolated-restore evidence needed to support them.
-- Keep Hostinger's included weekly backup and controlled snapshots supplemental in the project reference topology; do not include the optional paid daily-backup add-on in the fixed reference baseline or treat any same-provider backup as the independent six-hour layer.
-- Keep Cloudflare R2/restic as an evaluated independent-backup candidate and the client-owned ORICO enclosure as an evaluated optional offline-copy candidate. Neither is a live system, archive database, RAID requirement, TALA application surface, or approved procurement until the deployment gate is satisfied.
-- Keep the selected host, email, domain/DNS, backup-provider, billing, and recovery accounts institution-owned; assign named Infrastructure Custodian and privacy/DPO responsibilities; keep scoped provider credentials and controlled recovery-key copies; and do not claim operation until provider selection, procurement, automation, monitoring, and restore evidence exist.
-- Use a fixed lexicographic scheduling-quality hierarchy after hard feasibility; do not retain equal weights, editable constraint profiles, preferred times, generic overrides, or an accuracy percentage as product behavior.
-- Preserve the accepted 8-vCPU/16-GiB Cloud Run runtime default and its historical scaling evidence while treating formula, broader internal-contract, queue-behavior, and accepted-result conformance as unproven; keep the verified current Laravel timeout ordering distinct from the Cloud Run service request ceiling, and change the profile only when reconciled compatibility, workload, formulation, or telemetry evidence justifies it.
-- Use a lean single-node topology only with explicit recovery controls and measured upgrade triggers.
-- Measure value against total ownership cost and client baseline evidence, not infrastructure price alone.
-
-This target architecture is suitable to guide a bounded institutional deployment that prioritizes integrated records, local control, transparent business rules, and a lean project-reference fixed-cost baseline. It is not evidence that institutional procurement, production deployment, operational controls, complete TCO, or savings have been achieved, and it is not presented as a high-availability enterprise platform, a general-purpose timetabling suite, an offline-first application, or a substitute for operational governance.
-
-The architecture is aligned to the standalone PRDs and is ready to constrain separately planned journey-complete vertical implementation slices. These conceptual boundaries do not prescribe tables, classes, APIs, migrations, or implementation order, and they do not claim that current code already conforms.
-
----
+</details>
 
 ## 18. Sources and References
+
+<details>
+<summary>Read supporting Sources and References</summary>
 
 Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, and privacy sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated. The Cloud Run configuration and the provider/cost sources explicitly identified below were refreshed through **August 11, 2026**; OR-Tools outcome semantics and the PayMongo webhook resource were checked on **August 13, 2026**; and the Hostinger KVM 2 plan was rechecked on **August 13, 2026**. Cloud Run authentication and timeout mechanics, PayMongo hosted-checkout and webhook transport mechanics, and the Section 12 networking and OSI sources, including Hostinger's reference SMTP settings, were rechecked on **September 14, 2026**. Access dates establish only what the source or provider state showed then; they do not prove procurement, billing, operational ownership, or achieved TALA controls.
 
@@ -1451,3 +1464,7 @@ Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-r
 ---
 
 **Cost refresh rule:** Before procurement, deployment, or publication of a final financial claim, recheck every provider price, tax treatment, exchange rate, expected workload, storage/egress volume, backup-media model and capacity, Philippine stock and warranty quotation, payment-channel mix, email volume, enrollment assumption, support requirement, and recovery objective. Recalculate from the formulas above and retain the dated source evidence used.
+
+</details>
+
+<a id="table-of-contents"></a>

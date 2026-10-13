@@ -1,41 +1,24 @@
-# TALA Documentation Authority Registry
+# TALA Documentation Guide
 
-This registry defines how project-authored documentation must be interpreted. A document's existence, age, title, task ID, implementation status, or level of detail does not make it product authority.
+Use the document that owns your question:
 
-## Product authority
+- **What is TALA for, and who uses it?** [PRODUCT.md](../PRODUCT.md)
+- **What must it do, and what rules/fields apply?** [PRDs 00–06](prd_modules/README.md)
+- **What should a role see/do, and how do they navigate/recover?** [Blueprint](ui_surface_blueprint.md)
+- **What should colors, typography, controls and motion look like?** [DESIGN.md](../DESIGN.md); [surface briefs](../.impeccable/surfaces/) apply it to a task.
+- **How do components, data, security, integrations and operations work?** [Architecture](architecture_specification.md)
+- **How do we execute, verify, report and publish?** [AGENTS](../AGENTS.md) and [Protocol](TALA-Orchestrator-Protocol.md)
+- **What is done, assigned or next?** [#48](https://github.com/yosoykyle/SIA-TALA/issues/48) and child Issues. [TALA Development](https://github.com/users/yosoykyle/projects/3) is their view.
 
-These ten documents are the complete approved product authority set:
+Keep one owner for each rule; derived summaries link to it. Code/tests/schema and dated evidence describe implementation. Their presence or success creates no product requirement or proof of a whole usable journey. PRODUCT, DESIGN, PRDs, Blueprint and Architecture remain foundational.
 
-1. [`prd_modules/00_system_definition_baseline.md`](prd_modules/00_system_definition_baseline.md)
-2. [`prd_modules/README.md`](prd_modules/README.md)
-3. [`prd_modules/01_identity_access_public_entry.md`](prd_modules/01_identity_access_public_entry.md)
-4. [`prd_modules/02_application_admission_decision_enrollment_readiness.md`](prd_modules/02_application_admission_decision_enrollment_readiness.md)
-5. [`prd_modules/03_academic_setup_offerings_published_timetable.md`](prd_modules/03_academic_setup_offerings_published_timetable.md)
-6. [`prd_modules/04_current_term_registration_official_enrollment.md`](prd_modules/04_current_term_registration_official_enrollment.md)
-7. [`prd_modules/05_teaching_grades_academic_records_completion.md`](prd_modules/05_teaching_grades_academic_records_completion.md)
-8. [`prd_modules/06_accounts_official_outputs_operations_assurance.md`](prd_modules/06_accounts_official_outputs_operations_assurance.md)
-9. [`ui_surface_blueprint.md`](ui_surface_blueprint.md)
-10. [`architecture_specification.md`](architecture_specification.md)
+## Authority and companions
 
-The baseline and PRDs own necessary capabilities, data, business dependencies and policy. The UI Surface Blueprint owns interface outcomes and coverage; Impeccable leads task-specific composition. The Architecture Specification owns system and integration boundaries. Required workflow sequence and fixed official-output formats keep their explicit contracts; component and spatial choices follow the user task and supported framework capabilities. [`PRODUCT.md`](../PRODUCT.md) records the product brief; [`DESIGN.md`](../DESIGN.md) records shared visual foundations. Surface briefs apply those foundations to their assigned tasks. Laravel Boost and installed-version official framework documentation are primary implementation references; the official Filament demo provides optional examples of native composition and behavior. The evidence classification below identifies the role of retained references and historical documents.
+The approved numbered product set is Baseline 00 and PRDs 01–06, with their index. Blueprint and Architecture govern their own domains. The [Lifecycle Flowchart](TALA-System-Lifecycle-Flowchart.md) is a derived reader aid; the [Cheat Sheet](TALA-Orchestration-Cheat-Sheet.md) is a derived Protocol companion. [README](../README.md), [CONTRIBUTING](../CONTRIBUTING.md) and [developer guides](developer-guides/) retain setup commands, examples and runbooks. Generated agent instructions route compatibility; they do not define school policy.
 
-## Workflow and operational authority
+Impeccable leads UI/UX judgment. Relevant skills, Laravel Boost, Serena and installed-version official documentation support the task; Filament demo content is not school authority. Surface briefs hold durable direction, not progress.
 
-| Classification | Documents | Boundary |
-| --- | --- | --- |
-| Workflow authority | [`../AGENTS.md`](../AGENTS.md), [`TALA-Orchestrator-Protocol.md`](TALA-Orchestrator-Protocol.md) | Planning, execution, verification, preservation, Git, and external-mutation rules only |
-| Workflow quick reference | [`TALA-Orchestration-Cheat-Sheet.md`](TALA-Orchestration-Cheat-Sheet.md) | Derived operational companion for humans and agents; introduces no authority, and the Orchestrator Protocol governs any conflict |
-| Product lifecycle reader aid | [`TALA-System-Lifecycle-Flowchart.md`](TALA-System-Lifecycle-Flowchart.md) | Plain-language connected overview derived from PRDs 00–06, the UI Surface Blueprint, and Architecture Specification; does not create or override product authority |
-| Active design foundation | [`../PRODUCT.md`](../PRODUCT.md), [`../DESIGN.md`](../DESIGN.md), [`.impeccable/surfaces/`](../.impeccable/surfaces/) | October 2 school-first presentation direction and applicable task-specific briefs; canonical UI and architecture owners govern conflicts |
-| Historical design rationale | [`TALA-Experience-and-Official-Output-Design-Definition.md`](TALA-Experience-and-Official-Output-Design-Definition.md) | Historical Human-Centered Operations layouts and rationale; selected identity traits survive through current canonical UI authority and DESIGN.md, not the prototype itself |
-| Task management | GitHub Issues and the public [`TALA Development`](https://github.com/users/yosoykyle/projects/3) project | Issues own tracked scope; the project provides `All Work` and `Board` views, with approved implementation intake and terminal `Done` transitions automated as defined by the protocol |
-| Developer setup | [`../README.md`](../README.md), [`../CONTRIBUTING.md`](../CONTRIBUTING.md), [`developer-guides/`](developer-guides/), [`../CLAUDE.md`](../CLAUDE.md), [`../GEMINI.md`](../GEMINI.md) | Application setup, integration runbooks, fresh-clone readiness, and compatibility routing; never product authority |
-
-Task IDs, tracker rows, commits, demonstrations, tests, code, schema, seeders, and implementation history cannot create or restore product requirements.
-
-The [Applicant–Registrar surface brief](../.impeccable/surfaces/applicant-registrar.md) expresses the accepted #57 journey for Impeccable-led UI/UX assessment. Surface briefs hold task-specific direction, not live task status. Read current Issue bodies for scope and status; dated comments preserve evidence and superseded decisions. F/S owner concerns, M meeting priorities, C clarifications, canonical APP/REG surface IDs, and AC acceptance criteria retain their original identities and are mapped rather than renumbered.
-
-The [#48 evidence register](https://github.com/yosoykyle/SIA-TALA/issues/48#issuecomment-5918342932) preserves client-meeting, client-QA and developer feedback, its source comparison and decision history. Current product requirements belong to their owning PRDs; tracked delivery scope and evidence belong to the owning Issue and handoff.
+Keep original F/S/M/C concern IDs, D decisions, surface IDs and AC criteria. The [#48 source register](https://github.com/yosoykyle/SIA-TALA/issues/48#issuecomment-5918342932) retains feedback provenance.
 
 ## Evidence and archive classification
 
@@ -66,9 +49,10 @@ Historical manual test cases and UAT documents are demonstration material. Autom
 
 ## Change rule
 
-- Keep one enforceable owner for each rule: PRDs for product fields/rules/actions, UI Blueprint for capability and interaction outcomes, Architecture for technical boundaries, and Protocol for delivery permissions. Derived summaries link to that owner. Impeccable leads composition; use sketches when they help resolve a design decision.
-- Update product authority before changing a settled product decision.
-- Update workflow authority before changing orchestration rules.
-- Keep live concerns, implementation order and shared task status only in GitHub Issues; [#48](https://github.com/yosoykyle/SIA-TALA/issues/48) is the current coordination map and child Issues own bounded work. Integrate still-relevant feedback into those records, then archive source documents as evidence. Temporary publication inputs and execution reports do not become local shadow trackers.
-- Preserve historical material in the archive with an explicit scope boundary.
-- Delete only material proven redundant and recoverable; ignored or local-only evidence is preserved by default.
+- Product rules belong to PRDs; interface outcomes to Blueprint; appearance to DESIGN; technical boundaries to Architecture; execution permissions to Protocol.
+- Reconcile material product/workflow changes with their owner before depending on them.
+- Record live concerns, delivery order, shared status and acceptance in GitHub; temporary reports never become another task queue.
+- Preserve history with its scope. Delete only proven redundant/recoverable material; preserve ignored/local evidence by default.
+
+<a id="product-authority"></a>
+<a id="workflow-and-operational-authority"></a>

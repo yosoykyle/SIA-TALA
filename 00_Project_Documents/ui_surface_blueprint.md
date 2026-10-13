@@ -2,19 +2,29 @@
 
 ## Purpose and Authority
 
-This blueprint is the canonical UI authority for the TALA MVP. It defines user-visible capabilities, navigation, states, information hierarchy, interaction patterns, responsiveness, accessibility, outputs, and acceptance traceability independently of any design tool or implementation structure. The [Human-Centered Operations design definition](TALA-Experience-and-Official-Output-Design-Definition.md) records earlier August 2026 rationale and prototype translations. The October 2 owner-selected direction uses neutral light/dark surfaces, green-led primary actions, supporting TALA blue, Inter typography, and native Heroicons. Earlier blue-primary and Outfit/Inter requirements are superseded; product behavior, school-first branding, role ownership, accessibility, and official-output contracts remain governed by canonical authority. [`DESIGN.md`](../DESIGN.md) records the shared visual direction. Product behavior follows the owning PRD; interface outcomes follow this Blueprint; DESIGN.md supplies the shared visual foundation.
+This document defines what each role can recognize, navigate, do and recover from: capabilities, visible states, interactions, responsive/accessibility behavior and output presentation. It contains no implementation progress.
 
-Use this source order while defining every UI authority and later planning every approved UI slice:
+[PRDs 00–06](prd_modules/README.md) own behavior, fields, permissions and safeguards. [DESIGN.md](../DESIGN.md) owns colors, typography, material and motion. [Architecture](architecture_specification.md) owns technical/framework boundaries; the [Protocol](TALA-Orchestrator-Protocol.md) owns execution and verification. Impeccable and relevant skills guide task-specific composition within those contracts.
 
-1. `00_Project_Documents/prd_modules/README.md`
-2. Relevant files in `00_Project_Documents/prd_modules/`
-3. This UI surface blueprint
-4. `00_Project_Documents/architecture_specification.md`
-5. Existing code and tests as reuse inventory
+## Find the journey
 
-The PRD controls product behavior. Existing code is retained when it satisfies the current PRD and is adapted, replaced, or deferred when it does not.
+- [Identity, access and public entry](#identity-access-and-public-entry)
+- [Application and admissions](#application-and-admissions)
+- [Academic preparation and Term Planning](#academic-preparation-and-term-planning)
+- [Registration and official enrollment](#registration-and-official-enrollment)
+- [Teaching, grades and academic records](#teaching-grades-and-academic-records)
+- [Accounts, outputs and assurance](#accounts-outputs-and-assurance)
+- [Shared role projections](#shared-role-projections): Student Home/Profile and Academic Oversight
+- [Capability inventory](#canonical-ui-surface-coverage-inventory) and [journey coverage](#representative-journey-and-acceptance-contract)
 
-## MVP UI Architecture
+Read the relevant journey and shared contracts. The expandable details below are required interface contracts, not archives. Open the source/field/state detail needed for your task; keep the rest out of the reading path. Assignments and acceptance evidence live in [#48](https://github.com/yosoykyle/SIA-TALA/issues/48) and child Issues.
+
+<a id="mvp-ui-architecture"></a>
+
+## Panels and role entry
+
+<details>
+<summary>Routes, fixed-role entry and navigation map</summary>
 
 TALA uses the current three-panel baseline:
 
@@ -35,16 +45,94 @@ MVP decisions:
 6. Filament resources, pages, tables, forms, infolists, actions, filters, widgets, and notifications are the default authenticated UI toolkit.
 7. Filament components are the default toolkit, not a ceiling on usability. Reuse compatible installed components when they serve the task; use a focused TALA-owned visualization or interaction when a stock table, form, or modal makes the authorized workflow harder to understand or complete. Preserve validation, authorization, accessibility, and existing compatible plugin responsibilities. Materially bypassing or replacing an installed plugin still requires explicit approval and replacement proof; new dependencies require separate approval.
 8. Auth Designer remains the branded authentication presentation layer around native Filament/Fortify behavior. Preserve its approved Cover/split layouts, media, and theme controls through supported configuration while verifying recovery, profile, email-change, MFA, responsive, and accessibility behavior. A proven incompatibility is a bounded decision to report before bypass or replacement. Applicant registration remains a focused custom page only if needed to enforce the approved minimal account-creation contract.
-## Canonical UI Status and Evidence Boundary
 
-This document owns required UI capabilities and interaction outcomes. Each delivery slice verifies its implementation and rendered behavior against these contracts.
+The following is the final primary-navigation authority. A registered route or legacy resource does not become a primary destination merely because it exists. Account Security is contextual in the account menu. Readiness is shown inside the action that consumes it and is not a separate destination.
 
-The Canonical UI Surface Coverage Inventory identifies required user-visible capabilities and acceptance evidence. Related entries may share one workbench through tabs, selected-record panels, contextual actions, dialogs, outputs, or shared states when ownership and behavior remain explicit.
+| Context | Primary navigation | Contextual/shared destinations |
+|---|---|---|
+| Public | Gateway | Apply when Clinic 2 entry is open; unified sign-in; notices/FAQ; support/privacy/accessibility |
+| Applicant | Home; Application | Requirements and acknowledgment from the owning application; Account Security in account menu |
+| Student | Home; Enrollment; Academics; Finance; Profile | COR, schedules, history, unofficial/finance outputs; Account Security in account menu |
+| Registrar | Learner work: Admissions; Students & Enrollment; Grades & Completion. Academic setup: Catalog & Curricula; Term Planning | Source records, official outputs, and history from the owning workbench; permission-aware page search includes curated essential setup records |
+| Accounting | Fee Plans; Student Accounts | Accounts, Payment Exceptions, and TOR Clearance tabs; contextual exports and outputs |
+| Faculty | Schedule & Availability; Grade Rosters | My Schedule/My Availability are connected exact-Term sibling tasks and role-scoped search destinations; own assignment, declaration, roster, and history details |
+| Academic Head | Academic Oversight | Read-only source-owned catalog/curriculum, timetable, grade/progress, lifecycle, and completion evidence |
+| System Administrator | Users & Access; Public Content; System Health; Governance & Audit | Account detail, locally evidenced diagnostics, and read-only audit/history |
 
-Impeccable leads task-specific hierarchy and composition, supported by the owning PRD, DESIGN.md, matching surface brief, relevant design skills and installed-version framework research. Content lists, arrows and workbench groups below identify required facts, priorities and task relationships. Compose their visual order and controls for the task through Laravel Boost, relevant official documentation, supported customization and demos. Business dependencies, consequential guards and fixed official-output formats retain their exact owning contracts. The inventory and contracts below specify required user outcomes. Use sketches when they help resolve a design question. Preserve official-output content, versioning and print quality.
+There is no primary Reports, Settings, Approvals, Readiness Center, duplicate integration-status, notification-center, or report-hub destination. Navigation visibility is never authorization.
 
-Current application pages, schema-shaped resources, legacy screenshots, archived UI material, and visual alternatives remain implementation or presentation evidence. A later vertical slice may retain or consolidate a surface only after proving that its role, source record, action, state, and responsive/accessibility behavior conform to the owning PRD and this blueprint. No file-presence or visual similarity creates product authority.
-## Framework Implementation Responsibilities
+### Deterministic workspace entry
+
+TALA gives every role a complete starting state without adding a Staff dashboard or global work queue.
+
+| Role | First authorized destination | Starting-state and correction behavior |
+|---|---|---|
+| Public | Public Gateway | Closed or unavailable actions retain existing-account sign-in, bounded public guidance, and official support |
+| Applicant | Applicant Home | The page leads with the current owner and next action and links to Registrar guidance without exposing Staff evidence |
+| Student | Student Home | Source-labelled Enrollment, Academics, and Finance summaries remain separate; Profile is read-only |
+| Registrar | Admissions | Persistent navigation reaches the five canonical Registrar workbenches |
+| Accounting | Fee Plans | Persistent navigation reaches Student Accounts and its contextual clearance/action tabs |
+| Faculty | My Schedule inside Schedule & Availability | Persistent navigation reaches Grade Rosters; exact-Term sibling navigation and role-scoped search reach My Availability |
+| Academic Head | Academic Oversight | Every drill-in remains read-only and source-owned |
+| System Administrator | Users & Access | Persistent navigation reaches Public Content, System Health, and Governance & Audit |
+
+A single-role Staff account enters its fixed destination directly. A multi-role Staff account chooses an authorized role context and then enters that role's fixed destination. A role switch always resolves a fresh authorized destination and never carries a prior role's record route. After first official Student activation, Applicant no longer appears in the normal chooser, while the underlying application remains retained Registrar evidence.
+
+</details>
+
+<a id="human-centered-operations-and-ethical-decision-presentation"></a>
+
+## Shared interaction contracts
+
+<details>
+<summary>Status, fields, confirmation, evidence and accessibility patterns</summary>
+
+The following rules apply to every coverage ID:
+
+1. A default may select only an unambiguous authorized workspace, exact current Term, current record, or role-scoped actionable queue. Its basis remains visible and the user can change it easily.
+2. Consent, payment, publication, release, issuance, access change, destructive actions, and other consequential decisions are never preselected.
+3. Progress appears only for a fixed journey and comes from persisted canonical state. Use meaningful completed/current/remaining labels and `aria-current="step"` where appropriate; never invent percentages, bonus progress, or a universal cross-clinic progress bar.
+4. Saved, submitted, immutable, and recoverable states appear only when attributable persisted evidence proves them. Unsaved changes are identified factually.
+5. A safety warning states the exact consequence, source, applicable date, responsible owner, and recovery path. TALA uses no fear, shame, artificial scarcity, countdown pressure, hidden alternatives, decoy choice, or exaggerated harm.
+6. Primary/secondary, current/proposed, official/unofficial, available/blocked, and ordinary/destructive distinctions use semantic hierarchy without relying on color, motion, or position alone.
+7. Providing requirements, explanations, support, or previews is ordinary service design and never creates an implied obligation to provide data, consent, payment, or another action.
+
+Ordinary loading, saved, error-status and success updates use accessible status messages without stealing focus. A failed form submission is the deliberate exception: focus its first visible invalid control or existing purposeful error summary, with the field's inline error programmatically associated. Responsive transformations preserve reading order, current context, alternatives, and the owning recovery action.
+
+### Source-backed user outcomes
+
+Source provenance and concern mapping live in the [existing #48 evidence register](https://github.com/yosoykyle/SIA-TALA/issues/48#issuecomment-5918342932). These clarifications apply through each owning journey; they do not start an all-screen implementation.
+
+- Applicant Home leads with factual progress, current state, remarks/date and a permitted next action; compact prior applications and acknowledgments remain accessible. Waiting/rejected/closed states cannot promise Continue.
+- Application fields use plain visible labels and meaningful required/optional cues. Related fields may share desktop rows and stack on mobile. Save/continue wording reflects real persistence. Malformed/future graduation years receive field-accurate validation. The exact changed intake/requirement contract must be reconciled before collecting additional fields or changing eligibility.
+- Private evidence is accessible at the review step, with current/history distinction. Digital review acceptance, admission, Registrar enrollment clearance and enrollment readiness remain recognizable separate facts; detailed paper handling stays outside TALA.
+- Student Finance never leaves a labelled fact blank: actual values, zero, unavailable sources and no existing assessment are distinct. Obligations/coverage/payments show truthful empty or unavailable guidance. Text-backed statuses and measured contrast apply in both appearances.
+- Breadcrumbs use recognizable page labels while stable record references remain visible in context. Reached failures show safe truthful recovery without internal paths; execution-limit failures are diagnosed separately from ordinary session expiry.
+- Public discovery uses a cohesive academic school composition led by Servitech identity, approved artwork and factual Programs/notices/location/support. Program presentation and concise admission deadlines support discovery; administrative access and returning-applicant tracking remain clear without dominating. Owner annotations describe concerns to evaluate against existing product truth, source behavior and usefulness, preserving essential capabilities and safeguards. Retain the navbar, top/bottom blur-strip and footer background effects while recomposing the body, navbar foreground alignment, responsive branding, sign-in placement and footer information hierarchy. Grouping, imagery, map embedding and content depend on supplied facts and the existing bounded public-content contract; no invented institutional claims, repeated system explanation or universal card template is required.
+
+PRD 02 Sections 8–10 own necessary intake, optional client-requested demographics/address detail, one conditional contact, explicit LRN availability, selected preliminary uploads and one Registrar enrollment clearance. The accepted journey is reused. PRDs 04/06 retain payment order, versioned Accounting data and externally executed refunds. Missing operational amounts or requirement versions show their actual unavailable state; the interface never supplies an invented fee, age limit or refund entitlement. Old code/screens are evidence to reconcile, not acceptance.
+
+### Field and action clarity
+
+Apply the shared rule in baseline Section 3.5 across every retained role/surface; the existing inventory remains the coverage map. Every input has a declared actor/purpose, source, collection stage, plain persistent label, requiredness, format and exception. Derive/reuse facts instead of asking twice. Keep exact code/record vocabulary in source detail when necessary; it does not become ordinary headings or helper text. State whether an action saves, submits, confirms, publishes or merely navigates. Useful errors name the field and correction, not an unrelated required error.
+
+Impeccable leads composition, supported by the relevant writing, layout and accessibility skills. Determine the information and interaction the user's task requires, then use Laravel Boost, official framework documentation and official demos to research suitable implementations for the installed versions. Select and justify the arrangement by usability, workflow, accessibility and engineering feasibility. Use the existing framework's supported customization where the task requires it, preserving the authenticated Blade/Livewire/Tailwind and public Bootstrap boundaries. Each owning child records the chosen improvement, retained behavior and rendered result.
+
+Concern provenance is recorded in the linked #48 register; this is not a local progress queue.
+
+- Public discovery/access: F01–F13, F20–F21, F26–F29, F49, F53, F58; S06
+- Applicant status/intake: F14–F19, F22–F25; S10–S12
+- Registrar review/clearance: F30–F35; S04
+- Setup/catalog/account plans: F36–F37, F47, F50–F52; S01–S02, S07–S08
+- Scheduling: F38–F39, F51, F56; S03, S07
+- Enrollment/Student Home: F40–F42; M01–M04, M06–M07
+- Finance: F48; S05, S13
+- Faculty/academic records: F43–F46, F54–F57; S08
+- Outputs/governance: F59–F64
+
+M01–M07 and the recorded C clarifications apply through their owning outcomes across this map. F31/F33/F35 cover shared navigation and spacing; S09 covers useful duplicate correction and S13 covers measured status readability. The linked register preserves original feedback, proposed solutions and decision history. Each slice traces its applicable concern to the retained/simplified capability, chosen interaction and rendered evidence.
+
+Preserve brand/theme, role authorization, visible focus, keyboard order, mobile reading order, error associations and data continuity. Native components are selected for task fit; dependency additions and implementation remain separately bounded.
 
 | PRD interaction form | Required interaction outcome |
 | --- | --- |
@@ -60,82 +148,214 @@ Current application pages, schema-shaped resources, legacy screenshots, archived
 | Filter Form | Users understand the search/filter scope, active choices, result count and clear-filter recovery. |
 | Generated Read-Only View | Users read the authoritative result and its source/version; corrections lead to the owning source record. |
 
-Every entry in the Canonical UI Surface Coverage Inventory has one implementation disposition:
+The implementation and any design artifact use these named component families and variants:
 
-| Disposition | Use |
+| Family | Required variants and annotation |
 |---|---|
-| `NativeFilament` | Filament resources, Pages, Tables, Forms, Infolists, Tabs, Sections, Wizards, Actions, filters, notifications, or an ordinary composition of them satisfy the behavior |
-| `InstalledCompatibleDependency` | An already-installed compatible dependency fills one bounded capability that native Filament cannot provide alone |
-| `FocusedTALACustom` | A small TALA-owned Blade, Livewire, print, visualization, preview, or failure component is necessary and reuses native primitives where practical |
-| `PurposefullyExcluded` | The interaction is unnecessary, unsafe, externally owned, or deliberately outside the MVP; no placeholder page or generic subsystem is created |
+| Shell | Public; authenticated native sidebar-only expanded/compact desktop and mobile menu/drawer with complete authorized navigation; Applicant, Student, and Staff contexts |
+| Navigation | Sidebar, mobile menu trigger/drawer, workspace switcher, account/theme controls, default/current/disabled item, and purpose-defined optional workload count |
+| Location | Breadcrumb, contextual Back link, browser/page-title example |
+| Page header | Title/context, one primary action, discoverable secondary actions, no-action/read-only variant |
+| Status and metadata | Status badge with icon/text; owner, source, version, as-of time, deadline, and immutable marker |
+| Guidance | Next-action banner, failed-first readiness list, safe explanation, and responsible-office path |
+| Workbench | Recognizable work groups, contextual search/filters, active scope/result count, current record state and discoverable actions, with usable narrow-screen transformation |
+| Form | Field group, visible label/help, required/optional state, upload/evidence preview, error summary, and Wizard stepper |
+| Read-only evidence | Infolist/summary, activity timeline, version history, and output-access evidence |
+| Scheduling | Weekly timetable plus equivalent accessible meeting table and result/failure summary |
+| Feedback | Alert, toast, empty, filtered-empty, loading, stale, inaccessible, unavailable, validation, and failed-action state |
+| Dialog | Named confirmation, consequence summary, exact confirm label, contained focus, Escape behavior where safe, and focus return |
+| Output | Authenticated screen summary and print-safe document frame |
 
-These dispositions describe responsibility, not route or class count. A custom Filament Page composed entirely from native Sections, Tables, Forms, Tabs, Infolists, and Actions remains `NativeFilament`. `FocusedTALACustom` is appropriate when native primitives alone do not make the actual task clear and usable, including the REG-T04 weekly timetable; retain an equivalent accessible table when a visual grid is used. New plugins remain a last resort after checking native, installed, and focused TALA-owned options.
+Each component contract records semantic role, accessible name, heading relationship, focus order, keyboard behavior, minimum 24×24 target, preferred 44×44 learner target, responsive transformation, error/status announcement, and any screen-reader-only text. Tabs require arrow-key movement; dialogs require initial and returned focus; failed form submissions require deliberate first-error or error-summary focus and field association. No action depends on drag, hover, color, motion, or a pointer.
 
-Filament v5 implementation conventions:
+### Shared validation, conflict, evidence, and confirmation patterns
 
-1. Actions use `Filament\Actions`.
-2. Layout components use `Filament\Schemas\Components`.
-3. Read-only review presents the exact current source, version and decision facts through a task-appropriate composition.
-4. Business operations live in application actions or services, not Resource classes.
-5. Laravel policies protect resources and record actions. Hidden navigation is not an authorization boundary.
-6. Status badges use consistent semantic colors: warning for pending/action needed, success for accepted/posted/released, danger for rejected/blocked/voided, and info for advisory states.
-7. Bulk actions are used only when the same authorized decision can safely apply to every selected record.
-8. Native confirmation modals and Filament notifications provide action feedback.
+**Validation summary.** On failed submission, focus the first visible invalid control in the submitted form, or its existing purposeful error summary with links to invalid fields. A stable polite summary can announce the correction without taking focus from that field. Each field retains its safe input, visible label, constraint, associated inline error and required/optional status; native custom Selects expose the same invalid/error association as inputs. State that nothing was recorded only when the guarded operation establishes that outcome. Clear shared error attributes and summary text when the error disappears, preserving unrelated authored descriptions. Cross-record errors name the authoritative source and responsible owner rather than inventing a local override. Ordinary status updates preserve useful keyboard position.
 
-## Human-Centered Operations and Ethical Decision Presentation
+**Stale or concurrent conflict.** A stale mutation closes any success/loading state, announces **Nothing changed — newer information is available**, names the changed source/version and as-of time, preserves safe uncommitted text where possible, and offers **Review latest information**. Academic, financial, security, publication, enrollment, and output facts are never silently merged.
 
-The October 2 owner-selected direction uses neutral light/dark surfaces, green-led primary actions, supporting TALA blue, Inter typography, and native Heroicons. Earlier blue-primary and Outfit/Inter requirements are superseded; product behavior, school-first branding, role ownership, accessibility, and official-output contracts remain governed by canonical authority. Learner guidance, efficient Staff workbenches, plain operational language, restrained semantic status colors, and document-specific official-output layouts remain task-led. The institution crest and TALA mark remain full color on screen. Selected navigation uses a filled surface, contrast, icon, and weight without a narrow yellow side strip. Routine pages progressively disclose detail rather than presenting every field, evidence item, and action at once.
+**Private evidence.** Upload controls accept one PDF, JPEG, or PNG up to 10 MiB per evidence version, state that access is restricted, show upload/scan/validation progress without implying acceptance, and distinguish replace from delete. After authoritative use, replacement creates a successor and no delete action appears. Preview and download require purpose-scoped authorization and access evidence.
 
-The October 9 owner update prioritizes shared shell/branding material before further #58 logic or workflow refinement. DESIGN.md and PRODUCT.md record its modern tactile direction, now reconciled with Claude and implemented locally; owner review remains pending. Users should recognize content boundaries, clickable controls, current location and focus at a glance across Filament and Bootstrap. Solid readable task content, restrained depth and edge highlights, and solid opaque floating overlays guide the current composition. The owner removed the optional floating-menu glass treatment on October9. Preserve improved navigation, paired light/dark readability, reduced-motion/forced-colors access, native behavior and official outputs. Claude supplies the design recommendation; Codex consolidates it and owns canonical edits and implementation evidence. This record neither changes PRD behavior nor accepts existing surfaces as universally usable.
+**Authority metadata.** Every consequential detail and confirmation shows its owner and source/reference; it also shows the effective version/date, as-of time, and immutable/superseded state whenever those facts exist for the record. Missing authority states what remains usable, why the action is unavailable, responsible office, and exact reopening condition.
 
-The following rules apply to every coverage ID:
+**Critical-action confirmation.** A labelled native modal contains the record/version, actor/authority, exact resulting state, affected roles/records/emails/outputs, reversibility or successor requirement, required reason/authority fields and an exact button label. Structured previews and forms use the [WAI-ARIA modal-dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/); brief important interruptions use its [alert-dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/). Initial focus goes to the heading or first invalid required field, focus remains contained, safe Escape/cancel is available and focus returns to the trigger. Failure records no institutional mutation and announces whether input was retained.
 
-1. A default may select only an unambiguous authorized workspace, exact current Term, current record, or role-scoped actionable queue. Its basis remains visible and the user can change it easily.
-2. Consent, payment, publication, release, issuance, access change, destructive actions, and other consequential decisions are never preselected.
-3. Progress appears only for a fixed journey and comes from persisted canonical state. Use meaningful completed/current/remaining labels and `aria-current="step"` where appropriate; never invent percentages, bonus progress, or a universal cross-clinic progress bar.
-4. Saved, submitted, immutable, and recoverable states appear only when attributable persisted evidence proves them. Unsaved changes are identified factually.
-5. A safety warning states the exact consequence, source, applicable date, responsible owner, and recovery path. TALA uses no fear, shame, artificial scarcity, countdown pressure, hidden alternatives, decoy choice, or exaggerated harm.
-6. Primary/secondary, current/proposed, official/unofficial, available/blocked, and ordinary/destructive distinctions use semantic hierarchy without relying on color, motion, or position alone.
-7. Providing requirements, explanations, support, or previews is ordinary service design and never creates an implied obligation to provide data, consent, payment, or another action.
+**Source-owned restriction and setup pattern.** Baseline Sections 3.2 and 3.7 and the owning PRD define the actual blocked action and condition. An authorized user sees the unavailable action with persistent safe reason, missing/current source, responsible office and exact remedy; a source link is shown only when authorized. Meaningful Draft setup and independent work remain available. Do not substitute hidden buttons, hover-only explanations, a general hold editor or model/schema labels for this contract. External Academic Head decisions are recorded by Registrar; read-only oversight gains no mutation permission. Internal reasons stay private, and request-specific financial clearance remains distinct from academic/administrative decisions. The server rechecks the same source and authorization before mutation.
 
-Ordinary loading, saved, error-status and success updates use accessible status messages without stealing focus. A failed form submission is the deliberate exception: focus its first visible invalid control or existing purposeful error summary, with the field's inline error programmatically associated. Responsive transformations preserve reading order, current context, alternatives, and the owning recovery action.
+| Owning area | Material actions covered | Primary/secondary placement and exact consequence | Shared state and responsive behavior |
+|---|---|---|---|
+| PRD 01 | Change email/password/MFA; invite/resend Staff; role change; disable/reactivate; MFA reset; publish/unpublish content | One current security/access/publication action is primary on its detail page; alternatives remain discoverable. Confirmation names sessions, workspaces, public visibility, invalidated links/codes, and email effects | Rate-limit, expired-token, duplicate-safe, final-admin, stale, mail-failed, and inaccessible variants; mobile uses one-column forms and full-width learner actions |
+| PRD 02 | Submit/discard/withdraw/reopen Application; request/resubmit correction; publish/extend/close/cancel Cycle; decide/supersede; record/supersede Registrar enrollment clearance | Applicant page owns submit/withdraw; Applicant Record owns review/decision; Cycle detail owns public and correction boundaries/publication. Confirmation names snapshot, deadline, reopened fields, readiness, Applicant message, and no Student creation | Wizard preserves safe steps; public close and correction boundary remain distinct; overdue active correction remains action-needed; identity duplicate remains non-disclosing; evidence/upload, stale Cycle, filtered-empty queue, and mail failure use shared variants |
+| PRD 03 | Activate/retire academic authority; confirm/cancel offering; generate/retry; locally adjust/find minimal repair; accept/reject candidate; publish/revise timetable | Setup/detail pages own activation; Generate & Review owns run/candidate actions and full change preview; Published Timetable owns publication. Confirmation names source snapshot, affected classes/roles, quality/impact, email, and immutable output | Dense Staff tables transform to labelled cards where practical; timetable has accessible table alternative; local invalidity changes nothing; repair never moves another meeting silently; failure states stay distinct |
+| PRD 04 | Confirm/assist/cancel proposal; reopen terminal case; finalize enrollment; adjust; Course Drop | Learner Enrollment owns confirmation; Registrar selected Case owns assisted/cancel/reopen/finalize/change actions. Confirmation lists courses, units, meetings, capacity, finance readiness, Student activation, rosters, COR, and Accounting review | Mobile learner shows checkpoints then one next action; terminal reopen retains the same case and restores no prior checkpoint; shortage, expiry, stale source, unavailable assessment, failed atomic finalization, and inaccessible variants state whether anything changed |
+| PRD 05 | Submit/return/release roster; INC completion/deadline amendment; correction; external result; lifecycle/academic decision; graduation/conferral; TOR issue/void/replace | Faculty roster owns submit; Grades & Completion owns release/corrections/decisions; TOR detail owns outputs. Confirmation names rows/result effects, averages/curriculum/enrollment, deadlines, lifecycle, template/source, and successor history | No partial roster/average/output state; every INC has `CompletionOpen` or `CompletionOverdue` until resolved and never auto-converts; an overdue unextended INC remains no-credit with a retake path; factual advising replaces automatic sanctions; mobile Student is read-mostly |
+| PRD 06 | Publish/supersede Fee Plan; record assessment/coverage/payment; reject/reverse; TOR clearance; export | Fee Plan detail and Student Account detail own mutations; exception/clearance tabs own resolution; exports remain contextual. Payment confirmation names exact PHP amount and each current-Assessment obligation effect; other confirmations name account/Assessment, remaining requirement, email/output, and append-only effect | Amounts use tabular numerals; private proof is purpose-scoped; no unassigned/cross-Term posting; pending/mismatch/duplicate/stale/unknown/output-failure variants never imply posting, health, refund, or tax-document authority |
 
-### October 2 client-feedback outcomes reconciled October 3
+Routine save, search, filter, pagination, tab selection, read-only projection, preview, and calculation actions never receive a redundant confirmation. All material actions use the owning PRD's authorization, validation, retry/deadline, idempotency, and audit contract in addition to this presentation mapping.
 
-The owner-endorsed source and complete concern mapping live in the [existing #48 evidence register](https://github.com/yosoykyle/SIA-TALA/issues/48#issuecomment-5918342932). These clarifications apply through each owning journey; they do not start an all-screen implementation.
+Present operational data in this order: selected scope and purpose; the records being worked on with decision-critical facts; truthful state and the permitted next action; supporting record detail; optional quality measures, history and technical provenance. A directory of links is insufficient when the task is to prepare or review records. Explain a missing prerequisite beside its affected record and link to the remedy. A source count or recorded deadline must never stand in for whole-task readiness.
 
-- Applicant Home leads with factual progress, current state, remarks/date and a permitted next action; compact prior applications and acknowledgments remain accessible. Waiting/rejected/closed states cannot promise Continue.
-- Application fields use plain visible labels and meaningful required/optional cues. Related fields may share desktop rows and stack on mobile. Save/continue wording reflects real persistence. Malformed/future graduation years receive field-accurate validation. The exact changed intake/requirement contract must be reconciled before collecting additional fields or changing eligibility.
-- Private evidence is accessible at the review step, with current/history distinction. Digital review acceptance, admission, Registrar enrollment clearance and enrollment readiness remain recognizable separate facts; detailed paper handling stays outside TALA.
-- Student Finance never leaves a labelled fact blank: actual values, zero, unavailable sources and no existing assessment are distinct. Obligations/coverage/payments show truthful empty or unavailable guidance. Text-backed statuses and measured contrast apply in both appearances.
-- Breadcrumbs use recognizable page labels while stable record references remain visible in context. Reached failures show safe truthful recovery without internal paths; execution-limit failures are diagnosed separately from ordinary session expiry.
-- Public discovery uses a cohesive academic school composition led by Servitech identity, approved artwork and factual Programs/notices/location/support. Program presentation and concise admission deadlines support discovery; administrative access and returning-applicant tracking remain clear without dominating. Owner annotations describe concerns to evaluate against existing product truth, source behavior and usefulness, preserving essential capabilities and safeguards. Retain the navbar, top/bottom blur-strip and footer background effects while recomposing the body, navbar foreground alignment, responsive branding, sign-in placement and footer information hierarchy. Grouping, imagery, map embedding and content depend on supplied facts and the existing bounded public-content contract; no invented institutional claims, repeated system explanation or universal card template is required.
+Counts represent useful authorized work. Prioritize status, responsible owner, remarks, and next action over oversized summaries. Essential feedback accompanies each affected workflow; additional motion polish follows verified functionality.
 
-The owner-delegated October 3 decisions are adopted in PRD 02 Sections 8–10: necessary intake, optional client-requested demographics/address detail, one conditional contact, explicit LRN availability, selected preliminary uploads and one Registrar enrollment clearance. The accepted journey is reused. PRDs 04/06 retain payment order, versioned Accounting data and externally executed refunds. Missing operational amounts or requirement versions show their actual unavailable state; the interface never supplies an invented fee, age limit or refund entitlement. Old code/screens are evidence to reconcile, not acceptance.
+Shared form errors remain visible beside their owning controls, including native custom Selects. Associate each inline message with the actual control through `aria-describedby`, preserve existing description tokens and authored IDs, and mark the current invalid state through `aria-invalid`. After a failed submission, focus the first visible invalid control in that submitted form, or its existing purposeful error summary; ordinary loading, saved, filtered and status updates preserve focus. A stable polite summary announces the need to correct fields without implying spoken assistive-technology verification. When errors disappear, clear the shared bridge's error association, invalid state and announcement while retaining unrelated authored semantics. Preserve safe input and native validation/authorization; duplicate-record feedback names the conflicting source and the available correction. Mobile drawer actions that open a content dialog first close the drawer through the native sidebar store, then open the native confirmation after its focus trap releases; cancellation returns to a visible control.
 
-### Whole-system field and component decisions — October 3
+**The Same Intent Rule.** Equivalent commands, selections, record inspections and record-management destinations share native components and interaction behavior across roles. Role authorization controls available work, rather than changing what an identically named control does. Registrar and Academic Head use the same Class details inspection dialog; a separate permission-bound Manage class link opens sustained editing, delivery-group and source-history work. Meeting details opens a bounded course/time/location-first inspection dialog. A dialog-opening meeting button carries no checkbox or pressed selection state.
 
-The owner delegated the lean scope and field decisions. Apply the shared rule in baseline Section 3.5 across every retained role/surface; the existing inventory remains the coverage map. Every input has a declared actor/purpose, source, collection stage, plain persistent label, requiredness, format and exception. Derive/reuse facts instead of asking twice. Keep exact code/record vocabulary in source detail when necessary; it does not become ordinary headings or helper text. State whether an action saves, submits, confirms, publishes or merely navigates. Useful errors name the field and correction, not an unrelated required error.
+**The Working Record Rule.** One compact selected scope and task heading precede the toolbar and records. Course title leads a class/meeting; time and location lead schedule inspection. Comparable working lists use native searchable, sortable, pageable tables with the same controls and page choices; changing scope resets the page. Fixed teaching-day summaries, timetable geometry, complete generation-confirmation scope and official print tables retain their task-specific structure. Align values, wrap names, use tabular numerals and offer clear empty/filter recovery. Status labels name source state; selection, validation and publication remain distinct. Missing facts remain unavailable. Official outputs preserve issuer, immutable source/version and full/subset scope.
 
-Impeccable leads composition, supported by the relevant writing, layout and accessibility skills. Determine the information and interaction the user's task requires, then use Laravel Boost, official framework documentation and official demos to research suitable implementations for the installed versions. Select and justify the arrangement by usability, workflow, accessibility and engineering feasibility. Use the existing framework's supported customization where the task requires it, preserving the authenticated Blade/Livewire/Tailwind and public Bootstrap boundaries. Each owning child records the chosen improvement, retained behavior and rendered result.
+**The Evidence Presentation Rule.** Keep the selected Term, actual official/draft status, responsible owner and next action visible beside working records. A clearly named source entry point should help users judge the relevant fact. Detailed source version, actor, date and history belong in Class details or Calendar source details rather than an always-open generic evidence rail. Keep every authorized source destination/history reachable. Native read-only dialogs or inline expansion support inspection; sustained editing retains its own page. Narrow inspection preserves a usable working area, and closing restores focus/context. Academic Head keeps the planning summary; Faculty keeps its current answer/official context; Registrar keeps source state and the blocked-work remedy.
 
-| Task family | Information and interaction outcome | Recorded concern coverage |
-|---|---|---|
-| Public discovery/access | Visitors recognize the school, understand factual Programs and current notices, find location/support, and enter through one sign-in or the available application path. Supplied content and accessible interaction determine its presentation. | F01–F13, F20–F21, F26–F29, F49, F53, F58; S06 |
-| Applicant status/intake | Current situation, responsible office, relevant deadline and permitted next step lead; application facts and history remain reachable. Related inputs follow PRD 02's accepted five-step journey, with clear progress, saving and final review. Privacy-notice acknowledgement, optional sensitive-field consent and final accuracy declaration retain their separate purposes. | F14–F19, F22–F25; S10–S12 |
-| Registrar review/clearance | Staff can find and triage applications, inspect the current private evidence, record a decision and record the single enrollment clearance after admission. Current review information and its actions stay visible together; attributable history remains reachable. | F30–F35; S04 |
-| Setup/catalog/account plans | Users can identify the source they are setting up, enter its necessary facts and understand what enables activation. Source-owned readiness and recovery appear beside the affected work; Catalog & Curricula and read-only Academic Oversight expose their own responsibilities. | F36–F37, F47, F50–F52; S01–S02, S07–S08 |
-| Scheduling | Source-backed readiness, candidate comparison and the published timetable have distinct purposes. Day/time relationships remain understandable, with the Blueprint's accessible equivalent and the owning PRD's review/publication controls. | F38–F39, F51, F56; S03, S07 |
-| Enrollment/Student Home | One current next action, source-labelled checkpoints and subject/class proposal with real confirmation. Reuse identity; disclosure follows the owning action instead of showing every technical checkpoint as a separate card. | F40–F42; M01–M04, M06–M07 |
-| Finance | Actual due and its source lead, followed by obligations, coverage and verified payments. Actual zero, unavailable source, unassessed account and empty history remain distinguishable. | F48; S05, S13 |
-| Faculty/academic records | Faculty understand their availability, published schedule and assigned grade rosters. Authorized users can enter final results, release or correct them and inspect the resulting academic record under PRD 05. | F43–F46, F54–F57; S08 |
-| Outputs/governance | Users can read the source-bound output, recognize its version/state and find authorized history. Audit and access information supports the user's current investigation and correction. | F59–F64 |
+</details>
 
-M01–M07 and the recorded C clarifications apply through their owning outcomes across this map. F31/F33/F35 cover shared navigation and spacing; S09 covers useful duplicate correction and S13 covers measured status readability. The linked register preserves original feedback, proposed solutions and decision history. Each slice traces its applicable concern to the retained/simplified capability, chosen interaction and rendered evidence.
+<a id="shared-authenticated-shell-and-navigation-authority"></a>
 
-Preserve brand/theme, role authorization, visible focus, keyboard order, mobile reading order, error associations and data continuity. Native components are selected for task fit; dependency additions and implementation remain separately bounded.
+## Shared shell and navigation
 
-## Clinic 1 — Identity, Access, and Public Entry UI Authority
+<details>
+<summary>Location, return paths, account controls, shell states and Quick tour</summary>
+
+### Workspace shell
+
+The authenticated shell uses Filament’s sidebar-only authenticated layout (`topbar(false)`), native expanded/compact desktop navigation, a native mobile menu trigger and drawer, and one main region with ordinary page scrolling. Use the installed framework’s responsive behavior rather than a separate bespoke breakpoint or mobile bottom-navigation system. Until a role’s adaptation is accepted, its existing accessible navigation remains the working baseline. This changes presentation, not permissions or the supported mutation capabilities of a viewport.
+
+The expanded sidebar and appropriate mobile identity area show one compact school-identity block with the crest and **Servitech Institute Asia Inc.** or **Servitech Institute Asia**. Student/Staff workspace/role and selected Term context identify the current work separately; their quiet *Powered by TALA* attribution belongs in the sidebar footer or shell footer. Applicant shell identity shows the school plus the signed-in Applicant's name, without `Applicant Workspace` or *Powered by TALA*; Applicant account-entry pages show school identity without those labels. DESIGN.md owns the shared composition. Keep the multi-role workspace switcher when applicable, Account Security, sign-out, and native Light/Dark/System controls reachable through the native sidebar/user menu or supported extension points. Shared account-menu **Sign out** requires confirmation and warns users to save their work first; **Stay signed in** preserves the current page and session, while confirmation uses the existing protected logout flow. Primary navigation order follows the Panel and Navigation Map above and remains stable across pages. The first focusable control is **Skip to main content**.
+
+The shell uses one labelled primary `nav`, `main`, a labelled account menu, and a semantic `header` where a header is present. Opening the native mobile drawer moves focus into it; Tab remains contained while it is modal; Escape closes it where safe; and closing returns focus to the trigger. Preserve existing accessibility safeguards until the replacement passes equivalent verification. The current destination is expressed in text and `aria-current`, never by color alone. Hiding navigation never authorizes or deauthorizes a route, query, action, download, or output.
+
+Staff and Student sidebars offer Find a page through native Filament global-search presentation; the two-page Applicant workspace uses direct Home/Application navigation without a page finder. It searches only visible, authorized destinations in the active workspace, including accessible cluster pages; it returns no learner records, private details or cross-role destinations. The existing table search owns record lookup. Expanded navigation places Find a page inside the native search field beneath school identity and names the selected role workspace above the compact navigation group. Identity, search, navigation and framed account controls share alignment edges. Compact navigation offers a named search icon, and Ctrl/Cmd+K opens and focuses it. Collapsed desktop navigation retains visible inset dividers around identity/collapse, search, native destination groups and the account footer, so hidden group labels do not erase grouping. These dividers separate groups rather than every destination; expanded/mobile navigation retains its native labels. Both expanded and collapsed sidebar destinations use the same solid surface and subtle edge treatment, readable icons and native stroke weight. Preserve the seated current destination, visible keyboard focus, tooltips and accessible labels; identifying icons provide contrast without heavy decorative outlines. Primary navigation, contextual links and breadcrumbs remain available. Wizards retain their own process sequence.
+
+### Breadcrumbs, contextual back links, and location
+
+- Public Gateway, Applicant Home and Student Home do not show breadcrumbs. Staff workbenches may show their workspace and current task to provide orientation; Term Planning shows its exact Term and selected task. Its native cluster sub-navigation identifies Overview, Calendar, Sections & classes, Faculty & rooms and Timetable separately from the location trail, without introducing new gates or fabricated completion.
+- A genuinely hierarchical Staff detail or setup page shows `Workspace > Primary destination > Current record` in a labelled breadcrumb navigation with an ordered list and `aria-current="page"` on the current item.
+- Wizard and process steps never use breadcrumbs as progress indicators.
+- Learner COR, acknowledgment, historical output, and record-detail surfaces use a named **Back to [owning page]** link instead of a Staff-style hierarchy.
+- At narrow widths, a long breadcrumb becomes one semantic parent link followed by the current H1. It never becomes a browser-history-only **Back** action.
+
+### Page-title and action hierarchy
+
+Every page uses this order:
+
+1. Browser title: `[Page] | [Workspace] | TALA` for Student/Staff. Applicant titles identify the page and Servitech Institute Asia, plus the signed-in Applicant's name when available; omit Applicant Workspace and Powered by TALA.
+2. Exactly one H1 describing the page purpose.
+3. Optional context line containing only relevant record, Term, Program, state, owner, source/as-of time, or deadline facts.
+4. One primary action when the current state permits the user to act. A waiting state leads with the responsible office, reason and enabling condition; useful review/help links remain secondary. On learner mobile views a permitted primary action enters normal flow below the heading and may become full width inside the 16-pixel content inset.
+5. Secondary actions remain identifiable and reachable through task-appropriate controls; destructive or superseding actions require deliberate selection.
+6. Failed readiness, action-needed explanation, or one safe next step before supporting data.
+7. Search, filters, active filters, and result count before an operational queue or table.
+8. Supporting evidence and immutable history after the current decision.
+
+Controls retain a distinct border, fill, or stable action zone and never look like adjacent static content. Grouping uses spacing before additional rules: gaps between sections are at least twice the gap between tightly related items. Content aligns to shared leading edges and uses logical start/end behavior. Long labels, references, and translated strings wrap without clipping actions.
+
+### Optional Quick tour
+
+Authenticated Applicant, Student, and each Staff role may use one short, role-aware **Quick tour** implemented with the installed Driver.js 1.4.0 dependency plus a small TALA wrapper. Public visitors receive no tour. On the first successful entry for a credential, authorized role, and tour version, TALA shows a non-blocking invitation; it never opens the overlay automatically. **Quick tour** remains replayable from the account menu. Dismissal or completion suppresses only that role and version's invitation.
+
+The static steps cover only the current workspace/role, canonical navigation, explicit Term context when present, owner/status/next-action presentation, the page's primary-action location, and Account Security/replay. The tour never navigates, switches a Term or role, opens mobile navigation or an overflow drawer, enters data, explains private record contents, or performs an institutional mutation. Before starting, the wrapper removes steps whose targets are not present or authorized; it does not rely on a newer missing-target option. If no usable step remains, ordinary navigation continues and no completion preference is recorded.
+
+The tour uses visible **Next**, **Previous**, **Finish**, and **Close** controls; Escape closes; focus remains within the named dialog and returns to the invitation or replay control. Screen readers receive the title, description, and **Step x of y** progress in meaningful order. At mobile widths, the visible native menu trigger or other authorized controls may be highlighted, but the drawer is never programmatically opened; a target-free centered explanation may replace a hidden desktop target. With reduced motion, animation and smooth scrolling are disabled. The tour sends no third-party request, captures no DOM or record content, records no grade, application, finance, or identity value, and adds no analytics. Failure changes neither business state nor the dismissal/completion preference.
+
+No onboarding checklist, dashboard, tour editor, database-driven workflow builder, or new plugin is introduced. Later implementation acceptance must qualify Driver.js 1.4.0 with keyboard, NVDA or equivalent desktop screen reader, TalkBack or equivalent mobile screen reader, 360/390 mobile, and reduced-motion behavior; inability to pass that bounded contract reopens only the tour disposition and never blocks ordinary workspace use.
+
+DESIGN.md owns shared visual rules; this Blueprint owns interface outcomes. Laravel Boost and installed-version official Filament/Bootstrap documentation are primary implementation references; the official Filament demo supplies optional rendered examples of native behavior. `design-evidence/layout/` supplies supporting visual evidence. Use native Heroicons for production interface icons and the owning PRD for school capabilities and data.
+
+Use native Filament components and supported configuration first, then existing compatible extensions. Investigate a version-compatible plugin only for a demonstrated gap, with separate approval before adding a dependency. Focused custom UI remains appropriate for justified school workflows that native components cannot adequately present. No new plugin or paid theme is required for the inspected Applicant–Registrar journey. PRDs continue to own business behavior; framework convenience does not silently remove a required field, state, approval, safeguard, or output.
+
+Shared interaction rules apply shared compact identity, Account Security composition, account-menu naming, usable content width and tactile action/selection styling across Filament roles. Reuse common configuration and theme classes; keep authorization and field policy contextual. Green carries the primary action and selection; neutral controls and icon actions have visible boundaries in light and dark appearances. Navigation, status and disabled controls retain distinguishable meaning and native semantics. Task-led judgment and rendered evidence determine composition and dimensions.
+
+Registrar Admissions leads with the person, state, responsible party and next action. Full stable references remain accessible and copyable in record context. Current private evidence supports separate authenticated browser View and attachment Download through the same exact-version/path/permission boundary. Native breadcrumbs retain queue context. Cycle setup/detail explains availability, accepting scope, separate application/correction deadlines and publication blockers; PRD 02 owns every required field and transition. Acknowledgments lead with school issuer, applicant/program/submission facts and receipt meaning; source/version/history remain reachable and included in printing.
+
+**Shell states**
+
+- Use native expanded/compact desktop sidebar states with explicit keyboard/touch-operable collapse controls.
+- Use the native mobile menu trigger and drawer. Ordinary scrolling does not require automatic chrome hiding, repositioning, or a second navigation system.
+- Preserve entered values, the active task, useful focus, content continuity, and explicit collapse preferences through navigation and native state changes.
+- Keep workspace switching, account security, sign-out, and theme controls reachable through the native account/sidebar arrangement or supported extension points.
+- Preserve safe areas, readable content spacing, touch targets, and static current-location cues. The virtual keyboard must not obscure a focused control or required action.
+- Verify drawer focus containment, background protection, safe Escape dismissal, and focus return; preserve existing accessibility fixes until the native adaptation passes equivalent checks.
+- Retain every authorized canonical destination in stable order. The reference’s example menus do not introduce production destinations or change permissions.
+- Do not implement hover expansion, drag/keyboard resizing, scroll-driven shell movement, or mobile bottom navigation solely to reproduce archived prototype mechanics.
+- Define each search control’s purpose, scope, results, empty behavior, and authorization in the owning child. Reuse source-owned contextual search; do not create a global record-search service.
+- Reduced motion preserves every function through non-animated state changes or an accessible equivalent.
+
+**Information and action hierarchy**
+
+- Lead with the current task/state, responsible owner, relevant remarks or deadline, and one meaningful primary action.
+- Surface necessary evidence and permitted controls at the workflow step where they are used; progressively disclose secondary detail.
+- Missing information or interaction is assessed against product purpose and authority. It does not automatically authorize additional fields, data collection, persisted states, or approval steps.
+- Tables, labelled cards, inline sections, and dialogs are selected by task and information density, not by a universal template.
+
+**Navigation counts**
+
+- Show counts only for a defined, useful workload or state.
+- Use the role-authorized authoritative query and lead to a destination exposing the matching records and context.
+- Define scope and refresh behavior in the owning child. Navigation or a relevant completed action may refresh the projection; do not imply continuous monitoring.
+- Default to hiding zero badges. Unavailable or stale evidence must not be converted into a false zero.
+- Give the count an understandable accessible meaning. Do not introduce a separate notification or analytics subsystem merely to produce badges.
+
+**Feedback and motion**
+
+- Include loading, validation, empty, stale, failure, success, and inaccessible behavior in each affected slice.
+- Necessary transitions use native feedback and the existing motion safeguards, preserve static state cues, and respect reduced motion.
+- Native interaction feedback is implemented with each affected workflow. Additional motion polish follows verified functionality; decorative page-load choreography is not required.
+- Routine success notifications may auto-dismiss and provide an accessible close action. Errors or notifications containing an action remain until dismissed. Result changes receive appropriate announcements; table updates preserve useful keyboard position. Route/view changes provide meaningful orientation.
+- Dialogs preserve background protection, safe Escape behavior, and focus return. Recovery pages expose a truthful explanation and working recovery destination; the selected recovery-background effect follows the finite animation contract below.
+
+**Acceptance**
+
+- Verify native expanded/compact desktop states, the mobile menu/drawer, ordinary long-page scrolling, long labels/content, both appearances, reduced motion, keyboard/focus behavior, and 200% zoom.
+- Preserve theme preferences, authorization, private evidence access, and the accepted #56 sign-in/MFA behavior.
+- Screen-shell changes do not alter official-output or print contracts.
+- Adoption must prevent the documented prototype shortcut, naming, focus, announcement, misleading-status, and forced-colors failures. Qualify keyboard and screen-reader behavior, zoom/reflow, both appearances, interruption recovery, and supported viewport/action boundaries through the destination framework; prototype checks alone cannot establish application acceptance.
+
+Student/Staff shell and non-Applicant authentication attribution remains compact and secondary to school identity. Applicant shell and account-entry pages omit Powered by TALA; their school identity includes the signed-in Applicant's name when available. Choose screen mark sizes by legibility, hierarchy and available space. Preserve approved artwork and official-output print constraints. Native MFA code digits remain centered, readable and clearly bounded without replacing input, validation, focus or paste behavior.
+
+Use Filament’s sidebar-only layout, native desktop collapse, mobile menu/drawer, and ordinary page scrolling, with supported theming and extension points. Preserve complete authorized navigation, account/role/theme controls, safe areas, focus, task data, and reduced-motion access. Verify this behavior within each owning delivery slice.
+
+The expanded sidebar has one compact school-identity block: the supplied crest and readable school name. Student/Staff workspace or role context sits with navigation or the page context. Powered by TALA occupies their quiet sidebar footer, with a shell-footer placement when the sidebar is unavailable. The Applicant panel instead shows Servitech Institute Asia plus the signed-in Applicant's name, without Applicant Workspace or Powered by TALA; Applicant account-entry pages retain the school identity without those labels. The mobile identity area shows the school once while the native drawer owns navigation. Page headings lead with the task. Preserve approved artwork and readable school identity. All roles reuse the same school-first sidebar, framed account-menu trigger and responsive action defaults. The page finder supports staff and student destinations; the two-page Applicant workspace uses direct navigation. The expanded header balances the crest and two-line Servitech / Institute Asia name with the native collapse control at the trailing edge. Student/Staff selected roles name their workspace separately from school identity; Applicant identity uses the person's name rather than a workspace label. Find a page appears inside the native search field below identity and searches authorized workspace destinations only. Shared alignment edges join identity, search, navigation and account controls; compact controls keep usable hit areas. In the collapsed desktop sidebar, inset hairline dividers separate the identity/collapse control, search shortcut, native destination groups and account footer. Preserve group boundaries when labels are hidden; avoid a divider between every destination. Expanded and mobile navigation retain labeled native groups. Expanded and collapsed sidebar destinations share solid surface fills, subtle decorative hairline edges and readable muted icons, with the existing native icon stroke. Keep green for the seated current destination and gold for keyboard focus. Avoid heavy outlines or thicker icons as a substitute for contrast; the identifying icon carries contrast, while the edge only defines the material. The account trigger uses restrained offset elevation, a visible surface and focus/hover/pressed states in both themes and sidebar sizes. Native icon actions compact below the small breakpoint while keeping accessible names; text-only controls, Save/Submit progression and consequential confirmations retain labels. Native unsaved-change alerts protect Create/Edit forms and writable action modals across panels; existing domain-specific draft persistence remains authoritative. Role-specific content and authorization remain contextual. Applicant task navigation uses native breadcrumbs; draft progression uses Save and continue with secondary Save and exit and confirmed discard in the native action menu.
+
+</details>
+
+<a id="visual-foundation-and-implementation-authority"></a>
+
+## Branding and output identity
+
+<details>
+<summary>School/system/person identity, artwork, accessibility and print rules</summary>
+
+- Public and non-Applicant authentication surfaces identify the school as the service provider and TALA as secondary product attribution. Applicant account-entry pages identify the school and omit Powered by TALA. Their composition establishes distinct hierarchy for those roles and the current task. Supplied marks retain their full-color artwork; the TALA wordmark uses live text.
+- Authenticated shells have one compact school-identity area. Student and Staff retain separate readable workspace context and quiet Powered by TALA attribution in the sidebar footer or shell footer where the sidebar is unavailable. Applicant identity instead includes Servitech Institute Asia and the signed-in person's name, without Applicant Workspace or Powered by TALA. Page headings identify the task or person. DESIGN.md and the matching brief govern placement; preserve artwork, recognizable hierarchy, contrast and accessible names wherever marks are shown.
+- The favicon and install/app icon use the approved star-only artwork.
+- Official and institutional printable outputs lead with the approved institution crest and institution name. They do not use the mascot; a restrained **Generated through TALA** text footer may identify the product.
+- Choose screen mark sizes by legibility and school-first hierarchy in the actual surface. Reuse shared identity components across roles; render quiet attribution only on the surfaces where it remains permitted.
+- Preserve complete source artwork and original colors without stretching or recoloring. A non-distorting crest-symbol crop may support compact screen identity. Official outputs retain complete approved artwork and the existing 18 mm print floor, full color when available and qualified monochrome-safe rendering. Accessible-name requirements remain unchanged.
+- When adjacent visible text already identifies TALA or Servitech/SIA, the image is decorative and uses an empty text alternative. A standalone product or institution mark receives the matching accessible name. No interface uses the filename as alternative text.
+- Failure pages use system fallbacks and do not depend on Vite or Livewire. Failure pages and printable outputs do not depend on remotely loaded fonts or a decorative background to communicate identity or status.
+
+</details>
+
+## Failure and recovery
+
+<details>
+<summary>HTTP/session failure, safe retry, authorized recovery and resilient fallback</summary>
+
+- Adopt the selected experimental recovery-page composition independently of archived shell mechanics: one centered reading path, one plain-language H1, a short explanation, one context-safe primary recovery action, secondary actual HTTP code when applicable, school-first branding, and secondary Powered by TALA attribution. Preserve necessary support/account recovery access and readable institutional identity; specimen mark sizes do not override the existing artwork floors.
+- Preserve actual response codes and source-specific recovery, including existing 403/404/419/429/5xx behavior where applicable. Session expiry remains a recovery state. Authorized workspace resolution, verification-link recovery, sign-out confirmation, CSRF/MFA/permission protections, and private evidence access are unchanged. Do not import simulated prototype actions.
+- Unconfirmed mutation outcomes require checking the latest recorded state before resubmission. Reload/retry is permitted only when safe for the failed operation; it must not automatically replay a submission, decision, payment, or other mutation.
+- Recovery actions remain immediately usable and content stationary. Follow DESIGN.md's finite background-motion contract and fallbacks; omit the visible recovery pause/stop button.
+- Reuse the existing shared standalone error presentation; core explanation and safe recovery work without Vite, Livewire, JavaScript, remote fonts, or the prototype runtime. Retain usable native navigation for local page-level failure; use the minimal standalone fallback when the application shell cannot load.
+- Verify the actual response, authorized recovery destination, mutation-safe retry, keyboard/focus, 200% zoom/reflow, light/dark contrast throughout the animation, its five-second completion, settled state after page return, reduced-motion/forced-colors fallbacks, hidden/offscreen behavior, and missing-asset/script resilience when an affected child adopts the pattern. #57 covers recovery states reached by its Applicant–Registrar journey and proportionate shared-consumer regressions; other recovery states belong to their owning slices.
+
+</details>
+
+<a id="clinic-1--identity-access-and-public-entry-ui-authority"></a>
+
+## Identity, access and public entry
+
+Visitors recognize the school and reach secure entry; account owners can enter, verify or recover.
+
+<details>
+<summary>Page, source, action, state, output and responsive/recovery contract</summary>
 
 Use school-first public entry and one sign-in. Resolve authorized role contexts after authentication; preserve multi-role choice/switching, role permissions, Staff MFA and session safeguards. Decision provenance is retained in the [#48 evidence register](https://github.com/yosoykyle/SIA-TALA/issues/48#issuecomment-5918342932).
 
@@ -208,7 +428,7 @@ The same account state, verified email, role assignment, effective time, and nex
 
 ### System-wide failure and workspace identity
 
-TALA uses one school-first institutional identity across its four entry surfaces: the public site, the Applicant panel showing `Servitech Institute Asia` plus the signed-in Applicant's name, `Servitech Institute Asia — Student Hub`, and `Servitech Institute Asia — Staff Workspace`. Under the October 10 owner decisions F65/F66 (Issue #59 D3/D2), the Applicant panel and its account-entry pages omit `Applicant Workspace` and *Powered by TALA*. Student/Staff, public and error-page attribution and official-output *Generated through TALA* remain unchanged. The Staff Workspace label is the canonical name for `/admin`; technical panel IDs and route prefixes do not appear as user-facing product names.
+TALA uses one school-first institutional identity across its four entry surfaces: the public site, the Applicant panel showing `Servitech Institute Asia` plus the signed-in Applicant's name, `Servitech Institute Asia — Student Hub`, and `Servitech Institute Asia — Staff Workspace`. the Applicant panel and its account-entry pages omit `Applicant Workspace` and *Powered by TALA*. Student/Staff, public and error-page attribution and official-output *Generated through TALA* remain unchanged. The Staff Workspace label is the canonical name for `/admin`; technical panel IDs and route prefixes do not appear as user-facing product names.
 
 Browser requests that end in an HTTP failure use a shared TALA presentation contract:
 
@@ -224,390 +444,22 @@ Browser requests that end in an HTTP failure use a shared TALA presentation cont
 
 These pages identify the status in text, never rely on color alone, expose no internal exception message, remain usable without unnecessary scrolling at a narrow viewport, and provide keyboard-visible recovery actions with at least a 44-pixel target. An authenticated wrong-workspace response never silently ends the session: its primary action returns to the account's authorized workspace, while `Use another account` requires explicit confirmation and a protected POST logout. Guests receive the ordinary public-home action. Laravel continues to own content negotiation: JSON/API requests receive framework JSON errors, while the branded templates apply to browser HTML responses. Domain-specific validation, action notifications, and Livewire errors remain on their owning surfaces rather than being replaced by generic HTTP pages.
 
-## Panel and Navigation Map
+### Working-state refinements
 
-The following is the final primary-navigation authority. A registered route or legacy resource does not become a primary destination merely because it exists. Account Security is contextual in the account menu. Readiness is shown inside the action that consumes it and is not a separate destination.
-
-| Context | Primary navigation | Contextual/shared destinations |
-|---|---|---|
-| Public | Gateway | Apply when Clinic 2 entry is open; unified sign-in; notices/FAQ; support/privacy/accessibility |
-| Applicant | Home; Application | Requirements and acknowledgment from the owning application; Account Security in account menu |
-| Student | Home; Enrollment; Academics; Finance; Profile | COR, schedules, history, unofficial/finance outputs; Account Security in account menu |
-| Registrar | Learner work: Admissions; Students & Enrollment; Grades & Completion. Academic setup: Catalog & Curricula; Term Planning | Source records, official outputs, and history from the owning workbench; permission-aware page search includes curated essential setup records |
-| Accounting | Fee Plans; Student Accounts | Accounts, Payment Exceptions, and TOR Clearance tabs; contextual exports and outputs |
-| Faculty | My Schedule; Grade Rosters | My Availability is a connected exact-Term task and role-scoped search destination; own assignment, declaration, roster, and history details |
-| Academic Head | Academic Oversight | Read-only source-owned catalog/curriculum, timetable, grade/progress, lifecycle, and completion evidence |
-| System Administrator | Users & Access; Public Content; System Health; Governance & Audit | Account detail, locally evidenced diagnostics, and read-only audit/history |
-
-There is no primary Reports, Settings, Approvals, Readiness Center, duplicate integration-status, notification-center, or report-hub destination. Navigation visibility is never authorization.
-
-### Deterministic workspace entry
-
-TALA gives every role a complete starting state without adding a Staff dashboard or global work queue.
-
-| Role | First authorized destination | Starting-state and correction behavior |
-|---|---|---|
-| Public | Public Gateway | Closed or unavailable actions retain existing-account sign-in, bounded public guidance, and official support |
-| Applicant | Applicant Home | The page leads with the current owner and next action and links to Registrar guidance without exposing Staff evidence |
-| Student | Student Home | Source-labelled Enrollment, Academics, and Finance summaries remain separate; Profile is read-only |
-| Registrar | Admissions | Persistent navigation reaches the five canonical Registrar workbenches |
-| Accounting | Fee Plans | Persistent navigation reaches Student Accounts and its contextual clearance/action tabs |
-| Faculty | My Schedule | Persistent navigation reaches Grade Rosters; internal exact-Term task navigation and role-scoped search reach My Availability |
-| Academic Head | Academic Oversight | Every drill-in remains read-only and source-owned |
-| System Administrator | Users & Access | Persistent navigation reaches Public Content, System Health, and Governance & Audit |
-
-A single-role Staff account enters its fixed destination directly. A multi-role Staff account chooses an authorized role context and then enters that role's fixed destination. A role switch always resolves a fresh authorized destination and never carries a prior role's record route. After first official Student activation, Applicant no longer appears in the normal chooser, while the underlying application remains retained Registrar evidence.
-
-## Shared Authenticated Shell and Navigation Authority
-
-### Workspace shell
-
-The October 2 native-first correction selects Filament’s sidebar-only authenticated layout (`topbar(false)`), native expanded/compact desktop navigation, a native mobile menu trigger and drawer, and one main region with ordinary page scrolling. Use the installed framework’s responsive behavior rather than a separate bespoke breakpoint or mobile bottom-navigation system. Until a role’s adaptation is accepted, its existing accessible navigation remains the working baseline. This changes presentation, not permissions or the supported mutation capabilities of a viewport.
-
-The expanded sidebar and appropriate mobile identity area show one compact school-identity block with the crest and **Servitech Institute Asia Inc.** or **Servitech Institute Asia**. Student/Staff workspace/role and selected Term context identify the current work separately; their quiet *Powered by TALA* attribution belongs in the sidebar footer or shell footer. Applicant shell identity shows the school plus the signed-in Applicant's name, without `Applicant Workspace` or *Powered by TALA*; Applicant account-entry pages show school identity without those labels. DESIGN.md owns the shared composition. Keep the multi-role workspace switcher when applicable, Account Security, sign-out, and native Light/Dark/System controls reachable through the native sidebar/user menu or supported extension points. Shared account-menu **Sign out** requires confirmation and warns users to save their work first; **Stay signed in** preserves the current page and session, while confirmation uses the existing protected logout flow. Primary navigation order follows the Panel and Navigation Map above and remains stable across pages. The first focusable control is **Skip to main content**.
-
-The shell uses one labelled primary `nav`, `main`, a labelled account menu, and a semantic `header` where a header is present. Opening the native mobile drawer moves focus into it; Tab remains contained while it is modal; Escape closes it where safe; and closing returns focus to the trigger. Preserve existing accessibility safeguards until the replacement passes equivalent verification. The current destination is expressed in text and `aria-current`, never by color alone. Hiding navigation never authorizes or deauthorizes a route, query, action, download, or output.
-
-Staff and Student sidebars offer Find a page through native Filament global-search presentation; the two-page Applicant workspace uses direct Home/Application navigation without a page finder. It searches only visible, authorized destinations in the active workspace, including accessible cluster pages; it returns no learner records, private details or cross-role destinations. The existing table search owns record lookup. Expanded navigation places Find a page inside the native search field beneath school identity and names the selected role workspace above the compact navigation group. Identity, search, navigation and framed account controls share alignment edges. Compact navigation offers a named search icon, and Ctrl/Cmd+K opens and focuses it. Collapsed desktop navigation retains visible inset dividers around identity/collapse, search, native destination groups and the account footer, so hidden group labels do not erase grouping. These dividers separate groups rather than every destination; expanded/mobile navigation retains its native labels. Both expanded and collapsed sidebar destinations use the same solid surface and subtle edge treatment, readable icons and native stroke weight. Preserve the seated current destination, visible keyboard focus, tooltips and accessible labels; identifying icons provide contrast without heavy decorative outlines. Primary navigation, contextual links and breadcrumbs remain available. Wizards retain their own process sequence.
-
-### Breadcrumbs, contextual back links, and location
-
-- Public Gateway, Applicant Home and Student Home do not show breadcrumbs. Staff workbenches may show their workspace and current task to provide orientation; Term Planning shows its exact Term and selected task. Its native cluster sub-navigation identifies Overview, Calendar, Sections & classes, Faculty & rooms and Timetable separately from the location trail, without introducing new gates or fabricated completion.
-- A genuinely hierarchical Staff detail or setup page shows `Workspace > Primary destination > Current record` in a labelled breadcrumb navigation with an ordered list and `aria-current="page"` on the current item.
-- Wizard and process steps never use breadcrumbs as progress indicators.
-- Learner COR, acknowledgment, historical output, and record-detail surfaces use a named **Back to [owning page]** link instead of a Staff-style hierarchy.
-- At narrow widths, a long breadcrumb becomes one semantic parent link followed by the current H1. It never becomes a browser-history-only **Back** action.
-
-### Page-title and action hierarchy
-
-Every page uses this order:
-
-1. Browser title: `[Page] | [Workspace] | TALA` for Student/Staff. Applicant titles identify the page and Servitech Institute Asia, plus the signed-in Applicant's name when available; omit Applicant Workspace and Powered by TALA.
-2. Exactly one H1 describing the page purpose.
-3. Optional context line containing only relevant record, Term, Program, state, owner, source/as-of time, or deadline facts.
-4. One primary action when the current state permits the user to act. A waiting state leads with the responsible office, reason and enabling condition; useful review/help links remain secondary. On learner mobile views a permitted primary action enters normal flow below the heading and may become full width inside the 16-pixel content inset.
-5. Secondary actions remain identifiable and reachable through task-appropriate controls; destructive or superseding actions require deliberate selection.
-6. Failed readiness, action-needed explanation, or one safe next step before supporting data.
-7. Search, filters, active filters, and result count before an operational queue or table.
-8. Supporting evidence and immutable history after the current decision.
-
-Controls retain a distinct border, fill, or stable action zone and never look like adjacent static content. Grouping uses spacing before additional rules: gaps between sections are at least twice the gap between tightly related items. Content aligns to shared leading edges and uses logical start/end behavior. Long labels, references, and translated strings wrap without clipping actions.
-
-### Optional Quick tour
-
-Authenticated Applicant, Student, and each Staff role may use one short, role-aware **Quick tour** implemented with the installed Driver.js 1.4.0 dependency plus a small TALA wrapper. Public visitors receive no tour. On the first successful entry for a credential, authorized role, and tour version, TALA shows a non-blocking invitation; it never opens the overlay automatically. **Quick tour** remains replayable from the account menu. Dismissal or completion suppresses only that role and version's invitation.
-
-The static steps cover only the current workspace/role, canonical navigation, explicit Term context when present, owner/status/next-action presentation, the page's primary-action location, and Account Security/replay. The tour never navigates, switches a Term or role, opens mobile navigation or an overflow drawer, enters data, explains private record contents, or performs an institutional mutation. Before starting, the wrapper removes steps whose targets are not present or authorized; it does not rely on a newer missing-target option. If no usable step remains, ordinary navigation continues and no completion preference is recorded.
-
-The tour uses visible **Next**, **Previous**, **Finish**, and **Close** controls; Escape closes; focus remains within the named dialog and returns to the invitation or replay control. Screen readers receive the title, description, and **Step x of y** progress in meaningful order. At mobile widths, the visible native menu trigger or other authorized controls may be highlighted, but the drawer is never programmatically opened; a target-free centered explanation may replace a hidden desktop target. With reduced motion, animation and smooth scrolling are disabled. The tour sends no third-party request, captures no DOM or record content, records no grade, application, finance, or identity value, and adds no analytics. Failure changes neither business state nor the dismissal/completion preference.
-
-No onboarding checklist, dashboard, tour editor, database-driven workflow builder, or new plugin is introduced. Later implementation acceptance must qualify Driver.js 1.4.0 with keyboard, NVDA or equivalent desktop screen reader, TalkBack or equivalent mobile screen reader, 360/390 mobile, and reduced-motion behavior; inability to pass that bounded contract reopens only the tour disposition and never blocks ordinary workspace use.
-
-## Visual Foundation and Implementation Authority
-
-The October 2 owner-selected direction uses neutral light/dark surfaces, green-led primary actions, supporting TALA blue, Inter typography, and native Heroicons. Earlier blue-primary and Outfit/Inter requirements are superseded; product behavior, school-first branding, role ownership, accessibility, and official-output contracts remain governed by canonical authority. Historical prototype captures remain comparison evidence, not binding screen templates. Light-first references do not disable native Light/Dark/System behavior. The approved yellow TALA star artwork is the product mark; the word **TALA** is rendered as live text rather than a separate raster wordmark. The institution-supplied Servitech/SIA crest is the institution mark. Both marks remain full color on screen. File presence, a legacy screenshot, or an existing template cannot substitute for approval of the underlying artwork. Canonical UI Blueprint authority governs any conflict with design exploration seeds.
-
-### Color tokens
-
-| Semantic role | Light appearance | Dark appearance | Use |
-|---|---|---|---|
-| Primary action | `#2F7D3B` / `#FFFFFF` | `#6ACB7C` / `#17351C` | Primary action background / foreground |
-| Accent text | `#15772E` | `#8DE698` | Standalone interactive accent |
-| Supporting TALA blue | `#0C53C1` | `#6EB4FF` | Appropriate links/information and secondary identity |
-| Selection | `#B8D4B8` / `#0E4A0B` | `#35533E` / `#8DE698` | Selected surface / foreground |
-| Canvas | `#F4F4F5` | `#111114` | Application background |
-| Secondary surface | `#ECECEE` | `#1B1B20` | Opaque navigation chrome |
-| Task surface | `#FFFFFF` | `#242429` | Solid forms, tables, and task panels |
-| Primary ink | `#18181B` | `#FAFAFA` | Headings and body text |
-| Muted ink | `#52525C` | `#D4D4D8` | Secondary explanation and metadata |
-| Structural divider | `#D4D4D8` | `#52525C` | Quiet separation |
-| Inset field | `#FFFFFF` | `#1D1D20` | Editable-field background |
-| Control boundary | `#71717B` | `#9F9FA9` | Shared boundary anchor; native validation/focus shades remain |
-| Success | `#17451E` / `#DFEFDF` | `#A4E6B5` / `#274433` | Status foreground / background |
-| Warning | `#765311` / `#F4E7C9` | `#F4D598` / `#4B3D26` | Status foreground / background |
-| Danger | `#9C1437` / `#F6DCE3` | `#FFC0CC` / `#542D37` | Status foreground / background |
-| Destructive action | `#B4113F` / `#FFFFFF` | `#B4113F` / `#FFFFFF` | Destructive background / foreground |
-| Restrained gold | `#805B16` | `#EBCA90` | Supporting highlights, never a broad navigation stripe |
-
-These are semantic adaptation anchors, not a complete framework color ramp or a certification of every rendered state. Information uses supporting-blue foreground on a suitable neutral surface. Status meanings remain source-derived and text-backed. Primary actions and success indicators must remain distinguishable by component treatment and labels.
-
-Filament generates its native primary palette from `#2F7D3B` and retains native Zinc surfaces/borders, choosing shades and foregrounds for each component/state. Bootstrap uses the paired light/dark anchors through its existing variables and color modes. Do not force identical component pixels or replace every native shade with a single anchor; consistent identity and meaning, plus verified rendered contrast, govern cross-framework adaptation.
-
-Preserve native Light/Dark/System behavior and stored preferences. Filament panels and Auth Designer default to System; the public Bootstrap gateway retains its existing system-theme following. Do not build a second theme engine or reset stored user choices. Normal text meets 4.5:1; large text and applicable non-text indicators meet 3:1. Verify actual backgrounds, opacity, gradients, hover/focus/disabled states, and forced colors. A custom focus perimeter is at least 2 pixels with sufficient offset and contrast against adjacent colors. Status combines label, icon, and semantic context. Print remains independent and monochrome-capable.
-
-### Material layers
-
-`public/css/tala-foundation.css` owns shared values; DESIGN.md owns their composition. These roles apply across both frameworks; native Filament input/status/semantic state palettes remain intact. The October 9 layer refinement supersedes the earlier neutral canvas/chrome/task anchors rather than creating a conflicting second dark palette.
-
-| Foundation role | Light | Dark | Purpose |
-|---|---|---|---|
-| `--tala-surface-sunken` | `#F4F4F5` | `#16161A` | Inset standalone tab track |
-| `--tala-overlay` | `#FFFFFF` | `#303036` | Solid modal, menu and search baseline |
-| `--tala-chrome-divider` | `#D4D4D8` | white at 8% | Real navigation separator |
-| `--tala-edge` / strong | black-Zinc at 9% / 14% | white at 16% / 22% | Decorative grouping rings; control boundaries remain stronger |
-| `--tala-rim` | white at 85% | white at 13% | Restrained top edge |
-| `--tala-shadow-surface` | Soft three-part ambient shadow | Short dark ambient shadow | One elevation per content stack |
-| `--tala-shadow-overlay` | Stronger three-part shadow | Stronger dark two-part shadow | Floating layers |
-| `--tala-inset-well` | black-Zinc at 7% | black at 35% | Inset editable controls; native rings retained |
-
-Exact shadow values are extracted into `.impeccable/design.json` from the foundation. Floating user/action menus and page-search results use the solid `--tala-overlay` fill, existing edge/shadow cues and no backdrop blur in both appearances. The October9 owner refinement removes glass tokens, feature gates and the developer override. Forms, filter/column panels, modals, notifications and sidebar remain solid; native focus/contrast/forced-colors behavior remains. This presentation change affects no business policy.
-
-### Typography and layout guidance
-
-- Inter remains the interface family with system sans-serif fallbacks. Establish a readable task-led hierarchy through native framework typography, with weight and size chosen for each surface's content and use.
-- Keep text, labels and entered values readable at supported mobile sizes and zoom. Use at least 16-pixel mobile input text where needed to prevent platform focus zoom; this does not prescribe the whole page's body size.
-- Choose line height and prose measure for comfortable reading and distinguish headings, explanations and compact operational data. Wrapped labels and long values retain their meaning without overlap or clipping.
-- Amounts, changing counts, identifiers, dates, and times use tabular numerals. Text remains selectable, and meaningful truncation always has an expanded or detail view.
-
-### Layout and motion guidance
-
-- Group related facts and controls, separate distinct tasks, and preserve reading order as layouts reflow. Start from native framework spacing and component treatments, choosing task-led composition rather than universal dimension recipes.
-- Keep content and actions clear of device safe areas and viewport edges. Mobile controls remain reachable without clipping or overlap, with accessible touch targets.
-- Borders, surfaces and elevation communicate grouping, interaction and state. Preserve native component affordances and use stronger elevation for floating drawers, menus and dialogs.
-- Public navigation and the fixed footer strip use the approved progressive-blur layers without a uniform tint overlay, hard bottom border, or abrupt color cut. Mobile footer content reserves the full blur height plus the device safe area so no link is obscured.
-- Selected authenticated navigation uses filled surface, contrast, icon, and weight. It has no narrow yellow side strip.
-- Routine state changes use no decorative entrance animation. Retain native interaction timing unless a bounded, verified adjustment is justified; high-frequency feedback stays immediate or restrained. Theme changes remain immediate. Every transition preserves static cues, interruption recovery, and reduced-motion access; never use `transition: all`.
-- Native Heroicons Outline is the production interface icon family, matching the reference's visual weight through size and optical alignment. Authenticated workspaces use Filament's PHP `Heroicon` abstraction; the separately declared npm Heroicons package gains no independent responsibility. Active states use color/fill without requiring a separate asset. Lucide remains prototype-only; no new icon dependency is implied.
-- Qualification frames are 390×844 and 360×800 for learner mobile, 768×1024 for intermediate review, and 1366×768 for dense Staff work.
-
-### Brand-mark and print roles
-
-- Public and non-Applicant authentication surfaces identify the school as the service provider and TALA as secondary product attribution. Applicant account-entry pages identify the school and omit Powered by TALA. Their composition establishes distinct hierarchy for those roles and the current task. Supplied marks retain their full-color artwork; the TALA wordmark uses live text.
-- Authenticated shells have one compact school-identity area. Student and Staff retain separate readable workspace context and quiet Powered by TALA attribution in the sidebar footer or shell footer where the sidebar is unavailable. Applicant identity instead includes Servitech Institute Asia and the signed-in person's name, without Applicant Workspace or Powered by TALA. Page headings identify the task or person. DESIGN.md and the matching brief govern placement; preserve artwork, recognizable hierarchy, contrast and accessible names wherever marks are shown.
-- The favicon and install/app icon use the approved star-only artwork.
-- Official and institutional printable outputs lead with the approved institution crest and institution name. They do not use the mascot; a restrained **Generated through TALA** text footer may identify the product.
-- Choose screen mark sizes by legibility and school-first hierarchy in the actual surface. Reuse shared identity components across roles; render quiet attribution only on the surfaces where it remains permitted.
-- Preserve complete source artwork and original colors without stretching or recoloring. A non-distorting crest-symbol crop may support compact screen identity. Official outputs retain complete approved artwork and the existing 18 mm print floor, full color when available and qualified monochrome-safe rendering. Accessible-name requirements remain unchanged.
-- When adjacent visible text already identifies TALA or Servitech/SIA, the image is decorative and uses an empty text alternative. A standalone product or institution mark receives the matching accessible name. No interface uses the filename as alternative text.
-- Failure pages use system fallbacks and do not depend on Vite or Livewire. Failure pages and printable outputs do not depend on remotely loaded fonts or a decorative background to communicate identity or status.
-
-### Authenticated shell and interaction contract — October 2, 2026
-
-DESIGN.md and this Blueprint own branding, color, composition and recovery-animation choices. Laravel Boost and installed-version official Filament/Bootstrap documentation are primary implementation references; the official Filament demo supplies optional rendered examples of native behavior. `design-evidence/layout/` supplies supporting visual evidence. Use native Heroicons for production interface icons and the owning PRD for school capabilities and data.
-
-Use native Filament components and supported configuration first, then existing compatible extensions. Investigate a version-compatible plugin only for a demonstrated gap, with separate approval before adding a dependency. Focused custom UI remains appropriate for justified school workflows that native components cannot adequately present. No new plugin or paid theme is required for the inspected Applicant–Registrar journey. PRDs continue to own business behavior; framework convenience does not silently remove a required field, state, approval, safeguard, or output.
-
-The October 4 owner annotations extend shared compact identity, Account Security composition, account-menu naming, usable content width and tactile action/selection styling across Filament roles. Reuse common configuration and theme classes; keep authorization and field policy contextual. Green carries the primary action and selection; neutral controls and icon actions have visible boundaries in light and dark appearances. Navigation, status and disabled controls retain distinguishable meaning and native semantics. Task-led judgment and rendered evidence determine composition and dimensions.
-
-Registrar Admissions leads with the person, state, responsible party and next action. Full stable references remain accessible and copyable in record context. Current private evidence supports separate authenticated browser View and attachment Download through the same exact-version/path/permission boundary. Native breadcrumbs retain queue context. Cycle setup/detail explains availability, accepting scope, separate application/correction deadlines and publication blockers; PRD 02 owns every required field and transition. Acknowledgments lead with school issuer, applicant/program/submission facts and receipt meaning; source/version/history remain reachable and included in printing.
-
-**Shell states**
-
-- Use native expanded/compact desktop sidebar states with explicit keyboard/touch-operable collapse controls.
-- Use the native mobile menu trigger and drawer. Ordinary scrolling does not require automatic chrome hiding, repositioning, or a second navigation system.
-- Preserve entered values, the active task, useful focus, content continuity, and explicit collapse preferences through navigation and native state changes.
-- Keep workspace switching, account security, sign-out, and theme controls reachable through the native account/sidebar arrangement or supported extension points.
-- Preserve safe areas, readable content spacing, touch targets, and static current-location cues. The virtual keyboard must not obscure a focused control or required action.
-- Verify drawer focus containment, background protection, safe Escape dismissal, and focus return; preserve existing accessibility fixes until the native adaptation passes equivalent checks.
-- Retain every authorized canonical destination in stable order. The reference’s example menus do not introduce production destinations or change permissions.
-- Do not implement hover expansion, drag/keyboard resizing, scroll-driven shell movement, or mobile bottom navigation solely to reproduce archived prototype mechanics.
-- Define each search control’s purpose, scope, results, empty behavior, and authorization in the owning child. Reuse source-owned contextual search; do not create a global record-search service.
-- Reduced motion preserves every function through non-animated state changes or an accessible equivalent.
-
-**Information and action hierarchy**
-
-- Lead with the current task/state, responsible owner, relevant remarks or deadline, and one meaningful primary action.
-- Surface necessary evidence and permitted controls at the workflow step where they are used; progressively disclose secondary detail.
-- Missing information or interaction is assessed against product purpose and authority. It does not automatically authorize additional fields, data collection, persisted states, or approval steps.
-- Tables, labelled cards, inline sections, and dialogs are selected by task and information density, not by a universal template.
-
-**Navigation counts**
-
-- Show counts only for a defined, useful workload or state.
-- Use the role-authorized authoritative query and lead to a destination exposing the matching records and context.
-- Define scope and refresh behavior in the owning child. Navigation or a relevant completed action may refresh the projection; do not imply continuous monitoring.
-- Default to hiding zero badges. Unavailable or stale evidence must not be converted into a false zero.
-- Give the count an understandable accessible meaning. Do not introduce a separate notification or analytics subsystem merely to produce badges.
-
-**Feedback and motion**
-
-- Include loading, validation, empty, stale, failure, success, and inaccessible behavior in each affected slice.
-- Necessary transitions use native feedback and the existing motion safeguards, preserve static state cues, and respect reduced motion.
-- Native interaction feedback is implemented with each affected workflow. Additional motion polish follows verified functionality; decorative page-load choreography is not required.
-- Routine success notifications may auto-dismiss and provide an accessible close action. Errors or notifications containing an action remain until dismissed. Result changes receive appropriate announcements; table updates preserve useful keyboard position. Route/view changes provide meaningful orientation.
-- Dialogs preserve background protection, safe Escape behavior, and focus return. Recovery pages expose a truthful explanation and working recovery destination; the selected recovery-background effect follows the finite animation contract below.
-
-**Acceptance**
-
-- Verify native expanded/compact desktop states, the mobile menu/drawer, ordinary long-page scrolling, long labels/content, both appearances, reduced motion, keyboard/focus behavior, and 200% zoom.
-- Preserve theme preferences, authorization, private evidence access, and the accepted #56 sign-in/MFA behavior.
-- Screen-shell changes do not alter official-output or print contracts.
-- Adoption must prevent the documented prototype shortcut, naming, focus, announcement, misleading-status, and forced-colors failures. Qualify keyboard and screen-reader behavior, zoom/reflow, both appearances, interruption recovery, and supported viewport/action boundaries through the destination framework; prototype checks alone cannot establish application acceptance.
-
-### HTTP and session-recovery presentation — October 2, 2026
-
-- Adopt the selected experimental recovery-page composition independently of archived shell mechanics: one centered reading path, one plain-language H1, a short explanation, one context-safe primary recovery action, secondary actual HTTP code when applicable, school-first branding, and secondary Powered by TALA attribution. Preserve necessary support/account recovery access and readable institutional identity; specimen mark sizes do not override the existing artwork floors.
-- Preserve actual response codes and source-specific recovery, including existing 403/404/419/429/5xx behavior where applicable. Session expiry remains a recovery state. Authorized workspace resolution, verification-link recovery, sign-out confirmation, CSRF/MFA/permission protections, and private evidence access are unchanged. Do not import simulated prototype actions.
-- Unconfirmed mutation outcomes require checking the latest recorded state before resubmission. Reload/retry is permitted only when safe for the failed operation; it must not automatically replay a submission, decision, payment, or other mutation.
-- Preserve the selected soft state-aware background blooms and brief arrival behind stationary content. Finish the decorative animation within five seconds of page arrival and retain the settled background for the rest of that visit. Use an immediate static composition under reduced motion or unavailable scripting, and omit decoration in forced colors and print. Suspend active decoration while hidden/offscreen while preserving the original completion deadline. Keep recovery actions immediately available, input unobstructed, focus visible and content stationary throughout the effect.
-- Reuse the existing shared standalone error presentation; core explanation and safe recovery work without Vite, Livewire, JavaScript, remote fonts, or the prototype runtime. Retain usable native navigation for local page-level failure; use the minimal standalone fallback when the application shell cannot load.
-- Verify the actual response, authorized recovery destination, mutation-safe retry, keyboard/focus, 200% zoom/reflow, light/dark contrast throughout the animation, its five-second completion, settled state after page return, reduced-motion/forced-colors fallbacks, hidden/offscreen behavior, and missing-asset/script resilience when an affected child adopts the pattern. #57 covers recovery states reached by its Applicant–Registrar journey and proportionate shared-consumer regressions; other recovery states belong to their owning slices.
+Public arrival uses an academic school composition: a confident Servitech masthead, approved institutional artwork, a clear factual introduction and Explore programs lead. School photography/video is optional; the crest and authored static/ambient composition support the current direction without an additional media asset. Compact source-derived admission availability and effective school Announcements share one clearly labelled masthead card stack, with manual Previous/Next controls and position. Their sources remain independent. A visually composed Program catalog follows with authoritative name/duration/availability; FAQ and Visit/location complete discovery before directly reachable returning-applicant tracking. Keep compact source-derived admission availability/deadline, the Asia/Manila clock and one shared Sign in function. Native Home/Programs/conditional Announcements/Visit/FAQ anchors have an accurate current cue. Preserve the existing navbar backdrop, top/bottom blur strips and footer background while refining foreground composition, buttons, sign-in placement, responsive branding and footer grouping. Status tracking reaches the form directly without a redundant collapsible heading, retaining action/hash entry, visible validation/confirmation and entered values. Visitor copy explains useful actions and school facts, avoiding internal codes, versions, checked timestamps and system mechanics. Full Application references remain selectable and copyable; new grouped references improve readability while existing identifiers remain stable.
 
 Public arrival leads with school identity, a factual introduction and **Explore programs**, with concise Apply guidance and compact source-derived availability/deadline. Compact admission availability and effective PublicNotice Announcements share one clearly labelled masthead card stack with manual Previous/Next controls and position. Their sources remain independent. Announcement cards and their anchor appear only when notices are present or their source is unavailable. Announcements navigation reveals the notice card and accurately identifies the current destination. Programs follow the masthead and precede the returning-applicant form. School photography/video is optional and does not block this surface when factual identity, content and primary actions are complete. Approved video is muted and has a poster; authored CSS ambient motion uses a static composition fallback. Continuing movement has a visible pause/stop control and becomes static under reduced motion; school facts and primary native navigation, access and status-request actions remain usable without hero media or its scripting. Home, Programs, conditional Announcements, Visit and FAQ use native anchors with an accurate current-section cue. **Check application status** reaches the request form directly without a redundant collapsible heading; direct-hash entry, visible server validation/confirmation and retained entered fields remain supported. Preserve the navbar backdrop, top/bottom blur strips and footer background; button, label, alignment and active-cue refinements remain permitted. Visitors see useful school/admissions facts rather than internal cycle codes, versions, checked timestamps or implementation explanations. Configured nonblank address and a titled, lazy Google map embed of at least 200 pixels retain an external-link fallback. Support serves actual admissions, location, access, privacy and accessibility needs; privacy covers the reference/email tracking request as well as account journeys without invented bases or approvals. Apply and the shared Sign in function remain accessible. Tracking requests an Application reference and account email, explains private delivery and shows PRD 01's uniform confirmation. The emailed signed view exposes only current safe status, next step and published office support. Invalid/expired/ineligible access remains generic. School Programs, notices, FAQ, location and support retain factual source and failure states; public role-selection cards do not determine access. One Sign in denotes a shared entry function; the same action may repeat where useful.
 
-## Reusable Component Authority
+</details>
 
-Use the term **skeuomorphic Aqua-like buttons** for the shared control family across Filament and public Bootstrap. Actions, eligible icon actions (including the collapsed-sidebar “Find a workspace page” shortcut), account/public menu triggers and explicit action links use full upper highlight, lower-edge definition, modest elevation and a depressed press state. Sidebar navigation, native tabs/task navigation, theme selection and pagination use the shallower shared variant; the current choice remains seated/depressed. Ordinary text links, dropdown menu rows, input-affix/close icons, record expansion, sort headings, wizard steps, section toggles and reorder handles retain quiet native presentation. Native semantic colors and link/button/select semantics remain authoritative. Focus, selected, expanded, disabled and loading states remain recognizable in both themes and forced colors. Shared tokens and explicit selectors own repeated finishing rather than blanket clickable-element or per-page textures. DESIGN.md records material details and the approved light appearance; dark content remains solid with explicit layer separation and readable labels across gloss.
+<a id="clinic-2--application-admission-decision-and-enrollment-readiness-ui-authority"></a>
 
-Similar navigation and designs across roles reuse installed components and shared adapters. `x-tala-navigation` wraps native Filament tabs for custom view/task navigation; `x-filament::tabs.item` remains the shared item. Native resource tabs consume the same framework components directly. Preserve caller-owned labels, truthful summaries, exact contextual URLs, permissions and state. Term Planning pages use native cluster sub-navigation from the same framework family. Do not rebuild per-area visual/interaction variants or turn every repeated pattern into a new abstraction. Different intent—wizard progression, disclosure and a full ARIA tabs widget—retains its appropriate native/keyboard contract. Public Bootstrap uses its own native components and the same shared material tokens.
+## Application and admissions
 
-Filament tables share a truthful delayed table indicator through the supported content-before render hook and native loading targets, including read-only tables without a toolbar. Existing data, affected controls and the native request lifecycle remain intact; no artificial delay or deferred loading is introduced. Non-table data regions use equivalent scoped feedback only while actual work is pending. Application references reuse a labelled copy affordance with selectable complete text and success/failure feedback; native table copy controls remain suitable.
+Applicants submit/correct; Registrar reviews evidence, decides and confirms enrollment readiness.
 
-The implementation and any design artifact use these named component families and variants:
-
-| Family | Required variants and annotation |
-|---|---|
-| Shell | Public; authenticated native sidebar-only expanded/compact desktop and mobile menu/drawer with complete authorized navigation; Applicant, Student, and Staff contexts |
-| Navigation | Sidebar, mobile menu trigger/drawer, workspace switcher, account/theme controls, default/current/disabled item, and purpose-defined optional workload count |
-| Location | Breadcrumb, contextual Back link, browser/page-title example |
-| Page header | Title/context, one primary action, discoverable secondary actions, no-action/read-only variant |
-| Status and metadata | Status badge with icon/text; owner, source, version, as-of time, deadline, and immutable marker |
-| Guidance | Next-action banner, failed-first readiness list, safe explanation, and responsible-office path |
-| Workbench | Recognizable work groups, contextual search/filters, active scope/result count, current record state and discoverable actions, with usable narrow-screen transformation |
-| Form | Field group, visible label/help, required/optional state, upload/evidence preview, error summary, and Wizard stepper |
-| Read-only evidence | Infolist/summary, activity timeline, version history, and output-access evidence |
-| Scheduling | Weekly timetable plus equivalent accessible meeting table and result/failure summary |
-| Feedback | Alert, toast, empty, filtered-empty, loading, stale, inaccessible, unavailable, validation, and failed-action state |
-| Dialog | Named confirmation, consequence summary, exact confirm label, contained focus, Escape behavior where safe, and focus return |
-| Output | Authenticated screen summary and print-safe document frame |
-
-Each component contract records semantic role, accessible name, heading relationship, focus order, keyboard behavior, minimum 24×24 target, preferred 44×44 learner target, responsive transformation, error/status announcement, and any screen-reader-only text. Tabs require arrow-key movement; dialogs require initial and returned focus; failed form submissions require deliberate first-error or error-summary focus and field association. No action depends on drag, hover, color, motion, or a pointer.
-
-### Shared validation, conflict, evidence, and confirmation patterns
-
-**Validation summary.** On failed submission, focus the first visible invalid control in the submitted form, or its existing purposeful error summary with links to invalid fields. A stable polite summary can announce the correction without taking focus from that field. Each field retains its safe input, visible label, constraint, associated inline error and required/optional status; native custom Selects expose the same invalid/error association as inputs. State that nothing was recorded only when the guarded operation establishes that outcome. Clear shared error attributes and summary text when the error disappears, preserving unrelated authored descriptions. Cross-record errors name the authoritative source and responsible owner rather than inventing a local override. Ordinary status updates preserve useful keyboard position.
-
-**Stale or concurrent conflict.** A stale mutation closes any success/loading state, announces **Nothing changed — newer information is available**, names the changed source/version and as-of time, preserves safe uncommitted text where possible, and offers **Review latest information**. Academic, financial, security, publication, enrollment, and output facts are never silently merged.
-
-**Private evidence.** Upload controls accept one PDF, JPEG, or PNG up to 10 MiB per evidence version, state that access is restricted, show upload/scan/validation progress without implying acceptance, and distinguish replace from delete. After authoritative use, replacement creates a successor and no delete action appears. Preview and download require purpose-scoped authorization and access evidence.
-
-**Authority metadata.** Every consequential detail and confirmation shows its owner and source/reference; it also shows the effective version/date, as-of time, and immutable/superseded state whenever those facts exist for the record. Missing authority states what remains usable, why the action is unavailable, responsible office, and exact reopening condition.
-
-**Critical-action confirmation.** A labelled native modal contains the record/version, actor/authority, exact resulting state, affected roles/records/emails/outputs, reversibility or successor requirement, required reason/authority fields and an exact button label. Structured previews and forms use the [WAI-ARIA modal-dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/); brief important interruptions use its [alert-dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/). Initial focus goes to the heading or first invalid required field, focus remains contained, safe Escape/cancel is available and focus returns to the trigger. Failure records no institutional mutation and announces whether input was retained.
-
-**Source-owned restriction and setup pattern.** Baseline Sections 3.2 and 3.7 and the owning PRD define the actual blocked action and condition. An authorized user sees the unavailable action with persistent safe reason, missing/current source, responsible office and exact remedy; a source link is shown only when authorized. Meaningful Draft setup and independent work remain available. Do not substitute hidden buttons, hover-only explanations, a general hold editor or model/schema labels for this contract. External Academic Head decisions are recorded by Registrar; read-only oversight gains no mutation permission. Internal reasons stay private, and request-specific financial clearance remains distinct from academic/administrative decisions. The server rechecks the same source and authorization before mutation.
-
-| Owning area | Material actions covered | Primary/secondary placement and exact consequence | Shared state and responsive behavior |
-|---|---|---|---|
-| PRD 01 | Change email/password/MFA; invite/resend Staff; role change; disable/reactivate; MFA reset; publish/unpublish content | One current security/access/publication action is primary on its detail page; alternatives remain discoverable. Confirmation names sessions, workspaces, public visibility, invalidated links/codes, and email effects | Rate-limit, expired-token, duplicate-safe, final-admin, stale, mail-failed, and inaccessible variants; mobile uses one-column forms and full-width learner actions |
-| PRD 02 | Submit/discard/withdraw/reopen Application; request/resubmit correction; publish/extend/close/cancel Cycle; decide/supersede; record/supersede Registrar enrollment clearance | Applicant page owns submit/withdraw; Applicant Record owns review/decision; Cycle detail owns public and correction boundaries/publication. Confirmation names snapshot, deadline, reopened fields, readiness, Applicant message, and no Student creation | Wizard preserves safe steps; public close and correction boundary remain distinct; overdue active correction remains action-needed; identity duplicate remains non-disclosing; evidence/upload, stale Cycle, filtered-empty queue, and mail failure use shared variants |
-| PRD 03 | Activate/retire academic authority; confirm/cancel offering; generate/retry; locally adjust/find minimal repair; accept/reject candidate; publish/revise timetable | Setup/detail pages own activation; Generate & Review owns run/candidate actions and full change preview; Published Timetable owns publication. Confirmation names source snapshot, affected classes/roles, quality/impact, email, and immutable output | Dense Staff tables transform to labelled cards where practical; timetable has accessible table alternative; local invalidity changes nothing; repair never moves another meeting silently; failure states stay distinct |
-| PRD 04 | Confirm/assist/cancel proposal; reopen terminal case; finalize enrollment; adjust; Course Drop | Learner Enrollment owns confirmation; Registrar selected Case owns assisted/cancel/reopen/finalize/change actions. Confirmation lists courses, units, meetings, capacity, finance readiness, Student activation, rosters, COR, and Accounting review | Mobile learner shows checkpoints then one next action; terminal reopen retains the same case and restores no prior checkpoint; shortage, expiry, stale source, unavailable assessment, failed atomic finalization, and inaccessible variants state whether anything changed |
-| PRD 05 | Submit/return/release roster; INC completion/deadline amendment; correction; external result; lifecycle/academic decision; graduation/conferral; TOR issue/void/replace | Faculty roster owns submit; Grades & Completion owns release/corrections/decisions; TOR detail owns outputs. Confirmation names rows/result effects, averages/curriculum/enrollment, deadlines, lifecycle, template/source, and successor history | No partial roster/average/output state; every INC has `CompletionOpen` or `CompletionOverdue` until resolved and never auto-converts; an overdue unextended INC remains no-credit with a retake path; factual advising replaces automatic sanctions; mobile Student is read-mostly |
-| PRD 06 | Publish/supersede Fee Plan; record assessment/coverage/payment; reject/reverse; TOR clearance; export | Fee Plan detail and Student Account detail own mutations; exception/clearance tabs own resolution; exports remain contextual. Payment confirmation names exact PHP amount and each current-Assessment obligation effect; other confirmations name account/Assessment, remaining requirement, email/output, and append-only effect | Amounts use tabular numerals; private proof is purpose-scoped; no unassigned/cross-Term posting; pending/mismatch/duplicate/stale/unknown/output-failure variants never imply posting, health, refund, or tax-document authority |
-
-Routine save, search, filter, pagination, tab selection, read-only projection, preview, and calculation actions never receive a redundant confirmation. All material actions use the owning PRD's authorization, validation, retry/deadline, idempotency, and audit contract in addition to this presentation mapping.
-
-## Canonical UI Surface Coverage Inventory
-
-The inventory uses the columns below. `J1`–`J7` refer to the seven representative journeys in the next section; `Support` is a reachable supporting capability rather than a separate end-to-end journey. The count is not authoritative and may change when redundant presentation surfaces are consolidated or missing coverage is identified. Consolidation must not hide ownership, permissions, source evidence, actions, failures, responsive behavior, or accessibility, and must not recreate a generic dashboard.
-
-| Coverage ID | Role/workspace | User-visible surface | Parent entry | Component disposition | Source PRD | Authoritative source | Primary action | Output | Required state/correction coverage | Responsive/print requirement | Acceptance journey |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| `SHR-001` | Public | Public Gateway | Direct URL | `FocusedTALACustom` | PRD 01 | Published public content, active Programs, current Admission Cycle, and configured institution/map/media projection | Start application or sign in | — | Closed/unavailable entry retains safe guidance; unavailable media/map has a factual fallback | 390, 360, 768, 1366 | J1 |
-| `SHR-002` | Shared identity | Registration and unified sign-in | Gateway or owning journey | `NativeFilament` | PRD 01 | Person, account, verification state | Register or sign in | Verification request | Duplicate identity, invalid credentials, rate limit | 390, 360 | J1 |
-| `SHR-003` | Shared identity | Verification, recovery, reset, and MFA | Secure message or sign-in | `NativeFilament` | PRD 01 | Verification/recovery challenge | Verify or recover access | Security notice | Expired, consumed, invalid, or failed challenge | 390, 360 | J1 |
-| `SHR-004` | Multi-role Staff | Workspace chooser | Successful sign-in | `NativeFilament` | PRD 01 | Current role assignments | Enter selected workspace | — | Zero authorized context or stale assignment | 390, 1366 | J1 |
-| `SHR-005` | Authenticated | Account Security | Top bar account menu | `NativeFilament` | PRD 01 | Account security state | Update password or MFA | Security notice | Reauthentication or MFA failure | 390, 1366 | Support |
-| `SHR-006` | Shared | Access and service failure | Any protected route | `FocusedTALACustom` | Baseline | Authorization and locally known service state | Return to authorized entry | — | Inaccessible, expired session, limited, unavailable | 390, 1366 | J1 |
-| `APP-001` | Applicant | Applicant Home | Applicant fixed entry | `NativeFilament` | PRD 02 | Application and readiness projection | Continue current next action | — | No open cycle, correction required, withdrawn | 390, 360 | J2 |
-| `APP-002` | Applicant | Five-step Application Wizard | Applicant Home | `NativeFilament` | PRD 02 | Application draft/version | Save and continue or submit | Submitted snapshot | Validation, stale draft, failed submission | 390, 360 | J2 |
-| `APP-003` | Applicant | Requirements | Applicant Home or Wizard | `NativeFilament` | PRD 02 | Published Requirement Set and evidence | Submit or replace evidence | — | Missing, rejected, superseded, inaccessible evidence | 390, 360 | J2 |
-| `APP-004` | Applicant | Application acknowledgment | Applicant Home | `FocusedTALACustom` | PRD 02 | Submitted Application version and its immutable Requirement Set version | Download acknowledgment | Application Acknowledgment | Superseded snapshot remains labelled; generation failure creates no artifact | 390, print | J2 |
-| `STU-001` | Student | Student Home | Student fixed entry | `NativeFilament` | Baseline | Source-owned Enrollment, Academics, Finance, and Examination Period projections | Open highest-priority safe action | — | Stale or unavailable source remains labelled; no inferred examination date | 390, 360, 768 | J3/J4/J5/J6 |
-| `STU-002` | Student | Enrollment | Student Home | `NativeFilament` | PRD 04 | Registration Case, proposal, placement, readiness | Confirm or resolve current checkpoint | Current COR link | No proposal/class/assessment, expired reservation | 390, 360 | J4 |
-| `STU-003` | Student | Academics | Student Home | `NativeFilament` | PRD 03/05 | Released results, external competency results, academic projections, and Examination Period | Open result or correction guidance | Unofficial academic record | Grades not complete; INC completion open/overdue/amended/resolved; external result not recorded; unavailable examination period | 390, 360, 768 | J3/J5 |
-| `STU-004` | Student/alumni | Finance | Student Home | `NativeFilament` | PRD 06 | Term Account and current projection | Pay exact due or submit evidence | SOA, Payment Acknowledgment | Pending/mismatch/stale source; alumni read-only | 390, 360, 768 | J6 |
-| `STU-005` | Student | Profile | Student Home | `NativeFilament` | PRD 04 projection | Official identity/program/curriculum/contact facts | Follow correction guidance | — | Missing/stale source; no direct official edit | 390, 360 | Support |
-| `STU-006` | Student | Current and historical COR | Enrollment | `FocusedTALACustom` | PRD 04 | Immutable COR versions | Open or print selected version | COR | Superseded version or generation failure | 390, print | J4 |
-| `REG-A01` | Registrar | Admissions | Registrar fixed entry | `NativeFilament` | PRD 02 | Applications and action queue | Open next application | — | Initial/filtered empty, stale queue | 1366 | J2 |
-| `REG-A02` | Registrar | Applicant Record | Admissions | `NativeFilament` | PRD 02 | Application/evidence/decision history | Request correction or record decision | Decision/current Registrar clearance | Unauthorized, stale, superseding decision | 1366, 768 read-only | J2 |
-| `REG-A03` | Registrar | Admission Cycles and readiness | Admissions | `NativeFilament` | PRD 02 | Admission Cycle public and correction boundaries and Requirement Set | Publish or extend valid cycle boundary | — | Failed readiness, invalid boundary, or competing publication | 1366 | J2 |
-| `REG-C01` | Registrar | Catalog & Curricula | Registrar navigation | `FocusedTALACustom` | PRD 03 | Program, Course Revision, Curriculum Version, external competency requirement | Preview/import Draft authority or activate valid successor | Import findings CSV | File/header/row/authority/readiness blocker; no inferred completion treatment | 1366 | J3 |
-| `REG-T01` | Registrar | Term Planning Overview & Calendar | Registrar navigation | `NativeFilament` | PRD 03 | Term Calendar Package, Examination Period, and planning readiness | Open first failed checkpoint | — | Missing/stale calendar authority; examination period unavailable | 1366 | J3 |
-| `REG-T02` | Registrar | Sections & classes | Term Planning | `NativeFilament` | PRD 03 | Term Cohort and Class Offering | Add or correct offering | — | Missing Additional-offering authority | 1366 | J3 |
-| `REG-T03` | Registrar | Faculty & rooms | Term Planning | `NativeFilament` | PRD 03 | Faculty, room, availability, meeting pattern | Resolve resource blocker | — | Missing/incompatible resource | 1366 | J3 |
-| `REG-T04` | Registrar | Timetable - draft review | Term Planning | `FocusedTALACustom` | PRD 03 | Solver request/result and candidate | Generate or validate candidate | Candidate evidence | Infeasible, Unknown, ModelInvalid, TechnicalFailure | 1366 | J3 |
-| `REG-T05` | Registrar | Candidate correction | Timetable | `NativeFilament` | PRD 03 | Candidate meeting version and whole-Term source candidate | Apply one-meeting adjustment or accept explicit minimal repair | Revalidated immutable candidate successor | Invalid replacement, rejected repair, or stale candidate | 1366 | J3 |
-| `REG-T06` | Registrar | Timetable - official versions and revision | Term Planning | `FocusedTALACustom` | PRD 03 | Published Timetable Version | Publish or record affected revision | Published Timetable | Failed impact/readiness, stale publication, or visibly superseded output | 1366, 768 read-only, A4 landscape print | J3 |
-| `REG-E01` | Registrar | Students & Enrollment | Registrar navigation | `NativeFilament` | PRD 04 | Registration Cases, readiness queues, and Ready Applicants | Open next actionable case, Start registration for Ready Applicant | — | Empty/stale/action unavailable | 1366 | J4 |
-| `REG-E02` | Registrar | Enrollment case and proposal | Students & Enrollment | `NativeFilament` | PRD 04 | Registration Case, terminal/reopen history, and proposal versions | Reopen, prepare/revise, or finalize valid case | Reopened same case or Enrollment/COR result | Missing reopen authority, failed prerequisite, placement, assessment, or clearance | 1366 | J4 |
-| `REG-E03` | Registrar | Shortage and timetable-impact context | Students & Enrollment | `NativeFilament` | PRD 04 | Placement/reservation and timetable impact | Resolve affected case | Updated learner projection | No valid class or expired reservation | 1366 | J4 |
-| `REG-E04` | Registrar | Adjustment and Course Drop | Enrollment case | `NativeFilament` | PRD 04 | Authorized change and successor versions | Apply authorized change | Successor COR when applicable | Additional clearance or Accounting review pending | 1366 | J4 |
-| `REG-G01` | Registrar | Grades & Completion | Registrar navigation | `NativeFilament` | PRD 05 | Roster/grading-teacher assignment, release/progress/completion queues | Open next actionable record | — | Empty/stale/unauthorized action | 1366 | J5 |
-| `REG-G02` | Registrar | Grade release, INC, and correction detail | Grades & Completion | `NativeFilament` | PRD 05 | Final result, deadline/amendment, and correction chain | Release open completion, amend deadline, show retake guidance, or supersede result | Released result | Completion overdue, deadline/result race, stale result | 1366, 768 read-only | J5 |
-| `REG-G03` | Registrar | Progress and lifecycle detail | Grades & Completion | `NativeFilament` | PRD 05 | Curriculum progress and lifecycle result | Record authorized decision | Updated projection | Missing source or consequential pending state | 1366 | J5 |
-| `REG-G04` | Registrar | Completion and conferral | Grades & Completion | `NativeFilament` | PRD 05 | Completion review and conferral record | Confirm authorized completion outcome | Completion result | Missing requirement or authority | 1366 | J5 |
-| `REG-G05` | Registrar | TOR preview and issuance history | Grades & Completion | `FocusedTALACustom` | PRD 05/06 | Transcript snapshot, TALA Standard TOR version, signatory data, clearance | Preview or issue | Issued TOR | Missing source/signatory/clearance; generation failure; void/replacement/supersession | 1366, print | J5 |
-| `REG-G06` | Registrar | Verified external competency result | Grades & Completion | `NativeFilament` | PRD 03/05 | Active external requirement and external assessment/certification evidence | Record verified result | Updated curriculum evaluation | Missing/stale requirement or evidence; successor preserves prior attempt | 1366, 768 read-only | J5 |
-| `ACC-001` | Accounting | Fee Plans | Accounting fixed entry | `NativeFilament` | PRD 06 | Fee Plan versions | Create draft or publish valid plan | — | Incomplete/reconciled/competing publication blocker | 1366 | J6 |
-| `ACC-002` | Accounting | Fee Plan detail | Fee Plans | `NativeFilament` | PRD 06 | Selected Fee Plan version | Save draft or publish | Published immutable version | Stale or failed readiness | 1366 | J6 |
-| `ACC-003` | Accounting | Student Accounts tabs | Accounting navigation | `NativeFilament` | PRD 06 | Account, exception, and TOR-clearance queues | Open next actionable record or export current context | Account Status CSV; Verified Payments CSV from selected account context | Empty/stale/filter/export failure | 1366 | J4/J6 |
-| `ACC-004` | Accounting | Student Account detail | Student Accounts | `NativeFilament` | PRD 06 | Term Account, Assessment obligations, Coverage, obligation-keyed postings | Record authorized account action | SOA | Assessment unavailable/stale; excess/unassigned or failed posting | 1366 | J4/J6 |
-| `ACC-005` | Accounting | Authorized individual assessment | Account detail | `NativeFilament` | PRD 06 | Registration/change version and Accounting authority | Record exact assessment | Successor AssessmentVersion | Unauthorized, unreconciled, or stale source | 1366 | J4 |
-| `ACC-006` | Accounting | Approved Coverage action | Account detail | `NativeFilament` | PRD 06 | Coverage authority and current obligation | Record valid coverage | Updated clearance projection | Excess, conflict, stale, unsupported authority | 1366 | J4 |
-| `ACC-007` | Accounting | Payment Exception | Student Accounts | `NativeFilament` | PRD 06 | Evidence/attempt exception and named target obligations | Preview and verify actual obligation application or reject safely | Obligation-keyed payment result when verified | Excess target, mismatch, duplicate, reversal, no posting | 1366 | J6 |
-| `ACC-008` | Accounting | TOR Clearance | Student Accounts | `NativeFilament` | PRD 06 | Request-specific clearance projection | Record Cleared or NotRequired basis | Clearance result | ActionNeeded or invalid authority | 1366 | J5 |
-| `FAC-001` | Faculty | My Availability | My Schedule internal task and role-scoped search | `NativeFilament` | PRD 03 | Availability declaration | Submit declaration | — | Missing term request, stale assignment | 1366, 768 | J3 |
-| `FAC-002` | Faculty | My Schedule | Faculty fixed entry and navigation | `NativeFilament` | PRD 03 | Published Timetable and informational Examination Period projections | Review current/revised schedule | Faculty schedule | Affected revision, unavailable publication, or unavailable examination period | 1366, 768 | J3 |
-| `FAC-003` | Faculty | Grade Rosters and detail | Faculty navigation | `NativeFilament` | PRD 04/05 | Current official roster and submitted result version | Submit results or use a contextual roster action | Submission result; current Class Roster print/CSV | Empty/incomplete/returned/stale roster; export failure; INC completion open/overdue | 1366, 768, A4 landscape operational print | J5 |
-| `AHD-001` | Academic Head | Academic Oversight | Academic Head fixed entry | `NativeFilament` | PRD 03–05 projections | Source-owned calendar, external competency, and attention evidence | Open read-only source drill-in | — | No item, stale/missing source, no mutation | 1366, 768 | J3/J5 |
-| `SYS-001` | System Administrator | Users & Access and account detail | System Administrator fixed entry | `NativeFilament` | PRD 01 | Accounts, roles, invitations, MFA state | Invite or apply authorized account action | Security notice | Final-administrator protection, invitation/MFA failure | 1366 | J1 |
-| `SYS-002` | System Administrator | Public Content | System Administrator navigation | `NativeFilament` | PRD 01 | Versioned public content | Publish valid content | Public projection | Stale/scheduled/failed publication | 1366 | J1 |
-| `SYS-003` | System Administrator | System Health | System Administrator navigation | `NativeFilament` | PRD 06/Architecture | Locally recorded service evidence | Refresh local evidence | — | Available/action needed/unavailable/not recently checked, with source, as-of time, owner, and safe next action | 1366, 768 | J7 |
-| `SYS-004` | System Administrator | Governance & Audit | System Administrator navigation | `NativeFilament` | PRD 06/Architecture | Institutional changes, events, output access | Filter or inspect evidence | — | Inaccessible evidence; plain-language retention boundary with technical detail on disclosure | 1366, 768 | J7 |
-| `OUT-001` | Applicant | Application Acknowledgment print | Application acknowledgment | `FocusedTALACustom` | PRD 02 | Submitted Application version and its immutable Requirement Set version | Print/save | Application Acknowledgment | Superseded or generation failure | A4 portrait print | J2 |
-| `OUT-002` | Authenticated roles | Published Timetable print | Published Timetable | `FocusedTALACustom` | PRD 03 | Published Timetable Version | Print/save | Published Timetable | Superseded/unavailable version | A4 landscape print | J3 |
-| `OUT-003` | Student/Registrar | COR print/history | Enrollment or case | `FocusedTALACustom` | PRD 04 | COR Version | Print/save | COR | Superseded version or generation failure | A4 portrait print | J4 |
-| `OUT-004` | Student | Unofficial academic record | Academics | `FocusedTALACustom` | PRD 05 | Released academic-record projection as of generation | Print/save | Unofficial Student Record | Incomplete/stale source or generation failure | A4 portrait print | J5 |
-| `OUT-005` | Registrar | TALA Standard TOR | TOR preview/history | `FocusedTALACustom` | PRD 05 | Transcript snapshot, template version, and issuance state | Preview, issue, or print authorized state | TOR | Preview/issued/voided/replaced/superseded/generation failure | A4 portrait print | J5 |
-| `OUT-006` | Student/Accounting | Account Statement/SOA | Finance or Account detail | `FocusedTALACustom` | PRD 06 | Term Account as-of projection | Generate/print | SOA | Stale source or no partial artifact | A4 portrait print | J6 |
-| `OUT-007` | Student/Accounting | Payment Acknowledgment | Finance or Account detail | `FocusedTALACustom` | PRD 06 | Verified payment posting | Open/print | Payment Acknowledgment | Reversed/superseded/generation failure | A4 portrait print | J6 |
-
-Routine empty, loading, and validation states use shared patterns instead of separate coverage entries. A dedicated entry is required only when a state changes meaning, permitted action, cross-role outcome, or official-output status.
-
-### Implementation organization freedom
-
-The implementation may combine related coverage entries in one source-owned workbench, tab set, contextual detail, dialog, or output route. Names must remain semantic and role-owned. Consolidation cannot remove a canonical navigation destination, hide a required state/action, or turn unrelated responsibilities into a generic dashboard, Reports, Settings, Approvals, or Readiness Center.
-
-## Representative Journey and Acceptance Contract
-
-The UI authority requires every primary destination to remain reachable and defines these seven end-to-end journeys for design review and later browser acceptance:
-
-1. Public entry → registration/verification → sign-in → role selection → authorized entry or inaccessible recovery.
-2. Application → submission/correction → decision → Registrar clearance → Ready for Enrollment.
-3. Academic and curriculum authority, including a tracked-only external-competency requirement → calendar readiness and role-consistent Examination Period/unavailable state → timetable generation failure/correction → valid candidate → publication/revision.
-4. Registration → proposal/placement → assessment/coverage/payment → official enrollment → Student activation → COR.
-5. Grade submission/return/release → partial-term and INC completion-open/overdue/amendment/resolution branches → verified external competency `NotYetCompetent`/successor `Competent`/tracked-only absence → correction → completion → TALA Standard TOR issuance.
-6. Fee Plan or exact assessment → evidence/PayMongo pending/mismatch → verified posting → SOA/acknowledgment → reversal.
-7. System Health local evidence/Unknown state → Governance & Audit output access and the explicit no-automatic-disposal boundary.
-
-Each journey identifies the starting persona and preconditions, authoritative source/version, action, visible evidence, one failure, correction path, cross-role result, output, and pass condition. It uses only canonical synthetic records and `example.test` identities. A design artifact may assist review but is never a product or implementation gate.
-
-### Student Home — shared projection
-
-Student Home is a source-owned priority-status page, not a card dashboard or global-hold summary. It shows, in order: Student identity and current term; the single highest-priority safe action; current Enrollment, Academics, and Finance summaries with source owner/as-of time; the approved informational Examination Period when available; upcoming accepted deadline or obligation; and contextual links. It never merges domain state or invents a universal learner status. Exact class examination arrangements remain Faculty-owned and are never inferred from class meetings.
-
-
-If no action is needed, the page says so for the selected term and retains the three source summaries. Loading preserves headings. A stale source is labelled and cannot offer its mutation action. An inaccessible source reveals neither record existence nor detail.
-
-### Student Profile — shared official identity projection
-
-Profile is read-only. It shows legal name, Student number, program, assigned Curriculum Version, entry/admission reference, lifecycle projection, approved contact facts, source/last correction, and plain correction guidance. Email/password/MFA changes link to Clinic 1 Account Security. Students cannot directly edit official identity, program, curriculum, entry, lifecycle, enrollment, grade, or finance facts.
-
-
-Registrar reaches the same source from Students & Enrollment and receives a focused **Record authorized correction** action with reason, authority/evidence, effective time, impact preview, and named confirmation. A successful correction updates future projections but never rewrites an issued COR/TOR snapshot.
-
-### Academic Oversight — shared read-only projection
-
-Academic Oversight is the Academic Head's role-specific evidence dashboard. It leads with a compact Academic Year/Term scope, source-owned findings requiring inspection, and four purposeful domains: Academic Authority, Term Planning, Grades & Progress, and Lifecycle & Completion. Academic Authority identifies its institution-wide Program/curriculum scope; Term Planning retains one exact Term. Other record lists state their own filters rather than silently inheriting the Term. Relevant current states take priority over a repeated launch-card directory or the Registrar's preparation sequence.
-
-Findings identify the responsible office and link to the exact inspectable source. Domain destinations remain discoverable when no finding exists. Calendar and official/candidate timetable states stay distinct; the informational Examination Period is concise within Term Planning, with authority, source/version, owner and as-of evidence accessible through disclosure. Read-only drill-ins provide a contextual return preserving the selected Term and normal browser navigation. Academic Authority consolidates catalog and readiness access. Grade rosters and Student academic records expose released results and progress evidence; lifecycle and completion retain their source-owned evidence boundaries. External-competency requirements/results grant no assessment or certification power. No fabricated metric, universal all-clear, approval queue, escalation action, scheduling or academic-record mutation is introduced.
-
-
-Empty means no source-owned item needs oversight under the current filters; it does not imply that records do not exist. Missing or stale sources are named as unavailable and never converted into a manually checked readiness result.
-
-## Clinic 2 — Application, Admission Decision, and Enrollment Readiness UI Authority
+<details>
+<summary>Page, source, action, state, output and responsive/recovery contract</summary>
 
 **Status:** Approved on 2026-08-06.
 
@@ -634,7 +486,7 @@ The Public Gateway and Applicant panel read the derived state of a published `Ad
 
 Home leads with a plain-language current situation, the permitted next step or waiting condition, responsible office and relevant deadline. A compact context line retains the application reference, cycle, program/path and submission facts. Preliminary review, admission and current Registrar clearance remain distinct concise source facts. One explanation states what happens next; historical applications, acknowledgments and technical evidence remain reachable after current work. The matching brief selects grouping and responsive composition. Empty, loading, error, inaccessible, and stale-action states identify what happened and the safe next action.
 
-The five-step Wizard starts with **Let's get your application started.** and understandable cycle/program choices (Issue #59 F67/D4). Applicant and Registrar admissions surfaces use **Student type**, **Freshman** and **Transferee**, preserving stored paths and submitted snapshots (F68/D1). Completed steps stay reachable and marked done after going back, including direct return to the step previously being worked on; uncompleted steps stay locked and advancement still validates and saves (F69). Correction scope and read-only inspection remain protected. October 4 owner steering replaces the separate Save draft toolbar with a primary native **Save and continue** action: validate the current step, persist Draft progress, then advance only after saving succeeds. Native **Application options** provides **Save and exit** for a partial draft. **Discard draft** is a directly visible secondary danger action on Applicant Home and the draft form, with confirmation describing removal of the unsubmitted record and temporary uploads; it is not hidden in an overflow menu. Native Home breadcrumbs provide task navigation without a separate return row. The Wizard exposes step-level validation, a server-side closing-time recheck, an accessible error summary with field associations, and a single-column mobile layout. It collects only PRD 02's approved application, identity/contact, prior-education, declaration, and preliminary-evidence fields. One guardian name/relationship/telephone group is required below 18; an adult may optionally provide one contact. Required/optional address components, optional sex/civil status and explicit LRN availability follow PRD 02. The optional identity group shows its record-comparison purpose and specific unchecked consent before enabling its editable values. Consent precedes transmission or Draft saving of either value; an unchecked group sends neither. Clearing the choice before submission clears current Draft values through the existing save action and preserves earlier submitted history. Declining keeps the ordinary application path available. The privacy-notice acknowledgement explains presentation of the notice and never labels itself blanket consent. Plain Personal Information, Contact, Address and Educational Background labels replace internal schema terms. No modality, preferred time, extensive family data or speculative reporting demographics are collected.
+The five-step Wizard starts with **Let's get your application started.** and understandable cycle/program choices. Applicant and Registrar admissions surfaces use **Student type**, **Freshman** and **Transferee**, preserving stored paths and submitted snapshots (F68/D1). Completed steps stay reachable and marked done after going back, including direct return to the step previously being worked on; uncompleted steps stay locked and advancement still validates and saves (F69). Correction scope and read-only inspection remain protected. Draft progression uses a primary native **Save and continue** action: validate the current step, persist Draft progress, then advance only after saving succeeds. Native **Application options** provides **Save and exit** for a partial draft. **Discard draft** is a directly visible secondary danger action on Applicant Home and the draft form, with confirmation describing removal of the unsubmitted record and temporary uploads; it is not hidden in an overflow menu. Native Home breadcrumbs provide task navigation without a separate return row. The Wizard exposes step-level validation, a server-side closing-time recheck, an accessible error summary with field associations, and a single-column mobile layout. It collects only PRD 02's approved application, identity/contact, prior-education, declaration, and preliminary-evidence fields. One guardian name/relationship/telephone group is required below 18; an adult may optionally provide one contact. Required/optional address components, optional sex/civil status and explicit LRN availability follow PRD 02. The optional identity group shows its record-comparison purpose and specific unchecked consent before enabling its editable values. Consent precedes transmission or Draft saving of either value; an unchecked group sends neither. Clearing the choice before submission clears current Draft values through the existing save action and preserves earlier submitted history. Declining keeps the ordinary application path available. The privacy-notice acknowledgement explains presentation of the notice and never labels itself blanket consent. Plain Personal Information, Contact, Address and Educational Background labels replace internal schema terms. No modality, preferred time, extensive family data or speculative reporting demographics are collected.
 
 Requirements renders the immutable requirement-set version attached to the application. Show the selected preliminary uploads in a native review table and one separate Registrar clearance summary/Action. Digital rows show purpose, current review/version, instruction/deadline and the permitted action. The clearance shows safe result, recorder/time and the next instruction. Paper documents use one source-backed path instruction, not a physical-processing table. Preliminary acceptance is never labelled simply **Accepted** or presented as admission/clearance. No extra paper scan is requested merely to record clearance.
 
@@ -698,7 +550,20 @@ Applicant sees only their safe projection. Registrar owns personal review and de
 
 On mobile, the Wizard remains single-column, table rows collapse secondary fields into labelled detail, filters use the native panel, and row actions remain discoverable. All states require visible focus, labelled controls, screen-reader status text, and interaction that does not rely on color or pointer use.
 
-## Clinic 3 — Academic Setup, Offerings, and Published Timetable UI Authority
+### Working-state refinements
+
+Cycle overview pairs compact intake context with explicit application dates, separating public closing from the boundary for new correction requests. Blocked publication findings lead; programs/paths, guidance and accountable setup facts follow, with history secondary and native requirement-set relation navigation. Applicant surfaces cover conditional correction, consent, identity, evidence and recovery states as well as the default page.
+
+</details>
+
+<a id="clinic-3--academic-setup-offerings-and-published-timetable-ui-authority"></a>
+
+## Academic preparation and Term Planning
+
+Registrar prepares exact-Term sources, reviews a candidate and publishes; Head inspects read-only evidence; Faculty supplies availability and uses its own official schedule.
+
+<details>
+<summary>Page, source, action, state, output and responsive/recovery contract</summary>
 
 **Status:** Approved on 2026-08-06.
 
@@ -825,7 +690,56 @@ Composition follows DESIGN.md and the matching brief, using framework research a
 
 Email is limited to the Faculty availability action request, first publication to assigned Faculty, and one shared published-revision event. Clinic 3 owns the revision trigger and affected Faculty; Clinic 4 supplies affected officially enrolled Students and their updated schedule/COR context. Examination Period visibility and external-competency requirement changes create no email. Routine saves, readiness checks, generation, failure, and candidate correction use in-workspace feedback only.
 
-## Clinic 4 — Current-Term Registration, Official Enrollment, Student Activation, Adjustment, and Course Drop UI Authority
+### Term Planning: working-state contract
+
+The following consolidates the shared Term/Faculty refinements within this journey. PRD 03/05 retain behavior; shared appearance follows DESIGN.md.
+
+#### Exact-Term context and working records
+
+- Registrar and read-only Academic Head retain Overview, Calendar, Sections & classes, Faculty & rooms and Timetable, including reached records, history and outputs. A native readable Term selector precedes task navigation and actual records. Term identity appears once; breadcrumb/sidebar/URL ancestry and Back preserve the originating exact Term, task, local view and criteria. Academic Head receives no editing, preparation or institutional-approval power.
+- Overview groups active-curriculum Program/year coverage with recorded student sections, classes and weekly meetings. Shared classes count once globally and remain discoverable from every recorded group. Count Programs with classes while retaining advisory empty/unprepared rows. Missing curriculum setup is not proof a year is running/cancelled and is not a requirement that every year must run. Additional, mixed-year and unassociated demand stays explicit; source counts/deadlines never prove complete readiness. Do not infer learner type/year from a group or create absent classes through generation.
+- Student section means TermCohort; class means the course offering; weekly meeting requirement means SchedulingDemand; draft timetable means candidate; official timetable means published version. Routine headings, links, breadcrumbs and dialogs use those human terms; technical detail retains source record names. Grades & Completion owns grading-teacher assignment, separately from timetable assignment.
+- Calendar leads with teaching dates/hours/exceptions, separately from operational dates. Source/activation guards stay intact; Term details retain source history. Activated identity stays protected. Ongoing Faculty teaching-load default editing belongs to Faculty & rooms and retains existing per-Faculty override precedence. Weekly unavailable times are recurring exclusions; dated exceptions remain Calendar.
+- Classes and Student sections are distinct local views; Faculty and Rooms are distinct resource views. Source fields lead with human course/Faculty/recorder/type/equipment names and keep exact IDs/codes/keys/eligibility. Equipment implies no unrecorded quantity. Searchable choices preserve available options, source version and selection guards.
+- Registrar and Head share bounded Class details inspection. Linked-class resolution includes all exact-Term classes independently of the Classes Program/year display filter; cross-Term classes are refused. Course, linked student sections, learner counts, delivery groups and meeting requirements lead; history remains reachable. Registrar's permission-bound Manage class opens sustained editing. Room inspection is likewise shared and read-only; authorized Registrar management edits capacity/type/equipment in one form/save.
+- Own lifecycle/source/history work uses pages, contextual creation/preparation uses native slide-overs and atomic decisions/focused meeting inspection use native centered dialogs. A supported recording wizard divides a command, not the parallel planning workflow. Closing/cancelling restores the visible trigger and context. Conditional record views keep the native dialog host when a table is absent.
+
+#### Timetable and generation
+
+- Draft and official versions are states of one Timetable destination. Version/authority, view, validated native criteria and eligible actions precede the master/focused/list records. Head separates selected-Term findings from institution-wide curriculum evidence; source detail does not become an always-open generic evidence rail. Candidate/official reading structures are comparable; missing/unmeasured facts are unavailable, never zero.
+- The master overview uses captured student-group identities and teaching days; focused student-section/Faculty/room views show weekly relationships with an equivalent native meeting list/agenda. Each meeting occupies its real duration once. Preserve captured starts, durations, hours, overlaps, breaks, dimensions and payloads; current labels supplement rather than mutate captured membership.
+- Course titles lead choices, rows, tiles and print; codes support identity. Meeting details leads with course/time/location and is an inspection command, without checkbox or pressed-selection semantics. A focusable named time canvas exposes the full recorded range with keyboard scroll and sticky day/time references. Display uses 12-hour Asia/Manila time while source times/minute geometry stay unchanged. No auto-scroll or hidden-hour policy is added. Timetable labels retain the documented 14px step and compact tile corners 6px.
+- Generation uses a native wider decision dialog with a compact accessible Program/year/Classes/Meetings/Status table. Its named bounded horizontal-scroll region supports keyboard access to offscreen columns. Retain every advisory empty row and count shared classes once. Show whole-Term recorded scope and the consequence of creating a draft before confirmation; display filters never narrow generation. Review and publication remain separate.
+- Working facts lead the viewport: scope/state, task toolbar and records; supporting provenance/quality/history is disclosed. Avoid repeated identity/introduction/status strips or universal attention bands. Mobile wraps usable toolbars and retains context, criteria, source/output access, complete geometry and the equivalent agenda. All overlays stay opaque. Synthetic provenance is a short factual annotation, not review instructions.
+- Official schedule screen/print retains school issuer, approved artwork/attribution, immutable version, source/Registrar/as-of and full/subset identity. Filters change only the view. Records, validation, publication, source history and institutional ownership remain under PRD 03; these refinements imply no new solver, load, Special Term, transfer-credit or all-year policy.
+
+#### Faculty Schedule & Availability
+
+- Faculty enters Schedule & Availability with compact centered My Schedule/My Availability sibling navigation and role-scoped search aliases. Grade Rosters remains separate. One readable Term selector groups current response/official status and source; informational Examination Period dates/source stay secondary on Schedule without a duplicate Availability query.
+- My Schedule shows actor-owned current official meetings, Week/Meeting list, protected inspection and own revision history. A selected Term with no official/pending meetings links directly to My Availability without changing Term access. Current criteria remain visible; native Filters have explicit width, at most two columns, a full-width Course and one mobile column. Owned Course/Class/Room choices are searchable; Reset is neutral. Preserve query IDs, validated Day/Modality and other existing criteria. Search matches the meeting-linked course specification title plus course/class/room codes. Component remains reachable via column selection and full detail.
+- Print this view uses the same validated criteria and clearly states filtered scope. Print all official meetings uses the complete own selected-version schedule. Neither accepts arbitrary meeting/Faculty IDs. Both preserve actor ownership, current official/version eligibility, exact criteria, identity/as-of/revision evidence and output logging. Faculty rows may omit repeated Term/Faculty header identity. Published affected history stays reachable.
+- My Availability leads with Your availability helps the Registrar plan teaching assignments, current request/deadline, actual answer and the permitted next action, then one own Availability history. Unrequested initial response names Registrar/contact; requested unanswered response makes Submit clear; Response recorded vN exposes Update my availability. The update dialog uses Update availability and Reason for this update. Registrar qualifications/load capacity requires no unrelated Faculty disclosure; an own active legacy-unavailable-time path appears only when it exists, with a Term-preserving return.
+- Registrar's Faculty & rooms request sends one action-required email with a direct My Availability link. Creating a Term alone does not send it. Request availability leads; Set/Change reply deadline is subordinate and changes only due time. Email identifies school, Term/deadline, the two form questions, initial Submit or existing Update and the fact that no assignment is made. No in-app feed or request/declaration association is invented.
+- Ask Can you teach this Term? with explicit Yes/No; for Yes, ask Any weekly times you cannot teach? with explicit Yes/No. The initial weekly answer is required. Weekly Yes seeds one empty Day/From/To row without inventing facts and requires at least one valid row. Weekly No or whole-Term No submits empty intervals. One Asia/Manila cue, leading Add another unavailable time, native Delete and responsive widths keep it compact. Toggling preserves interval drafts until Cancel where supported.
+- Corrections prefill the latest own exact-Term values/intervals, require a fresh explanation limited to 2000 characters and retain mounted-Term guards. The weekly question is UI-only; no service/persistence-policy change or soft preference is added. Current constraints remain separate from official meetings and never move meetings automatically.
+- Availability history places View details in the native final right-hand column. Narrow screens keep native horizontal table scroll; its grid item can shrink with min-inline-size: 0. Detail shows complete immutable exact-Term answer, version/date, weekly periods and full reason or Initial response. Re-resolve actor/Term at mount/content; reject colleague, tampered, cross-Term and stale-context details. Current request evidence remains separate from response history.
+- Same-intent controls use DESIGN.md's shared tactile material, including opaque green meeting inspection and the modal-X exception. Native names, Escape, focus/cancellation and loading/disabled semantics remain. Colors/decor never imply official/valid state. Mobile keeps source/examination/criteria and usable search/filter/output controls.
+
+#### School-issued communications
+
+Use DESIGN.md's common native Laravel Markdown email theme/header for Mailables, account notifications and framework/Filament auth mail. School identity leads and TALA is secondary, including Applicant email; the Applicant screen exception stays unchanged. Preserve recipient, trigger, transport, authentication, business/error/success meaning, responsive/inlined layout, plain-text alternative and System Health self-test subject/message/trigger. Synthetic local rendering proves neither transport nor email-client fidelity.
+
+
+</details>
+
+<a id="clinic-4--current-term-registration-official-enrollment-student-activation-adjustment-and-course-drop-ui-authority"></a>
+
+## Registration and official enrollment
+
+Learners confirm proposals and see source-labelled blockers; authorized offices complete enrollment and COR.
+
+<details>
+<summary>Page, source, action, state, output and responsive/recovery contract</summary>
 
 **Status:** Approved on 2026-08-06. This section translates PRD 04 into exact role surfaces. It is not an implementation task plan.
 
@@ -856,7 +770,6 @@ Enrollment presents the current decision and its prerequisites, with the followi
 8. Current/historical COR and registration/change history linked to the same admissions source. Physical-paper follow-up remains outside TALA; it creates no new enrollment checkpoint.
 
 Exactly one primary action appears: **Start enrollment**, **Start registration**, **Confirm proposed subjects and schedule**, **Continue to Finance**, or **View COR**. When the proposal looks wrong, the page says **Do not confirm—contact Registrar** and provides the official contact path; it creates no ticket or chat.
-
 
 ### Registrar Students & Enrollment workbench
 
@@ -890,7 +803,6 @@ An academic-result impact panel uses plain language:
 
 The panel never promises that a course will be added, removed, replaced, or retained. A current late-adjustment authority reveals the existing **Record adjustment** action only after capacity, conflicts, learner confirmation, timetable, load, and Finance readiness pass. Course Drop remains a separate action.
 
-
 ### Placement and shortage presentation
 
 Proposal rows show course, curriculum requirement served, class reference, schedule/mode/room, units/contact hours, prerequisite/equivalency result, capacity/reservation result, and plain-language issue. Learners never see other learners or internal capacity analytics.
@@ -901,9 +813,7 @@ Registrar shortage rows show affected course and learners, current and protected
 
 One native queue shows learner, reference, term, assessment basis/source, assessed total, amount required now, verified payment applied, Approved Coverage applied, remaining amount required now, satisfaction basis, clearance state, deadline, and next action. `Assessment required` joins the existing queue when neither a valid `PublishedFeePlan` nor an eligible `AuthorizedIndividualAssessment` is current; it does not create another resource. Accounting may record its owned clearance evidence, an eligible exact externally authorized individual assessment, and externally approved coverage through focused actions. It cannot calculate charges from a rate, determine scholarship eligibility, change subjects/classes, create Student identity, or finalize enrollment.
 
-
 The focused form records an externally calculated result only. It contains no per-unit rate, formula builder, inheritance, percentage, penalty, refund, or implicit default. Enrollment and changed-registration surfaces identify `Published fee plan`, `Authorized individual assessment`, or `Unavailable`. A changed registration distinguishes **Additional clearance required**, **No additional amount**, and **Accounting review pending**.
-
 
 This focused action records only an externally approved account effect. Missing, stale, conflicting, unreconciled, unsupported, or excessive authority records nothing. There is no scholarship application, eligibility, ranking, renewal, disbursement, silent cap, refund, or financial-accommodation workflow.
 
@@ -912,7 +822,6 @@ This focused action records only an externally approved account effect. Missing,
 The current and historical COR surface is an authenticated Generated Read-Only View. It shows institution/document identity; student number and legal name; program, curriculum, term, and enrollment basis; curriculum levels represented; official courses and class/schedule details; total units; assessment-at-finalization basis/source and categories, Approved Coverage and verified-payment amounts, satisfaction basis, remaining amount as of finalization; and actual recorded authority where required. A later authorized removal or Course Drop may identify **Accounting review pending** without changing the frozen assessment snapshot.
 
 LRN, live ledger activity, future installments, attempts, receipt history, continually changing balances, and fictitious signatures are excluded. Later financial activity links to Student Account/SOA. The document is restrained, high-contrast, grayscale-safe, and offers one browser print/save-as-PDF action.
-
 
 ### Composition rationale
 
@@ -952,7 +861,16 @@ Queued, idempotent email is limited to the continuing-Student enrollment-window 
 
 Composition follows DESIGN.md and the matching brief, using framework research and supported customization. Preserve searchable work, distinct source facts and actual inputs, stage-appropriate actions, source-owned readiness, current/historical COR access and the authenticated print boundary.
 
-## Clinic 5 — Teaching, Final Grades, Academic Records, Lifecycle, and Completion UI Authority
+</details>
+
+<a id="clinic-5--teaching-final-grades-academic-records-lifecycle-and-completion-ui-authority"></a>
+
+## Teaching, grades and academic records
+
+Faculty submits results; Registrar releases/corrects them and issues permitted records; learners understand academic position.
+
+<details>
+<summary>Page, source, action, state, output and responsive/recovery contract</summary>
 
 > **Authority status — PRD 05 UI mapping complete.** This section translates the standalone PRD 05 into exact role surfaces and does not authorize implementation.
 
@@ -977,7 +895,6 @@ The native queue leads with course/class reference, program/cohort, official lea
 
 The roster table shows Student number, legal name, official enrollment state, one controlled final-grade/INC selector, derived academic result, and any validation or lifecycle explanation. Selecting `INC` always reveals the required completion note and previews the one-year deadline calculated from the official Term end. The designated submitter receives **Save draft** and **Submit complete roster**. Every assigned Faculty member with roster-view access receives **Print class roster** and **Export roster CSV** as contextual secondary actions; view-only co-Faculty still receive no edit or submit action. Returned-row correction, history, and evidence remain secondary actions.
 
-
 The print action opens an authenticated A4 landscape **CURRENT CLASS ROSTER — Operational reference** view with practical 12 mm margins, repeated identity/table headings, row-safe page breaks, and automatic page numbers; the CSV is a private initiating-actor download. Both use the selected Class Offering's current Clinic 4 membership, fixed identity/enrollment columns, legal-name/Student-number ordering, an Asia/Manila as-of time, formula-safe cells, role-derived purpose, and logged output access. Neither uses selected table rows, a column chooser, a second format, a bulk action, or a Reports destination. Neither contains grades, result notes, contact details, Applicant evidence, or finance data, and neither becomes an eighth canonical official output.
 
 An empty result remains unfinished and cannot be released. A class with no officially enrolled learners shows **No officially enrolled students in this class** and no print/export action. `INC` reveals the required short completion note. Stale, changed, inaccessible, or failed roster generation creates no partial artifact and offers **Refresh roster** or the shared safe return/support path. The UI never requests Preliminary, Midterm, Final-period values, formulas, attendance, raw scores, `P`, Course Drop, withdrawal, or approved-credit marks.
@@ -999,7 +916,6 @@ Each record reads in this order:
 7. Accessible supporting immutable history, audit, and email evidence.
 
 State-valid primary actions include **Release roster**, **Return specified rows**, **Release INC completion**, **Change INC deadline**, **Record authorized correction**, **Record verified external result**, **Record authorized academic decision**, **Record lifecycle result**, **Record conferral**, **Generate TOR preview**, and **Issue official TOR**. Release/INC/correction previews identify affected active Registration Cases and the Clinic 4 review consequence without offering an enrollment action in Clinic 5. The external-result action appears only for an active authority-backed requirement and shows the Student, requirement and treatment, assessment date, `Competent`/`NotYetCompetent`, optional verified NC/COC reference and validity, safe remarks, external source, and append-only impact preview. **Change INC deadline** requires authority, reason, prior/new dates, and current-version revalidation; there is no lapse or automatic-grade action. The academic-decision action appears only for a real external decision or opened review; failed-unit percentages never create a button or status. Only one primary action appears for the current decision. Release, correction, external-result recording, consequential decisions, conferral, and TOR issuance are record-specific actions; no bulk form exists for them.
-
 
 ### Student Academics
 
@@ -1023,13 +939,11 @@ An external-competency row shows qualification/level, `Tracked only` or authorit
 
 The printable action is labelled **Unofficial record — for student reference**. It produces a `FocusedTALACustom` A4 portrait view from the released academic projection as of one explicit time. Every page says **UNOFFICIAL STUDENT RECORD** and **Unofficial — for student reference** and includes institution identity; Student legal name/number, Program, and Curriculum Version; output/as-of references; chronological exact Term groups; released course/attempt/credit facts; term units and average/readiness; cumulative unit/GWA readiness; curriculum/completion summary; and safe INC/correction context. It excludes draft/submitted results, private evidence, Faculty, schedule, finance, certification/signatory/seal, and official-TOR actions. Continuation pages repeat Student identity and headings; navigation/controls do not print; stale/unavailable source or rendering failure creates no artifact. Official TOR issuance is absent from Student actions. Whenever an initial release, INC resolution, or correction affects an active Registration Case, the page states **Registrar review is required for your enrollment** and links to Enrollment without promising an automatic course change. A newly eligible dependent course says that Registrar may add it only through the ordinary Adjustment path; a closed Adjustment state says what remains official and who owns the next permissible path.
 
-
 ### TOR preview and issuance
 
 Registrar's transcript view is an authenticated Generated Read-Only View using **TALA Standard TOR — Servitech v1**. The header clearly distinguishes **Preview**, **Issued**, **Voided**, **Replacement**, and **Superseded** states. **Issue official TOR** appears only when the releasable academic snapshot, identity, external request, Clinic 6 clearance, template version, signatory data and rendering checks pass. Current/former Students need no blanket graduation gate; show completion/conferral only when recorded and never replace an unresolved released mark with an invented grade or degree. The only output action is print/save-as-PDF for authorized Registrar processing; no Student self-issue/download or template editor exists.
 
 The issuance record shows the actual external request reference/date, derived 30-day due date, Clinic 6 clearance, source/template versions, signatory inputs, issuance date/reference, and any void/replacement or later supersession link. A blocker retains the request clock and displays owner/next action under PRD 05; generation never claims timely external fulfillment. Physical signature, seal, CAV, claiming, courier, and delivery controls are not recreated; the output never claims those external acts occurred unless separately recorded.
-
 
 ### Sorting and page-specific states
 
@@ -1061,7 +975,16 @@ The negative-space acceptance coverage proves that Registrar, Academic Head, Fac
 
 Composition follows DESIGN.md and the matching brief, using framework research and supported customization. Preserve final-result entry and validation, attributable release/correction, readable academic source evidence, Student Academics and the unofficial/TOR output contracts. Product boundaries remain in PRD 05.
 
-## Clinic 6 — Accounts, Official Outputs, Operations, and Assurance UI Authority
+</details>
+
+<a id="clinic-6--accounts-official-outputs-operations-and-assurance-ui-authority"></a>
+
+## Accounts, outputs and assurance
+
+Accounting and learners understand accounts and verified financial effects; permitted outputs and local assurance remain reachable.
+
+<details>
+<summary>Page, source, action, state, output and responsive/recovery contract</summary>
 
 ### Navigation and primary-page inventory
 
@@ -1093,11 +1016,9 @@ System Administrator receives **System Health** and **Governance & Audit**. Stud
 
 #### Fee Plan detail and publication
 
-
 Draft row controls provide explicit **Move up** and **Move down** buttons; order never depends on dragging. Published views replace fields with an Infolist and offer only `Create successor`.
 
 #### Student Accounts workbench
-
 
 The Payment Exceptions tab uses risk/reason, person/account, claimed amount, channel/source, submission age, and `Review`. The TOR Clearance tab uses state, request reference, learner, required amount/reference, required date, and `Open`.
 
@@ -1117,21 +1038,17 @@ Export rechecks role, per-record visibility, filters/context, and source/as-of s
 
 #### Accounting account detail
 
-
 The account makes status, current due, separate payment/coverage effects, satisfaction basis, next obligation and next action readily identifiable. Supporting evidence remains accessible through task-appropriate disclosure. `Record authorized individual assessment` appears contextually only for an eligible current exception, as shown next; it never appears for Ana's ordinary published-plan account. `Record approved coverage` appears only when a current Assessment and named remaining obligations exist. An authorized reversal dialog names the payment or coverage, amount, external authority, resulting projection, and append-only effect; its confirmation is `Record reversal`, not `Yes`.
 
 #### Authorized individual assessment
-
 
 The action is available only for an approved Special Term, a reduced enrollment whose approved charges differ from the fixed plan, an Individually Advised selection-specific result, or an authorized adjustment/Course Drop effect. Missing, stale, unreconciled, or unauthorized source evidence remains `Unavailable`; the form never calculates from the displayed units.
 
 #### Approved Coverage
 
-
 The action records one `Applied` account event. Excess, stale, conflicting, unsupported, or unreconciled authority records nothing and preserves safe entered fields. `Superseded` and `Reversed` results start from coverage history and require named authority and an exact impact preview. No learner application, eligibility document, ranking, renewal, disbursement, cash movement, or email appears.
 
 #### Payment Exception detail
-
 
 Private proof requires record authorization and never appears as a public URL. Field errors say how to recover, and failed verification states whether no posting occurred.
 
@@ -1141,18 +1058,15 @@ Private proof requires record authorization and never appears as a public URL. F
 
 #### Student Finance — desktop
 
-
 `Pay exact current due` is unavailable when the registration is inactive, the due is zero, the source is stale, PayMongo local readiness is unavailable, or a matching attempt remains pending. A retained payment with ended registration shows **Registration ended — Accounting review required**, same-Term account history and the Accounting support/next action under PRD 06. Browser return uses `Payment confirmation pending` or `Checkout cancelled — no payment was recorded from this return`.
 
 #### Student Finance — mobile and alumni variant
-
 
 At 360/390 CSS pixels, actions remain inset inside the content margin and stack without clipping. The alumni variant uses the same history/output order but removes checkout, upload, and account-changing actions.
 
 ### Operations and assurance interaction contracts
 
 #### System Health
-
 
 Unknown or not-recently-checked evidence is never colored or labelled as healthy. Routine copy states what is available, what needs attention, and the safe next action in plain language. Refresh reads locally knowable evidence only. Provider status, backup-media custody, and restore readiness require external operational evidence; the exact evidence source, as-of time, and boundary remain available under technical details.
 
@@ -1161,7 +1075,6 @@ Unknown or not-recently-checked evidence is never colored or labelled as healthy
 All seven canonical outputs use the same authenticated print frame: approved institution crest and name first; exact output title/status; source/version and generation reference/time; monochrome-safe semantic headings; repeated identity/table headings; deliberate page breaks without clipped rows; no navigation or interactive controls; system-font fallback; automatic page numbering for multi-page outputs; practical 12 mm margins; and restrained **Generated through TALA** footer text. Application Acknowledgment, COR, Unofficial Student Record, TALA Standard TOR, Account Statement/SOA, and Payment Acknowledgment are A4 portrait. Published Timetable is A4 landscape. A stale, inaccessible, or failed source creates no partial or official-looking artifact and preserves the owning page with a safe retry/support path.
 
 The current Class Roster uses the same authenticated, monochrome-safe, repeated-heading, non-clipping A4 landscape print quality, 12 mm margins, and automatic page numbering, but is explicitly labelled **Operational reference** with a current as-of time. It is not included in the seven canonical outputs, creates no issuance/version event, and is never proof of enrollment or grades.
-
 
 SOA and Payment Acknowledgment retain their non-tax disclaimer on every generated copy. Their approved institution-first frame contains no mascot; the TALA product is identified only by the restrained footer.
 
@@ -1223,65 +1136,171 @@ The browser walkthrough follows this order:
 
 The walkthrough is documentation authority only. Browser execution remains implementation-acceptance evidence for the owning future vertical slice.
 
-## Archived Implementation Inventory — Evidence Link Only
+</details>
+
+## Shared role projections
+
+<details>
+<summary>Student Home, official Profile and read-only Academic Oversight</summary>
+
+### Student Home — shared projection
+
+Student Home is a source-owned priority-status page, not a card dashboard or global-hold summary. It shows, in order: Student identity and current term; the single highest-priority safe action; current Enrollment, Academics, and Finance summaries with source owner/as-of time; the approved informational Examination Period when available; upcoming accepted deadline or obligation; and contextual links. It never merges domain state or invents a universal learner status. Exact class examination arrangements remain Faculty-owned and are never inferred from class meetings.
+
+If no action is needed, the page says so for the selected term and retains the three source summaries. Loading preserves headings. A stale source is labelled and cannot offer its mutation action. An inaccessible source reveals neither record existence nor detail.
+
+### Student Profile — shared official identity projection
+
+Profile is read-only. It shows legal name, Student number, program, assigned Curriculum Version, entry/admission reference, lifecycle projection, approved contact facts, source/last correction, and plain correction guidance. Email/password/MFA changes link to Clinic 1 Account Security. Students cannot directly edit official identity, program, curriculum, entry, lifecycle, enrollment, grade, or finance facts.
+
+Registrar reaches the same source from Students & Enrollment and receives a focused **Record authorized correction** action with reason, authority/evidence, effective time, impact preview, and named confirmation. A successful correction updates future projections but never rewrites an issued COR/TOR snapshot.
+
+### Academic Oversight — shared read-only projection
+
+Academic Oversight is the Academic Head's role-specific evidence dashboard. It leads with a compact Academic Year/Term scope, source-owned findings requiring inspection, and four purposeful domains: Academic Authority, Term Planning, Grades & Progress, and Lifecycle & Completion. Academic Authority identifies its institution-wide Program/curriculum scope; Term Planning retains one exact Term. Other record lists state their own filters rather than silently inheriting the Term. Relevant current states take priority over a repeated launch-card directory or the Registrar's preparation sequence.
+
+Findings identify the responsible office and link to the exact inspectable source. Domain destinations remain discoverable when no finding exists. Calendar and official/candidate timetable states stay distinct; the informational Examination Period is concise within Term Planning, with authority, source/version, owner and as-of evidence accessible through disclosure. Read-only drill-ins provide a contextual return preserving the selected Term and normal browser navigation. Academic Authority consolidates catalog and readiness access. Grade rosters and Student academic records expose released results and progress evidence; lifecycle and completion retain their source-owned evidence boundaries. External-competency requirements/results grant no assessment or certification power. No fabricated metric, universal all-clear, approval queue, escalation action, scheduling or academic-record mutation is introduced.
+
+Empty means no source-owned item needs oversight under the current filters; it does not imply that records do not exist. Missing or stale sources are named as unavailable and never converted into a manually checked readiness result.
+
+</details>
+
+## Canonical UI Surface Coverage Inventory
+
+<details>
+<summary>Stable ID, role, source, action, state and output coverage</summary>
+
+The inventory uses the columns below. `J1`–`J7` refer to the seven representative journeys in the next section; `Support` is a reachable supporting capability rather than a separate end-to-end journey. The count is not authoritative and may change when redundant presentation surfaces are consolidated or missing coverage is identified. Consolidation must not hide ownership, permissions, source evidence, actions, failures, responsive behavior, or accessibility, and must not recreate a generic dashboard.
+
+| Coverage ID | Role/workspace | User-visible surface | Parent entry | Component disposition | Source PRD | Authoritative source | Primary action | Output | Required state/correction coverage | Responsive/print requirement | Acceptance journey |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `SHR-001` | Public | Public Gateway | Direct URL | `FocusedTALACustom` | PRD 01 | Published public content, active Programs, current Admission Cycle, and configured institution/map/media projection | Start application or sign in | — | Closed/unavailable entry retains safe guidance; unavailable media/map has a factual fallback | 390, 360, 768, 1366 | J1 |
+| `SHR-002` | Shared identity | Registration and unified sign-in | Gateway or owning journey | `NativeFilament` | PRD 01 | Person, account, verification state | Register or sign in | Verification request | Duplicate identity, invalid credentials, rate limit | 390, 360 | J1 |
+| `SHR-003` | Shared identity | Verification, recovery, reset, and MFA | Secure message or sign-in | `NativeFilament` | PRD 01 | Verification/recovery challenge | Verify or recover access | Security notice | Expired, consumed, invalid, or failed challenge | 390, 360 | J1 |
+| `SHR-004` | Multi-role Staff | Workspace chooser | Successful sign-in | `NativeFilament` | PRD 01 | Current role assignments | Enter selected workspace | — | Zero authorized context or stale assignment | 390, 1366 | J1 |
+| `SHR-005` | Authenticated | Account Security | Top bar account menu | `NativeFilament` | PRD 01 | Account security state | Update password or MFA | Security notice | Reauthentication or MFA failure | 390, 1366 | Support |
+| `SHR-006` | Shared | Access and service failure | Any protected route | `FocusedTALACustom` | Baseline | Authorization and locally known service state | Return to authorized entry | — | Inaccessible, expired session, limited, unavailable | 390, 1366 | J1 |
+| `APP-001` | Applicant | Applicant Home | Applicant fixed entry | `NativeFilament` | PRD 02 | Application and readiness projection | Continue current next action | — | No open cycle, correction required, withdrawn | 390, 360 | J2 |
+| `APP-002` | Applicant | Five-step Application Wizard | Applicant Home | `NativeFilament` | PRD 02 | Application draft/version | Save and continue or submit | Submitted snapshot | Validation, stale draft, failed submission | 390, 360 | J2 |
+| `APP-003` | Applicant | Requirements | Applicant Home or Wizard | `NativeFilament` | PRD 02 | Published Requirement Set and evidence | Submit or replace evidence | — | Missing, rejected, superseded, inaccessible evidence | 390, 360 | J2 |
+| `APP-004` | Applicant | Application acknowledgment | Applicant Home | `FocusedTALACustom` | PRD 02 | Submitted Application version and its immutable Requirement Set version | Download acknowledgment | Application Acknowledgment | Superseded snapshot remains labelled; generation failure creates no artifact | 390, print | J2 |
+| `STU-001` | Student | Student Home | Student fixed entry | `NativeFilament` | Baseline | Source-owned Enrollment, Academics, Finance, and Examination Period projections | Open highest-priority safe action | — | Stale or unavailable source remains labelled; no inferred examination date | 390, 360, 768 | J3/J4/J5/J6 |
+| `STU-002` | Student | Enrollment | Student Home | `NativeFilament` | PRD 04 | Registration Case, proposal, placement, readiness | Confirm or resolve current checkpoint | Current COR link | No proposal/class/assessment, expired reservation | 390, 360 | J4 |
+| `STU-003` | Student | Academics | Student Home | `NativeFilament` | PRD 03/05 | Released results, external competency results, academic projections, and Examination Period | Open result or correction guidance | Unofficial academic record | Grades not complete; INC completion open/overdue/amended/resolved; external result not recorded; unavailable examination period | 390, 360, 768 | J3/J5 |
+| `STU-004` | Student/alumni | Finance | Student Home | `NativeFilament` | PRD 06 | Term Account and current projection | Pay exact due or submit evidence | SOA, Payment Acknowledgment | Pending/mismatch/stale source; alumni read-only | 390, 360, 768 | J6 |
+| `STU-005` | Student | Profile | Student Home | `NativeFilament` | PRD 04 projection | Official identity/program/curriculum/contact facts | Follow correction guidance | — | Missing/stale source; no direct official edit | 390, 360 | Support |
+| `STU-006` | Student | Current and historical COR | Enrollment | `FocusedTALACustom` | PRD 04 | Immutable COR versions | Open or print selected version | COR | Superseded version or generation failure | 390, print | J4 |
+| `REG-A01` | Registrar | Admissions | Registrar fixed entry | `NativeFilament` | PRD 02 | Applications and action queue | Open next application | — | Initial/filtered empty, stale queue | 1366 | J2 |
+| `REG-A02` | Registrar | Applicant Record | Admissions | `NativeFilament` | PRD 02 | Application/evidence/decision history | Request correction or record decision | Decision/current Registrar clearance | Unauthorized, stale, superseding decision | 1366, 768 read-only | J2 |
+| `REG-A03` | Registrar | Admission Cycles and readiness | Admissions | `NativeFilament` | PRD 02 | Admission Cycle public and correction boundaries and Requirement Set | Publish or extend valid cycle boundary | — | Failed readiness, invalid boundary, or competing publication | 1366 | J2 |
+| `REG-C01` | Registrar | Catalog & Curricula | Registrar navigation | `FocusedTALACustom` | PRD 03 | Program, Course Revision, Curriculum Version, external competency requirement | Preview/import Draft authority or activate valid successor | Import findings CSV | File/header/row/authority/readiness blocker; no inferred completion treatment | 1366 | J3 |
+| `REG-T01` | Registrar | Term Planning Overview & Calendar | Registrar navigation | `NativeFilament` | PRD 03 | Term Calendar Package, Examination Period, and planning readiness | Open first failed checkpoint | — | Missing/stale calendar authority; examination period unavailable | 1366 | J3 |
+| `REG-T02` | Registrar | Sections & classes | Term Planning | `NativeFilament` | PRD 03 | Term Cohort and Class Offering | Add or correct offering | — | Missing Additional-offering authority | 1366 | J3 |
+| `REG-T03` | Registrar | Faculty & rooms | Term Planning | `NativeFilament` | PRD 03 | Faculty, room, availability, meeting pattern | Resolve resource blocker | — | Missing/incompatible resource | 1366 | J3 |
+| `REG-T04` | Registrar | Timetable - draft review | Term Planning | `FocusedTALACustom` | PRD 03 | Solver request/result and candidate | Generate or validate candidate | Candidate evidence | Infeasible, Unknown, ModelInvalid, TechnicalFailure | 1366 | J3 |
+| `REG-T05` | Registrar | Candidate correction | Timetable | `NativeFilament` | PRD 03 | Candidate meeting version and whole-Term source candidate | Apply one-meeting adjustment or accept explicit minimal repair | Revalidated immutable candidate successor | Invalid replacement, rejected repair, or stale candidate | 1366 | J3 |
+| `REG-T06` | Registrar | Timetable - official versions and revision | Term Planning | `FocusedTALACustom` | PRD 03 | Published Timetable Version | Publish or record affected revision | Published Timetable | Failed impact/readiness, stale publication, or visibly superseded output | 1366, 768 read-only, A4 landscape print | J3 |
+| `REG-E01` | Registrar | Students & Enrollment | Registrar navigation | `NativeFilament` | PRD 04 | Registration Cases, readiness queues, and Ready Applicants | Open next actionable case, Start registration for Ready Applicant | — | Empty/stale/action unavailable | 1366 | J4 |
+| `REG-E02` | Registrar | Enrollment case and proposal | Students & Enrollment | `NativeFilament` | PRD 04 | Registration Case, terminal/reopen history, and proposal versions | Reopen, prepare/revise, or finalize valid case | Reopened same case or Enrollment/COR result | Missing reopen authority, failed prerequisite, placement, assessment, or clearance | 1366 | J4 |
+| `REG-E03` | Registrar | Shortage and timetable-impact context | Students & Enrollment | `NativeFilament` | PRD 04 | Placement/reservation and timetable impact | Resolve affected case | Updated learner projection | No valid class or expired reservation | 1366 | J4 |
+| `REG-E04` | Registrar | Adjustment and Course Drop | Enrollment case | `NativeFilament` | PRD 04 | Authorized change and successor versions | Apply authorized change | Successor COR when applicable | Additional clearance or Accounting review pending | 1366 | J4 |
+| `REG-G01` | Registrar | Grades & Completion | Registrar navigation | `NativeFilament` | PRD 05 | Roster/grading-teacher assignment, release/progress/completion queues | Open next actionable record | — | Empty/stale/unauthorized action | 1366 | J5 |
+| `REG-G02` | Registrar | Grade release, INC, and correction detail | Grades & Completion | `NativeFilament` | PRD 05 | Final result, deadline/amendment, and correction chain | Release open completion, amend deadline, show retake guidance, or supersede result | Released result | Completion overdue, deadline/result race, stale result | 1366, 768 read-only | J5 |
+| `REG-G03` | Registrar | Progress and lifecycle detail | Grades & Completion | `NativeFilament` | PRD 05 | Curriculum progress and lifecycle result | Record authorized decision | Updated projection | Missing source or consequential pending state | 1366 | J5 |
+| `REG-G04` | Registrar | Completion and conferral | Grades & Completion | `NativeFilament` | PRD 05 | Completion review and conferral record | Confirm authorized completion outcome | Completion result | Missing requirement or authority | 1366 | J5 |
+| `REG-G05` | Registrar | TOR preview and issuance history | Grades & Completion | `FocusedTALACustom` | PRD 05/06 | Transcript snapshot, TALA Standard TOR version, signatory data, clearance | Preview or issue | Issued TOR | Missing source/signatory/clearance; generation failure; void/replacement/supersession | 1366, print | J5 |
+| `REG-G06` | Registrar | Verified external competency result | Grades & Completion | `NativeFilament` | PRD 03/05 | Active external requirement and external assessment/certification evidence | Record verified result | Updated curriculum evaluation | Missing/stale requirement or evidence; successor preserves prior attempt | 1366, 768 read-only | J5 |
+| `ACC-001` | Accounting | Fee Plans | Accounting fixed entry | `NativeFilament` | PRD 06 | Fee Plan versions | Create draft or publish valid plan | — | Incomplete/reconciled/competing publication blocker | 1366 | J6 |
+| `ACC-002` | Accounting | Fee Plan detail | Fee Plans | `NativeFilament` | PRD 06 | Selected Fee Plan version | Save draft or publish | Published immutable version | Stale or failed readiness | 1366 | J6 |
+| `ACC-003` | Accounting | Student Accounts tabs | Accounting navigation | `NativeFilament` | PRD 06 | Account, exception, and TOR-clearance queues | Open next actionable record or export current context | Account Status CSV; Verified Payments CSV from selected account context | Empty/stale/filter/export failure | 1366 | J4/J6 |
+| `ACC-004` | Accounting | Student Account detail | Student Accounts | `NativeFilament` | PRD 06 | Term Account, Assessment obligations, Coverage, obligation-keyed postings | Record authorized account action | SOA | Assessment unavailable/stale; excess/unassigned or failed posting | 1366 | J4/J6 |
+| `ACC-005` | Accounting | Authorized individual assessment | Account detail | `NativeFilament` | PRD 06 | Registration/change version and Accounting authority | Record exact assessment | Successor AssessmentVersion | Unauthorized, unreconciled, or stale source | 1366 | J4 |
+| `ACC-006` | Accounting | Approved Coverage action | Account detail | `NativeFilament` | PRD 06 | Coverage authority and current obligation | Record valid coverage | Updated clearance projection | Excess, conflict, stale, unsupported authority | 1366 | J4 |
+| `ACC-007` | Accounting | Payment Exception | Student Accounts | `NativeFilament` | PRD 06 | Evidence/attempt exception and named target obligations | Preview and verify actual obligation application or reject safely | Obligation-keyed payment result when verified | Excess target, mismatch, duplicate, reversal, no posting | 1366 | J6 |
+| `ACC-008` | Accounting | TOR Clearance | Student Accounts | `NativeFilament` | PRD 06 | Request-specific clearance projection | Record Cleared or NotRequired basis | Clearance result | ActionNeeded or invalid authority | 1366 | J5 |
+| `FAC-001` | Faculty | My Availability | Schedule & Availability sibling task and role-scoped search | `NativeFilament` | PRD 03 | Availability declaration | Submit declaration | — | Missing term request, stale assignment | 1366, 768 | J3 |
+| `FAC-002` | Faculty | My Schedule | Schedule & Availability fixed entry and sibling navigation | `NativeFilament` | PRD 03 | Published Timetable and informational Examination Period projections | Review current/revised schedule | Faculty schedule | Affected revision, unavailable publication, or unavailable examination period | 1366, 768 | J3 |
+| `FAC-003` | Faculty | Grade Rosters and detail | Faculty navigation | `NativeFilament` | PRD 04/05 | Current official roster and submitted result version | Submit results or use a contextual roster action | Submission result; current Class Roster print/CSV | Empty/incomplete/returned/stale roster; export failure; INC completion open/overdue | 1366, 768, A4 landscape operational print | J5 |
+| `AHD-001` | Academic Head | Academic Oversight | Academic Head fixed entry | `NativeFilament` | PRD 03–05 projections | Source-owned calendar, external competency, and attention evidence | Open read-only source drill-in | — | No item, stale/missing source, no mutation | 1366, 768 | J3/J5 |
+| `SYS-001` | System Administrator | Users & Access and account detail | System Administrator fixed entry | `NativeFilament` | PRD 01 | Accounts, roles, invitations, MFA state | Invite or apply authorized account action | Security notice | Final-administrator protection, invitation/MFA failure | 1366 | J1 |
+| `SYS-002` | System Administrator | Public Content | System Administrator navigation | `NativeFilament` | PRD 01 | Versioned public content | Publish valid content | Public projection | Stale/scheduled/failed publication | 1366 | J1 |
+| `SYS-003` | System Administrator | System Health | System Administrator navigation | `NativeFilament` | PRD 06/Architecture | Locally recorded service evidence | Refresh local evidence | — | Available/action needed/unavailable/not recently checked, with source, as-of time, owner, and safe next action | 1366, 768 | J7 |
+| `SYS-004` | System Administrator | Governance & Audit | System Administrator navigation | `NativeFilament` | PRD 06/Architecture | Institutional changes, events, output access | Filter or inspect evidence | — | Inaccessible evidence; plain-language retention boundary with technical detail on disclosure | 1366, 768 | J7 |
+| `OUT-001` | Applicant | Application Acknowledgment print | Application acknowledgment | `FocusedTALACustom` | PRD 02 | Submitted Application version and its immutable Requirement Set version | Print/save | Application Acknowledgment | Superseded or generation failure | A4 portrait print | J2 |
+| `OUT-002` | Authenticated roles | Published Timetable print | Published Timetable | `FocusedTALACustom` | PRD 03 | Published Timetable Version | Print/save | Published Timetable | Superseded/unavailable version | A4 landscape print | J3 |
+| `OUT-003` | Student/Registrar | COR print/history | Enrollment or case | `FocusedTALACustom` | PRD 04 | COR Version | Print/save | COR | Superseded version or generation failure | A4 portrait print | J4 |
+| `OUT-004` | Student | Unofficial academic record | Academics | `FocusedTALACustom` | PRD 05 | Released academic-record projection as of generation | Print/save | Unofficial Student Record | Incomplete/stale source or generation failure | A4 portrait print | J5 |
+| `OUT-005` | Registrar | TALA Standard TOR | TOR preview/history | `FocusedTALACustom` | PRD 05 | Transcript snapshot, template version, and issuance state | Preview, issue, or print authorized state | TOR | Preview/issued/voided/replaced/superseded/generation failure | A4 portrait print | J5 |
+| `OUT-006` | Student/Accounting | Account Statement/SOA | Finance or Account detail | `FocusedTALACustom` | PRD 06 | Term Account as-of projection | Generate/print | SOA | Stale source or no partial artifact | A4 portrait print | J6 |
+| `OUT-007` | Student/Accounting | Payment Acknowledgment | Finance or Account detail | `FocusedTALACustom` | PRD 06 | Verified payment posting | Open/print | Payment Acknowledgment | Reversed/superseded/generation failure | A4 portrait print | J6 |
+
+Routine empty, loading, and validation states use shared patterns instead of separate coverage entries. A dedicated entry is required only when a state changes meaning, permitted action, cross-role outcome, or official-output status.
+
+### Implementation organization freedom
+
+The implementation may combine related coverage entries in one source-owned workbench, tab set, contextual detail, dialog, or output route. Names must remain semantic and role-owned. Consolidation cannot remove a canonical navigation destination, hide a required state/action, or turn unrelated responsibilities into a generic dashboard, Reports, Settings, Approvals, or Readiness Center.
+
+</details>
+
+## Representative Journey and Acceptance Contract
+
+<details>
+<summary>Seven end-to-end scenarios and evidence conditions</summary>
+
+The UI authority requires every primary destination to remain reachable and defines these seven end-to-end journeys for design review and later browser acceptance:
+
+1. Public entry → registration/verification → sign-in → role selection → authorized entry or inaccessible recovery.
+2. Application → submission/correction → decision → Registrar clearance → Ready for Enrollment.
+3. Academic and curriculum authority, including a tracked-only external-competency requirement → calendar readiness and role-consistent Examination Period/unavailable state → timetable generation failure/correction → valid candidate → publication/revision.
+4. Registration → proposal/placement → assessment/coverage/payment → official enrollment → Student activation → COR.
+5. Grade submission/return/release → partial-term and INC completion-open/overdue/amendment/resolution branches → verified external competency `NotYetCompetent`/successor `Competent`/tracked-only absence → correction → completion → TALA Standard TOR issuance.
+6. Fee Plan or exact assessment → evidence/PayMongo pending/mismatch → verified posting → SOA/acknowledgment → reversal.
+7. System Health local evidence/Unknown state → Governance & Audit output access and the explicit no-automatic-disposal boundary.
+
+Each journey identifies the starting persona and preconditions, authoritative source/version, action, visible evidence, one failure, correction path, cross-role result, output, and pass condition. It uses only canonical synthetic records and `example.test` identities. A design artifact may assist review but is never a product or implementation gate.
+
+</details>
+
+## Authority and evidence reference
+
+<details>
+<summary>Current contracts, historical evidence and implementation organization</summary>
+
+This document owns required UI capabilities and interaction outcomes. Each delivery slice verifies its implementation and rendered behavior against these contracts.
+
+The Canonical UI Surface Coverage Inventory identifies required user-visible capabilities and acceptance evidence. Related entries may share one workbench through tabs, selected-record panels, contextual actions, dialogs, outputs, or shared states when ownership and behavior remain explicit.
+
+Impeccable leads task-specific hierarchy and composition, supported by the owning PRD, DESIGN.md, matching surface brief, relevant design skills and installed-version framework research. Content lists, arrows and workbench groups below identify required facts, priorities and task relationships. Compose their visual order and controls for the task through Laravel Boost, relevant official documentation, supported customization and demos. Business dependencies, consequential guards and fixed official-output formats retain their exact owning contracts. The inventory and contracts below specify required user outcomes. Use sketches when they help resolve a design question. Preserve official-output content, versioning and print quality.
+
+Current application pages, schema-shaped resources, legacy screenshots, archived UI material, and visual alternatives remain implementation or presentation evidence. A later vertical slice may retain or consolidate a surface only after proving that its role, source record, action, state, and responsive/accessibility behavior conform to the owning PRD and this blueprint. No file-presence or visual similarity creates product authority.
 
 The former live **Legacy Implementation and Comparison Inventory**, TAL-60 decisions, superseded finance decisions, module-to-UI implementation map, scheduling UI baseline, import/plugin notes, and future-slice template are preserved byte-for-byte as non-authoritative implementation history in [`archive/project-progress/TALA-UI-Legacy-Implementation-and-Comparison-Inventory-pre-prototype-2026-08-08.md`](./archive/project-progress/TALA-UI-Legacy-Implementation-and-Comparison-Inventory-pre-prototype-2026-08-08.md), SHA-256 `966107D9CE69EC3CA37CE4B3C6999010E78A84F2648C138E33E3264EA835F80E`.
 
 That archive may support later bounded implementation-evidence inspection. It cannot add navigation, restore superseded behavior, define a canonical screen, route implementation work, or override the Panel and Navigation Map, shared UI authority, PRDs 01–06, or Architecture Specification.
 
-## October9 Term Planning workflow clarification under #48/#58
+</details>
 
-REG-T01 uses the native Term Planning cluster: Overview, Calendar, Sections & classes, Faculty & rooms and Timetable persist into reached source-record pages, with explicit Term URLs, breadcrumbs and sidebar context. The Overview groups active-curriculum Program/year coverage with recorded student sections/classes/weekly meetings; shared classes count once globally and remain discoverable from every source-supported group. Unprepared curriculum rows are advisory, not an invented requirement that every year level must run. Additional and unresolved associations remain visible, including mixed-year demand. Generation shows the recorded whole-Term scope before confirmation and never narrows to a display filter. REG-T02/03 use native working-record tables and contextual remedies. Calendar leads with teaching facts; secondary operational dates retain source/activation guards and history is reachable from Term details. REG-T04/06 are draft/official states of one Timetable page with a captured-groups-by-days master overview, focused section/Faculty/room weeks and equivalent native meeting list. Captured group identities and calendar geometry remain stable; current labels are supplemental. Missing measures remain unavailable. Grade submission assignment belongs to REG-G01/Grades & Completion, not timetable generation. Pages, contextual creation slide-overs and atomic command modals follow DESIGN.md. No new learner classification, uniform-section rule, load limit, transfer-credit or Special Term policy is inferred. Local implementation evidence and owner acceptance remain distinct.
+<a id="archived-implementation-inventory--evidence-link-only"></a>
+<a id="authenticated-shell-and-interaction-contract--october-2-2026"></a>
+<a id="brand-mark-and-print-roles"></a>
+<a id="canonical-ui-status-and-evidence-boundary"></a>
+<a id="color-tokens"></a>
+<a id="connected-term-planning-and-faculty-contracts"></a>
+<a id="framework-implementation-responsibilities"></a>
+<a id="http-and-session-recovery-presentation--october-2-2026"></a>
+<a id="layout-and-motion-guidance"></a>
+<a id="material-layers"></a>
+<a id="october-2-client-feedback-outcomes-reconciled-october-3"></a>
+<a id="panel-and-navigation-map"></a>
+<a id="reusable-component-authority"></a>
+<a id="typography-and-layout-guidance"></a>
+<a id="whole-system-field-and-component-decisions--october-3"></a>
 
-#### Owner-approved Faculty task and output refinement — October 10, 2026
-Faculty has one **My Schedule** sidebar destination, landing on own official meetings, with exact-Term **My Availability / My Schedule** task navigation and role-scoped search for either task. Grade Rosters and unrelated role capabilities remain separate. Availability foregrounds the current declaration/request and next action, followed by one own-version **Availability history** section. Correction prefills latest own exact-Term values, asks **Can you teach this Term?** with visible yes/no choices, shows weekly unavailable-time fields only for a Faculty who can teach, and requires a new correction explanation. Whole-Term unavailability needs no individual intervals. Registrar-owned qualifications/load capacity need no unrelated Faculty disclosure. Show the distinct older unavailable-time records path only when own active legacy records exist; its return preserves My Availability and Term.
+Shared colors/material/typography/motion are in [DESIGN.md](../DESIGN.md). Supported component methods, implementation dispositions and framework boundaries are in [Architecture](architecture_specification.md#ui-implementation-responsibilities). Current concern dispositions and history remain in the linked GitHub records.
 
-My Schedule uses the shared timetable grammar, Week/Meeting list and one native search/filter state scoped to own official Course, Class, Room, Day and Modality. Active criteria remain visible. **Print this view** produces a clearly labelled filtered schedule using the same validated criteria; **Print all official meetings** produces the complete own official selected-version schedule. Neither accepts arbitrary meeting/Faculty identifiers. Both preserve actor ownership, current official/version eligibility, identity/as-of/revision evidence and output logging. Faculty rows may omit repeated Term/Faculty header identity. Examination Period remains concise informational context; affected published history remains accessible. These are owner-requested refinements of the Faculty task/output boundary, without new approval or publication policy.
-
-
-### October 11, 2026 connected Term Planning composition
-
-The whole Registrar, Academic Head and Faculty Term Planning experience uses one compact selected-Term identity and role-specific working surfaces. Registrar and Head retain all five destinations: Overview, Calendar, Sections & classes, Faculty & rooms, Timetable. Head inspects source evidence read-only; institutional approval stays external. Faculty retains My availability and My official schedule. Related source forms, records, history and outputs remain reachable with exact-Term ancestry.
-
-Overview leads with recorded Program/curriculum-year work and actual calendar/publication state; Head oversight separates selected-Term facts/findings from institutional curriculum findings. Classes and Student sections are distinct local views; Faculty and Rooms are distinct resource views. Calendar distinguishes core teaching geometry from operational dates. Timetable presents version, view, filters and eligible actions before the shared master/focused/list views; meeting details use bounded read-only dialogs. Availability leads with the current answer and legitimate submission/correction action, followed by one history. Schedule output retains official provenance and full/subset scope with concise human identity and readable print typography.
-
-Canonical task ancestry is Staff Workspace or Academic Oversight -> exact-Term Overview -> current task. Selected-Term identity belongs once in the workspace context; ancestry URLs are unique. Source records retain the appropriate role ancestor and contextual Term return. Native bounded decisions use dialogs; sustained records and histories use pages. No new completion gates, readiness metrics, approval powers, or mandatory all-year planning requirements are introduced. Owner visual/semantic acceptance remains open after local implementation.
-
-### October 11 shared controls and role-safe inspection correction
-
-DESIGN.md owns the shared Same Intent, Control Meaning and Working Record grammar. Registrar, Academic Head and Faculty use native searchable human-readable Term selection with each surface's existing available options and selection guards. Course and offered-course choices lead with the approved source title and retain code as supporting identity; Faculty and recorder choices use their existing human names, and room-type choices retain native human labels. Search behavior preserves record IDs, eligibility and exact-Term context. Shared native action/navigation/text-link/menu/table material comes from the existing foundation and framework adapters; this does not establish visual verification of every system page. The Issue #59 Applicant identity/attribution exception remains with its separate owner.
-
-In Classes and Student sections, Registrar and Head inspect the same class facts through the same bounded native Class details dialog. Linked-class inspection resolves against all classes in the exact selected Term, independently of the Classes-only Program/year filter. A class from another Term is refused. Course identity, linked student sections, learner counts, delivery groups and meeting requirements lead; supporting record history is disclosed quietly. Registrar's separate permission-bound Manage class destination retains sustained source editing. Head receives no manage-schedules permission or editing capability. Meeting details is a distinct bounded course/time/location inspection command, rather than a checkbox or pressed selection. Closing returns to its trigger and existing Term/local view.
-
-The three unselected local design options compare Workspace first, Review desk and Schedule first for Registrar preparation, Head source oversight, Faculty own availability/schedule and outputs. Their Week specimen uses the recorded 08:00–17:00 grid, actual meeting starts/durations and 12:00–13:00 break; narrow screens receive a chronological day-list equivalent. Paper specimens retain independent readable paper colors, school issuer, Faculty identity where applicable, exact Term/version and full/subset criteria. Task-specific context and genuinely inspected records replace automatic first-row selection. Preview-only field/command specimens illustrate linked shared classes, offered-course identity, qualifications/rooms, availability correction and separate draft/publication intent; they save no school record and infer no readiness or acceptance.
-
-The original isolated assessment is preserved as its dated 25/40 diagnostic with its original source fingerprint. The subsequent correction evidence and owner visual confirmation are separate. PRD 03 is unchanged because this increment corrects inspection, selection labels, semantics and composition while preserving owners, records, validation, source history, scheduling geometry and publication rules.
-
-
-### October 11 actual working-frame replacement
-
-The actual Registrar, Head and Faculty Term Planning pages now present one visible native selected-Term control, compact source-backed state where relevant, and the task body. Registrar Overview places actual global counts and the eligible next command above Program/year records. Calendar groups teaching dates/hours/exceptions and keeps activity dates distinct; the repeated history link is consolidated into Term context. Timetable state precedes display controls, whose native selects retain their existing IDs, validated options and bindings. Head selected-Term facts and owner-attributed concerns precede institution-wide curriculum evidence. Faculty connects its task navigation with Term selection, current availability answer/correction/due and own official schedule/examination source. Source/history/output entry points, owned permissions and captured timetable geometry remain. The standalone proposals remain rejected; this implementation has no owner visual acceptance yet. PRD 03 remains unchanged.
-
-Root-rendered correction: Overview counts Programs with classes, retaining advisory rows. Faculty and Room detail columns name their respective purpose. Existing selected-Term offered specification titles lead eligible-course labels, with code retained; the deadline edit is neutral beside the primary availability request. Existing qualification identities, source choices and guards remain.
-
-
-### October 11 actual #58 connected role surface refinement
-
-This local surface refinement retains PRD03/05 behavior and recorded safety/output contracts. Registrar scope selection precedes persistent Overview/Calendar/Sections & classes/Faculty & rooms/Timetable navigation and working records. Generation shows all recorded Program/year rows in an accessible compact scope table, including advisory empty rows; it creates a draft and preserves separate review/publication. Academic Head sees selected-Term calendar, official/draft timetable and informational examination source inspection with direct destinations, followed by institution-wide curriculum evidence. No Academic Head preparation or approval authority is added.
-
-Faculty uses the compact centered sibling task navigation. My Schedule retains actor-owned current official meetings, validated native criteria, current criterion labels, Week/List, protected meeting details, own revision history and subset/full output. Course title leads, code supports; Component remains available through native column selection and full detail. The bounded calendar exposes the entire captured teaching window with visible range and keyboard scroll, unchanged geometry and 12-hour Asia/Manila display; the narrow-screen agenda remains equivalent. My Availability retains request/deadline, answer, blocked times, correction reason/prefill, publication impact and source/history. Mobile retains required Term/examination/source/criteria and usable search/filter/output controls without redundant instruction rows. Official outputs retain issuer, attribution, immutable version and role/filter identity; screen Back preserves exact Term/view/criteria.
-
-Shared same-intent controls use approved tactile native components and opaque overlays. Source pages, focused creation slide-overs and bounded centered decisions keep distinct task purposes. Current root browser evidence and implementation readiness are recorded in the existing #58 review; owner visual acceptance remains open. A fresh bounded independent composition review returned disposition: ship for the eight role captures, inspected dialogs/output and refreshed generation captures; browser journeys remain root-provided. Unrelated workflow completion, new solver/publication policy, whole-app acceptance and external reporting authorization are not implied. Owner acceptance remains OPEN.
-
-Generation scope stays in a bounded, focusable, named horizontal-scroll region inside the native decision dialog. Retain every scope row, including empty advisories, and expose offscreen columns through keyboard scrolling; count unique classes once across shared associations. Display criteria never narrow generation. Source times/minute geometry and role handlers remain unchanged.
-
-### Faculty nine-comment refinement - October 11, 2026
-
-Owner-approved presentation and linked-title search expansion; PRD03/05 rules unchanged. The consolidated Faculty entry is Schedule & Availability, with My Schedule and My Availability sibling tasks and Grade Rosters preserved. Selected-Term no-official/pending Schedule exposes Open My Availability before publication, reusing existing Term selection and access. Global search preserves task names/aliases.
-
-One leading native Term selector groups local response/official status and source beneath it; secondary examination dates/source remain on Schedule without a duplicate Availability query. Owned native Filters have readable searchable Course/Class/Room, explicit dropdown width, maximum two columns/full-span Course and mobile one column, neutral Reset and preserved query IDs/criteria. Search courses, classes or rooms includes the title of the same course specification linked to each meeting plus course/class/room codes; scoped official screen/output criteria remain identical.
-
-Owner follow-up places Availability history View details in the native final right-hand column, superseding the earlier mobile-first position; narrow screens retain native horizontal table scrolling by allowing this table's grid item to shrink with min-inline-size: 0. Availability states show its purpose (Your availability helps the Registrar plan teaching assignments), current request/due, next action, current constraints and own history. Unrequested initial response names Registrar/contact; requested unanswered response makes Submit clear; answered Response recorded vN exposes Update my availability. The update dialog repeats that heading, uses Update availability to save, and requires Reason for this update. Retain one action-required email with direct My Availability link; the Registrar's request action triggers it, rather than Term creation. Its copy names the Term/deadline and the teaching/weekly questions, identifies Submit my availability for a first response and Update my availability for an existing response, and preserves the school issuer and no-assignment meaning; no in-app feed. Progressive Yes/No teaching and weekly questions, immediate one empty row for weekly Yes, native Day/From/To/Delete, one timezone, leading Add another unavailable time and responsive widths expose hard constraints without preferences. Initial weekly answer and valid weekly Yes row are required; corrections prefill intervals, require a fresh reason (2000 max) and retain the mounted-Term guard. No or whole-Term No submits empty intervals; draft toggling preserves inputs before cancellation.
-
-View details exposes complete own immutable response (exact Term, answer, date/version, all blocked periods and full reason/initial response). Re-resolve actor+selected Term at mount/content; no colleague, tampered or cross-Term record, and no old detail after Term change. Current Term request evidence is distinct from historical response; no request/declaration association is invented. Shared meeting inspection surfaces become opaque green Aqua-like controls without changing geometry or implying official/valid state. ALL native/Bootstrap modal X controls receive utility Aqua-like treatment under explicit owner quiet-close override; names/Escape/focus/native cancellation remain. Earlier affected ship evidence is historical. Root rendered desktop/mobile and owner acceptance remain OPEN.
-Shared school-issued HTML email presentation (owner refinement, October 11): all current Mailables, account MailMessage notifications and framework/Filament auth email inherit the same native Laravel Markdown theme/header. School name/crest lead; TALA attribution remains secondary, including Applicant emails whose screen-only exception is unchanged. Primary actions use the existing green/white palette and supporting links retain blue; source-defined error/success meanings remain. Inter has system fallbacks; shared primary actions use the full skeuomorphic Aqua-like family with upper-lens gloss, rounded face, inset highlight/lower bevel, real 1px rim, padding and modest offset shadow. Opaque stops retain readable white labels and solid green remains the fallback. Native table/responsive/inlined styling remains. Owner approval covers Faculty availability-request email content only; shared visual acceptance remains OPEN. The System Health self-test joins this shared layout with unchanged subject/message/trigger. Plain-text alternatives remain readable. Email client fidelity and delivery are distinct from local synthetic rendering and owner visual acceptance; no mail transport, authentication, trigger, recipient or product-rule change is introduced.
+<a id="connected-role-surfaces"></a>
+<a id="connected-term-planning-composition"></a>
+<a id="faculty-response-and-history-controls"></a>
+<a id="faculty-task-and-output-contract"></a>
+<a id="shared-controls-and-role-safe-inspection"></a>
+<a id="working-frame-composition"></a>

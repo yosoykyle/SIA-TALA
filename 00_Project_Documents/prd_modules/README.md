@@ -1,95 +1,40 @@
-# TALA Product Requirements — Modules Table of Contents
+# TALA Product Requirements
 
-This directory contains TALA's canonical product-definition baseline and six journey PRDs. Each PRD owns its module's product behavior. The Orchestrator Protocol governs delivery, and the owning Issues record progress and acceptance evidence.
+Baseline 00 and PRDs 01–06 define required behavior, data, office decisions, safeguards and outputs. Numbering follows product domains; delivery order/progress belong to [#48](https://github.com/yosoykyle/SIA-TALA/issues/48).
 
-The current delivery order, concerns and completion record live in [#48](https://github.com/yosoykyle/SIA-TALA/issues/48) and its owning child Issues. Archived feedback and review files provide provenance, not a second live backlog. A merge does not automatically change product rules: reconcile the relevant PRD section before implementing an adopted behavior change. Keep presentation and shared design in their existing owners.
+## Choose the contract
 
-The repository-wide [Documentation Authority Registry](../README.md) identifies product authority, workflow authority, operational status, evidence, implementation history, demonstration material, and obsolete/duplicate documents.
+1. [00 — System Definition Baseline](00_system_definition_baseline.md): goal, roles, vocabulary, shared rules, evidence model, coordinated demonstration and handoffs.
+2. [01 — Identity, access and public entry](01_identity_access_public_entry.md): accounts, verification/recovery, roles, entry and public content.
+3. [02 — Application, admission and enrollment readiness](02_application_admission_decision_enrollment_readiness.md): intake, evidence, correction, decision and Registrar clearance.
+4. [03 — Academic setup, offerings and timetable](03_academic_setup_offerings_published_timetable.md): curricula, calendar, classes/resources, availability, CP-SAT, review/publication.
+5. [04 — Registration and official enrollment](04_current_term_registration_official_enrollment.md): eligibility/proposal, placement, clearance, finalization, activation, adjustment/drop and COR.
+6. [05 — Teaching, grades, records and completion](05_teaching_grades_academic_records_completion.md): rosters/results, INC, academic/lifecycle projections, conferral and TOR.
+7. [06 — Accounts, outputs and assurance](06_accounts_official_outputs_operations_assurance.md): fees/assessments, accounts, coverage/payment evidence, clearance, SOA/acknowledgment, exports and health/privacy/audit.
 
-The [TALA System Definition Baseline](./00_system_definition_baseline.md) owns the product goal, evidence hierarchy, shared terminology, operating rules, policy classes, coordinated acceptance institution, and cross-module ownership. Each journey PRD defines **what its module must do**. Replaced modules are preserved under [`_legacy/`](./_legacy/) as supporting evidence, not product rules.
+Baseline Sections 10–12 define cross-module dependencies, coordinated demonstration and acceptance. Each module owns exact fields, sources, actions, failures and outputs; this index links to them rather than repeating them.
 
-TALA is Servitech-first but not limited to the approved Servitech evidence that is currently available. Unavailable or confidentiality-restricted local evidence is never inferred or disclosed, and it cannot cap necessary SIS coverage. Gaps follow the baseline's ordered authority model: applicable Philippine authority, approved Servitech evidence, qualified Philippine institutional comparison, mature-SIS pattern, lean safe TALA default, then a complete policy gate when no safe default exists. Another institution's thresholds, sanctions, deadlines, fees, grade vocabulary, or workflow scale never become Servitech policy automatically.
+## Adjacent owners
 
-The [UI Surface Blueprint](../ui_surface_blueprint.md) owns user-visible capabilities, navigation, states, responsiveness, accessibility and UI acceptance coverage. Impeccable leads composition for each task. Delivery follows the [TALA Orchestrator Protocol](../TALA-Orchestrator-Protocol.md), reusing accepted plans and applying the owner's authorized boundary.
+- [Blueprint](../ui_surface_blueprint.md): role capability, navigation, interaction, states, accessibility and output presentation.
+- [PRODUCT](../../PRODUCT.md): product brief. [DESIGN](../../DESIGN.md) and surface briefs: shared visual foundation and task direction.
+- [Architecture](../architecture_specification.md): technical/integration boundaries.
+- [Protocol](../TALA-Orchestrator-Protocol.md): execution and permission boundaries.
+- [Documentation guide](../README.md): authority/evidence/history classification.
 
-## Canonical Authority and Preserved Inputs
+PRDs define what must happen. Blueprint and Impeccable guide task-fit interaction. Source records are edited only by their owning role; other surfaces show authorized projections. Computed results remain read-only. Fixed import/export/output contracts create no generic report/mapping/template designer.
 
-The final numbered authority set is:
+## Evidence and changes
 
-- [`00_system_definition_baseline.md`](./00_system_definition_baseline.md) — shared product goal, evidence rules, operating contract, boundaries, and authority status.
-- [`01_identity_access_public_entry.md`](./01_identity_access_public_entry.md) — Identity, Access, and Public Entry.
-- [`02_application_admission_decision_enrollment_readiness.md`](./02_application_admission_decision_enrollment_readiness.md) — Application, Admission Decision, and Enrollment Readiness.
-- [`03_academic_setup_offerings_published_timetable.md`](./03_academic_setup_offerings_published_timetable.md) — Academic Setup, Offerings, and Published Timetable.
-- [`04_current_term_registration_official_enrollment.md`](./04_current_term_registration_official_enrollment.md) — Current-Term Registration, Official Enrollment, Student Activation, Adjustment, and Course Drop.
-- [`05_teaching_grades_academic_records_completion.md`](./05_teaching_grades_academic_records_completion.md) — Teaching, Final Grades, Academic Records, Lifecycle, and Completion.
-- [`06_accounts_official_outputs_operations_assurance.md`](./06_accounts_official_outputs_operations_assurance.md) — Accounts, Official Outputs, Operations, and Assurance.
+TALA is Servitech-first. Missing/confidential evidence is never invented or disclosed. Apply the Baseline's ordered source and safe-default/policy-gate rules; another institution's thresholds, sanctions, deadlines, fees or vocabulary do not automatically become Servitech policy. Missing authority must retain an owner, usable remainder, remedy and reopening condition.
 
-The former Product Intent, Term Offerings, CP-SAT, COR, Student Lifecycle, Student Hub, and System Administration modules are preserved in [`_legacy/`](./_legacy/) with explicit non-authority banners and their evidence content retained below those banners. They are evidentiary inputs only. Their old numbering and wording do not create additional authorities or override canonical `00`–`06`.
+Former Product Intent, Term Offerings, CP-SAT, COR, Student Lifecycle, Student Hub and System Administration modules remain in [_legacy/](./_legacy/) as preserved non-authoritative inputs. Their numbering creates no additional authority.
 
-## Audience and Authority
+Keep each rule with its owner. A merge, task closure, code model or historical review does not change product policy. Reconcile an adopted material change in its owning PRD before implementing it. Delivery decisions and acceptance evidence belong in GitHub.
 
-- **Client and product review:** scope, workflows, roles, business rules, outputs, integrations, and product boundaries.
-- **Agent and development context:** domain intent, cross-module dependencies, constraints, and terminology needed to prepare feature PRDs and implementation issues.
-- **Implementation authority:** the approved baseline and six journey PRDs, the canonical UI authority, the Architecture Specification, and a separately accepted journey-complete vertical-slice plan.
-- **Evidence-scarcity rule:** missing local evidence may narrow what TALA can claim as Servitech-specific, but it cannot remove a necessary capability or leave `Unavailable` without an owner, usable remainder, recovery, and reopening condition.
-- **Change rule:** a development decision must not silently alter a client-facing requirement. Product changes must first be reflected in the relevant module.
-
-Each module defines the facts users must enter or review, permitted decisions, business dependencies, source ownership and recovery. The UI Surface Blueprint and Impeccable translate those requirements into a task-appropriate interaction. The PRDs do not independently prescribe shared visual design; workspace shells, navigation, tokens, reusable components, user-visible capability coverage, responsive/accessibility behavior, and journey acceptance live in the [UI Surface Blueprint](../ui_surface_blueprint.md).
-
-## Standalone Authority Map
-
-| PRD | Successful journey | Owning roles and records | Producer/consumer dependencies | Official outputs | External or operational dependency | Coordinated acceptance subset | UI/architecture dependency |
-|---|---|---|---|---|---|---|---|
-| 01 | Public entry or invitation to secure authorized workspace | Applicant/Student/Staff account owner and System Administrator; Account, access profile, role assignment, security evidence, Public Notice/FAQ | Consumes Clinic 2 entry availability and Clinic 4 Student activation; produces credential/workspace authorization for all modules | Security emails and access evidence only | external Staff authority and identity proof are recorded inputs | 47 Student accounts, nine Faculty identities, other Staff, multi-role, disabled, pending, final-admin cases | Shared public/auth shell, workspace shell, Fortify/authorization boundary |
-| 02 | Verified Applicant to admitted and `ReadyForEnrollment` | Applicant and Registrar; Admission Cycle, Application, evidence, correction, decision, current Registrar enrollment clearance | Consumes PRD 01 identity; produces one versioned ready-applicant projection to PRD 04 | Application Acknowledgment | exact requirements, dates, decisions, and enrollment clearance are Registrar operational inputs | Bounded BM/IT/THM applicant cases; no annual forecast | Applicant/Admissions screens, private-file and email boundary |
-| 03 | Approved academic authority to immutable published timetable | Registrar, Faculty, Academic Head; Program/Course/Curriculum, Term, cohort, Class Offering, resource, candidate, Published Timetable | Consumes demand; produces class/calendar/timetable facts to PRDs 04–05 and receives unmet demand from PRD 04 | Published Timetable/schedule print | academic authorities, calendars, capacities, assignments, and sign-off are operational data | Three Programs, six cohorts, 47 Students, nine Faculty, ten rooms plus Special Term | Catalog/Term Planning and private CP-SAT service boundary |
-| 04 | Ready learner to atomic Official Enrollment and COR | Learner and Registrar; Registration Case, proposal, placement/reservation, Official Enrollment, Student identity, adjustment/drop, COR | Consumes PRDs 02, 03, 05, 06; produces enrollment/roster/change facts to PRDs 01, 03, 05, 06 | Current/historical COR | source authority absence blocks only the affected action | First/continuing/advised/Special Term cases over the coordinated institution | Enrollment workbenches, transaction/locking/idempotency boundary |
-| 05 | Official roster result to academic record, completion, and TOR | Faculty, Registrar, Student, Academic Head; roster/result events, averages, curriculum evaluation, lifecycle, completion/conferral, Transcript Snapshot | Consumes PRDs 03–04 and request-specific PRD 06 clearance; produces released-result, lifecycle, and enrollment-effect projections | Unofficial record and issued/void/replacement/superseded TALA Standard TOR | Physical signing, sealing, delivery, courier, and CAV remain external; signatory data is an operational input | Coordinated roster, retake, deadline-bound nonautomatic INC, external competency, lifecycle, completion and TOR cases | Grade/Academics/Completion screens and immutable-output boundary |
-| 06 | Authorized assessment to understandable account, verified effect, output, and assurance | Accounting, learner, System Administrator; Fee Plan, Assessment, Term Account, Coverage, evidence/posting, clearance, health/audit | Consumes PRD 04 registration and PRD 05 output request; produces bounded payment-clearance projections to PRDs 04–05 | SOA, Payment Acknowledgment, Account Status CSV, Verified Payments CSV | Lawful retention schedules, privacy requests, legal holds, secure disposal, provider procurement, and disaster-recovery operations remain external; automatic disposal is outside the MVP | Same Special Term/account references plus manual, PayMongo, coverage, reversal, alumni and degraded-health cases | Finance/assurance screens, PayMongo/private-file and provider-neutral production-recovery boundary |
-
-
-## Writing and Surface Rules
-
-Use these rules when updating or implementing the modules:
-
-1. Describe what TALA does before describing a boundary.
-2. Use the product workspace names: Public Gateway, Applicant Workspace, Student Hub, Staff Workspace, and the fixed role contexts Registrar, Accounting, Faculty, Academic Head, and System Administrator.
-3. Define each input by its user, purpose, source, collection stage, label, requiredness, format, exception and downstream consumer. Define each action by its prerequisites, consequence, source owner and recovery. Use those facts to choose the interaction through the UI Surface Blueprint, Impeccable and installed-version framework research.
-4. Source records are edited only in their owning workspace. Other surfaces show read-only summaries, links, or generated outputs.
-5. Computed values such as balances, eligibility, schedule conflicts, grade outcomes, and official outputs are shown as generated read-only results.
-6. Boundary statements are used only when they prevent overbuilding or protect official-record integrity.
-7. Every canonical UI entry declares one disposition: `NativeFilament`, `InstalledCompatibleDependency`, `FocusedTALACustom`, or `PurposefullyExcluded`. The inventory remains a coverage contract, not a required page or route count.
-8. Imports, exports, and printable outputs use fixed versioned contracts from their owning PRD. They do not expose a generic mapping designer, column designer, report hub, or template editor.
-
-## MVP System Surface Map
-
-This map identifies how major system areas are surfaced for v1. It is not a visual design or page layout.
-
-| Lifecycle area | Primary surface | Main user entry | Review or output surface |
-| --- | --- | --- | --- |
-| Public entry and access | Public Landing Page and Filament authentication surfaces | Record Form for sign-in, registration, recovery, and verification | Generated public information page with sign-in/apply entry points |
-| Applicant intake | Applicant Workspace | Native five-step Wizard, private File Upload with Preview, scoped corrections, and contextual Requirements | Generated application state, preliminary-evidence summary, Registrar-clearance summary, and printable acknowledgment |
-| Admission review and enrollment readiness | Registrar Workspace | One Operational Queue / Review Table plus focused Actions for evidence, decisions, Registrar-clearance outcomes, and cycle setup | Derived Ready Applicant projection consumed by Clinic 4 without Student creation or record copying |
-| Official Student profile | Registrar Students & Enrollment and read-only Student Profile | Focused Registrar correction action with authority/evidence; Account Security remains Clinic 1 | Generated identity/program/curriculum/entry/contact summary with correction guidance and append-only history |
-| Academic setup, offerings, and published timetable | Registrar-owned Catalog & Curricula and Term Planning workbenches; Academic Head and Faculty projections | Grouped Draft curriculum sheet/import with authority-backed external-competency requirements, typed First/Second/Special Term Calendar Package with informational Examination Period, Cohorts & Classes, Teaching Resources, whole-term generation, candidate review, and controlled publication/revision | Failed-first readiness, role-consistent Examination Period/unavailable state, Special Term schedule/hour authority, explainable candidate evidence, immutable Published Timetable, and role-specific official schedule projections |
-| Current-term registration and official enrollment | Registrar Students & Enrollment workbench with one guided Student Enrollment page | Versioned Standard Curriculum or Registrar-prepared Individually Advised proposal, learner confirmation, transactional placement, and five-checkpoint finalization using a valid ordinary or exact authorized individual assessment plus verified payment/Approved Coverage | Derived checkpoint summary, separate payment/coverage amounts and satisfaction basis, shortage/reservation evidence, official schedule, and immutable COR versions |
-| Accounts and payment evidence | Accounting Fee Plans and contextual Student Accounts workbench with Clinic 4/5 projections | Fixed versioned Program-and-Term Fee Plan for ordinary cases; exact externally calculated authorized individual assessment for bounded exceptions; append-only externally Approved Coverage; private manual-evidence review; exact-due PayMongo; append-only adjustment/reversal results | Summary-first Term Account, separate payment/coverage effects, Enrollment payment projection, request-specific output clearance, non-tax SOA, and Payment Acknowledgment |
-| COR and official outputs | Registrar Students & Enrollment workbench and Student Hub | Official-enrollment or approved-change transaction creates an immutable version | High-contrast Registration Form/COR with assessment basis and position at finalization; later financial review may be identified, while Clinic 6 owns current Student Account/SOA behavior |
-| Faculty rosters and final grades | Faculty Workspace and Registrar Workspace | Controlled final-result table with complete-roster submission and Registrar release/return actions; every released `INC` receives the fixed one-year completion deadline | Released result history, deadline amendments, `CompletionOpen`/`CompletionOverdue`/`Resolved`, correction evidence, and academic projections; no automatic grade conversion, and an overdue unextended `INC` remains no-credit with a retake path |
-| Academic record and lifecycle | Student Academics and Registrar Grades & Completion | Focused actions that record verified external-competency evidence and actual authorized academic/lifecycle decisions | Released grades, explicit average readiness, neutral Term weighted average, cumulative GWA, factual curriculum position, `AcademicEnrollmentEffect`, safe external results, lifecycle history, and unofficial record; no automatic sanction thresholds |
-| Graduation, conferral, and TOR | Registrar Grades & Completion with Student Academics visibility | Completion-readiness review, externally approved Registrar conferral, TALA Standard TOR preview, and Registrar issuance after readiness | Completion readiness, immutable degree record, issued/void/replacement/superseded transcript snapshots, and unofficial Student record |
-| Imports, contextual exports, health, governance, and retention boundary | System Administrator and owning role workspaces | Fixed TALA curriculum CSV preview/import contract, fixed contextual finance CSV contracts, locally evidenced health refresh, safe filters, and owning-record actions | Draft-only curriculum findings, two contextual Clinic 6 CSVs, read-only audit/evidence views, plain not-recently-checked status with technical evidence on disclosure, and **Automatic record disposal is not available in TALA** guidance |
-
-## Table of Contents
-
-The seven entries below are the complete standalone canonical product set. Journey-complete implementation planning and execution remain later, separately authorized gates.
-
-1. [00. TALA System Definition Baseline](./00_system_definition_baseline.md)
-2. [PRD 01. Identity, Access, and Public Entry — approved](./01_identity_access_public_entry.md)
-3. [PRD 02. Application, Admission Decision, and Enrollment Readiness — approved](./02_application_admission_decision_enrollment_readiness.md)
-4. [PRD 03. Academic Setup, Offerings, and Published Timetable — approved](./03_academic_setup_offerings_published_timetable.md)
-5. [PRD 04. Current-Term Registration, Official Enrollment, Student Activation, Adjustment, and Course Drop — approved](./04_current_term_registration_official_enrollment.md)
-6. [PRD 05. Teaching, Final Grades, Academic Records, Lifecycle, and Completion — approved](./05_teaching_grades_academic_records_completion.md)
-7. [PRD 06. Accounts, Official Outputs, Operations, and Assurance — approved](./06_accounts_official_outputs_operations_assurance.md)
-
-See [Replaced PRD Inputs](./_legacy/) for the preserved non-authoritative source set.
+<a id="audience-and-authority"></a>
+<a id="canonical-authority-and-preserved-inputs"></a>
+<a id="mvp-system-surface-map"></a>
+<a id="standalone-authority-map"></a>
+<a id="table-of-contents"></a>
+<a id="writing-and-surface-rules"></a>

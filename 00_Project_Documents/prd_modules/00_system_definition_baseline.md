@@ -722,7 +722,9 @@ This matrix is the final traceability contract for later journey-complete vertic
 
 Across every row, consumers must not edit producer-owned facts; missing or stale authority prevents unsafe action; and no workflow creates a duplicate account, handoff record, official output, payment posting, or email.
 
-## 13. Canonical Ownership and Delivery
+<a id="13-canonical-ownership-and-delivery"></a>
+
+## 13. Canonical Ownership
 
 The seven modules below identify canonical ownership. Live delivery scope, progress and acceptance evidence belong to the coordination Issue and its owning children.
 
@@ -740,11 +742,7 @@ Clinic 0 establishes the universal readiness presentation; each journey PRD owns
 
 The owning contracts govern identity continuity, academic results, official outputs, role entry, interface coverage, validation, concurrency, confirmation, retry and record preservation. Resolve a material authority or feasibility conflict in its owning document before implementing the affected behavior. Production operations and institution-owner decisions follow the owning PRD and Architecture Specification.
 
-Current workflow gates are:
-
-- The Canonical UI Surface Coverage Inventory governs required user-visible behavior and acceptance coverage.
-- Reuse the accepted slice plan and matching brief. Each authorized slice cites current owning product/UI/architecture contracts, inspects relevant code/schema/test evidence, and verifies retained behavior before acceptance.
-- Apply the permission boundaries and human gates in the Orchestrator Protocol to implementation, destructive work, external effects, completion and publication.
+The [UI Surface Blueprint](../ui_surface_blueprint.md) owns required interface coverage. The [Orchestrator Protocol](../TALA-Orchestrator-Protocol.md) owns plan/brief reuse, verification, reporting and permission boundaries; GitHub Issues own delivery status and evidence.
 
 ## 14. Assumptions
 
