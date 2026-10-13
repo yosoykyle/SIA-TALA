@@ -37,6 +37,8 @@ The supplied 2019 handbook concerns Servitech TESDA operations. It is contextual
 | Review and publish the official timetable | Registrar | Controlled publication record and immutable version history |
 | Manage internship placement, companies, supervisors, logbooks, or workplace attendance | External academic process | No Clinic 3 workflow |
 
+Routine recording captures actor and time automatically and permits an optional approval reference. Required curriculum/Program policy authority, Faculty eligibility/load authority and genuine exceptional school authorizations retain their source evidence.
+
 This is a `Decision then record` product. It does not recreate regulator, committee, HR, workload-approval, practicum, or academic-sign-off workflows.
 
 ## 3. Authoritative Conceptual Records
@@ -172,7 +174,7 @@ Clinic 3 does not manage placement sites, companies, supervisors, workplace atte
 
 Academic Head approves the institutional calendar outside TALA. Registrar records the authority and evidence, activates the package, and operates its windows. Academic Head receives read-only oversight. TALA adds no duplicate approval action.
 
-Every First, Second, or institutionally approved Special Term begins through an explicitly created `TermCalendarPackage`. More than one exact Term may be `Active` concurrently, including prior-term teaching or grade work while next-term registration or adjustment is open. The uniqueness boundary is one active package version per exact Term, not one active Term for the institution. Every window, class, timetable, registration, roster, result, account, COR, and output carries its exact Term; no action may infer one global current term. TALA never automatically creates or clones the next term, and `Special Term` is a controlled term type rather than a separate Summer subsystem.
+Every First, Second, or institutionally approved Special Term begins through an explicitly created `TermCalendarPackage`. The additional concurrent-Term demonstration is deferred; exact-Term isolation remains required. More than one exact Term may be `Active` concurrently, including prior-term teaching or grade work while next-term registration or adjustment is open. The uniqueness boundary is one active package version per exact Term, not one active Term for the institution. Every window, class, timetable, registration, roster, result, account, COR, and output carries its exact Term; no action may infer one global current term. TALA never automatically creates or clones the next term, and `Special Term` is a controlled term type rather than a separate Summer subsystem.
 
 ### 6.1 State and owned records
 
@@ -185,7 +187,7 @@ Stored state is only:
 The package owns:
 
 - Academic year, controlled term type, institution-approved display label, administrative dates, and class dates.
-- External approval reference and date plus Registrar recording evidence.
+- Recorded calendar authority; routine approval reference/date are optional and Registrar actor/time are captured automatically. Genuine exceptional school authorizations retain their required evidence.
 - For a Special Term, the approved particular schedule and attributable class-hour/class-day basis required by the recorded calendar authority.
 - Typed operational windows with inclusive Asia/Manila close dates and an optional approved cutoff time.
 - One weekly teaching-grid row for every allowed teaching day.
@@ -194,15 +196,17 @@ The package owns:
 
 No weekday, operating-hour, break, preferred-time, Special Term unit limit, or compressed-schedule value is assumed. Scheduling uses a fixed code-owned 30-minute grid inside the approved operating hours; the granularity is not configurable.
 
-Application dates remain in Admission Cycles. Payment dates remain in accounts. The approved `Examination Period` is informational: its inclusive dates, Term display label, calendar authority, effective package version, owner, and as-of time are projected read-only to Registrar, Academic Head, Faculty, and officially enrolled Students. Exact class arrangements remain Faculty-owned and use the approved teaching channel. Missing or stale evidence shows **Examination period unavailable — contact Registrar or Faculty** and never derives a date from class meetings. Clinic 3 includes no class-level examination record or examination scheduler. The neutral `Enrollment` operational window owns approved opening and closing dates only. Clinic 4 assigns its bounded applicability to Ready Applicants, Standard continuing Students, Individually Advised or exception cases, or all otherwise eligible learners. The `Grade Entry` window owns the definite Faculty submission period and due date consumed by Clinic 5; Clinic 5 owns late-grade authority, INC deadlines, release, and correction behavior. No programmable audience rules are introduced. Activating a term does not open enrollment; Clinic 4 also requires a published timetable and its remaining readiness facts.
+Application dates remain in Admission Cycles. Payment dates remain in accounts. The approved `Examination Period` is informational: its inclusive dates, Term display label, calendar authority, effective package version, owner, and as-of time are shown from the same calendar source as useful read-only information for Faculty and officially enrolled Students. Registrar edits the source; Academic Head retains source oversight. No redundant Examination Period record or projection is required. Exact class arrangements remain Faculty-owned and use the approved teaching channel. Missing or stale evidence shows **Examination period unavailable — contact Registrar or Faculty** and never derives a date from class meetings. Clinic 3 includes no class-level examination record or examination scheduler. The neutral `Enrollment` operational window owns approved opening and closing dates only. Clinic 4 assigns its bounded applicability to Ready Applicants, Standard continuing Students, Individually Advised or exception cases, or all otherwise eligible learners. The `Grade Entry` window owns the definite Faculty submission period and due date consumed by Clinic 5; Clinic 5 owns late-grade authority, INC deadlines, release, and correction behavior. No programmable audience rules are introduced. Core Term activation is independent of unrelated operational windows and the Faculty declaration deadline. Activating a term does not open enrollment; Clinic 4 also requires a published timetable and its remaining readiness facts.
 
 ### 6.2 Readiness and date effects
+
+Enrollment and Grade Entry dates must be available before their respective consuming actions open; neither is a core Term-activation prerequisite. Late Enrollment, Enrollment Adjustment and Course Drop windows are optional. A missing applicable window closes only its consuming action, subject to the owning PRD's exact authorized late/exception path. Examination information does not create an academic or financial gate.
 
 The calendar records the following approved facts:
 
 | Group | Minimum source facts and input meaning |
 |---|---|
-| Term identity | Academic Year, controlled First/Second/Special type, approved display label, administrative start/end and instruction start/end. State is Draft/Active/Closed; approval reference/date and Registrar actor/time are attributable. Special Term additionally carries its approved particular schedule and class-hour/class-day basis. |
+| Term identity | Academic Year, controlled First/Second/Special type, approved display label, administrative start/end and instruction start/end. State is Draft/Active/Closed; routine approval reference/date are optional and Registrar actor/time are captured automatically. Special Term additionally carries its approved particular schedule and class-hour/class-day basis. |
 | Operational window | Controlled Enrollment, Late Enrollment, Enrollment Adjustment, Course Drop, Examination Period or Grade Entry; open date, inclusive close date, optional source-approved cutoff time and safe public note. Late Enrollment is included only when an approved period exists. These are dates for named consumers, not programmable audiences/effects. |
 | Weekly teaching grid | One row per approved weekday with earliest class start and latest class end; recurring breaks have weekday, start/end and label. Times and breaks must be consistent and within approved bounds. No day/hour/break default is invented. The fixed scheduling grid remains 30 minutes. |
 | Dated exception | Approved date/range, optional start/end, plain title/reason, authority/reference and instructional effect: NoClasses, MakeUpAllowed or InformationOnly. MakeUpAllowed permits a scheduling revision; an authorized publication makes the revised meetings official. |
@@ -245,7 +249,7 @@ Stored state is only `Draft`, `Confirmed`, or `Cancelled`. Blocked, ready for sc
 
 Each Class Offering records the Course Revision, stable class reference, `Regular` or `Additional` source, linked cohorts and expected count, authoritative institutional class capacity, weekly meeting pattern and per-block mode, room needs, applicable exact commitments, and current readiness. `Regular` describes a curriculum-planned offering source only; it is not a Student or enrollment status.
 
-TALA may generate Draft Class Offerings from the active curriculum, confirmed cohorts, forecasts, and bounded `UnmetClassDemandProjection` evidence returned by Clinic 4. Registrar alone confirms, splits, shares, adds, or cancels those drafts. CP-SAT schedules confirmed offerings and never creates or merges them.
+TALA provides one full curriculum-and-demand bulk preview from the active curriculum, confirmed cohorts, forecasts, and bounded `UnmetClassDemandProjection` evidence returned by Clinic 4. Registrar reviews the complete proposed class set, handles splits, shares, additions and cancellations, and confirms the valid set together. Preview creates no confirmed classes; confirmation rechecks the existing class-confirmation source versions, academic authority, demand, class capacity and meeting definition guards. Class/resource preparation remains possible in parallel. Faculty eligibility, declarations, resource preparation and coherent aggregate Faculty load/preparation limits are checked at their applicable generation-readiness stage; they create no class/availability request cycle. CP-SAT schedules the whole confirmed term and never creates or merges offerings; independent validation and truthful solver outcomes/metrics remain required.
 
 One `Additional` Class Offering covers an externally approved retake, catch-up, elective, or other exceptional class. TALA does not create separate petition, tutorial, summer, or special-offering workflow engines.
 
@@ -253,7 +257,7 @@ Compatible cohorts may share one Class Offering only for the same canonical Cour
 
 Capacity does not control admission and has no universal institutional ceiling. An on-campus capacity increase cannot exceed the assigned room. An Online class still has an institutionally approved class capacity.
 
-Before publication, cancellation requires a reason and authority. After publication it requires a timetable revision. Once Clinic 4 placements exist, Clinic 4 must resolve the affected enrollments before final cancellation.
+Before publication, cancellation requires an attributable reason and authorized actor; a routine approval reference is optional. Exceptional class authorizations retain their required evidence. After publication it requires a timetable revision. Once Clinic 4 placements exist, Clinic 4 must resolve the affected enrollments before final cancellation.
 
 ## 8. Clinic 4 and Clinic 5 Handoffs
 
@@ -277,7 +281,7 @@ Clinic 5 consumes the official `ClassOffering`, designated submitting-Faculty as
 
 A Faculty member may teach multiple approved courses. TALA records externally determined course eligibility, term unit limit, applicable preparation limit, authority/evidence, and effective dates. It does not reproduce HR, appointment, or academic workload-approval workflows.
 
-Each Faculty member makes one declaration for the selected term: genuine hard-unavailability periods or **No additional restrictions**. The declaration has a scheduling-input deadline and one action-required email. It has no approval queue and no preferred-time field. Late corrections record actor and reason and trigger candidate revalidation or the published revision path; they never silently move a meeting.
+Each Faculty member makes one declaration for the selected term: genuine hard-unavailability periods or **No additional restrictions**. The declaration has a scheduling-input deadline and one action-required email. That deadline belongs to scheduling readiness and does not gate core Term activation. It has no approval queue and no preferred-time field. Late corrections record actor and reason and trigger candidate revalidation or the published revision path; they never silently move a meeting.
 
 ### 9.2 Rooms and commitments
 

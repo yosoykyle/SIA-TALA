@@ -184,6 +184,8 @@ The existing audit facility may carry this evidence. No parallel audit engine is
 
 ### 4.7 Public Content
 
+**About Servitech** and **Program details** present only approved school/program facts: concise introduction, description, skills, duration, credential and source-derived Apply availability where those facts exist. Program details reuse academic/admissions sources rather than duplicate marketing records. Missing facts remain unavailable or are omitted without invention. No general CMS, gallery or new events/news feed is introduced; further calendar-event/news presentation is deferred.
+
 **Announcements** communicate time-sensitive school notices, dates, and changes on the Public Gateway. The product record is **PublicNotice**. **FAQs** answer recurring questions about eligibility, application steps, documents, sign-in, and where to get help. System Administrator maintains both from approved information; Program availability and application dates come from their owning sources.
 
 **PublicNotice** contains a required title of 1–160 characters, required plain-text short message of 1–500 characters, publication state, optional visible-from and visible-until in Asia/Manila, a positive display order unique within its effective published group, and an optional HTTPS link whose label is at most 80 characters and URL at most 2,048 characters. When both dates exist, visible-from cannot follow visible-until.
@@ -293,6 +295,8 @@ Clinic 4 owns the transaction:
 - Assignment and revocation use fixed roles and require reason and authority plus optional evidence reference.
 
 ### 6.8 Bounded public content
+
+Visitors can read bounded About Servitech information, open an approved Program detail and return to the originating list or Apply context. Detail views retain the gateway's intake availability source.
 
 System Administrator may create, edit, publish/unpublish, and order concise notices and FAQ entries. Notices may use publication windows in Asia/Manila. Invalid or unsafe optional notice links are rejected. Public rendering includes published FAQs and currently effective published notices. Announcements cover factual school guidance beyond admissions and remain independent of the admission cycle. Their masthead announcement cards and native Announcements anchor appear when effective notices exist or the notice source is unavailable; an available source with no effective notices creates no empty announcement card or anchor.
 

@@ -29,7 +29,7 @@ The successful ending is:
 | Bank, wallet, or cash verification | Accounting | Checks the actual external institution, bank, wallet, or cash record | Private evidence intake and recorded verification result | Manual-office result record |
 | PayMongo confirmation | PayMongo plus Accounting exception ownership | Provider sends a signed event; Accounting handles mismatches or later corrections | Integration attempt, verified event, idempotent posting, and exception evidence | Integration input/output |
 | Tax invoice or registered Accounting document | Accounting outside TALA | Issues the institution's BIR-compliant document through its authorized procedure | Shows a disclaimer and optional safe external reference only | External/manual decision |
-| TOR or other official-output payment clearance | Accounting, consumed by Registrar | Confirms the external payment or authorized `NotRequired` result | Bounded request-specific projection | Manual-office result record |
+| Official-output restriction | Accounting, consumed by Registrar | Records an actual restriction with office, reason, blocked action, source and history | Read-only OUTPUT-scoped restriction | No per-request payment-clearance approval workflow |
 | System operation | System Administrator and infrastructure custodian | Uses provider dashboards, host access, backup media, and restore procedures outside TALA | Displays only locally recorded application evidence | Generated read-only view |
 | Retention, privacy requests, legal holds, and secure disposal | Institution and privacy authority | Governs these obligations outside TALA | Shows only that automatic disposal is not provided in this MVP | External responsibility |
 
@@ -54,7 +54,7 @@ Current finance, payment, output, operations, schema, and test surfaces remain i
 
 **Payment-channel boundary:** Core accounts, Fee Plans, authorized individual assessments and manual bank, wallet or cash-receipt verification operate independently of a gateway. Optional PayMongo checkout uses the exact-due and signed-event contract in Section 7. Provider configuration and activation follow the Architecture Specification and the task's execution boundary.
 
-**Clearance and restriction boundary:** `EnrollmentPaymentRequirementProjection` and `OfficialOutputPaymentClearance` are source-specific financial projections. Baseline Section 3.7 owns other source-backed restrictions and their attribution. Accounting records exact financial effects and request-specific clearance; it does not operate a generic hold/waiver editor or block unrelated sign-in, classes, examinations or grade viewing. Schema fields and hold-type inventories do not add product behavior.
+**Clearance and restriction boundary:** `EnrollmentPaymentRequirementProjection` is a source-specific payment calculation. Accounting OUTPUT-scoped restrictions are source-backed action restrictions, not per-request clearance decisions. Baseline Section 3.7 owns other source-backed restrictions and their attribution. Accounting records exact financial effects and OUTPUT-scoped restrictions; it does not operate a generic hold/waiver editor or block unrelated sign-in, classes, examinations or grade viewing. Schema fields and hold-type inventories do not add product behavior.
 ## 4. Authoritative Records, Fields, and Invariants
 
 These are conceptual product records and projections. They are not approved table, class, route, or API names.
@@ -68,7 +68,7 @@ These are conceptual product records and projections. They are not approved tabl
 | PaymentEvidence | Preserve each learner claim and review result | Learner submits; Accounting reviews | Persisted authoritative record with immutable versions | Payment Exceptions and audit | Never constitutes payment by submission |
 | PaymentAttempt | Track one provider checkout lifecycle | PayMongo/TALA integration | Persisted authoritative record | Payment posting, exception handling, learner status | Distinct for signed-event idempotency; no arbitrary-amount checkout |
 | PaymentPosting and reversal | Record verified monetary effect and correction | Accounting or verified integration | Immutable version or event | Account, Clinic 4, acknowledgments | Original posting remains; reversal is append-only and not refund execution |
-| Clearance decision and OfficialOutputPaymentClearance | Record and publish request-specific Accounting clearance | Accounting | Persisted authoritative decision plus derived projection | PRD 05 | No global hold or generic clearance engine |
+| Accounting OUTPUT-scoped restriction | Preserve an actual action-scoped restriction and history | Accounting | Source-backed restriction | PRD 05 | No global hold, waiver engine or per-request clearance approval |
 | Current due, account status, EnrollmentPaymentRequirementProjection | Explain current position and enrollment requirement | PRD 06 | Derived projection/calculation | Learner, Accounting, PRD 04 | No stored balance fallback or generic payment-allocation engine; every posting names its exact obligation effects |
 | System Health and Governance & Audit projections | Present locally recorded operational/audit evidence | System Administrator reads; source systems record facts | Derived projection/calculation or UI-only state | System Administrator | No provider console, second audit store, or compliance-attestation workflow |
 | SOA, Payment Acknowledgment, and contextual CSVs | Reproduce authorized account/payment views | PRD 06 | Official output | Learner or Accounting | Remain non-tax outputs; no report center or generic exporter |
@@ -202,11 +202,9 @@ For a changed registration, a cost-increasing add or replacement requires a succ
 
 A canceled, expired or `NotEnrolled` Registration Case may still have verified money in its same-Term Account. Retain payment, coverage and obligation history, show **Registration ended — Accounting review required**, and link the learner to the existing account/support path. Accounting resolves the exact external result; TALA starts no checkout for an inactive case and infers no forfeiture, refund, credit or reallocation. A same-Term reopen revalidates the current Assessment and named obligations under the ordinary transaction guards. Retained valid applications count once; changed assessment authority requires a successor and explicit Accounting reconciliation before clearance.
 
-#### Clinic 5 official-output clearance
+#### Clinic 5 official-output restriction
 
-`OfficialOutputPaymentClearance` has exactly three states: `Cleared`, `NotRequired`, and `ActionNeeded`.
-
-It is keyed to one official-output request or issuance reference and includes the learner, output type, required amount when supplied by Accounting policy, verified external-payment reference or `NotRequired` authority/reason, responsible Accounting actor, source, and as-of time. Clinic 5 reads it without editing it. Request intake, collection, CAV, signature, seal, claiming, courier, diploma, and ceremony work remain external.
+Accounting records only a genuine OUTPUT-scoped restriction: responsible office, reason, exact blocked output action, source and history. Clinic 5 consumes the current restriction source before preview/issue. An absent restriction permits the normal guarded TOR journey; no request-specific payment-clearance approval, `Cleared`/`NotRequired` decision queue or arbitrary output fee is introduced. Real payment/source facts remain in the same account records. Request intake, collection, CAV, signature, seal, claiming, courier, diploma and ceremony remain external.
 
 ## 5. Readiness and Cross-Module Handoffs
 
@@ -217,7 +215,7 @@ It is keyed to one official-output request or issuance reference and includes th
 | Obligation reconciliation | Fee Plan obligations | Accounting | At least one row; ordered dates; rows sum to total; enrollment amount matches first obligation | Hard blocker | Publish Fee Plan | Correct obligations |
 | Unique current plan | Published Fee Plans | Accounting | No competing Published version for Program and Term | Hard blocker | Publish Fee Plan | Supersede through the controlled successor action |
 | Registration source | Clinic 4 Registration Case and proposal/selection source | Registrar | Same credential/Applicant-or-Student continuity, Program, Term, and current authoritative version | Hard blocker | Create/refresh Assessment | Correct Clinic 4 source |
-| Ordinary assessment source | Published Fee Plan plus Registration Case | Accounting/Registrar | Plan is current and the confirmed registration is represented exactly by it | Hard blocker | Publish enrollment projection | Correct the Clinic 4 source or publish the applicable plan |
+| Ordinary assessment source | Published Fee Plan plus Registration Case | Accounting/Registrar | Plan is current and the current reserved proposal or authorized confirmed change is represented exactly by it | Hard blocker | Publish enrollment projection | Correct the Clinic 4 source or publish the applicable plan |
 | Individual-assessment eligibility | Current Clinic 4 proposal/change plus reason category | Registrar/Accounting | Approved Special Term, reduced enrollment differing from the fixed plan, Individually Advised selection-specific charges, or authorized adjustment/Course Drop effect | Hard blocker for individual assessment | Record authorized individual assessment | Correct the case/change source or use the ordinary plan when it represents the case |
 | Individual-assessment authority | External Accounting authority and exact result | Accounting | Authority/date, exact proposal/change, course/unit snapshot, nonnegative lines, total, obligations, and enrollment amount are complete and reconciled | Hard blocker | Publish projection or changed-registration impact | Correct the external result; never infer a formula or amount |
 | Approved Coverage authority | External approval plus current Term Account, Assessment, and named obligations | Accounting | Category/source, authority/date, applicable amount, effective date, recorder, and target obligations are complete; amount does not exceed their remaining value | No coverage account effect; missing, stale, conflicting, or invalid authority produces `Unavailable`; a valid account with an unsatisfied current obligation remains `ActionNeeded` | Record Applied coverage; publish enrollment projection | Correct or externally reconcile the authority; never cap, reallocate, refund, or infer eligibility |
@@ -227,7 +225,7 @@ It is keyed to one official-output request or issuance reference and includes th
 | External payment verification | Real bank/wallet/institutional source | Accounting | Exact owner/context, amount, reference, and no unresolved conflict | Hard blocker for posting | Verify posting | Reject, resubmit, or route to exception |
 | PayMongo local readiness | Environment configuration and local callback route | System Administrator | Required configuration is present without exposing secrets | Degraded integration | Start checkout | Restore configuration; manual evidence remains available |
 | PayMongo event | Signed provider event, matching attempt, current Assessment, and named obligations | Integration/Accounting | Signature, account, amount, currency, reference, and idempotency match; lock and revalidate the current Assessment and remaining obligation amounts before posting | Stale or mismatched event becomes review-required with retained provider evidence | Confirm PayMongo payment | Accounting reconciles the verified receipt with the current account |
-| Output source | Current Term Account and authorized requester | Owning role | Source is available, current, and accessible | Hard blocker for output | Generate SOA/acknowledgment/export | Refresh source or correct authorization |
+| Output source | Current Term Account and authorized requester | Owning role | Source is available, current, and accessible | Hard blocker for output | Generate SOA with payment activity; historical acknowledgments retain access; further exports deferred | Refresh source or correct authorization |
 | Automatic retention disposal | MVP product boundary | Institution/privacy owner remains responsible externally | Not provided in this MVP | No disposal action exists | None inside TALA | Handle lawful retention schedules, privacy requests, legal holds, and secure disposal outside TALA |
 
 Successful readiness checks use a concise summary with accessible source detail. Every failed result names the owner, source, effect, and safe next action. Missing PayMongo disables only checkout; missing SMTP never reverses a payment posting.
@@ -239,7 +237,7 @@ Successful readiness checks use a concise summary with accessible source detail.
 | Fee Plan `Draft` | Create or edit Draft | Accounting with Fee Plan manage authority | Program and Term exist | Saved Draft and audit evidence | No financial effect | Readiness may show incomplete |
 | Fee Plan `Published` | Publish plan | Accounting publisher | All Fee Plan readiness checks pass | Immutable published version | Cannot be edited; later version supersedes | Clinic 4 may create Assessment |
 | Fee Plan `Superseded` | Publish successor | Accounting publisher | Existing Published plan and valid successor | Predecessor linked to successor | Historical version retained | Existing Assessments keep their original source |
-| Ordinary Assessment current | Create/refresh `PublishedFeePlan` assessment | Authorized Clinic 4/Accounting workflow | Published plan and current Registration Case represent the confirmed selection exactly | Immutable Assessment version and activity | Later change creates successor | Learner and Clinic 4 see plan basis and source version |
+| Ordinary Assessment current | Create/refresh `PublishedFeePlan` assessment | Authorized Clinic 4/Accounting workflow | Published plan and current Registration Case represent the current reserved proposal or authorized confirmed change exactly | Immutable Assessment version and activity | Later change creates successor | Learner and Clinic 4 see plan basis and source version |
 | Individual Assessment current | Record `AuthorizedIndividualAssessment` | Accounting with assessment authority | Eligible case; current proposal/change; complete external authority and reconciled exact result | Immutable Assessment version and activity | Later decision creates successor | Learner and Clinic 4 see individual basis and safe authority reference |
 | Coverage `Applied` | Record externally approved account effect | Accounting with coverage-recording authority | Current account/Assessment/obligations; complete authority; exact applicable amount within remaining obligation | Append-only Approved Coverage activity and refreshed projection | Cannot be edited; correction uses successor or reversal | Clinic 4 sees separate coverage amount and `ApprovedCoverage` or `Mixed`; learner sees safe source/effect |
 | Coverage `Superseded` | Record an authorized replacement | Accounting with coverage-recording authority | Existing Applied record and valid successor authority | Prior coverage ceases current effect; successor applies | History remains; no deletion or transfer | Account/SOA show both records; projection uses only current effect |
@@ -256,9 +254,8 @@ Successful readiness checks use a concise summary with accessible source detail.
 | Attempt `ReviewRequired` | Receive mismatch/recovery/refund/reversal evidence | System-derived | Evidence cannot safely auto-post | Payment Exception | No financial effect until authorized result | Learner sees safe review status only |
 | Pending attempt without provider event | Reconcile through the verified-external-payment path | Accounting reviewer | Exact provider/external source checked; account, amount, currency, and reference match; no existing posting | Manual-basis immutable Payment Posting linked to the pending attempt/reference | A later valid event with the same external reference is an idempotent no-op, not a second posting/email | Projection refreshes once; learner sees verified result rather than provider controls |
 | Posting reversed | Record authorized external correction | Accounting with reversal authority | Existing posting, authority, reason, impact preview | Append-only reversal and refreshed projections | Original remains visible | Ack becomes reversed/superseded |
-| Output clearance `Cleared` | Verify request-specific payment | Accounting | Exact output request and external reference | Read-only clearance | Later correction appends evidence | Clinic 5 can continue its owning action |
-| Output clearance `NotRequired` | Record authorized exemption | Accounting | Authority and reason supplied | Read-only clearance | Superseding correction is auditable | Clinic 5 can continue its owning action |
-| Output clearance `ActionNeeded` | Required evidence absent/invalid | System-derived/Accounting | Output request exists | Read-only action-needed result | No global hold | Clinic 5 pauses only that output action |
+| OUTPUT-scoped restriction active | Record actual authorized restriction | Accounting | Office, reason, exact blocked output action and current source | Read-only named blocker for Clinic 5 | Later resolution appends evidence/history | Only the named output action pauses |
+| OUTPUT-scoped restriction resolved | Record source-backed resolution | Accounting | Current restriction/source and attributable resolution | Named action may continue after all its other checks | Prior restriction/source history remains | No request-by-request approval |
 
 Every consequential action is reauthorized server-side and revalidates current source versions. A stale page cannot publish, post, reverse, or clear a request.
 
@@ -292,7 +289,7 @@ No missing value is inferred from a global rule, per-unit rate, or percentage fa
 4. TALA validates and stores the submission without posting payment or emailing.
 5. Accounting reviews the oldest/highest-risk exception first and checks the real external source.
 6. Accounting verifies the actual amount and previews its deterministic application to the named obligations, rejects with a safe reason, or leaves the item under review.
-7. Confirmation posts once with each applied amount, refreshes projections, generates acknowledgment eligibility, and queues exactly one verified-payment email.
+7. Confirmation posts once with each applied amount, refreshes projections, updates payment activity in SOA and retains historical acknowledgment access, and queues exactly one verified-payment email.
 
 Unreadable, wrong-account, duplicate-reference, mismatched, over-obligation, and conflicting submissions never post automatically. A failed upload preserves entered non-file fields where safe and clearly requests a new file. A failed posting states whether nothing was posted and preserves the review evidence.
 
@@ -325,17 +322,19 @@ Provider unavailability disables only the checkout action. Manual evidence and a
 
 When a later obligation reaches its due date, current due and Student Finance refresh from the same account activity. The learner may pay or submit evidence, but the amount does not retroactively invalidate official enrollment, Student access, classes, examinations, released academic results, or COR versions. Only a specifically authorized future or official-output action may consume an approved bounded projection.
 
-#### TOR clearance
+#### TOR request and issuance handoff
 
-Clinic 5 supplies the exact output request reference. Accounting records `Cleared`, `NotRequired`, or leaves `ActionNeeded`. The result affects only that request. Clinic 6 does not accept transcript requests, issue TOR, collect signatures/seals, arrange claiming, or decide CAV.
+Clinic 5 records the TOR request and previews/issues it under academic-source, identity, template, signatory, rendering and authorization checks. Accounting's applicable OUTPUT-scoped restriction blocks only its named action with a reason and source. Resolving that source refreshes the same restriction/history. Accounting operates no per-request TOR payment-clearance approval workflow and issues no TOR.
 
 ## 8. Email Authority
+
+Emails are selective action-required or official-event messages. Preserve security, authorization and event/recipient idempotency. There is no exactly-twelve-message requirement or bell-notification system.
 
 Clinic 6 owns exactly one email event.
 
 | Trigger | Recipient | Safe contents | Source and idempotency | Delivery failure | Excluded notifications |
 |---|---|---|---|---|---|
-| Verified payment posted | Owning Applicant or Student email account | Amount, Term Account reference, posting date, secure portal link, and statement that the TALA acknowledgment is not a tax invoice | Payment Posting reference | Posting remains valid; failure is recorded for authorized resend/follow-up | Proof submission/rejection, Approved Coverage creation/supersession/reversal, reminder, checkout return, exception, TOR clearance, reversal, health, export, or routine activity |
+| Verified payment posted | Owning Applicant or Student email account | Amount, Term Account reference, posting date, secure portal link, and statement that the TALA acknowledgment is not a tax invoice | Payment Posting reference | Posting remains valid; failure is recorded for authorized resend/follow-up | Proof submission/rejection, Approved Coverage creation/supersession/reversal, reminder, checkout return, exception, OUTPUT-scoped restriction, reversal, health, export, or routine activity |
 
 ## 9. Official Outputs, Exports, and Audit Evidence
 
@@ -354,11 +353,13 @@ The authenticated, non-tax Account Statement contains:
 - output reference and generation time; and
 - a clear statement that it is not a BIR invoice or official tax document.
 
-#### Payment Acknowledgment
+#### Payment activity and historical acknowledgments
 
-One authenticated, non-tax acknowledgment is available per verified Payment Posting and contains payment/account references, amount, date, channel, masked external reference, verification basis, account effect, current state, generation reference/time, and the non-tax disclaimer. A reversed payment remains discoverable and its acknowledgment is visibly `Reversed` or `Superseded`.
+New payment acknowledgement is folded into the SOA presentation: verified posting reference, amount/date/channel, masked external reference, account effect and reversal/supersession state remain visible with the non-tax disclaimer. No separate new acknowledgement document is required. Historically issued immutable acknowledgments and authorized access remain available, retaining payment/account references, verification basis, generation reference/time and non-tax disclaimer alongside amount/date/channel, masked external reference and recorded account effect/state. Reversal preserves the original posting and output history and labels its effect clearly.
 
-#### Contextual CSV exports
+#### Deferred contextual CSV exports
+
+Further Account Status, Verified Payments and Class Roster CSV refinement is deferred from the initial refinement scope. The following historical/source contracts remain preserved; they do not require new export implementation or demonstration.
 
 Exports are CSV-only native Filament actions with fixed ordered columns. Column selection, alternate formats, a generic exporter, and a Reports navigation page are not provided.
 
@@ -400,7 +401,7 @@ Private proof paths, raw provider data, bank details, secrets, eligibility mater
 
 #### Required audit evidence
 
-Audit covers Fee Plan creation/publication/supersession; Assessment creation/supersession; Approved Coverage application/supersession/reversal; evidence submission/review; posting and idempotent duplicate outcome; exception resolution; adjustment/reversal; clearance result; output access; export purpose/outcome; email delivery result; integration result; and locally recorded backup/restore evidence. Audit views do not expose secrets, private eligibility material, or private screenshots.
+Audit covers Fee Plan creation/publication/supersession; Assessment creation/supersession; Approved Coverage application/supersession/reversal; evidence submission/review; posting and idempotent duplicate outcome; exception resolution; adjustment/reversal; OUTPUT-scoped restriction/resolution; output access; export purpose/outcome; email delivery result; integration result; and locally recorded backup/restore evidence. Audit views do not expose secrets, private eligibility material, or private screenshots.
 
 ## 10. System Health, Governance, Privacy, and Recovery
 
@@ -411,9 +412,7 @@ System Health is a read-only, evidence-first System Administrator page. It may s
 - SMTP configured state, last locally recorded success/failure, and queued/failed counts;
 - PayMongo local configuration, recent verified webhook, pending attempts, and open exceptions;
 - solver local configuration and last accepted/failure result;
-- queue/background-processing pending and failed counts;
-- application, database, and private-storage locally recorded checks; and
-- automated backup-job results recorded by TALA or its approved local job boundary, including the latest locally verified off-host generation and whether the configured production target is overdue.
+Further health UI beyond mail, PayMongo and solver is deferred. Existing queue, application/database/storage and backup history remains preserved; no new demonstration or operational controls are required.
 
 Every row shows the plain user label `Available`, `Needs attention`, `Unavailable`, or `Not recently checked`, together with the evidence source, as-of time, responsible owner, and safe next step. Existing internal status values may remain implementation detail, but routine copy must not expose architecture terminology. A missing or unknown result never appears healthy. Provider dashboard status, primary-host backup state, independent backup-provider state, and any physical-copy/custody state say that no recent approved evidence is available unless verified external evidence is deliberately imported through a later approved authority. The precise evidence boundary remains available under technical details.
 
@@ -448,6 +447,8 @@ Production recovery is an external operational responsibility, not a Clinic 6 pr
 - Exact provider, tool, cadence, retry, retention, RPO/RTO, offline-media, and restoration order belong to the Architecture Specification and deployment runbook. Cloudflare R2, restic, and the client-owned ORICO enclosure are evaluated production candidates, not mandatory TALA features or capstone acceptance dependencies.
 - TALA exposes no provider, shell, media, or restore controls and may display only safe locally recorded outcome, as-of, overdue, and next-action evidence. Provider and physical-media facts use plain not-recently-checked guidance and never appear healthy without separately imported approved evidence; technical details retain the exact source and verification boundary.
 
+Routine actions capture actor/time automatically and accept an optional approval reference. FeePlan and other financial-policy authority evidence remains required, as does genuine special assessment, coverage, reversal and other exceptional school authorization. One unified assessment presentation explains the same FeePlan, authorized individual assessment, coverage and verified payment sources without merging their distinct records, inventing discounts or adding a migration. New application acknowledgment is a screen receipt; historical immutable issued outputs and access remain preserved.
+
 ## 11. UI Interaction Contract
 
 The Clinic 6 UI Surface Blueprint owns capability coverage, hierarchy, states and responsive/accessibility outcomes. This section fixes product content and action ownership. DESIGN.md and the matching surface brief govern Impeccable-led composition and framework research.
@@ -457,7 +458,7 @@ The Clinic 6 UI Surface Blueprint owns capability coverage, hierarchy, states an
 Accounting has exactly two primary finance destinations:
 
 1. **Fee Plans**
-2. **Student Accounts**, with **Accounts**, **Payment Exceptions**, and **TOR Clearance** tabs
+2. **Student Accounts**, with focused account/payment views and contextual OUTPUT-scoped restrictions; no TOR approval queue
 
 System Administrator has **System Health** and **Governance & Audit**. Students have one **Finance** destination. Applicant payment status is embedded in Clinic 4 Enrollment and is not a separate Applicant navigation item.
 
@@ -467,11 +468,11 @@ System Administrator has **System Health** and **Governance & Audit**. Students 
 |---|---|---|---|
 | Fee Plans | Accounting publishes the Program-and-Term authority | Current published plan, action-needed Drafts, upcoming Terms | Term/Program/state/search; reference, version, total, authority, readiness; `New draft`, `Continue`, `View` |
 | Fee Plan detail | Accounting prepares and publishes one version | Identity/authority, charge lines, obligations, readiness, history | Visible labels for authority/date; editable ordered rows only in Draft; `Save draft`, `Publish plan`; successor action on Published |
-| Student Accounts — Accounts | Accounting finds the next account decision, including `Assessment required` | Status, learner, account, Program/Term, assessment basis, required/payment/coverage/due, satisfaction basis, next action | Term/state/Program/search; fixed contextual Account Status CSV after purpose confirmation; no separate assessment or coverage resource |
+| Student Accounts — Accounts | Accounting finds the next account decision, including `Assessment required` | Status, learner, account, Program/Term, assessment basis, required/payment/coverage/due, satisfaction basis, next action | Term/state/Program/search; further Account Status CSV refinement deferred; historical contract retained; no separate assessment or coverage resource |
 | Student Accounts — Payment Exceptions | Accounting resolves manual/provider evidence safely | Risk/reason, learner/account, amount, channel/source, age, next action | Source/state/reason/date filters; `Review`; no raw payload columns |
 | Payment Exception detail | Accounting records the external-check result | Reason and current due, safe evidence, review form, history | Private preview; actual verified amount; safe reason; `Reject evidence`, `Return for review`, or exact `Verify` consequence |
-| Student Accounts — TOR Clearance | Accounting records a request-specific result | Action-needed request, learner, output ref, due/reference, source | State/date/search; `Record cleared` or `Record not required`; no generic hold action |
-| Student Account detail | Accounting explains one Term position or records an eligible exact individual or coverage result | Current status and due, assessment basis/source, separate payment/coverage amounts, satisfaction basis, next obligation/action, projection, then evidence tabs | Assessment/Payments/Coverage/Evidence/Outputs/Audit; contextual `Record authorized individual assessment`, `Record approved coverage`, record verified external payment, generate SOA, fixed Verified Payments CSV from the selected Payments context, authorized reversal |
+| Student Accounts — contextual output restriction | Accounting explains/records an actual restriction on the same source records | Office, reason, exact blocked output action, source and history | Contextual source-backed restriction/resolution; no TOR approval queue or generic waiver action |
+| Student Account detail | Accounting explains one Term position or records an eligible exact individual or coverage result | Current status and due, assessment basis/source, separate payment/coverage amounts, satisfaction basis, next obligation/action, projection, then evidence tabs | Assessment/Payments/Coverage/Evidence/Outputs/Audit; contextual `Record authorized individual assessment`, `Record approved coverage`, record verified external payment, generate SOA, further Verified Payments CSV refinement deferred with historical contract retained, authorized reversal |
 | Authorized individual assessment form | Accounting records an externally calculated exact result; it is not a calculator | Registration/change version and course/unit evidence, reason/authority, exact charge lines/obligations, totals, impact preview | Reconciled nonnegative rows, enrollment amount, predecessor; no rate/formula builder |
 | Approved Coverage form | Accounting records only an externally approved Term Account effect | Current Assessment/obligations, category/source, authority/date, exact amount, effective date, safe description, impact preview | `Apply` only after current non-excess reconciliation; successor/reversal from history; no eligibility, application, renewal, disbursement, or accommodation workflow |
 | Enrollment payment requirement | Applicant/Student completes Clinic 4 finance checkpoint | Required now, state, assessment basis/source, account ref, submitted evidence, next action | Private upload fields; view/replace submission; no finance navigation duplication |
@@ -486,7 +487,7 @@ System Administrator has **System Health** and **Governance & Audit**. Students 
 - Fee Plans: current Published, action-needed Drafts, upcoming Term opening, then Program and version.
 - Accounts: `Assessment required`, `ActionNeeded`/under review, nearest deadline, oldest relevant activity, then person/account reference.
 - Payment Exceptions: blocking/security mismatch, oldest submission, then reference.
-- TOR Clearance: `ActionNeeded`, nearest required date, request date, then request reference.
+- Output restrictions: unresolved exact action first, then effective date and source reference; no approval queue.
 - Account activity and learner history: newest authoritative event first.
 - SOA activity: chronological ascending.
 - Audit/system events: newest first, then severity/status and reference.
@@ -500,7 +501,7 @@ System Administrator has **System Health** and **Governance & Audit**. Students 
 | Authorized individual assessment | Explain that the action is available only for an eligible current case | Not applicable | Preserve entered rows; stale registration/change blocks recording | Reveal no account, course, or authority detail | No Assessment is created; retain safe entered data and identify the failed readiness check |
 | Approved Coverage | Explain that no externally approved coverage applies to this account | Not applicable | Preserve safe entered fields; stale Assessment/obligation disables Apply | Reveal no account, eligibility, provider, or authority detail | No coverage effect is recorded; name the missing, conflicting, stale, unreconciled, or excessive source |
 | Payment Exceptions | “No payment evidence needs review.” | Name filters and clear them | Preserve queue position; revalidate before result | No evidence metadata or screenshot disclosed | Keep item under review and explain the next safe action |
-| TOR Clearance | “No output clearances need Accounting action.” | Name filters and clear them | Disable result until request/source refreshes | No request or learner details disclosed | Existing result remains unchanged |
+| Output restrictions | “No output restrictions need Accounting action.” | Name filters and clear them | Disable result until request/source refreshes | No request or learner details disclosed | Existing result remains unchanged |
 | Student Finance/Enrollment | Explain when no applicable Term Account exists | Applicable only to Term selection | Show as-of; `Unavailable` identifies missing, stale, unreconciled, or unauthorized assessment without a fallback | No account existence disclosure | Submission/checkout status states exactly what was and was not recorded |
 | System Health | “No local evidence has been recorded.” | Name filters and clear them | Show capture time and retain prior evidence as stale, never healthy | Generic unavailable page | Failed refresh does not overwrite prior evidence |
 | Governance & Audit | Explain that no authorized events match the tab | Name filters and clear them | Preserve last capture; read-only | No event existence disclosure | Search/export failure changes no evidence |
@@ -546,10 +547,10 @@ All examples use fake references and `example.test` identities.
 | `ACT-260045` / Mira Flores | Reduced Individually Advised registration with an exact externally authorized individual assessment |
 | `ACT-2026-ST-001` | `REG-2026-ST-001` under `TERM-2026-ST`: PHP 6,000 exact individual assessment for the confirmed Special Term class snapshot, PHP 3,000 required now, `COV-2026-ST-001` PHP 2,000 government subsidy, `PAY-2026-ST-001` PHP 1,000 verified payment, and `Mixed` clearance |
 | `ACT-260047` / Sam Torres | Changed-registration branches for additional clearance, authoritative no-additional-cost confirmation, and Course Drop Accounting review pending |
-| `TOR-260003/4/5` | `Cleared`, `NotRequired`, and `ActionNeeded` output clearances |
+| `TOR-260003/4/5` | No applicable OUTPUT restriction, active source-backed restriction, and resolved restriction examples; no per-request clearance decisions |
 | `PAY-260009` | Reversed payment and superseded acknowledgment |
 | Alumni example | Historical read-only SOAs and acknowledgments with no payment actions |
-| Health example | Queue failure, successful local backup job, automatic disposal not provided, external backups not checked |
+| Health example | Required mail/PayMongo/solver evidence; further queue/backup/other health demonstration deferred, existing history preserved |
 
 No real student number, account number, wallet reference, proof image, provider identifier, or production credential is used.
 
@@ -567,14 +568,14 @@ No real student number, account number, wallet reference, proof image, provider 
 | 8 | Ana, embedded upload | Submit private GCash evidence | `Under review`; no posting/email | Failed upload preserves safe fields and requests replacement |
 | 9 | Accounting, Payment Exceptions | Verify actual external source and preview named obligation application | One obligation-keyed posting, projection refresh, one email | Excess beyond named targets, mismatch, or rejection posts nothing |
 | 10 | Registrar/Student | Finalize Clinic 4 enrollment | Same account gains Student identity; COR snapshot unchanged | Later due or coverage reversal does not reverse enrollment |
-| 11 | Student Finance | Review status, SOA, acknowledgment | Same assessment basis/source versions, separate payment/coverage activity, and as-of evidence | Output failure produces no partial artifact |
+| 11 | Student Finance | Review status and SOA payment activity; preserve historical acknowledgment access | Same assessment basis/source versions, separate payment/coverage activity, and as-of evidence | Output failure produces no partial artifact |
 | 12 | Lea, exact checkout | Return from browser, then receive signed event | Pending until webhook; one confirmed posting bound to the due-obligation snapshot | Duplicate event is idempotent |
 | 13 | Kai, exact checkout with missing webhook | Remain pending; Accounting checks the real provider source and records verified external payment | One posting linked to attempt/reference and one email | A later matching signed event creates no duplicate posting or email |
 | 14 | Jo and Pia | Review mismatch; reject/resubmit evidence | Exceptions and supersession retained | Raw provider/private data remains hidden |
 | 15 | Eva | Reach later due date | Finance becomes action-needed | Login/classes/exams/enrollment remain available |
-| 16 | Accounting/Registrar | Resolve three TOR examples | Clinic 5 sees only request-specific projection | No global hold or TOR workflow appears |
-| 17 | Accounting | Generate Account Status from exact Accounts filters and Verified Payments from one selected Account/Payments context | Fixed headers/order, filenames, UTF-8 BOM, typed PHP/date representation, purpose, row count, private retrieval, and output-access audit are visible | Zero rows, more than 10,000 rows, stale/unauthorized source, formula-like text, failure, retry, and duplicate request never expose disallowed fields or create a partial/duplicate artifact |
-| 18 | System Administrator | Open System Health | Plain summaries distinguish current local evidence from facts that were not recently checked; technical details retain source and boundary | Missing/unknown evidence never appears green or available |
+| 16 | Accounting/Registrar | Review TOR request/preview/issue with no, active and resolved OUTPUT-scoped restriction | Clinic 5 consumes the applicable office/reason/blocked-action/source/history | No global hold or per-request payment-clearance approval |
+| 17 | Accounting | Further Account Status/Verified Payments CSV refinement and demonstration deferred | Preserve existing scoped, formula-safe export contracts and history | No required new export implementation or browser step |
+| 18 | System Administrator | Review required mail, PayMongo and solver evidence | Honest locally evidenced state, as-of time, owner and next action | Further queue/database/storage/backup health UI demonstration deferred; no provider controls |
 | 19 | System Administrator | Open Governance & Audit | **Automatic record disposal is not available in TALA. Follow the institution's approved privacy and records procedure.** Technical details retain the exact product boundary | No attestation, policy-approval status, or disposal action appears |
 | 20 | Alumnus | Open historical Finance | Read-only outputs/history | No checkout, upload, or mutation action appears |
 
@@ -591,14 +592,16 @@ Documentation closure does not execute this walkthrough. Later implementation ac
 | Verify/reject manual evidence | Accounting after checking real external source | Current evidence, account/Assessment, actual verified amount, named target obligations and deterministic oldest-due-first application, external-check reference, safe rejection reason | **Verify payment** shows actual amount, each obligation effect, account/projection/email/output effect; **Reject evidence** shows safe learner reason and no posting | Atomic/idempotent obligation-keyed posting. Underpayment may post actual amount; excess beyond named targets or mismatch stays exception. Rejection never deletes evidence; stale/concurrent review posts nothing |
 | PayMongo attempt/webhook/reconciliation | Learner starts exact current-due checkout; integration posts only a valid signed event | PHP exact due; current Assessment/account and immutable due-obligation snapshot; one matching pending account/amount attempt; signed/idempotent provider event; matching account/reference/currency/amount; transactionally revalidate current Assessment and remaining obligations | Browser return is informational. Automatic success uses immutable provider event and obligation-snapshot keys; exceptions/reversals use named Staff confirmation | Provider-reported Cancelled/Expired/Failed permits a new attempt. Browser elapsed time alone never fabricates expiry. Duplicate delivery creates no duplicate posting/email; mismatch, stale Assessment, or changed remaining due retains evidence and enters review |
 | Payment/coverage reversal | Accounting records authorized external correction | Current posting/effect, exact unreversed obligation applications, authority, reason, amount/account, and verified external result; provider-linked refund evidence is validated before any local effect | **Record reversal** previews only the evidenced amount and linked effects; partial evidence permits only the matching partial correction. Commit evidence and account effects atomically | Append-only; original remains. Failed/pending/mismatched provider evidence applies no correction. Refund/chargeback execution stays external |
-| TOR clearance | Accounting | Exact Clinic 5 request/issuance reference, required amount/reference, `Cleared` or authority-backed `NotRequired` basis | Named confirmation shows only request-specific effect | No global hold; correction appends result. Clinic 5 consumes read-only projection |
-| SOA/acknowledgment/CSV | Authorized learner/Accounting purpose as defined; CSV retrieval remains initiating-actor only | Current immutable source; exact contextual scope; fixed columns; 10,000-row limit; purpose; per-record authorization; UTF-8 BOM/comma/CRLF; typed PHP/date representation; formula-safe text; no private paths/payloads/notes | **Generate/Export** shows exact scope, row-count estimate, purpose, fixed format, official/non-tax status where applicable, and access evidence | Output failure creates no partial/official-looking artifact. CSV zero rows records `NoRows` without a file; over-limit requires narrower filters; retry reuses normalized scope; exports audit actor, role, context/filters, purpose, row count, outcome, and time and send no email |
+| OUTPUT-scoped restriction | Accounting | Office/reason/exact blocked action/current source/history; identity and source versions current | Named confirmation shows only the actual restriction or source-backed resolution | No global hold or per-request approval; append-only history; Clinic 5 consumes read-only source |
+| SOA payment activity/historical acknowledgment access; further CSV refinement deferred | Authorized learner/Accounting purpose as defined; CSV retrieval remains initiating-actor only | Current immutable source; exact contextual scope; fixed columns; 10,000-row limit; purpose; per-record authorization; UTF-8 BOM/comma/CRLF; typed PHP/date representation; formula-safe text; no private paths/payloads/notes | **Generate/Export** shows exact scope, row-count estimate, purpose, fixed format, official/non-tax status where applicable, and access evidence | Output failure creates no partial/official-looking artifact. CSV zero rows records `NoRows` without a file; over-limit requires narrower filters; retry reuses normalized scope; exports audit actor, role, context/filters, purpose, row count, outcome, and time and send no email |
 | System Health/Governance | System Administrator read-only | Locally evidenced fact and as-of time only | No consequential provider/control confirmation exists | Missing evidence is shown as `Not recently checked`, never healthy, with the exact source/boundary in technical details. No arbitrary-recipient email, test charge, solver run, backup, restore, command, or attestation action |
 | External backup/recovery evidence | Named Infrastructure Custodian operates outside TALA; privacy/DPO authority owns provider, processor/transfer, retention, key, media, and disposal approval | Configured production objective, scoped credentials, valid manifest/integrity result, current retained generation, and isolated restore evidence | TALA records only safe local outcome/as-of/overdue/next-action evidence; no secret, personal-data payload, provider control, or media command is exposed | Failed operations alert the custodian; invalid keys or media stop recovery; the deployment runbook selects the next valid source without silently mutating live records |
 
 Authorized Individual Assessments, account events, coverage, payment postings, reversals, clearance results, export access, and generated output history are never edited or deleted through ordinary UI. Financial mutations are transactional and idempotent, payment and coverage remain separate effects, and an inaccessible response reveals no person, account, proof, provider, or balance fact. Automatic retention disposal is outside the MVP; the institution remains responsible for lawful privacy governance and externally controlled disposal.
 
 ## 17. Explicit Exclusions
+
+Further Quick Tour, concurrent-Term demonstration, special TESDA-results/TOR replacement/conferral correction/INC amendment UI, three CSV exports and health beyond mail/PayMongo/solver are deferred. Preserve current code/history and required whole-term CP-SAT plus the labelled synthetic competency-guard demonstration. Recovery animation remains required and is never treated as deferred.
 
 Clinic 6 does not authorize:
 

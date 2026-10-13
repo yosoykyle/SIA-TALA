@@ -22,7 +22,7 @@ related_targets: ["REG-E02"]
 ## Operational Realities & Proof
 - **Data Ranges (Exploratory):** Typical term queues range from dozens to hundreds of active registration cases; concurrent Ready Applicants awaiting case creation; temporary seat reservations with time-bounded expiration.
 - **States That Matter:** Ready Applicant without a case, proposal waiting for confirmation or confirmed, active or expired reservation, source-owned eligibility/placement blocker, finance unavailable/pending/cleared, ready to finalize and officially enrolled.
-- **Zero Ambiguity Rule:** A blocked finalization action shows the exact failed checkpoint from PRD 04: Student eligibility, confirmed proposed subjects, valid class placement, Accounting clearance or Registrar finalization. Show the source, owning office and safe remedy. Current/historical official COR access follows its output authorization and source validity.
+- **Zero Ambiguity Rule:** A blocker states the short reason, responsible office and safe next step. Keep actual eligibility, confirmation, placement, payment and finalization safeguards inspectable without a visible typed hold engine or five-card checklist. Current/historical COR access retains output authorization and source validity.
 
 ## Direction Contract
 
@@ -33,7 +33,7 @@ A Registrar can find the right learner, understand the current registration case
 Inherit the October 2 direction from DESIGN.md: green-led primary actions, supporting TALA blue, neutral light/dark native surfaces, Inter typography, native Heroicons, and the school-first crest with secondary Powered by TALA. Distinguish reservation, source-owned eligibility, financial clearance and official enrollment states with accessible text and semantic treatments from the UI Blueprint. The owning Issue and current canonical authority govern workflow-specific decisions.
 
 ### STORY
-The Registrar opens the workbench, sees immediate counts of Ready Applicants and expiring reservations, selects a learner, inspects the five current checkpoints (Student eligibility, confirmed proposed subjects, valid class placement, Accounting clearance and Registrar finalization), and executes atomic enrollment finalization or guided placement re-validation when a reservation has lapsed.
+The Registrar opens an exact-Term work queue, finds the learner and follows one next enrollment task. Eligible case opening prepares the standard subjects, temporary seats and authoritative assessment; the learner confirms and pays from one clear flow. Registrar can finalize ready cases in a batch with each case rechecked. Ambiguous/advised placement and expired reservations offer contextual recovery. Accounting sees its focused account view of the same records.
 
 ### FIRST VIEWPORT
 Within the shared school shell, the task heading and exact Term context lead. The active learner, next authorized action and relevant checkpoint/recovery information stay visible. Show exceptional evidence in the context of the affected case.

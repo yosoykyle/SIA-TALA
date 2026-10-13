@@ -38,7 +38,7 @@ Sections 4–9 identify each journey's owner and minimum connected outcome. The 
 
 ## 1. Product Goal
 
-The goal is to refine and deliver TALA as a lean, clear, factually defensible, user-centered, and defense-ready Philippine college information system. Reuse sound existing work and simplify the parts that obstruct the connected learner journey.
+The goal is to deliver a lean, understandable, working Servitech college information system across Public entry and all seven roles. Complete retained required concerns in their owning journeys, reuse sound existing work and simplify the parts that obstruct connected tasks. CP-SAT scheduling remains the principal innovation; attributable records and safe official outputs remain essential.
 
 TALA must:
 
@@ -149,7 +149,7 @@ Approved workspace map:
 - **Applicant:** Home, Application, and contextual Requirements
 - **Student:** Home, Enrollment, Academics, Finance, and Profile
 - **Registrar:** Admissions; Catalog & Curricula; Term Planning; Students & Enrollment; Grades & Completion
-- **Accounting:** Fee Plans; Student Accounts with Accounts, Payment Exceptions, and TOR Clearance tabs
+- **Accounting:** Fee Plans; Student Accounts with Accounts and Payment Exceptions, including contextual TOR restrictions
 - **Faculty:** Schedule & Availability, with My Schedule and My Availability sibling tasks; Grade Rosters
 - **Academic Head:** read-only Academic Oversight for understanding academic readiness, inspecting source-owned exceptions, and tracing calendar, curriculum, timetable, grade/progress, lifecycle and completion evidence to its responsible office. The landing surface prioritizes relevant findings and direct domain drill-ins rather than the Registrar's preparation sequence. Institutional approval remains outside TALA where the owning PRD specifies it; inspection grants no producer action.
 - **System Administrator:** Users & Access; Public Content; System Health; Governance & Audit
@@ -193,7 +193,7 @@ Failed items show the responsible owner, evidence/source link, and next action. 
 | Timetable generation/publication | Approved active curriculum and exact Term calendar → confirmed classes → complete Faculty/room/meeting inputs → valid candidate → recorded external sign-off/publication | Generate or publish with the named missing/current source; Registrar owns setup and publication, Faculty owns their availability declaration. Draft setup remains usable. PRD 03 owns each check. |
 | Enrollment | Exact-Term window and eligible identity/results → current proposed subjects/classes → learner confirmation and valid placement → current Accounting assessment/clearance → Registrar finalization | Only the consuming checkpoint/action; Registrar owns academic/placement sources, Accounting owns assessment/clearance. Readiness or payment is never official enrollment. PRD 04 owns atomic finalization. |
 | Grade release and later registration | Official membership/assigned Faculty/open entry window → complete submitted roster → Registrar release → current academic evaluation | Submit/release with missing or stale rows/source; designated Faculty or Registrar owns the remedy. Unreleased prerequisites exclude only dependent courses; eligible remainder stays usable. PRD 05 owns results. |
-| Finance and transcript output | Confirmed registration → valid fixed plan or eligible exact individual assessment → verified account effects; TOR separately needs releasable history, request, signatory/template and request-specific clearance | Accounting owns missing assessment/payment evidence; Registrar owns transcript sources. Graduation is not a universal TOR prerequisite. PayMongo failure disables only checkout. PRDs 05–06 own the checks. |
+| Finance and transcript output | Confirmed registration → valid fixed plan or eligible exact individual assessment → verified account effects; TOR separately needs releasable history, request, signatory/template and current output-scoped restrictions | Accounting owns missing assessment/payment evidence; Registrar owns transcript sources. Graduation is not a universal TOR prerequisite. PayMongo failure disables only checkout. PRDs 05–06 own the checks. |
 
 The owning PRD matrices define each dependency's exact validity, correction and recovery. Complete the prerequisites for the consuming action; keep independent work available.
 
@@ -219,7 +219,9 @@ Clinic 2 owns these admissions messages:
 - Ready for Enrollment
 - Withdrawal confirmation
 
-The final module-level ownership is:
+Send email when the recipient must act or an official result needs communicating. Routine progress remains in the workspace. The event ownership below supplies source and recipient boundaries; it is not a message quota or permission to notify every derived status change. Consolidate events from one action where their safe instruction and recipient are the same.
+
+The module-level ownership is:
 
 | Owner | Authorized events | Source and failure boundary |
 |---|---|---|
@@ -237,7 +239,7 @@ No email is sent for ordinary saves, navigation, successful or failed sign-in at
 ### 3.4 Operational views, contextual exports, and public content
 
 - Operational information remains in its owning queue, record, or read-only projection. There is no top-level Reports destination, report hub, BI product, report designer, or duplicate reporting page.
-- The approved contextual data-file outputs are Clinic 6's two allowlisted, purpose-recorded finance CSV exports and Clinics 4–5's one current, per-Class-Offering roster CSV. The roster CSV is available only from an authorized selected roster, uses fixed minimum teaching-roster columns, and never becomes a generic Student, enrollment, grade, or reporting export. Other modules provide only their approved operational views and printable outputs.
+- Existing allowlisted finance and selected-Class roster CSVs retain their authorization, minimum fields and history. Further refinement of those three exports is outside initial capstone delivery; operational views and prints remain required. No generic Student, grade or reporting export is introduced.
 - Admissions analytics means a small operational summary—counts and aging—above the same filtered Admissions queue. It is not scoring, forecasting, or applicant ranking.
 - Staff queues use meaningful date ranges and native Filament filters with active-filter indicators. TALA does not reproduce custom dropdowns in every column header.
 - Public FAQs answer recurring process questions; announcements communicate current school notices, dates, and changes. [PRD 01 Section 4.7](01_identity_access_public_entry.md#47-public-content) owns their fields, publication, ordering, and history.
@@ -260,10 +262,10 @@ The complete product remains lean because every normally expected SIS capability
 | COR | PRD 04; immutable COR versions and finalization snapshot | Authenticated current/historical COR | Adjustment or Course Drop successor, superseded version, print failure | Retained |
 | Grades and averages | PRD 05; roster results, bounded operational metadata, average projections, and externally verified competency results | Grade Rosters, Grades & Completion, Student Academics | Return, INC completion/overdue state/deadline amendment, correction, Grades not complete, superseding external result | Retained |
 | Lifecycle and completion | PRD 05; curriculum evaluation, progress, lifecycle, completion, and conferral records | Student Academics, Registrar workbench, Academic Oversight | Pending source, authorized decision, superseding result, authority-gated external requirement | Retained |
-| TOR | PRD 05 fixed TALA Standard TOR authority plus PRD 06 request-specific clearance | Registrar preview, issuance, and history | Missing source/certification data or clearance; output failure; void/replacement | Retained within the approved external boundary |
+| TOR | PRD 05 fixed TALA Standard TOR authority plus PRD 06 output-scoped restriction authority | Registrar preview, issuance, and history | Missing source/certification data or clearance; output failure; void/replacement | Retained within the approved external boundary |
 | Accounts and assessments | PRD 06; Fee Plan, Authorized Individual Assessment, and Term Account | Fee Plans, Student Accounts, Student Finance | Unavailable/stale assessment, append-only correction | Retained |
 | Coverage and payments | PRD 06; Approved Coverage, evidence, verified posting, and PayMongo attempt | Account detail, Payment Exceptions, learner Finance | Rejection, mismatch, pending webhook, reversal, supersession | Retained |
-| Official outputs and contextual exports | Owning PRDs; seven canonical outputs plus the two Clinic 6 finance CSVs and one Clinics 4–5 current Class Roster CSV | Authenticated print/read-only surfaces and authorized contextual CSV actions | No partial artifact, explicit version/state, formula-safe CSV, output-access audit | Retained |
+| Official outputs and contextual exports | Owning PRDs; current approved prints and submission receipt, retained historical acknowledgment artifacts and existing contextual extracts | Authenticated print/read-only surfaces and authorized contextual CSV actions | No partial artifact, explicit version/state, formula-safe CSV, output-access audit | Retained |
 | Privacy, audit, and retention | PRDs 01–06 and Architecture | Private evidence, Governance & Audit, contextual history | Non-disclosing failure; automatic disposal is outside the MVP | Retained |
 | Operations and integrations | Architecture and PRD 06 | System Health and locally evidenced projections | Unknown/Not checked by TALA, degraded service, safe continuity | Retained |
 | Regulatory submissions | External institutional responsibility; TALA retains source records only | No current Reports destination or speculative submission UI | Reopen only for an exact authority, format, owner, privacy basis, and acceptance process | External boundary recorded |
@@ -336,7 +338,7 @@ Navigation visibility is a usability decision, never authorization. Every page, 
 
 ### 3.7 Source-owned Action Restrictions
 
-An action restriction needs a named consuming action, its condition in the owning PRD and an attributable source. Model names, schema flags or a generic list of hold types do not create product requirements. Use existing admission clearance, academic/lifecycle decisions, placement readiness and request-specific financial projections for their declared effects; no separate general hold editor, office-clearance workflow or waiver engine is required.
+An action restriction names the responsible office, safe reason, exact blocked action, effective scope and attributable source/history. Use admissions clearance, academic/lifecycle results, placement readiness and financial facts only for their declared effects. Retire the typed five-gate hold/waiver engine and separate Holds & Blockers destination; preserve legitimate identity, prerequisite, placement, capacity and payment safeguards. TOR restrictions block only the named output action and replace per-request Accounting approval. No generic hold editor, office-clearance workflow or waiver engine is introduced.
 
 An externally authorized consequential restriction records its responsible office, authority/source, effective scope, actor/time, safe learner explanation, resolution requirement and attributable correction/resolution history. Internal evidence stays restricted. Academic Head may own an external academic decision; Registrar records its effect in TALA. This does not give the read-only Academic Head workspace a mutation permission. Accounting owns its exact financial projections; they are separate from an academic or administrative decision.
 
@@ -370,11 +372,11 @@ The minimum outcome is an attributable official enrollment and COR on the same c
 
 [PRD 05](05_teaching_grades_academic_records_completion.md) owns official membership-based final-result submission, Registrar release/correction, fixed averages, factual curriculum evaluation, source-backed lifecycle/completion and transcript issuance. Faculty gradebooks, attendance, office appeals and physical fulfillment remain external.
 
-Released history supports eligible current and former Students' records. Completion/conferral is included when recorded and is not a universal TOR prerequisite. Exact grade vocabulary, average formula/classifications, nonautomatic INC deadline and request-specific output conditions belong to PRD 05; this baseline does not duplicate them.
+Released history supports eligible current and former Students' records. Completion/conferral is included when recorded and is not a universal TOR prerequisite. Exact grade vocabulary, average formula/classifications, nonautomatic INC deadline and output-scoped conditions belong to PRD 05; this baseline does not duplicate them.
 
 ## 9. Accounts, Official Outputs, Operations, and Assurance
 
-[PRD 06](06_accounts_official_outputs_operations_assurance.md) owns Accounting's fixed Fee Plans or eligible exact authorized individual assessments, continuous Term Accounts, approved coverage, verified payment effects, request-specific financial projections, non-tax outputs, contextual exports and truthful local health/audit views.
+[PRD 06](06_accounts_official_outputs_operations_assurance.md) owns Accounting's fixed Fee Plans or eligible exact authorized individual assessments, continuous Term Accounts, approved coverage, verified payment effects, action-scoped financial projections, non-tax outputs, contextual exports and truthful local health/audit views. One assessment presentation retains these distinct source records; no broad migration or discretionary fee engine follows from consolidation.
 
 The minimum outcome is a source-backed account position and clearance for the action it satisfies. No fee amount is inferred, no pending browser return proves payment, and no payment or coverage event silently revokes enrollment. Refund execution, tax invoicing, cash movement, provider operations, retention decisions and disaster restoration remain external. Prospective infrastructure requirements belong to Architecture and remain distinct from capstone implementation acceptance.
 
@@ -453,19 +455,19 @@ No public HTTP API is added. The shared vocabulary below names logical responsib
 | Clinic 4 → Clinic 5 | Official registrations, roster membership, adjustments, drops | Official registration/change versions; material change invalidates pending roster review | Maintain a duplicate roster-membership source |
 | Clinic 5 → Clinic 4 | `OfficialCourseResultProjection`, `AcademicEnrollmentEffect`, lifecycle facts | Released/confirmed versions only; every initial release, INC resolution, or correction recomputes affected cases; a pending decision blocks only the affected action | Use draft grades, treat an exception as course satisfaction, or silently change a Registration Case |
 | Clinic 6 → Clinic 4 | `EnrollmentPaymentRequirementProjection` | Term Account/Assessment version, assessment basis, exact proposal/change source, separate payment/coverage amounts and references, satisfaction basis, authority, and as-of time; `Unavailable` blocks finalization and cost-increasing change but never an authorized removal/drop | Recalculate finance, determine funding eligibility, invent a fee/refund/penalty, require lifetime zero balance, or apply a global hold |
-| Clinic 6 → Clinic 5 | `OfficialOutputPaymentClearance` | Exact official-output request reference; `ActionNeeded` pauses only that output | Operate a global credential hold or edit payment evidence |
+| Clinic 6 → Clinic 5 | Output-scoped Accounting restriction projection | Exact learner/output scope and current source; an active restriction pauses only that output, without separate per-request approval | Operate a global credential hold, infer clearance from unavailable sources, or edit payment evidence |
 | Clinics 4/5 → Clinic 6 | Registration/account and output-request references | Same learner, term, RegistrationCase or request identity | Copy academic records or turn Clinic 6 into enrollment/TOR workflow |
 
 ### 10.2 Official-output ownership
 
 | Output | Owner and authoritative source | Status and authorized audience | Supersession and failure behavior |
 |---|---|---|---|
-| Application Acknowledgment | Clinic 2 submitted snapshot | Authenticated Applicant/Registrar; not admission or enrollment proof | Historical versions remain labelled; failure produces no document |
+| Application submission receipt | Clinic 2 submitted snapshot | Authenticated on-screen reference, received time and next step; not admission or enrollment proof | Historically issued acknowledgments and immutable sources remain accessible to authorized users; no new standalone printed acknowledgment is required |
 | Published Timetable / schedule print | Clinic 3 published version | Official only after Registrar publication; role/owner scoped | New publication supersedes; unpublished candidate never appears official |
 | Registration Form / COR | Clinic 4 official enrollment and COR version | Official enrollment output for learner/authorized Staff; assessment-at-finalization snapshot, not live ledger | Change creates a new immutable version; failure produces no partial COR |
 | Unofficial Student Record | Clinic 5 released academic record | Clearly **Unofficial — for student reference** | Current projection only; print failure cannot imply official issuance |
 | TOR | Clinic 5 transcript snapshot and `TALA Standard TOR — Servitech v1` | Registrar-controlled official output from releasable history for authorized current/former Students, without a blanket graduation gate; completion/conferral appears only if recorded. Physical signing, sealing, delivery and CAV remain external | Void/replacement/supersession is append-only; failure produces no issuance event or official-looking artifact |
-| Account Statement / SOA and Payment Acknowledgment | Clinic 6 Term Account and verified posting | Authenticated non-tax outputs | Reversal remains visible and marks acknowledgment reversed/superseded |
+| Account Statement / SOA with payment acknowledgment | Clinic 6 Term Account and verified posting | One authenticated non-tax account output with verified payment facts | Reversal remains visible; historically issued separate acknowledgments and snapshots stay attributable |
 | Account Status CSV / Verified Payments CSV | Clinic 6 owning queues | Contextual, allowlisted, purpose-recorded, role-authorized | Failure records no completed export and exposes no partial file |
 
 Physical tables, classes, routes, tests, and current integrations are implementation evidence. They may be designed or changed only inside a separately planned and authorized journey-complete vertical slice that reconciles every relevant consumer against the standalone authority. Shared identifiers and cross-module records must remain consistent with this approved set.
@@ -670,7 +672,7 @@ The dialog shows the exact record/version, actor/authority, resulting state, dow
 | Failure | Produce no partial or official-looking artifact; preserve the source transaction and provide a safe retry/support path |
 | Claims | Output states whether it is official, unofficial, non-tax, superseded, voided, reversed, or externally certified; it never implies unrecorded authority |
 | Print frame | Institution identity leads official and institutional outputs; the TALA product mark is restrained, navigation and interactive controls are absent, headings remain semantic, table headers repeat, rows do not clip, and every copy is monochrome-safe |
-| Completeness | Application Acknowledgment, Published Timetable, COR, Unofficial Student Record, TALA Standard TOR, Account Statement/SOA, and Payment Acknowledgment each define exact source/version, status, content, orientation, generation evidence, supersession, and failure behavior in the owning PRD |
+| Completeness | Published Timetable, COR, Unofficial Student Record, TALA Standard TOR and SOA with payment acknowledgment define source/version, status, content, orientation, generation, supersession and failure behavior. Application submission uses an on-screen receipt. Historically issued separate acknowledgments remain source-bound and accessible; no fixed count proves output completeness. |
 
 #### Matrix 11 — UI screens, actions, states, navigation, responsiveness, and accessibility
 
@@ -715,7 +717,7 @@ This matrix is the final traceability contract for later journey-complete vertic
 | Grade release and correction | Designated Faculty roster, returned rows, complete release, `GradesNotComplete`/INC/not-applicable/available average states, completion deadline/amendment/overdue/result race, correction, RegistrationCase review | Only released results cross clinics; no partial average, automatic grade conversion, overwritten result, or silent registration change |
 | Pending prerequisite to next-term outcome | Individually Advised case, exact approved credit/equivalency or overload/late-adjustment authority, learner confirmation, initial release/INC/correction, pre/post-finalization review, open Adjustment, closed Adjustment with/without late authority | No released `P` or fabricated satisfaction; unrelated courses remain usable; capacity/finance/roster/schedule/COR effects occur only through an authorized guarded transaction |
 | Lifecycle and withdrawal | Leave, full withdrawal, return, transfer, shift, conferral and current-term effects | Seats, rosters, schedule, COR and account review remain synchronized with append-only history |
-| Completion and TOR | Completion readiness, request-specific Clinic 6 clearance, TALA Standard TOR preview/issuance, void/replacement/supersession | Only Registrar confirmation creates issuance; physical certification remains external; consumers cannot edit finance or source academic facts |
+| Completion and TOR | Completion readiness, current Clinic 6 output-scoped restrictions, TALA Standard TOR preview/issuance, void/replacement/supersession | Only Registrar confirmation creates issuance; physical certification remains external; consumers cannot edit finance or source academic facts |
 | Account, coverage, and payment | Fixed Fee Plan and authorized-individual-assessment readiness, Approved Coverage application/supersession/reversal, mixed satisfaction, unavailable source, adjustment/drop review, manual evidence, exact-due checkout, under/mismatch, duplicate and missing/late webhook, reversal | Browser return never posts; coverage is not payment or eligibility processing; one posting and one email; no silent cap, fee fallback, invented refund/penalty, or global hold |
 | Outputs, export, health and retention | COR/timetable/unofficial record/TOR/SOA/acknowledgment, two finance CSVs, one current per-Class-Offering roster CSV, purpose audit, degraded services, explicit no-automatic-disposal boundary | No partial official-looking output; roster export never expands beyond one authorized current class or includes grade/contact/finance data; unknown external fact is not healthy; no hidden reporting, retention, or compliance engine |
 | Shared UI and failure | 1366 desktop, 360/390 mobile, keyboard/screen reader, 200% zoom/reflow, print, empty/loading/stale/inaccessible/concurrency/failure | Owning source, as-of time, responsible role and safe recovery remain visible without color-only meaning |
