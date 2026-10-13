@@ -1,13 +1,13 @@
 # Contributing to TALA
 
-Start with a local clone and let your preferred coding assistant (such as Codex, Antigravity, Claude Code, or Cursor) help you finish setup. You can do this before TALA runs or you receive an Issue. Run commands in PowerShell from your clone's root; skip installation steps for tools already working.
+Start with a local clone and let your preferred coding assistant help you finish setup. You can do this before TALA runs or you receive an Issue. Run commands in PowerShell from your clone's root; skip installation steps for tools already working.
 
 This is setup guidance. [`AGENTS.md`](AGENTS.md), the [TALA Orchestrator Protocol](00_Project_Documents/TALA-Orchestrator-Protocol.md), canonical product documents, and the owning Issue govern the work.
 
 ## Start here: no Issue required
 
 1. Accept the GitHub invitation, install [Git](https://git-scm.com/install/windows), and clone [TALA](https://github.com/yosoykyle/SIA-TALA).
-2. Open the cloned repository in your preferred environment or AI coding assistant (e.g. the [Codex Windows app](https://developers.openai.com/codex/app/windows), Antigravity, VS Code, Cursor).
+2. Open the cloned repository in your preferred development environment or AI coding assistant.
 3. Send this initial onboarding prompt (or follow the checklist below manually):
 
 ```text
@@ -55,7 +55,7 @@ These tools help the coding assistant; TALA itself runs without them. Boost is r
 
 ### A. Install and sign in to the developer tools
 
-The terminal-based MCP steps below use assistant-specific CLI or configuration tools (e.g. [Codex CLI](https://developers.openai.com/codex/cli), Claude Code CLI, or your editor's MCP manager). Use [GitHub CLI](https://cli.github.com/) for repository access unless an approved GitHub integration already works:
+Use your assistant's CLI or MCP configuration manager for the MCP steps below. Use [GitHub CLI](https://cli.github.com/) for repository access unless an approved GitHub integration already works:
 
 ```powershell
 gh auth login --hostname github.com --web
@@ -84,18 +84,18 @@ php artisan boost:install
 
 Select guidelines, skills, and MCP configuration, then select only your coding assistant; deselect the other preselected assistants. Leave Sail, Laravel Cloud, and Nightwatch unselected unless your task requires them.
 
-Boost reads the shared `.ai/skills` sources and installed packages, then generates your assistant's guidelines, skills, and MCP connection automatically. For Codex, this includes `.agents/skills` and `.codex/config.toml`; for Claude Code, `.claude/skills`; for Cursor, `.cursor/skills`. You do not need to create those folders manually.
+Boost reads the shared `.ai/skills` sources and installed packages, then generates guidelines, skills, and MCP configuration for your selected assistant. Let Boost manage its supported output locations.
 
 Review `git diff` afterward. Setup may record your assistant selection in `boost.json`; keep personal setup choices out of shared commits and report unexpected guideline or skill changes.
 
-Boost owns the generated `<laravel-boost-guidelines>` blocks in `AGENTS.md`, `CLAUDE.md`, and other selected agent files. TALA workflow governance belongs in `<TALA_ORCHESTRATOR_ROUTER>` outside that block and its linked protocol. Routine SDLC edits change only that router in `AGENTS.md`; leave generated blocks, skills, and personal tool configuration unchanged. A future approved package-guideline customization uses Boost's documented source/override mechanism and reviewed regeneration, not hand-edits to generated output.
+Boost owns the generated `<laravel-boost-guidelines>` blocks in `AGENTS.md` and other selected agent files. TALA workflow governance belongs in `<TALA_ORCHESTRATOR_ROUTER>` outside that block and its linked protocol. Routine SDLC edits change only that router in `AGENTS.md`; leave generated blocks, skills, and personal tool configuration unchanged. A future approved package-guideline customization uses Boost's documented source/override mechanism and reviewed regeneration, not hand-edits to generated output.
 
-Check your assistant's active MCP list and confirm the connection targets this clone. Open it as a trusted project, restart your assistant, then ask it to call Boost's `application_info` and report the Laravel version. A successful response is the connection check. See [Boost installation](https://laravel.com/framework/docs/12.x/boost#installation) and [Codex MCP setup](https://developers.openai.com/codex/mcp).
+Check your assistant's active MCP list and confirm the connection targets this clone. Open it as a trusted project, restart your assistant, then ask it to call Boost's `application_info` and report the Laravel version. A successful response is the connection check. See [Boost installation](https://laravel.com/framework/docs/12.x/boost#installation) and your assistant's official MCP setup guide.
 
 <details>
 <summary>Skill files and later updates</summary>
 
-The repository shares Boost's [custom skill sources](https://laravel.com/framework/docs/12.x/boost#custom-skills) in `.ai/skills`. Boost generates `.agents/skills` for Codex, `.github/skills` for Copilot, `.claude/skills` for Claude Code, and `.cursor/skills` for Cursor. Machine-specific MCP settings remain local.
+The repository shares Boost's [custom skill sources](https://laravel.com/framework/docs/12.x/boost#custom-skills) in `.ai/skills`. Boost generates the appropriate skill folders for each selected assistant. Machine-specific MCP settings remain local.
 
 For an existing setup that only needs its connection repaired, `php artisan boost:install --mcp` preserves guidelines and skills. It does not install missing skills.
 
@@ -129,9 +129,13 @@ gui_log_window: false
 
 These [settings](https://oraios.github.io/serena/02-usage/060_dashboard.html#dashboard-opening-behaviour) keep the dashboard available without opening it automatically.
 
-Register Serena with your assistant:
-- **Codex**: `codex mcp add serena -- serena start-mcp-server --context codex --open-web-dashboard false`
-- **Other assistants (Antigravity, Claude Code, Cursor)**: Register `serena start-mcp-server --open-web-dashboard false` in your client's MCP configuration.
+Register Serena through your assistant's MCP configuration manager, using this server command:
+
+```powershell
+serena start-mcp-server --open-web-dashboard false
+```
+
+Use the integration context documented for your client when one is required.
 
 Index this clone:
 
@@ -215,10 +219,10 @@ For concurrent work, verify the protocol's prerequisites and explicitly authoriz
 
 ```powershell
 git fetch origin
-git switch -c codex/issue-NN origin/main
+git switch -c issue-NN origin/main
 ```
 
-`codex/issue-NN` is the Codex example; other environments use their agreed branch name. A branch alone does not isolate a shared checkout. Use the protocol's separate workspace for parallel execution.
+`issue-NN` is an example; use the branch name agreed for the assignment. A branch alone does not isolate a shared checkout. Use the protocol's separate workspace for parallel execution.
 
 Use section 2D's conditional readiness checks: documentation needs no database or app server; code checks need their actual runtime/test targets; rendered UI checks need a ready HTTP/browser route. On resumption, refresh volatile or invalidated premises rather than repeating onboarding.
 
@@ -276,7 +280,7 @@ git push origin main
 **Concurrent publication from the isolated Issue branch:**
 
 ```powershell
-git push -u origin codex/issue-NN
+git push -u origin issue-NN
 gh pr create --base main --title "Issue #NN: bounded outcome" --body "Closes #NN. Include acceptance and verification evidence here."
 ```
 
@@ -343,7 +347,7 @@ Use `Plan #NN` only for a missing or materially changed contract. Coding require
 | Finding | Action |
 | --- | --- |
 | A tool command is not found | Follow its installer's PATH instructions, then restart PowerShell and your assistant |
-| Boost is unavailable | Check PHP, this clone's Artisan path, project trust, and the connection in section 2B. User-level connections (e.g. `%USERPROFILE%\.codex\config.toml`) should point to this clone. Verify a tool response before Laravel changes |
+| Boost is unavailable | Check PHP, this clone's Artisan path, project trust, and the connection in section 2B. Project- and user-level MCP connections should point to this clone. Verify a tool response before Laravel changes |
 | GitHub access is unavailable | Authenticate one approved GitHub route; do not copy another person's token |
 | Browser tooling is unavailable for a UI Issue | Ensure `php -S 127.0.0.1:8008 -t public` is running, configure one accepted browser route, or leave the affected criterion `Unverified` |
 | Serena is unavailable or has no active project | Follow section 2C; activate this clone and check a symbol lookup. Report the gap; it blocks implementation only when the Issue or accepted plan requires Serena |
@@ -353,11 +357,13 @@ Use `Plan #NN` only for a missing or materially changed contract. Coding require
 | Wrong assigned workspace/base or overlapping edits of unclear ownership | Reconcile the affected state without discarding work. Unrelated attributable edits alone do not block a bounded task |
 | Prototype comparison evidence is needed | Use the tracked [Human-Centered Operations evidence pack](00_Project_Documents/design-evidence/human-centered-operations/README.md); it does not define production behavior |
 
-If project-scoped Boost configuration still cannot load, Laravel also supports [manual registration](https://laravel.com/framework/docs/12.x/boost#manually-registering-the-mcp-server). Use one connection, correcting any existing entry first:
+If project-scoped Boost configuration still cannot load, Laravel also supports [manual registration](https://laravel.com/framework/docs/12.x/boost#manually-registering-the-mcp-server). In your assistant's MCP manager, use `php` as the executable with two arguments: this clone's absolute `artisan` path, followed by `boost:mcp`. Resolve the path from the repository root:
 
 ```powershell
-codex mcp add laravel-boost -- php (Join-Path (Get-Location).Path 'artisan') boost:mcp
+Join-Path (Get-Location).Path 'artisan'
 ```
+
+Use one connection, correcting any existing entry first.
 
 </details>
 

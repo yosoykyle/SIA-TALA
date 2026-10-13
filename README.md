@@ -4,7 +4,7 @@ TALA is the college information-system project for Servitech Institute Asia. Pro
 
 ## Contributor onboarding
 
-New developer? Start with [Codex-guided onboarding](CONTRIBUTING.md#start-here-no-issue-required). You can ask for help as soon as your local clone is open in Codex, before installing PHP, creating databases, or connecting MCPs. No assigned Issue is needed. The guide covers setup, coding tools, and familiarization; it does not authorize implementation or publication.
+New developer? Start with [contributor onboarding](CONTRIBUTING.md#start-here-no-issue-required). You can ask your preferred coding assistant for help as soon as your local clone is open, before installing PHP, creating databases, or connecting MCPs. No assigned Issue is needed. The guide covers setup, coding tools, and familiarization; it does not authorize implementation or publication.
 
 Prefer to set up manually? Follow the steps below, then continue with the coding tools in [`CONTRIBUTING.md`](CONTRIBUTING.md#2-connect-your-coding-tools).
 
@@ -162,6 +162,6 @@ php artisan migrate:fresh --force --no-interaction
 
 ## Optional development tools
 
-The application requires only the prerequisites and setup above. MCP servers, Codex, Claude, Gemini, and other AI-development integrations are not required to install, run, or test TALA. AI-assisted repository work has additional contribution requirements in [`CONTRIBUTING.md`](CONTRIBUTING.md); every agent must also read [`AGENTS.md`](AGENTS.md) and follow the tracked project guidance. Keep machine-specific MCP configuration, credentials, and secrets in ignored local files such as `.mcp.json` and `.env`.
+The application requires only the prerequisites and setup above. MCP servers and AI coding assistants are optional development tools; TALA runs and tests without them. AI-assisted repository work has additional contribution requirements in [`CONTRIBUTING.md`](CONTRIBUTING.md); every agent must also read [`AGENTS.md`](AGENTS.md) and follow the tracked project guidance. Keep machine-specific MCP configuration, credentials, and secrets in ignored local files such as `.mcp.json` and `.env`.
 
 Historical fixture-building, provider rehearsal, demonstration, and acceptance instructions are preserved as non-authoritative evidence under `00_Project_Documents/archive/` and must not be used as current product or execution authority.
