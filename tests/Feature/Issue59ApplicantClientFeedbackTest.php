@@ -47,7 +47,7 @@ class Issue59ApplicantClientFeedbackTest extends TestCase
             ->assertDontSee('Applicant Workspace')
             ->assertDontSee('Powered by TALA')
             ->assertDontSee('tala-workspace-context', false)
-            ->assertSee('js/tala-wizard.js', false);
+            ->assertDontSee('js/tala-wizard.js', false);
     }
 
     public function test_name_free_applicant_account_uses_the_current_application_name(): void
@@ -68,7 +68,8 @@ class Issue59ApplicantClientFeedbackTest extends TestCase
             ->assertOk()
             ->assertSee('Servitech Institute Asia')
             ->assertDontSee('Applicant Workspace')
-            ->assertDontSee('Powered by TALA');
+            ->assertDontSee('Powered by TALA')
+            ->assertDontSee('js/tala-wizard.js', false);
     }
 
     public function test_staff_account_entry_keeps_tala_attribution(): void

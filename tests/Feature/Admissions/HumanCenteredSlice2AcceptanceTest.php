@@ -186,6 +186,15 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
             ->test(ApplicantApplicationPage::class)
             ->assertSee('Step 1 of 5')
             ->assertSee('Step 5 of 5')
+            ->assertSee('Program and type')
+            ->assertSee('Identity and contact')
+            ->assertSee('Education')
+            ->assertSee('Review copies')
+            ->assertSee('Review and submit')
+            ->assertSee('Save your progress before leaving?')
+            ->assertSee('Leave without saving')
+            ->assertSee('Submit application')
+            ->assertActionVisible('saveAndExit')
             ->assertSeeHtml('x-bind:aria-current=')
             ->assertSee('Draft has not been saved yet.');
 
@@ -201,11 +210,16 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
             ->assertSeeHtml('startStep: 5');
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
         Livewire::withQueryParams(['applicant' => $applicant->id])
-            ->actingAs($this->registrar())
+            ->actingAs($registrar)
             ->test(AssistedAdmissionApplication::class)
             ->assertSee('The Applicant remains the owner.')
-            ->assertSee('Save Applicant Draft')
+            ->assertActionDisabled('saveAndExit')
+            ->assertDontSee('Submit application')
+            ->set('data.assistance_reason', 'Applicant requested help entering the draft.')
+            ->assertActionEnabled('saveAndExit')
+            ->assertSee('Save draft')
             ->assertDontSee('Submit application');
     }
 

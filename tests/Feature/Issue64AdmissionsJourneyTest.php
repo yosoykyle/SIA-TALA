@@ -80,7 +80,7 @@ class Issue64AdmissionsJourneyTest extends TestCase
     {
         [$application, $applicant, $cycle, $set] = $this->submitted();
         $old = $application->currentSubmissionVersion;
-        $files = $application->evidenceVersions()->get()->map->getAttributes()->all();
+        $files = $application->evidenceVersions()->orderBy('id')->get()->map->getAttributes()->all();
         $cycle->update(['closes_at' => now()->subSecond()]);
         AdmissionRequirementSet::factory()->for($cycle)->published()->create(['version' => 2]);
         $edited = app(SaveAdmissionApplication::class)->execute($applicant, $cycle, ['current_province' => 'Cavite', 'accuracy_declared' => true], $application);
@@ -89,7 +89,7 @@ class Issue64AdmissionsJourneyTest extends TestCase
         $this->assertSame($set->id, $edited->currentSubmissionVersion->admission_requirement_set_id);
         $this->assertSame('Laguna', $old->fresh()->snapshot['current_province']);
         $this->assertSame('Cavite', $edited->currentSubmissionVersion->snapshot['current_province']);
-        $this->assertSame($files, $edited->evidenceVersions()->get()->map->getAttributes()->all());
+        $this->assertSame($files, $edited->evidenceVersions()->orderBy('id')->get()->map->getAttributes()->all());
     }
 
     public function test_failed_successor_rolls_back_facts_replacement_file_and_snapshot(): void
@@ -149,7 +149,7 @@ class Issue64AdmissionsJourneyTest extends TestCase
         $registrar = $this->registrar();
         $target = $this->requirements($cycle, AdmissionApplication::PathTransferee);
         $oldSource = $application->current_submission_version_id;
-        $oldFiles = $application->evidenceVersions()->get()->map->getAttributes()->all();
+        $oldFiles = $application->evidenceVersions()->orderBy('id')->get()->map->getAttributes()->all();
         $candidate = AdmissionApplication::factory()->submitted()->create([
             'first_name' => $application->first_name, 'last_name' => $application->last_name, 'birth_date' => $application->birth_date,
         ]);
@@ -174,7 +174,7 @@ class Issue64AdmissionsJourneyTest extends TestCase
         $this->assertSame($target->id, $edited->currentSubmissionVersion->admission_requirement_set_id);
         $this->assertSame(AdmissionApplication::StateSubmitted, $edited->application_state);
         $this->assertSame(ApplicationCorrectionRequest::StateCompleted, $request->fresh()->state);
-        $this->assertSame($oldFiles, $edited->evidenceVersions()->whereIn('id', array_column($oldFiles, 'id'))->get()->map->getAttributes()->all());
+        $this->assertSame($oldFiles, $edited->evidenceVersions()->whereIn('id', array_column($oldFiles, 'id'))->orderBy('id')->get()->map->getAttributes()->all());
         $this->assertSame(2, $edited->submissionVersions()->count());
         $this->assertFalse($edited->allowsSubmittedEdit());
         $this->assertFalse(app(ReadyApplicantProjectionQuery::class)->preliminaryReviewIsComplete($edited));
@@ -344,11 +344,11 @@ class Issue64AdmissionsJourneyTest extends TestCase
         [$application, $applicant, $cycle] = $this->submitted();
         $registrar = $this->registrar();
         app(AdmissionReviewGuard::class)->start($application, $registrar, $application->current_submission_version_id);
-        $files = $application->evidenceVersions()->get()->map->getAttributes()->all();
+        $files = $application->evidenceVersions()->orderBy('id')->get()->map->getAttributes()->all();
         app(RequestAdmissionCorrection::class)->execute($application, $registrar, [['type' => 'Field', 'key' => 'current_province', 'admission_requirement_id' => null]], 'Correct the province.', 'Applicant', now()->addHour());
         $corrected = app(SaveAdmissionApplication::class)->execute($applicant, $cycle, ['current_province' => 'Cavite', 'accuracy_declared' => true], $application->fresh());
         $resubmitted = app(SubmitAdmissionApplication::class)->execute($corrected, $applicant);
-        $this->assertSame($files, $resubmitted->evidenceVersions()->get()->map->getAttributes()->all());
+        $this->assertSame($files, $resubmitted->evidenceVersions()->orderBy('id')->get()->map->getAttributes()->all());
         $this->assertFalse($resubmitted->allowsSubmittedEdit());
         $this->assertSame(2, $resubmitted->submissionVersions()->count());
     }

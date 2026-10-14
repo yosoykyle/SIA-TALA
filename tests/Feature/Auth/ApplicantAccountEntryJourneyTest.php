@@ -40,7 +40,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             ->assertSee(route('filament.admin.auth.login'), false)
             ->assertDontSee('Staff Workspace')
             ->assertDontSee('Student Hub')
-            ->assertSee(route('filament.applicant.auth.register'), false)
+            ->assertSee(route('public.apply'), false)
             ->assertSee('id="privacyModal"', false)
             ->assertSee('id="accessibilityModal"', false);
     }
@@ -51,13 +51,12 @@ class ApplicantAccountEntryJourneyTest extends TestCase
 
         $this->get('/')
             ->assertOk()
-            ->assertSee('Create Applicant account')
-            ->assertSee(route('filament.applicant.auth.register'), false)
             ->assertSee('https://www.facebook.com/servitechinstituteasiaph', false)
             ->assertSee('0947 737 9208')
             ->assertSee('Privacy Notice')
             ->assertSee('id="privacyModal"', false)
-            ->assertSee('modal-fullscreen-sm-down', false);
+            ->assertSee('Application updates, requirements and corrections are available only through your signed-in Applicant account.')
+            ->assertSee('aria-label="Close privacy notice"', false);
     }
 
     public function test_missing_admission_cycle_keeps_existing_applicant_sign_in_available(): void

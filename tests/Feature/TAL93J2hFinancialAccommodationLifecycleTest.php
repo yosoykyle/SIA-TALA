@@ -95,6 +95,7 @@ final class TAL93J2hFinancialAccommodationLifecycleTest extends TestCase
     {
         $actor = $this->staff(User::StaffRoleAccounting);
         $service = app(FinancialAccommodationLifecycleService::class);
+        activity()->performedOn($actor)->event('test_fixture_created')->log('Unrelated setup activity');
 
         foreach ([
             [FinancialAccommodation::StatusPending, FinancialAccommodation::StatusFulfilled, 'Not a permitted jump.'],
@@ -103,26 +104,39 @@ final class TAL93J2hFinancialAccommodationLifecycleTest extends TestCase
             [FinancialAccommodation::StatusActive, FinancialAccommodation::StatusCancelled, '   '],
             [FinancialAccommodation::StatusActive, FinancialAccommodation::StatusCancelled, str_repeat('x', 1001)],
         ] as [$from, $to, $reason]) {
+            $accommodation = $this->accommodation($from)->refresh();
+            $attributes = $accommodation->getAttributes();
+            $auditRows = Activity::query()->orderBy('id')->get()->map->getAttributes()->all();
+
             try {
-                $service->transition($this->accommodation($from), $to, $reason, $actor);
+                $service->transition($accommodation, $to, $reason, $actor);
                 $this->fail("Expected {$from} to {$to} to be rejected.");
             } catch (RuntimeException) {
-                $this->assertDatabaseCount('activity_log', 0);
+                $this->assertSame($attributes, $accommodation->fresh()->getAttributes());
+                $this->assertSame($auditRows, Activity::query()->orderBy('id')->get()->map->getAttributes()->all());
             }
         }
 
         $expiring = $this->accommodation(FinancialAccommodation::StatusActive, [
             'expires_on' => '2026-07-20',
-        ]);
+        ])->refresh();
 
-        $this->expectException(RuntimeException::class);
-        $service->transition(
-            $expiring,
-            FinancialAccommodation::StatusExpired,
-            'Expiry is not effective yet.',
-            $actor,
-            CarbonImmutable::parse('2026-07-19 23:59:59', config('app.timezone')),
-        );
+        $attributes = $expiring->getAttributes();
+        $auditRows = Activity::query()->orderBy('id')->get()->map->getAttributes()->all();
+
+        try {
+            $service->transition(
+                $expiring,
+                FinancialAccommodation::StatusExpired,
+                'Expiry is not effective yet.',
+                $actor,
+                CarbonImmutable::parse('2026-07-19 23:59:59', config('app.timezone')),
+            );
+            $this->fail('Premature expiry must be rejected.');
+        } catch (RuntimeException) {
+            $this->assertSame($attributes, $expiring->fresh()->getAttributes());
+            $this->assertSame($auditRows, Activity::query()->orderBy('id')->get()->map->getAttributes()->all());
+        }
     }
 
     #[Test]

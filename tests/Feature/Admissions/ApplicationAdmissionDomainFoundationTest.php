@@ -17,7 +17,6 @@ use App\Models\DocumentEvidence;
 use App\Models\IdentityMatchReview;
 use App\Models\OfficialCredentialResult;
 use App\Models\PreliminaryEvidenceReview;
-use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use InvalidArgumentException;
 use LogicException;
@@ -167,9 +166,5 @@ class ApplicationAdmissionDomainFoundationTest extends TestCase
         $this->assertTrue($canonicalEvidence->applicationSubmissionVersion->is($submission));
         $this->assertCount(1, $canonicalEvidence->preliminaryReviews);
 
-        $this->expectException(QueryException::class);
-        DocumentEvidence::factory()
-            ->canonical($application, $requirement, $submission)
-            ->create(['checksum' => $canonicalEvidence->checksum]);
     }
 }

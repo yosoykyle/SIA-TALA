@@ -438,7 +438,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
     public function test_closed_or_cancelled_owned_draft_is_read_only_even_when_another_cycle_is_open(): void
     {
         foreach ([AdmissionCycle::StatePublished, AdmissionCycle::StateCancelled] as $state) {
-            [$application, $applicant] = $this->application(submitted: false);
+            [$application, $applicant, $requirement] = $this->application(submitted: false);
             $application->admissionCycle->update(['state' => $state, 'closes_at' => now()->subMinute()]);
             AdmissionCycle::factory()->published()->create(['term_id' => $application->term_id, 'opens_at' => now()->subDay(), 'closes_at' => now()->addDay()]);
             Filament::setCurrentPanel(Filament::getPanel('applicant'));
@@ -449,9 +449,11 @@ class Issue57AdmissionsPresentationTest extends TestCase
             $this->assertFalse($wizard->getNextAction()->isDisabled());
             $this->assertFalse($wizard->getPreviousAction()->isDisabled());
             $this->assertTrue($page->instance()->form->getComponentByStatePath('first_name')->isDisabled());
+            $this->assertTrue($page->instance()->form->getComponentByStatePath('evidence.'.$requirement->id)->isDisabled());
             $this->assertInstanceOf(Hidden::class, $page->instance()->form->getComponentByStatePath('admission_cycle_id'));
             $page->assertActionVisible('discardDraft')
-                ->assertSee('Saving, uploading, and first submission are unavailable')
+                ->assertSee('This draft is read-only')
+                ->assertSee('You can view or discard your draft.')
                 ->assertDontSee('Save partial work at any step.');
             $page->assertActionDisabled('saveAndExit');
             $facts = $application->fresh()->getAttributes();
