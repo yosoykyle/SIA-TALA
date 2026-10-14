@@ -32,6 +32,8 @@ For delegated executor work, follow this owner-directed sequence:
 
 The executor's own checks and bounded helpers remain part of implementation. Material questions may be raised to the owner while work continues where safe. Readiness, green tests, helper approval, a saved return-chat address, dispatch or an older automatic-report instruction never substitutes for the owner's reporting permission. Permission must come from the human owner, in the executor chat or through verifiable owner instructions elsewhere. An unsolicited return is acknowledged as status; it does not start another orchestrator acceptance or remediation cycle before owner permission.
 
+Verified criteria establish implementation evidence and readiness for review. The owner, actual users and client judge whether the experience is understandable, usable and fit for its intended work; an agent, score or green checklist cannot grant that human acceptance. Follow the existing review/report sequence without adding a separate client sign-off ceremony to every Issue.
+
 Keep the Issue `In Progress` while owner review/refinement or orchestrator review remains. This reporting sequence creates no new Project status and grants no commit, publication, closure, merge or deployment permission. Preserve expressly authorized effects; the owner-review/report gate remains part of delegated execution unless the owner explicitly changes it. Reuse unchanged agreement and valid evidence rather than repeat review as ceremony.
 
 ## 2. Sources of truth
@@ -119,9 +121,15 @@ Every derived draft must identify:
 - [ ] **Governing Authority & Surfaces**: Cites relevant authority and, for UI-bearing work, canonical UI inventory IDs from `ui_surface_blueprint.md`.
 - [ ] **Bounded Scope**: Exact changes required, plus explicit out-of-scope exclusions.
 - [ ] **Dependencies & Order**: Upstream prerequisites and material implementation order.
-- [ ] **Acceptance Criteria**: Testable, unambiguous conditions of satisfaction.
+- [ ] **Acceptance Criteria**: A short set of practical, observable outcomes within the assigned scope.
 - [ ] **Verification & Scenarios**: Unit/feature tests and applicable browser acceptance scenarios.
 - [ ] **Stop Conditions**: Explicit conditions requiring pausing and user consultation.
+
+##### Practical acceptance criteria
+
+Write criteria in the owning Issue body during derivation. Use the smallest set of distinct task outcomes and essential safeguards that establishes the bounded goal. Each criterion must be understandable to a human maintainer, achievable within the assignment, and assessable through a feasible, proportionate evidence method. Detailed test cases belong in verification, rather than multiplying acceptance checkboxes.
+
+Avoid arbitrary design scores, universal polish guarantees, exhaustive state/viewport combinations and repeated full-suite runs as default completion gates. Separate optional refinements from required usable delivery. Preserve applicable authorization, privacy, data integrity, history, official-output and essential recovery requirements. Before recording a criterion, challenge its necessity and verification cost; correct an impractical requirement or unsupported measurement instead of imposing it on execution. Material product or scope changes still need the corresponding owner decision. Agents must surface evidence limitations early and use a suitable available method rather than repeatedly attempt a check that cannot prove the outcome.
 
 If the coordination Issue is missing, stale, or materially conflicts with current authority or delivery state, stop at a read-only recommendation rather than inventing the order.
 
@@ -213,7 +221,7 @@ A clear task without an issue number remains valid. A request to implement, fix,
 
 `Publish #NN` requires explicit authorization for its external effects; this may be given alongside completion in one request. It first requires current verification, intended-diff evidence, and an all-`Verified` acceptance ledger. Check that existing evidence still applies to the intended revision; do not rerun unchanged successful checks merely because the action name changed.
 
-The local preflight below uses the task-applicable verification in Section 7: documentation-only changes require document consistency, intended-diff, and formatting checks, while code changes require affected tests. Documentation-only work does not require a local application-test run. Required GitHub CI still must pass on the exact published commit or pull-request head before closure or merge.
+The local preflight below uses the task-applicable verification in Section 7: documentation-only changes require document consistency, intended-diff and formatting checks; behavior changes require meaningful affected tests; presentation-only changes require relevant rendered checks. Required GitHub CI still must pass on the exact published commit or pull-request head before closure or merge.
 
 | Mode | Target | Preflight Requirements | Core Actions | Final Project Transition |
 | --- | --- | --- | --- | --- |
@@ -290,16 +298,18 @@ Verification and in-scope failure remediation are part of authorized implementat
 
 - **Documentation-only changes**: Authority consistency, contradiction review, intended diff, and formatting checks. Does not require running application tests, migrations, or database setup.
 - **Backend / code changes**: Affected unit and feature tests run against `test_tala_db`, focused positive/negative paths, authorization, state transitions, regression checks, and code formatting with Pint (`vendor/bin/pint --dirty --format agent`).
-- **UI-bearing changes**: Affected automated tests plus representative rendered or browser checks of key viewports/states, keyboard navigation, and screen-reader accessibility against the accepted brief and owning acceptance criteria.
+- **UI-bearing changes**: Meaningful affected automated tests when behavior changes, plus representative rendered or manual browser checks of the changed journey, relevant viewports/states, keyboard navigation and screen-reader accessibility against the accepted brief and owning acceptance criteria.
 - **End-to-end / integration changes**: Multi-role or external-service integration verification in the configured project environment.
 
-All code changes require affected tests to pass; all UI changes require representative rendered or browser checks; every accepted criterion must be `Verified` before Complete; and required CI checks must pass on published commits. Later human QA supplements rather than replaces these automated and local checks.
+Behavior changes require meaningful affected tests to pass. Pure wording, styling and layout refinements require relevant rendered checks without mandatory new automated tests. Every accepted criterion must have sufficient evidence to be `Verified` before Complete, and required CI checks must pass on published commits. These checks establish implementation readiness; human acceptance follows Section 1.
 
 Use the project's configured environment and normal commands. Testing configuration belongs to the test infrastructure, not this orchestration protocol.
 
 The owner may explicitly delegate acceptance-criterion revision to the orchestrator, executor or a bounded helper. Record the reason in the owning Issue, retire duplicate or obsolete checks, and separate optional refinement from required usable first delivery. Preserve applicable data integrity, authorization, history, official-output and essential workflow safeguards. A known owned defect remains a failure. An aggregate design score, universal polish target, new broad audit or repeated full-suite run is not an automatic additional gate. Reuse valid evidence, run meaningful affected checks when findings invalidate it, and retain required CI on the actual published head. Test consolidation and legacy/fallback retirement belong to the touched slice after proving consumers and replacements.
 
 Passing tests are evidence, not the whole acceptance decision. Inspect authority alignment, the diff, authorization, state transitions, and affected roles in proportion to risk. Reuse attributable successful evidence until relevant code, configuration, environment, authority, scope, or findings invalidate it.
+
+Once the applicable checks pass and known owned defects are resolved, proceed to owner review. Repeat verification only for changed or invalidated evidence, a new failure, or an unresolved material risk; avoid extending execution through additional audits or optional polish targets.
 
 Every completed local task reports changed scope, verification evidence, untouched exclusions, remaining risks, and the next action requiring authorization to its owner. For delegated work, readiness stays in the executor chat for owner review; only the owner-permitted consolidated return reaches the orchestrator under Section 1. Do not repeat unchanged evidence or narrate internal ceremony.
 

@@ -215,7 +215,7 @@ Reuse a sufficient accepted Issue contract or direct task scope as the plan. Con
 <boundary name="COMPLETION_AND_PUBLISH" triggers="Complete #NN, Publish #NN, Commit">
   <allowed>
     - Complete: Finishes any remaining bounded implementation and verification under the accepted contract; requires an all-Verified criterion ledger before creating exactly ONE bounded local commit. Reuse completed work and valid evidence.
-    - Publish (Solo Work on main): Pushes accepted commit range directly to origin/main after fresh, task-applicable local verification (including affected tests for code changes). Required CI must pass on the published commit before issue closure.
+    - Publish (Solo Work on main): Pushes accepted commit range directly to origin/main after fresh, task-applicable local verification under Protocol Section 7 (including meaningful affected tests when behavior changes). Required CI must pass on the published commit before issue closure.
     - Publish (Concurrent Work): Pushes issue branch and opens PR containing "Closes #NN".
   </allowed>
   <prohibited>Never force-push, never merge PRs without separate explicit authorization, never deploy, never mutate unrelated issues.</prohibited>
@@ -237,6 +237,7 @@ Reuse a sufficient accepted Issue contract or direct task scope as the plan. Con
 - Issues and PRDs are living records. The owner decides per case which orchestrator, executor or bounded helper may update which records; preserve authority ownership, history and the corresponding material-decision/write scope.
 - Clear Direct Work (Untracked): Solo work operates directly on primary checkout (`main`) without creating extra branches, worktrees, or GitHub Issues. Follows the same 3 permission boundaries above.
 - Task-applicable verification follows Protocol Section 7. For behavior-preserving changes, adequate affected tests satisfy verification without an extra test-only edit; add or update tests when changed behavior lacks coverage. This project-specific coverage rule qualifies the generic test-edit instruction in the generated Boost block.
+- Issue derivation follows the Protocol's Practical acceptance criteria section: use short, observable, bounded outcomes with feasible evidence. Verification establishes implementation readiness; owner/user/client acceptance of the actual experience follows Section 1. Reuse sufficient checks and avoid extra verification gates.
 - Compaction & Resumption: Re-anchor from recent messages, live git state, and issue comments before acting. Continue only within the authorized boundary.
 </task_modes>
 

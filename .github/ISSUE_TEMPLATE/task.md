@@ -37,28 +37,19 @@ A sufficient accepted Issue contract serves as the plan. Delete inapplicable ver
 - **Unresolved Material Decisions / Stop Conditions (if any)**:
 
 ## Acceptance Criteria
-<!-- A small set of observable outcomes that define satisfaction. Keep criteria outcome-based, not prescriptive implementation steps. -->
+<!-- Follow the Protocol's Practical acceptance criteria section. Use a short set of distinct, understandable task outcomes and essential safeguards within this scope. Confirm each has feasible, proportionate evidence. Avoid arbitrary scores, exhaustive matrices and implementation checklists; keep optional refinements separate. -->
 - [ ] Criterion 1: 
 - [ ] Criterion 2: 
 
 ## Verification Plan
-<!-- Map each acceptance outcome to suitable evidence. Keep applicable sections only; reuse sufficient existing tests and brief/state contracts. -->
-
-### Documentation-Only Changes
-- [ ] **Document Consistency**: Authority consistency and contradiction review
-- [ ] **Intended Diff & Formatting**: Touches only in-scope docs with no extraneous edits, valid Markdown/links
-
-### Code & Backend Changes
-- [ ] **Automated Tests**: Affected unit/feature tests pass on `test_tala_db` (`php artisan test --compact --filter=ExampleTest`)
-- [ ] **Code Formatting**: Clean Pint formatting (`vendor/bin/pint --dirty --format agent`)
-- [ ] **Clean Diff**: Touches only in-scope files with no extraneous edits
-
-### UI-Bearing & End-to-End Changes
-- [ ] **Representative Rendered/Browser Check**: Responsive layouts, empty/loading/error states, keyboard/screen-reader accessibility
-- [ ] **Integration/Multi-Role Check**: External service or cross-role workflow verified if applicable
+<!-- Choose the simplest sufficient evidence for the changed outcomes. Reuse existing meaningful tests; select representative UI checks and high-value failure paths. Documentation uses consistency/diff/link checks. Behavior changes use affected tests (php artisan test --compact --filter=ExampleTest); format PHP with vendor/bin/pint --dirty --format agent. Pure copy/layout changes need relevant rendered checks, without mandatory new automated tests. No repeated full-suite runs or duplicate evidence ledgers. -->
+- **Outcome evidence**: [Name the existing tests, document review or representative rendered/manual journey checks that establish the criteria.]
+- **Important failure / recovery / integration checks (if applicable)**: [Name only the meaningful risks introduced or affected by this change.]
 
 ## Boundaries
 
 Follow [AGENTS.md](../../AGENTS.md) and the [TALA Orchestrator Protocol](../../00_Project_Documents/TALA-Orchestrator-Protocol.md) for permissions, completion, publication, and recovery. An assignment may explicitly include multiple effects in one request; Issue creation or assignment alone grants no implementation, commit, push, merge, or deployment.
 
 Automated database tests target disposable `test_tala_db`, never `tala_db`. Documentation-only work requires no database or application-test run. Every acceptance criterion must be Verified before completion; required CI must pass on the exact published revision.
+
+Criteria and agent checks establish implementation readiness. The owner, actual users and client judge usability and fitness through the Protocol's existing review process.
