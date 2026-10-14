@@ -4,6 +4,7 @@ namespace Tests\Feature\Admissions;
 
 use App\Actions\Admissions\AdmissionEvidenceService;
 use App\Actions\Admissions\AdmissionNotificationLedger;
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Actions\Admissions\RecordAdmissionDecision;
 use App\Actions\Admissions\ReviewPreliminaryEvidence;
@@ -111,6 +112,8 @@ class AdmissionEvidenceNotificationServicesTest extends TestCase
 
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
+        $application->forceFill(['application_state' => AdmissionApplication::StateSubmitted])->save();
+        app(AdmissionReviewGuard::class)->start($application->fresh(), $registrar, $application->current_submission_version_id);
         $underReview = app(ReviewPreliminaryEvidence::class)->execute(
             $replacement,
             $registrar,
@@ -193,6 +196,7 @@ class AdmissionEvidenceNotificationServicesTest extends TestCase
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
         $old = DocumentEvidence::factory()->canonical($application, $requirement, $submission)->create();
+        app(AdmissionReviewGuard::class)->start($application->fresh(), $registrar, $application->current_submission_version_id);
         app(ReviewPreliminaryEvidence::class)->execute($old, $registrar, PreliminaryEvidenceReview::ResultAccepted, null);
         $replacement = DocumentEvidence::factory()->canonical($application, $requirement, $submission)->create([
             'replaces_document_evidence_id' => $old->id,
@@ -336,8 +340,9 @@ class AdmissionEvidenceNotificationServicesTest extends TestCase
     private function applicationRequirementAndSubmission(bool $preDecision = false): array
     {
         $application = AdmissionApplication::factory()->create([
-            'admission_cycle_id' => AdmissionCycle::factory()->create([
+            'admission_cycle_id' => AdmissionCycle::factory()->published()->create([
                 'term_id' => Term::query()->value('id') ?? Term::factory()->create()->id,
+                'opens_at' => now()->subDay(), 'closes_at' => now()->addDay(),
             ])->id,
         ]);
         $application->user->forceFill(['status' => User::StatusActive])->save();

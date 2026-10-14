@@ -75,10 +75,7 @@ class TAL96D5BAdmissionsWindowAndWithdrawalTest extends TestCase
     {
         [$cycle, $program] = $this->openCycle();
         $applicant = $this->applicant();
-        $set = AdmissionRequirementSet::factory()->published()->create([
-            'admission_cycle_id' => $cycle->id,
-            'application_path' => AdmissionApplication::PathFirstYear,
-        ]);
+        $set = $cycle->requirementSets()->where('application_path', AdmissionApplication::PathFirstYear)->firstOrFail();
         $draft = app(SaveAdmissionApplication::class)->execute($applicant, $cycle, [
             'program_id' => $program->id,
             'application_path' => AdmissionApplication::PathFirstYear,
@@ -170,6 +167,8 @@ class TAL96D5BAdmissionsWindowAndWithdrawalTest extends TestCase
             'accepts_first_year' => true,
             'accepts_transferee' => true,
         ]);
+
+        AdmissionRequirementSet::factory()->for($cycle)->published()->create();
 
         return [$cycle, $program];
     }

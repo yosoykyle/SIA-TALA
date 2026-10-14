@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\RecordAdmissionDecision;
 use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
 use App\Models\AdmissionApplication;
@@ -269,6 +270,8 @@ class AdmissionDecisionAuthorityTest extends TestCase
                 'reviewed_by' => $registrar->id,
             ]);
         }
+
+        app(AdmissionReviewGuard::class)->start($application->fresh(), $registrar, $application->current_submission_version_id);
 
         return [$application->fresh(), $registrar];
     }

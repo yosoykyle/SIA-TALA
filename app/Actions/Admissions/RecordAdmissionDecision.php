@@ -69,6 +69,7 @@ class RecordAdmissionDecision
                 ]);
             }
 
+            $locked->assertReviewSource($actor, $expectedSubmissionVersionId);
             $current = $locked->decisions()
                 ->whereDoesntHave('successor')
                 ->lockForUpdate()
@@ -230,10 +231,7 @@ class RecordAdmissionDecision
                 ->latest('id')
                 ->lockForUpdate()
                 ->first();
-            $review = $evidence?->preliminaryReviews()
-                ->whereDoesntHave('successor')
-                ->lockForUpdate()
-                ->first();
+            $review = $evidence === null ? null : $application->currentPreliminaryReview($evidence, lockForUpdate: true);
 
             if ($review?->result !== PreliminaryEvidenceReview::ResultAccepted) {
                 throw ValidationException::withMessages([

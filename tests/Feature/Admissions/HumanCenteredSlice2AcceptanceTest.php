@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admissions;
 
 use App\Actions\Admissions\AdmissionEvidenceService;
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Actions\Admissions\RequestAdmissionCorrection;
 use App\Actions\Admissions\ResolveAdmissionRequirementSet;
@@ -67,6 +68,7 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
         }
 
         $submitted = app(SubmitAdmissionApplication::class)->execute($draft, $applicant, $effectiveSet->id);
+        app(AdmissionReviewGuard::class)->start($submitted, $this->registrar(), $submitted->current_submission_version_id);
         app(RequestAdmissionCorrection::class)->execute(
             $submitted,
             $this->registrar(),
@@ -93,6 +95,7 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
             UploadedFile::fake()->image('initial.jpg', 10, 10)->size(20),
         );
         $submitted = app(SubmitAdmissionApplication::class)->execute($draft, $applicant, $set->id);
+        app(AdmissionReviewGuard::class)->start($submitted, $this->registrar(), $submitted->current_submission_version_id);
         $request = app(RequestAdmissionCorrection::class)->execute(
             $submitted,
             $this->registrar(),
@@ -235,13 +238,13 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
 
     public function test_scope_changes_bind_the_current_requirement_set_and_initialize_dynamic_evidence_state(): void
     {
-        [$cycle, , $requirementSet, $requirement] = $this->openCycle(withEvidence: true);
+        [$cycle, $program, $requirementSet, $requirement] = $this->openCycle(withEvidence: true);
         $applicant = $this->applicant();
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
 
         $component = Livewire::actingAs($applicant)
             ->test(ApplicantApplicationPage::class)
-            ->set('data.admission_cycle_id', $cycle->id)
+            ->set('data.program_id', $program->id)
             ->set('data.application_path', AdmissionApplication::PathFirstYear);
         $state = $component->get('data');
 

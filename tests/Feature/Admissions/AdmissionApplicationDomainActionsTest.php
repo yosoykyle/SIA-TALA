@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admissions;
 
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Actions\Admissions\RecordAdmissionDecision;
 use App\Actions\Admissions\RequestAdmissionCorrection;
@@ -16,6 +17,7 @@ use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicantIntake;
 use App\Models\ApplicationCorrectionItem;
 use App\Models\DocumentEvidence;
+use App\Models\Enrollment;
 use App\Models\IdentityMatchReview;
 use App\Models\OfficialCredentialResult;
 use App\Models\OperationalEvent;
@@ -121,8 +123,9 @@ class AdmissionApplicationDomainActionsTest extends TestCase
         $this->assertSame(AdmissionApplicationEvent::TypeSubmitted, $submitted->events()->sole()->event_type);
         $this->assertSame(0, StudentProfile::query()->count());
 
-        $this->expectException(ValidationException::class);
-        app(SubmitAdmissionApplication::class)->execute($submitted, $applicant);
+        $successor = app(SaveAdmissionApplication::class)->execute($applicant, $cycle, ['accuracy_declared' => true], $submitted);
+        $this->assertSame(2, $successor->submissionVersions()->count());
+        $this->assertSame($submitted->application_reference, $successor->application_reference);
     }
 
     public function test_switching_a_transferee_draft_to_first_year_clears_its_hidden_prior_college_identifier(): void
@@ -220,6 +223,40 @@ class AdmissionApplicationDomainActionsTest extends TestCase
         $this->assertSame(0, StudentProfile::query()->where('user_id', $applicant->id)->count());
     }
 
+    public function test_transferee_can_submit_without_graduation_year_while_freshman_requires_it(): void
+    {
+        [$cycle, $program] = $this->openCycle();
+        foreach ([AdmissionApplication::PathTransferee, AdmissionApplication::PathFirstYear] as $path) {
+            $applicant = $this->applicant();
+            $draft = app(SaveAdmissionApplication::class)->execute($applicant, $cycle, [
+                ...$this->applicationData($program),
+                'application_path' => $path,
+                'credential_basis' => $path === AdmissionApplication::PathTransferee
+                    ? AdmissionApplication::CredentialTransfer : AdmissionApplication::CredentialSeniorHighSchool,
+                'prior_school_completion_year' => null,
+            ]);
+
+            if ($path === AdmissionApplication::PathTransferee) {
+                $submitted = app(SubmitAdmissionApplication::class)->execute($draft, $applicant);
+                $this->assertSame(AdmissionApplication::StateSubmitted, $submitted->application_state);
+                $this->assertNull($submitted->prior_school_completion_year);
+                $this->assertNull($submitted->currentSubmissionVersion->snapshot['prior_school_completion_year']);
+            } else {
+                try {
+                    app(SubmitAdmissionApplication::class)->execute($draft, $applicant);
+                    $this->fail('Freshman submission requires a graduation year.');
+                } catch (ValidationException $exception) {
+                    $this->assertArrayHasKey('prior_school_completion_year', $exception->errors());
+                }
+                $this->assertSame(AdmissionApplication::StateDraft, $draft->fresh()->application_state);
+                $this->assertSame(0, $draft->submissionVersions()->count());
+            }
+
+            $this->assertSame(0, StudentProfile::query()->where('user_id', $applicant->id)->count());
+            $this->assertSame(0, Enrollment::query()->where('credential_user_id', $applicant->id)->count());
+        }
+    }
+
     /** @return array<string, array{string, string, bool}> */
     public static function applicationPathAndCredentialProvider(): array
     {
@@ -291,6 +328,7 @@ class AdmissionApplicationDomainActionsTest extends TestCase
         Role::findOrCreate(User::StaffRoleRegistrar, 'web')->givePermissionTo(Permission::findOrCreate('approve-documents', 'web'));
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
+        app(AdmissionReviewGuard::class)->start($opened, $registrar, $opened->current_submission_version_id);
         app(RequestAdmissionCorrection::class)->execute($opened, $registrar, [
             ['type' => ApplicationCorrectionItem::ScopeField, 'key' => 'phone'],
         ], 'Correct the phone number.', 'Applicant', now()->addHour());

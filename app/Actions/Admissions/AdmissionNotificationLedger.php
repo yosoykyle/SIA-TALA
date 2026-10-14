@@ -197,7 +197,7 @@ class AdmissionNotificationLedger
                 "{$institution} — Application received",
                 $event->event_type === OperationalEvent::TypeAdmissionApplicationSubmitted
                     ? 'Application received'
-                    : 'Corrected application received',
+                    : (($payload['submitted_edit'] ?? false) ? 'Application update received' : 'Corrected application received'),
                 [
                     "Application reference: {$reference}",
                     'Received: '.$this->payloadString($payload, 'submitted_at', 'Recorded in system'),

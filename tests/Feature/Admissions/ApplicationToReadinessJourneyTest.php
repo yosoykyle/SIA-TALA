@@ -5,8 +5,8 @@ namespace Tests\Feature\Admissions;
 use App\Actions\Admissions\AdmissionNotificationLedger;
 use App\Actions\Admissions\SubmitAdmissionApplication;
 use App\Filament\Applicant\Pages\Application as ApplicationPage;
-use App\Filament\Applicant\Pages\Dashboard;
 use App\Filament\Applicant\Pages\Dashboard as ApplicantDashboard;
+use App\Filament\Applicant\Pages\SubmissionReceipt;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
@@ -127,7 +127,7 @@ class ApplicationToReadinessJourneyTest extends TestCase
         $this->assertSame(1, $application->submissionVersions()->count());
         $this->assertMatchesRegularExpression('/^APP-\\d{4}-(?:[2-9A-HJKMNP-Z]{4}-){2}[2-9A-HJKMNP-Z]{4}$/', $application->application_reference);
         $this->assertSame(0, StudentProfile::query()->where('user_id', $applicant->id)->count());
-        $component->assertRedirect(Dashboard::getUrl(['application' => $application->id]));
+        $component->assertRedirect(SubmissionReceipt::getUrl(['application' => $application->id, 'version' => $application->current_submission_version_id]));
         if ($followUpFails) {
             $component->assertSet('saveStatus', 'saved')
                 ->assertSet('saveStatusMessage', 'Your Application was submitted. A follow-up step could not finish. Open Home to check your submitted version and notification status.');
@@ -312,6 +312,11 @@ class ApplicationToReadinessJourneyTest extends TestCase
             'application' => $application, 'version' => $version, 'queue' => 'history',
         ]))->assertOk()->assertSee('href="'.route('filament.applicant.pages.dashboard', ['application' => $application->id]).'"', false)
             ->assertDontSee('queue=history', false);
+
+        $this->actingAs($applicant)
+            ->get(route('filament.applicant.pages.dashboard', ['application' => $application->id]))
+            ->assertOk()
+            ->assertSee('href="'.e(SubmissionReceipt::getUrl(['application' => $application->id, 'version' => $version->id], panel: 'applicant')).'"', false);
     }
 
     public function test_acknowledgment_render_failure_does_not_record_false_success(): void

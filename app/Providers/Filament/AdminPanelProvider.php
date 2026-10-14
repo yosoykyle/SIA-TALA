@@ -12,6 +12,8 @@ use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
+use App\Filament\Pages\Auth\RequestPasswordReset;
+use App\Filament\Pages\Auth\ResetPassword;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
 use App\Filament\Pages\ClassPlanning;
 use App\Filament\Pages\CompletionAndTor;
@@ -124,7 +126,10 @@ class AdminPanelProvider extends PanelProvider
                     ->login(fn (AuthPageConfig $config) => $config
                         ->usingPage(ContextualLogin::class)
                     )
-                    ->passwordReset()
+                    ->passwordReset(fn (AuthPageConfig $config) => $config
+                        ->usingPage(RequestPasswordReset::class)
+                        ->usingResetPage(ResetPassword::class)
+                    )
                     ->emailVerification()
                     ->themeToggle()
             )

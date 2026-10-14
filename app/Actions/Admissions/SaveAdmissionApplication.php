@@ -4,19 +4,24 @@ namespace App\Actions\Admissions;
 
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
+use App\Models\AdmissionRequirement;
 use App\Models\ApplicantIntake;
 use App\Models\ApplicationCorrectionItem;
 use App\Models\ApplicationCorrectionRequest;
+use App\Models\DocumentEvidence;
 use App\Models\Program;
 use App\Models\User;
 use App\Queries\Admissions\AssistedDraftApplicantQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class SaveAdmissionApplication
 {
@@ -30,6 +35,11 @@ class SaveAdmissionApplication
         ?string $assistanceReason = null,
         ?string $assistanceAuthorityReference = null,
         ?string $assistanceEvidenceReference = null,
+        array $evidenceFiles = [],
+        ?int $expectedSubmissionVersionId = null,
+        ?int $expectedRequirementSetId = null,
+        ?string $operationId = null,
+        bool $typeCorrectionCommit = false,
     ): AdmissionApplication {
         $assistance = $this->authorizeEntry(
             $applicant,
@@ -49,134 +59,204 @@ class SaveAdmissionApplication
 
         $validated = Validator::make($data, $this->draftRules())->validate();
 
-        return DB::transaction(function () use (
-            $applicant,
-            $cycle,
-            $validated,
-            $application,
-            $assistedBy,
-            $assistance,
-        ): AdmissionApplication {
-            $lockedCycle = AdmissionCycle::query()->lockForUpdate()->findOrFail($cycle->id);
-            $lockedApplication = $application instanceof AdmissionApplication
-                ? AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id)
-                : AdmissionApplication::query()
-                    ->canonical()
-                    ->where('user_id', $applicant->id)
-                    ->where('admission_cycle_id', $lockedCycle->id)
-                    ->lockForUpdate()
-                    ->first();
+        $expectedSubmissionVersionId = $expectedSubmissionVersionId === 0 ? null : ($expectedSubmissionVersionId ?? $application?->current_submission_version_id);
+        $storedEvidence = [];
 
-            if ($lockedApplication instanceof AdmissionApplication
-                && ($lockedApplication->user_id !== $applicant->id
-                    || $lockedApplication->admission_cycle_id !== $lockedCycle->id)) {
-                throw new AuthorizationException('Applicants may edit only their own application.');
-            }
+        try {
+            return DB::transaction(function () use (
+                $applicant,
+                $cycle,
+                $validated,
+                $application,
+                $assistedBy,
+                $assistance,
+                $evidenceFiles,
+                $expectedSubmissionVersionId,
+                $expectedRequirementSetId,
+                $operationId,
+                $typeCorrectionCommit,
+                &$storedEvidence,
+            ): AdmissionApplication {
+                $this->authorizeEntry($applicant->fresh(), $assistedBy?->fresh(), $assistance['reason'], $assistance['authority_reference'], $assistance['evidence_reference']);
+                $lockedCycle = AdmissionCycle::query()->lockForUpdate()->findOrFail($cycle->id);
+                $lockedApplication = $application instanceof AdmissionApplication
+                    ? AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id)
+                    : AdmissionApplication::query()
+                        ->canonical()
+                        ->where('user_id', $applicant->id)
+                        ->where('admission_cycle_id', $lockedCycle->id)
+                        ->lockForUpdate()
+                        ->first();
 
-            if ($assistedBy instanceof User
-                && ! app(AssistedDraftApplicantQuery::class)
-                    ->eligible($lockedApplication?->id, $lockedCycle->id)
-                    ->whereKey($applicant->id)->exists()) {
-                throw ValidationException::withMessages([
-                    'application_state' => 'This Applicant is no longer eligible for assisted draft preparation in this cycle. Return to Admissions and check their current application.',
-                ]);
-            }
+                if ($lockedApplication instanceof AdmissionApplication
+                    && ($lockedApplication->user_id !== $applicant->id
+                        || $lockedApplication->admission_cycle_id !== $lockedCycle->id)) {
+                    throw new AuthorizationException('Applicants may edit only their own application.');
+                }
 
-            if (! $lockedApplication instanceof AdmissionApplication) {
-                $this->assertCycleOpen($lockedCycle);
-                $lockedApplication = new AdmissionApplication([
-                    'user_id' => $applicant->id,
+                if ($lockedApplication instanceof AdmissionApplication && $lockedApplication->current_submission_version_id !== $expectedSubmissionVersionId) {
+                    throw ValidationException::withMessages(['application_state' => 'The submitted source changed. Reload the current application before saving changes.']);
+                }
+                if ($typeCorrectionCommit && (! $lockedApplication instanceof AdmissionApplication
+                    || $lockedApplication->application_state !== AdmissionApplication::StateActionNeeded)) {
+                    throw ValidationException::withMessages(['correction_scope' => 'A complete Student type correction requires the current active Registrar request.']);
+                }
+
+                if ($assistedBy instanceof User
+                    && ! app(AssistedDraftApplicantQuery::class)
+                        ->eligible($lockedApplication?->id, $lockedCycle->id)
+                        ->whereKey($applicant->id)->exists()) {
+                    throw ValidationException::withMessages([
+                        'application_state' => 'This Applicant is no longer eligible for assisted draft preparation in this cycle. Return to Admissions and check their current application.',
+                    ]);
+                }
+
+                if (! $lockedApplication instanceof AdmissionApplication) {
+                    $this->assertCycleOpen($lockedCycle);
+                    if (! $assistedBy instanceof User && filled($validated['program_id'] ?? null) && filled($validated['application_path'] ?? null)) {
+                        $resolvedCycle = app(ResolveAdmissionEntryCycle::class)->resolve((int) $validated['program_id'], $validated['application_path']);
+                        if ($resolvedCycle->id !== $lockedCycle->id) {
+                            throw ValidationException::withMessages(['program_id' => 'The school intake changed. Review your Program and Student type before saving.']);
+                        }
+                    }
+                    $lockedApplication = new AdmissionApplication([
+                        'user_id' => $applicant->id,
+                        'admission_cycle_id' => $lockedCycle->id,
+                        'application_state' => AdmissionApplication::StateDraft,
+                        'term_id' => $lockedCycle->term_id,
+                        'email' => $applicant->email,
+                        'status' => ApplicantIntake::StatusDraft,
+                    ]);
+                } elseif ($lockedApplication->application_state === AdmissionApplication::StateDraft) {
+                    $this->assertCycleOpen($lockedCycle);
+                } elseif ($lockedApplication->application_state === AdmissionApplication::StateActionNeeded) {
+                    if ($assistedBy instanceof User) {
+                        throw ValidationException::withMessages([
+                            'application_state' => 'Registrar-assisted entry may prepare an unsubmitted Draft only. The Applicant must complete any scoped correction.',
+                        ]);
+                    }
+
+                    $this->assertCorrectionScope($lockedApplication, [
+                        ...array_keys($validated),
+                        ...(($validated['optional_identity_consent'] ?? null) === false ? ['gender', 'civil_status'] : []),
+                    ]);
+                    $typeCorrection = $lockedApplication->correctionRequests()->where('state', ApplicationCorrectionRequest::StateActive)
+                        ->whereNotNull('target_application_path')->lockForUpdate()->first();
+                    if ($typeCorrection instanceof ApplicationCorrectionRequest) {
+                        if (! $typeCorrectionCommit || ($validated['accuracy_declared'] ?? false) !== true
+                            || ($validated['application_path'] ?? null) !== $typeCorrection->target_application_path) {
+                            throw ValidationException::withMessages(['correction_scope' => 'Review the named Student type correction and submit its complete answers and copies together.']);
+                        }
+                        app(ResolveAdmissionRequirementSet::class)->forTypeCorrection($lockedApplication, $typeCorrection, true);
+                    } elseif ($typeCorrectionCommit) {
+                        throw ValidationException::withMessages(['correction_scope' => 'The confirmed Student type correction is no longer active. Reload the current instructions.']);
+                    }
+                } elseif ($lockedApplication->allowsSubmittedEdit() && ! $assistedBy instanceof User) {
+                    if (($validated['accuracy_declared'] ?? false) !== true) {
+                        throw ValidationException::withMessages(['accuracy_declared' => 'Confirm the accuracy of this complete update before submitting application changes.']);
+                    }
+                    if ($lockedApplication->current_submission_version_id !== $expectedSubmissionVersionId) {
+                        throw ValidationException::withMessages(['application_state' => 'The submitted version changed. Reload it before committing your changes.']);
+                    }
+                } else {
+                    if ($assistedBy instanceof User) {
+                        throw ValidationException::withMessages([
+                            'application_state' => 'Registrar-assisted entry may prepare an unsubmitted Draft only.',
+                        ]);
+                    }
+
+                    throw ValidationException::withMessages([
+                        'application_state' => 'Submitted application facts are read-only unless a Registrar correction names them.',
+                    ]);
+                }
+
+                if ($lockedApplication->term_id !== $lockedCycle->term_id) {
+                    throw ValidationException::withMessages(['admission_cycle_id' => 'The bound intake and Term disagree. Contact the Registrar to restore the source; no changes were saved.']);
+                }
+
+                $candidate = [...$lockedApplication->getAttributes(), ...$validated];
+                $this->assertApplicationScope($lockedCycle, $candidate);
+                $attributes = Arr::only($validated, $this->editableAttributes());
+
+                if (($validated['privacy_acknowledged'] ?? false) === true) {
+                    $attributes['privacy_notice_reference'] = $lockedCycle->privacy_notice_reference;
+                    $attributes['privacy_acknowledged_at'] = now(config('app.timezone'));
+                }
+
+                if (($validated['accuracy_declared'] ?? false) === true) {
+                    $attributes['accuracy_declared_at'] = now(config('app.timezone'));
+                }
+
+                if (($validated['optional_identity_consent'] ?? false) === true) {
+                    $attributes['optional_identity_notice_reference'] = $lockedCycle->privacy_notice_reference;
+                    $attributes['optional_identity_consent_purpose'] = 'Identity-record comparison';
+                    $attributes['optional_identity_consented_at'] = $lockedApplication->optional_identity_consented_at ?? now(config('app.timezone'));
+                } elseif (array_key_exists('optional_identity_consent', $validated)) {
+                    $attributes['gender'] = null;
+                    $attributes['civil_status'] = null;
+                    $attributes['optional_identity_notice_reference'] = null;
+                    $attributes['optional_identity_consent_purpose'] = null;
+                    $attributes['optional_identity_consented_at'] = null;
+                }
+
+                $lockedApplication->fill($attributes);
+                $canonical = [
                     'admission_cycle_id' => $lockedCycle->id,
-                    'application_state' => AdmissionApplication::StateDraft,
                     'term_id' => $lockedCycle->term_id,
                     'email' => $applicant->email,
-                    'status' => ApplicantIntake::StatusDraft,
-                ]);
-            } elseif ($lockedApplication->application_state === AdmissionApplication::StateDraft) {
-                $this->assertCycleOpen($lockedCycle);
-            } elseif ($lockedApplication->application_state === AdmissionApplication::StateActionNeeded) {
+                ];
+
+                if ($lockedApplication->application_path === AdmissionApplication::PathTransferee) {
+                    $canonical['admission_category'] = ApplicantIntake::AdmissionCategoryTransfer;
+                } elseif ($lockedApplication->application_path === AdmissionApplication::PathFirstYear) {
+                    $canonical['admission_category'] = ApplicantIntake::AdmissionCategoryFirstTimeCollege;
+
+                    if ($lockedApplication->application_state === AdmissionApplication::StateDraft || $lockedApplication->allowsSubmittedEdit() || $typeCorrectionCommit) {
+                        $canonical['prior_college_identifier'] = null;
+                    }
+                }
+
+                $lockedApplication->forceFill($canonical)->save();
+
+                if ($lockedApplication->application_state === AdmissionApplication::StateSubmitted || $typeCorrectionCommit) {
+                    foreach ($evidenceFiles as $requirementId => $file) {
+                        if (! $file instanceof UploadedFile) {
+                            throw ValidationException::withMessages(["evidence.{$requirementId}" => 'Choose a new private copy or retain the current upload.']);
+                        }
+                        $requirement = AdmissionRequirement::query()->findOrFail($requirementId);
+                        $existing = $lockedApplication->evidenceVersions()->where('admission_requirement_id', $requirementId)->latest('id')->first();
+                        $storedEvidence[] = $existing instanceof DocumentEvidence
+                            ? app(AdmissionEvidenceService::class)->replace($existing, $applicant, $file, submittedCommit: true)
+                            : app(AdmissionEvidenceService::class)->store($lockedApplication, $requirement, $applicant, $file, submittedCommit: true);
+                    }
+
+                    return app(SubmitAdmissionApplication::class)->execute($lockedApplication, $applicant, $expectedRequirementSetId, submittedCommit: true, operationId: $operationId);
+                }
+
                 if ($assistedBy instanceof User) {
-                    throw ValidationException::withMessages([
-                        'application_state' => 'Registrar-assisted entry may prepare an unsubmitted Draft only. The Applicant must complete any scoped correction.',
-                    ]);
+                    activity()
+                        ->performedOn($lockedApplication)
+                        ->causedBy($assistedBy)
+                        ->event('admission_assisted_draft_saved')
+                        ->withProperties([
+                            'applicant_user_id' => $applicant->id,
+                            'authority_reference' => $assistance['authority_reference'],
+                            'evidence_reference' => $assistance['evidence_reference'],
+                            'reason' => $assistance['reason'],
+                        ])
+                        ->log('Registrar-assisted Application Draft saved for the Applicant owner.');
                 }
 
-                $this->assertCorrectionScope($lockedApplication, [
-                    ...array_keys($validated),
-                    ...(($validated['optional_identity_consent'] ?? null) === false ? ['gender', 'civil_status'] : []),
-                ]);
-            } else {
-                if ($assistedBy instanceof User) {
-                    throw ValidationException::withMessages([
-                        'application_state' => 'Registrar-assisted entry may prepare an unsubmitted Draft only.',
-                    ]);
-                }
-
-                throw ValidationException::withMessages([
-                    'application_state' => 'Submitted application facts are read-only unless a Registrar correction names them.',
-                ]);
-            }
-
-            $candidate = [...$lockedApplication->getAttributes(), ...$validated];
-            $this->assertApplicationScope($lockedCycle, $candidate);
-            $attributes = Arr::only($validated, $this->editableAttributes());
-
-            if (($validated['privacy_acknowledged'] ?? false) === true) {
-                $attributes['privacy_notice_reference'] = $lockedCycle->privacy_notice_reference;
-                $attributes['privacy_acknowledged_at'] = now(config('app.timezone'));
-            }
-
-            if (($validated['accuracy_declared'] ?? false) === true) {
-                $attributes['accuracy_declared_at'] = now(config('app.timezone'));
-            }
-
-            if (($validated['optional_identity_consent'] ?? false) === true) {
-                $attributes['optional_identity_notice_reference'] = $lockedCycle->privacy_notice_reference;
-                $attributes['optional_identity_consent_purpose'] = 'Identity-record comparison';
-                $attributes['optional_identity_consented_at'] = $lockedApplication->optional_identity_consented_at ?? now(config('app.timezone'));
-            } elseif (array_key_exists('optional_identity_consent', $validated)) {
-                $attributes['gender'] = null;
-                $attributes['civil_status'] = null;
-                $attributes['optional_identity_notice_reference'] = null;
-                $attributes['optional_identity_consent_purpose'] = null;
-                $attributes['optional_identity_consented_at'] = null;
-            }
-
-            $lockedApplication->fill($attributes);
-            $canonical = [
-                'admission_cycle_id' => $lockedCycle->id,
-                'term_id' => $lockedCycle->term_id,
-                'email' => $applicant->email,
-            ];
-
-            if ($lockedApplication->application_path === AdmissionApplication::PathTransferee) {
-                $canonical['admission_category'] = ApplicantIntake::AdmissionCategoryTransfer;
-            } elseif ($lockedApplication->application_path === AdmissionApplication::PathFirstYear) {
-                $canonical['admission_category'] = ApplicantIntake::AdmissionCategoryFirstTimeCollege;
-
-                if ($lockedApplication->application_state === AdmissionApplication::StateDraft) {
-                    $canonical['prior_college_identifier'] = null;
+                return $lockedApplication->refresh();
+            }, attempts: $evidenceFiles === [] ? 3 : 1);
+        } catch (Throwable $exception) {
+            foreach ($storedEvidence as $evidence) {
+                if (! DocumentEvidence::query()->whereKey($evidence->id)->exists()) {
+                    Storage::disk($evidence->disk)->delete($evidence->path);
                 }
             }
-
-            $lockedApplication->forceFill($canonical)->save();
-
-            if ($assistedBy instanceof User) {
-                activity()
-                    ->performedOn($lockedApplication)
-                    ->causedBy($assistedBy)
-                    ->event('admission_assisted_draft_saved')
-                    ->withProperties([
-                        'applicant_user_id' => $applicant->id,
-                        'authority_reference' => $assistance['authority_reference'],
-                        'evidence_reference' => $assistance['evidence_reference'],
-                        'reason' => $assistance['reason'],
-                    ])
-                    ->log('Registrar-assisted Application Draft saved for the Applicant owner.');
-            }
-
-            return $lockedApplication->refresh();
-        }, attempts: 3);
+            throw $exception;
+        }
     }
 
     /** @return array{reason: string|null, authority_reference: string|null, evidence_reference: string|null} */

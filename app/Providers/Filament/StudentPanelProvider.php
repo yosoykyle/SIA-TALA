@@ -5,6 +5,8 @@ namespace App\Providers\Filament;
 use App\Actions\Authentication\TalaAppAuthentication;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
+use App\Filament\Pages\Auth\RequestPasswordReset;
+use App\Filament\Pages\Auth\ResetPassword;
 use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\Dashboard;
 use App\Filament\Student\Pages\Enrollment;
@@ -63,7 +65,10 @@ class StudentPanelProvider extends PanelProvider
                     ->login(fn (AuthPageConfig $config) => $config
                         ->usingPage(ContextualLogin::class)
                     )
-                    ->passwordReset()
+                    ->passwordReset(fn (AuthPageConfig $config) => $config
+                        ->usingPage(RequestPasswordReset::class)
+                        ->usingResetPage(ResetPassword::class)
+                    )
                     ->emailVerification()
                     ->themeToggle()
             )

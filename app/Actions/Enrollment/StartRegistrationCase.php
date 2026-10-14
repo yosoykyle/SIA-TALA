@@ -54,6 +54,7 @@ class StartRegistrationCase
             application: $application,
             studentProfile: null,
             authorityReference: $authorityReference,
+            expectedAdmissionSource: array_intersect_key($projection, array_flip(['user_id', 'submission_version_id', 'decision_id', 'clearance_id'])),
         );
     }
 
@@ -89,6 +90,7 @@ class StartRegistrationCase
         );
     }
 
+    /** @param array{user_id: int, submission_version_id: int|null, decision_id: int|null, clearance_id: int|null}|null $expectedAdmissionSource */
     private function createOrReturn(
         User $credentialUser,
         Term $term,
@@ -98,6 +100,7 @@ class StartRegistrationCase
         ?AdmissionApplication $application,
         ?StudentProfile $studentProfile,
         ?string $authorityReference,
+        ?array $expectedAdmissionSource = null,
     ): Enrollment {
         $actorIsRegistrar = $actor->hasRole(User::StaffRoleRegistrar);
 
@@ -121,9 +124,26 @@ class StartRegistrationCase
             $this->calendarPhaseGate->assertEnrollmentWindowOpen($term->id);
         }
 
-        return DB::transaction(function () use ($credentialUser, $term, $actor, $selectionBasis, $startMethod, $application, $studentProfile, $authorityReference): Enrollment {
+        return DB::transaction(function () use ($credentialUser, $term, $actor, $selectionBasis, $startMethod, $application, $studentProfile, $authorityReference, $expectedAdmissionSource): Enrollment {
             User::query()->whereKey($credentialUser->id)->lockForUpdate()->firstOrFail();
             Term::query()->whereKey($term->id)->lockForUpdate()->firstOrFail();
+            if ($application instanceof AdmissionApplication) {
+                $application = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
+                $actor = $actor->fresh();
+                if (! $actor instanceof User || ! $actor->canAuthenticate()
+                    || ($actor->id !== $credentialUser->id && ! $actor->hasRole(User::StaffRoleRegistrar))) {
+                    throw new AuthorizationException('The active Applicant or authorized Registrar must start this Registration Case.');
+                }
+                $current = $this->readyApplicants->forApplication($application);
+                $currentSource = array_intersect_key($current, array_flip(['user_id', 'submission_version_id', 'decision_id', 'clearance_id']));
+                if (! $current['ready'] || $current['term_id'] !== $term->id || $currentSource !== $expectedAdmissionSource) {
+                    throw ValidationException::withMessages(['application' => 'The admissions readiness source changed. Refresh the current application before starting enrollment in this exact Term.']);
+                }
+                $selectionBasis = $this->selectionBasisResolver->forApplicant($application);
+                if ($startMethod !== 'LateAuthority') {
+                    $this->calendarPhaseGate->assertEnrollmentWindowOpen($term->id);
+                }
+            }
 
             $existing = Enrollment::query()
                 ->where('credential_user_id', $credentialUser->id)
@@ -132,6 +152,10 @@ class StartRegistrationCase
                 ->first();
 
             if ($existing instanceof Enrollment) {
+                if ($application instanceof AdmissionApplication && $existing->admission_application_id !== $application->id) {
+                    throw ValidationException::withMessages(['application' => 'This account already has a Registration Case for this Term under another application. Open the existing case or contact the Registrar.']);
+                }
+
                 return $existing;
             }
 

@@ -12,6 +12,7 @@ use App\Filament\Resources\AdmissionCycles\Pages\ViewAdmissionCycle;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\ApplicantIntake;
+use App\Models\Enrollment;
 use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
@@ -298,6 +299,9 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
 
         $component->set('data.assistance_reason', 'Applicant requested telephone assistance');
         $this->assertTrue($component->instance()->isWizardVisible());
+        $component->assertSee('Review draft')
+            ->assertDontSee('I declare that the submitted information and preliminary evidence are accurate to the best of my knowledge.');
+        $this->assertFalse($component->instance()->submissionIsAvailable());
     }
 
     public function test_assisted_draft_eligibility_not_blocked_by_newer_unrelated_terminal_record(): void
@@ -333,14 +337,19 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
         [$application, $applicant] = $this->createDraftApplication();
         $this->freezeTime();
         $previousActivityId = (int) (Activity::max('id') ?? 0);
+        $enrollmentCount = Enrollment::count();
 
-        Livewire::withQueryParams(['applicant' => $applicant->id])
+        $page = Livewire::withQueryParams(['applicant' => $applicant->id])
             ->test(AssistedAdmissionApplication::class)
             ->set('data.assistance_reason', 'Phone assisted intake')
             ->set('data.first_name', 'Updated assisted name')
             ->set('data.assistance_authority_reference', 'REF-2026-TEST')
-            ->set('data.assistance_evidence_reference', 'EVIDENCE-2026-TEST')
-            ->call('saveAndExit')
+            ->set('data.assistance_evidence_reference', 'EVIDENCE-2026-TEST');
+        $page->assertSee('Application options')->assertSee('Save draft')
+            ->assertSee('wire:submit="saveDraft"', false)
+            ->assertFormFieldHidden('accuracy_declared')
+            ->assertActionVisible('saveAndExit')
+            ->callAction('saveAndExit')
             ->assertRedirect(AdmissionApplicationResource::getUrl('index'));
 
         $this->assertDatabaseHas('activity_log', [
@@ -357,6 +366,56 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
         $this->assertSame('Phone assisted intake', $activity->getExtraProperty('reason'));
         $this->assertSame('REF-2026-TEST', $activity->getExtraProperty('authority_reference'));
         $this->assertSame('EVIDENCE-2026-TEST', $activity->getExtraProperty('evidence_reference'));
+        $this->assertSame(0, $application->submissionVersions()->count());
+        $this->assertSame($enrollmentCount, Enrollment::count());
+    }
+
+    public function test_assisted_save_keeps_the_exact_older_draft_when_another_cycle_has_a_newer_draft(): void
+    {
+        $registrar = $this->createStaffUser(User::StaffRoleRegistrar);
+        $this->actingAs($registrar);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        [$application, $applicant] = $this->createDraftApplication();
+        $newCycle = AdmissionCycle::factory()->published()->create(['term_id' => $application->term_id]);
+        $newerDraft = AdmissionApplication::factory()->create([
+            'user_id' => $applicant->id,
+            'admission_cycle_id' => $newCycle->id,
+            'program_id' => $application->program_id,
+        ]);
+        $newerFacts = $newerDraft->fresh()->getAttributes();
+
+        Livewire::withQueryParams(['applicant' => $applicant->id, 'application' => $application->id])
+            ->test(AssistedAdmissionApplication::class)
+            ->set('data.assistance_reason', 'Assistance requested for the referenced older draft.')
+            ->set('data.first_name', 'Exact older draft')
+            ->call('saveDraft')->assertHasNoFormErrors()
+            ->assertRedirect(AssistedAdmissionApplication::getUrl(['applicant' => $applicant->id, 'application' => $application->id]));
+
+        $this->assertSame('Exact older draft', $application->fresh()->first_name);
+        $this->assertSame($newerFacts, $newerDraft->fresh()->getRawOriginal());
+        $this->assertSame($registrar->id, Activity::forSubject($application)
+            ->where('event', 'admission_assisted_draft_saved')->sole()->causer_id);
+        $this->assertSame(0, $application->submissionVersions()->count());
+        $this->assertSame(0, $newerDraft->submissionVersions()->count());
+    }
+
+    public function test_assisted_submission_refuses_before_saving_any_draft_answers(): void
+    {
+        $this->actingAs($this->createStaffUser(User::StaffRoleRegistrar));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        [$application, $applicant] = $this->createDraftApplication();
+        $originalName = $application->first_name;
+        $activityCount = Activity::forSubject($application)->count();
+
+        Livewire::withQueryParams(['applicant' => $applicant->id])->test(AssistedAdmissionApplication::class)
+            ->set('data.assistance_reason', 'Synthetic draft assistance')
+            ->set('data.first_name', 'Staff submission must not save this')
+            ->call('submitApplication')->assertForbidden();
+
+        $this->assertSame($originalName, $application->fresh()->first_name);
+        $this->assertSame(AdmissionApplication::StateDraft, $application->fresh()->application_state);
+        $this->assertSame($activityCount, Activity::forSubject($application)->count());
+        $this->assertSame(0, $application->submissionVersions()->count());
     }
 
     public function test_staff_entry_selected_non_registrar_context_redirects_to_role_destination_ignoring_application_param(): void

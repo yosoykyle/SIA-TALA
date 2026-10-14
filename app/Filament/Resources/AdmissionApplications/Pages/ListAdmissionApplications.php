@@ -5,6 +5,7 @@ namespace App\Filament\Resources\AdmissionApplications\Pages;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Models\AdmissionApplication;
+use App\Models\User;
 use App\Queries\Admissions\AssistedDraftApplicantQuery;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
@@ -40,31 +41,83 @@ class ListAdmissionApplications extends ListRecords
 
     protected function getHeaderActions(): array
     {
+        $applicantLabel = fn (User $applicant): string => $applicant->getFilamentName().' · '.$applicant->email;
+        $applicationLabel = fn (AdmissionApplication $application): string => $application->user->getFilamentName().' · '.$application->application_reference.' · '.$application->application_state;
+        $referencedApplication = function (mixed $value): ?AdmissionApplication {
+            if (! is_string($value) || ! preg_match('/^application:(\d+)$/D', $value, $matches)) {
+                return null;
+            }
+
+            return AdmissionApplicationResource::getEloquentQuery()->with('user')
+                ->whereNotNull('application_reference')->find($matches[1]);
+        };
+
         return [
             Action::make('prepareAssistedDraft')
                 ->label('Prepare assisted draft')
                 ->icon('heroicon-o-user-plus')
                 ->color('gray')
                 ->modalSubmitActionLabel('Continue')
-                ->modalDescription('Find an active, verified Applicant with an existing draft or an available new intake. The Applicant remains the owner and must submit it.')
+                ->modalDescription('Find an Applicant by name, email or application reference. Available drafts open for assistance; submitted applications open for Registrar review. Applicants submit their own drafts.')
                 ->schema([
                     Select::make('applicant_id')
-                        ->label('Applicant account')
-                        ->placeholder('Find an eligible Applicant')
-                        ->getSearchResultsUsing(fn (string $search): array => app(AssistedDraftApplicantQuery::class)->eligible()
-                            ->where(fn (Builder $query): Builder => $query->where('email', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"))
-                            ->orderBy('email')
-                            ->limit(50)
-                            ->pluck('email', 'id')
-                            ->all())
-                        ->getOptionLabelUsing(fn ($value): ?string => app(AssistedDraftApplicantQuery::class)->eligible()->whereKey($value)->value('email'))
+                        ->label('Applicant or application')
+                        ->placeholder('Find an Applicant or application')
+                        ->getSearchResultsUsing(function (string $search) use ($applicantLabel, $applicationLabel): array {
+                            $search = trim($search);
+
+                            if (str_starts_with(strtoupper($search), 'APP-')) {
+                                return AdmissionApplicationResource::getEloquentQuery()->with('user')
+                                    ->where('application_reference', 'like', $search.'%')
+                                    ->latest('id')->limit(50)->get()
+                                    ->mapWithKeys(fn (AdmissionApplication $application): array => ['application:'.$application->id => $applicationLabel($application)])
+                                    ->all();
+                            }
+
+                            return app(AssistedDraftApplicantQuery::class)->eligible()
+                                ->where(fn (Builder $query): Builder => $query->where('email', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"))
+                                ->orderBy('email')->limit(50)->get()
+                                ->mapWithKeys(fn (User $applicant): array => [$applicant->id => $applicantLabel($applicant)])
+                                ->all();
+                        })
+                        ->getOptionLabelUsing(function (mixed $value) use ($applicantLabel, $applicationLabel, $referencedApplication): ?string {
+                            if ($application = $referencedApplication($value)) {
+                                return $applicationLabel($application);
+                            }
+
+                            $applicant = app(AssistedDraftApplicantQuery::class)->eligible()->find($value);
+
+                            return $applicant instanceof User ? $applicantLabel($applicant) : null;
+                        })
                         ->searchable()
-                        ->helperText('Search by name or email. Only available drafts or new intakes appear. Applicants complete their own corrections and submit.')
-                        ->noSearchResultsMessage('No eligible Applicant found. Check account verification and intake availability; submitted work stays in the application queue.')
+                        ->helperText('Use the APP-… reference from the application receipt to find a submitted case. Name and email searches show Applicants available for draft assistance.')
+                        ->noSearchResultsMessage('No match found. Check the application reference, or use the name or email of an eligible Applicant.')
                         ->required(),
                 ])
                 ->visible(fn (): bool => AssistedAdmissionApplication::canAccess())
-                ->action(function (array $data): void {
+                ->action(function (array $data) use ($referencedApplication): void {
+                    $application = $referencedApplication($data['applicant_id']);
+
+                    if ($application instanceof AdmissionApplication) {
+                        if (! AdmissionApplicationResource::canView($application)) {
+                            throw ValidationException::withMessages(['applicant_id' => 'This application is unavailable for Registrar review. Search again.']);
+                        }
+
+                        if ($application->application_state !== AdmissionApplication::StateDraft) {
+                            $this->redirect(AdmissionApplicationResource::getUrl('view', ['record' => $application]));
+
+                            return;
+                        }
+
+                        if (! app(AssistedDraftApplicantQuery::class)->eligible($application->id)->whereKey($application->user_id)->exists()) {
+                            throw ValidationException::withMessages(['applicant_id' => 'This draft is no longer available for assistance. Search again for an eligible account.']);
+                        }
+
+                        $this->redirect(AssistedAdmissionApplication::getUrl(['applicant' => $application->user_id, 'application' => $application->id]));
+
+                        return;
+                    }
+
                     if (! app(AssistedDraftApplicantQuery::class)->eligible()->whereKey($data['applicant_id'])->exists()) {
                         throw ValidationException::withMessages(['applicant_id' => 'This Applicant is no longer available for assisted draft preparation. Search again for an eligible account.']);
                     }

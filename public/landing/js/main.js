@@ -6,8 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const forcedColors = window.matchMedia('(forced-colors: active)');
     const scrollButton = document.querySelector('.btn-scroll-top');
     const skipLink = document.querySelector('.tala-skip-link');
-    const trackingSection = document.getElementById('application-status');
-    const trackingForm = trackingSection?.querySelector('form');
+
+
     const hero = document.querySelector('[data-hero-motion]');
     const heroMotionToggle = hero?.querySelector('[data-hero-motion-toggle]');
 
@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (scrollButton) {
-        const interactiveRegions = [trackingForm, document.querySelector('iframe.institution-map')].filter(Boolean);
+        const interactiveRegions = [document.querySelector('iframe.institution-map')].filter(Boolean);
         const updateScrollButton = () => {
             const buttonBounds = scrollButton.getBoundingClientRect();
             const buttonBottom = window.innerHeight - parseFloat(window.getComputedStyle(scrollButton).bottom);
@@ -45,112 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('scroll', updateScrollButton, { passive: true });
         window.addEventListener('resize', updateScrollButton);
         updateScrollButton();
-    }
-
-    const normalizeReference = (value, isFinal = false) => {
-        const normalized = value
-            .normalize('NFKC')
-            .toUpperCase()
-            .replace(/["'“”‘’()]/g, '')
-            .replace(/[‐-―−﹘﹣－]/g, '-')
-            .replace(/\s+/g, '-')
-            .replace(/-{2,}/g, '-');
-
-        return isFinal ? normalized.replace(/^-+/, '').replace(/[-.,;:]+$/, '') : normalized.replace(/^-+/, '');
-    };
-
-    trackingSection?.querySelectorAll('[data-reference-input]').forEach((input) => {
-        const applyReferenceFormat = (event) => {
-            const normalized = normalizeReference(input.value, event?.type === 'blur');
-
-            if (normalized !== input.value) {
-                const caretFromEnd = input.value.length - (input.selectionEnd ?? input.value.length);
-                input.value = normalized;
-
-                if (document.activeElement === input && input.setSelectionRange) {
-                    const caret = Math.max(0, normalized.length - caretFromEnd);
-                    input.setSelectionRange(caret, caret);
-                }
-            }
-        };
-
-        input.addEventListener('input', applyReferenceFormat);
-        input.addEventListener('blur', applyReferenceFormat);
-    });
-
-    trackingSection?.querySelectorAll('[data-trim-input]').forEach((input) => {
-        input.addEventListener('blur', () => {
-            input.value = input.value.trim();
-        });
-    });
-
-    if (trackingForm) {
-        const submitButton = trackingForm.querySelector('[data-tracking-submit]');
-        const submitLabel = submitButton?.querySelector('[data-tracking-submit-label]');
-        const idleLabel = submitLabel?.textContent ?? '';
-        const resetSubmit = () => {
-            delete trackingForm.dataset.submitting;
-            submitButton?.removeAttribute('aria-disabled');
-            submitButton?.classList.remove('is-sending');
-
-            if (submitLabel) {
-                submitLabel.textContent = idleLabel;
-            }
-        };
-
-        trackingForm.addEventListener('submit', (event) => {
-            if (trackingForm.dataset.submitting === 'true') {
-                event.preventDefault();
-
-                return;
-            }
-
-            trackingForm.querySelectorAll('[data-reference-input]').forEach((input) => {
-                input.value = normalizeReference(input.value, true);
-            });
-            trackingForm.querySelectorAll('[data-trim-input]').forEach((input) => {
-                input.value = input.value.trim();
-            });
-            trackingForm.dataset.submitting = 'true';
-            submitButton?.setAttribute('aria-disabled', 'true');
-            submitButton?.classList.add('is-sending');
-
-            if (submitLabel) {
-                submitLabel.textContent = 'Sending request…';
-            }
-        });
-
-        window.addEventListener('pageshow', resetSubmit);
-    }
-
-    const trackingConfirmation = trackingSection?.querySelector('[data-tracking-confirmation]');
-    const trackingInvalidField = trackingSection?.querySelector('[aria-invalid="true"]');
-
-    const trackingFocusTarget = trackingInvalidField ?? trackingConfirmation;
-
-    if (trackingFocusTarget) {
-        const focusTrackingResult = () => {
-            if (document.activeElement !== trackingFocusTarget) {
-                trackingFocusTarget.focus();
-            }
-        };
-
-        focusTrackingResult();
-        window.addEventListener('load', () => {
-            const restoreTrackingFocus = () => {
-                const active = document.activeElement;
-
-                if (!active || active === document.body || active === document.documentElement || active === trackingSection) {
-                    focusTrackingResult();
-                }
-            };
-
-            if (window.requestAnimationFrame) {
-                window.requestAnimationFrame(restoreTrackingFocus);
-            } else {
-                restoreTrackingFocus();
-            }
-        }, { once: true });
     }
 
     if (hero && heroMotionToggle) {
@@ -254,9 +148,15 @@ document.addEventListener('DOMContentLoaded', () => {
         revealAnnouncements();
     }
 
-    const requestedModal = new URLSearchParams(window.location.search).get('modal');
+    const revealRequestedModal = () => {
+        const requestedModal = window.location.hash === '#support'
+            ? 'support'
+            : new URLSearchParams(window.location.search).get('modal');
 
-    if (['privacy', 'accessibility', 'support'].includes(requestedModal) && window.bootstrap?.Modal) {
+        if (!['privacy', 'accessibility', 'support'].includes(requestedModal) || !window.bootstrap?.Modal) {
+            return;
+        }
+
         const modalElement = document.getElementById(`${requestedModal}Modal`);
 
         if (modalElement) {
@@ -265,10 +165,18 @@ document.addEventListener('DOMContentLoaded', () => {
             modalElement.addEventListener('hidden.bs.modal', () => {
                 const currentUrl = new URL(window.location.href);
                 currentUrl.searchParams.delete('modal');
+
+                if (requestedModal === 'support' && currentUrl.hash === '#support') {
+                    currentUrl.hash = '';
+                }
+
                 window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
             }, { once: true });
         }
-    }
+    };
+
+    window.addEventListener('hashchange', revealRequestedModal);
+    revealRequestedModal();
 
     const navbar = document.querySelector('.navbar');
     const navigation = document.getElementById('navbarNav');

@@ -32,6 +32,11 @@ class ResetUserPassword implements ResetsUserPasswords
             'password' => Hash::make($input['password']),
         ])->save();
 
+        $this->completeRecovery($user);
+    }
+
+    public function completeRecovery(User $user): void
+    {
         $this->sessions->revokeAll($user);
 
         activity()

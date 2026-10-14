@@ -567,7 +567,9 @@ class Dashboard extends BaseDashboard implements HasTable
         return match ($application->application_state) {
             AdmissionApplication::StateDraft => app(ReadyApplicantProjectionQuery::class)->draftNextAction($application),
             AdmissionApplication::StateActionNeeded => 'Respond only to the scoped correction items.',
-            AdmissionApplication::StateSubmitted => 'Wait for Registrar review; monitor Requirements for an instruction.',
+            AdmissionApplication::StateSubmitted => $application->allowsSubmittedEdit()
+                ? 'Awaiting Registrar review. Open Application to commit a complete update before review starts.'
+                : 'Wait for Registrar review; monitor Requirements for an instruction.',
             AdmissionApplication::StateNotAdmitted => 'Review the retained decision explanation.',
             AdmissionApplication::StateWithdrawn => 'Contact the Registrar only if an authorized reopening is needed.',
             default => 'Review the current Application record.',

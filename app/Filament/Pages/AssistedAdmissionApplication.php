@@ -2,19 +2,16 @@
 
 namespace App\Filament\Pages;
 
-use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Filament\Applicant\Pages\Application as ApplicantApplication;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Models\AdmissionApplication;
 use App\Models\User;
 use App\Queries\Admissions\AssistedDraftApplicantQuery;
-use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
-use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Activitylog\Models\Activity;
 
@@ -23,8 +20,6 @@ class AssistedAdmissionApplication extends ApplicantApplication
     protected static bool $shouldRegisterNavigation = false;
 
     protected static ?string $slug = 'admissions/assisted-entry';
-
-    protected string $view = 'filament.pages.assisted-admission-application';
 
     public int $applicantId;
 
@@ -96,36 +91,11 @@ class AssistedAdmissionApplication extends ApplicantApplication
         ];
     }
 
-    protected function getHeaderActions(): array
+    protected function getViewData(): array
     {
         return [
-            Action::make('discardDraft')
-                ->modalSubmitActionLabel('Discard Applicant draft')
-                ->label('Discard draft')
-                ->icon(Heroicon::OutlinedTrash)
-                ->color('danger')
-                ->requiresConfirmation()
-                ->modalDescription('Only this unsubmitted draft and its temporary uploads will be removed. Submitted history is never deleted.')
-                ->visible(function (): bool {
-                    $application = $this->currentApplication();
-
-                    return $application instanceof AdmissionApplication
-                        && $application->application_state === AdmissionApplication::StateDraft
-                        && $application->current_submission_version_id === null;
-                })
-                ->action(function (): void {
-                    $application = $this->currentApplication();
-                    $applicant = $this->applicationOwner();
-                    $actor = $this->actingUser();
-                    abort_unless($application instanceof AdmissionApplication
-                        && $applicant instanceof User
-                        && $actor instanceof User, 404);
-
-                    app(DiscardAdmissionApplication::class)->execute($application, $applicant, $actor);
-                    $this->dispatch('draft-saved');
-                    Notification::make()->title('Draft discarded')->success()->send();
-                    $this->redirect($this->afterDiscardUrl());
-                }),
+            ...parent::getViewData(),
+            'assistanceUnavailableReason' => $this->ineligibilityReason(),
         ];
     }
 
@@ -215,9 +185,7 @@ class AssistedAdmissionApplication extends ApplicantApplication
             return;
         }
 
-        if ($this->persistDraft()) {
-            $this->redirect($this->afterSaveAndExitUrl());
-        }
+        parent::saveAndExit();
     }
 
     /** @return array<int, mixed> */
@@ -298,10 +266,23 @@ class AssistedAdmissionApplication extends ApplicantApplication
         return false;
     }
 
+    protected function preparesDraftForApplicant(): bool
+    {
+        return true;
+    }
+
+    public function submitApplication(): void
+    {
+        abort(403);
+    }
+
     /** @return array<string, mixed> */
     protected function continuationUrlParameters(): array
     {
-        return ['applicant' => $this->applicantId];
+        return [
+            'applicant' => $this->applicantId,
+            ...($this->sourceApplicationId !== null ? ['application' => $this->sourceApplicationId] : []),
+        ];
     }
 
     protected function afterSaveAndExitUrl(): string

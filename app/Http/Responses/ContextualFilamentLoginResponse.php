@@ -3,6 +3,7 @@
 namespace App\Http\Responses;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Applicant\Pages\Application;
 use App\Models\User;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse;
 use Illuminate\Http\RedirectResponse;
@@ -27,11 +28,23 @@ class ContextualFilamentLoginResponse implements LoginResponse
         $this->contexts->explainUnavailableEntry(is_string($requested) ? $requested : null, $available);
 
         if (is_string($requested) && array_key_exists($requested, $available)) {
+            if ($requested === 'applicant' && session()->has('public_entry.program_id')) {
+                $this->contexts->select($user, $requested);
+
+                return redirect()->to(Application::getUrl(['program' => session('public_entry.program_id')], panel: 'applicant'));
+            }
+
             return redirect()->to($this->contexts->select($user, $requested));
         }
 
         if (count($available) === 1) {
             $context = array_key_first($available);
+
+            if ($context === 'applicant' && session()->has('public_entry.program_id')) {
+                $this->contexts->select($user, $context);
+
+                return redirect()->to(Application::getUrl(['program' => session('public_entry.program_id')], panel: 'applicant'));
+            }
 
             return redirect()->to($this->contexts->select($user, $context));
         }

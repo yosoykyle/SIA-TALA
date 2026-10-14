@@ -79,6 +79,7 @@ class RecordOfficialCredentialResult
             $expectedCurrentResultId,
         ): OfficialCredentialResult {
             $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
+            $locked->assertReviewSource($actor, $application->current_submission_version_id);
 
             if ($locked->application_state !== AdmissionApplication::StateAdmitted) {
                 throw ValidationException::withMessages([

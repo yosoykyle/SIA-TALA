@@ -441,11 +441,11 @@ The private Cloud Run service and its dedicated invoker authorization are curren
 
 ---
 
-### Public possession-verification tracking
+### Authenticated application updates and retired public tracking
 
-Public application tracking is a bounded read-only possession-verification route under PRDs 01/02. A reference/email request always returns uniform confirmation and sends mail only to an active verified Applicant owner's matching current address. Existing queued mail carries a signed 15-minute URL with an opaque 64-character token; cache scope binds Application, owner and verified-email identity. Each read rechecks signature, expiry, scope, current ownership and account/email eligibility before producing only fixed safe status, next step and published cycle support. No workspace session or public evidence URL is created. Private evidence, acknowledgment, reasons, history and mutations retain ordinary authentication and ownership checks.
+Application updates belong to the authenticated Applicant's own Home/Application context under PRDs 01/02. The Public Gateway provides one Sign in entry that resolves account ownership and authorized role context before any application facts appear. A stable application reference grants no access.
 
-Existing rate limiting bounds requests to five/IP/minute and three/email/15 minutes and reads to 30/minute. Ineligible, throttled and queue-failed requests disclose no record existence; invalid/expired/ineligible reads return generic unavailable responses. Tracking responses use no-store, no-referrer and noindex headers. Signed tokens and private request details are excluded from user-facing errors. This route reuses installed routing, cache, queue/mail and rate-limit infrastructure without adding a service or dependency. The existing credential sign-in route already resolves authorized roles server-side; a single public Sign in entry does not change authentication policy.
+The former public reference/email request, emailed possession token and public status-read workflow are retired. Legacy GET/POST URLs provide neutral recovery to Sign in or school support, disclose no protected record and preserve an existing authorized session. No tracking mail or token is issued. Private evidence, acknowledgments, reasons, history and mutations retain ordinary authentication, exact source/path ownership and role checks; current private-copy previews create neither public URLs nor a review-start boundary.
 
 
 ## 9. External Integrations

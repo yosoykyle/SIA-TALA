@@ -656,7 +656,7 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 /* Sections */
 .section-block { padding-block: clamp(3.5rem, 7vw, 6rem); }
 .programs-section { background: var(--landing-programs-canvas); }
-.application-tracking { background: var(--tala-surface-muted); }
+
 .faq-section { background: var(--tala-surface); }
 .institution-section { background: var(--landing-visit-canvas); }
 
@@ -769,6 +769,16 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 }
 
 .program-availability.is-open { color: var(--landing-open); font-weight: 600; }
+
+.program-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; margin-block: 1.5rem; }
+.program-filters > div { flex: 1 1 12rem; max-width: 22rem; }
+.program-filters .form-select { min-height: 2.75rem; border-color: var(--tala-control-border); }
+body .btn:focus-visible,
+body .navbar-toggler:focus-visible { outline: 0.2rem solid var(--tala-focus); outline-offset: 0.2rem; }
+.program-read-more { grid-column: 2; padding-block: 0.5rem; justify-self: start; }
+.program-detail { max-width: 65ch; padding-block: 1rem; }
+.program-detail h3 { margin-block: 1.5rem 0.75rem; font-size: 1.5rem; }
+.program-detail .program-facts { gap: 0.75rem 1.5rem; margin-block-end: 1rem; }
 
 .program-empty {
     grid-column: 1 / -1;
@@ -923,62 +933,6 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 
 .location-guidance > .tala-public-icon { width: 2rem; height: 2rem; color: var(--landing-accent); }
 
-/* Returning-applicant status request */
-.tracking-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2rem;
-}
-
-.tracking-intro { min-width: 0; }
-.tracking-help { color: var(--tala-muted); margin: 1.25rem 0 0; max-width: 55ch; }
-
-.tracking-form-panel {
-    min-width: 0;
-    padding: clamp(1.25rem, 3vw, 2rem);
-    border: 1px solid var(--tala-border);
-    border-radius: var(--tala-radius-lg);
-    background: var(--tala-surface);
-    box-shadow: var(--tala-rim-inset), var(--tala-shadow-surface);
-}
-
-.application-tracking .form-label { font-weight: 600; }
-.tracking-reference-input { font-variant-numeric: tabular-nums; text-transform: uppercase; }
-.tracking-reference-input::placeholder { text-transform: none; color: var(--tala-muted); opacity: 0.8; }
-
-.tracking-confirmation,
-.tracking-error-summary {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    margin: 0 0 1.25rem;
-    padding: 1rem 1.125rem;
-    border-radius: 0.75rem;
-}
-
-.tracking-confirmation { border: 1px solid color-mix(in srgb, var(--landing-open) 45%, transparent); background: color-mix(in srgb, var(--landing-open) 10%, var(--tala-surface)); color: var(--tala-ink); }
-.tracking-confirmation .tala-public-icon { width: 1.5rem; height: 1.5rem; margin-top: 0.125rem; color: var(--landing-open); }
-.tracking-confirmation__title { font-weight: 650; }
-.tracking-confirmation:focus-visible { outline: 0.2rem solid var(--tala-focus); outline-offset: 0.2rem; }
-.tracking-error-summary { border: 1px solid var(--bs-form-invalid-border-color); background: color-mix(in srgb, var(--bs-form-invalid-border-color) 8%, var(--tala-surface)); color: var(--tala-ink); }
-.tracking-error-summary .tala-public-icon { width: 1.25rem; height: 1.25rem; margin-top: 0.15rem; color: var(--bs-form-invalid-color); }
-
-.tracking-submit__spinner { display: none; width: 1.125rem; height: 1.125rem; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: tracking-spin 700ms linear infinite; }
-.tracking-submit.is-sending { cursor: progress; }
-.tracking-submit.is-sending .tracking-submit__icon { display: none; }
-.tracking-submit.is-sending .tracking-submit__spinner { display: inline-block; }
-
-@keyframes tracking-spin { to { transform: rotate(360deg); } }
-.application-tracking .form-control { min-height: 2.75rem; border-color: var(--tala-control-border); }
-.application-tracking .form-control:focus { border-color: var(--landing-accent); box-shadow: 0 0 0 0.2rem rgb(47 125 59 / 25%); }
-
-@media (forced-colors: none) {
-    .application-tracking .form-control:not(:disabled):not([readonly]):not(:focus):not(.is-invalid):not(.is-valid):not(.was-validated :invalid):not(.was-validated :valid) {
-        background-color: var(--tala-surface-sunken);
-        box-shadow: var(--tala-inset-well);
-    }
-}
-
 /* Footer — protected background; foreground regrouped. */
 .footer-section {
     background: #071326;
@@ -1068,8 +1022,14 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 .footer-attribution { display: inline-flex; align-items: center; gap: 0.4rem; color: #b9c5d8; }
 
 /* Informational modals */
-.tala-info-modal .modal-dialog {
+.tala-info-modal {
     --bs-modal-width: 56rem;
+    --bs-modal-margin: 1rem;
+}
+
+.tala-info-modal .modal-dialog {
+    max-width: min(var(--bs-modal-width), calc(100% - var(--bs-modal-margin) * 2));
+    margin: var(--bs-modal-margin) auto;
 }
 
 .tala-info-modal .modal-content {
@@ -1093,6 +1053,7 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 .tala-info-modal .modal-body {
     font-size: 1rem;
     line-height: 1.75;
+    overscroll-behavior: contain;
 }
 
 .tala-info-modal .modal-body > :last-child {
@@ -1215,8 +1176,9 @@ button.btn-scroll-top { transition: opacity 160ms ease, transform 160ms ease, bo
     transform: translateY(0);
 }
 
-/* Public application-status page */
+/* Legacy public-link recovery */
 .tala-status-page { max-width: 44rem; margin-inline: auto; padding: clamp(1rem, 4vw, 3rem); overflow-wrap: anywhere; }
+.tala-status-page > .text-link { display: inline-flex; align-items: center; min-height: 2.75rem; }
 .tala-status-heading { margin-block: 2rem; }
 .tala-status-heading .tala-brand { margin-bottom: 2rem; }
 .tala-status-page h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; }
@@ -1247,7 +1209,6 @@ button.btn-scroll-top { transition: opacity 160ms ease, transform 160ms ease, bo
     .admission-links { justify-content: flex-end; }
     .visit-layout { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3rem; align-items: stretch; }
     .institution-map { height: 100%; min-height: 28rem; }
-    .tracking-layout { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3rem; align-items: start; }
     .footer-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 3rem; }
 }
 
@@ -1334,7 +1295,6 @@ button.btn-scroll-top { transition: opacity 160ms ease, transform 160ms ease, bo
     .hero-motion-toggle { display: none; }
     .school-identity-crest { animation: none; }
     .btn .tala-public-icon { transition: none; }
-    .tracking-submit__spinner { animation: none; border-right-color: currentColor; opacity: 0.6; }
 }
 
 @media (forced-colors: active) {
@@ -1343,15 +1303,11 @@ button.btn-scroll-top { transition: opacity 160ms ease, transform 160ms ease, bo
     .hero-updates.is-enhanced .update-card { transition: none; transform: none; }
     .program-row,
     .update-card,
-    .faq-help,
-    .tracking-form-panel,
-    .tracking-confirmation,
-    .tracking-error-summary { border: 1px solid CanvasText; }
+    .faq-help { border: 1px solid CanvasText; }
     .program-mark { forced-color-adjust: auto; border: 1px solid CanvasText; }
     .program-row,
     .update-card,
-    .tracking-form-panel,
-    .application-tracking .form-control,
+
     .tala-info-modal .modal-content { box-shadow: none; }
     .tala-info-modal .modal-content { border-color: CanvasText; }
 }
@@ -1359,8 +1315,7 @@ button.btn-scroll-top { transition: opacity 160ms ease, transform 160ms ease, bo
 @media print {
     .program-row,
     .update-card,
-    .tracking-form-panel,
-    .application-tracking .form-control,
+
     .tala-info-modal .modal-content { box-shadow: none; }
     .hero-ambient,
     .hero-motion-toggle,

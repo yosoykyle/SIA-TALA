@@ -11,6 +11,7 @@ use App\Models\ApplicationCorrectionItem;
 use App\Models\ApplicationCorrectionRequest;
 use App\Models\ApplicationSubmissionVersion;
 use App\Models\OperationalEvent;
+use App\Models\PreliminaryEvidenceReview;
 use App\Models\User;
 use App\Support\AdmissionApplicationReference;
 use Carbon\CarbonImmutable;
@@ -34,6 +35,8 @@ class SubmitAdmissionApplication
         AdmissionApplication $application,
         User $applicant,
         ?int $expectedRequirementSetId = null,
+        bool $submittedCommit = false,
+        ?string $operationId = null,
     ): AdmissionApplication {
         if ($application->user_id !== $applicant->id
             || ! $applicant->hasRole('applicant')
@@ -45,20 +48,34 @@ class SubmitAdmissionApplication
             $application,
             $applicant,
             $expectedRequirementSetId,
+            $submittedCommit,
+            $operationId,
         ): AdmissionApplication {
             $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
+            $currentApplicant = $applicant->fresh();
+            if (! $currentApplicant instanceof User || ! $currentApplicant->hasRole('applicant')
+                || ! $currentApplicant->canAuthenticate() || ! $currentApplicant->hasVerifiedEmail()) {
+                throw new AuthorizationException('Only the active verified Applicant may submit this application.');
+            }
+            if ($locked->user_id !== $applicant->id || $locked->current_submission_version_id !== $application->current_submission_version_id) {
+                throw ValidationException::withMessages(['application_state' => 'The submitted source changed. Reload the current application before submitting.']);
+            }
 
             if (! in_array($locked->application_state, [
                 AdmissionApplication::StateDraft,
                 AdmissionApplication::StateActionNeeded,
-            ], true)) {
+            ], true) && ! $locked->allowsSubmittedEdit()) {
                 throw ValidationException::withMessages([
                     'application_state' => 'Only a Draft or active correction can be submitted.',
                 ]);
             }
+            if ($locked->application_state === AdmissionApplication::StateSubmitted && (! $submittedCommit || DB::transactionLevel() < 2)) {
+                throw ValidationException::withMessages(['application_state' => 'Submit the complete application update together with its answers and permitted files.']);
+            }
 
             $cycle = AdmissionCycle::query()->lockForUpdate()->findOrFail($locked->admission_cycle_id);
             $firstSubmission = $locked->current_submission_version_id === null;
+            $submittedEdit = $locked->allowsSubmittedEdit();
 
             if ($firstSubmission) {
                 $this->assertFirstSubmissionsOpen($cycle);
@@ -79,13 +96,17 @@ class SubmitAdmissionApplication
                 ->lockForUpdate()
                 ->first();
 
-            if (! $firstSubmission && ! $activeCorrection instanceof ApplicationCorrectionRequest) {
+            if (! $firstSubmission && ! $submittedEdit && ! $activeCorrection instanceof ApplicationCorrectionRequest) {
                 throw ValidationException::withMessages([
                     'correction_request' => 'This resubmission has no active Registrar correction request.',
                 ]);
             }
 
             if ($activeCorrection instanceof ApplicationCorrectionRequest) {
+                if ($activeCorrection->changesStudentType()
+                    && (! $submittedCommit || DB::transactionLevel() < 2 || $locked->application_path !== $activeCorrection->target_application_path)) {
+                    throw ValidationException::withMessages(['correction_scope' => 'Submit the confirmed Student type and its complete correction scope together.']);
+                }
                 $this->assertNamedCorrectionsWereHandled($locked, $activeCorrection);
             }
 
@@ -114,7 +135,10 @@ class SubmitAdmissionApplication
             );
             $snapshot['application_state_at_submission'] = AdmissionApplication::StateSubmitted;
             $snapshot['requirement_set'] = Arr::only($requirementSet->getAttributes(), ['id', 'version', 'application_path']);
-            $snapshot['requirements'] = $this->requirementSnapshot($locked, $requirementSet);
+            if ($activeCorrection?->changesStudentType()) {
+                $snapshot['type_correction_request_id'] = $activeCorrection->id;
+            }
+            $snapshot['requirements'] = $this->requirementSnapshot($locked, $requirementSet, $activeCorrection?->changesStudentType() ?? false);
 
             $submission = $locked->submissionVersions()->create([
                 'admission_requirement_set_id' => $requirementSet->id,
@@ -138,11 +162,11 @@ class SubmitAdmissionApplication
                 'submitted_at' => $submittedAt,
                 'accuracy_declared_at' => $submittedAt,
             ])->save();
-            $this->identityWarnings->forApplication($locked);
+            $this->identityWarnings->forApplication($locked, requireCurrentSourceReview: $activeCorrection?->changesStudentType() ?? false);
             $locked->events()->create([
                 'event_type' => $firstSubmission
                     ? AdmissionApplicationEvent::TypeSubmitted
-                    : AdmissionApplicationEvent::TypeResubmitted,
+                    : ($submittedEdit ? AdmissionApplicationEvent::TypeSubmittedEdited : AdmissionApplicationEvent::TypeResubmitted),
                 'event_key' => 'admission-submission:'.$submission->id.':'.Str::uuid(),
                 'actor_id' => $applicant->id,
                 'source_type' => ApplicationSubmissionVersion::class,
@@ -150,6 +174,7 @@ class SubmitAdmissionApplication
                 'payload' => [
                     'version' => $version,
                     'requirement_set_id' => $requirementSet->id,
+                    'operation_id' => $operationId,
                 ],
                 'occurred_at' => $submittedAt,
             ]);
@@ -163,6 +188,7 @@ class SubmitAdmissionApplication
                 safePayload: [
                     'application_reference' => $locked->application_reference,
                     'submitted_at' => $submittedAt->toIso8601String(),
+                    'submitted_edit' => $submittedEdit,
                 ],
             );
 
@@ -186,10 +212,10 @@ class SubmitAdmissionApplication
     }
 
     /** @return list<array<string, mixed>> */
-    private function requirementSnapshot(AdmissionApplication $application, AdmissionRequirementSet $set): array
+    private function requirementSnapshot(AdmissionApplication $application, AdmissionRequirementSet $set, bool $requiresFreshReview = false): array
     {
         return $set->requirements()->orderBy('display_order')->orderBy('id')->get()
-            ->map(function (AdmissionRequirement $requirement) use ($application): array {
+            ->map(function (AdmissionRequirement $requirement) use ($application, $requiresFreshReview): array {
                 $evidence = $application->evidenceVersions()
                     ->where('admission_requirement_id', $requirement->id)
                     ->latest('id')->lockForUpdate()->first();
@@ -210,9 +236,11 @@ class SubmitAdmissionApplication
                     'preliminary_review' => $review === null ? null : Arr::only($review->getAttributes(), [
                         'id', 'result', 'reviewed_at',
                     ]),
-                    'preliminary_result' => $review?->result ?? ($evidence === null
+                    'preliminary_result' => $evidence !== null && ($requiresFreshReview || ($review !== null && $application->currentPreliminaryReview($evidence) === null))
+                        ? 'AwaitingReview'
+                        : ($review instanceof PreliminaryEvidenceReview ? $review->result : ($evidence === null
                         ? ($requirement->requires_preliminary_evidence ? 'NotSubmitted' : 'NotRequired')
-                        : 'UnderReview'),
+                        : 'AwaitingReview')),
                     'official_credential_result' => $credential?->result,
                 ];
             })->all();
@@ -239,7 +267,7 @@ class SubmitAdmissionApplication
             'current_province' => ['required', 'string', 'between:1,120'],
             'prior_school_name' => ['required', 'string', 'between:1,160'],
             'prior_school_country_code' => ['required', 'string', 'size:2'],
-            'prior_school_completion_year' => ['required', 'integer', 'digits:4', 'max:'.now('Asia/Manila')->year],
+            'prior_school_completion_year' => [Rule::requiredIf($application->application_path !== AdmissionApplication::PathTransferee), 'nullable', 'integer', 'digits:4', 'max:'.now('Asia/Manila')->year],
             'lrn_availability' => ['required', Rule::in(['Provided', 'NotIssued', 'NotAvailable'])],
             'lrn' => [Rule::requiredIf($application->lrn_availability === 'Provided'), 'nullable', 'regex:/^\\d{12}$/',
                 Rule::prohibitedIf(in_array($application->lrn_availability, ['NotIssued', 'NotAvailable'], true))],
@@ -299,6 +327,11 @@ class SubmitAdmissionApplication
             throw ValidationException::withMessages([
                 'evidence' => 'Upload a valid private file for every required preliminary-evidence item.',
             ]);
+        }
+
+        foreach ($requiredIds as $requirementId) {
+            $evidence = $application->evidenceVersions()->where('admission_requirement_id', $requirementId)->latest('id')->firstOrFail();
+            app(AdmissionEvidenceService::class)->contents($evidence, $application->user()->firstOrFail());
         }
     }
 

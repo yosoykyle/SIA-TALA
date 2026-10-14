@@ -30,7 +30,7 @@
             <x-filament::section icon="heroicon-o-document-text" icon-color="info">
                 <x-slot name="heading">{{ match ($application->application_state) {
                     \App\Models\AdmissionApplication::StateDraft => 'Your application draft',
-                    \App\Models\AdmissionApplication::StateSubmitted => 'Your application is under review',
+                    \App\Models\AdmissionApplication::StateSubmitted => $application->reviewHasStarted() ? 'Your application is under review' : 'Awaiting Registrar review',
                     \App\Models\AdmissionApplication::StateActionNeeded => 'Corrections requested',
                     \App\Models\AdmissionApplication::StateAdmitted => $projection['ready'] ? 'Ready for enrollment' : 'Complete Registrar clearance',
                     \App\Models\AdmissionApplication::StateNotAdmitted => 'Admission decision recorded',
@@ -72,7 +72,7 @@
                     </dl>
                     </div>
                     <dl class="tala-journey-facts" aria-label="Application progress">
-                        <div><dt><x-filament::icon icon="heroicon-o-document-check" class="size-5" />Preliminary copies</dt><dd>{{ ! $application->currentSubmissionVersion ? 'Not submitted' : (app(\App\Queries\Admissions\ReadyApplicantProjectionQuery::class)->preliminaryReviewIsComplete($application) ? 'Required copies accepted' : 'Review in progress') }}</dd></div>
+                        <div><dt><x-filament::icon icon="heroicon-o-document-check" class="size-5" />Preliminary copies</dt><dd>{{ ! $application->currentSubmissionVersion ? 'Not submitted' : (app(\App\Queries\Admissions\ReadyApplicantProjectionQuery::class)->preliminaryReviewIsComplete($application) ? 'Required copies accepted' : ($application->reviewHasStarted() ? 'Review in progress' : 'Awaiting review')) }}</dd></div>
                         <div><dt><x-filament::icon icon="heroicon-o-academic-cap" class="size-5" />Admission decision</dt><dd>{{ $currentDecision ? str($currentDecision->decision)->headline() : 'Pending' }}@if ($currentDecision)<small>{{ $currentDecision->decided_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }} (Asia/Manila)</small>@endif</dd></div>
                         <div><dt><x-filament::icon icon="heroicon-o-clipboard-document-check" class="size-5" />Registrar clearance</dt><dd>{{ $projection['clearance_result'] ? str($projection['clearance_result'])->headline() : 'Pending' }}@if ($clearance)<small>{{ $clearance->recorded_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }} (Asia/Manila)</small>@endif</dd></div>
                     </dl>
@@ -135,7 +135,7 @@
             @if ($application->submissionVersions->isNotEmpty())
                 <div class="tala-record-group">
                     <h3>Application acknowledgment history</h3>
-                    <p class="tala-record-description">Print or view the acknowledgment for each submitted version.</p>
+                    <p class="tala-record-description">View the receipt or print the acknowledgment for each submitted version.</p>
 
                     <div class="space-y-3">
                         @foreach ($application->submissionVersions->sortByDesc('version') as $submissionVersion)
@@ -145,15 +145,26 @@
                                     Requirement Set version {{ $submissionVersion->requirementSet?->version }} ·
                                     {{ $application->current_submission_version_id === $submissionVersion->id ? 'Current' : 'Historical and superseded' }}
                                 </p>
-                                <x-filament::button
-                                    :href="route('admissions.application.acknowledgment', ['application' => $application, 'version' => $submissionVersion])"
-                                    tag="a"
-                                    target="_blank"
-                                    size="sm"
-                                    icon="heroicon-m-printer"
-                                >
-                                    Open version {{ $submissionVersion->version }}
-                                </x-filament::button>
+                                <div class="flex flex-wrap gap-3">
+                                    <x-filament::button
+                                        :href="\App\Filament\Applicant\Pages\SubmissionReceipt::getUrl(['application' => $application->id, 'version' => $submissionVersion->id])"
+                                        tag="a"
+                                        size="sm"
+                                        color="gray"
+                                        icon="heroicon-m-document-text"
+                                    >
+                                        View receipt
+                                    </x-filament::button>
+                                    <x-filament::button
+                                        :href="route('admissions.application.acknowledgment', ['application' => $application, 'version' => $submissionVersion])"
+                                        tag="a"
+                                        target="_blank"
+                                        size="sm"
+                                        icon="heroicon-m-printer"
+                                    >
+                                        Open version {{ $submissionVersion->version }}
+                                    </x-filament::button>
+                                </div>
                             </div>
                         @endforeach
                     </div>

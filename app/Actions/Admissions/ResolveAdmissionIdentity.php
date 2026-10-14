@@ -2,6 +2,7 @@
 
 namespace App\Actions\Admissions;
 
+use App\Models\AdmissionApplication;
 use App\Models\IdentityMatchReview;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -18,8 +19,10 @@ class ResolveAdmissionIdentity
         string $outcome,
         string $evidenceReference,
         ?string $correctedIdentifier = null,
+        ?int $expectedSubmissionVersionId = null,
     ): IdentityMatchReview {
         $this->authorize($actor);
+        $expectedSubmissionVersionId ??= $review->application?->current_submission_version_id;
         $validated = Validator::make([
             'outcome' => $outcome,
             'evidence_reference' => trim($evidenceReference),
@@ -39,7 +42,9 @@ class ResolveAdmissionIdentity
             ],
         ])->validate();
 
-        return DB::transaction(function () use ($review, $actor, $validated): IdentityMatchReview {
+        return DB::transaction(function () use ($review, $actor, $validated, $expectedSubmissionVersionId): IdentityMatchReview {
+            $application = AdmissionApplication::query()->lockForUpdate()->findOrFail($review->admission_application_id);
+            $application->assertReviewSource($actor, $expectedSubmissionVersionId);
             $locked = IdentityMatchReview::query()->lockForUpdate()->findOrFail($review->id);
 
             if ($locked->outcome !== IdentityMatchReview::OutcomePending) {

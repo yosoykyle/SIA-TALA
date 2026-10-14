@@ -85,7 +85,7 @@ class TalaPanelTheme
             ->sidebarCollapsibleOnDesktop()
             ->sidebarWidth('17rem')
             ->sidebarLivewireComponent(AccessibleSidebar::class)
-            ->renderHook(PanelsRenderHook::HEAD_END, fn (): HtmlString => new HtmlString(self::isApplicantPanel($panel) ? '<script src="'.e(asset('js/tala-wizard.js')).'"></script>' : ''))
+            ->renderHook(PanelsRenderHook::HEAD_END, fn (): HtmlString => new HtmlString(in_array($panel->getId(), ['applicant', 'admin'], true) ? '<script src="'.e(asset('js/tala-wizard.js')).'"></script>' : ''))
             ->renderHook(PanelsRenderHook::BODY_START, fn (): View => view('filament.components.skip-link'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.content-anchor'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.form-accessibility'))

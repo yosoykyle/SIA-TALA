@@ -1,8 +1,8 @@
 <x-filament::button
     type="submit"
-    icon="heroicon-m-paper-airplane"
+    :icon="$formSubmitAction === 'saveDraft' ? 'heroicon-m-bookmark-square' : 'heroicon-m-paper-airplane'"
     wire:loading.attr="disabled"
     wire:target="submitApplication,saveDraft"
 >
-    Submit application
+    {{ $formSubmitAction === 'saveDraft' ? 'Save draft' : ($this->isCorrectionMode() ? 'Resubmit corrections' : ($this->isSubmittedEdit() ? 'Submit application changes' : 'Submit application')) }}
 </x-filament::button>

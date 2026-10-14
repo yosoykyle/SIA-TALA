@@ -13,6 +13,7 @@ use App\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\Layout\Split;
 use Filament\Tables\Columns\Layout\Stack;
@@ -35,6 +36,8 @@ class Requirements extends Page implements HasTable
 
     protected string $view = 'filament.applicant.pages.requirements';
 
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
+
     #[Url(as: 'application')]
     public ?int $sourceApplicationId = null;
 
@@ -45,7 +48,31 @@ class Requirements extends Page implements HasTable
 
     public function getBreadcrumbs(): array
     {
-        return [Dashboard::getUrl(['application' => $this->sourceApplicationId ?? $this->application()?->id]) => 'Home', 'Requirements'];
+        return [Dashboard::getUrl(['application' => $this->sourceApplicationId ?? $this->application()?->id]) => 'Home', 'Application status'];
+    }
+
+    public function getTitle(): string
+    {
+        return 'Application status';
+    }
+
+    public function getSubheading(): ?string
+    {
+        return match ($this->application()?->application_state) {
+            AdmissionApplication::StateDraft => 'Draft · Your application has not been submitted.',
+            AdmissionApplication::StateSubmitted => 'Submitted · Your application is with the Registrar.',
+            AdmissionApplication::StateAdmitted => 'Admitted · Check your enrollment clearance below.',
+            AdmissionApplication::StateNotAdmitted => 'Not admitted · The Registrar’s decision remains available on Home.',
+            AdmissionApplication::StateWithdrawn => 'Withdrawn · This application remains in your records.',
+            default => null,
+        };
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [Action::make('receipt')->label('View receipt')->icon('heroicon-o-document-text')->color('gray')->outlined()
+            ->visible(fn (): bool => $this->application()?->current_submission_version_id !== null)
+            ->url(fn (): string => SubmissionReceipt::getUrl(['application' => $this->application()->id, 'version' => $this->application()->current_submission_version_id]))];
     }
 
     public static function canAccess(): bool
@@ -84,7 +111,10 @@ class Requirements extends Page implements HasTable
             ->query(AdmissionRequirement::query()->whereIn('id', $rows->keys()))
             ->defaultSort('display_order')
             ->paginated(false)
-            ->heading('Digital review copies')
+            ->heading('Review copies')
+            ->description($application !== null && in_array($application->application_state, [AdmissionApplication::StateNotAdmitted, AdmissionApplication::StateWithdrawn], true)
+                ? 'These copies remain with your submitted application history.'
+                : 'The Registrar reviews the copies received with your application. Requested corrections appear here.')
             ->columns([
                 Split::make([
                     Stack::make([
@@ -102,9 +132,10 @@ class Requirements extends Page implements HasTable
                     ])->space(1),
                     TextColumn::make('instruction')
                         ->label('Instruction')
-                        ->state(fn (AdmissionRequirement $record): string => $row($record)['instruction'] ?? '')
-                        ->description(fn (AdmissionRequirement $record): string => $row($record)['action'] ?? '')
-                        ->wrap(),
+                        ->state(fn (AdmissionRequirement $record): string => ($row($record)['instruction'] ?? '') ?: ($row($record)['action'] ?? ''))
+                        ->description(fn (AdmissionRequirement $record): string => filled($row($record)['instruction'] ?? null) ? $row($record)['action'] : '')
+                        ->wrap()
+                        ->visible($rows->contains(fn (array $item): bool => filled($item['instruction']) || filled($item['action']))),
                 ])->from('md'),
             ])
             ->recordActions([
@@ -142,15 +173,12 @@ class Requirements extends Page implements HasTable
                 ->where('admission_requirement_id', $requirement->id)
                 ->sortByDesc('id')
                 ->first();
-            $review = $evidence instanceof DocumentEvidence
-                ? $evidence->preliminaryReviews->first(
-                    fn (PreliminaryEvidenceReview $candidate): bool => ! $evidence->preliminaryReviews
-                        ->contains('supersedes_preliminary_evidence_review_id', $candidate->id),
-                )
-                : null;
+            $review = $evidence instanceof DocumentEvidence ? $application->currentPreliminaryReview($evidence) : null;
             $result = $review instanceof PreliminaryEvidenceReview
                 ? $review->result
-                : ($evidence instanceof DocumentEvidence ? PreliminaryEvidenceReview::ResultUnderReview : 'NotSubmitted');
+                : ($evidence instanceof DocumentEvidence
+                    ? ($evidence->reviewed_by !== null && $evidence->reviewed_at !== null ? 'LegacyReviewRecorded' : 'AwaitingReview')
+                    : 'NotSubmitted');
 
             return [
                 'requirement' => $requirement,
@@ -158,7 +186,7 @@ class Requirements extends Page implements HasTable
                 'result' => $result,
                 'instruction' => $review instanceof PreliminaryEvidenceReview && filled($review->reason)
                     ? $review->reason
-                    : $requirement->applicant_instructions,
+                    : ($evidence === null ? $requirement->applicant_instructions : ''),
                 'updated_at' => $review instanceof PreliminaryEvidenceReview
                     ? $review->reviewed_at
                     : ($evidence instanceof DocumentEvidence ? $evidence->uploaded_at : null),
@@ -168,42 +196,7 @@ class Requirements extends Page implements HasTable
                             ->where('scope_type', ApplicationCorrectionItem::ScopeEvidence)
                             ->contains('admission_requirement_id', $requirement->id))
                     ? 'Open Application to replace only this evidence item.'
-                    : 'No replacement is currently requested.',
-            ];
-        })->values()->all();
-    }
-
-    /** @return array<int, array{requirement: AdmissionRequirement, result: string, instruction: string, updated_at: mixed, action: string}> */
-    public function officialRows(AdmissionApplication $application): array
-    {
-        $requirements = $application->currentSubmissionVersion?->requirementSet?->requirements
-            ?->sortBy(fn (AdmissionRequirement $requirement): string => $requirement->due_stage.sprintf('%05d', $requirement->display_order)) ?? collect();
-
-        return $requirements->map(function (AdmissionRequirement $requirement) use ($application): array {
-            $results = $application->credentialResults
-                ->where('admission_requirement_id', $requirement->id);
-            $credentialResult = $results->first(
-                fn (OfficialCredentialResult $candidate): bool => ! $results
-                    ->contains('supersedes_official_credential_result_id', $candidate->id),
-            );
-
-            return [
-                'requirement' => $requirement,
-                'result' => $credentialResult instanceof OfficialCredentialResult
-                    ? $credentialResult->result
-                    : OfficialCredentialResult::ResultNotYetDue,
-                'instruction' => $credentialResult instanceof OfficialCredentialResult && filled($credentialResult->safe_explanation)
-                    ? $credentialResult->safe_explanation
-                    : $requirement->applicant_instructions,
-                'updated_at' => $credentialResult instanceof OfficialCredentialResult
-                    ? $credentialResult->recorded_at
-                    : null,
-                'action' => $application->application_state !== AdmissionApplication::StateAdmitted
-                    ? 'Official credential instructions apply after admission.'
-                    : $this->officialAction(
-                        $requirement,
-                        $credentialResult instanceof OfficialCredentialResult ? $credentialResult->result : null,
-                    ),
+                    : '',
             ];
         })->values()->all();
     }
@@ -211,8 +204,11 @@ class Requirements extends Page implements HasTable
     public function resultLabel(string $result): string
     {
         return match ($result) {
+            'AwaitingReview' => 'Awaiting Registrar review',
+            'NotSubmitted' => 'No copy received',
+            'LegacyReviewRecorded' => 'Earlier copy review recorded',
             PreliminaryEvidenceReview::ResultAccepted => 'Review copy accepted',
-            default => str($result)->headline()->toString(),
+            default => ucfirst(str($result)->headline()->lower()->toString()),
         };
     }
 
@@ -225,21 +221,7 @@ class Requirements extends Page implements HasTable
             PreliminaryEvidenceReview::ResultActionNeeded,
             OfficialCredentialResult::ResultActionNeeded => 'warning',
             OfficialCredentialResult::ResultNotYetDue => 'gray',
-            default => 'warning',
-        };
-    }
-
-    private function officialAction(AdmissionRequirement $requirement, ?string $result): string
-    {
-        return match ($result) {
-            OfficialCredentialResult::ResultActionNeeded => 'Follow the Registrar instruction shown here.',
-            OfficialCredentialResult::ResultVerified,
-            OfficialCredentialResult::ResultAuthorizedException => 'No Applicant action.',
-            default => match ($requirement->official_submission_method) {
-                AdmissionRequirement::SubmissionInPerson => 'Provide the official credential to the Registrar in person.',
-                AdmissionRequirement::SubmissionSchoolToSchool => 'Coordinate the school-to-school process stated by the Registrar.',
-                default => 'No separate official submission is required.',
-            },
+            default => 'gray',
         };
     }
 }

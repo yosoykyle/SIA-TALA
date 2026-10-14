@@ -131,7 +131,7 @@ class Issue57AssistedDraftEligibilityTest extends TestCase
         Livewire::withQueryParams(['applicant' => $applicant->id, 'application' => $application->id])
             ->actingAs($this->registrar())->test(AssistedAdmissionApplication::class)
             ->assertSee('Assisted entry unavailable for this applicant')
-            ->assertDontSee('Save Applicant Draft');
+            ->assertDontSee('Save draft');
     }
 
     public function test_exact_submitted_source_redirects_to_registrar_review_without_attempting_draft_resolution(): void
@@ -167,6 +167,58 @@ class Issue57AssistedDraftEligibilityTest extends TestCase
         $applicant->forceFill(['email_verified_at' => null])->save();
         $this->assertNull($applicant->fresh()->email_verified_at);
         $component->callMountedAction()->assertHasActionErrors(['applicant_id']);
+    }
+
+    public function test_assisted_picker_searches_name_and_email_without_exposing_ineligible_accounts(): void
+    {
+        AdmissionCycle::factory()->published()->create();
+        $applicant = $this->applicant();
+        $applicant->update(['first_name' => 'Aster', 'middle_name' => null, 'last_name' => 'Search']);
+        $inactive = $this->applicant();
+        $inactive->update(['first_name' => 'Inactive', 'middle_name' => null, 'last_name' => 'Search', 'status' => User::StatusInactive]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $component = Livewire::actingAs($this->registrar())->test(ListAdmissionApplications::class)
+            ->mountAction('prepareAssistedDraft');
+        $page = $component->instance();
+        $field = $page->getSchema($page->getMountedActionSchemaName())->getComponentByStatePath('applicant_id');
+
+        foreach (['Aster Search', $applicant->email] as $search) {
+            $results = $field->getSearchResults($search);
+            $this->assertArrayHasKey($applicant->id, $results);
+            $this->assertStringContainsString('Aster Search', $results[$applicant->id]);
+        }
+        $this->assertSame([], $field->getSearchResults('Inactive Search'));
+        $component->fillForm(['applicant_id' => $applicant->id])->callMountedAction()
+            ->assertRedirect(AssistedAdmissionApplication::getUrl(['applicant' => $applicant->id]));
+    }
+
+    public function test_assisted_picker_application_reference_opens_the_exact_submitted_case_without_starting_review(): void
+    {
+        $applicant = $this->applicant();
+        $cycle = AdmissionCycle::factory()->published()->create();
+        $application = AdmissionApplication::factory()->submitted()->create(['user_id' => $applicant->id, 'admission_cycle_id' => $cycle->id, 'term_id' => $cycle->term_id]);
+        AdmissionApplication::factory()->submitted()->create(['user_id' => $applicant->id]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $component = Livewire::actingAs($this->registrar())->test(ListAdmissionApplications::class)
+            ->mountAction('prepareAssistedDraft');
+        $page = $component->instance();
+        $field = $page->getSchema($page->getMountedActionSchemaName())->getComponentByStatePath('applicant_id');
+
+        $results = $field->getSearchResults(' '.$application->application_reference.' ');
+        $this->assertSame(['application:'.$application->id], array_keys($results));
+        $this->assertStringContainsString($application->application_reference, $results['application:'.$application->id]);
+        $component->fillForm(['applicant_id' => 'application:'.$application->id])->callMountedAction()
+            ->assertRedirect(AdmissionApplicationResource::getUrl('view', ['record' => $application]));
+        $this->assertSame(AdmissionApplication::StateSubmitted, $application->fresh()->application_state);
+        $this->assertDatabaseMissing('admission_application_events', ['admission_application_id' => $application->id, 'event_type' => 'ReviewStarted']);
+    }
+
+    public function test_forged_application_reference_selection_is_rejected(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::actingAs($this->registrar())->test(ListAdmissionApplications::class)
+            ->callAction('prepareAssistedDraft', data: ['applicant_id' => 'application:999999999'])
+            ->assertHasActionErrors(['applicant_id']);
     }
 
     private function applicant(): User
