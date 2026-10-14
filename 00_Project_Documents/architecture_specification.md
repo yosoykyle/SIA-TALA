@@ -470,7 +470,7 @@ Official Cloud Run mechanics rechecked on **September 14, 2026** support the bou
 4. The adapter returns `Optimal`, `Feasible`, `Infeasible`, `Unknown`, `ModelInvalid`, or `TechnicalFailure` with typed evidence. It never publishes.
 5. Laravel independently validates every returned assignment against the saved snapshot and institutional invariants.
 6. Registrar reviews the complete candidate and may apply only bounded corrections that revalidate the whole candidate and waive no hard rule.
-7. Registrar records any externally made sign-off and publishes an immutable `PublishedTimetableVersion`.
+7. Registrar publishes an immutable `PublishedTimetableVersion` under PRD 03's publication and attribution rules; any institutional sign-off remains external.
 8. Faculty and Clinic 4-owned Student schedule/COR projections read only from the applicable published version.
 
 #### Authoritative CP-SAT Integration Sequence
@@ -531,7 +531,7 @@ sequenceDiagram
                 alt Candidate is stale, rejected, or invalid
                     Laravel-->>Registrar: Block publication and show safe recovery
                     Note over Registrar,Laravel: A recorded rejection or authoritative source correction may permit a later distinct run
-                else External sign-off recorded and publication explicitly authorized
+                else Required authority satisfied and publication explicitly authorized
                     Registrar->>Laravel: Publish timetable
                     Laravel->>DB: Atomically create immutable PublishedTimetableVersion
                     DB-->>Laravel: Commit official published version and evidence

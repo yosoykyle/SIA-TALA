@@ -21,6 +21,8 @@ This direction supersedes the rejected Registrar/Head preparation and Faculty D1
 
 **THESIS:** One exact-Term working frame serves Registrar preparation, Head read-only inspection and Faculty participation. Actual rows/calendar/current answer lead; remove repeated introduction/status/scope/navigation bands.
 
+**Information purpose and recomposition:** Challenge what each fact, field, step and feature contributes to the task, including where it appears. Remove proven redundant presentation and unnecessary routine inputs; seek the owning product decision before retiring required facts or capabilities. Present exact Term/state, current work and its next permitted action first. Keep justified history/source evidence reachable through named details. Existing page arrangements are a foundation for task-led recomposition, not a reason to preserve confusing screens. Equivalent intent uses consistent supported native interactions; bounded inspection/decisions and sustained source work need different working space. A usable breadcrumb replaces only an equivalent duplicate return, preserving distinct cancellation and originating-task context.
+
 **OWN-WORLD:** Preserve Inter, school crest, green, existing skeuomorphic Aqua-like buttons, solid opaque overlays and light/dark/system appearance. No global brand replacement or blur/glass.
 
 **STORY:** Approved calendar → cohorts/classes/requirements → qualified/load/availability/room inputs → reviewed official timetable. Faculty answers/corrects availability and reads own official results. Head inspects the same sources and returns with exact Term. Parallel preparation remains supported.
@@ -29,7 +31,7 @@ This direction supersedes the rejected Registrar/Head preparation and Faculty D1
 
 **FORM:** Reuse current native tables/forms/actions and queries. Class details order identity, cohorts/counts, delivery groups/requirements, findings, history. Resource details order current owned facts, constraints, history. Contextual creation uses slide-overs; bounded decisions use centered modals; sustained source/history review uses pages. Breadcrumbs emit each URL once, retaining exact Term and role ancestry. Remove duplicate body return after usable ancestry. Calendar wizard and separate activation remain. Shared classes count once globally; no mandatory all-year requirement.
 
-**FINISH:** Meaningful affected regressions, one whole-role desktop/mobile batch and at most one correction/confirmation. Preserve history, concurrent-Term/no-Term/missing/blocked/informational-unavailable distinctions and accessible focus.
+**FINISH:** Meaningful affected regressions and representative rendered Registrar, Head and Faculty preparation checks at applicable desktop/mobile widths; reuse valid evidence and confirm corrections only where needed. Preserve history, concurrent-Term/no-Term/missing/blocked/informational-unavailable distinctions and accessible focus. Agents establish technical correctness and verification; the owner's first-time-user review judges appearance, clarity and understandable use without requiring technical diagnosis. Follow the Protocol's owner-review/report sequence.
 
 ## Scope and visitor mode
 
