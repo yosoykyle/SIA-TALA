@@ -52,7 +52,7 @@ class PublicGatewayProjectionTest extends TestCase
     public function test_gateway_leads_with_school_discovery_and_keeps_shared_sign_in(): void
     {
         $page = $this->get('/')->assertOk()
-            ->assertSeeInOrder(['id="top"', 'id="programs"', 'id="faq"', 'id="location"', 'id="application-status"'], false)
+            ->assertSeeInOrder(['id="top"', 'id="programs"', 'id="faq"', 'id="location"'], false)
             ->assertSee('Servitech Institute Asia Inc.')
             ->assertSee('Explore programs')
             ->assertSee(route('filament.admin.auth.login'), false)
@@ -73,7 +73,7 @@ class PublicGatewayProjectionTest extends TestCase
             'published_at' => now(),
         ]);
 
-        $this->get('/')->assertSeeInOrder(['id="top"', 'id="notices"', 'Admissions', 'id="admission-status-title"', 'School announcement', 'Admission orientation', 'data-update-next', 'id="programs"', 'id="application-status"'], false)
+        $this->get('/')->assertSeeInOrder(['id="top"', 'id="notices"', 'Admissions', 'id="admission-status-title"', 'School announcement', 'Admission orientation', 'data-update-next', 'id="programs"'], false)
             ->assertSee('Announcements')
             ->assertSee('2 of 2')
             ->assertDontSee('System Administration')
@@ -107,35 +107,6 @@ class PublicGatewayProjectionTest extends TestCase
                 ->assertSee('Open in Google Maps')
                 ->assertSee(config('institution.public.map_url'));
         }
-    }
-
-    public function test_invalid_status_request_returns_to_an_open_form_with_entered_values(): void
-    {
-        $response = $this->from(route('home'))->post(route('applications.status.request'), [
-            'reference' => 'app-test-reference',
-            'email' => 'invalid-email',
-        ]);
-
-        $response->assertRedirect(route('home').'#application-status')
-            ->assertSessionHasErrors(['email']);
-
-        $page = $this->get(route('home'))->assertOk()
-            ->assertSee('value="app-test-reference"', false)
-            ->assertSee('value="invalid-email"', false)
-            ->assertSee('aria-invalid="true"', false)
-            ->assertSee('Check the highlighted field, then send the request again. Your entries are kept.')
-            ->assertSee('maxlength="40"', false)
-            ->assertSee('autocomplete="off"', false);
-        $this->assertDoesNotMatchRegularExpression('/<section\b[^>]*\bid="application-status"[^>]*>(?:(?!<\/section>).)*<details\b/s', $page->getContent());
-    }
-
-    public function test_status_confirmation_keeps_the_request_form_open(): void
-    {
-        $page = $this->withSession(['tracking_status' => 'If your details match, a link will be emailed.'])
-            ->get(route('home'))->assertOk()
-            ->assertSeeInOrder(['id="application-status-title"', 'data-tracking-confirmation', 'If your details match, a link will be emailed.', 'If a link was sent', 'action="'.route('applications.status.request').'"'], false)
-            ->assertDontSee('Check the highlighted');
-        $this->assertDoesNotMatchRegularExpression('/<section\b[^>]*\bid="application-status"[^>]*>(?:(?!<\/section>).)*<details\b/s', $page->getContent());
     }
 
     public function test_future_and_closed_cycles_keep_existing_account_entry(): void

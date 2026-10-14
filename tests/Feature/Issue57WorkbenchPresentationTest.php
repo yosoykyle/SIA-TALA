@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\ReviewPreliminaryEvidence;
 use App\Filament\Applicant\Pages\Requirements;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
@@ -51,6 +52,7 @@ class Issue57WorkbenchPresentationTest extends TestCase
         $application->update(['current_submission_version_id' => $version->id]);
         $evidence = DocumentEvidence::factory()->canonical($application, $requirement, $version)->create(['mime_type' => 'application/pdf']);
 
+        app(AdmissionReviewGuard::class)->start($application->fresh(), $registrar, $application->current_submission_version_id);
         $registrarHtml = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])->html();
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
         $applicantHtml = Livewire::actingAs($applicant)->test(Requirements::class, ['sourceApplicationId' => $application->id])->html();
@@ -259,11 +261,15 @@ class Issue57WorkbenchPresentationTest extends TestCase
         $evidence = DocumentEvidence::factory()->canonical($application, $requirement)->create([
             'uploaded_at' => now()->subDays(5),
         ]);
+        $set->update(['state' => AdmissionRequirementSet::StatePublished, 'effective_at' => now(), 'published_at' => now()]);
+        $version = ApplicationSubmissionVersion::factory()->for($application, 'application')->for($set, 'requirementSet')->create();
+        $application->update(['current_submission_version_id' => $version->id]);
+        app(AdmissionReviewGuard::class)->start($application->fresh(), $registrar, $version->id);
         $updatedAt = $application->fresh()->updated_at->toDateTimeString();
         $review = app(ReviewPreliminaryEvidence::class)->execute($evidence, $registrar,
             PreliminaryEvidenceReview::ResultAccepted, 'Current copy reviewed.');
         $this->assertSame($updatedAt, $application->fresh()->updated_at->toDateTimeString());
-        $this->assertSame(0, $application->events()->count());
+        $this->assertSame(1, $application->events()->count());
         $component = Livewire::actingAs($registrar)->test(ListAdmissionApplications::class)
             ->searchTable('Issue57RealReviewProbe');
         $record = $component->instance()->getTableRecords()->firstWhere('id', $application->id);

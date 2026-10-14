@@ -2,6 +2,7 @@
 
 namespace App\Actions\Admissions;
 
+use App\Models\AdmissionApplication;
 use App\Models\DocumentEvidence;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\User;
@@ -19,8 +20,10 @@ class ReviewPreliminaryEvidence
         string $result,
         ?string $reason,
         ?int $expectedCurrentReviewId = null,
+        ?int $expectedSubmissionVersionId = null,
     ): PreliminaryEvidenceReview {
         $this->authorize($actor);
+        $expectedSubmissionVersionId ??= $evidence->admissionApplication?->current_submission_version_id;
         $validated = Validator::make([
             'result' => $result,
             'reason' => filled($reason) ? trim((string) $reason) : null,
@@ -43,7 +46,10 @@ class ReviewPreliminaryEvidence
             $actor,
             $validated,
             $expectedCurrentReviewId,
+            $expectedSubmissionVersionId,
         ): PreliminaryEvidenceReview {
+            $application = AdmissionApplication::query()->lockForUpdate()->findOrFail($evidence->admission_application_id);
+            $application->assertReviewSource($actor, $expectedSubmissionVersionId);
             $lockedEvidence = DocumentEvidence::query()->lockForUpdate()->findOrFail($evidence->id);
 
             if ($lockedEvidence->admission_application_id === null
@@ -51,6 +57,12 @@ class ReviewPreliminaryEvidence
                 throw ValidationException::withMessages([
                     'evidence' => 'Only canonical admission evidence can receive a preliminary review.',
                 ]);
+            }
+
+            $set = $application->currentSubmissionVersion()->firstOrFail()->requirementSet()->firstOrFail();
+            if (! $set->requirements()->whereKey($lockedEvidence->admission_requirement_id)->where('requires_preliminary_evidence', true)->exists()
+                || (int) $application->evidenceVersions()->where('admission_requirement_id', $lockedEvidence->admission_requirement_id)->max('id') !== $lockedEvidence->id) {
+                throw ValidationException::withMessages(['evidence' => 'Only the current copy in the submitted requirement set may receive a review. Earlier copies remain in history.']);
             }
 
             $current = $lockedEvidence->preliminaryReviews()

@@ -72,7 +72,7 @@ class AdmissionApplicationsTable
                     })
                     ->tooltip(fn (AdmissionApplication $record): ?string => $record->program?->name)
                     ->wrap()
-                    ->visibleFrom('xl'),
+                    ->visibleFrom('md'),
                 TextColumn::make('application_state')
                     ->label('State')
                     ->badge()
@@ -118,6 +118,7 @@ class AdmissionApplicationsTable
                         return null;
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'Registrar — Start review of the current submitted application.' => 'Registrar — start review',
                         'Registrar — Review the current required preliminary copies.' => 'Registrar — review preliminary copies',
                         'Registrar — Resolve the current private identity warning.' => 'Registrar — resolve identity warning',
                         'Registrar — Record the admission decision using the current reviewed evidence.' => 'Registrar — record admission decision',

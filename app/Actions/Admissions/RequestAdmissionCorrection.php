@@ -32,6 +32,8 @@ class RequestAdmissionCorrection
         string $responsibleParty,
         CarbonInterface $dueAt,
         ?int $expectedSubmissionVersionId = null,
+        ?string $targetApplicationPath = null,
+        ?int $expectedTargetRequirementSetId = null,
     ): ApplicationCorrectionRequest {
         $this->authorize($actor);
         $validated = Validator::make([
@@ -40,7 +42,7 @@ class RequestAdmissionCorrection
             'responsible_party' => trim($responsibleParty),
             'due_at' => $dueAt,
         ], [
-            'scopes' => ['required', 'array', 'min:1'],
+            'scopes' => $targetApplicationPath === null ? ['required', 'array', 'min:1'] : ['present', 'array'],
             'scopes.*.type' => ['required', Rule::in([
                 ApplicationCorrectionItem::ScopeField,
                 ApplicationCorrectionItem::ScopeEvidence,
@@ -55,7 +57,7 @@ class RequestAdmissionCorrection
 
         $expectedSubmissionVersionId ??= $application->current_submission_version_id;
 
-        return DB::transaction(function () use ($application, $actor, $validated, $dueAt, $expectedSubmissionVersionId): ApplicationCorrectionRequest {
+        return DB::transaction(function () use ($application, $actor, $validated, $dueAt, $expectedSubmissionVersionId, $targetApplicationPath, $expectedTargetRequirementSetId): ApplicationCorrectionRequest {
             $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
 
             if ($locked->current_submission_version_id !== $expectedSubmissionVersionId) {
@@ -79,6 +81,7 @@ class RequestAdmissionCorrection
                 ]);
             }
 
+            $locked->assertReviewSource($actor, $expectedSubmissionVersionId);
             $cycle = AdmissionCycle::query()->lockForUpdate()->findOrFail($locked->admission_cycle_id);
             $now = CarbonImmutable::now(config('app.timezone'));
 
@@ -103,7 +106,18 @@ class RequestAdmissionCorrection
             }
 
             $currentSet = $locked->currentSubmissionVersion()->firstOrFail()->requirementSet()->firstOrFail();
-            $scopes = $this->normalizedScopes($validated['scopes'], $currentSet->id);
+            $typeCorrection = null;
+            $requestedScopes = $validated['scopes'];
+            if ($targetApplicationPath !== null) {
+                $typeCorrection = $this->studentTypeScope($locked, $targetApplicationPath);
+                if ($typeCorrection['requirement_set_id'] !== $expectedTargetRequirementSetId) {
+                    throw ValidationException::withMessages(['target_application_path' => 'The target requirements changed. Preview and confirm the complete correction scope again.']);
+                }
+                $requestedScopes = [...$requestedScopes, ...$typeCorrection['scopes']];
+            } elseif (collect($requestedScopes)->contains(fn (array $scope): bool => $scope['type'] === ApplicationCorrectionItem::ScopeField && $scope['key'] === 'application_path')) {
+                throw ValidationException::withMessages(['target_application_path' => 'Select the target Student type and confirm its complete correction scope.']);
+            }
+            $scopes = $this->normalizedScopes($requestedScopes, $typeCorrection['requirement_set_id'] ?? $currentSet->id);
             $sequence = (int) $locked->correctionRequests()->lockForUpdate()->max('sequence') + 1;
             $request = $locked->correctionRequests()->create([
                 'sequence' => $sequence,
@@ -115,6 +129,9 @@ class RequestAdmissionCorrection
                 'requested_at' => now(config('app.timezone')),
                 'completed_at' => null,
                 'supersedes_correction_request_id' => null,
+                'source_submission_version_id' => $typeCorrection === null ? null : $locked->current_submission_version_id,
+                'target_requirement_set_id' => $typeCorrection['requirement_set_id'] ?? null,
+                'target_application_path' => $targetApplicationPath,
             ]);
 
             foreach ($scopes as $scope) {
@@ -177,6 +194,39 @@ class RequestAdmissionCorrection
         }
     }
 
+    /** @return array{requirement_set_id: int, scopes: list<array{type: string, key: string, admission_requirement_id: int|null}>} */
+    public function studentTypeScope(AdmissionApplication $application, string $targetPath): array
+    {
+        if ($application->application_state !== AdmissionApplication::StateSubmitted
+            || $application->current_submission_version_id === null || ! $application->reviewHasStarted()
+            || $application->decisions()->exists()
+            || ! in_array($targetPath, [AdmissionApplication::PathFirstYear, AdmissionApplication::PathTransferee], true)
+            || $targetPath === $application->application_path) {
+            throw ValidationException::withMessages(['target_application_path' => 'Student type correction requires a reviewed submission before its first decision. Choose the other supported type.']);
+        }
+        $cycle = $application->admissionCycle()->firstOrFail();
+        $acceptance = $targetPath === AdmissionApplication::PathFirstYear ? 'accepts_first_year' : 'accepts_transferee';
+        if ($cycle->state !== AdmissionCycle::StatePublished || $cycle->term_id !== $application->term_id
+            || ! $cycle->programs()->whereKey($application->program_id)->where('is_active', true)->wherePivot($acceptance, true)->exists()) {
+            throw ValidationException::withMessages(['target_application_path' => 'The bound intake cannot accept this Program and Student type. Resolve the intake configuration with the Registrar before issuing this correction.']);
+        }
+        $set = app(ResolveAdmissionRequirementSet::class)->forScope($cycle->id, $targetPath);
+        $scopes = [];
+        foreach (['application_path', 'credential_basis', 'prior_college_identifier', 'prior_school_name',
+            'prior_school_country_code', 'prior_school_completion_year', 'prior_school_address', 'accuracy_declared'] as $field) {
+            $scopes[] = ['type' => ApplicationCorrectionItem::ScopeField, 'key' => $field, 'admission_requirement_id' => null];
+        }
+        foreach ($set->requirements()->where('requires_preliminary_evidence', true)->orderBy('display_order')->orderBy('id')->get() as $requirement) {
+            $retained = $application->evidenceVersions()->where('admission_requirement_id', $requirement->id)->latest('id')->first();
+            if ($retained !== null && app(AdmissionEvidenceService::class)->storedCopyIsAvailable($retained, $application)) {
+                continue;
+            }
+            $scopes[] = ['type' => ApplicationCorrectionItem::ScopeEvidence, 'key' => $requirement->code, 'admission_requirement_id' => $requirement->id];
+        }
+
+        return ['requirement_set_id' => $set->id, 'scopes' => $scopes];
+    }
+
     /**
      * @param  list<array{type: string, key: string, admission_requirement_id: int|null}>  $scopes
      * @return list<array{type: string, key: string, admission_requirement_id: int|null}>
@@ -222,6 +272,6 @@ class RequestAdmissionCorrection
             $normalized[] = $scope;
         }
 
-        return $normalized;
+        return collect($normalized)->unique(fn (array $scope): string => $scope['type'].':'.$scope['key'])->values()->all();
     }
 }

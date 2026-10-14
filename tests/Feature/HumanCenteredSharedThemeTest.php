@@ -130,7 +130,7 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->assertStringNotContainsString('class="workspace-card', $view);
         $this->assertStringNotContainsString('class="portal-overview', $view);
         $this->assertStringContainsString('public-sign-in', $view);
-        $this->assertStringContainsString('id="application-status"', $view);
+        $this->assertStringNotContainsString('id="application-status"', $view);
         $this->assertStringNotContainsString('dropdown public-sign-in', $view);
         $this->assertStringNotContainsString('6vw, 5.6rem', $styles);
         $this->assertStringContainsString('env(safe-area-inset-bottom)', $styles);

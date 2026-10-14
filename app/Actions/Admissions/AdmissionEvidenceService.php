@@ -3,6 +3,7 @@
 namespace App\Actions\Admissions;
 
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirement;
 use App\Models\ApplicationCorrectionItem;
 use App\Models\ApplicationCorrectionRequest;
@@ -47,16 +48,24 @@ class AdmissionEvidenceService
         User $actor,
         UploadedFile $file,
         ?ApplicationSubmissionVersion $submissionVersion = null,
+        ?DocumentEvidence $predecessor = null,
+        bool $submittedCommit = false,
     ): DocumentEvidence {
+        if ($this->disk === 'public' || config("filesystems.disks.{$this->disk}.visibility") === 'public') {
+            throw ValidationException::withMessages(['evidence' => 'Private upload storage is unavailable. Contact school support.']);
+        }
         $this->authorize($application, $actor);
         $this->validateFile($file);
         $checksum = hash_file('sha256', $file->getRealPath());
         $path = null;
 
         try {
-            return DB::transaction(function () use ($application, $requirement, $actor, $file, $submissionVersion, $checksum, &$path): DocumentEvidence {
+            return DB::transaction(function () use ($application, $requirement, $actor, $file, $submissionVersion, $predecessor, $submittedCommit, $checksum, &$path): DocumentEvidence {
                 $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
                 $this->authorize($locked, $actor);
+                if ($locked->current_submission_version_id !== $application->current_submission_version_id) {
+                    throw ValidationException::withMessages(['evidence' => 'The application changed. Reload the current requirements before replacing a copy.']);
+                }
                 if ($locked->privacy_acknowledged_at === null
                     || $locked->privacy_notice_reference !== $locked->admissionCycle()->firstOrFail()->privacy_notice_reference) {
                     throw ValidationException::withMessages(['privacy_acknowledged' => 'Acknowledge the current privacy notice before uploading a private copy.']);
@@ -64,12 +73,19 @@ class AdmissionEvidenceService
                 if (str_contains(strtolower($requirement->label), 'photo') && ! str_starts_with((string) $file->getMimeType(), 'image/')) {
                     throw ValidationException::withMessages(['evidence' => 'Upload the ID photo as a JPEG or PNG image.']);
                 }
-                $this->assertApplicantEvidenceScope($locked, $requirement, $actor);
+                $this->assertApplicantEvidenceScope($locked, $requirement, $actor, $submittedCommit);
                 $this->assertRequirementApplies($locked, $requirement, $submissionVersion);
-                if ($locked->evidenceVersions()
+                $current = $locked->evidenceVersions()->where('admission_requirement_id', $requirement->id)->latest('id')->lockForUpdate()->first();
+                if ($current?->id !== $predecessor?->id
+                    || ($predecessor !== null && ($predecessor->admission_application_id !== $locked->id
+                        || $predecessor->admission_requirement_id !== $requirement->id))) {
+                    throw ValidationException::withMessages(["evidence.{$requirement->id}" => "The current {$requirement->label} copy changed. Reload it and use Replace copy."]);
+                }
+                $duplicate = $locked->evidenceVersions()
                     ->where('admission_requirement_id', $requirement->id)
                     ->where('checksum', $checksum)
-                    ->exists()) {
+                    ->latest('id')->first();
+                if ($duplicate instanceof DocumentEvidence && $this->storedCopyIsAvailable($duplicate, $locked)) {
                     throw ValidationException::withMessages([
                         "evidence.{$requirement->id}" => 'This exact file is already retained. Choose a different corrected copy.',
                     ]);
@@ -99,7 +115,7 @@ class AdmissionEvidenceService
                     'uploaded_at' => now(config('app.timezone')),
                     'reviewed_by' => null,
                     'reviewed_at' => null,
-                    'replaces_document_evidence_id' => null,
+                    'replaces_document_evidence_id' => $predecessor?->id,
                 ]);
             });
         } catch (Throwable $exception) {
@@ -116,13 +132,12 @@ class AdmissionEvidenceService
         User $actor,
         UploadedFile $file,
         ?ApplicationSubmissionVersion $submissionVersion = null,
+        bool $submittedCommit = false,
     ): DocumentEvidence {
         $application = $evidence->admissionApplication()->firstOrFail();
         $requirement = $evidence->admissionRequirement()->firstOrFail();
-        $replacement = $this->store($application, $requirement, $actor, $file, $submissionVersion);
-        $replacement->forceFill(['replaces_document_evidence_id' => $evidence->id])->save();
 
-        return $replacement->refresh();
+        return $this->store($application, $requirement, $actor, $file, $submissionVersion, $evidence, $submittedCommit);
     }
 
     public function contents(DocumentEvidence $evidence, User $actor): string
@@ -164,6 +179,20 @@ class AdmissionEvidenceService
                 'evidence' => 'The private evidence reference is invalid. Contact the Registrar.',
             ]);
         }
+    }
+
+    public function storedCopyIsAvailable(DocumentEvidence $evidence, AdmissionApplication $application): bool
+    {
+        if ($evidence->admission_application_id !== $application->id) {
+            return false;
+        }
+        try {
+            $this->assertStoredPathBelongsToEvidence($evidence, $application);
+        } catch (ValidationException) {
+            return false;
+        }
+
+        return Storage::disk($evidence->disk)->exists($evidence->path);
     }
 
     public function discardTemporaryEvidence(AdmissionApplication $application, User $actor): void
@@ -215,11 +244,15 @@ class AdmissionEvidenceService
 
     private function authorize(AdmissionApplication $application, User $actor): void
     {
+        $actor = $actor->fresh();
+        if (! $actor instanceof User) {
+            throw new AuthorizationException('The account is unavailable.');
+        }
         $ownsApplication = $application->user_id === $actor->id
             && $actor->hasRole('applicant')
-            && $actor->canAuthenticate();
+            && $actor->canAuthenticate() && $actor->hasVerifiedEmail();
         $isRegistrar = $actor->hasRole(User::StaffRoleRegistrar)
-            && $actor->canAuthenticate()
+            && $actor->canAuthenticate() && $actor->hasVerifiedEmail()
             && $actor->can('approve-documents');
 
         if (! $ownsApplication && ! $isRegistrar) {
@@ -233,10 +266,14 @@ class AdmissionEvidenceService
         ?ApplicationSubmissionVersion $submissionVersion,
     ): void {
         $requirementSet = $requirement->requirementSet()->firstOrFail();
+        $governingSet = app(ResolveAdmissionRequirementSet::class)->forApplication($application, lockForUpdate: true);
         $applies = $requirementSet->admission_cycle_id === $application->admission_cycle_id
             && $requirementSet->application_path === $application->application_path
+            && $requirementSet->id === $governingSet->id
+            && $requirement->requires_preliminary_evidence
             && ($submissionVersion === null
                 || ($submissionVersion->admission_application_id === $application->id
+                    && $submissionVersion->id === $application->current_submission_version_id
                     && $submissionVersion->admission_requirement_set_id === $requirementSet->id));
 
         if (! $applies) {
@@ -250,15 +287,34 @@ class AdmissionEvidenceService
         AdmissionApplication $application,
         AdmissionRequirement $requirement,
         User $actor,
+        bool $submittedCommit,
     ): void {
-        if ($actor->hasRole(User::StaffRoleRegistrar)) {
-            return;
+        if ($actor->hasRole(User::StaffRoleRegistrar)
+            && ($actor->id !== $application->user_id || ! $actor->hasRole('applicant'))) {
+            if ($application->application_state !== AdmissionApplication::StateDraft || $application->current_submission_version_id !== null) {
+                throw ValidationException::withMessages(['evidence' => 'Registrar assistance may upload copies to an unsubmitted Draft only. Submitted corrections belong to the Applicant.']);
+            }
+
         }
 
         if ($application->application_state === AdmissionApplication::StateDraft) {
+            $cycle = $application->admissionCycle()->firstOrFail();
+            if ($cycle->state !== AdmissionCycle::StatePublished || $cycle->opens_at > now() || $cycle->closes_at <= now()) {
+                throw ValidationException::withMessages(['evidence' => 'This intake is closed. The saved Draft and its copies remain available for inspection.']);
+            }
+
             return;
         }
 
+        if ($submittedCommit && $application->allowsSubmittedEdit() && DB::transactionLevel() > 1) {
+            return;
+        }
+
+        $typeCorrection = $application->correctionRequests()->where('state', ApplicationCorrectionRequest::StateActive)
+            ->whereNotNull('target_application_path')->first();
+        if ($typeCorrection instanceof ApplicationCorrectionRequest && (! $submittedCommit || DB::transactionLevel() < 2)) {
+            throw ValidationException::withMessages(['correction_scope' => 'Submit Student type correction copies together with the complete corrected application.']);
+        }
         $isNamedCorrection = $application->application_state === AdmissionApplication::StateActionNeeded
             && $application->correctionRequests()
                 ->where('state', ApplicationCorrectionRequest::StateActive)

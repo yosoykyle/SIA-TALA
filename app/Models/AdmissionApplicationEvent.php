@@ -21,6 +21,10 @@ class AdmissionApplicationEvent extends Model
 
     public const TypeSubmitted = 'Submitted';
 
+    public const TypeReviewStarted = 'ReviewStarted';
+
+    public const TypeSubmittedEdited = 'SubmittedEdited';
+
     public const TypeCorrectionRequested = 'CorrectionRequested';
 
     public const TypeResubmitted = 'Resubmitted';
@@ -89,6 +93,8 @@ class AdmissionApplicationEvent extends Model
     {
         return [
             self::TypeSubmitted,
+            self::TypeReviewStarted,
+            self::TypeSubmittedEdited,
             self::TypeCorrectionRequested,
             self::TypeResubmitted,
             self::TypeWithdrawn,

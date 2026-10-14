@@ -3,6 +3,7 @@
 namespace App\Http\Responses;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Applicant\Pages\Application;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
@@ -41,6 +42,12 @@ class RoleAwareLoginResponse implements LoginResponseContract
         };
 
         session()->forget('url.intended');
+
+        if (($requested === 'applicant' && array_key_exists('applicant', $available)
+                || $contextCount === 1 && array_key_exists('applicant', $available))
+            && session()->has('public_entry.program_id')) {
+            $workspacePath = Application::getUrl(['program' => session('public_entry.program_id')], panel: 'applicant');
+        }
 
         return redirect()->to($workspacePath);
     }

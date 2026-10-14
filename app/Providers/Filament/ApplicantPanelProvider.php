@@ -9,6 +9,8 @@ use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
 use App\Filament\Applicant\Pages\Dashboard;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
+use App\Filament\Pages\Auth\RequestPasswordReset;
+use App\Filament\Pages\Auth\ResetPassword;
 use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use App\Http\Middleware\EnsureStaffMfaIsEnabled;
 use App\Support\TalaPanelTheme;
@@ -64,7 +66,10 @@ class ApplicantPanelProvider extends PanelProvider
                     ->registration(fn (AuthPageConfig $config) => $config
                         ->usingPage(RegisterApplicant::class)
                     )
-                    ->passwordReset()
+                    ->passwordReset(fn (AuthPageConfig $config) => $config
+                        ->usingPage(RequestPasswordReset::class)
+                        ->usingResetPage(ResetPassword::class)
+                    )
                     ->emailVerification(fn (AuthPageConfig $config) => $config
                         ->usingPage(ApplicantEmailVerification::class)
                     )
@@ -110,6 +115,8 @@ class ApplicantPanelProvider extends PanelProvider
             ->url(fn (): string => $component === Application::class
                 ? Application::getNavigationUrl()
                 : $component::getUrl(panel: 'applicant'))
-            ->isActiveWhen(fn (): bool => request()->routeIs($routeName));
+            ->isActiveWhen(fn (): bool => $component === Application::class
+                ? request()->routeIs($routeName, 'filament.applicant.pages.requirements', 'filament.applicant.pages.submission-receipt')
+                : request()->routeIs($routeName));
     }
 }

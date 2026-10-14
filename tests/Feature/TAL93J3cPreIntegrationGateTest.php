@@ -51,7 +51,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         sort($pages);
 
         $this->assertSame([], $resources);
-        $this->assertSame(['Application', 'Dashboard', 'Requirements'], $pages);
+        $this->assertSame(['Application', 'Dashboard', 'Requirements', 'SubmissionReceipt'], $pages);
         $this->assertSame(['Application', 'Dashboard'], $navigation);
     }
 

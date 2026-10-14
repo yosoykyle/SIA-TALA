@@ -3,7 +3,9 @@
 namespace App\Support;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Applicant\Pages\Application as ApplicantApplication;
 use App\Filament\Components\AccessibleSidebar;
+use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Enums\GlobalSearchPosition;
@@ -85,7 +87,7 @@ class TalaPanelTheme
             ->sidebarCollapsibleOnDesktop()
             ->sidebarWidth('17rem')
             ->sidebarLivewireComponent(AccessibleSidebar::class)
-            ->renderHook(PanelsRenderHook::HEAD_END, fn (): HtmlString => new HtmlString(self::isApplicantPanel($panel) ? '<script src="'.e(asset('js/tala-wizard.js')).'"></script>' : ''))
+            ->renderHook(PanelsRenderHook::HEAD_END, fn (): HtmlString => new HtmlString('<script src="'.e(asset('js/tala-wizard.js')).'"></script>'), scopes: [ApplicantApplication::class, AssistedAdmissionApplication::class])
             ->renderHook(PanelsRenderHook::BODY_START, fn (): View => view('filament.components.skip-link'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.content-anchor'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.form-accessibility'))

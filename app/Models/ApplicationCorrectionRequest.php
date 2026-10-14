@@ -36,6 +36,9 @@ class ApplicationCorrectionRequest extends Model
         'requested_at',
         'completed_at',
         'supersedes_correction_request_id',
+        'source_submission_version_id',
+        'target_requirement_set_id',
+        'target_application_path',
     ];
 
     /** @var array<string, mixed> */
@@ -51,6 +54,8 @@ class ApplicationCorrectionRequest extends Model
             'due_at' => 'datetime',
             'requested_at' => 'datetime',
             'completed_at' => 'datetime',
+            'source_submission_version_id' => 'integer',
+            'target_requirement_set_id' => 'integer',
         ];
     }
 
@@ -87,5 +92,19 @@ class ApplicationCorrectionRequest extends Model
     public function isOverdue(): bool
     {
         return $this->state === self::StateActive && $this->due_at->isPast();
+    }
+
+    public function changesStudentType(): bool
+    {
+        return $this->target_application_path !== null;
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (self $request): void {
+            if ($request->isDirty(['source_submission_version_id', 'target_requirement_set_id', 'target_application_path'])) {
+                throw new \LogicException('The confirmed Student type correction source is immutable.');
+            }
+        });
     }
 }

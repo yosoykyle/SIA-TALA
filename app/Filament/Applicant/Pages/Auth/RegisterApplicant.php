@@ -94,12 +94,12 @@ class RegisterApplicant extends Register
 
     public function getTitle(): string|Htmlable
     {
-        return 'Create Applicant Account';
+        return 'Create your applicant account';
     }
 
     public function getHeading(): string|Htmlable|null
     {
-        return 'Create Applicant Account';
+        return 'Create your applicant account';
     }
 
     public function getRegisterFormAction(): Action

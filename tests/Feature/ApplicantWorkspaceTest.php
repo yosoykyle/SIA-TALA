@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Filament\Applicant\Pages\Application;
-use App\Filament\Applicant\Pages\Dashboard;
+use App\Filament\Applicant\Pages\Requirements;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
@@ -73,29 +73,6 @@ class ApplicantWorkspaceTest extends TestCase
             ->assertSee(Application::getUrl(), false);
     }
 
-    public function test_application_page_exposes_the_five_step_journey_and_partial_draft_action(): void
-    {
-        $source = file_get_contents(app_path('Filament/Applicant/Pages/Application.php'));
-        $view = file_get_contents(resource_path('views/filament/applicant/pages/application.blade.php'));
-
-        $this->assertIsString($source);
-        $this->assertIsString($view);
-        foreach ([
-            'Choice',
-            'Identity and contact',
-            'Education',
-            'Review copies',
-            'Review and submit',
-        ] as $step) {
-            $this->assertStringContainsString("Step::make('{$step}')", $source);
-        }
-        $this->assertStringContainsString('Unsaved changes.', $view);
-        $this->assertStringContainsString("Action::make('saveAndExit')", $source);
-        $this->assertStringContainsString('Submit application', file_get_contents(
-            resource_path('views/filament/applicant/components/application-submit-action.blade.php'),
-        ));
-    }
-
     public function test_draft_has_no_version_bound_requirement_set_yet(): void
     {
         $user = $this->applicant();
@@ -135,7 +112,7 @@ class ApplicantWorkspaceTest extends TestCase
             $application->forceFill(['application_state' => $state])->save();
             $expected = in_array($state, [AdmissionApplication::StateDraft, AdmissionApplication::StateActionNeeded], true)
                 ? Application::getUrl(['application' => $application->id])
-                : Dashboard::getUrl(['application' => $application->id]);
+                : Requirements::getUrl(['application' => $application->id]);
             $this->assertSame($expected, Application::getNavigationUrl());
             $this->get('/applicant')->assertOk()->assertSee('href="'.$expected.'"', false);
         }
@@ -182,10 +159,20 @@ class ApplicantWorkspaceTest extends TestCase
         $this->actingAs($user)
             ->get('/applicant/requirements')
             ->assertOk()
-            ->assertSee('Digital review copies')
-            ->assertSee('Registrar enrollment clearance')
+            ->assertSee('Review copies')
+            ->assertSee('Physical credentials are checked after admission.')
+            ->assertDontSee('Registrar enrollment clearance')
             ->assertSee('Form 138 or equivalent')
             ->assertDontSee('Blocks Handover');
+
+        $application->update(['application_state' => AdmissionApplication::StateAdmitted]);
+
+        $this->get('/applicant/requirements')
+            ->assertOk()
+            ->assertSee('Review copies')
+            ->assertSee('Registrar enrollment clearance')
+            ->assertSee('The Registrar checks your physical credentials')
+            ->assertSee('Awaiting current Registrar clearance');
     }
 
     private function applicant(): User

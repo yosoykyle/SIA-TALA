@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Admissions\AdmissionEvidenceService;
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Actions\Admissions\RecordAdmissionDecision;
 use App\Actions\Admissions\RecordRegistrarEnrollmentClearance;
@@ -12,6 +13,8 @@ use App\Actions\Admissions\SubmitAdmissionApplication;
 use App\Filament\Applicant\Pages\Application;
 use App\Filament\Applicant\Pages\Dashboard;
 use App\Filament\Applicant\Pages\Requirements;
+use App\Filament\Applicant\Pages\SubmissionReceipt;
+use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
@@ -39,6 +42,7 @@ use Carbon\CarbonImmutable;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Hidden;
 use Filament\Schemas\Components\Wizard;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -48,6 +52,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -62,6 +67,34 @@ class Issue57AdmissionsPresentationTest extends TestCase
         parent::setUp();
         Role::findOrCreate('applicant', 'web');
         Role::findOrCreate(User::StaffRoleRegistrar, 'web')->givePermissionTo(Permission::findOrCreate('approve-documents', 'web'));
+    }
+
+    #[TestWith(['applicant'])]
+    #[TestWith(['admin'])]
+    public function test_application_wizards_load_the_shared_script_once_before_initialization(string $panelId): void
+    {
+        [$application, $applicant] = $this->editableDraft();
+        Filament::setCurrentPanel(Filament::getPanel($panelId));
+        $actor = $panelId === 'applicant' ? $applicant : $this->registrar();
+        if ($panelId === 'admin') {
+            $actor->saveAppAuthenticationSecret('base32secret3232');
+            $actor->acknowledgeRecoveryCodeStorage();
+            activity()
+                ->performedOn($application)
+                ->causedBy($actor)
+                ->event('admission_assisted_draft_saved')
+                ->withProperties(['reason' => 'Applicant requested help entering the draft.'])
+                ->log('Registrar assisted with the Application Draft.');
+        }
+        $url = $panelId === 'applicant'
+            ? Application::getUrl(['application' => $application->id])
+            : AssistedAdmissionApplication::getUrl(['applicant' => $applicant->id, 'application' => $application->id]);
+
+        $response = $this->actingAs($actor)->get($url)->assertOk();
+
+        $script = '<script src="'.e(asset('js/tala-wizard.js')).'"></script>';
+        $this->assertSame(1, substr_count($response->getContent(), $script));
+        $response->assertSeeInOrder([$script, '</head>', 'window.talaResumableWizard('], false);
     }
 
     public function test_relevant_states_have_consistent_responsible_parties_across_roles(): void
@@ -121,6 +154,8 @@ class Issue57AdmissionsPresentationTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
         $component = Livewire::actingAs($applicant)->test(Requirements::class, ['sourceApplicationId' => $application->id]);
         $component->assertDontSee('Open Application to replace only this evidence item.');
+        $this->assertSame('', $component->instance()->preliminaryRows($application->fresh())[0]['instruction']);
+        $this->assertSame('gray', $component->instance()->resultColor('AwaitingReview'));
         $registrar = $this->registrar();
         app(RequestAdmissionCorrection::class)->execute($application, $registrar, [[
             'type' => ApplicationCorrectionItem::ScopeEvidence, 'key' => $requirement->code, 'admission_requirement_id' => $requirement->id,
@@ -139,7 +174,8 @@ class Issue57AdmissionsPresentationTest extends TestCase
         [$application, $applicant] = $this->application();
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
         Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
-            ->assertRedirect(Dashboard::getUrl(['application' => $application->id]));
+            ->assertRedirect(Requirements::getUrl(['application' => $application->id]));
+        $this->assertSame(Requirements::getUrl(['application' => $application->id]), Application::getNavigationUrl());
         $outsider = User::factory()->create(['status' => User::StatusActive]);
         $outsider->assignRole('applicant');
         $this->actingAs($outsider)->get(Application::getUrl(['application' => $application->id]))->assertNotFound();
@@ -221,10 +257,53 @@ class Issue57AdmissionsPresentationTest extends TestCase
         }
     }
 
-    public function test_graduation_year_errors_are_attached_to_the_year_field(): void
+    #[TestWith(['applicant'])]
+    #[TestWith(['admin'])]
+    public function test_transferee_qualification_is_shown_without_a_choice_and_saved_by_both_wizards(string $panelId): void
+    {
+        [$application, $applicant] = $this->editableDraft();
+        $application->update(['application_path' => AdmissionApplication::PathTransferee, 'credential_basis' => null, 'prior_school_completion_year' => null]);
+        AdmissionRequirementSet::factory()->published()->create([
+            'admission_cycle_id' => $application->admission_cycle_id,
+            'application_path' => AdmissionApplication::PathTransferee,
+        ]);
+        Filament::setCurrentPanel(Filament::getPanel($panelId));
+        $actor = $panelId === 'applicant' ? $applicant : $this->registrar();
+        if ($panelId === 'admin') {
+            activity()->performedOn($application)->causedBy($actor)
+                ->event('admission_assisted_draft_saved')
+                ->withProperties(['reason' => 'Applicant requested help preparing the transfer draft.'])
+                ->log('Registrar assisted with the Application Draft.');
+        }
+        $page = Livewire::withQueryParams(['applicant' => $applicant->id, 'application' => $application->id])
+            ->actingAs($actor)
+            ->test($panelId === 'applicant' ? Application::class : AssistedAdmissionApplication::class,
+                ['sourceApplicationId' => $application->id]);
+
+        $page->assertFormFieldHidden('credential_basis')
+            ->assertSee('Transfer credentials are documents from your previous college supporting your transfer application.')
+            ->assertSet('data.credential_basis', AdmissionApplication::CredentialTransfer);
+        $this->assertFalse($page->instance()->form->getComponentByStatePath('prior_school_completion_year')->isRequired());
+        $this->assertNotContains('Graduation year: ', $page->instance()->form->getComponentByStatePath('review_education')->getState());
+        $this->assertSame('Transfer credentials (from another college)',
+            $page->instance()->form->getComponentByStatePath('transfer_admission_qualification')->getState());
+        $page->call('saveDraft')->assertHasNoFormErrors()->assertSet('saveStatus', 'saved');
+        $this->assertSame(AdmissionApplication::CredentialTransfer, $application->fresh()->credential_basis);
+        $this->assertNull($application->fresh()->prior_school_completion_year);
+        $this->assertSame(5, (new \ReflectionMethod($page->instance(), 'resumeStep'))->invoke($page->instance()));
+
+        $page->set('data.credential_basis', 'UNSUPPORTED_QUALIFICATION')
+            ->call('saveDraft')->assertHasFormErrors(['credential_basis'])->assertSet('saveStatus', 'failed');
+        $this->assertSame(AdmissionApplication::CredentialTransfer, $application->fresh()->credential_basis);
+        $this->assertSame(0, $application->submissionVersions()->count());
+    }
+
+    #[TestWith([AdmissionApplication::PathFirstYear, AdmissionApplication::CredentialSeniorHighSchool])]
+    #[TestWith([AdmissionApplication::PathTransferee, AdmissionApplication::CredentialTransfer])]
+    public function test_graduation_year_errors_are_attached_to_the_year_field(string $path, string $credential): void
     {
         [$application, $applicant] = $this->application();
-        $application->update(['application_state' => AdmissionApplication::StateDraft]);
+        $application->update(['application_state' => AdmissionApplication::StateDraft, 'application_path' => $path, 'credential_basis' => $credential]);
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
         foreach (['20x5', (string) (now('Asia/Manila')->year + 1)] as $year) {
             Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
@@ -359,7 +438,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
     public function test_closed_or_cancelled_owned_draft_is_read_only_even_when_another_cycle_is_open(): void
     {
         foreach ([AdmissionCycle::StatePublished, AdmissionCycle::StateCancelled] as $state) {
-            [$application, $applicant] = $this->application(submitted: false);
+            [$application, $applicant, $requirement] = $this->application(submitted: false);
             $application->admissionCycle->update(['state' => $state, 'closes_at' => now()->subMinute()]);
             AdmissionCycle::factory()->published()->create(['term_id' => $application->term_id, 'opens_at' => now()->subDay(), 'closes_at' => now()->addDay()]);
             Filament::setCurrentPanel(Filament::getPanel('applicant'));
@@ -370,9 +449,11 @@ class Issue57AdmissionsPresentationTest extends TestCase
             $this->assertFalse($wizard->getNextAction()->isDisabled());
             $this->assertFalse($wizard->getPreviousAction()->isDisabled());
             $this->assertTrue($page->instance()->form->getComponentByStatePath('first_name')->isDisabled());
-            $this->assertTrue($page->instance()->form->getComponentByStatePath('admission_cycle_id')->isDisabled());
+            $this->assertTrue($page->instance()->form->getComponentByStatePath('evidence.'.$requirement->id)->isDisabled());
+            $this->assertInstanceOf(Hidden::class, $page->instance()->form->getComponentByStatePath('admission_cycle_id'));
             $page->assertActionVisible('discardDraft')
-                ->assertSee('Saving, uploading, and first submission are unavailable')
+                ->assertSee('This draft is read-only')
+                ->assertSee('You can view or discard your draft.')
                 ->assertDontSee('Save partial work at any step.');
             $page->assertActionDisabled('saveAndExit');
             $facts = $application->fresh()->getAttributes();
@@ -400,7 +481,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertTrue($page->instance()->submissionIsAvailable());
         $this->assertFalse($page->instance()->form->getComponentByStatePath('phone')->isDisabled());
         $this->assertTrue($page->instance()->form->getComponentByStatePath('first_name')->isDisabled());
-        $page->assertSee('Correction overdue')->assertSee('Correct the phone.');
+        $page->assertSee('Corrections are still open')->assertSee('Correct the phone.');
     }
 
     public function test_submitted_primary_promotes_decision_after_current_reviews_and_identity_resolution(): void
@@ -480,6 +561,33 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-10-04 00:30:00', 'Asia/Manila'));
         $adult = Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id]);
         $this->assertFalse($adult->instance()->form->getComponentByStatePath('guardian_full_name')->isRequired());
+    }
+
+    public function test_guardian_requiredness_updates_with_birth_date_and_partial_adult_contact(): void
+    {
+        [$application, $applicant] = $this->application(submitted: false);
+        $application->update(['first_name' => null, 'guardian_full_name' => null, 'guardian_relationship' => null, 'guardian_mobile' => null]);
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $page = Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
+            ->fillForm(['first_name' => 'Synthetic applicant', 'birth_date' => now('Asia/Manila')->subYears(17)->format('Y-m-d')]);
+
+        foreach (['guardian_full_name', 'guardian_relationship', 'guardian_mobile'] as $field) {
+            $this->assertTrue($page->instance()->form->getComponentByStatePath($field)->isRequired());
+        }
+        $page->goToNextWizardStep()->assertHasFormErrors([
+            'guardian_full_name' => 'required', 'guardian_relationship' => 'required', 'guardian_mobile' => 'required',
+        ]);
+
+        $page->fillForm(['birth_date' => now('Asia/Manila')->subYears(18)->format('Y-m-d')]);
+        foreach (['guardian_full_name', 'guardian_relationship', 'guardian_mobile'] as $field) {
+            $this->assertFalse($page->instance()->form->getComponentByStatePath($field)->isRequired());
+        }
+        $page->fillForm(['guardian_full_name' => 'Synthetic emergency contact']);
+        foreach (['guardian_full_name', 'guardian_relationship', 'guardian_mobile'] as $field) {
+            $this->assertTrue($page->instance()->form->getComponentByStatePath($field)->isRequired());
+        }
+        $page->goToNextWizardStep()->assertHasFormErrors(['guardian_relationship' => 'required', 'guardian_mobile' => 'required']);
+        $this->assertNull($application->fresh()->guardian_full_name);
     }
 
     public function test_native_wizard_saves_identity_before_advancing_without_submitting(): void
@@ -646,7 +754,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertModelExists($application);
     }
 
-    public function test_stale_submit_returns_to_the_owned_recorded_version_without_another_submission(): void
+    public function test_stale_submit_preserves_the_owned_source_without_claiming_this_attempt_succeeded(): void
     {
         [$application, $applicant, $requirement] = $this->editableDraft();
         DocumentEvidence::factory()->canonical($application, $requirement)->create();
@@ -662,8 +770,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
             'current_submission_version_id' => $version->id,
         ]);
 
-        $page->call('submitApplication')->assertSet('saveStatus', 'saved')
-            ->assertRedirect(Dashboard::getUrl(['application' => $application->id]));
+        $page->call('submitApplication')->assertSet('saveStatus', 'failed')->assertNoRedirect();
 
         $this->assertSame($version->id, $application->fresh()->current_submission_version_id);
         $this->assertSame(1, $application->submissionVersions()->count());
@@ -679,19 +786,16 @@ class Issue57AdmissionsPresentationTest extends TestCase
     public function test_submit_failure_reports_the_authoritative_commit_outcome(bool $recorded): void
     {
         [$application, $applicant, $requirement] = $this->editableDraft();
-        DocumentEvidence::factory()->canonical($application, $requirement)->create();
+        Storage::fake('local');
+        $evidence = DocumentEvidence::factory()->canonical($application, $requirement)->create([
+            'path' => "admission-applications/{$application->id}/requirements/{$requirement->id}/synthetic-recovery.pdf",
+        ]);
+        Storage::disk('local')->put($evidence->path, "%PDF-1.4\nsynthetic recorded recovery\n%%EOF");
+        $submit = app(SubmitAdmissionApplication::class);
         $this->mock(SubmitAdmissionApplication::class)
-            ->shouldReceive('execute')->once()->andReturnUsing(function () use ($application, $applicant, $requirement, $recorded): never {
+            ->shouldReceive('execute')->once()->andReturnUsing(function (...$arguments) use ($submit, $recorded): never {
                 if ($recorded) {
-                    $version = ApplicationSubmissionVersion::factory()->create([
-                        'admission_application_id' => $application->id,
-                        'admission_requirement_set_id' => $requirement->admission_requirement_set_id,
-                        'submitted_by' => $applicant->id,
-                    ]);
-                    $application->update([
-                        'application_state' => AdmissionApplication::StateSubmitted,
-                        'current_submission_version_id' => $version->id,
-                    ]);
+                    $submit->execute(...$arguments);
                 }
 
                 throw new RuntimeException('Synthetic submission boundary failure');
@@ -703,13 +807,43 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
         if ($recorded) {
             $page->assertSet('saveStatus', 'saved')
-                ->assertRedirect(Dashboard::getUrl(['application' => $application->id]));
+                ->assertRedirect(SubmissionReceipt::getUrl(['application' => $application->id, 'version' => $application->fresh()->current_submission_version_id]));
             $this->assertSame(1, $application->submissionVersions()->count());
         } else {
             $page->assertSet('saveStatus', 'failed')->assertNoRedirect()->assertNotDispatched('draft-saved');
             $this->assertNull($application->fresh()->current_submission_version_id);
             $this->assertSame(0, $application->submissionVersions()->count());
         }
+    }
+
+    public function test_success_receipt_stays_on_this_calls_source_when_another_tab_commits_a_later_version(): void
+    {
+        [$application, $applicant, $requirement] = $this->editableDraft();
+        Storage::fake('local');
+        $evidence = DocumentEvidence::factory()->canonical($application, $requirement)->create([
+            'path' => "admission-applications/{$application->id}/requirements/{$requirement->id}/synthetic-receipt-race.pdf",
+        ]);
+        Storage::disk('local')->put($evidence->path, "%PDF-1.4\nsynthetic receipt race\n%%EOF");
+        $submit = app(SubmitAdmissionApplication::class);
+        $ownVersionId = null;
+        $this->mock(SubmitAdmissionApplication::class)->shouldReceive('execute')->once()->andReturnUsing(
+            function (...$arguments) use ($submit, $applicant, &$ownVersionId): AdmissionApplication {
+                $committed = $submit->execute(...$arguments);
+                $ownVersionId = $committed->current_submission_version_id;
+                app()->instance(SubmitAdmissionApplication::class, $submit);
+                app(SaveAdmissionApplication::class)->execute($applicant, $committed->admissionCycle,
+                    ['first_name' => 'Later tab facts', 'accuracy_declared' => true], $committed->fresh());
+
+                return $committed;
+            },
+        );
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $page = Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
+            ->fillForm(['privacy_acknowledged' => true, 'accuracy_declared' => true])->call('submitApplication')->assertHasNoFormErrors();
+        $this->assertNotNull($ownVersionId);
+        $this->assertNotSame($ownVersionId, $application->fresh()->current_submission_version_id);
+        $page->assertRedirect(SubmissionReceipt::getUrl(['application' => $application->id, 'version' => $ownVersionId]));
+        $this->assertSame(2, $application->submissionVersions()->count());
     }
 
     public function test_recorded_submit_recovery_does_not_accept_another_owners_source(): void
@@ -876,7 +1010,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
     public function test_correction_form_reopens_named_fields_and_evidence_requirements_and_clears_primary_action(): void
     {
-        [$application, , $requirement] = $this->application();
+        [$application, $applicant, $requirement] = $this->application();
         $registrar = $this->registrar();
         $due = now()->timezone(config('app.display_timezone'))->addDay()->startOfMinute();
 
@@ -902,6 +1036,19 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $waitingComponent = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
         $headerActions = $waitingComponent->instance()->getCachedHeaderActions();
         $this->assertInstanceOf(ActionGroup::class, $headerActions[0]);
+
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $page = Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
+            ->assertWizardCurrentStep(2)->assertSee($activeRequest->applicant_instruction)
+            ->assertSee(route('home').'#support', false);
+        $this->assertSame('Correction requested', $page->instance()->form->getComponentByStatePath('phone')->getHint());
+        $this->assertSame('Correction requested', $page->instance()->form->getComponentByStatePath('evidence.'.$requirement->id)->getHint());
+        $this->assertFalse($page->instance()->form->getComponentByStatePath('phone')->isDisabled());
+        $this->assertTrue($page->instance()->form->getComponentByStatePath('guardian_full_name')->isDisabled());
+        $steps = $page->instance()->correctionSteps();
+        $this->assertContains('Mobile number', $steps[2]['items']);
+        $this->assertContains('First name', $steps[2]['items']);
+        $this->assertSame([$requirement->label], $steps[4]['items']);
     }
 
     public function test_record_decision_blocks_admitted_when_preliminary_review_is_incomplete(): void
@@ -1304,7 +1451,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
             $setupRegistrar->assignRole(User::StaffRoleRegistrar);
             $setupRegistrar->givePermissionTo(Permission::findOrCreate('manage-admission-setup', 'web'));
 
-            [$application] = $this->application();
+            [$application] = $this->application(reviewed: false);
 
             Filament::setCurrentPanel(Filament::getPanel('admin'));
             Livewire::actingAs($setupRegistrar)->test(ListAdmissionApplications::class)->assertForbidden();
@@ -1327,6 +1474,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         }
 
         $authorizedRegistrar = $this->registrar();
+        app(AdmissionReviewGuard::class)->start($application->fresh(), $authorizedRegistrar, $application->current_submission_version_id);
 
         // Authorized registrar compatibility HTTP routes preserve query parameters on redirect
         $this->actingAs($authorizedRegistrar)->get('/admin/admission-applications?queue=needs_review')
@@ -1585,7 +1733,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
     }
 
     /** @return array{AdmissionApplication, User, AdmissionRequirement} */
-    private function application(bool $preDecision = false, bool $submitted = true, bool $withPaperRequirement = false): array
+    private function application(bool $preDecision = false, bool $submitted = true, bool $withPaperRequirement = false, bool $reviewed = true): array
     {
         $applicant = User::factory()->create(['status' => User::StatusActive]);
         $applicant->assignRole('applicant');
@@ -1604,6 +1752,9 @@ class Issue57AdmissionsPresentationTest extends TestCase
         if ($submitted) {
             $version = ApplicationSubmissionVersion::factory()->create(['admission_application_id' => $application->id, 'admission_requirement_set_id' => $set->id, 'submitted_by' => $applicant->id]);
             $application->update(['current_submission_version_id' => $version->id]);
+            if ($reviewed) {
+                app(AdmissionReviewGuard::class)->start($application->fresh(), $this->registrar(), $version->id);
+            }
         }
 
         return [$application->fresh(), $applicant, $requirement];

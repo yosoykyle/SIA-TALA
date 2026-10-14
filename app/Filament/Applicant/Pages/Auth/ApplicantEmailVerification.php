@@ -65,7 +65,7 @@ class ApplicantEmailVerification extends EmailVerification
 
     public function getHeading(): string|Htmlable|null
     {
-        return 'Verify your Applicant account';
+        return 'Verify your email address';
     }
 
     public function content(Schema $schema): Schema

@@ -74,7 +74,18 @@
                         <h1 class="display-headline" id="hero-title">Servitech<br>Institute Asia Inc.</h1>
                         <p class="hero-lead">Explore the school’s programs, find admission information, and plan your visit to Servitech.</p>
                         <div class="hero-actions">
-                            <a class="btn btn-primary-custom" href="#programs">
+                            @if ($applicantEntryReady)
+                                <a class="btn btn-primary-custom" href="{{ route('public.apply') }}">
+                                    <span>Apply</span>
+                                    <x-filament::icon icon="heroicon-o-arrow-right" class="tala-public-icon" aria-hidden="true" />
+                                </a>
+                            @else
+                                <a class="btn btn-primary-custom" href="#admission-status-title">
+                                    <span>View admission information</span>
+                                    <x-filament::icon icon="heroicon-o-arrow-down" class="tala-public-icon" aria-hidden="true" />
+                                </a>
+                            @endif
+                            <a class="btn btn-hero-quiet" href="#programs">
                                 <span>Explore programs</span>
                                 <x-filament::icon icon="heroicon-o-arrow-down" class="tala-public-icon" aria-hidden="true" />
                             </a>
@@ -112,10 +123,12 @@
                                             Ask Admissions about applying
                                         @endif
                                     </h2>
-                                    @if ($admissionCycle)
+                                    @if ($admissionCycle && $openIntakeCount <= 1)
                                         <p class="admission-paths">{{ implode(' and ', $admissionCycle['paths']) }}</p>
                                     @endif
-                                    @if ($admissionState === 'Unavailable')
+                                    @if ($openIntakeCount > 1)
+                                        <p>Choose a Program and Student type to see your intake and deadline.</p>
+                                    @elseif ($admissionState === 'Unavailable')
                                         <p>Contact Admissions for current availability.</p>
                                     @elseif ($admissionState === 'Missing')
                                         <p>Contact Admissions about applying. Existing accounts can still sign in.</p>
@@ -126,7 +139,7 @@
                                     @endif
                                 </div>
 
-                                @if ($admissionCycle)
+                                @if ($admissionCycle && $openIntakeCount <= 1)
                                     <dl class="admission-deadline">
                                         <dt>
                                             <x-filament::icon icon="heroicon-o-calendar-days" class="tala-public-icon" aria-hidden="true" />
@@ -138,16 +151,16 @@
 
                                 <div class="admission-entry">
                                     @if ($applicantEntryReady)
-                                        <a class="btn btn-hero-solid" href="{{ route('filament.applicant.auth.register') }}">
+                                        <a class="btn btn-hero-solid" href="{{ route('public.apply') }}">
                                             <x-filament::icon icon="heroicon-o-user-plus" class="tala-public-icon" aria-hidden="true" />
                                             <span>Apply</span>
                                         </a>
                                         <p class="hero-availability">Create an Applicant account first.</p>
                                     @endif
                                     <div class="admission-links">
-                                        <a class="hero-inline-link" href="#application-status">
+                                        <a class="hero-inline-link" href="{{ route('filament.admin.auth.login') }}">
                                             <x-filament::icon icon="heroicon-o-magnifying-glass" class="tala-public-icon" aria-hidden="true" />
-                                            <span>Already applied? Check status</span>
+                                            <span>Sign in for application updates</span>
                                         </a>
                                         <button type="button" class="hero-inline-link" data-bs-toggle="modal" data-bs-target="#supportModal">
                                             <x-filament::icon icon="heroicon-o-chat-bubble-left-right" class="tala-public-icon" aria-hidden="true" />
@@ -232,6 +245,48 @@
                         <span>Ask about admissions</span>
                     </button>
                 </div>
+                @if (count($programDurations) > 0 && ! in_array('programs', $unavailable, true))
+                <form class="program-filters" method="GET" action="{{ route('home') }}#programs" aria-label="Filter Programs">
+                    <div>
+                        <label class="form-label" for="program-duration">Program length</label>
+                        <select class="form-select" id="program-duration" name="duration">
+                            <option value="">All lengths</option>
+                            @foreach ($programDurations as $duration)
+                                <option value="{{ $duration }}" @selected(($programFilters['duration'] ?? null) === $duration)>{{ $duration }} {{ Str::plural('year', $duration) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="program-availability">Admission availability</label>
+                        <select class="form-select" id="program-availability" name="availability">
+                            <option value="">All Programs</option>
+                            <option value="open" @selected(($programFilters['availability'] ?? null) === 'open')>Applications open</option>
+                            <option value="enquire" @selected(($programFilters['availability'] ?? null) === 'enquire')>Ask Admissions</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary-custom" type="submit">Filter Programs</button>
+                    @if ($programFilters !== [])
+                        <a class="text-link" href="{{ route('home') }}#programs">Clear filters</a>
+                    @endif
+                </form>
+                @endif
+                @if ($selectedProgram)
+                    @php($selectedIsAccepting = in_array($selectedProgram->id, $acceptingProgramIds, true))
+                    <article class="program-detail" aria-labelledby="program-detail-title">
+                        <a class="text-link" href="{{ route('home', $programFilters) }}#programs">Back to filtered Programs</a>
+                        <h3 id="program-detail-title">{{ $selectedProgram->name }}</h3>
+                        <dl class="program-facts">
+                            <div class="program-fact"><dt>Program length:&nbsp;</dt><dd>{{ $selectedProgram->duration_years }} {{ Str::plural('year', $selectedProgram->duration_years) }}</dd></div>
+                            <div class="program-fact"><dt>Admission:&nbsp;</dt><dd>{{ $selectedIsAccepting ? 'Applications open' : 'Ask Admissions about applying' }}</dd></div>
+                        </dl>
+                        <p>Contact Admissions for course and qualification details and the requirements for your Student type.</p>
+                        @if ($selectedIsAccepting && $applicantEntryReady)
+                            <a class="btn btn-primary-custom" href="{{ route('public.apply', ['program' => $selectedProgram->id]) }}">Apply for {{ $selectedProgram->name }}</a>
+                        @else
+                            <button class="btn btn-secondary-custom" type="button" data-bs-toggle="modal" data-bs-target="#supportModal">Contact Admissions</button>
+                        @endif
+                    </article>
+                @else
                 <ul class="program-list list-unstyled mb-0">
                     @forelse ($programs as $program)
                         @php($isAccepting = in_array($program->id, $acceptingProgramIds, true))
@@ -254,14 +309,16 @@
                                     </dd>
                                 </div>
                             </dl>
+                            <a class="text-link program-read-more" href="{{ route('home', [...$programFilters, 'program' => $program->id]) }}#programs">Read more<span class="visually-hidden"> about {{ $program->name }}</span></a>
                         </li>
                     @empty
                         <li class="program-empty">
                             <x-filament::icon icon="heroicon-o-information-circle" class="tala-public-icon" aria-hidden="true" />
-                            <span>{{ in_array('programs', $unavailable, true) ? 'Program information is temporarily unavailable. Contact Admissions for guidance.' : 'Contact Admissions for program information.' }}</span>
+                            <span>{{ in_array('programs', $unavailable, true) ? 'Program information is temporarily unavailable. Contact Admissions for guidance.' : ($programFilters !== [] ? 'No Programs match these filters. Clear filters to see the current Programs.' : 'Contact Admissions for program information.') }}</span>
                         </li>
                     @endforelse
                 </ul>
+                @endif
             </div>
         </section>
 
@@ -326,12 +383,6 @@
                                     <dd><address class="institution-address mb-0">{{ config('institution.address') }}</address></dd>
                                 </div>
                             @endif
-                            @if ($officialReferences['support_phone'])
-                                <div class="visit-fact">
-                                    <dt><x-filament::icon icon="heroicon-o-phone" class="tala-public-icon" aria-hidden="true" /> Call</dt>
-                                    <dd><a class="text-link" href="{{ $officialReferences['support_phone_uri'] }}">{{ $officialReferences['support_phone'] }}</a></dd>
-                                </div>
-                            @endif
                         </dl>
                         <div class="visit-actions">
                             @if ($officialReferences['map'])
@@ -365,58 +416,6 @@
             </div>
         </section>
 
-        <section class="section-block application-tracking" id="application-status" data-navbar-contrast-surface="theme" aria-labelledby="application-status-title">
-            <div class="container">
-                <div class="tracking-layout">
-                    <div class="tracking-intro">
-                        <h2 class="section-title" id="application-status-title">Check application status</h2>
-                        <p class="section-lead">Enter your application reference and account email. We send the status link privately to your verified email.</p>
-                        <p class="tracking-help">Lost your reference, or need to upload a copy or respond to a correction? <a class="text-link" href="{{ route('filament.admin.auth.login') }}">Sign in</a> to continue.</p>
-                        <button class="text-link" type="button" data-bs-toggle="modal" data-bs-target="#supportModal">Get help with application access</button>
-                    </div>
-                    <div class="tracking-form-panel">
-                        @if (session('tracking_status'))
-                            <div class="tracking-confirmation" role="status" tabindex="-1" data-tracking-confirmation>
-                                <x-filament::icon icon="heroicon-o-envelope-open" class="tala-public-icon" aria-hidden="true" />
-                                <div>
-                                    <p class="tracking-confirmation__title mb-1">{{ session('tracking_status') }}</p>
-                                    <p class="mb-0">If a link was sent, open the newest one within 15 minutes. Not in your inbox? Check your spam or junk folder.</p>
-                                </div>
-                            </div>
-                        @endif
-                        @if ($errors->hasAny(['reference', 'email']))
-                            <p class="tracking-error-summary" role="alert">
-                                <x-filament::icon icon="heroicon-o-exclamation-circle" class="tala-public-icon" aria-hidden="true" />
-                                <span>Check the highlighted {{ $errors->has('reference') && $errors->has('email') ? 'fields' : 'field' }}, then send the request again. Your entries are kept.</span>
-                            </p>
-                        @endif
-                        <form method="POST" action="{{ route('applications.status.request') }}" aria-label="Request application status link" data-tracking-form>
-                            @csrf
-                            <div class="row g-3">
-                                <div class="col-12">
-                                    <label for="tracking-reference" class="form-label">Application reference</label>
-                                    <input id="tracking-reference" name="reference" type="text" class="form-control tracking-reference-input @error('reference') is-invalid @enderror" @error('reference') aria-invalid="true" @enderror value="{{ old('reference') }}" required maxlength="40" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="APP-…" data-reference-input aria-describedby="tracking-reference-help @error('reference') tracking-reference-error @enderror">
-                                    <div id="tracking-reference-help" class="form-text">Starts with APP-. Find it on your submission receipt or confirmation email.</div>
-                                    @error('reference')<p id="tracking-reference-error" class="invalid-feedback">{{ $message }}</p>@enderror
-                                </div>
-                                <div class="col-12">
-                                    <label for="tracking-email" class="form-label">Account email</label>
-                                    <input id="tracking-email" name="email" type="email" class="form-control @error('email') is-invalid @enderror" @error('email') aria-invalid="true" @enderror value="{{ old('email') }}" required maxlength="255" inputmode="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" data-trim-input aria-describedby="tracking-email-help @error('email') tracking-email-error @enderror">
-                                    <div id="tracking-email-help" class="form-text">Use the verified email you sign in with.</div>
-                                    @error('email')<p id="tracking-email-error" class="invalid-feedback">{{ $message }}</p>@enderror
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary-custom tracking-submit mt-3" data-tracking-submit>
-                                <x-filament::icon icon="heroicon-o-envelope" class="tala-public-icon tracking-submit__icon" aria-hidden="true" />
-                                <span class="tracking-submit__spinner" aria-hidden="true"></span>
-                                <span data-tracking-submit-label>Email status link</span>
-                            </button>
-                            <p class="form-text mt-2 mb-0">The link expires 15 minutes after your request. Your reference alone cannot open your application.</p>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </section>
     </main>
 
     <footer class="footer-section" data-navbar-contrast-surface="dark">
@@ -446,9 +445,8 @@
                         <ul class="list-unstyled">
                             <li><a class="footer-link" href="{{ route('filament.admin.auth.login') }}">Sign in</a></li>
                             @if ($applicantEntryReady)
-                                <li><a class="footer-link" href="{{ route('filament.applicant.auth.register') }}">Create Applicant account</a></li>
+                                <li><a class="footer-link" href="{{ route('public.apply') }}">Create Applicant account</a></li>
                             @endif
-                            <li><a class="footer-link" href="#application-status">Check application status</a></li>
                         </ul>
                     </div>
                     <div class="footer-link-group">
@@ -472,7 +470,7 @@
     </footer>
 
     <div class="modal fade tala-info-modal" id="supportModal" tabindex="-1" aria-labelledby="supportModalTitle" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 class="modal-title h3" id="supportModalTitle">Support</h2>
@@ -501,7 +499,7 @@
     </div>
 
     <div class="modal fade tala-info-modal" id="privacyModal" tabindex="-1" aria-labelledby="privacyModalTitle" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 class="modal-title h3" id="privacyModalTitle">Privacy Notice</h2>
@@ -518,7 +516,7 @@
                     </ul>
                     <p>Account creation does not create an Application or Student record. Authorized TALA users and services may access account information only for their permitted tasks. TALA does not display your password and does not ask for application documents during registration.</p>
                     <h3 class="h5">Application status requests</h3>
-                    <p>When you request an application status link, TALA uses your application reference and account email to check eligibility and send a private link to the active, verified Applicant owner. The confirmation is the same whether or not the supplied details match. The short-lived access token is scoped to the application, owner and verified email and expires after 15 minutes. Opening it rechecks access and shows only safe status and next-step information.</p>
+                    <p>Application updates, requirements and corrections are available only through your signed-in Applicant account. Access to private application records and evidence is checked against the account and the authorized school role.</p>
                     <h3 class="h5">Questions and requests</h3>
                     <p class="mb-0">Use the Support information on this page for privacy questions or requests. Applicable institutional and legal review still governs retention, correction, access, and lawful disposal.</p>
                     <button type="button" class="btn btn-secondary-custom mt-3" data-bs-toggle="modal" data-bs-target="#supportModal">
@@ -531,7 +529,7 @@
     </div>
 
     <div class="modal fade tala-info-modal" id="accessibilityModal" tabindex="-1" aria-labelledby="accessibilityModalTitle" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 class="modal-title h3" id="accessibilityModalTitle">Accessibility</h2>

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admissions;
 
 use App\Actions\Admissions\AdmissionCycleReadinessService;
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\ChangeAdmissionCycle;
 use App\Actions\Admissions\RequestAdmissionCorrection;
 use App\Actions\Admissions\SaveAdmissionApplication;
@@ -294,12 +295,12 @@ class AdmissionCycleCorrectionBoundaryJourneyTest extends TestCase
 
         Livewire::actingAs($application->user)
             ->test(ApplicantApplicationPage::class)
-            ->assertSee('Correction overdue')
+            ->assertSee('Corrections are still open')
             ->assertSee($request->applicant_instruction);
         Livewire::actingAs($application->user)
             ->test(ApplicantRequirementsPage::class)
-            ->assertSee('Correction overdue')
-            ->assertSee('remains editable and resubmittable');
+            ->assertSee('Corrections are still open')
+            ->assertSee('You can still resubmit');
     }
 
     /** @param array<string, mixed> $cycleData @return array{AdmissionApplication, User} */
@@ -336,6 +337,8 @@ class AdmissionCycleCorrectionBoundaryJourneyTest extends TestCase
         $application->forceFill(['current_submission_version_id' => $submission->id])->save();
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
+
+        app(AdmissionReviewGuard::class)->start($application->fresh(), $registrar, $application->current_submission_version_id);
 
         return [$application->refresh(), $registrar];
     }

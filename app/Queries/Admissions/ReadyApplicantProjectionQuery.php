@@ -7,6 +7,7 @@ use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirement;
+use App\Models\ApplicationSubmissionVersion;
 use App\Models\Enrollment;
 use App\Models\IdentityMatchReview;
 use App\Models\PreliminaryEvidenceReview;
@@ -51,6 +52,18 @@ class ReadyApplicantProjectionQuery
             ->whereDoesntHave('successor')
             ->first();
         $blockers = [];
+        $snapshot = $currentSubmission instanceof ApplicationSubmissionVersion ? $currentSubmission->snapshot : [];
+
+        if ($currentSubmission?->admission_application_id !== $application->id
+            || $requirementSet?->admission_cycle_id !== $application->admission_cycle_id
+            || $requirementSet?->application_path !== $application->application_path
+            || $application->admissionCycle?->term_id !== $application->term_id
+            || (isset($snapshot['term_id']) && (int) $snapshot['term_id'] !== $application->term_id)
+            || (isset($snapshot['program_id']) && (int) $snapshot['program_id'] !== $application->program_id)) {
+            $blockers[] = $this->blocker('Submitted Application source', 'Registrar',
+                'The current submission, requirements or exact Term do not match this application.',
+                'Restore the matching application and intake source before enrollment can begin.');
+        }
 
         if (! $currentDecision instanceof AdmissionDecision
             || $currentDecision->decision !== AdmissionDecision::DecisionAdmitted
@@ -124,8 +137,8 @@ class ReadyApplicantProjectionQuery
             'requirement_set_id' => $requirementSet?->id,
             'credential_result_ids' => $credentialResultIds,
             'submission_version_id' => $currentSubmission?->id,
-            'clearance_id' => $matchesCurrentSource ? $clearance?->id : null,
-            'clearance_result' => $matchesCurrentSource ? $clearance?->result : null,
+            'clearance_id' => $matchesCurrentSource ? $clearance->id : null,
+            'clearance_result' => $matchesCurrentSource ? $clearance->result : null,
             'verified_identifiers' => [
                 'lrn' => $application->lrn,
                 'prior_college_identifier' => $application->prior_college_identifier,
@@ -164,13 +177,16 @@ class ReadyApplicantProjectionQuery
                 $evidence = $application->evidenceVersions()
                     ->where('admission_requirement_id', $requirement->id)->latest('id')->first();
 
-                return $evidence?->preliminaryReviews()->whereDoesntHave('successor')->first()?->result
+                return ($evidence === null ? null : $application->currentPreliminaryReview($evidence))?->result
                     === PreliminaryEvidenceReview::ResultAccepted;
             });
     }
 
     public function submittedNextAction(AdmissionApplication $application): string
     {
+        if (! $application->reviewHasStarted()) {
+            return 'Start review of the current submitted application.';
+        }
         if ($application->identityMatchReviews()->where('outcome', IdentityMatchReview::OutcomePending)->exists()) {
             return 'Resolve the current private identity warning.';
         }
@@ -216,16 +232,6 @@ class ReadyApplicantProjectionQuery
     /** @return array{available: bool, status: string, explanation: string, opens_at: ?CarbonImmutable, closes_at: ?CarbonImmutable} */
     public function enrollmentAvailability(AdmissionApplication $application): array
     {
-        if ($application->term_id === null) {
-            return [
-                'available' => false,
-                'status' => 'unavailable',
-                'explanation' => 'Term enrollment window is not available.',
-                'opens_at' => null,
-                'closes_at' => null,
-            ];
-        }
-
         $term = $application->term;
 
         if (! $term) {
@@ -236,6 +242,14 @@ class ReadyApplicantProjectionQuery
                 'opens_at' => null,
                 'closes_at' => null,
             ];
+        }
+
+        $otherCase = Enrollment::query()->where('credential_user_id', $application->user_id)
+            ->where('term_id', $application->term_id)->where(fn ($query) => $query->whereNull('admission_application_id')->orWhere('admission_application_id', '!=', $application->id))->first();
+        if ($otherCase instanceof Enrollment) {
+            return ['available' => false, 'status' => 'existing_case',
+                'explanation' => 'Your existing Registration Case for this Term uses another retained application. Open that case from application history or contact the Registrar.',
+                'opens_at' => null, 'closes_at' => null];
         }
 
         $package = $this->calendar->activePackage($term->id);

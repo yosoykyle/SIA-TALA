@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 class DetectAdmissionIdentityWarnings
 {
     /** @return list<IdentityMatchReview> */
-    public function forApplication(AdmissionApplication $application): array
+    public function forApplication(AdmissionApplication $application, bool $requireCurrentSourceReview = false): array
     {
         $warnings = [];
         $lrnCandidateUserIds = $this->verifiedLrnCandidateUserIds($application);
@@ -21,6 +21,7 @@ class DetectAdmissionIdentityWarnings
                 $application,
                 IdentityMatchReview::TypeVerifiedLrnCollision,
                 $candidateUserId,
+                $requireCurrentSourceReview,
             );
         }
 
@@ -33,6 +34,7 @@ class DetectAdmissionIdentityWarnings
                 $application,
                 IdentityMatchReview::TypeExactNameBirthDate,
                 $candidateUserId,
+                $requireCurrentSourceReview,
             );
         }
 
@@ -103,9 +105,12 @@ class DetectAdmissionIdentityWarnings
         AdmissionApplication $application,
         string $matchType,
         int $candidateUserId,
+        bool $requireCurrentSourceReview,
     ): IdentityMatchReview {
+        $sourceSuffix = $requireCurrentSourceReview ? ':source:'.$application->current_submission_version_id : '';
+
         return $application->identityMatchReviews()->firstOrCreate(
-            ['review_key' => "identity-warning:{$application->id}:{$matchType}:{$candidateUserId}"],
+            ['review_key' => "identity-warning:{$application->id}:{$matchType}:{$candidateUserId}{$sourceSuffix}"],
             [
                 'match_type' => $matchType,
                 'outcome' => IdentityMatchReview::OutcomePending,

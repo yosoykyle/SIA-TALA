@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admissions;
 
 use App\Actions\Admissions\AdmissionEvidenceService;
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Actions\Admissions\RequestAdmissionCorrection;
 use App\Actions\Admissions\ResolveAdmissionRequirementSet;
@@ -67,6 +68,7 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
         }
 
         $submitted = app(SubmitAdmissionApplication::class)->execute($draft, $applicant, $effectiveSet->id);
+        app(AdmissionReviewGuard::class)->start($submitted, $this->registrar(), $submitted->current_submission_version_id);
         app(RequestAdmissionCorrection::class)->execute(
             $submitted,
             $this->registrar(),
@@ -93,6 +95,7 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
             UploadedFile::fake()->image('initial.jpg', 10, 10)->size(20),
         );
         $submitted = app(SubmitAdmissionApplication::class)->execute($draft, $applicant, $set->id);
+        app(AdmissionReviewGuard::class)->start($submitted, $this->registrar(), $submitted->current_submission_version_id);
         $request = app(RequestAdmissionCorrection::class)->execute(
             $submitted,
             $this->registrar(),
@@ -183,6 +186,15 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
             ->test(ApplicantApplicationPage::class)
             ->assertSee('Step 1 of 5')
             ->assertSee('Step 5 of 5')
+            ->assertSee('Program and type')
+            ->assertSee('Identity and contact')
+            ->assertSee('Education')
+            ->assertSee('Review copies')
+            ->assertSee('Review and submit')
+            ->assertSee('Save your progress before leaving?')
+            ->assertSee('Leave without saving')
+            ->assertSee('Submit application')
+            ->assertActionVisible('saveAndExit')
             ->assertSeeHtml('x-bind:aria-current=')
             ->assertSee('Draft has not been saved yet.');
 
@@ -198,11 +210,16 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
             ->assertSeeHtml('startStep: 5');
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
         Livewire::withQueryParams(['applicant' => $applicant->id])
-            ->actingAs($this->registrar())
+            ->actingAs($registrar)
             ->test(AssistedAdmissionApplication::class)
             ->assertSee('The Applicant remains the owner.')
-            ->assertSee('Save Applicant Draft')
+            ->assertActionDisabled('saveAndExit')
+            ->assertDontSee('Submit application')
+            ->set('data.assistance_reason', 'Applicant requested help entering the draft.')
+            ->assertActionEnabled('saveAndExit')
+            ->assertSee('Save draft')
             ->assertDontSee('Submit application');
     }
 
@@ -235,13 +252,13 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
 
     public function test_scope_changes_bind_the_current_requirement_set_and_initialize_dynamic_evidence_state(): void
     {
-        [$cycle, , $requirementSet, $requirement] = $this->openCycle(withEvidence: true);
+        [$cycle, $program, $requirementSet, $requirement] = $this->openCycle(withEvidence: true);
         $applicant = $this->applicant();
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
 
         $component = Livewire::actingAs($applicant)
             ->test(ApplicantApplicationPage::class)
-            ->set('data.admission_cycle_id', $cycle->id)
+            ->set('data.program_id', $program->id)
             ->set('data.application_path', AdmissionApplication::PathFirstYear);
         $state = $component->get('data');
 

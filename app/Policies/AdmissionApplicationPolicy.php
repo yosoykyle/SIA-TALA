@@ -28,10 +28,12 @@ class AdmissionApplicationPolicy
     public function update(User $user, AdmissionApplication $application): bool
     {
         return $application->user_id === $user->id
-            && in_array($application->application_state, [
+            && $user->hasRole('applicant')
+            && $user->canAuthenticate()
+            && (in_array($application->application_state, [
                 AdmissionApplication::StateDraft,
                 AdmissionApplication::StateActionNeeded,
-            ], true);
+            ], true) || $application->allowsSubmittedEdit());
     }
 
     public function review(User $user, AdmissionApplication $application): bool

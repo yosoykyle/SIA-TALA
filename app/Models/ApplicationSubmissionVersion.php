@@ -10,7 +10,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use LogicException;
 
-/** @property Carbon $submitted_at */
+/**
+ * @property Carbon $submitted_at
+ * @property array<string, mixed> $snapshot
+ */
 class ApplicationSubmissionVersion extends Model
 {
     /** @use HasFactory<ApplicationSubmissionVersionFactory> */

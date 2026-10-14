@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admissions;
 
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
 use App\Actions\Admissions\RecordAdmissionDecision;
 use App\Actions\Admissions\RecordOfficialCredentialResult;
@@ -332,6 +333,8 @@ class AdmissionReviewReadinessActionsTest extends TestCase
         $application->forceFill(['current_submission_version_id' => $submission->id])->save();
         $application->user->forceFill(['status' => User::StatusActive])->save();
         $application->user->assignRole('applicant');
+
+        app(AdmissionReviewGuard::class)->start($application->fresh(), $this->registrar(), $application->current_submission_version_id);
 
         return [$application->refresh(), $requirement, $nonCoreRequirement];
     }

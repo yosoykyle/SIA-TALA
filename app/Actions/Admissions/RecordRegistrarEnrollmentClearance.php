@@ -56,12 +56,13 @@ class RecordRegistrarEnrollmentClearance
 
         return DB::transaction(function () use ($application, $actor, $validated, $expectedCurrentClearanceId, $expectedDecisionId, $expectedSubmissionVersionId): RegistrarEnrollmentClearance {
             $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
+            $locked->assertReviewSource($actor, $expectedSubmissionVersionId);
             $decision = $locked->decisions()->whereDoesntHave('successor')->lockForUpdate()->first();
             $current = $locked->enrollmentClearances()->whereDoesntHave('successor')->lockForUpdate()->first();
 
             if ($locked->application_state !== AdmissionApplication::StateAdmitted
                 || $decision?->decision !== AdmissionDecision::DecisionAdmitted
-                || $decision?->id !== $expectedDecisionId
+                || $decision->id !== $expectedDecisionId
                 || $locked->current_submission_version_id === null
                 || $locked->current_submission_version_id !== $expectedSubmissionVersionId
                 || (int) $decision->application_submission_version_id !== (int) $locked->current_submission_version_id

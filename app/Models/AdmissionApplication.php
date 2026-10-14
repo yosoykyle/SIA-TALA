@@ -3,18 +3,23 @@
 namespace App\Models;
 
 use Database\Factories\AdmissionApplicationFactory;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 /**
  * @property Carbon|null $birth_date
  * @property Carbon|null $privacy_acknowledged_at
  * @property Carbon|null $accuracy_declared_at
  * @property Carbon|null $submitted_at
+ * @property string|null $lrn_availability
+ * @property string|null $optional_identity_notice_reference
+ * @property string|null $optional_identity_consent_purpose
  */
 class AdmissionApplication extends Model
 {
@@ -100,6 +105,20 @@ class AdmissionApplication extends Model
     ];
 
     /** @return array<string, string> */
+    public static function admissionQualificationOptions(string $path): array
+    {
+        if ($path === self::PathTransferee) {
+            return [self::CredentialTransfer => 'Transfer credentials (from another college)'];
+        }
+
+        return [
+            self::CredentialSeniorHighSchool => 'Senior High School credential',
+            self::CredentialAlsAe => 'ALS Accreditation and Equivalency',
+            self::CredentialPept => 'Philippine Educational Placement Test',
+        ];
+    }
+
+    /** @return array<string, string> */
     protected function casts(): array
     {
         return [
@@ -155,6 +174,27 @@ class AdmissionApplication extends Model
         return $this->belongsTo(ApplicationSubmissionVersion::class, 'current_submission_version_id');
     }
 
+    public function currentPreliminaryReview(DocumentEvidence $evidence, bool $lockForUpdate = false): ?PreliminaryEvidenceReview
+    {
+        if ($evidence->admission_application_id !== $this->id) {
+            return null;
+        }
+        $query = $evidence->preliminaryReviews()->whereDoesntHave('successor');
+        if ($lockForUpdate) {
+            $query->lockForUpdate();
+        }
+        $review = $query->first();
+        $typeBoundary = $this->submissionVersions()->where('snapshot->type_correction_request_id', '>', 0)->latest('version')->first();
+        if ($review !== null && $typeBoundary !== null) {
+            $prior = collect($typeBoundary->snapshot['requirements'] ?? [])->firstWhere('id', $evidence->admission_requirement_id);
+            if (($prior['preliminary_review']['id'] ?? null) === $review->id) {
+                return null;
+            }
+        }
+
+        return $review;
+    }
+
     /** @return HasMany<ApplicationCorrectionRequest, $this> */
     public function correctionRequests(): HasMany
     {
@@ -189,6 +229,52 @@ class AdmissionApplication extends Model
     public function events(): HasMany
     {
         return $this->hasMany(AdmissionApplicationEvent::class, 'admission_application_id');
+    }
+
+    public function reviewHasStarted(): bool
+    {
+        return $this->events()->where('event_type', AdmissionApplicationEvent::TypeReviewStarted)->exists()
+            || ($this->getAttribute('reviewed_by') !== null && $this->getAttribute('reviewed_at') !== null)
+            || $this->evidenceVersions()->whereNotNull('reviewed_by')->whereNotNull('reviewed_at')->exists()
+            || $this->evidenceVersions()->whereHas('preliminaryReviews')->exists()
+            || $this->identityMatchReviews()->whereNotNull('resolved_at')->exists()
+            || $this->correctionRequests()->exists()
+            || $this->decisions()->exists()
+            || $this->credentialResults()->exists()
+            || $this->enrollmentClearances()->exists();
+    }
+
+    public function allowsSubmittedEdit(): bool
+    {
+        return $this->application_state === self::StateSubmitted
+            && $this->current_submission_version_id !== null
+            && ! $this->reviewHasStarted();
+    }
+
+    public function assertReviewSource(User $actor, ?int $expectedSubmissionVersionId): void
+    {
+        $actor = $actor->fresh();
+        if (! $actor instanceof User) {
+            throw new AuthorizationException('The Registrar account is unavailable.');
+        }
+        if (! $actor->hasRole(User::StaffRoleRegistrar)
+            || ! $actor->canAuthenticate() || ! $actor->can('approve-documents')) {
+            throw new AuthorizationException('Only an authorized Registrar may change a review.');
+        }
+
+        $source = $this->currentSubmissionVersion()->first();
+        if ($this->current_submission_version_id === null
+            || $source?->admission_application_id !== $this->id
+            || $source->requirementSet?->admission_cycle_id !== $this->admission_cycle_id
+            || $source->requirementSet?->application_path !== $this->application_path
+            || $this->admissionCycle?->term_id !== $this->term_id
+            || $this->current_submission_version_id !== $expectedSubmissionVersionId
+            || ! in_array($this->application_state, [self::StateSubmitted, self::StateAdmitted, self::StateNotAdmitted], true)
+            || ! $this->reviewHasStarted()) {
+            throw ValidationException::withMessages([
+                'review' => 'Start review of the current submitted version before making changes. If the source changed, refresh this record.',
+            ]);
+        }
     }
 
     /** @return HasMany<DocumentEvidence, $this> */

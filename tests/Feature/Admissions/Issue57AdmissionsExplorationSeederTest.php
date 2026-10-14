@@ -5,7 +5,7 @@ namespace Tests\Feature\Admissions;
 use App\Actions\Authentication\TalaAppAuthentication;
 use App\Actions\SystemAdministration\TAL96D5E1ExplorationPersonaCatalog;
 use App\Filament\Applicant\Pages\Application;
-use App\Filament\Applicant\Pages\Dashboard;
+use App\Filament\Applicant\Pages\SubmissionReceipt;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\ApplicationCorrectionRequest;
@@ -106,10 +106,10 @@ class Issue57AdmissionsExplorationSeederTest extends TestCase
             ])
             ->call('submitApplication')
             ->assertSet('saveStatus', 'saved')
-            ->assertRedirect(Dashboard::getUrl(['application' => $correction->id]));
+            ->assertRedirect(SubmissionReceipt::getUrl(['application' => $correction->id, 'version' => $correction->fresh()->current_submission_version_id]));
         $this->assertSame(AdmissionApplication::StateSubmitted, $correction->fresh()->application_state);
         $this->assertSame($reference, $correction->fresh()->application_reference);
-        $this->assertSame(2, $correction->submissionVersions()->count());
+        $this->assertSame(3, $correction->submissionVersions()->count());
     }
 
     public function test_run_creates_a_separate_registrar_with_normal_password_and_mfa_without_changing_retained_access(): void
@@ -162,7 +162,7 @@ class Issue57AdmissionsExplorationSeederTest extends TestCase
         $this->app->instance('env', 'production');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('APP_ENV=testing');
+        $this->expectExceptionMessage('verified disposable');
         app(Issue57AdmissionsExplorationSeeder::class)->run();
     }
 }

@@ -3,18 +3,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-function landingWith({ invalid = false, intersectionObserver = true, motionControl = true } = {}) {
+function landingWith({ intersectionObserver = true, motionControl = true } = {}) {
     const handlers = {};
-    let focused = false;
     let observerCallback = null;
     const heroClasses = new Set();
     const toggleAttributes = new Map([['aria-pressed', 'false']]);
     const label = { textContent: 'Pause motion' };
-    const invalidInput = { focus: () => { focused = true; } };
-    const section = {
-        querySelector: (selector) => selector === '[aria-invalid="true"]' && invalid ? invalidInput : null,
-        querySelectorAll: () => [],
-    };
     const toggle = {
         addEventListener: (event, listener) => { handlers.toggleClick = listener; },
         getAttribute: (name) => toggleAttributes.get(name),
@@ -45,25 +39,19 @@ function landingWith({ invalid = false, intersectionObserver = true, motionContr
         addEventListener: (event, listener) => { handlers.ready = listener; },
         querySelector: (selector) => selector === '[data-hero-motion]' ? hero : null,
         querySelectorAll: () => [],
-        getElementById: (id) => id === 'application-status' ? section : null,
+        getElementById: () => null,
     };
     vm.runInNewContext(fs.readFileSync('public/landing/js/main.js', 'utf8'), { window, document, URLSearchParams });
     handlers.ready();
 
     return {
         handlers,
-        focused: () => focused,
         heroHas: (name) => heroClasses.has(name),
         pressed: () => toggleAttributes.get('aria-pressed'),
         label: () => label.textContent,
         reportHeroVisibility: (isIntersecting) => observerCallback([{ isIntersecting }]),
     };
 }
-
-test('server validation focuses the invalid status field in the directly visible form', () => {
-    assert.equal(landingWith({ invalid: true }).focused(), true);
-    assert.equal(landingWith().focused(), false);
-});
 
 test('the hero motion control pauses and resumes the ambient background with a matching accessible state', () => {
     const landing = landingWith();
@@ -102,20 +90,12 @@ test('ambient motion remains static when its pause control cannot initialize', (
     assert.equal(landingWith({ motionControl: false }).heroHas('is-motion-enhanced'), false);
 });
 
-function landingControlsWith({ formBounds = null, mapBounds = null, dark = true, scrollY = 500 } = {}) {
+function landingControlsWith({ mapBounds = null, dark = true, scrollY = 500 } = {}) {
     const windowHandlers = new Map();
     const frames = [];
     const visibleClasses = new Set();
     const foreground = new Map();
-    const form = {
-        dataset: {},
-        getBoundingClientRect: () => formBounds,
-        querySelector: () => null,
-        querySelectorAll: () => [],
-        addEventListener: () => {},
-    };
     const mapFrame = { getBoundingClientRect: () => mapBounds };
-    const trackingSection = { querySelector: (selector) => selector === 'form' && formBounds ? form : null, querySelectorAll: () => [] };
     const scrollButton = {
         classList: { toggle: (name, visible) => visible ? visibleClasses.add(name) : visibleClasses.delete(name) },
         addEventListener: () => {},
@@ -162,8 +142,8 @@ function landingControlsWith({ formBounds = null, mapBounds = null, dark = true,
             'iframe.institution-map': mapBounds ? mapFrame : null,
         }[selector] ?? null),
         querySelectorAll: () => [],
-        getElementById: (id) => id === 'application-status' ? trackingSection : null,
         elementsFromPoint: () => [target, behindNavbar],
+        getElementById: () => null,
     };
     const flushFrames = () => { while (frames.length) { frames.shift()(); } };
     const emit = (event) => {
@@ -183,7 +163,6 @@ function landingControlsWith({ formBounds = null, mapBounds = null, dark = true,
             };
         },
         showTheme: () => { behindNavbar = { closest: () => themedSurface }; },
-        setFormBounds: (bounds) => { formBounds = bounds; },
         setMapBounds: (bounds) => { mapBounds = bounds; },
         emit,
         window,
@@ -209,36 +188,6 @@ test('navigation retains dark text on ordinary light theme surfaces', () => {
     const landing = landingControlsWith({ dark: false });
 
     assert.equal(landing.foreground(), 'black');
-});
-
-test('return control clears the tracking form and reappears after the form scrolls out of its area', () => {
-    const landing = landingControlsWith({ formBounds: { left: 16, right: 334, top: 500, bottom: 900 } });
-    assert.equal(landing.visible(), false);
-
-    landing.setFormBounds({ left: 16, right: 334, top: 300, bottom: 650 });
-    landing.emit('scroll');
-
-    assert.equal(landing.visible(), true);
-});
-
-test('return control rechecks form collision on resize and hides near the top of the page', () => {
-    const landing = landingControlsWith({ formBounds: { left: 16, right: 334, top: 200, bottom: 650 } });
-    assert.equal(landing.visible(), true);
-
-    landing.window.innerHeight = 700;
-    landing.emit('resize');
-
-    assert.equal(landing.visible(), false);
-
-    landing.setFormBounds({ left: 0, right: 0, top: 0, bottom: 0 });
-    landing.emit('scroll');
-
-    assert.equal(landing.visible(), true);
-
-    landing.window.scrollY = 100;
-    landing.emit('scroll');
-
-    assert.equal(landing.visible(), false);
 });
 
 test('return control steps aside while it would cover the embedded map controls', () => {
@@ -428,145 +377,6 @@ test('a single Admissions card stays static without carousel behaviour', () => {
     assert.equal(updates.hasInterval(), false);
 });
 
-function trackingFormWith({ referenceValue = '', emailValue = '', confirmation = false, invalid = false } = {}) {
-    const handlers = { window: {} };
-    const formHandlers = {};
-    let focused = null;
-    const makeInput = (value, name) => {
-        const listeners = {};
-        return {
-            name,
-            value,
-            selectionEnd: value.length,
-            addEventListener: (event, listener) => { listeners[event] = listener; },
-            setSelectionRange: () => {},
-            focus() { focused = name; document.activeElement = this; },
-            fire: (event) => listeners[event]?.({ type: event }),
-        };
-    };
-    const reference = makeInput(referenceValue, 'reference');
-    const email = makeInput(emailValue, 'email');
-    const label = { textContent: 'Email status link' };
-    const buttonAttributes = new Map();
-    const buttonClasses = new Set();
-    const button = {
-        querySelector: () => label,
-        setAttribute: (name, value) => buttonAttributes.set(name, value),
-        removeAttribute: (name) => buttonAttributes.delete(name),
-        classList: { add: (name) => buttonClasses.add(name), remove: (name) => buttonClasses.delete(name) },
-    };
-    const form = {
-        dataset: {},
-        getBoundingClientRect: () => ({ left: 0, right: 0, top: 0, bottom: 0 }),
-        querySelector: (selector) => selector === '[data-tracking-submit]' ? button : null,
-        querySelectorAll: (selector) => ({ '[data-reference-input]': [reference], '[data-trim-input]': [email] }[selector] ?? []),
-        addEventListener: (event, listener) => { formHandlers[event] = listener; },
-    };
-    const confirmationElement = { focus() { focused = 'confirmation'; document.activeElement = this; } };
-    const section = {
-        querySelector: (selector) => ({
-            form,
-            '[data-tracking-confirmation]': confirmation ? confirmationElement : null,
-            '[aria-invalid="true"]': invalid ? reference : null,
-        }[selector] ?? null),
-        querySelectorAll: (selector) => ({ '[data-reference-input]': [reference], '[data-trim-input]': [email] }[selector] ?? []),
-    };
-    const window = {
-        location: { hash: '', search: '' },
-        matchMedia: () => ({ matches: false, addEventListener: () => {} }),
-        addEventListener: (event, listener) => { handlers.window[event] = listener; },
-    };
-    const document = {
-        body: {},
-        documentElement: {},
-        activeElement: null,
-        addEventListener: (event, listener) => { handlers.ready = listener; },
-        querySelector: () => null,
-        querySelectorAll: () => [],
-        getElementById: (id) => id === 'application-status' ? section : null,
-    };
-    vm.runInNewContext(fs.readFileSync('public/landing/js/main.js', 'utf8'), { window, document, URLSearchParams });
-    handlers.ready();
-
-    return {
-        reference,
-        email,
-        submit: () => {
-            let prevented = false;
-            formHandlers.submit({ preventDefault: () => { prevented = true; } });
-            return prevented;
-        },
-        pageshow: () => handlers.window.pageshow(),
-        loseFocusThenLoad: () => { focused = 'body'; document.activeElement = document.body; handlers.window.load(); },
-        focusEmailThenLoad: () => { email.focus(); handlers.window.load(); },
-        sending: () => buttonClasses.has('is-sending'),
-        ariaDisabled: () => buttonAttributes.get('aria-disabled'),
-        label: () => label.textContent,
-        focused: () => focused,
-    };
-}
-
-test('a pasted reference is normalised to the stored format without rejecting older references', () => {
-    const form = trackingFormWith({ referenceValue: ' “app–2026 abcd  efgh-jk23.” ' });
-    form.reference.fire('input');
-    assert.equal(form.reference.value, 'APP-2026-ABCD-EFGH-JK23.-');
-    form.reference.fire('blur');
-    assert.equal(form.reference.value, 'APP-2026-ABCD-EFGH-JK23');
-
-    const typing = trackingFormWith({ referenceValue: 'app ' });
-    typing.reference.fire('input');
-    assert.equal(typing.reference.value, 'APP-');
-
-    const older = trackingFormWith({ referenceValue: 'app-12345678' });
-    older.reference.fire('blur');
-    assert.equal(older.reference.value, 'APP-12345678');
-});
-
-test('the email is trimmed and the request is sent once with an honest sending state', () => {
-    const form = trackingFormWith({ referenceValue: 'APP-2026-ABCD-EFGH-JK23', emailValue: '  applicant@example.test ' });
-    assert.equal(form.submit(), false);
-    assert.equal(form.email.value, 'applicant@example.test');
-    assert.equal(form.sending(), true);
-    assert.equal(form.ariaDisabled(), 'true');
-    assert.equal(form.label(), 'Sending request…');
-    assert.equal(form.submit(), true);
-});
-
-test('returning to the page restores the request button', () => {
-    const form = trackingFormWith();
-    form.submit();
-    form.pageshow();
-    assert.equal(form.sending(), false);
-    assert.equal(form.ariaDisabled(), undefined);
-    assert.equal(form.label(), 'Email status link');
-    assert.equal(form.submit(), false);
-});
-
-test('the uniform confirmation receives focus, while a validation error keeps focus on the field', () => {
-    assert.equal(trackingFormWith({ confirmation: true }).focused(), 'confirmation');
-    assert.equal(trackingFormWith({ confirmation: true, invalid: true }).focused(), 'reference');
-});
-
-test('focus returns to the status result after fragment navigation resets it on load', () => {
-    const form = trackingFormWith({ confirmation: true });
-    form.loseFocusThenLoad();
-    assert.equal(form.focused(), 'confirmation');
-
-    const invalid = trackingFormWith({ invalid: true });
-    invalid.loseFocusThenLoad();
-    assert.equal(invalid.focused(), 'reference');
-});
-
-test('a delayed page load preserves focus the visitor moved to another form control', () => {
-    const form = trackingFormWith({ confirmation: true });
-    form.focusEmailThenLoad();
-    assert.equal(form.focused(), 'email');
-
-    const invalid = trackingFormWith({ invalid: true });
-    invalid.focusEmailThenLoad();
-    assert.equal(invalid.focused(), 'email');
-});
-
 function navigationWith({ hash = '' } = {}) {
     const windowHandlers = new Map();
     const navigationHandlers = new Map();
@@ -673,4 +483,90 @@ test('following an anchor closes mobile navigation and focuses the destination a
     navigation.followNotices();
     assert.equal(navigation.height(), '80px');
     assert.equal(navigation.focus(), navigation.notices);
+});
+
+function modalLinkWith({ href = 'https://tala.test/', bootstrap = true, modalPresent = true } = {}) {
+    const windowHandlers = new Map();
+    const modalHandlers = new Map();
+    const opened = [];
+    let ready;
+    const modalElement = {
+        addEventListener: (event, listener) => modalHandlers.set(event, listener),
+    };
+    const window = {
+        location: new URL(href),
+        matchMedia: () => ({ matches: false, addEventListener() {} }),
+        addEventListener: (event, listener) => {
+            windowHandlers.set(event, [...(windowHandlers.get(event) ?? []), listener]);
+        },
+        history: {
+            replaceState: (state, title, url) => { window.location = new URL(url, window.location); },
+        },
+    };
+
+    if (bootstrap) {
+        window.bootstrap = {
+            Modal: { getOrCreateInstance: (element) => ({ show: () => opened.push(element) }) },
+        };
+    }
+
+    const document = {
+        addEventListener: (event, listener) => { ready = listener; },
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        getElementById: (id) => modalPresent && ['supportModal', 'privacyModal', 'accessibilityModal'].includes(id)
+            ? modalElement : null,
+    };
+    vm.runInNewContext(fs.readFileSync('public/landing/js/main.js', 'utf8'), { window, document, URL, URLSearchParams });
+    ready();
+
+    return {
+        opened,
+        modalElement,
+        location: () => window.location,
+        close: () => modalHandlers.get('hidden.bs.modal')?.(),
+        follow: (hash) => {
+            window.location.hash = hash;
+            windowHandlers.get('hashchange').forEach((listener) => listener());
+        },
+    };
+}
+
+test('the Support deep link opens the existing modal on arrival and can reopen after dismissal', () => {
+    const landing = modalLinkWith({ href: 'https://tala.test/?duration=4#support' });
+    assert.deepEqual(landing.opened, [landing.modalElement]);
+
+    landing.close();
+    assert.equal(landing.location().hash, '');
+    assert.equal(landing.location().search, '?duration=4');
+
+    landing.follow('#support');
+    assert.equal(landing.opened.length, 2);
+});
+
+test('Programs and Announcements anchors keep their navigation without opening Support', () => {
+    const landing = modalLinkWith();
+
+    landing.follow('#programs');
+    landing.follow('#notices');
+
+    assert.deepEqual(landing.opened, []);
+    assert.equal(landing.location().hash, '#notices');
+});
+
+test('legacy informational modal query links preserve filters and section navigation on dismissal', () => {
+    for (const modal of ['support', 'privacy', 'accessibility']) {
+        const landing = modalLinkWith({ href: `https://tala.test/?duration=4&modal=${modal}#programs` });
+        assert.deepEqual(landing.opened, [landing.modalElement]);
+
+        landing.close();
+
+        assert.equal(landing.location().search, '?duration=4');
+        assert.equal(landing.location().hash, '#programs');
+    }
+});
+
+test('a Support fragment degrades safely if Bootstrap or its modal element is unavailable', () => {
+    assert.deepEqual(modalLinkWith({ href: 'https://tala.test/#support', bootstrap: false }).opened, []);
+    assert.deepEqual(modalLinkWith({ href: 'https://tala.test/#support', modalPresent: false }).opened, []);
 });

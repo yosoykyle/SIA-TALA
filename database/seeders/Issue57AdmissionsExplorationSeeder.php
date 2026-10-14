@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Actions\Admissions\AdmissionEvidenceService;
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
 use App\Actions\Admissions\PublishAdmissionCycle;
 use App\Actions\Admissions\PublishAdmissionRequirementSet;
@@ -151,14 +152,13 @@ class Issue57AdmissionsExplorationSeeder extends Seeder
     private function assertSafe(): void
     {
         $connection = DB::connection();
-
-        if (! app()->environment('testing') || $connection->getDriverName() !== 'mysql'
-            || $connection->getDatabaseName() !== 'test_tala_db') {
-            throw new RuntimeException('Admissions exploration requires APP_ENV=testing and configured MySQL test_tala_db.');
-        }
-
-        if (($connection->selectOne('SELECT DATABASE() AS selected_database')->selected_database ?? null) !== 'test_tala_db') {
-            throw new RuntimeException('Admissions exploration requires the server-selected database test_tala_db.');
+        $target = $connection->selectOne('SELECT DATABASE() AS selected_database, @@port AS instance_port');
+        $standardTest = app()->environment('testing') && $connection->getDatabaseName() === 'test_tala_db';
+        $isolatedIssue64 = app()->environment('local', 'testing') && $connection->getDatabaseName() === 'issue64_e2dd_disposable'
+            && (int) $connection->getConfig('port') === 3364 && (int) $target->instance_port === 3364;
+        if ($connection->getDriverName() !== 'mysql' || (! $standardTest && ! $isolatedIssue64)
+            || $target->selected_database !== $connection->getDatabaseName()) {
+            throw new RuntimeException('Admissions exploration requires a verified disposable test or Issue64 database.');
         }
     }
 
@@ -243,6 +243,7 @@ class Issue57AdmissionsExplorationSeeder extends Seeder
         $application = app(SubmitAdmissionApplication::class)->execute($application, $user);
 
         if ($definition['reviewed'] || $definition['application_state'] === AdmissionApplication::StateActionNeeded) {
+            app(AdmissionReviewGuard::class)->start($application, $registrar, $application->current_submission_version_id);
             foreach ($evidence as $file) {
                 app(ReviewPreliminaryEvidence::class)->execute($file, $registrar,
                     PreliminaryEvidenceReview::ResultAccepted, 'Synthetic preliminary copy accepted for review only.');
@@ -255,8 +256,12 @@ class Issue57AdmissionsExplorationSeeder extends Seeder
                 'type' => ApplicationCorrectionItem::ScopeEvidence, 'key' => $requirement->code, 'admission_requirement_id' => $requirement->id,
             ]], 'Replace only the named identity evidence with a legible copy.', 'Applicant', now()->addDays(7));
             $replacement = app(AdmissionEvidenceService::class)->replace($evidence[$requirement->id], $user, str_contains(strtolower($requirement->label), 'photo') ? UploadedFile::fake()->image('replacement-id-photo.png', 161, 161) : $this->evidenceFile('Version 2 - replacement for preliminary review'));
+            $resubmitted = app(SubmitAdmissionApplication::class)->execute($application->fresh(), $user);
             app(ReviewPreliminaryEvidence::class)->execute($replacement, $registrar,
-                PreliminaryEvidenceReview::ResultActionNeeded, 'The replacement remains unreadable; provide a legible copy.');
+                PreliminaryEvidenceReview::ResultActionNeeded, 'The replacement remains unreadable; provide a legible copy.', expectedSubmissionVersionId: $resubmitted->current_submission_version_id);
+            app(RequestAdmissionCorrection::class)->execute($resubmitted, $registrar, [[
+                'type' => ApplicationCorrectionItem::ScopeEvidence, 'key' => $requirement->code, 'admission_requirement_id' => $requirement->id,
+            ]], 'Replace only the named identity evidence with a legible copy.', 'Applicant', now()->addDays(7));
         } elseif (in_array($definition['application_state'], [AdmissionApplication::StateAdmitted, AdmissionApplication::StateNotAdmitted], true)) {
             app(RecordAdmissionDecision::class)->execute($application, $registrar,
                 $definition['application_state'] === AdmissionApplication::StateAdmitted ? AdmissionDecision::DecisionAdmitted : AdmissionDecision::DecisionNotAdmitted,
