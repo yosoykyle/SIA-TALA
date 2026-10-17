@@ -777,6 +777,8 @@ Enrollment presents the current decision and its prerequisites, with the followi
 
 Exactly one primary action appears: **Start enrollment**, **Start registration**, **Confirm proposed subjects and schedule**, **Continue to Finance**, or **View COR**. When the proposal looks wrong, the page says **Do not confirm—contact Registrar** and provides the official contact path; it creates no ticket or chat.
 
+Before confirmation, the learner can review the complete subjects/schedule, current temporary seats and authoritative assessment in the same journey. No arbitrary Term picker or repeated identity/contact confirmation substitutes for the current source context. Historical versions and technical readiness evidence remain secondary but reachable; missing preparation names the responsible office rather than exposing a confirmation action for incomplete information.
+
 ### Registrar Students & Enrollment workbench
 
 The selected-term header shows term and applicable windows, authoritative deadlines, current readiness, official-enrollment count, shortage count, and state-appropriate primary actions, including header trigger actions **Start registration for Ready Applicant** and **Start Continuing Enrollment**. **Identity Distinctions:** `Ready Applicant != Registration Case != Official Enrollment != Student Identity != Student Number`. Ready Applicants with pre-registration credentials verified appear in an actionable queue or modal where the Registrar can explicitly trigger registration case creation via `StartRegistrationCase::forReadyApplicant()`.
@@ -800,6 +802,8 @@ The record reads in this order:
 9. Accessible supporting audit and email evidence.
 
 State-valid actions prepare/revise ambiguous or advised subjects, record assisted confirmation, recover placement, finalize ready enrollment cases, cancel/reopen, adjust/drop and print current/historical COR. Eligible case opening automatically presents unambiguous standard subjects, temporary seat reservation and source-backed assessment; learner confirmation/payment is one clear flow. Finalize ready cases rechecks each case atomically. Exceptions retain their own authority and same-case history; no expired reservation, stale assessment or prerequisite failure is bypassed. A later qualifying grade release uses the ordinary Adjustment path, including window/late authority, learner confirmation, capacity, schedule, load and Finance checks. Secondary actions stay discoverable and crafted requests receive the same server guards.
+
+Selected ready cases may be finalized together, with each case succeeding or failing independently and an understandable per-case result. The case detail exposes the current task and its consequences before contextual secondary actions; history, provider recovery and exceptional authority do not form a competing wall of sibling buttons. Choose pages and short task modals consistently by task complexity, preserving the owning case and its return context.
 
 An academic-result impact panel uses plain language:
 
@@ -826,6 +830,8 @@ This focused action records only an externally approved account effect. Missing,
 ### COR UI and print contract
 
 The current and historical COR surface is an authenticated Generated Read-Only View. It shows institution/document identity; student number and legal name; program, curriculum, term, and enrollment basis; curriculum levels represented; official courses and class/schedule details; total units; assessment-at-finalization basis/source and categories, Approved Coverage and verified-payment amounts, satisfaction basis, remaining amount as of finalization; and actual recorded authority where required. A later authorized removal or Course Drop may identify **Accounting review pending** without changing the frozen assessment snapshot.
+
+Keep the frozen assessment reference, authority and amounts together. Identify any subsequent change-assessment or review reference separately, so an original amount never appears to come from a newer assessment.
 
 LRN, live ledger activity, future installments, attempts, receipt history, continually changing balances, and fictitious signatures are excluded. Later financial activity links to Student Account/SOA. The document is restrained, high-contrast, grayscale-safe, and offers one browser print/save-as-PDF action.
 
@@ -1026,6 +1032,8 @@ Draft row controls provide explicit **Move up** and **Move down** buttons; order
 #### Student Accounts workbench
 
 The Payment Exceptions tab uses risk/reason, person/account, claimed amount, channel/source, submission age and Review. Contextual TOR restrictions show the responsible office, safe reason, output scope, current source and next permitted action; no per-request clearance tab or approval queue is required.
+
+Cases needing their first assessment remain discoverable as **Assessment required**, even before a Term Account/Assessment exists; the same case opens the focused assessment task. Payment verification previews the current named obligations and actual payment application. Use one contextual exception/recovery flow for the selected problem rather than unrelated provider-action buttons; the view distinguishes submitted proof, verified payment, Approved Coverage and an unavailable source.
 
 #### Contextual finance CSV actions
 
