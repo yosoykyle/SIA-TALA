@@ -148,6 +148,8 @@ final class ScheduleAssignmentValidationService
         $findings = [...$findings, ...$shapeFindings];
         $assignments = $this->listValue($solverResult['assignments'] ?? null);
         $metadata = $this->metadata($solverResult, $shapeFindings === []);
+        $metadata['required_meeting_count'] = collect($this->listValue($snapshot['scheduling_demands'] ?? null))
+            ->sum(fn (mixed $demand): int => is_array($demand) ? max(1, (int) ($demand['meeting_count'] ?? 1)) : 0);
 
         if ($this->hasBlockingFindings($findings)) {
             return $this->result([], $findings, $metadata, $solverResult, $assignments);
@@ -225,6 +227,7 @@ final class ScheduleAssignmentValidationService
         $findings = [...$findings, ...$this->objectiveFindings($run, $snapshot, $solverResult)];
         [$candidateRows, $assignmentFindings] = $this->validateAssignments($run, $snapshot, $assignments);
         $findings = [...$findings, ...$assignmentFindings];
+        $findings = [...$findings, ...$this->repairFindings($run, $snapshot, $candidateRows)];
 
         return $this->result($candidateRows, $findings, $metadata, $solverResult, $assignments);
     }
@@ -249,6 +252,8 @@ final class ScheduleAssignmentValidationService
             metadata: [
                 'validation_context' => 'current_authoritative_records',
                 'validated_at' => now()->toIso8601String(),
+                'required_meeting_count' => collect($this->listValue($snapshot['scheduling_demands'] ?? null))
+                    ->sum(fn (mixed $demand): int => is_array($demand) ? max(1, (int) ($demand['meeting_count'] ?? 1)) : 0),
             ],
             solverResult: [
                 'assigned_count' => count($assignments),
@@ -257,6 +262,41 @@ final class ScheduleAssignmentValidationService
             ],
             assignments: $assignments,
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $snapshot
+     * @param  list<array<string, mixed>>  $candidateRows
+     * @return list<array<string, mixed>>
+     */
+    private function repairFindings(ScheduleGenerationRun $run, array $snapshot, array $candidateRows): array
+    {
+        $operation = $this->arrayValue($snapshot['operation'] ?? null);
+
+        if (($operation['kind'] ?? null) !== 'repair') {
+            return [];
+        }
+
+        $requested = $this->arrayValue($operation['requested_assignment'] ?? null);
+        $target = collect($candidateRows)->first(fn (array $row): bool => (int) $row['scheduling_demand_id'] === (int) ($requested['scheduling_demand_id'] ?? 0)
+            && (int) $row['meeting_sequence'] === (int) ($requested['meeting_sequence'] ?? 0));
+        $matches = is_array($target);
+
+        foreach (['faculty_user_id', 'room_id', 'day_of_week'] as $field) {
+            $matches = $matches && $this->integerValue($target[$field] ?? null) === $this->integerValue($requested[$field] ?? null);
+        }
+
+        foreach (['starts_at', 'ends_at'] as $field) {
+            $matches = $matches && $this->timeSeconds($target[$field] ?? null) === $this->timeSeconds($requested[$field] ?? null);
+        }
+
+        return $matches ? [] : [$this->finding(
+            run: $run,
+            code: 'requested_repair_not_applied',
+            constraint: 'requested_repair_assignment',
+            message: 'The repair result must apply the exact requested meeting assignment before it can be reviewed.',
+            sourceField: 'operation.requested_assignment',
+        )];
     }
 
     /**
@@ -403,7 +443,7 @@ final class ScheduleAssignmentValidationService
         $snapshot = $this->arrayValue($run->getAttribute('input_snapshot'));
         $expectedDemandCount = collect($this->listValue($snapshot['scheduling_demands'] ?? null))
             ->filter(fn (mixed $demand): bool => is_array($demand))
-            ->count();
+            ->sum(fn (array $demand): int => max(1, (int) ($demand['meeting_count'] ?? 1)));
         $conflicts = collect($assignments)
             ->filter(fn (mixed $assignment): bool => is_array($assignment) && ($assignment['assignment_status'] ?? null) === 'conflict')
             ->count();
@@ -499,6 +539,61 @@ final class ScheduleAssignmentValidationService
                     message: 'Objective evidence must preserve the fixed six-level hierarchy without weights or a scalar accuracy score.',
                     sourceField: 'objective_details',
                 );
+            }
+
+            foreach ($values as $name => $value) {
+                if ($value !== null && ! is_numeric($value)) {
+                    $findings[] = $this->finding(
+                        run: $run,
+                        code: 'quality_measure_unavailable',
+                        constraint: 'solver_response_contract',
+                        message: 'A reported quality measure must be numeric or explicitly unavailable.',
+                        sourceField: 'objective_details.values.'.$name,
+                    );
+                }
+            }
+
+            if (is_numeric($values['faculty_load_imbalance'] ?? null)) {
+                $demands = collect($this->listValue($snapshot['scheduling_demands'] ?? null))->keyBy('scheduling_demand_id');
+                $loads = [];
+
+                foreach ($this->listValue($snapshot['faculty'] ?? null) as $faculty) {
+                    if (is_array($faculty) && isset($faculty['faculty_id'])) {
+                        $loads[(int) $faculty['faculty_id']] = [];
+                    }
+                }
+
+                foreach ($this->listValue($solverResult['assignments'] ?? null) as $assignment) {
+                    if (! is_array($assignment)) {
+                        continue;
+                    }
+
+                    $demand = $demands->get($assignment['scheduling_demand_id'] ?? null);
+                    $facultyId = (int) ($assignment['faculty_user_id'] ?? $assignment['faculty_id'] ?? 0);
+
+                    if (is_array($demand) && isset($loads[$facultyId])) {
+                        $loads[$facultyId][$demand['term_offering_id'].':'.$demand['section_delivery_group_id']] = (int) round((float) ($demand['load_units'] ?? 0) * 100);
+                    }
+                }
+
+                $totals = array_values(array_map(array_sum(...), $loads));
+                $imbalance = 0;
+
+                foreach ($totals as $index => $total) {
+                    foreach (array_slice($totals, $index + 1) as $other) {
+                        $imbalance += abs($total - $other);
+                    }
+                }
+
+                if (! $this->numbersMatch((float) $imbalance, (float) $values['faculty_load_imbalance'])) {
+                    $findings[] = $this->finding(
+                        run: $run,
+                        code: 'faculty_imbalance_evidence_mismatch',
+                        constraint: 'solver_response_contract',
+                        message: 'Faculty imbalance must include every eligible Faculty member and use hundredths of load units.',
+                        sourceField: 'objective_details.values.faculty_load_imbalance',
+                    );
+                }
             }
 
             return $findings;
@@ -1512,8 +1607,23 @@ final class ScheduleAssignmentValidationService
     ): ScheduleValidationResult {
         $blockingCount = collect($findings)->where('severity', 'blocking')->count();
         $passes = $blockingCount === 0;
+        $statusEvidenceOnly = collect($findings)->where('severity', 'blocking')->every(fn (array $finding): bool => ($finding['constraint'] ?? null) === 'solver_status'
+            && ($finding['code'] ?? null) !== 'timeout_semantics_mismatch');
+        $outcome = match ($metadata['solver_status'] ?? null) {
+            'optimal' => $passes ? 'Optimal' : 'TechnicalFailure',
+            'feasible' => $passes ? 'Feasible' : 'TechnicalFailure',
+            'infeasible' => $statusEvidenceOnly ? 'Infeasible' : 'TechnicalFailure',
+            'unknown' => $statusEvidenceOnly ? 'Unknown' : 'TechnicalFailure',
+            'model_invalid' => $statusEvidenceOnly ? 'ModelInvalid' : 'TechnicalFailure',
+            default => array_key_exists('solver_status', $metadata) ? 'TechnicalFailure' : null,
+        };
         $summary = [
             'status' => $passes ? 'accepted' : 'blocked',
+            'outcome' => $outcome,
+            'independently_validated' => $passes,
+            'complete' => $passes && count($candidateRows) > 0,
+            'required_meeting_count' => $metadata['required_meeting_count'] ?? null,
+            'validated_meeting_count' => $passes ? count($candidateRows) : null,
             'solver_row_count' => count($assignments),
             'candidate_row_count' => $passes ? count($candidateRows) : 0,
             'ok_count' => $passes ? collect($candidateRows)->where('status', CandidateScheduleRow::StatusOk)->count() : 0,

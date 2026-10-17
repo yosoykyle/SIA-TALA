@@ -76,7 +76,7 @@ class SchedulingDemandsTable
                     ->color(fn (int $state): string => $state === 0 ? 'success' : 'warning'),
                 TextColumn::make('readiness_checked_at')
                     ->label('Checked')
-                    ->dateTime()
+                    ->dateTime('M j, Y, g:i A')->timezone('Asia/Manila')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('demand_key')
@@ -104,8 +104,9 @@ class SchedulingDemandsTable
             ->headerActions([
                 self::generateForTermAction(),
             ])
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->recordActions([
-                ViewAction::make(),
+                ViewAction::make()->label('View details')->button()->color('gray'),
             ])
             ->toolbarActions([])
             ->stackedOnMobile()

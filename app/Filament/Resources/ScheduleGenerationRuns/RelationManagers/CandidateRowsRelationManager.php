@@ -11,7 +11,6 @@ use App\Models\SectionMeeting;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
@@ -84,12 +83,10 @@ class CandidateRowsRelationManager extends RelationManager
                                 ->label('End')
                                 ->formatStateUsing(fn (string $state): string => CarbonImmutable::parse($state)->format('g:i A'))
                                 ->placeholder('-'),
-                        ])->dense()->columns(['default' => 2]),
+                        ])->dense()->columns(['default' => 1, 'md' => 2]),
                     ])
                     ->compact(),
                 Section::make('Source and validation details')
-                    ->collapsible()
-                    ->collapsed()
                     ->schema([
                         TextEntry::make('schedulingDemand.demand_key')
                             ->label('Scheduling demand reference')
@@ -146,44 +143,33 @@ class CandidateRowsRelationManager extends RelationManager
                     ->placeholder('Original')
                     ->color(fn (?string $state): string => in_array($state, ['RequestedRepair', 'RepairImpact'], true) ? 'warning' : 'gray'),
                 TextColumn::make('schedulingDemand.courseComponent.courseSpecification.course.code')
-                    ->label('Course code')
-                    ->placeholder('-')
-                    ->searchable(),
+                    ->label('Class meeting')
+                    ->description(fn (CandidateScheduleRow $record): string => collect([
+                        $record->schedulingDemand?->sectionDeliveryGroup?->section?->code,
+                        self::headline($record->schedulingDemand?->courseComponent?->component_type),
+                        self::modalityLabel($record->schedulingDemand?->modality),
+                    ])->filter()->implode(' · '))
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $rows): Builder => $rows
+                        ->whereHas('schedulingDemand.courseComponent.courseSpecification.course', fn (Builder $courses): Builder => $courses->where('code', 'like', "%{$search}%"))
+                        ->orWhereHas('schedulingDemand.sectionDeliveryGroup.section', fn (Builder $classes): Builder => $classes->where('code', 'like', "%{$search}%"))))
+                    ->wrap()->weight('bold'),
                 TextColumn::make('schedulingDemand.demand_key')
-                    ->label('Demand')
-                    ->searchable()
-                    ->wrap()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('schedulingDemand.sectionDeliveryGroup.section.code')
-                    ->label('Class')
-                    ->placeholder('-')
-                    ->searchable(),
-                TextColumn::make('schedulingDemand.courseComponent.component_type')
-                    ->label('Component')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => self::headline($state))
-                    ->placeholder('-'),
-                TextColumn::make('schedulingDemand.modality')
-                    ->label('Teaching mode')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => self::modalityLabel($state))
-                    ->placeholder('-'),
+                    ->label('Demand')->searchable()->wrap()->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('faculty.name')
                     ->label('Faculty')
+                    ->wrap()
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('room.code')
                     ->label('Room')
+                    ->wrap()
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('day_of_week')
-                    ->label('Day')
+                    ->label('Meeting time')
                     ->formatStateUsing(fn (?int $state): string => $state === null ? '-' : (SectionMeeting::dayOptions()[$state] ?? '-'))
-                    ->sortable(),
-                TextColumn::make('time_range')
-                    ->label('Time')
-                    ->state(fn (CandidateScheduleRow $record): string => self::timeRange($record))
-                    ->placeholder('-'),
+                    ->description(fn (CandidateScheduleRow $record): string => self::timeRange($record))
+                    ->sortable()->wrap(),
                 TextColumn::make('violation_count')
                     ->label('Violations')
                     ->state(fn (CandidateScheduleRow $record): int => self::payloadCount($record->violations))
@@ -212,15 +198,14 @@ class CandidateRowsRelationManager extends RelationManager
                         ),
                     )),
             ])
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->defaultSort('day_of_week')
             ->recordActions([
-                ActionGroup::make([
-                    ViewAction::make()
-                        ->label('View meeting details')
-                        ->modalHeading('Candidate meeting details'),
-                    $this->correctAssignmentAction(),
-                    $this->findValidRepairAction(),
-                ]),
+                ViewAction::make()
+                    ->label('View meeting details')->button()->color('gray')
+                    ->modalHeading('Candidate meeting details'),
+                $this->correctAssignmentAction(),
+                $this->findValidRepairAction(),
             ])
             ->toolbarActions([])
             ->stackedOnMobile()
@@ -233,9 +218,10 @@ class CandidateRowsRelationManager extends RelationManager
         return Action::make('correctAssignment')
             ->label('Correct assignment')
             ->icon(Heroicon::OutlinedPencilSquare)
-            ->modalHeading('Correct Candidate Assignment')
+            ->modalHeading('Correct candidate assignment')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
             ->modalDescription('TALA revalidates the complete candidate schedule before saving this correction.')
-            ->modalSubmitActionLabel('Validate and Save')
+            ->modalSubmitActionLabel('Validate and save')
             ->modalWidth(Width::FiveExtraLarge)
             ->fillForm(fn (CandidateScheduleRow $record): array => [
                 'scheduling_demand_id' => $record->scheduling_demand_id,
@@ -285,9 +271,10 @@ class CandidateRowsRelationManager extends RelationManager
             ->label('Find valid repair')
             ->icon(Heroicon::OutlinedArrowPath)
             ->color('warning')
-            ->modalHeading('Find a Whole-Term Repair')
+            ->modalHeading('Find a whole-Term repair')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
             ->modalDescription('The requested meeting is fixed as a hard requirement. Other meetings may move only in a previewable immutable candidate; nothing official changes until the whole repair is accepted and published.')
-            ->modalSubmitActionLabel('Queue Repair Preview')
+            ->modalSubmitActionLabel('Queue repair preview')
             ->modalWidth(Width::FiveExtraLarge)
             ->fillForm(fn (CandidateScheduleRow $record): array => [
                 'scheduling_demand_id' => $record->scheduling_demand_id,

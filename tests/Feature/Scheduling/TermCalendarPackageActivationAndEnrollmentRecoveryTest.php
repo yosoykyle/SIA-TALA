@@ -41,7 +41,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
         $this->seed(DatabaseSeeder::class);
 
         foreach (User::staffRoleNames() as $role) {
@@ -56,7 +56,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create();
 
-        // 1. Create an invalid draft package (missing enrollment window and empty teaching grid)
+        // 1. Create an invalid draft package with an empty teaching grid.
         $invalidDraft = TermCalendarPackage::factory()->for($term)->create([
             'state' => TermCalendarPackage::StateDraft,
             'version' => 1,
@@ -73,17 +73,20 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertSee('Teaching calendar')
-            ->assertSee('Not configured')
-            ->assertSee('Activity dates do not gate class planning.')
-            ->assertSee('No approved teaching day is recorded');
+            ->assertSee('Not set')
+            ->assertSee('These dates do not block class planning.')
+            ->assertSee('No approved teaching day is recorded')
+            ->assertViewHas('coreReadiness', fn (array $readiness): bool => ! $readiness['ready']);
 
-        // 2. Add required windows and teaching grid rows to make the draft valid
+        // 2. Complete the teaching grid and record the optional activity dates.
         $this->addValidWindowsAndGridToPackage($invalidDraft);
 
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertSee('Teaching calendar · Draft v1')
-            ->assertSee('Review the draft above, then activate it.');
+            ->assertSee('Draft · Version 1')
+            ->assertSee('Review and activate this draft when ready.')
+            ->assertViewHas('overviewPackage', fn (TermCalendarPackage $package): bool => $package->is($invalidDraft))
+            ->assertViewHas('coreReadiness', fn (array $readiness): bool => $readiness['ready']);
     }
 
     public function test_registrar_can_correct_invalid_draft_package_in_place_and_retry_activation(): void
@@ -1046,7 +1049,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->mountAction('activateCalendarPackage')
             ->assertActionMounted('activateCalendarPackage')
             ->assertSchemaStateSet(['package_id' => $draft->id])
-            ->assertMountedActionModalSee('Activate Calendar Package')
+            ->assertMountedActionModalSee('Activate teaching calendar')
             ->assertMountedActionModalSee($term->label)
             ->assertMountedActionModalSee('CHED-MEMO-2026-001')
             ->assertMountedActionModalSee('All required checks passed')
@@ -1064,8 +1067,8 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertSame(Term::StateActive, $term->fresh()->state);
 
         // Workbench visibly displays Active state
-        $testable->assertSee('Calendar active')
-            ->assertSee('Teaching calendar · Active v1')
+        $testable->assertSee('Calendar ready for class planning.')
+            ->assertSee('Active · Version 1')
             ->assertActionHidden('activateCalendarPackage');
 
         $this->assertContains(

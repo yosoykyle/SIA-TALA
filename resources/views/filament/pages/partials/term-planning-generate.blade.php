@@ -57,13 +57,13 @@
 
             @if ($allRuns->count() > 1)<div><label class="text-sm font-medium" for="planning-run">Timetable request</label><select id="planning-run" wire:change="selectRun($event.target.value)" class="tala-planning-select">@foreach ($allRuns as $option)<option value="{{ $option->id }}" @selected($option->id === $activeRun->id)>{{ $option->created_at->timezone('Asia/Manila')->format('M j, g:i A') }} · {{ \App\Models\ScheduleGenerationRun::statusOptions()[$option->status] ?? $option->status }} · #{{ $option->id }}</option>@endforeach</select></div>@endif
 
-            <dl class="tala-planning-facts"><div><dt>Captured request</dt><dd>#{{ $activeRun->id }} · {{ $activeRun->created_at->timezone('Asia/Manila')->format('M j, Y · g:i A') }}</dd></div>@if ($solverFailure)<div><dt>Failure reference</dt><dd>{{ $solverFailure['code'] ?? 'No reference recorded' }}</dd></div>@endif<div><dt>Generator outcome</dt><dd>{{ $solverOutcome['status'] ?? $solverOutcome['solver_status'] ?? 'Not recorded' }}</dd></div><div><dt>Quality measurements</dt><dd>{{ $qualityMeasures ? 'Recorded below' : 'Not measured' }}</dd></div><div><dt>Runtime</dt><dd>{{ $activeRun->runtime_ms === null ? 'Not measured' : number_format($activeRun->runtime_ms).' ms' }}</dd></div></dl>
+            <dl class="tala-planning-facts"><div><dt>Captured request</dt><dd>#{{ $activeRun->id }} · {{ $activeRun->created_at->timezone('Asia/Manila')->format('M j, Y · g:i A') }}</dd></div>@if ($solverFailure)<div><dt>Failure reference</dt><dd>{{ $solverFailure['code'] ?? 'No reference recorded' }}</dd></div>@endif<div><dt>Generator outcome</dt><dd>{{ $solverOutcome['status'] ?? $solverOutcome['solver_status'] ?? 'Not recorded' }}</dd></div><div><dt>Quality measurements</dt><dd>{{ $qualityMeasures ? 'Recorded below' : 'Not measured' }}</dd></div><div><dt>Request runtime</dt><dd>{{ $activeRun->runtime_ms === null ? 'Not measured' : number_format($activeRun->runtime_ms).' ms' }}</dd></div></dl>
 
             @if ($qualityMeasures)<dl class="tala-planning-facts">@foreach ($qualityMeasures as $key => $value)<div><dt>{{ str($key)->replace('_', ' ')->ucfirst() }}</dt><dd>{{ is_scalar($value) ? $value : 'See full review evidence' }}</dd></div>@endforeach</dl>@endif
 
             <x-filament::link :href="\App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource::getUrl('view', ['record' => $activeRun, 'termId' => $term->id])">Open full review evidence</x-filament::link>
 
-            @if (! $readOnly){{ $this->generateTimetableAction->label('Generate another candidate')->color('gray')->outlined() }}@endif
+            @if ($this->retainedCandidateNextStep())<p class="tala-work-footnote" role="status">{{ $this->retainedCandidateNextStep() }}</p>@elseif (! $readOnly){{ $this->generateTimetableAction->label('Generate another candidate')->color('gray')->outlined() }}@endif
 
         </div></details>
 
@@ -73,7 +73,7 @@
 
         @if ($readiness && ! $readiness['ready'])<ul class="mt-4 space-y-3 text-sm">@foreach ($readiness['blockers'] as $blocker)<li>{{ $blocker['reason'] }} <x-filament::link :href="\App\Filament\Pages\TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => match ($blocker['code']) {'calendar_not_active' => 'overview', 'classes_not_confirmed' => 'classes', default => 'resources'}])">Review source</x-filament::link></li>@endforeach</ul>@endif
 
-        @if (! $readOnly)<div class="mt-5">{{ $this->generateTimetableAction }}</div>@endif
+        @if ($this->retainedCandidateNextStep())<p class="tala-work-footnote" role="status">{{ $this->retainedCandidateNextStep() }}</p>@elseif (! $readOnly)<div class="mt-5">{{ $this->generateTimetableAction }}</div>@endif
 
     @endif
 

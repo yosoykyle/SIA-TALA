@@ -2,6 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
+use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\GoogleServiceAccountCloudRunIdTokenProvider;
+use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
@@ -10,12 +14,16 @@ use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\PrepareClassOffering;
 use App\Actions\Scheduling\RecordTermCohort;
+use App\Actions\Scheduling\RequestTimetableRepair;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
 use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\ScheduleSolverDispatchLifecycleService;
+use App\Actions\Scheduling\ScheduleSolverRecoveryService;
+use App\Actions\Scheduling\ScheduleSolverRetryService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
+use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\CalendarEvent;
@@ -41,14 +49,19 @@ use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use Filament\Notifications\Notification;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -68,7 +81,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
 
         config()->set('tala_integrations.scheduling_solver.driver', 'local_stub');
@@ -81,6 +94,475 @@ final class TAL62SolverRunDispatchTest extends TestCase
         foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin, User::StaffRoleFaculty] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
+
+        Role::findByName(User::StaffRoleRegistrar, 'web')->givePermissionTo(Permission::findOrCreate('manage-schedules', 'web'));
+    }
+
+    /** @return array<string, array{bool}> */
+    public static function recoveryKinds(): array
+    {
+        return ['generation' => [false], 'repair' => [true]];
+    }
+
+    /** @return array{term:Term,registrar:User,failed:ScheduleGenerationRun} */
+    private function deliberateRecoveryFixture(bool $repair = false): array
+    {
+        $source = $this->schedulingSource(withSecondComponent: false);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $this->demandGenerator->forTerm($registrar, $source['term']);
+        $failed = $this->runService->generate($source['term'], $registrar);
+        if ($repair) {
+            $this->dispatchRecoveryRun($failed, new LocalStubSchedulingSolverClient);
+            $row = $failed->candidateRows()->sole();
+            $failed = app(RequestTimetableRepair::class)->execute($row, $registrar,
+                ['faculty_user_id' => $row->faculty_user_id, 'room_id' => $row->room_id, 'day_of_week' => $row->day_of_week,
+                    'starts_at' => $row->starts_at, 'ends_at' => $row->ends_at], 'Preserve this intended repair.', 'SYNTH-RECOVERY-AUTHORITY');
+        }
+        $diagnostics = $failed->diagnostics;
+        $diagnostics['solver_dispatch']['failure'] = ['classification' => 'client_error', 'final' => true, 'retryable' => false, 'http_status' => 403,
+            'message' => 'Service access failed. Ask the System Administrator to correct access.'];
+        $failed->forceFill(['status' => ScheduleGenerationRun::StatusFailed, 'diagnostics' => $diagnostics])->save();
+
+        return ['term' => $source['term'], 'registrar' => $registrar, 'failed' => $failed->fresh()];
+    }
+
+    /** @return array<string, array{string}> */
+    public static function invalidRecoveryExplanations(): array
+    {
+        return ['blank' => ['   '], 'overlong' => [str_repeat('x', 2001)]];
+    }
+
+    #[DataProvider('invalidRecoveryExplanations')]
+    public function test_deliberate_recovery_requires_a_bounded_nonblank_correction_explanation(string $explanation): void
+    {
+        $fixture = $this->deliberateRecoveryFixture();
+        $before = $fixture['failed']->getAttributes();
+
+        try {
+            app(ScheduleSolverRetryService::class)->recover($fixture['failed'], $fixture['registrar'], $explanation);
+            $this->fail('An invalid correction explanation queued a new attempt.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('correction_explanation', $exception->errors());
+        }
+
+        $this->assertSame($before, $fixture['failed']->fresh()->getAttributes());
+        $this->assertSame(1, ScheduleGenerationRun::query()->where('term_id', $fixture['term']->id)->count());
+        Queue::assertPushed(ScheduleSolverDispatchJob::class, 1);
+    }
+
+    #[DataProvider('recoveryKinds')]
+    public function test_deliberate_recovery_rechecks_current_planning_readiness(bool $repair): void
+    {
+        $fixture = $this->deliberateRecoveryFixture($repair);
+        $before = $fixture['failed']->getAttributes();
+        SchedulingDemand::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $fixture['term']->id))
+            ->update(['validation_state' => SchedulingDemand::ValidationActionRequired]);
+        $count = ScheduleGenerationRun::query()->where('term_id', $fixture['term']->id)->count();
+
+        try {
+            app(ScheduleSolverRetryService::class)->recover($fixture['failed'], $fixture['registrar'], 'Administrator corrected the service.');
+            $this->fail('Unready current planning data queued a recovery.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('scheduling_demands', $exception->errors());
+        }
+
+        $this->assertSame($count, ScheduleGenerationRun::query()->where('term_id', $fixture['term']->id)->count());
+        $this->assertSame($before, $fixture['failed']->fresh()->getAttributes());
+        Queue::assertPushed(ScheduleSolverDispatchJob::class, $repair ? 2 : 1);
+    }
+
+    public function test_deliberate_recovery_is_registrar_only_and_preserves_native_solver_outcome_gates(): void
+    {
+        $fixture = $this->deliberateRecoveryFixture();
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $this->assertFalse(Gate::forUser($head)->allows('recover', $fixture['failed']));
+        try {
+            app(ScheduleSolverRetryService::class)->recover($fixture['failed'], $head, 'A service correction was confirmed.');
+            $this->fail('Oversight queued an operational recovery.');
+        } catch (AuthorizationException) {
+            $this->assertSame(1, ScheduleGenerationRun::query()->where('term_id', $fixture['term']->id)->count());
+        }
+        foreach (['infeasible', 'unknown', 'model_invalid'] as $outcome) {
+            $fixture['failed']->forceFill(['status' => ScheduleGenerationRun::StatusBlocked,
+                'diagnostics' => ['solver_result' => ['solver_status' => $outcome, 'summary' => ['outcome' => match ($outcome) {
+                    'infeasible' => 'Infeasible', 'unknown' => 'Unknown', default => 'ModelInvalid',
+                }]]]])->save();
+            $this->assertFalse(Gate::forUser($fixture['registrar'])->allows('recover', $fixture['failed']));
+            $fixture['failed']->forceFill(['status' => ScheduleGenerationRun::StatusFailed,
+                'diagnostics' => ['solver_dispatch' => ['failure' => ['classification' => 'unexpected', 'final' => true, 'code' => strtoupper($outcome)]]]])->save();
+            $this->assertFalse(Gate::forUser($fixture['registrar'])->allows('recover', $fixture['failed']));
+        }
+        Queue::assertPushed(ScheduleSolverDispatchJob::class, 1);
+    }
+
+    #[DataProvider('recoveryKinds')]
+    public function test_native_recovery_action_validates_then_selects_its_fresh_successor_and_displays_attribution(bool $detail): void
+    {
+        Http::preventStrayRequests();
+        $fixture = $this->deliberateRecoveryFixture();
+        $before = $fixture['failed']->getAttributes();
+        $component = Livewire::actingAs($fixture['registrar'])->test($detail ? ViewScheduleGenerationRun::class : TermTimetable::class,
+            $detail ? ['record' => $fixture['failed']->getRouteKey(), 'termId' => $fixture['term']->id]
+                : ['termId' => $fixture['term']->id, 'selectedRunId' => $fixture['failed']->id]);
+        $component->assertActionVisible('retrySolverRun');
+        if (! $detail) {
+            $component->assertActionHidden('generateTimetable');
+        }
+        $component->callAction('retrySolverRun', data: ['correction_explanation' => ''])->assertHasActionErrors(['correction_explanation' => 'required']);
+        $this->assertSame(1, ScheduleGenerationRun::query()->where('term_id', $fixture['term']->id)->count());
+
+        $component->setActionData(['correction_explanation' => 'Administrator corrected access; <service> verified.'])->callMountedAction()->assertHasNoActionErrors()->assertNotified();
+
+        $successor = ScheduleGenerationRun::query()->where('term_id', $fixture['term']->id)->latest('id')->firstOrFail();
+        $this->assertSame($before, $fixture['failed']->fresh()->getAttributes());
+        $this->assertSame($fixture['failed']->id, data_get($successor->diagnostics, 'technical_recovery.source_run_id'));
+        if ($detail) {
+            $component->assertRedirect(ScheduleGenerationRunResource::getUrl('view', ['record' => $successor, 'termId' => $fixture['term']->id]));
+        } else {
+            $component->assertSet('selectedRunId', $successor->id);
+        }
+        Livewire::actingAs($fixture['registrar'])->test(ViewScheduleGenerationRun::class, ['record' => $successor->id, 'termId' => $fixture['term']->id])
+            ->assertSee('Service recovery')->assertSee('From attempt #'.$fixture['failed']->id)
+            ->assertSee($fixture['registrar']->name)->assertSee('Administrator corrected access; <service> verified.')
+            ->assertDontSeeHtml('Administrator corrected access; <service> verified.');
+        Http::assertNothingSent();
+        Queue::assertPushed(ScheduleSolverDispatchJob::class, 2);
+    }
+
+    /** @return array<string, array{string, bool, bool}> */
+    public static function explicitRecoveryCases(): array
+    {
+        return ['IAM generation' => ['iam', false, false], 'IAM repair' => ['iam', true, false],
+            'output generation' => ['output', false, false], 'output repair' => ['output', true, false],
+            'legacy generation' => ['output', false, true], 'legacy repair' => ['output', true, true]];
+    }
+
+    #[DataProvider('explicitRecoveryCases')]
+    public function test_deliberate_recovery_queues_one_attributed_fresh_request_after_a_same_endpoint_service_fix(string $failure, bool $repair, bool $legacy): void
+    {
+        Http::preventStrayRequests();
+        $source = $this->schedulingSource(withSecondComponent: false);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $this->demandGenerator->forTerm($registrar, $source['term']);
+        $sourceRun = null;
+        $sourceBefore = null;
+        if ($repair) {
+            $sourceRun = $this->runService->generate($source['term'], $registrar);
+            $this->dispatchRecoveryRun($sourceRun, new LocalStubSchedulingSolverClient);
+            $sourceBefore = $sourceRun->fresh()->getAttributes();
+            $row = $sourceRun->candidateRows()->sole();
+            $assignment = ['faculty_user_id' => $row->faculty_user_id, 'room_id' => $row->room_id,
+                'day_of_week' => $row->day_of_week, 'starts_at' => $row->starts_at, 'ends_at' => $row->ends_at];
+        }
+        $endpoint = $failure === 'iam' ? 'https://solver.example.test' : 'http://127.0.0.1:9089';
+        config()->set('tala_integrations.scheduling_solver.driver', $failure === 'iam' ? 'cloud_run' : 'local_http');
+        config()->set('tala_integrations.scheduling_solver.url', $endpoint);
+        config()->set('tala_integrations.scheduling_solver.audience', $endpoint);
+        $failed = $repair
+            ? app(RequestTimetableRepair::class)->execute($row, $registrar, $assignment, 'Preserve this intended repair.', 'SYNTH-RECOVERY-AUTHORITY')
+            : $this->runService->generate($source['term'], $registrar);
+        $serviceFixed = false;
+        Http::fake([$endpoint.'/solve' => function ($request) use ($failure, &$serviceFixed) {
+            if ($serviceFixed) {
+                return Http::response($this->recoveryPayload($request->data()));
+            }
+            if ($failure === 'iam') {
+                return Http::response(['error' => 'SYNTHETIC forbidden until service access is corrected.'], 403);
+            }
+            $payload = $this->recoveryPayload($request->data());
+            $payload['solver_status'] = 'feasible';
+            $payload['assigned_count'] = 99;
+
+            return Http::response($payload);
+        }]);
+        if ($failure === 'iam') {
+            $tokens = $this->mock(CloudRunIdTokenProvider::class);
+            $tokens->shouldReceive('tokenFor')->twice()->with($endpoint)->andReturn('SYNTHETIC-ID-TOKEN');
+            $client = new CloudRunSchedulingSolverClient($tokens, $endpoint, $endpoint, 30, 5);
+        } else {
+            $client = new LocalHttpSchedulingSolverClient($endpoint, 30, 5, 'testing');
+        }
+        $this->dispatchRecoveryRun($failed, $client);
+        $failed->refresh();
+        if ($legacy) {
+            $diagnostics = $failed->diagnostics;
+            unset($diagnostics['solver_dispatch']['technical_context_fingerprint']);
+            $failed->forceFill(['diagnostics' => $diagnostics])->save();
+            $failed->refresh();
+        }
+        $before = $failed->getAttributes();
+        $this->assertFalse($failed->canRetrySolver());
+        $serviceFixed = true;
+
+        $successor = app(ScheduleSolverRetryService::class)->recover($failed, $registrar, '  Administrator confirmed the service access or output correction.  ');
+
+        $this->assertSame(ScheduleGenerationRun::StatusQueued, $successor->status);
+        $this->assertNotSame($failed->id, $successor->id);
+        $this->assertSame($before, $failed->fresh()->getAttributes());
+        $this->assertSame($failed->id, data_get($successor->diagnostics, 'technical_recovery.source_run_id'));
+        $this->assertSame($registrar->id, data_get($successor->diagnostics, 'technical_recovery.requested_by'));
+        $this->assertSame('Administrator confirmed the service access or output correction.', data_get($successor->diagnostics, 'technical_recovery.correction_explanation'));
+        $this->assertNotEmpty(data_get($successor->diagnostics, 'technical_recovery.requested_at'));
+        if ($repair) {
+            $this->assertSame(data_get($failed->input_snapshot, 'operation'), data_get($successor->input_snapshot, 'operation'));
+            $this->assertSame($sourceBefore, $sourceRun->fresh()->getAttributes());
+        }
+        $count = ScheduleGenerationRun::query()->where('term_id', $source['term']->id)->count();
+        try {
+            app(ScheduleSolverRetryService::class)->recover($failed, $registrar, 'Repeat the already recovered request.');
+            $this->fail('A stale or double-submitted recovery queued another run.');
+        } catch (AuthorizationException|ValidationException) {
+            $this->assertSame($count, ScheduleGenerationRun::query()->where('term_id', $source['term']->id)->count());
+        }
+        $this->dispatchRecoveryRun($successor, $client);
+        $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $successor->fresh()->status);
+        Http::assertSentCount(2);
+        Queue::assertPushed(ScheduleSolverDispatchJob::class, $repair ? 3 : 2);
+    }
+
+    #[DataProvider('recoveryKinds')]
+    public function test_fresh_request_recovers_after_corrected_credentials_and_preserves_terminal_failure(bool $repair): void
+    {
+        Http::preventStrayRequests();
+        Storage::fake('local');
+        config()->set('tala_integrations.scheduling_solver', [
+            'driver' => 'cloud_run', 'url' => 'https://solver.example.test',
+            'audience' => 'https://solver.example.test', 'credentials_path' => null,
+            'timeout_seconds' => 30, 'connect_timeout_seconds' => 5,
+        ]);
+        $source = $this->schedulingSource(withSecondComponent: false);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $this->demandGenerator->forTerm($registrar, $source['term']);
+        $sourceRun = null;
+        $sourceBefore = null;
+        $request = fn () => $this->runService->generate($source['term'], $registrar);
+        if ($repair) {
+            config()->set('tala_integrations.scheduling_solver.driver', 'local_stub');
+            $sourceRun = $request();
+            $this->dispatchRecoveryRun($sourceRun, new LocalStubSchedulingSolverClient);
+            $sourceBefore = $sourceRun->fresh()->getAttributes();
+            $row = $sourceRun->candidateRows()->sole();
+            $assignment = ['faculty_user_id' => $row->faculty_user_id, 'room_id' => $row->room_id,
+                'day_of_week' => $row->day_of_week, 'starts_at' => $row->starts_at, 'ends_at' => $row->ends_at];
+            $request = fn () => app(RequestTimetableRepair::class)->execute($row, $registrar, $assignment, 'Recover this bounded repair.', 'SYNTH-RECOVERY');
+            config()->set('tala_integrations.scheduling_solver.driver', 'cloud_run');
+        }
+        $failed = $request();
+        $this->dispatchRecoveryRun($failed, new CloudRunSchedulingSolverClient(
+            new GoogleServiceAccountCloudRunIdTokenProvider(null), 'https://solver.example.test', 'https://solver.example.test', 30, 5,
+        ));
+        $failed->refresh();
+        $this->assertSame('credential', $failed->finalSolverFailure()['classification']);
+        $this->assertFalse($failed->canRetrySolver());
+        $before = $failed->getAttributes();
+        try {
+            $request();
+            $this->fail('Uncorrected credentials repeated the failed request.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey($repair ? 'repair' : 'generation', $exception->errors());
+        }
+
+        Storage::disk('local')->put('corrected-solver.json', '{"private_key":"SYNTHETIC-CORRECTED-CREDENTIAL"}');
+        config()->set('tala_integrations.scheduling_solver.credentials_path', Storage::disk('local')->path('corrected-solver.json'));
+        $tokens = $this->mock(CloudRunIdTokenProvider::class);
+        $tokens->shouldReceive('tokenFor')->once()->with('https://solver.example.test')->andReturn('SYNTHETIC-ID-TOKEN');
+        Http::fake(['https://solver.example.test/solve' => fn ($request) => Http::response($this->recoveryPayload($request->data()), 200)]);
+
+        $successor = $request();
+        $this->dispatchRecoveryRun($successor, new CloudRunSchedulingSolverClient($tokens, 'https://solver.example.test', 'https://solver.example.test', 30, 5));
+
+        $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $successor->fresh()->status);
+        $this->assertSame($before, $failed->fresh()->getAttributes());
+        $this->assertSame(1, $failed->solverAttemptEvents()->count());
+        $this->assertSame(1, $successor->candidateRows()->count());
+        if ($repair) {
+            $this->assertSame(data_get($failed->input_snapshot, 'operation.requested_assignment'), data_get($successor->input_snapshot, 'operation.requested_assignment'));
+            $this->assertSame($sourceBefore, $sourceRun->fresh()->getAttributes());
+        }
+        $this->assertStringNotContainsString('SYNTHETIC-CORRECTED-CREDENTIAL', json_encode($successor->fresh()->diagnostics));
+        Http::assertSentCount(1);
+        Queue::assertPushed(ScheduleSolverDispatchJob::class, $repair ? 3 : 2);
+    }
+
+    public function test_fresh_generation_recovers_after_permanent_integration_configuration_is_corrected(): void
+    {
+        Http::preventStrayRequests();
+        config()->set('tala_integrations.scheduling_solver.driver', 'local_http');
+        config()->set('tala_integrations.scheduling_solver.url', 'https://invalid.example.test');
+        $source = $this->schedulingSource(withSecondComponent: false);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $this->demandGenerator->forTerm($registrar, $source['term']);
+        $failed = $this->runService->generate($source['term'], $registrar);
+        $this->dispatchRecoveryRun($failed, new LocalHttpSchedulingSolverClient('https://invalid.example.test', 30, 5, 'testing'));
+        $failed->refresh();
+        $this->assertSame('configuration', $failed->finalSolverFailure()['classification']);
+        $before = $failed->getAttributes();
+        $this->assertEquivalentGenerationBlocked($source['term'], $registrar);
+        config()->set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:9088');
+        Http::fake(['http://127.0.0.1:9088/solve' => fn ($request) => Http::response($this->recoveryPayload($request->data()), 200)]);
+
+        $successor = $this->runService->generate($source['term'], $registrar);
+        $this->dispatchRecoveryRun($successor, new LocalHttpSchedulingSolverClient('http://127.0.0.1:9088', 30, 5, 'testing'));
+
+        $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $successor->fresh()->status);
+        $this->assertSame($before, $failed->fresh()->getAttributes());
+        Http::assertSentCount(1);
+        Queue::assertPushed(ScheduleSolverDispatchJob::class, 2);
+    }
+
+    /** @return array<string, array{string, bool}> */
+    public static function rejectedRecoveryRequests(): array
+    {
+        return ['optimal generation' => ['optimal', false], 'feasible generation' => ['feasible', false],
+            'optimal repair' => ['optimal', true], 'feasible repair' => ['feasible', true],
+            'malformed unknown generation' => ['unknown', false], 'malformed unknown repair' => ['unknown', true],
+            'malformed model generation' => ['model_invalid', false], 'malformed model repair' => ['model_invalid', true]];
+    }
+
+    #[DataProvider('rejectedRecoveryRequests')]
+    public function test_independently_rejected_solver_output_allows_a_fresh_request_after_technical_correction(string $status, bool $repair): void
+    {
+        Http::preventStrayRequests();
+        $source = $this->schedulingSource(withSecondComponent: false);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $this->demandGenerator->forTerm($registrar, $source['term']);
+        $run = $this->runService->generate($source['term'], $registrar);
+        $request = fn () => $this->runService->generate($source['term'], $registrar);
+        $sourceBefore = null;
+        if ($repair) {
+            $this->dispatchRecoveryRun($run, new LocalStubSchedulingSolverClient);
+            $sourceBefore = $run->fresh()->getAttributes();
+            $row = $run->candidateRows()->sole();
+            $assignment = ['faculty_user_id' => $row->faculty_user_id, 'room_id' => $row->room_id,
+                'day_of_week' => $row->day_of_week, 'starts_at' => '13:00:00', 'ends_at' => '16:00:00'];
+            $request = fn () => app(RequestTimetableRepair::class)->execute($row, $registrar, $assignment, 'Recover this bounded repair.', 'SYNTH-RECOVERY');
+        }
+        config()->set('tala_integrations.scheduling_solver.driver', 'local_http');
+        config()->set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:9087');
+        $failed = $repair ? $request() : $run;
+        Http::fake(['http://127.0.0.1:9087/solve' => function ($request) use ($status) {
+            $payload = $this->recoveryPayload($request->data());
+            $payload['solver_status'] = $status;
+            $payload['assigned_count'] = 99;
+
+            return Http::response($payload, 200);
+        }]);
+        $this->dispatchRecoveryRun($failed, new LocalHttpSchedulingSolverClient('http://127.0.0.1:9087', 30, 5, 'testing'));
+        $failed->refresh();
+        $this->assertSame('TechnicalFailure', data_get($failed->diagnostics, 'solver_result.summary.outcome'));
+        $this->assertSame(0, $failed->candidateRows()->count());
+        $this->assertFalse($failed->canRetrySolver());
+        $before = $failed->getAttributes();
+        try {
+            $request();
+            $this->fail('An unchanged technical context repeated a rejected result.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey($repair ? 'repair' : 'generation', $exception->errors());
+        }
+        config()->set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:9088');
+
+        $successor = $request();
+
+        $this->assertNotSame($failed->id, $successor->id);
+        $this->assertSame(ScheduleGenerationRun::StatusQueued, $successor->status);
+        $this->assertSame($before, $failed->fresh()->getAttributes());
+        if ($repair) {
+            $this->assertSame($sourceBefore, $run->fresh()->getAttributes());
+            $this->assertSame(data_get($failed->input_snapshot, 'operation.requested_assignment'), data_get($successor->input_snapshot, 'operation.requested_assignment'));
+        }
+        Http::assertSentCount(1);
+        Queue::assertPushed(ScheduleSolverDispatchJob::class, $repair ? 3 : 2);
+    }
+
+    private function assertEquivalentGenerationBlocked(Term $term, User $registrar): void
+    {
+        $before = ScheduleGenerationRun::query()->where('term_id', $term->id)->count();
+        try {
+            $this->runService->generate($term, $registrar);
+            $this->fail('Uncorrected integration was allowed to generate again.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('generation', $exception->errors());
+        }
+        $this->assertSame($before, ScheduleGenerationRun::query()->where('term_id', $term->id)->count());
+    }
+
+    public function test_legacy_missing_context_does_not_establish_same_driver_technical_correction(): void
+    {
+        Http::preventStrayRequests();
+        config()->set('tala_integrations.scheduling_solver.driver', 'local_http');
+        config()->set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:9087');
+        $source = $this->schedulingSource(withSecondComponent: false);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $this->demandGenerator->forTerm($registrar, $source['term']);
+        $failed = $this->runService->generate($source['term'], $registrar);
+        $failed->forceFill(['status' => ScheduleGenerationRun::StatusFailed, 'diagnostics' => [
+            'solver_dispatch' => ['driver' => 'local_http', 'failure' => ['classification' => 'configuration', 'final' => true, 'retryable' => false]],
+        ]])->save();
+        $before = $failed->fresh()->getAttributes();
+        config()->set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:9088');
+
+        $this->assertEquivalentGenerationBlocked($source['term'], $registrar);
+
+        $this->assertSame($before, $failed->fresh()->getAttributes());
+        Http::assertNothingSent();
+        Queue::assertPushed(ScheduleSolverDispatchJob::class, 1);
+    }
+
+    public function test_changed_technical_context_preserves_retained_candidate_and_publication_protections(): void
+    {
+        config()->set('tala_integrations.scheduling_solver.driver', 'local_http');
+        config()->set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:9087');
+        $recovery = app(ScheduleSolverRecoveryService::class);
+        $fingerprint = $recovery->contextFingerprint();
+        config()->set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:9088');
+        foreach ([['candidate_key' => 'retained'], ['candidate_state' => 'Accepted'], ['published_at' => now()], ['status' => ScheduleGenerationRun::StatusPublished]] as $retained) {
+            $run = ScheduleGenerationRun::factory()->create([
+                'status' => ScheduleGenerationRun::StatusBlocked, 'candidate_key' => null, 'candidate_state' => null,
+                'published_at' => null, 'published_by' => null, 'publication_version' => null,
+                'diagnostics' => ['solver_dispatch' => ['technical_context_fingerprint' => $fingerprint],
+                    'solver_result' => ['solver_status' => 'optimal', 'summary' => ['outcome' => 'TechnicalFailure']]],
+                ...$retained,
+            ]);
+
+            $this->assertFalse($recovery->canRecover($run));
+        }
+    }
+
+    public function test_credential_file_content_changes_establish_correction_but_metadata_only_changes_do_not(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('solver.json', 'SYNTHETIC-OLD-CREDENTIAL');
+        $path = Storage::disk('local')->path('solver.json');
+        config()->set('tala_integrations.scheduling_solver.driver', 'cloud_run');
+        config()->set('tala_integrations.scheduling_solver.credentials_path', $path);
+        $recovery = app(ScheduleSolverRecoveryService::class);
+        $run = ScheduleGenerationRun::factory()->create([
+            'status' => ScheduleGenerationRun::StatusFailed, 'candidate_key' => null, 'candidate_state' => null,
+            'published_at' => null, 'published_by' => null, 'publication_version' => null,
+            'diagnostics' => ['solver_dispatch' => ['technical_context_fingerprint' => $recovery->contextFingerprint(),
+                'failure' => ['classification' => 'credential', 'retryable' => false, 'final' => true]]],
+        ]);
+        touch($path, now()->addHour()->timestamp);
+
+        $this->assertFalse($recovery->canRecover($run));
+        Storage::disk('local')->put('solver.json', 'SYNTHETIC-CORRECTED-CREDENTIAL');
+        $this->assertTrue($recovery->canRecover($run));
+    }
+
+    private function dispatchRecoveryRun(ScheduleGenerationRun $run, SchedulingSolverClient $client): void
+    {
+        (new ScheduleSolverDispatchJob((int) $run->id))->handle(app(ScheduleSolverSnapshotService::class), $client, app(ScheduleCloudResultIngestor::class), app(ScheduleSolverDispatchLifecycleService::class));
+    }
+
+    /** @param array<string, mixed> $snapshot
+     * @return array<string, mixed>
+     */
+    private function recoveryPayload(array $snapshot): array
+    {
+        $payload = (new LocalStubSchedulingSolverClient)->solve(new SchedulingSolverRequest($snapshot, 'SYNTH-RECOVERY'))->payload();
+        $payload['solver_version'] = ScheduleGenerationRun::SolverVersion;
+
+        return $payload;
     }
 
     public function test_dispatch_builds_tal61_payload_uses_solver_client_and_persists_candidate_rows(): void
@@ -134,7 +616,8 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $this->assertArrayNotHasKey('curriculum_subject_demand', $snapshot);
         $this->assertSame($demandIds, collect($snapshot['scheduling_demands'])->pluck('scheduling_demand_id')->sort()->values()->all());
         $this->assertTrue(collect($snapshot['scheduling_demands'])->every(
-            fn (array $demand): bool => $demand['source_snapshot']['active_scheduling_window_count'] === 1
+            fn (array $demand): bool => $demand['source_snapshot']['meeting_pattern'] === $demand['meeting_pattern']
+                && $demand['source_snapshot']['eligible_faculty_count'] === 1
         ));
 
         $run->refresh();

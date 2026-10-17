@@ -2,16 +2,17 @@
 
 namespace App\Filament\Resources\Rooms\Tables;
 
-use App\Filament\Resources\Rooms\Schemas\RoomInfolist;
+use App\Filament\Resources\Rooms\Pages\ListRooms;
+use App\Filament\Resources\Rooms\RoomResource;
 use App\Models\Room;
 use App\Support\RoomEquipment;
+use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Schemas\Schema;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Livewire\Component;
 
 class RoomsTable
 {
@@ -19,22 +20,31 @@ class RoomsTable
     {
         return $table
             ->columns([
-                TextColumn::make('code')->searchable()->sortable()->weight('bold'),
-                TextColumn::make('name')->searchable()->sortable()->placeholder('-'),
-                TextColumn::make('building')->searchable()->sortable()->placeholder('-'),
+                TextColumn::make('code')
+                    ->label('Room')
+                    ->description(fn (Room $record): string => collect([$record->name, $record->building])->filter()->implode(' · '))
+                    ->searchable(['code', 'name', 'building'])
+                    ->sortable()
+                    ->weight('bold')
+                    ->wrap(),
                 TextColumn::make('room_type')
-                    ->label('Room type')
-                    ->badge()
+                    ->label('Type')
                     ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Room::typeOptions()[$state] ?? str($state)->headline()->toString()))
+                    ->wrap()
                     ->sortable(),
                 TextColumn::make('capacity')->numeric()->suffix(' seats')->sortable()->placeholder('-'),
                 TextColumn::make('features.feature_key')
-                    ->label('Equipment')->formatStateUsing(fn (?string $state): string => RoomEquipment::label($state))
-                    ->badge()
+                    ->label('Equipment')
+                    ->formatStateUsing(fn (?string $state): string => RoomEquipment::label($state))
                     ->separator(',')
-                    ->limitList(3)
-                    ->toggleable(),
-                IconColumn::make('is_active')->label('Active')->boolean()->sortable(),
+                    ->wrap()
+                    ->placeholder('None recorded'),
+                TextColumn::make('is_active')
+                    ->label('Status')
+                    ->formatStateUsing(fn (bool $state): string => $state ? 'Active' : 'Inactive')
+                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-check-circle' : 'heroicon-o-minus-circle')
+                    ->color(fn (bool $state): string => $state ? 'success' : 'gray')
+                    ->sortable(),
                 TextColumn::make('notes')
                     ->limit(40)
                     ->placeholder('-')
@@ -49,11 +59,22 @@ class RoomsTable
                     '0' => 'Inactive',
                 ]),
             ])
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->recordActions([
-                ViewAction::make()->url(null)->modalHeading(fn (Room $record): string => $record->code.' · '.$record->name)->schema(fn (Schema $schema): Schema => RoomInfolist::configure($schema)),
-                EditAction::make(),
+                ViewAction::make()->label('View details')->button()->color('gray')->authorize('view')->url(fn (Room $record, Component $livewire): string => RoomResource::getUrl('view', [
+                    'record' => $record,
+                    ...($livewire instanceof ListRooms && $livewire->termId !== null ? ['termId' => $livewire->termId] : []),
+                ])),
+                EditAction::make()->button()->color('gray')->authorize('update')->url(fn (Room $record, Component $livewire): string => RoomResource::getUrl('edit', [
+                    'record' => $record,
+                    ...($livewire instanceof ListRooms && $livewire->termId !== null ? ['termId' => $livewire->termId] : []),
+                ])),
             ])
+            ->recordActionsColumnLabel('Actions')
             ->toolbarActions([])
+            ->stackedOnMobile()
+            ->emptyStateHeading('No rooms recorded')
+            ->emptyStateDescription('Add a room for class assignments, or clear search and filters to see recorded rooms.')
             ->defaultSort('code');
     }
 }

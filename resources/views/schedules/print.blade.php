@@ -16,7 +16,7 @@
             <div><strong>Academic Year</strong><br>{{ $schedule['academic_year'] }}</div>
             <div><strong>Exact Term</strong><br>{{ $schedule['term_label'] }}</div>
             <div><strong>Reference</strong><br>{{ $schedule['reference'] }}</div>
-            <div><strong>Authority</strong><br>{{ $schedule['authority_reference'] }}</div>
+            <div><strong>Approval reference</strong><br>{{ $schedule['authority_reference'] ?: 'Not recorded' }}</div>
             <div><strong>Published</strong><br>{{ $schedule['published_at'] }}</div>
             <div><strong>Solver generated</strong><br>{{ $schedule['solver_generated_at'] }}</div>
         </div>

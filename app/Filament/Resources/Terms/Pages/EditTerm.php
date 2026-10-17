@@ -6,8 +6,10 @@ use App\Filament\Resources\Terms\TermResource;
 use App\Models\Term;
 use App\Support\ReturnsToTermPlanning;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\Alignment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -15,12 +17,34 @@ use Illuminate\Validation\ValidationException;
 
 class EditTerm extends EditRecord
 {
-    use ReturnsToTermPlanning;
+    use ReturnsToTermPlanning {
+        getPageClasses as protected getTermPlanningPageClasses;
+    }
 
     protected static string $resource = TermResource::class;
 
     /** @var array<string, string> */
     protected array $extraBodyAttributes = ['class' => 'tala-term-record-page'];
+
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-term-form'];
+    }
+
+    /** @return array<Action|ActionGroup> */
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getCancelFormAction()->label('Cancel')->color('gray'),
+            $this->getSaveFormAction()->label('Save changes'),
+        ];
+    }
+
+    public function getFormActionsAlignment(): string|Alignment
+    {
+        return Alignment::End;
+    }
 
     public function getTitle(): string
     {
@@ -30,8 +54,8 @@ class EditTerm extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make()->url(fn (): string => TermResource::getUrl('view', ['record' => $this->record, 'viewTab' => $this->viewTab, 'resourceView' => $this->resourceView])),
-            Action::make('returnToPlanning')->label('Return to Term Planning')
+            ViewAction::make()->label('View details')->color('gray')->url(fn (): string => TermResource::getUrl('view', ['record' => $this->record, 'viewTab' => $this->viewTab, 'resourceView' => $this->resourceView])),
+            Action::make('returnToPlanning')->label('Open planning')
                 ->color('gray')->url(fn (): string => $this->getRedirectUrl()),
         ];
     }

@@ -8,13 +8,21 @@ use Filament\Resources\Pages\ListRecords;
 
 class ListSchedulingDemands extends ListRecords
 {
-    use HasTermPlanningContext;
+    use HasTermPlanningContext {
+        getPageClasses as protected getTermPlanningPageClasses;
+    }
 
     protected static string $resource = SchedulingDemandResource::class;
 
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-planning-source-list'];
+    }
+
     public function getTitle(): string
     {
-        return 'Schedule Requirements';
+        return 'Schedule requirements';
     }
 
     public function getSubheading(): string

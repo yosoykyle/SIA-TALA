@@ -3,7 +3,7 @@
         <x-slot name="heading">Teaching calendar</x-slot>
         <x-slot name="description">Approved instruction dates and weekly hours determine when classes can meet. Review and activate a Draft before using its changed facts.</x-slot>
         @if ($overviewPackage)
-            <div class="tala-planning-next"><div><h3>{{ $overviewPackage->state }} calendar v{{ $overviewPackage->version }}</h3><p>{{ $overviewPackage->authority_reference ?: 'Approval reference missing' }} · {{ $overviewPackage->authority_date?->format('M j, Y') ?? 'Approval date missing' }}</p></div>
+            <div class="tala-planning-next"><div><h3>{{ $overviewPackage->state }} calendar v{{ $overviewPackage->version }}</h3><p>Optional approval: {{ $overviewPackage->authority_reference ?: 'Not recorded' }} · {{ $overviewPackage->authority_date?->format('M j, Y') ?? 'Date not recorded' }}</p></div>
                 @if (! $readOnly)<div class="flex flex-wrap gap-3">
                     @if ($draftPackages->isNotEmpty()){{ $this->correctDraftCalendarPackageAction->label('Edit Draft')->color($coreReadiness['ready'] ? 'gray' : 'primary') }} {{ $this->activateCalendarPackageAction->color($coreReadiness['ready'] ? 'primary' : 'gray') }}
                     @elseif ($activePackage){{ $this->recordCalendarPackageAction->color('gray')->outlined() }}

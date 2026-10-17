@@ -2573,7 +2573,12 @@ def _lexicographic_objective_details(
             if left.modality != right.modality
         )
 
-    loads = [sum(group_loads.values()) for group_loads in faculty_loads.values()]
+    faculty_ids = {
+        int(row["faculty_id"])
+        for row in snapshot.get("faculty", [])
+        if isinstance(row, dict) and _int_or_none(row.get("faculty_id")) is not None
+    }
+    loads = [sum(faculty_loads.get(faculty_id, {}).values()) for faculty_id in sorted(faculty_ids)]
     load_imbalance = sum(
         abs(left - right)
         for left_index, left in enumerate(loads)

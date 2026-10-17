@@ -107,7 +107,14 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
         $this->assertSame(CandidateScheduleRow::StatusOk, $corrected->status);
         $this->assertSame(ScheduleGenerationRun::StatusSuperseded, $context['run']->fresh()->status);
         $this->assertSame('08:00:00', $candidate->fresh()->starts_at);
-        $this->assertSame('kept', $diagnostics['solver_result']['marker']);
+        $this->assertSame('kept', $diagnostics['source_solver_evidence']['result']['marker']);
+        $this->assertSame($context['run']->id, $diagnostics['source_solver_evidence']['run_id']);
+        $this->assertSame('kept', $context['run']->fresh()->diagnostics['solver_result']['marker']);
+        $this->assertArrayNotHasKey('solver_result', $diagnostics);
+        $this->assertSame('LocalAdjustment', $diagnostics['candidate_origin']);
+        $this->assertSame('requires_attributable_review', $diagnostics['quality_comparison']['status']);
+        $this->assertNull($run->objective_value);
+        $this->assertNull($run->quality_measures);
         $this->assertSame('accepted', $diagnostics['current_revalidation']['status']);
         $this->assertDatabaseHas('activity_log', [
             'subject_type' => ScheduleGenerationRun::class,

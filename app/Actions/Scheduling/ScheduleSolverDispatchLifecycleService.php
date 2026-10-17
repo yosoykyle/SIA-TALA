@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 
 final class ScheduleSolverDispatchLifecycleService
 {
+    public function __construct(private readonly ScheduleSolverRecoveryService $recoveryService) {}
+
     /**
      * @return array{run: ScheduleGenerationRun, event: OperationalEvent}|null
      */
@@ -24,7 +26,7 @@ final class ScheduleSolverDispatchLifecycleService
             if (! in_array($run->status, [
                 ScheduleGenerationRun::StatusQueued,
                 ScheduleGenerationRun::StatusDispatching,
-            ], true)) {
+            ], true) || filled($run->candidate_key) || $run->candidateRows()->exists()) {
                 return null;
             }
 
@@ -69,6 +71,7 @@ final class ScheduleSolverDispatchLifecycleService
                 'latest_outcome' => 'pending',
                 'started_at' => $timestamp->toIso8601String(),
                 'driver' => config('tala_integrations.scheduling_solver.driver', 'local_stub'),
+                'technical_context_fingerprint' => $this->recoveryService->contextFingerprint(),
             ];
 
             $run->forceFill([
@@ -98,6 +101,11 @@ final class ScheduleSolverDispatchLifecycleService
             $lockedEvent = OperationalEvent::query()->lockForUpdate()->findOrFail($event->id);
             $timestamp = CarbonImmutable::now(config('app.timezone'));
             $eventDiagnostics = $this->arrayValue($lockedEvent->getAttribute('diagnostics'));
+
+            if ($lockedEvent->status === OperationalEvent::StatusProcessed
+                || (int) ($eventDiagnostics['cycle'] ?? 1) !== $lockedRun->dispatchCycle()) {
+                return;
+            }
 
             $lockedEvent->forceFill([
                 'status' => OperationalEvent::StatusProcessed,
@@ -150,6 +158,10 @@ final class ScheduleSolverDispatchLifecycleService
             ];
             $eventDiagnostics = $this->arrayValue($lockedEvent->getAttribute('diagnostics'));
 
+            if ($lockedEvent->status === OperationalEvent::StatusProcessed) {
+                return;
+            }
+
             $lockedEvent->forceFill([
                 'status' => OperationalEvent::StatusFailed,
                 'failed_at' => $timestamp,
@@ -160,6 +172,13 @@ final class ScheduleSolverDispatchLifecycleService
                     'duration_ms' => max(0, $durationMs),
                 ],
             ])->save();
+
+            if (! in_array($lockedRun->status, [ScheduleGenerationRun::StatusQueued, ScheduleGenerationRun::StatusDispatching], true)
+                || filled($lockedRun->candidate_key)
+                || $lockedRun->candidateRows()->exists()
+                || (int) ($eventDiagnostics['cycle'] ?? 1) !== $lockedRun->dispatchCycle()) {
+                return;
+            }
 
             $diagnostics = $this->arrayValue($lockedRun->getAttribute('diagnostics'));
             $dispatch = $this->arrayValue($diagnostics['solver_dispatch'] ?? null);
@@ -193,6 +212,11 @@ final class ScheduleSolverDispatchLifecycleService
             $run = ScheduleGenerationRun::query()->lockForUpdate()->find($scheduleGenerationRunId);
 
             if (! $run instanceof ScheduleGenerationRun) {
+                return null;
+            }
+
+            if (! in_array($run->status, [ScheduleGenerationRun::StatusQueued, ScheduleGenerationRun::StatusDispatching], true)
+                || filled($run->candidate_key) || $run->candidateRows()->exists()) {
                 return null;
             }
 

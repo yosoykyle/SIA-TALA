@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ScheduleGenerationRuns\Pages;
 
 use App\Actions\Scheduling\ScheduleGenerationService;
+use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Term;
@@ -18,13 +19,21 @@ use Throwable;
 
 class ListScheduleGenerationRuns extends ListRecords
 {
-    use HasTermPlanningContext;
+    use HasTermPlanningContext {
+        getPageClasses as protected getTermPlanningPageClasses;
+    }
 
     protected static string $resource = ScheduleGenerationRunResource::class;
 
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-planning-source-list'];
+    }
+
     public function getTitle(): string
     {
-        return 'Generated Timetables';
+        return 'Timetable generation history';
     }
 
     public function getSubheading(): string
@@ -35,11 +44,15 @@ class ListScheduleGenerationRuns extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('openTimetable')->label('Open timetable')->icon(Heroicon::OutlinedCalendarDays)->color('gray')
+                ->visible(fn (): bool => ! (auth()->user()?->can('create', ScheduleGenerationRun::class) ?? false))
+                ->url(fn (): string => TermTimetable::getUrl(['termId' => $this->termId])),
             Action::make('dispatchSolverRun')
-                ->label('Generate Timetable')
+                ->label('Open timetable')
                 ->icon(Heroicon::OutlinedPaperAirplane)
-                ->color('primary')
+                ->color('gray')
                 ->visible(fn (): bool => auth()->user()?->can('create', ScheduleGenerationRun::class) ?? false)
+                ->url(fn (): string => TermTimetable::getUrl(['termId' => $this->termId]))
                 ->schema([
                     Select::make('term_id')
                         ->label('Term')

@@ -7,12 +7,16 @@ use App\Filament\Resources\Terms\TermResource;
 use App\Models\Term;
 use App\Support\ReturnsToTermPlanning;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Support\Enums\Alignment;
 use Livewire\Attributes\Url;
 
 class CreateTerm extends CreateRecord
 {
-    use ReturnsToTermPlanning;
+    use ReturnsToTermPlanning {
+        getPageClasses as protected getTermPlanningPageClasses;
+    }
 
     protected static string $resource = TermResource::class;
 
@@ -21,6 +25,27 @@ class CreateTerm extends CreateRecord
 
     #[Url]
     public ?int $termId = null;
+
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-term-form'];
+    }
+
+    /** @return array<Action|ActionGroup> */
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getCancelFormAction()->label('Cancel')->color('gray'),
+            ...($this->canCreateAnother() ? [$this->getCreateAnotherFormAction()->label('Save & add another')->color('gray')] : []),
+            $this->getCreateFormAction()->label('Create Term'),
+        ];
+    }
+
+    public function getFormActionsAlignment(): string|Alignment
+    {
+        return Alignment::End;
+    }
 
     protected function getCancelFormAction(): Action
     {

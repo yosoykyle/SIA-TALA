@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TermOfferings\Tables;
 
 use App\Models\TermOffering;
+use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -55,8 +56,9 @@ class TermOfferingsTable
                     TermOffering::StateCancelled => 'Cancelled',
                 ]),
             ])
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->stackedOnMobile()
             ->emptyStateHeading('No term offerings are recorded')
-            ->emptyStateDescription('Open Class Planning and create the term offerings before sections or schedule requirements can be prepared.');
+            ->emptyStateDescription('Use Prepare Term classes in Classes & sections to record the Term class proposal.');
     }
 }

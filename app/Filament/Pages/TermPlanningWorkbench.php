@@ -47,7 +47,6 @@ use App\Support\TimetablePresentation;
 use BackedEnum;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
@@ -271,24 +270,15 @@ class TermPlanningWorkbench extends Page
 
     }
 
+    public function getHeading(): string|Htmlable|null
+    {
+        return null;
+    }
+
     /** @return array<string, string> */
     public function getBreadcrumbs(): array
     {
-        $overview = TermOverview::getUrl(['termId' => $this->termId]);
-        $breadcrumbs = auth()->user()?->hasRole(User::StaffRoleAcademicHead)
-            ? [AcademicApprovals::getUrl(['termId' => $this->termId]) => 'Academic Oversight']
-            : [Filament::getUrl() => 'Staff Workspace'];
-
-        if ($this->viewTab === 'plan') {
-            return [...$breadcrumbs, 'Term Planning'];
-        }
-
-        return [...$breadcrumbs, $overview => 'Term Planning', match ($this->viewTab) {
-            'classes' => 'Sections & classes',
-            'resources' => 'Faculty & rooms',
-            'generate', 'published' => 'Timetable',
-            default => 'Calendar',
-        }];
+        return [];
     }
 
     public function recordCalendarPackageAction(): Action
@@ -309,6 +299,7 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make($datesOnly ? 'addOperationalDates' : 'recordCalendarPackage')
+            ->when($datesOnly, fn (Action $action): Action => $action->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()])))
 
             ->label(fn (): string => $datesOnly ? 'Update activity dates' : ($this->activeCalendarPackage() ? 'Change teaching calendar' : 'Record teaching calendar'))
 
@@ -423,6 +414,7 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make('correctDraftCalendarPackage')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->label('Correct Draft Package')
 
@@ -792,6 +784,7 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make('activateCalendarPackage')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->label('Activate teaching calendar')
 
@@ -827,11 +820,11 @@ class TermPlanningWorkbench extends Page
 
             })
 
-            ->modalHeading('Activate Calendar Package')
+            ->modalHeading('Activate teaching calendar')
 
             ->modalDescription('Review the selected exact Term, package authority, readiness, and downstream operational windows before activating this package.')
 
-            ->modalSubmitActionLabel('Activate Calendar Package')
+            ->modalSubmitActionLabel('Activate teaching calendar')
 
             ->modalWidth('2xl')
 
@@ -1121,9 +1114,9 @@ class TermPlanningWorkbench extends Page
 
         return [
 
-            TextInput::make('authority_reference')->label('Approval reference for these dates')->required()->maxLength(255),
+            TextInput::make('authority_reference')->label('Approval reference (optional)')->maxLength(255),
 
-            DatePicker::make('authority_date')->label('Approval date')->required(),
+            DatePicker::make('authority_date')->label('Approval date (optional)'),
 
             Repeater::make('windows')->label('Approved activity dates')->defaultItems(0)->addActionLabel('Add an activity')
 
@@ -1164,23 +1157,23 @@ class TermPlanningWorkbench extends Page
     private function calendarPackageFields(bool $addingDates = false): array
     {
 
-        $approval = SchemaSection::make('Approval and dates')->description('Record the external approval and inclusive exact-Term bounds. Instruction sits within the administrative dates.')
+        $approval = SchemaSection::make('Teaching dates')->description('Record the approved dates. TALA records who saves and activates the calendar, and when.')
 
             ->collapsible()->collapsed($addingDates)
 
             ->schema([
 
-                TextInput::make('authority_reference')->label('External approval reference')->required()->maxLength(255),
+                TextInput::make('authority_reference')->label('Approval reference (optional)')->maxLength(255),
 
-                DatePicker::make('authority_date')->label('External approval date')->required(),
+                DatePicker::make('authority_date')->label('Approval date (optional)'),
 
-                DatePicker::make('administrative_starts_on')->required(),
+                DatePicker::make('administrative_starts_on')->label('Term start')->required(),
 
-                DatePicker::make('administrative_ends_on')->required()->afterOrEqual('administrative_starts_on'),
+                DatePicker::make('administrative_ends_on')->label('Term end')->required()->afterOrEqual('administrative_starts_on'),
 
-                DatePicker::make('classes_start_on')->label('Instruction starts on')->required(),
+                DatePicker::make('classes_start_on')->label('Classes start')->required(),
 
-                DatePicker::make('classes_end_on')->label('Instruction ends on')->required()->afterOrEqual('classes_start_on'),
+                DatePicker::make('classes_end_on')->label('Classes end')->required()->afterOrEqual('classes_start_on'),
 
                 TextInput::make('special_term_schedule_basis')->label('Special Term class-day and class-hour basis')->maxLength(255)
 
@@ -1188,7 +1181,7 @@ class TermPlanningWorkbench extends Page
 
             ])->columns(2);
 
-        $grid = SchemaSection::make('Weekly teaching grid')->description('Record each approved weekday and its own hours. Scheduling uses fixed 30-minute slots; days, hours and breaks come from the approved source.')
+        $grid = SchemaSection::make('Teaching hours')->description('Record each approved weekday and its own hours in Asia/Manila. Scheduling uses fixed 30-minute slots; days, hours and breaks come from the approved source.')
 
             ->collapsible()->collapsed($addingDates)
 
@@ -1214,11 +1207,11 @@ class TermPlanningWorkbench extends Page
 
             ]);
 
-        $dates = SchemaSection::make('Operational dates')->description('Add only approved dates. Missing dates block their related action; the core calendar can activate without them.')
+        $dates = SchemaSection::make('Activity dates')->description('Add only approved dates. Missing dates block their related action; the core calendar can activate without them.')
 
             ->collapsible()->collapsed(! $addingDates)->schema([
 
-                Repeater::make('windows')->label('Operational windows')->defaultItems(0)->schema([
+                Repeater::make('windows')->label('Approved activity dates')->defaultItems(0)->schema([
 
                     Select::make('window_type')->options(TermCalendarWindow::typeOptions())->required()->distinct(),
 
@@ -1228,13 +1221,13 @@ class TermPlanningWorkbench extends Page
 
                     TimePicker::make('cutoff_at')->label('Approved close cutoff (Asia/Manila)')->timezone('UTC')->seconds(),
 
-                ])->columns(2)->helperText('Each window belongs to this exact Term and approved consumer period. Omit the cutoff when the closing date is inclusive through its end.'),
+                ])->columns(2)->helperText('Record each activity for this Term. Leave the closing time empty to include the entire closing day.'),
 
                 Hidden::make('faculty_availability_due_at')->dehydrated(false),
 
             ]);
 
-        $exceptions = SchemaSection::make('Dated exceptions')->description('Record approved no-class periods, make-up dates or informational exceptions, with their instructional effect and authority.')
+        $exceptions = SchemaSection::make('Calendar exceptions')->description('Record approved no-class periods, make-up dates or informational exceptions, with their instructional effect and authority.')
 
             ->collapsible()->collapsed()->schema([
 
@@ -1264,6 +1257,7 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make('recordFacultyDeadline')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->label(fn (): string => $this->activeCalendarPackage()?->facultyAvailabilityDueAt() ? 'Change reply deadline' : 'Set reply deadline')
 
@@ -1366,6 +1360,7 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make('requestFacultyAvailability')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->label('Request availability')
 
@@ -1487,6 +1482,7 @@ class TermPlanningWorkbench extends Page
     public function confirmClassAction(): Action
     {
         return Action::make('confirmClassOffering')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
             ->label('Confirm class')
             ->modalHeading('Confirm class and student sections')
             ->modalDescription('Link the confirmed student sections to this class. Shared and mixed-year sections remain separate; their total must fit the approved class capacity.')
@@ -1532,13 +1528,15 @@ class TermPlanningWorkbench extends Page
 
             $blocker = $readiness['blockers'][0];
 
-            return ['ready' => false, 'reason' => $blocker['code'] === 'calendar_not_active'
-                ? 'Activate the teaching calendar for this Term before preparing a timetable.'
-                : $blocker['reason'], 'tab' => match ($blocker['code']) {
-                    'calendar_not_active' => 'overview',
-                    'classes_not_confirmed' => 'classes',
-                    default => 'resources',
-                }];
+            return ['ready' => false, 'reason' => match ($blocker['code']) {
+                'calendar_not_active' => 'Activate the teaching calendar for this Term before preparing a timetable.',
+                'classes_not_confirmed' => 'Prepare and confirm classes for this Term before generating a timetable.',
+                default => $blocker['reason'],
+            }, 'tab' => match ($blocker['code']) {
+                'calendar_not_active' => 'overview',
+                'classes_not_confirmed' => 'classes',
+                default => 'resources',
+            }];
 
         }
 
@@ -1574,6 +1572,7 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make('generateTimetable')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->label('Generate whole-Term timetable')
 
@@ -1605,7 +1604,7 @@ class TermPlanningWorkbench extends Page
 
             ->modalSubmitActionLabel('Generate draft timetable')
 
-            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null)
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null && $this->retainedCandidateNextStep() === null && ! $this->canRecoverActiveRun())
 
             ->action(function (): void {
 
@@ -1685,17 +1684,20 @@ class TermPlanningWorkbench extends Page
 
         return Action::make('acceptCandidate')
 
-            ->label('Accept Candidate')
+            ->label('Accept timetable')
 
             ->icon(Heroicon::OutlinedCheck)
 
-            ->color('success')
+            ->color('primary')
 
             ->requiresConfirmation()
 
-            ->modalHeading('Accept Candidate Timetable')
+            ->modalHeading('Accept timetable')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+            ->modalSubmitActionLabel('Accept timetable')
+            ->modalIcon(Heroicon::OutlinedCheck)
 
-            ->modalDescription('This attributable review records that the candidate meets academic requirements. It remains non-official until separately published.')
+            ->modalDescription(fn (): string => $this->selectedTerm()->label.' · Attempt #'.$this->activeScheduleRun()?->id.'. Record why this timetable meets the academic requirements. It becomes official only after publication.')
 
             ->schema([
 
@@ -1742,7 +1744,7 @@ class TermPlanningWorkbench extends Page
 
         return Action::make('rejectCandidate')
 
-            ->label('Reject Candidate')
+            ->label('Reject result')
 
             ->icon(Heroicon::OutlinedXMark)
 
@@ -1750,9 +1752,12 @@ class TermPlanningWorkbench extends Page
 
             ->requiresConfirmation()
 
-            ->modalHeading('Reject Candidate Timetable')
+            ->modalHeading('Reject result')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+            ->modalSubmitActionLabel('Reject result')
+            ->modalIcon(Heroicon::OutlinedXMark)
 
-            ->modalDescription('Record why this candidate schedule is rejected. A rejected candidate cannot be published.')
+            ->modalDescription(fn (): string => $this->selectedTerm()->label.' · Attempt #'.$this->activeScheduleRun()?->id.'. Record why this result is rejected. A rejected result cannot be published.')
 
             ->schema([
 
@@ -1799,7 +1804,7 @@ class TermPlanningWorkbench extends Page
 
         return Action::make('retrySolverRun')
 
-            ->label('Retry Generation')
+            ->label(fn (): string => $this->canRecoverActiveRun() ? 'Try again after a service fix' : (data_get($this->activeScheduleRun()?->diagnostics, 'solver_result.solver_status') === 'unknown' ? 'Retry search' : 'Retry connection'))
 
             ->icon(Heroicon::OutlinedArrowPath)
 
@@ -1807,15 +1812,24 @@ class TermPlanningWorkbench extends Page
 
             ->requiresConfirmation()
 
-            ->modalHeading('Retry Timetable Generation')
+            ->modalHeading(fn (): string => $this->canRecoverActiveRun() ? 'Try again after a service fix' : 'Retry generation')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
-            ->modalDescription('Retry this same protected generation request. Previous solver diagnostics remain in the operational log.')
+            ->modalDescription(fn (): string => $this->selectedTerm()->label.' / Attempt #'.$this->activeScheduleRun()?->id.'. '.($this->canRecoverActiveRun()
+                ? 'After the System Administrator confirms the service fix, queue one new attempt after current planning data passes readiness checks. The failed attempt stays in history. Any original repair change is preserved.'
+                : 'Retry the same whole-Term request. Earlier outcomes remain in the history.'))
 
-            ->modalSubmitActionLabel('Retry Solver')
+            ->modalSubmitActionLabel(fn (): string => $this->canRecoverActiveRun() ? 'Queue new attempt' : 'Retry generation')
+            ->schema([
+                Textarea::make('correction_explanation')->label('What was fixed?')
+                    ->helperText('Record the service correction confirmed by the System Administrator. This explanation stays with the new attempt.')
+                    ->required(fn (): bool => $this->canRecoverActiveRun())->maxLength(2000)
+                    ->visible(fn (): bool => $this->canRecoverActiveRun()),
+            ])
 
             ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->canRetryActiveRun())
 
-            ->action(function (): void {
+            ->action(function (array $data): void {
 
                 $actor = auth()->user();
 
@@ -1827,13 +1841,15 @@ class TermPlanningWorkbench extends Page
 
                 try {
 
-                    $retried = app(ScheduleSolverRetryService::class)->retry($run, $actor);
+                    $retried = $this->canRecoverActiveRun()
+                        ? app(ScheduleSolverRetryService::class)->recover($run, $actor, (string) ($data['correction_explanation'] ?? ''))
+                        : app(ScheduleSolverRetryService::class)->retry($run, $actor);
 
                     $this->selectedRunId = $retried->id;
 
                     Notification::make()
 
-                        ->title('Solver run requeued')
+                        ->title($retried->id !== $run->id ? 'New attempt queued' : 'Solver run requeued')
 
                         ->body('Generation has been re-dispatched to the solver.')
 
@@ -1868,7 +1884,7 @@ class TermPlanningWorkbench extends Page
 
         return Action::make('publishOfficialTimetable')
 
-            ->label('Publish Official Timetable')
+            ->label('Publish official timetable')
 
             ->icon(Heroicon::OutlinedCheckCircle)
 
@@ -1876,23 +1892,22 @@ class TermPlanningWorkbench extends Page
 
             ->requiresConfirmation()
 
-            ->modalHeading('Publish Official Timetable')
+            ->modalHeading('Publish official timetable')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
-            ->modalDescription(fn (): string => $this->publicationModalDescription())
+            ->modalDescription(fn (): string => $this->selectedTerm()->label.' / Attempt #'.$this->activeScheduleRun()?->id.'. '.$this->publicationModalDescription())
 
-            ->modalSubmitActionLabel('Publish Official Timetable')
+            ->modalSubmitActionLabel('Publish official timetable')
 
             ->schema([
 
                 TextInput::make('authority_reference')
 
-                    ->label('External timetable sign-off reference')
-
-                    ->required()
+                    ->label('Approval reference (optional)')
 
                     ->maxLength(255)
 
-                    ->helperText('Record the official board, council, or Registrar sign-off authority reference.'),
+                    ->helperText('TALA records the publishing Registrar and time automatically.'),
 
                 Textarea::make('publication_note')
 
@@ -2026,6 +2041,21 @@ class TermPlanningWorkbench extends Page
 
     }
 
+    public function retainedCandidateNextStep(): ?string
+    {
+        $run = $this->activeScheduleRun();
+
+        if (! $run instanceof ScheduleGenerationRun || $run->status !== ScheduleGenerationRun::StatusUnderReview) {
+            return null;
+        }
+
+        return match ($run->candidate_state) {
+            'Accepted' => 'Publish the accepted timetable before starting another attempt.',
+            'Rejected', 'Stale', 'Superseded' => null,
+            default => 'Review or reject this retained candidate before starting another attempt.',
+        };
+    }
+
     public function canRetryActiveRun(): bool
     {
 
@@ -2037,10 +2067,17 @@ class TermPlanningWorkbench extends Page
 
             && $run instanceof ScheduleGenerationRun
 
-            && Gate::forUser($actor)->allows('retry', $run)
+            && (Gate::forUser($actor)->allows('retry', $run) || Gate::forUser($actor)->allows('recover', $run));
 
-            && $run->canRetrySolver();
+    }
 
+    public function canRecoverActiveRun(): bool
+    {
+        $actor = auth()->user();
+        $run = $this->activeScheduleRun();
+
+        return $actor instanceof User && $run instanceof ScheduleGenerationRun
+            && ! $run->canRetrySolver() && Gate::forUser($actor)->allows('recover', $run);
     }
 
     public function canPublishActiveRun(): bool
@@ -2173,6 +2210,8 @@ class TermPlanningWorkbench extends Page
 
                 ->label('Academic Year and Term')
 
+                ->hint(fn (): ?string => $this->termId !== null && ($term = $this->selectedTerm()) ? (Term::stateOptions()[$term->state] ?? $term->state).(auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? ' · Read-only · Registrar owns these records' : '') : null)
+
                 ->extraInputAttributes(['aria-label' => 'Academic Year and Term'])
 
                 ->placeholder('Choose a Term')
@@ -2192,9 +2231,6 @@ class TermPlanningWorkbench extends Page
                     ])])->all())
 
                 ->searchable()
-                ->hintAction(Action::make('createPlanningTerm')->label('Create Term')
-                    ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar))
-                    ->url(fn (): string => TermResource::getUrl('create', ['termId' => $this->termId, 'viewTab' => static::$planningTab])))
                 ->live()
                 ->afterStateUpdated(fn ($state) => $this->selectTerm((int) $state)),
 
@@ -2786,7 +2822,7 @@ class TermPlanningWorkbench extends Page
 
     }
 
-    private function selectedTerm(): Term
+    protected function selectedTerm(): Term
     {
 
         abort_if($this->termId === null, 404);
@@ -2795,7 +2831,7 @@ class TermPlanningWorkbench extends Page
 
     }
 
-    private function activeCalendarPackage(): ?TermCalendarPackage
+    protected function activeCalendarPackage(): ?TermCalendarPackage
     {
 
         if ($this->termId === null) {

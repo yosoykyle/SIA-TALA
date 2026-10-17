@@ -59,7 +59,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
 
         foreach ([
             'applicant',

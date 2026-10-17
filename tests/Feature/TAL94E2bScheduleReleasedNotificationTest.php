@@ -52,7 +52,7 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
 
         foreach ([User::StaffRoleRegistrar, User::StaffRoleFaculty, 'student'] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);

@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException;
 use App\Actions\Scheduling\ScheduleAssignmentValidationService;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
+use App\Actions\Scheduling\ScheduleSolverDispatchLifecycleService;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Models\CandidateScheduleRow;
 use App\Models\CourseComponent;
 use App\Models\FacultyQualification;
+use App\Models\OperationalEvent;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -36,7 +39,7 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
 
         foreach ([
             User::StaffRoleRegistrar,
@@ -73,6 +76,168 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             $result['solver_statistics'],
             data_get($context['run']->fresh()->diagnostics, 'solver_result.solver_statistics'),
         );
+    }
+
+    public function test_malformed_late_result_cannot_change_a_retained_accepted_candidate(): void
+    {
+        $context = $this->context();
+        app(ScheduleCloudResultIngestor::class)->ingest($context['run'], $this->validResult($context));
+        $context['run']->refresh()->forceFill(['candidate_state' => 'Accepted'])->save();
+        $before = $context['run']->fresh()->getAttributes();
+        $rows = $context['run']->candidateRows()->get()->toArray();
+
+        try {
+            app(ScheduleCloudResultIngestor::class)->ingest($context['run'], ['solver_status' => 'unknown']);
+            $this->fail('A malformed replay changed a retained candidate.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('status', $exception->errors());
+        }
+
+        $this->assertSame($before, $context['run']->fresh()->getAttributes());
+        $this->assertSame($rows, $context['run']->candidateRows()->get()->toArray());
+    }
+
+    public function test_hard_valid_repair_that_ignores_the_requested_change_is_rejected(): void
+    {
+        $context = $this->context();
+        $snapshot = $context['run']->input_snapshot;
+        $snapshot['operation'] = [
+            'kind' => 'repair',
+            'requested_assignment' => [
+                'scheduling_demand_id' => $context['demands'][0]->id,
+                'meeting_sequence' => 1,
+                'faculty_user_id' => $context['faculty']->id,
+                'room_id' => $context['room']->id,
+                'day_of_week' => 1,
+                'starts_at' => '10:00:00',
+                'ends_at' => '12:00:00',
+            ],
+        ];
+        $context['run']->forceFill(['input_snapshot' => $snapshot])->save();
+
+        $validation = app(ScheduleAssignmentValidationService::class)->validate($context['run'], $this->validResult($context));
+
+        $this->assertFalse($validation->passes());
+        $this->assertContains('requested_repair_not_applied', array_column($validation->blockingFindings(), 'code'));
+        $this->assertSame('TechnicalFailure', $validation->summary()['outcome']);
+        $this->assertSame(0, $context['run']->candidateRows()->count());
+    }
+
+    public function test_reported_imbalance_is_checked_against_unused_eligible_faculty_and_scaled_units(): void
+    {
+        $context = $this->context();
+        $hierarchy = ['cohort_mode_switches', 'cohort_idle_time', 'faculty_load_imbalance', 'faculty_idle_time', 'room_seat_waste', 'stable_earlier_placement'];
+        $snapshot = $context['run']->input_snapshot;
+        $snapshot['constraint_profile'] = ['key' => 'lexicographic_v1', 'version' => 1, 'objective_hierarchy' => $hierarchy];
+        $snapshot['faculty'][] = ['faculty_id' => $context['faculty']->id + 1000, 'max_allowed_units' => '3.00'];
+        $context['run']->forceFill(['input_snapshot' => $snapshot])->save();
+        $result = $this->validResult($context);
+        $result['objective_score'] = null;
+        $result['objective_details'] = [
+            'profile_key' => 'lexicographic_v1',
+            'profile_version' => 1,
+            'objective_hierarchy' => $hierarchy,
+            'values' => array_fill_keys($hierarchy, 0),
+            'scalar_score' => null,
+        ];
+
+        $invalid = app(ScheduleAssignmentValidationService::class)->validate($context['run'], $result);
+
+        $this->assertFalse($invalid->passes());
+        $this->assertContains('faculty_imbalance_evidence_mismatch', array_column($invalid->blockingFindings(), 'code'));
+        $summary = app(ScheduleCloudResultIngestor::class)->ingest($context['run'], $result);
+        $this->assertSame('TechnicalFailure', $summary['outcome']);
+        $this->assertNull($context['run']->fresh()->quality_measures);
+
+        $result['objective_details']['values']['faculty_load_imbalance'] = 300;
+        $valid = app(ScheduleAssignmentValidationService::class)->validate($context['run'], $result);
+
+        $this->assertTrue($valid->passes(), json_encode($valid->findings(), JSON_THROW_ON_ERROR));
+        $this->assertSame(1, $valid->summary()['validated_meeting_count']);
+        $this->assertSame(1, $valid->summary()['required_meeting_count']);
+        $this->assertTrue($valid->summary()['complete']);
+    }
+
+    public function test_late_repair_result_from_a_superseded_source_saves_nothing(): void
+    {
+        $context = $this->context();
+        $source = ScheduleGenerationRun::factory()->for($context['term'])->create([
+            'status' => ScheduleGenerationRun::StatusSuperseded,
+            'candidate_version' => 1,
+        ]);
+        $snapshot = $context['run']->input_snapshot;
+        $snapshot['operation'] = ['kind' => 'repair', 'source_candidate' => ['run_id' => $source->id, 'candidate_version' => 1]];
+        $context['run']->forceFill(['input_snapshot' => $snapshot])->save();
+        $before = $context['run']->fresh()->getAttributes();
+
+        try {
+            app(ScheduleCloudResultIngestor::class)->ingest($context['run'], $this->validResult($context));
+            $this->fail('A late repair result was retained after its source was superseded.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('source_candidate', $exception->errors());
+        }
+
+        $this->assertSame($before, $context['run']->fresh()->getAttributes());
+        $this->assertSame(0, $context['run']->candidateRows()->count());
+    }
+
+    public function test_late_dispatch_failure_cannot_regress_a_retained_candidate_or_create_a_new_attempt(): void
+    {
+        $context = $this->context();
+        app(ScheduleCloudResultIngestor::class)->ingest($context['run'], $this->validResult($context));
+        $before = $context['run']->fresh()->getAttributes();
+        $event = OperationalEvent::factory()->create([
+            'event_domain' => OperationalEvent::DomainIntegration,
+            'integration' => OperationalEvent::IntegrationSchedulingSolver,
+            'event_type' => OperationalEvent::TypeSolverDispatchAttempt,
+            'status' => OperationalEvent::StatusPending,
+            'related_record_type' => ScheduleGenerationRun::class,
+            'related_record_id' => $context['run']->id,
+            'diagnostics' => ['cycle' => 1, 'attempt' => 1],
+        ]);
+        $failure = SchedulingSolverTransportException::retryable(SchedulingSolverTransportException::ClassificationTimeout, 'A late worker timeout.');
+        $lifecycle = app(ScheduleSolverDispatchLifecycleService::class);
+
+        $lifecycle->markFailed($context['run'], $event, $failure, 100, true);
+        $lifecycle->finalizeUnhandledFailure($context['run']->id, 2, $failure);
+
+        $this->assertSame($before, $context['run']->fresh()->getAttributes());
+        $this->assertSame(OperationalEvent::StatusFailed, $event->fresh()->status);
+        $this->assertSame(1, OperationalEvent::query()->where('related_record_type', ScheduleGenerationRun::class)->where('related_record_id', $context['run']->id)->count());
+    }
+
+    public function test_unknown_outcome_accounts_for_every_required_meeting_including_repeated_blocks(): void
+    {
+        $context = $this->context();
+        $snapshot = $context['run']->input_snapshot;
+        $snapshot['scheduling_demands'][0]['meeting_count'] = 2;
+        $context['run']->forceFill(['input_snapshot' => $snapshot])->save();
+        $result = $this->validResult($context);
+        $result['solver_status'] = 'unknown';
+        $result['assignments'] = [];
+        $result['assigned_count'] = 0;
+        $result['unassigned_count'] = 2;
+        $result['timeout'] = true;
+
+        $validation = app(ScheduleAssignmentValidationService::class)->validate($context['run'], $result);
+
+        $this->assertSame('Unknown', $validation->summary()['outcome']);
+        $this->assertSame(2, $validation->summary()['required_meeting_count']);
+        $this->assertSame(2, $validation->summary()['unassigned_count']);
+        $this->assertFalse($validation->summary()['complete']);
+        $this->assertNotContains('unassigned_count_mismatch', array_column($validation->findings(), 'code'));
+
+        app(ScheduleCloudResultIngestor::class)->ingest($context['run'], $result);
+        $before = $context['run']->fresh()->getAttributes();
+
+        try {
+            app(ScheduleCloudResultIngestor::class)->ingest($context['run'], $result);
+            $this->fail('A replay overwrote a final Unknown outcome.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('status', $exception->errors());
+        }
+
+        $this->assertSame($before, $context['run']->fresh()->getAttributes());
     }
 
     public function test_legacy_captured_grid_is_validated_without_using_or_rewriting_the_different_live_package(): void
@@ -153,16 +318,19 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
         $legacy['draft_rows'] = $legacy['assignments'];
         unset($legacy['assignments']);
 
-        $summary = app(ScheduleCloudResultIngestor::class)
-            ->ingest($context['run'], $legacy);
+        $before = $context['run']->fresh()->getAttributes();
+        $validation = app(ScheduleAssignmentValidationService::class)->validate($context['run'], $legacy);
+        $this->assertContains('legacy_draft_rows_not_allowed', array_column($validation->findings(), 'code'));
 
-        $diagnostics = $context['run']->fresh()->getAttribute('diagnostics');
+        try {
+            app(ScheduleCloudResultIngestor::class)->ingest($context['run'], $legacy);
+            $this->fail('A legacy replay changed retained candidate evidence.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('status', $exception->errors());
+        }
 
-        $this->assertSame('blocked', $summary['status']);
-        $this->assertSame(1, $summary['preserved_candidate_row_count']);
-        $this->assertSame(ScheduleGenerationRun::StatusBlocked, $context['run']->fresh()->status);
+        $this->assertSame($before, $context['run']->fresh()->getAttributes());
         $this->assertModelExists($prior);
-        $this->assertContains('legacy_draft_rows_not_allowed', collect($diagnostics['solver_result']['findings'])->pluck('code')->all());
     }
 
     public function test_envelope_identity_counters_and_objective_must_reconcile(): void
@@ -600,9 +768,8 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
 
     public function test_native_non_solution_statuses_are_blocking_without_candidate_writes(): void
     {
-        $context = $this->context();
-
         foreach (['infeasible', 'model_invalid', 'unknown'] as $status) {
+            $context = $this->context();
             $result = $this->validResult($context);
             $result['solver_status'] = $status;
             $result['objective_score'] = null;
@@ -616,7 +783,7 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             if ($status === 'model_invalid') {
                 $result['assignments'] = [];
                 $result['assigned_count'] = 0;
-                $result['unassigned_count'] = 0;
+                $result['unassigned_count'] = 1;
             } else {
                 $result['assignments'][0]['assignment_status'] = 'conflict';
                 $result['assignments'][0]['violations'] = [[
@@ -634,6 +801,9 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
                 ->ingest($context['run']->fresh(), $result);
 
             $this->assertSame('blocked', $summary['status']);
+            $this->assertSame(match ($status) {
+                'model_invalid' => 'ModelInvalid', 'infeasible' => 'Infeasible', 'unknown' => 'Unknown'
+            }, $summary['outcome']);
             $this->assertSame(0, CandidateScheduleRow::query()->count());
             $this->assertContains('solver_'.$status, collect($context['run']->fresh()->getAttribute('diagnostics')['solver_result']['findings'])->pluck('code')->all());
         }
@@ -692,7 +862,7 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             ->assertOk()
             ->assertSee('Assigned faculty is not eligible.')
             ->assertSee('Scheduling Demand #'.$context['demands'][0]->id)
-            ->assertSeeHtml('href="'.SchedulingDemandResource::getUrl('view', ['record' => $context['demands'][0]]).'"');
+            ->assertSeeHtml('href="'.SchedulingDemandResource::getUrl('view', ['record' => $context['demands'][0], 'termId' => $context['term']->id]).'"');
     }
 
     public function test_schedule_run_view_explains_each_recorded_hard_constraint_and_soft_objective(): void
@@ -723,10 +893,10 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
-            ->assertSee('Hard Constraint Checklist')
+            ->assertSee('Hard constraint checklist')
             ->assertSee('Assign Every Ready Scheduling Demand Once')
             ->assertSee('Passed')
-            ->assertSee('Soft Objective Evidence')
+            ->assertSee('Soft objective evidence')
             ->assertSee('Prefer Earlier Time Blocks')
             ->assertSee('Measured')
             ->assertSee('Raw 1; weight 1; weighted contribution 1.');

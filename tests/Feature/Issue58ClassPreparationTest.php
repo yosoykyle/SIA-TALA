@@ -10,6 +10,7 @@ use App\Actions\Scheduling\RecordTermCohort;
 use App\Actions\Scheduling\SectionDeliveryGroupService;
 use App\Actions\Scheduling\SectionPlanningService;
 use App\Filament\Pages\TermClasses;
+use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\Sections\Pages\EditSection;
 use App\Filament\Resources\Sections\RelationManagers\DeliveryGroupsRelationManager;
 use App\Models\CourseComponent;
@@ -237,9 +238,52 @@ class Issue58ClassPreparationTest extends TestCase
         [$term, , , , $section] = $this->sources();
         $section->update(['confirmed_at' => now(), 'confirmed_by' => $actor->id]);
         Livewire::withQueryParams(['termId' => $term->id])->test(EditSection::class, ['record' => $section->id])
-            ->assertSee('Confirmed class identity, capacity and state are protected.')
-            ->fillForm(['capacity' => 40])->call('save')->assertHasFormErrors(['capacity']);
+            ->assertSee('This confirmed class identity, capacity and state are protected.')
+            ->assertFormFieldIsDisabled('term_offering_id')
+            ->assertFormFieldIsDisabled('code')
+            ->assertFormFieldIsDisabled('capacity')
+            ->assertFormFieldIsDisabled('state')
+            ->assertActionDoesNotExist('save');
         $this->assertSame(30, $section->refresh()->capacity);
+    }
+
+    public function test_published_class_settings_are_read_only_and_delivery_groups_keep_view_only(): void
+    {
+        $this->registrar();
+        [$term, , , , $section] = $this->sources();
+        $group = SectionDeliveryGroup::factory()->for($section)->create(['name' => 'Published group']);
+        PublishedTimetableMeeting::factory()->create(['section_id' => $section->id]);
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(EditSection::class, ['record' => $section->id])
+            ->assertSee('Class settings')
+            ->assertSee('This class is in the official timetable')
+            ->assertSee('Open timetable')
+            ->assertSee(TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'published']))
+            ->assertSee('View class details')
+            ->assertFormFieldIsDisabled('term_offering_id')
+            ->assertFormFieldIsDisabled('code')
+            ->assertFormFieldIsDisabled('capacity')
+            ->assertFormFieldIsDisabled('state')
+            ->assertActionDoesNotExist('save');
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(DeliveryGroupsRelationManager::class, ['ownerRecord' => $section, 'pageClass' => EditSection::class])
+            ->assertSee('Groups used by the official timetable are read-only here.')
+            ->assertDontSee('Add delivery group')
+            ->assertTableActionHidden('edit', $group)
+            ->assertTableActionVisible('view', $group);
+    }
+
+    public function test_confirmed_unpublished_class_groups_remain_editable(): void
+    {
+        $this->registrar();
+        [, , , , $section] = $this->sources();
+        $group = SectionDeliveryGroup::factory()->for($section)->create(['name' => 'Confirmed group']);
+        $section->update(['confirmed_at' => now(), 'confirmed_by' => auth()->id()]);
+
+        Livewire::test(DeliveryGroupsRelationManager::class, ['ownerRecord' => $section, 'pageClass' => EditSection::class])
+            ->assertSee('Groups of learners that meet together.')
+            ->assertSee('Add delivery group')
+            ->assertTableActionVisible('edit', $group);
     }
 
     public function test_unconfirmed_source_edits_remain_available_and_no_op_confirmed_save_is_safe(): void
@@ -279,16 +323,15 @@ class Issue58ClassPreparationTest extends TestCase
         }
     }
 
-    public function test_native_published_delivery_group_action_displays_error_and_preserves_record(): void
+    public function test_native_published_delivery_group_edit_is_hidden(): void
     {
         $this->registrar();
         [, , , , $section] = $this->sources();
         $group = SectionDeliveryGroup::factory()->for($section)->create(['name' => 'Published group', 'expected_count' => 20]);
         PublishedTimetableMeeting::factory()->create(['section_id' => $section->id]);
         Livewire::test(DeliveryGroupsRelationManager::class, ['ownerRecord' => $section, 'pageClass' => EditSection::class])
-            ->callTableAction('edit', $group, ['name' => 'Changed group'])
-            ->assertHasTableActionErrors(['name' => fn ($failedRules, array $messages): bool => str_contains($messages[0], 'Published class delivery inputs require an impact-checked timetable revision')])
-            ->assertNotified('Delivery group could not be saved');
+            ->assertTableActionHidden('edit', $group)
+            ->assertTableActionVisible('view', $group);
         $this->assertSame('Published group', $group->refresh()->name);
     }
 
