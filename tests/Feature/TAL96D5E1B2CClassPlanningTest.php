@@ -7,6 +7,7 @@ use App\Actions\Scheduling\TermSchedulingReadinessService;
 use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\ClassPlanning;
 use App\Filament\Pages\TermPlanningWorkbench;
+use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\SchedulingDemands\Pages\ListSchedulingDemands;
@@ -172,25 +173,30 @@ final class TAL96D5E1B2CClassPlanningTest extends TestCase
     public function source_records_remain_routable_while_plain_language_scheduling_views_are_exposed(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create();
         $this->actingAs($registrar);
 
         $this->assertArrayHasKey('index', TermOfferingResource::getPages());
 
-        Livewire::test(ListSchedulingDemands::class)
-            ->assertSee('Schedule Requirements')
+        Livewire::test(ListSchedulingDemands::class, ['termId' => $term->id])
+            ->assertSet('termId', $term->id)
+            ->assertSee('Schedule requirements')
             ->assertTableColumnExists('course_and_section')
             ->assertTableColumnExists('requirement_summary')
             ->assertTableColumnExists('validation_state');
 
-        Livewire::test(ListScheduleGenerationRuns::class)
-            ->assertSee('Generate Timetable')
+        Livewire::test(ListScheduleGenerationRuns::class, ['termId' => $term->id])
+            ->assertSet('termId', $term->id)
+            ->assertSee('Timetable generation history')
+            ->assertActionHasUrl('dispatchSolverRun', TermTimetable::getUrl(['termId' => $term->id]))
             ->assertTableColumnExists('result_summary')
             ->assertTableColumnExists('assignment_summary');
 
-        Livewire::test(ListSectionMeetings::class)
+        Livewire::test(ListSectionMeetings::class, ['termId' => $term->id])
+            ->assertSet('termId', $term->id)
             ->assertTableColumnExists('course_and_section')
             ->assertTableColumnExists('meeting_time')
-            ->assertSee('Published Timetable');
+            ->assertSee('Official meetings');
     }
 
     private function staff(string $role): User

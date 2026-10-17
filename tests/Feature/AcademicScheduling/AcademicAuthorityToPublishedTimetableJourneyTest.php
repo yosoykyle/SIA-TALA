@@ -23,7 +23,10 @@ use App\Actions\Scheduling\ScheduleReleaseNotificationService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
 use App\Filament\Pages\MyAvailability;
+use App\Filament\Pages\TermCalendar;
+use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermOverview;
+use App\Filament\Pages\TermResources;
 use App\Filament\Pages\TermTimetable;
 use App\Mail\FacultyAvailabilityRequestedMail;
 use App\Mail\ScheduleReleasedMail;
@@ -544,10 +547,16 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
 
         $termPlanning = Livewire::actingAs($registrar)
             ->test(TermTimetable::class, ['termId' => $term->id])
+            ->assertSet('termId', $term->id)
             ->assertSee('Timetable')
-            ->assertSee('Overview')
-            ->assertSee('Sections & classes')
+            ->assertSee('Term summary')
+            ->assertSee('Calendar')
+            ->assertSee('Classes & sections')
             ->assertSee('Faculty & rooms');
+
+        foreach ([TermOverview::class, TermCalendar::class, TermClasses::class, TermResources::class, TermTimetable::class] as $destination) {
+            $termPlanning->assertSeeHtml(e($destination::getUrl(['termId' => $term->id])));
+        }
 
         $this->assertSame(
             ['class' => 'tala-term-planning-page'],

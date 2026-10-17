@@ -114,7 +114,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'GradesAndCompletion', 'ImportBatchResource',
                 'ProgramResource', 'RoomResource', 'ScheduleGenerationRunResource',
                 'SchedulingDemandResource', 'SectionMeetingResource', 'SectionResource',
-                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermPlanningCluster', 'TermOverview', 'TermCalendar', 'TermClasses', 'TermResources', 'TermTimetable', 'TermResource', 'TranscriptRequestResource',
+                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermPlanningCluster', 'TermOverview', 'TermCalendar', 'TermClasses', 'TermClassProposal', 'TermResources', 'TermTimetable', 'TermResource', 'TranscriptRequestResource',
             ]],
             'accounting' => ['role' => User::StaffRoleAccounting, 'allowed' => [
                 'StaffEntry', 'EnrollmentResource', 'FeePlanResource', 'StudentLifecycleChangeResource',
@@ -174,6 +174,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             $entry['allowed'] = array_values(array_diff($entry['allowed'], [
                 'StaffEntry',
                 'ClassPlanning',
+                'TermClassProposal',
                 'TermPlanningWorkbench',
                 'TermResource',
                 'TermOfferingResource',
@@ -224,6 +225,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'TermOverview',
             'TermCalendar',
             'TermClasses',
+            'TermClassProposal',
             'TermResources',
             'TermTimetable',
             'AcademicApprovals',
