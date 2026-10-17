@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Pages\TermClasses;
+use App\Filament\Pages\TermClassProposal;
+use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Pages\TermResources;
 use App\Filament\Pages\TermTimetable;
@@ -12,12 +14,16 @@ use App\Filament\Resources\CalendarEvents\Pages\ListCalendarEvents;
 use App\Filament\Resources\CourseSpecifications\Pages\EditCourseSpecification;
 use App\Filament\Resources\Rooms\Pages\CreateRoom;
 use App\Filament\Resources\Rooms\Pages\EditRoom;
+use App\Filament\Resources\Rooms\Pages\ViewRoom;
 use App\Filament\Resources\Rooms\RoomResource;
+use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Terms\Pages\EditTerm;
 use App\Filament\Resources\Terms\Pages\ViewTerm;
 use App\Models\CalendarEvent;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
@@ -25,6 +31,7 @@ use App\Models\RoomFeature;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCohort;
+use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use App\Support\RoomEquipment;
 use Filament\Actions\Testing\TestAction;
@@ -67,21 +74,42 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $this->assertStringStartsWith('ANNOTATION-13', collect($page->instance()->getTableRecords()->items())->first()['name']);
     }
 
-    public function test_room_inspection_is_read_only_and_close_preserves_term_and_table_state(): void
+    public function test_room_inspection_opens_exact_term_source_and_preserves_head_read_only_access(): void
     {
         $this->staff(User::StaffRoleAcademicHead);
         $term = Term::factory()->create();
         $room = Room::factory()->create(['code' => 'ANNOTATION-DIALOG', 'is_active' => true]);
         RoomFeature::factory()->for($room)->create(['feature_key' => 'COMPUTER_UNITS']);
         $page = Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'rooms'])->test(TermResources::class)
-            ->searchTable('ANNOTATION-DIALOG')->mountTableAction('inspectRoom', 'room-'.$room->id)
-            ->assertMountedActionModalSee('Computers')->assertMountedActionModalSee($room->name);
-        $this->assertEmpty($page->instance()->getMountedAction()->getExtraModalFooterActions());
-        $page->call('unmountAction');
-        $this->assertSame($term->id, $page->instance()->termId);
-        $this->assertSame('rooms', $page->instance()->resourceView);
-        $this->assertSame('ANNOTATION-DIALOG', $page->instance()->tableSearch);
+            ->searchTable('ANNOTATION-DIALOG');
+        $record = $page->instance()->getTableRecords()->items()['room-'.$room->id];
+        $action = $page->instance()->getTable()->getAction('inspectRoom')->record($record);
+        $this->assertSame(RoomResource::getUrl('view', ['record' => $room->id, 'termId' => $term->id, 'returnToResources' => true]), $action->getUrl());
+        Livewire::withQueryParams(['termId' => $term->id, 'returnToResources' => true])->test(ViewRoom::class, ['record' => $room->id])
+            ->assertSee('Computers')->assertSee('Back to Faculty & rooms')
+            ->assertSee(TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'resources', 'resourceView' => 'rooms']))
+            ->assertActionHidden('edit');
         Livewire::test(EditRoom::class, ['record' => $room->id])->assertForbidden();
+    }
+
+    public function test_empty_coverage_prepares_complete_term_classes_while_head_keeps_read_only_scope(): void
+    {
+        $this->staff();
+        $term = Term::factory()->create();
+        $curriculum = CurriculumVersion::factory()->create(['state' => CurriculumVersion::StateActive]);
+        CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->create(['term_type' => $term->type]);
+        $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)->assertSee('Prepare Term classes');
+        $record = collect($page->instance()->getTableRecords()->items())->firstWhere('curriculum_version_id', $curriculum->id);
+        $this->assertNotNull($record);
+        $action = $page->instance()->getTable()->getAction('setup')->record($record);
+        $this->assertSame(TermClassProposal::getUrl(['termId' => $term->id]), $action->getUrl());
+
+        $this->staff(User::StaffRoleAcademicHead);
+        $head = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)->assertDontSee('Prepare Term classes');
+        $action = $head->instance()->getTable()->getAction('setup')->record($record);
+        $this->assertSame(TermOfferingResource::getUrl('index', [
+            'termId' => $term->id, 'programId' => $record['program_id'], 'curriculumVersionId' => $curriculum->id, 'yearLevel' => $record['year_level'],
+        ]), $action->getUrl());
     }
 
     public function test_unified_room_save_preserves_feature_ids_and_unknown_keys_and_cancel_writes_nothing(): void
@@ -246,7 +274,16 @@ class Issue58OwnerAnnotationsTest extends TestCase
     {
         $this->staff();
         $term = Term::factory()->create(['default_max_units' => 18]);
-        TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
+        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
+        TermTeachingGridRow::factory()->create([
+            'term_calendar_package_id' => $package->id,
+            'day_of_week' => 1, 'starts_at' => '08:00:00', 'ends_at' => '17:00:00',
+            'breaks' => [['starts_at' => '10:00:00', 'ends_at' => '10:30:00'], ['starts_at' => '12:00:00', 'ends_at' => '13:00:00']],
+        ]);
+        TermTeachingGridRow::factory()->create([
+            'term_calendar_package_id' => $package->id,
+            'day_of_week' => 4, 'starts_at' => '09:00:00', 'ends_at' => '15:00:00', 'breaks' => [],
+        ]);
         $page = Livewire::withQueryParams(['viewTab' => 'resources', 'resourceView' => 'rooms'])->test(EditTerm::class, ['record' => $term->id])
             ->assertSee('Protected Term identity')->assertSee('Faculty teaching-load default');
         $this->assertSame('Faculty teaching-load default', $page->instance()->getTitle());
@@ -262,7 +299,9 @@ class Issue58OwnerAnnotationsTest extends TestCase
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('label', $exception->errors());
         }
-        $view = Livewire::withQueryParams(['viewTab' => 'resources', 'resourceView' => 'rooms'])->test(ViewTerm::class, ['record' => $term->id]);
+        $view = Livewire::withQueryParams(['viewTab' => 'resources', 'resourceView' => 'rooms'])->test(ViewTerm::class, ['record' => $term->id])
+            ->assertSee('Monday 8:00 AM–5:00 PM; Breaks: 10:00 AM–10:30 AM, 12:00 PM–1:00 PM')
+            ->assertSee('Thursday 9:00 AM–3:00 PM');
         $return = collect($view->instance()->getCachedHeaderActions())->first(fn ($action): bool => $action->getName() === 'returnToPlanning');
         $this->assertSame(TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'resources', 'resourceView' => 'rooms']), $return->getUrl());
     }
@@ -271,7 +310,8 @@ class Issue58OwnerAnnotationsTest extends TestCase
     {
         $this->staff();
         $term = Term::factory()->create();
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)->assertSee('Activate the Term calendar before requesting availability.');
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)->assertSee('Activate the teaching calendar before requesting availability.')
+            ->assertActionDisabled('requestFacultyAvailability');
         TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'faculty_availability_due_at' => null]);
         $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
             ->assertSee('Set a reply deadline before sending requests.')->assertActionDisabled('requestFacultyAvailability');
@@ -286,6 +326,7 @@ class Issue58OwnerAnnotationsTest extends TestCase
 
     private function staff(string $name = User::StaffRoleRegistrar): void
     {
+        Role::findOrCreate(User::StaffRoleFaculty, 'web');
         $role = Role::findOrCreate($name, 'web');
         if ($name === User::StaffRoleRegistrar) {
             $role->givePermissionTo(Permission::findOrCreate('manage-schedules', 'web'));

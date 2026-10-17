@@ -38,7 +38,7 @@ class CanonicalCalendarConsumerTest extends TestCase
     public function test_enrollment_gate_and_applicant_availability_share_manila_opening_and_cutoff(): void
     {
         $this->assertSame('testing', app()->environment());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
         $term = Term::factory()->create();
         $this->window($term, TermCalendarWindow::TypeEnrollment, '2026-08-10', '2026-08-10', '17:00:00');
         $application = AdmissionApplication::factory()->for($term)->create();

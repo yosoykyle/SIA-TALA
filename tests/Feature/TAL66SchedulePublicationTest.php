@@ -52,7 +52,7 @@ final class TAL66SchedulePublicationTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
 
         foreach ([
@@ -223,7 +223,7 @@ final class TAL66SchedulePublicationTest extends TestCase
         $component = Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $run->getRouteKey()])
             ->assertActionVisible('publishSchedule')
-            ->assertActionHasLabel('publishSchedule', 'Publish Timetable');
+            ->assertActionHasLabel('publishSchedule', 'Publish official timetable');
 
         $page = $component->instance();
         $this->assertInstanceOf(ViewScheduleGenerationRun::class, $page);
@@ -294,8 +294,7 @@ final class TAL66SchedulePublicationTest extends TestCase
         $priorDemand = $this->demand($term);
         $historicalMeeting = $this->officialMeeting($priorRun, $priorDemand, now()->subDay());
         $newRun = $this->scheduleRun($term);
-        $newDemand = $this->demand($term, TermOffering::ModalityOnline);
-        $this->candidate($newRun, $newDemand, roomId: null);
+        $this->candidate($newRun, $priorDemand);
 
         $published = $this->publisher->publish($newRun, $registrar);
 
@@ -364,9 +363,10 @@ final class TAL66SchedulePublicationTest extends TestCase
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
         $term = Term::factory()->create();
         $publishableRun = $this->scheduleRun($term);
-        $this->candidate($publishableRun, $this->demand($term));
+        $demand = $this->demand($term);
+        $this->candidate($publishableRun, $demand);
         $blockedRun = $this->scheduleRun($term, ScheduleGenerationRun::StatusBlocked);
-        $this->candidate($blockedRun, $this->demand($term));
+        $this->candidate($blockedRun, $demand);
 
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $publishableRun->getRouteKey()])

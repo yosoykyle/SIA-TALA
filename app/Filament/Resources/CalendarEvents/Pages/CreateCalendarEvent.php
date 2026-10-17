@@ -6,13 +6,39 @@ use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Models\CalendarEvent;
 use App\Models\User;
 use App\Support\HasTermPlanningContext;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Support\Enums\Alignment;
 
 class CreateCalendarEvent extends CreateRecord
 {
-    use HasTermPlanningContext;
+    use HasTermPlanningContext {
+        getPageClasses as protected getTermPlanningPageClasses;
+    }
 
     protected static string $resource = CalendarEventResource::class;
+
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-weekly-unavailable-form'];
+    }
+
+    /** @return array<Action|ActionGroup> */
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getCancelFormAction()->label('Cancel')->color('gray'),
+            ...($this->canCreateAnother() ? [$this->getCreateAnotherFormAction()->label('Save & add another')->color('gray')] : []),
+            $this->getCreateFormAction()->label('Add unavailable time'),
+        ];
+    }
+
+    public function getFormActionsAlignment(): string|Alignment
+    {
+        return Alignment::End;
+    }
 
     /**
      * @param  array<string, mixed>  $data

@@ -36,9 +36,9 @@ class RoomEquipment
             ->getOptionLabelsUsing(fn (array $values): array => collect($values)->mapWithKeys(fn (string $value): array => [$value => self::label($value)])->all())
             ->rules(fn (Select $component): array => $component->isMultiple() ? ['array'] : ['string', 'max:255'])
             ->nestedRecursiveRules(['string', 'max:255'], fn (Select $component): bool => $component->isMultiple())
-            ->createOptionForm([TextInput::make('key')->label('Other equipment identifier')->required()->maxLength(255)
-                ->helperText('Use the same identifier for room equipment and course requirements. Existing identifiers stay unchanged.')])
+            ->createOptionForm([TextInput::make('key')->label('Equipment name')->required()->maxLength(255)
+                ->helperText('Enter the equipment name, such as Lecture microphone. Use the same name when recording a course requirement.')])
             ->createOptionUsing(fn (array $data): string => strtoupper(trim($data['key'])))
-            ->createOptionAction(fn ($action) => $action->modalHeading('Other equipment')->modalSubmitActionLabel('Use equipment'));
+            ->createOptionAction(fn ($action) => $action->label('Other equipment')->tooltip('Other equipment')->modalHeading('Other equipment')->modalSubmitActionLabel('Use equipment'));
     }
 }

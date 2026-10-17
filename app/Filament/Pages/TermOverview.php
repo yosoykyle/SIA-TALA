@@ -83,15 +83,17 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
 
             ->recordActions([
 
-                Action::make('setup')->label(fn (array $record): string => $record['class_count'] ? 'Review classes' : (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? 'Review year level' : 'Set up year level'))
+                Action::make('setup')->label(fn (array $record): string => $record['class_count'] ? 'Review classes' : (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? 'Review year level' : 'Prepare Term classes'))
 
-                    ->color('gray')->url(fn (array $record): string => $record['class_count']
+                    ->button()->color('gray')->url(fn (array $record): string => $record['class_count']
 
                         ? TermClasses::getUrl(['termId' => $this->termId, 'programId' => $record['program_id'], 'yearLevel' => $record['year_level']])
 
-                        : TermOfferingResource::getUrl('index', ['termId' => $this->termId, 'programId' => $record['program_id'], 'curriculumVersionId' => $record['curriculum_version_id'], 'yearLevel' => $record['year_level']])),
+                        : (auth()->user()?->hasRole(User::StaffRoleAcademicHead)
+                            ? TermOfferingResource::getUrl('index', ['termId' => $this->termId, 'programId' => $record['program_id'], 'curriculumVersionId' => $record['curriculum_version_id'], 'yearLevel' => $record['year_level']])
+                            : TermClassProposal::getUrl(['termId' => $this->termId]))),
 
-            ]);
+            ])->stackedOnMobile();
 
     }
 }

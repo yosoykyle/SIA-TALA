@@ -18,6 +18,7 @@ use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
 use App\Filament\Student\Pages\ScheduleView;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\CandidateScheduleRow;
+use App\Models\CorVersion;
 use App\Models\CourseComponent;
 use App\Models\Enrollment;
 use App\Models\OperationalEvent;
@@ -81,7 +82,7 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotContains(DB::connection()->getDatabaseName(), ['tala_db', 'tala_test_codex']);
         $this->assertSame(0, ScheduleGenerationRun::query()->count(), 'Clear scheduling demo runs before real-loopback acceptance.');
         $this->assertSame(0, DB::table('jobs')->count(), 'Clear the database queue before real-loopback acceptance.');
@@ -302,7 +303,7 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
         foreach ($meetings->groupBy('faculty_user_id') as $facultyUserId => $facultyMeetings) {
             $faculty = User::query()->findOrFail((int) $facultyUserId);
             $facultySchedule = Livewire::actingAs($faculty)
-                ->test(FacultySchedule::class)
+                ->test(FacultySchedule::class, ['termId' => $term->id, 'scheduleView' => 'list'])
                 ->set('tableRecordsPerPage', 50);
 
             $facultySchedule->assertOk();
@@ -350,11 +351,20 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             $this->assertCount($expectedSectionCount, $sections);
 
             foreach ($sections as $section) {
-                app(EnrollmentPlacementService::class)->confirm($enrollment, $section->id, $registrar);
+                $placement = app(EnrollmentPlacementService::class)->confirm($enrollment, $section->id, $registrar);
+                $placement['course_enrollment']->update(['section_id' => $section->id, 'is_current' => true]);
             }
 
+            $cor = CorVersion::factory()->create([
+                'enrollment_id' => $enrollment->id,
+                'published_timetable_version_id' => $published->timetableVersions()->value('id'),
+                'issued_by' => $registrar->id,
+                'snapshot' => ['source' => 'synthetic-schedule-projection-prerequisite', 'courses' => [], 'fees' => []],
+            ]);
             $enrollment->update([
                 'status' => 'officially_enrolled',
+                'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+                'current_cor_version_id' => $cor->id,
                 'officially_enrolled_at' => now(),
             ]);
 
@@ -367,11 +377,11 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             $this->assertCount($expectedMeetingCount, $bindings);
 
             $studentSchedule = Livewire::actingAs($student)
-                ->test(ScheduleView::class)
-                ->set('tableRecordsPerPage', 50);
+                ->test(ScheduleView::class);
             $studentSchedule->assertOk();
-            $studentSchedule->assertCountTableRecords($expectedMeetingCount);
-            $studentSchedule->assertCanSeeTableRecords($bindings);
+            $studentRows = $studentSchedule->viewData('scheduleRows');
+            $this->assertCount($expectedMeetingCount, $studentRows);
+            $this->assertEqualsCanonicalizing($sections->modelKeys(), array_values(array_unique(array_column($studentRows, 'section_id'))));
             $studentProjectionCounts[] = [
                 'cohort' => $cohortCode,
                 'student_number' => $profile->student_number,

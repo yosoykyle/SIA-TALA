@@ -78,6 +78,7 @@ class ScheduleSolverSnapshotService
             }
 
             $demands = $this->readyDemandsForTerm($term);
+            $this->assertCompleteConfirmedScope($term, $demands);
 
             if ($demands->isEmpty()) {
                 throw ValidationException::withMessages([
@@ -85,7 +86,7 @@ class ScheduleSolverSnapshotService
                 ]);
             }
 
-            $snapshot = $this->buildSnapshot($lockedRun, $term, $demands);
+            $snapshot = $this->buildSnapshot($lockedRun, $term, $demands, useCurrentSources: true);
             $encodedSnapshot = json_encode($snapshot, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
 
             $lockedRun->forceFill([
@@ -261,7 +262,6 @@ class ScheduleSolverSnapshotService
             ]);
         }
 
-        $demandIds = $this->demandIdsForRun($run);
         $excludedDemandIds = collect($excludedDemandIds)
             ->map(fn (mixed $id): int => (int) $id)
             ->filter()
@@ -269,10 +269,18 @@ class ScheduleSolverSnapshotService
             ->values()
             ->all();
 
-        $demands = $this->demandsForTerm($term, $demandIds);
-        $availableDemandIds = $demands->modelKeys();
+        $demands = $this->demandsForTerm($term);
+        $this->assertDemandReadiness($term);
+        $this->assertCompleteConfirmedScope($term, $demands);
+        $capturedDemandIds = collect(data_get($run->input_snapshot, 'scheduling_demands', []))
+            ->pluck('scheduling_demand_id')->map(fn (mixed $id): int => (int) $id)->all();
 
-        if (array_diff($excludedDemandIds, $availableDemandIds) !== []) {
+        if ($capturedDemandIds === []) {
+            $capturedDemandIds = $run->candidateRows()->pluck('scheduling_demand_id')
+                ->merge($run->sectionMeetings()->pluck('scheduling_demand_id'))->map(fn (mixed $id): int => (int) $id)->all();
+        }
+
+        if (array_diff($excludedDemandIds, $capturedDemandIds) !== []) {
             throw ValidationException::withMessages([
                 'scheduling_demands' => 'Only demands captured by the selected run may be excluded from live validation.',
             ]);
@@ -282,12 +290,6 @@ class ScheduleSolverSnapshotService
         $demands = $demands->reject(
             fn (SchedulingDemand $demand): bool => in_array((int) $demand->id, $excludedDemandIds, true),
         );
-
-        if ($demands->isEmpty() && count($excludedDemandIds) !== count($availableDemandIds)) {
-            throw ValidationException::withMessages([
-                'scheduling_demands' => 'Schedule revalidation requires current Scheduling Demand rows.',
-            ]);
-        }
 
         return $this->buildSnapshot(
             $run,
@@ -300,8 +302,7 @@ class ScheduleSolverSnapshotService
 
     private function assertDemandReadiness(Term $term): void
     {
-        $blockingCount = SchedulingDemand::query()
-            ->whereHas('termOffering', fn ($query) => $query->whereBelongsTo($term))
+        $blockingCount = $this->demandsForTerm($term)
             ->where('validation_state', '!=', SchedulingDemand::ValidationReadyForReview)
             ->count();
 
@@ -324,7 +325,7 @@ class ScheduleSolverSnapshotService
     /**
      * @return EloquentCollection<int, SchedulingDemand>
      */
-    private function demandsForTerm(Term $term, ?array $demandIds = null): EloquentCollection
+    private function demandsForTerm(Term $term): EloquentCollection
     {
         return SchedulingDemand::query()
             ->with([
@@ -335,42 +336,56 @@ class ScheduleSolverSnapshotService
                 'termOffering.curriculumEntry.curriculumVersion',
                 'termOffering.curriculumEntry.courseSpecification.course',
             ])
-            ->whereHas('termOffering', fn ($query) => $query->whereBelongsTo($term))
-            ->when($demandIds !== null, fn ($query) => $query->whereKey($demandIds))
+            ->whereHas('termOffering', fn ($query) => $query->whereBelongsTo($term)->where('state', '!=', TermOffering::StateCancelled))
+            ->whereHas('sectionDeliveryGroup', fn ($query) => $query
+                ->whereNotIn('state', [SectionDeliveryGroup::StateClosed, SectionDeliveryGroup::StateCancelled])
+                ->whereHas('section', fn ($query) => $query->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])))
+            ->whereHas('courseComponent.courseSpecification', fn ($query) => $query->where('scheduling_treatment', CourseSpecification::SchedulingRecurring))
             ->orderBy('term_offering_id')
             ->orderBy('section_delivery_group_id')
             ->orderBy('course_component_id')
             ->get();
     }
 
-    /**
-     * @return list<int>|null
-     */
-    private function demandIdsForRun(ScheduleGenerationRun $run): ?array
+    /** @param EloquentCollection<int, SchedulingDemand> $demands */
+    private function assertCompleteConfirmedScope(Term $term, EloquentCollection $demands): void
     {
-        $snapshot = $this->arrayValue($run->getAttribute('input_snapshot'));
-        $capturedIds = collect($snapshot['scheduling_demands'] ?? [])
-            ->filter(fn (mixed $demand): bool => is_array($demand))
-            ->pluck('scheduling_demand_id')
-            ->filter(fn (mixed $id): bool => is_numeric($id) && (int) $id > 0)
-            ->map(fn (mixed $id): int => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
+        $classes = Section::query()
+            ->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $term->id))
+            ->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])
+            ->whereHas('termOffering', fn ($query) => $query->where('state', '!=', TermOffering::StateCancelled))
+            ->with(['courseRevision.components', 'deliveryGroups'])
+            ->get();
+        $expected = [];
 
-        if ($capturedIds !== []) {
-            return $capturedIds;
+        foreach ($classes as $class) {
+            if (! $class->courseRevision instanceof CourseSpecification) {
+                throw ValidationException::withMessages(['scheduling_demands' => 'Every current class requires its approved course revision before generation or review.']);
+            }
+
+            if ($class->courseRevision->scheduling_treatment !== CourseSpecification::SchedulingRecurring) {
+                continue;
+            }
+
+            $groups = $class->deliveryGroups->whereNotIn('state', [SectionDeliveryGroup::StateClosed, SectionDeliveryGroup::StateCancelled]);
+
+            if ($class->confirmed_at === null || $groups->isEmpty() || $class->courseRevision->components->isEmpty()) {
+                throw ValidationException::withMessages(['scheduling_demands' => 'Every recurring class requires confirmation, delivery groups and meeting components before generation or review.']);
+            }
+
+            foreach ($groups as $group) {
+                foreach ($class->courseRevision->components as $component) {
+                    $expected[] = $group->id.':'.$component->id;
+                }
+            }
         }
 
-        $persistedIds = $run->candidateRows()
-            ->pluck('scheduling_demand_id')
-            ->merge($run->sectionMeetings()->pluck('scheduling_demand_id'))
-            ->map(fn (mixed $id): int => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
+        $actual = $demands->filter(fn (SchedulingDemand $demand): bool => $classes->contains('id', $demand->sectionDeliveryGroup->section_id))
+            ->map(fn (SchedulingDemand $demand): string => $demand->section_delivery_group_id.':'.$demand->course_component_id)->all();
 
-        return $persistedIds !== [] ? $persistedIds : null;
+        if (array_diff($expected, $actual) !== [] || array_diff($actual, $expected) !== []) {
+            throw ValidationException::withMessages(['scheduling_demands' => 'Scheduling demands must cover every current confirmed recurring class meeting. Refresh the Term scheduling inputs.']);
+        }
     }
 
     /**

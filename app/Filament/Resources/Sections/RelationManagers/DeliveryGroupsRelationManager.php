@@ -3,9 +3,11 @@
 namespace App\Filament\Resources\Sections\RelationManagers;
 
 use App\Actions\Scheduling\SectionDeliveryGroupService;
+use App\Models\PublishedTimetableMeeting;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
@@ -52,10 +54,10 @@ class DeliveryGroupsRelationManager extends RelationManager
                             ->default(SectionDeliveryGroup::StatePlanned)
                             ->required(),
                         KeyValue::make('delivery_override')
-                            ->label('Delivery Override')
+                            ->label('Approved delivery exception')
                             ->keyLabel('Override key')
                             ->valueLabel('Value')
-                            ->helperText('Optional source-record override for later scheduling demand generation.')
+                            ->helperText('Record only approved delivery exceptions. These values are retained when meeting requirements are prepared.')
                             ->columnSpanFull(),
                     ])
                     ->columns(2),
@@ -72,7 +74,7 @@ class DeliveryGroupsRelationManager extends RelationManager
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('expected_count')
-                    ->label('Expected')
+                    ->label('Expected learners')
                     ->numeric()
                     ->sortable(),
                 TextColumn::make('modality')
@@ -82,6 +84,13 @@ class DeliveryGroupsRelationManager extends RelationManager
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (SectionDeliveryGroup::stateOptions()[$state] ?? str($state)->headline()->toString())),
             ])
+            ->heading('Delivery groups')
+            ->description(fn (): string => $this->isPublished()
+                ? 'Groups used by the official timetable are read-only here.'
+                : 'Groups of learners that meet together.')
+            ->searchPlaceholder('Search groups')
+            ->recordActionsColumnLabel('Actions')
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->filters([
                 SelectFilter::make('modality')
                     ->options(SectionDeliveryGroup::modalityOptions()),
@@ -89,18 +98,31 @@ class DeliveryGroupsRelationManager extends RelationManager
                     ->options(SectionDeliveryGroup::stateOptions()),
             ])
             ->headerActions([
-                CreateAction::make()->label('Add delivery group')->slideOver()
+                CreateAction::make()->label('Add delivery group')
+                    ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+                    ->modalSubmitActionLabel('Add delivery group')->modalCancelActionLabel('Cancel')
+                    ->visible(fn (): bool => ! $this->isPublished())
                     ->using(fn (array $data): Model => $this->saveDeliveryGroup($data)),
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make()->slideOver()
+                ViewAction::make()->label('View details')->button()->color('gray'),
+                EditAction::make()->button()->color('gray')
+                    ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+                    ->modalSubmitActionLabel('Save changes')->modalCancelActionLabel('Cancel')
+                    ->visible(fn (): bool => ! $this->isPublished())
                     ->using(function (Model $record, array $data): Model {
                         /** @var SectionDeliveryGroup $record */
                         return $this->saveDeliveryGroup($data, $record);
                     }),
             ])
             ->toolbarActions([]);
+    }
+
+    private function isPublished(): bool
+    {
+        $owner = $this->getOwnerRecord();
+
+        return $owner instanceof Section && PublishedTimetableMeeting::query()->where('section_id', $owner->id)->exists();
     }
 
     /** @param array<string, mixed> $data */

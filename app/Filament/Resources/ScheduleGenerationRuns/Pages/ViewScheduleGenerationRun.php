@@ -18,7 +18,6 @@ use App\Models\User;
 use App\Support\HasTermPlanningContext;
 use App\Support\TimetablePresentation;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Navigation\NavigationItem;
@@ -34,9 +33,17 @@ use Livewire\Attributes\On;
 
 class ViewScheduleGenerationRun extends ViewRecord
 {
-    use HasTermPlanningContext;
+    use HasTermPlanningContext {
+        getPageClasses as protected getTermPlanningPageClasses;
+    }
 
     protected static string $resource = ScheduleGenerationRunResource::class;
+
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-planning-source-detail'];
+    }
 
     public function termPlanningReturnUrl(): string
     {
@@ -49,7 +56,7 @@ class ViewScheduleGenerationRun extends ViewRecord
     }
 
     /** @return array<NavigationItem> */
-    public function getSubNavigation(): array
+    public function getWorkspaceNavigation(): array
     {
         $items = TermPlanningCluster::workspaceNavigation($this->run()->term_id, 'generate');
         foreach ($items as $item) {
@@ -62,58 +69,67 @@ class ViewScheduleGenerationRun extends ViewRecord
     }
 
     /**
-     * @return list<Action|ActionGroup>
+     * @return list<Action>
      */
     protected function getHeaderActions(): array
     {
         return [
             $this->acceptCandidateAction(),
             $this->publishScheduleAction(),
-            ActionGroup::make([
-                $this->rejectCandidateAction(),
-                $this->retrySolverRunAction(),
-                $this->revisePublishedScheduleAction(),
-            ])
-                ->label('More timetable actions')
-                ->icon(Heroicon::OutlinedEllipsisVertical)
-                ->color('gray'),
+            $this->rejectCandidateAction(),
+            $this->retrySolverRunAction(),
+            $this->revisePublishedScheduleAction(),
         ];
     }
 
     public function getTitle(): string
     {
-        return 'Generated Timetable Review';
+        return match ($this->run()->status) {
+            ScheduleGenerationRun::StatusPublished => 'Published timetable',
+            ScheduleGenerationRun::StatusQueued, ScheduleGenerationRun::StatusDispatching => 'Timetable in progress',
+            ScheduleGenerationRun::StatusUnderReview => 'Review timetable candidate',
+            default => 'Timetable generation result',
+        };
     }
 
     public function getSubheading(): string
     {
-        return $this->termPlanningContextDescription().(ScheduleGenerationRun::statusOptions()[$this->record->status] ?? $this->record->status);
+        return ScheduleGenerationRun::statusOptions()[$this->record->status] ?? $this->record->status;
     }
 
     public function content(Schema $schema): Schema
     {
         return $schema->components([
             $this->getInfolistContentComponent(),
-            Section::make('Assignment corrections and run history')
-                ->description('Open the assignment table to inspect or correct individual meetings. Candidate review, publication and revision histories remain available here.')
+            Section::make('Assignment review')
+                ->description('Review each assigned meeting. Correct an assignment or find a valid whole-term repair when the available actions allow it.')
                 ->schema([$this->getRelationManagersContentComponent()])
-                ->collapsible()
-                ->collapsed(),
+                ->extraAttributes(['class' => 'tala-guide-review-assignments'])
+                ->columnSpanFull(),
         ]);
     }
 
     public function retrySolverRunAction(): Action
     {
         return Action::make('retrySolverRun')
-            ->label('Retry timetable generation')
+            ->label(fn (): string => $this->canRecoverSolver() ? 'Try again after a service fix' : 'Retry timetable generation')
             ->icon(Heroicon::OutlinedArrowPath)
             ->color('warning')
             ->requiresConfirmation()
-            ->modalHeading('Retry Timetable Generation')
-            ->modalDescription('Retry this same protected request. Earlier technical attempts remain available in Operational Events.')
-            ->modalSubmitActionLabel('Retry Generation')
-            ->visible(fn (): bool => $this->canRetrySolver())
-            ->action(function (): void {
+            ->modalHeading(fn (): string => $this->canRecoverSolver() ? 'Try again after a service fix' : 'Retry generation')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+            ->modalDescription(fn (): string => $this->run()->term->label.' · Attempt #'.$this->run()->id.'. '.($this->canRecoverSolver()
+                ? 'After the System Administrator confirms the service fix, queue one new attempt after current planning data passes readiness checks. The failed attempt stays in history. Any original repair change is preserved.'
+                : 'Retry this request using the same recorded inputs. Earlier attempts remain in the history.'))
+            ->modalSubmitActionLabel(fn (): string => $this->canRecoverSolver() ? 'Queue new attempt' : 'Retry generation')
+            ->schema([
+                Textarea::make('correction_explanation')->label('What was fixed?')
+                    ->helperText('Record the service correction confirmed by the System Administrator. This explanation stays with the new attempt.')
+                    ->required(fn (): bool => $this->canRecoverSolver())->maxLength(2000)
+                    ->visible(fn (): bool => $this->canRecoverSolver()),
+            ])
+            ->visible(fn (): bool => $this->canRetrySolver() || $this->canRecoverSolver())
+            ->action(function (array $data): void {
                 $actor = auth()->user();
 
                 if (! $actor instanceof User) {
@@ -123,12 +139,18 @@ class ViewScheduleGenerationRun extends ViewRecord
                 $run = $this->run();
 
                 try {
-                    $this->record = app(ScheduleSolverRetryService::class)->retry($run, $actor);
+                    $this->record = $this->canRecoverSolver()
+                        ? app(ScheduleSolverRetryService::class)->recover($run, $actor, (string) ($data['correction_explanation'] ?? ''))
+                        : app(ScheduleSolverRetryService::class)->retry($run, $actor);
 
                     Notification::make()
-                        ->title('Solver run requeued')
+                        ->title($this->record->id !== $run->id ? 'New attempt queued' : 'Solver run requeued')
                         ->success()
                         ->send();
+
+                    if ($this->record->id !== $run->id) {
+                        $this->redirect(ScheduleGenerationRunResource::getUrl('view', ['record' => $this->record, 'termId' => $run->term_id]));
+                    }
                 } catch (ValidationException $exception) {
                     Notification::make()
                         ->title('Solver retry blocked')
@@ -139,7 +161,7 @@ class ViewScheduleGenerationRun extends ViewRecord
 
                     throw $exception;
                 } finally {
-                    $fresh = $run->fresh();
+                    $fresh = $this->record->fresh();
 
                     if ($fresh instanceof ScheduleGenerationRun) {
                         $this->record = $fresh;
@@ -153,6 +175,7 @@ class ViewScheduleGenerationRun extends ViewRecord
     public function revisePublishedScheduleAction(): Action
     {
         return Action::make('revisePublishedSchedule')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
             ->label('Revise official timetable')
             ->icon(Heroicon::OutlinedPencilSquare)
             ->color('warning')
@@ -232,17 +255,17 @@ class ViewScheduleGenerationRun extends ViewRecord
     public function publishScheduleAction(): Action
     {
         return Action::make('publishSchedule')
-            ->label('Publish Timetable')
+            ->label('Publish official timetable')
             ->icon(Heroicon::OutlinedCheckCircle)
-            ->color('success')
+            ->color('primary')
             ->requiresConfirmation()
-            ->modalHeading('Publish Timetable')
-            ->modalDescription(fn (): string => $this->publicationConfirmationDescription())
-            ->modalSubmitActionLabel('Publish Timetable')
+            ->modalHeading('Publish official timetable')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+            ->modalDescription(fn (): string => $this->run()->term->label.' / Attempt #'.$this->run()->id.'. '.$this->publicationConfirmationDescription())
+            ->modalSubmitActionLabel('Publish official timetable')
             ->schema([
                 TextInput::make('authority_reference')
-                    ->label('External timetable sign-off reference')
-                    ->required()
+                    ->label('Approval reference (optional)')
                     ->maxLength(255),
                 Textarea::make('publication_note')
                     ->label('Publication reason')
@@ -300,12 +323,12 @@ class ViewScheduleGenerationRun extends ViewRecord
 
     private function acceptCandidateAction(): Action
     {
-        return $this->candidateReviewAction('acceptCandidate', 'Accept candidate', 'Accepted', 'success');
+        return $this->candidateReviewAction('acceptCandidate', 'Accept timetable', 'Accepted', 'primary');
     }
 
     private function rejectCandidateAction(): Action
     {
-        return $this->candidateReviewAction('rejectCandidate', 'Reject candidate', 'Rejected', 'danger');
+        return $this->candidateReviewAction('rejectCandidate', 'Reject result', 'Rejected', 'danger');
     }
 
     private function candidateReviewAction(string $name, string $label, string $decision, string $color): Action
@@ -315,7 +338,10 @@ class ViewScheduleGenerationRun extends ViewRecord
             ->color($color)
             ->requiresConfirmation()
             ->modalHeading($label)
-            ->modalDescription('This attributable review remains non-official. Only a later explicit publication can make an accepted candidate authoritative.')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+            ->modalSubmitActionLabel($label)
+            ->modalIcon($decision === 'Accepted' ? Heroicon::OutlinedCheck : Heroicon::OutlinedXMark)
+            ->modalDescription(fn (): string => $this->run()->term->label.' · Attempt #'.$this->run()->id.'. Record the reason for this decision. An accepted timetable becomes official only after publication.')
             ->schema([
                 Textarea::make('candidate_review_reason')
                     ->label('Review reason')
@@ -393,6 +419,14 @@ class ViewScheduleGenerationRun extends ViewRecord
 
         return $actor instanceof User
             && Gate::forUser($actor)->allows('retry', $this->run());
+    }
+
+    private function canRecoverSolver(): bool
+    {
+        $actor = auth()->user();
+
+        return $actor instanceof User && ! $this->run()->canRetrySolver()
+            && Gate::forUser($actor)->allows('recover', $this->run());
     }
 
     private function canRevisePublishedSchedule(): bool

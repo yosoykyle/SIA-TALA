@@ -11,7 +11,6 @@ use App\Models\SectionDeliveryGroup;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 final class PublishTimetableVersion
@@ -27,18 +26,12 @@ final class PublishTimetableVersion
         ScheduleGenerationRun $run,
         User $publisher,
         Collection $candidateRows,
-        string $authorityReference,
+        ?string $authorityReference,
         ?string $reason,
         array $sourceVersions,
         array $impactSummary,
     ): PublishedTimetableVersion {
-        $authorityReference = Str::of($authorityReference)->trim()->toString();
-
-        if ($authorityReference === '') {
-            throw ValidationException::withMessages([
-                'authority_reference' => 'Recorded external timetable sign-off is required before publication.',
-            ]);
-        }
+        $authorityReference = filled($authorityReference) ? trim($authorityReference) : null;
 
         $current = PublishedTimetableVersion::query()
             ->where('term_id', $run->term_id)

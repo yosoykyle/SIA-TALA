@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
-use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
@@ -16,9 +15,7 @@ use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Models\Term;
 use App\Models\TermOffering;
-use App\Models\User;
 use Filament\Actions\Action;
-use Filament\Facades\Filament;
 use Filament\Navigation\NavigationItem;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Pages\EditRecord;
@@ -34,6 +31,8 @@ use Livewire\Attributes\Url;
 
 trait HasTermPlanningContext
 {
+    use HasTermPlanningShell;
+
     #[Url]
     #[Locked]
     public ?int $termId = null;
@@ -42,7 +41,7 @@ trait HasTermPlanningContext
     public string $resourceView = 'faculty';
 
     /** @return array<NavigationItem> */
-    public function getSubNavigation(): array
+    public function getWorkspaceNavigation(): array
     {
         $task = $this->termPlanningTask();
 
@@ -84,8 +83,6 @@ trait HasTermPlanningContext
         }
 
         return [
-            ...(auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? [AcademicApprovals::getUrl(['termId' => $this->termPlanningContextTermId()]) => 'Academic Oversight'] : [Filament::getUrl() => 'Staff Workspace']),
-            TermPlanningWorkbench::getUrl(['termId' => $this->termPlanningContextTermId(), 'viewTab' => 'plan']) => 'Term Planning',
             $this->termPlanningReturnUrl() => $this->termPlanningTaskLabel(),
             ...($this instanceof ListRecords ? [] : [$this->getResourceUrl('index') => $this->termPlanningResourceLabel()]),
             $this instanceof ListRecords ? $this->termPlanningResourceLabel() : $this->getBreadcrumb(),
@@ -94,11 +91,7 @@ trait HasTermPlanningContext
 
     public function getSubheading(): string|Htmlable|null
     {
-        if ($this instanceof ViewRecord) {
-            return rtrim($this->termPlanningContextDescription(), '. ');
-        }
-
-        return filled($this->termPlanningContextDescription()) ? rtrim($this->termPlanningContextDescription(), '. ') : $this->termPlanningResourcePurpose();
+        return $this->termPlanningResourcePurpose();
     }
 
     public function getTitle(): string|Htmlable
@@ -112,14 +105,32 @@ trait HasTermPlanningContext
             };
         }
         if (static::getResource() !== SectionResource::class) {
-            return parent::getTitle();
+            $recordLabel = match (static::getResource()) {
+                FacultyQualificationResource::class => 'faculty qualification',
+                FacultyTermLoadOverrideResource::class => 'Faculty load exception',
+                SchedulingDemandResource::class => 'weekly meeting requirement',
+                SectionMeetingResource::class => 'official class meeting',
+                CalendarEventResource::class => 'weekly unavailable time',
+                default => null,
+            };
+
+            if ($recordLabel === null) {
+                return parent::getTitle();
+            }
+
+            return match (true) {
+                $this instanceof CreateRecord => 'Add '.$recordLabel,
+                $this instanceof EditRecord => 'Edit '.$recordLabel,
+                $this instanceof ViewRecord => ucfirst($recordLabel),
+                default => $this->termPlanningResourceLabel(),
+            };
         }
 
         return match (true) {
             $this instanceof CreateRecord => 'Add a class',
             $this instanceof EditRecord => 'Edit class',
             $this instanceof ViewRecord => ($this->getRecord()->courseRevision?->title ?? $this->getRecord()->termOffering?->curriculumEntry?->courseSpecification?->title) ?: 'Class '.$this->getRecord()->code,
-            default => 'Sections & classes',
+            default => 'Classes & sections',
         };
     }
 
@@ -224,7 +235,7 @@ trait HasTermPlanningContext
             'resources' => 'Faculty & rooms',
             'generate' => 'Timetable',
             'published' => 'Timetable',
-            default => 'Sections & classes',
+            default => 'Classes & sections',
         };
     }
 
@@ -251,7 +262,7 @@ trait HasTermPlanningContext
             TermOfferingResource::class => 'Choose the courses taught in this Term, then prepare their classes and delivery groups. Regular offerings come from an active curriculum; special offerings record an externally approved additional offering.',
             SchedulingDemandResource::class => 'Check the required teaching for each class delivery group. Resolve source problems before generating a timetable.',
             RoomResource::class => 'Shared room catalog used for class assignments.',
-            FacultyQualificationResource::class => 'Courses each Faculty member is qualified to teach; qualifications apply across Terms.',
+            FacultyQualificationResource::class => 'Record which courses each teacher is approved to teach. Qualifications apply across Terms.',
             FacultyTermLoadOverrideResource::class => 'Approved exceptions to this Term’s default Faculty load.',
             CalendarEventResource::class => 'Prevent meetings during these times for this Term. Record dated no-class exceptions in Calendar.',
             ScheduleGenerationRunResource::class => 'Inspect generation requests, candidate assignments and validation. Accepting a candidate and publishing an official timetable are separate decisions.',

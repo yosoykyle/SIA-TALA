@@ -20,16 +20,19 @@ trait HasClassPreparationActions
     public function recordCohortAction(): Action
     {
         return Action::make('recordCohort')
-            ->label('Add a section')->slideOver()
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+            ->label('Add student section')
+            ->modalHeading('Add student section')->modalSubmitActionLabel('Add student section')
+            ->modalCancelActionLabel('Cancel')
             ->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar))
-            ->modalDescription('Record the Registrar-confirmed standard-curriculum group and actual count for the selected Term.')
+            ->modalDescription(fn (): string => $this->selectedTerm()->label.'. Choose the active curriculum and record this student section’s confirmed learners.')
             ->schema([
                 Select::make('curriculum_version_id')->label('Active curriculum')
                     ->options(fn (): array => CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)->with('program')->get()
                         ->mapWithKeys(fn (CurriculumVersion $curriculum): array => [$curriculum->id => $curriculum->program?->name.' · '.$curriculum->version_code])->all())
                     ->required()->searchable(),
                 TextInput::make('reference')->label('Student section reference')->required()->maxLength(64),
-                TextInput::make('confirmed_count')->label('Confirmed count')->required()->integer()->minValue(1),
+                TextInput::make('confirmed_count')->label('Confirmed learners')->required()->integer()->minValue(1),
             ])
             ->action(function (array $data, Schema $schema): void {
                 $actor = auth()->user();
@@ -49,7 +52,9 @@ trait HasClassPreparationActions
     public function prepareClassOfferingAction(): Action
     {
         return Action::make('prepareClassOffering')
-            ->label('Prepare class')->slideOver()
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+            ->label('Prepare class')
+            ->modalHeading('Prepare class')->modalSubmitActionLabel('Save class preparation')->modalCancelActionLabel('Cancel')
             ->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar))
             ->modalDescription('Review this class’s course and active teaching calendar, then confirm its linked student sections.')
             ->fillForm(fn (array $arguments, ?Section $record = null): array => ['section_id' => $record?->id ?? $arguments['sectionId'] ?? null, 'class_reference' => $record?->class_reference ?: $record?->code, 'source' => $record?->source, 'delivery_mode' => $record?->delivery_mode])

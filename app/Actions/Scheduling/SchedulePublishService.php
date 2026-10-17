@@ -95,7 +95,7 @@ class SchedulePublishService
             }
 
             $reasonRequirement = $this->publicationReasonRequirement($lockedRun, $candidateRows);
-            $this->assertPublicationReason($lockedRun, $note, $reasonRequirement, $authorityReference);
+            $this->assertPublicationReason($note, $reasonRequirement);
 
             $currentPublishedRun = $termRuns->first(
                 fn (ScheduleGenerationRun $termRun): bool => $termRun->status === ScheduleGenerationRun::StatusPublished
@@ -118,7 +118,6 @@ class SchedulePublishService
 
             $timestamp = CarbonImmutable::now(config('app.timezone'));
             $publicationVersion = ((int) ($termRuns->max('publication_version') ?? 0)) + 1;
-            $authorityReference = $this->authorityReference($lockedRun, $authorityReference);
 
             ScheduleGenerationRun::query()
                 ->where('term_id', $lockedRun->term_id)
@@ -303,18 +302,9 @@ class SchedulePublishService
     }
 
     private function assertPublicationReason(
-        ScheduleGenerationRun $run,
         ?string $note,
         ?string $reasonRequirement,
-        ?string $authorityReference,
     ): void {
-        if ($run->contract_version === ScheduleGenerationRun::ContractVersion
-            && $authorityReference === null) {
-            throw ValidationException::withMessages([
-                'authority_reference' => 'Publication requires the distinct external timetable sign-off reference.',
-            ]);
-        }
-
         if ($reasonRequirement !== null && $note === null) {
             throw ValidationException::withMessages([
                 'publication_note' => 'A publication reason is required. '.$reasonRequirement,
@@ -399,17 +389,6 @@ class SchedulePublishService
         }
 
         return $note === '' ? null : $note;
-    }
-
-    private function authorityReference(ScheduleGenerationRun $run, ?string $note): string
-    {
-        if ($run->contract_version === ScheduleGenerationRun::ContractVersion && $note === null) {
-            throw ValidationException::withMessages([
-                'publication_note' => 'Recorded external timetable sign-off is required before publication.',
-            ]);
-        }
-
-        return $note ?? "Legacy published schedule run {$run->id}";
     }
 
     /**

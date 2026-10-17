@@ -248,6 +248,12 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             'Apply one valid attributable local correction.',
             'SYNTH-CORRECTION-001',
         );
+        $this->assertNull($candidateSuccessor->quality_measures);
+        $this->assertNull($candidateSuccessor->runtime_ms);
+        $this->assertArrayNotHasKey('solver_result', $candidateSuccessor->diagnostics);
+        $this->assertSame('LocalAdjustment', $candidateSuccessor->diagnostics['candidate_origin']);
+        $this->assertSame('feasible', data_get($candidateSuccessor->diagnostics, 'source_solver_evidence.result.solver_status'));
+        $this->assertTrue(data_get($candidateSuccessor->diagnostics, 'current_revalidation.summary.complete'));
         $accepted = app(ReviewTimetableCandidate::class)->accept(
             $candidateSuccessor,
             $registrar,
@@ -257,11 +263,14 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             $accepted,
             $registrar,
             'Publish the reviewed synthetic timetable.',
-            authorityReference: 'SYNTH-TIMETABLE-SIGNOFF-001',
+            authorityReference: null,
         );
         $publishedVersion = PublishedTimetableVersion::query()
             ->where('schedule_run_id', $publishedRun->id)
             ->sole();
+        $this->assertNull($publishedVersion->authority_reference);
+        $this->assertSame($registrar->id, $publishedVersion->published_by);
+        $this->assertNotNull($publishedVersion->published_at);
         $publishedMeeting = $publishedVersion->meetings()->sole();
 
         $this->assertSame(PublishedTimetableVersion::StatePublished, $publishedVersion->state);
@@ -274,7 +283,8 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             ->assertOk()
             ->assertSee('PUBLISHED TIMETABLE')
             ->assertSee('TALA-TT-'.$publishedVersion->id.'-V1')
-            ->assertSee('SYNTH-TIMETABLE-SIGNOFF-001')
+            ->assertSee('Approval reference')
+            ->assertSee('Not recorded')
             ->assertSee('Initial publication')
             ->assertSee('margin: 12mm', escape: false)
             ->assertDontSee('fi-sidebar');

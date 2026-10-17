@@ -19,7 +19,7 @@ class ListSections extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make()->label('Add a class')->slideOver()->url(null)
+            CreateAction::make()->label('Add a class')->url(null)
                 ->schema(fn (Schema $schema): Schema => SectionForm::configure($schema))
                 ->mutateDataUsing(fn (array $data): array => app(SectionPlanningService::class)->prepareForSave($this->termPlanningFormData($data))),
         ];

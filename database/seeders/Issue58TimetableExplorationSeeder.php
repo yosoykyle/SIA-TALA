@@ -151,9 +151,11 @@ class Issue58TimetableExplorationSeeder extends Seeder
     protected function assertSafe(): void
     {
         $connection = DB::connection();
+        $testDatabase = (string) config('database.test_database', 'test_tala_db');
         if (! app()->environment('testing') || $connection->getDriverName() !== 'mysql'
-            || $connection->getDatabaseName() !== 'test_tala_db'
-            || ($connection->selectOne('SELECT DATABASE() AS name')->name ?? null) !== 'test_tala_db'
+            || preg_match('/^test_tala_db(?:_[a-z0-9_]+)?$/', $testDatabase) !== 1
+            || $connection->getDatabaseName() !== $testDatabase
+            || ($connection->selectOne('SELECT DATABASE() AS name')->name ?? null) !== $testDatabase
             || config('mail.default') !== 'array' || config('queue.default') !== 'sync') {
             throw new RuntimeException('Timetable review seed requires testing/mysql/test_tala_db, array mail and sync queue.');
         }

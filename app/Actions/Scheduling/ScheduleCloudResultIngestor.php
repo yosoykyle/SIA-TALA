@@ -4,6 +4,7 @@ namespace App\Actions\Scheduling;
 
 use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
+use App\Models\Term;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -12,6 +13,7 @@ final class ScheduleCloudResultIngestor
 {
     public function __construct(
         private readonly ScheduleAssignmentValidationService $validator,
+        private readonly ScheduleAssignmentRevalidationService $revalidator,
     ) {}
 
     /**
@@ -21,22 +23,69 @@ final class ScheduleCloudResultIngestor
     public function ingest(ScheduleGenerationRun $run, array $solverResult): array
     {
         return DB::transaction(function () use ($run, $solverResult): array {
+            Term::query()->lockForUpdate()->findOrFail($run->term_id);
+
             /** @var ScheduleGenerationRun $lockedRun */
             $lockedRun = ScheduleGenerationRun::query()
                 ->lockForUpdate()
                 ->findOrFail($run->id);
 
-            if (in_array($lockedRun->status, [
-                ScheduleGenerationRun::StatusPublished,
-                ScheduleGenerationRun::StatusSuperseded,
-            ], true)) {
+            if (filled($lockedRun->candidate_key)
+                || $lockedRun->candidateRows()->exists()
+                || in_array(data_get($lockedRun->diagnostics, 'solver_result.summary.status'), ['accepted', 'blocked'], true)
+                || in_array($lockedRun->candidate_state, ['Accepted', 'Rejected'], true)
+                || in_array($lockedRun->status, [
+                    ScheduleGenerationRun::StatusPublished,
+                    ScheduleGenerationRun::StatusSuperseded,
+                ], true)) {
                 throw ValidationException::withMessages([
-                    'status' => 'Published or superseded schedule runs cannot ingest new solver results.',
+                    'status' => 'A retained solver outcome, candidate or published schedule cannot ingest another result.',
                 ]);
+            }
+
+            $operation = data_get($lockedRun->input_snapshot, 'operation', []);
+
+            if (is_array($operation) && ($operation['kind'] ?? null) === 'repair') {
+                $source = ScheduleGenerationRun::query()->where('term_id', $lockedRun->term_id)
+                    ->lockForUpdate()->find(data_get($operation, 'source_candidate.run_id'));
+
+                if (! $source instanceof ScheduleGenerationRun
+                    || $source->status !== ScheduleGenerationRun::StatusUnderReview
+                    || $source->candidate_state === 'Stale'
+                    || (int) $source->candidate_version !== (int) data_get($operation, 'source_candidate.candidate_version')) {
+                    throw ValidationException::withMessages(['source_candidate' => 'The repair source is stale or has been superseded. Generate or review the current candidate.']);
+                }
             }
 
             $validationStartedAt = hrtime(true);
             $validation = $this->validator->validate($lockedRun, $solverResult);
+            if ($validation->passes() && data_get($lockedRun->input_snapshot, 'contract_version') === ScheduleGenerationRun::ContractVersion) {
+                try {
+                    $current = $this->revalidator->validateCandidateSet($lockedRun, $validation->candidateRows());
+                    $findings = $current->blockingFindings();
+                } catch (ValidationException $exception) {
+                    $findings = collect($exception->errors())->flatten()->map(fn (string $message): array => [
+                        'code' => 'current_scope_unavailable',
+                        'severity' => 'blocking',
+                        'message' => $message,
+                    ])->all();
+                }
+
+                if ($findings !== []) {
+                    $summary = $validation->summary();
+                    $summary['status'] = 'blocked';
+                    $summary['candidate_row_count'] = 0;
+                    $summary['rejected_count'] = count($findings);
+                    $summary['independently_validated'] = false;
+                    $summary['complete'] = false;
+                    $summary['validated_meeting_count'] = null;
+                    $summary['current_sources_valid'] = false;
+                    $summary['rejected_rows'] = collect($findings)->map(fn (array $finding): array => [
+                        'reason' => $finding['code'], 'message' => $finding['message'],
+                    ])->all();
+                    $validation = new ScheduleValidationResult([], [...$validation->findings(), ...$findings], $validation->metadata(), $summary);
+                }
+            }
             $validationMs = max(0, (int) round((hrtime(true) - $validationStartedAt) / 1_000_000));
             $preservedCount = CandidateScheduleRow::query()
                 ->where('schedule_run_id', $lockedRun->id)
@@ -62,13 +111,6 @@ final class ScheduleCloudResultIngestor
                 return $summary;
             }
 
-            if ($lockedRun->status === ScheduleGenerationRun::StatusUnderReview
-                && $preservedCount > 0) {
-                throw ValidationException::withMessages([
-                    'status' => 'This immutable candidate result has already been retained for review.',
-                ]);
-            }
-
             $snapshot = $lockedRun->input_snapshot;
             $operation = is_array($snapshot['operation'] ?? null) ? $snapshot['operation'] : [];
             $source = is_array($operation['source_candidate'] ?? null) ? $operation['source_candidate'] : [];
@@ -83,7 +125,8 @@ final class ScheduleCloudResultIngestor
                 if (($operation['kind'] ?? null) === 'repair' && is_array($previous)) {
                     $candidateRow['supersedes_candidate_row_id'] = $previous['candidate_row_id'] ?? null;
                     $candidateRow['change_type'] = $this->assignmentChanged($candidateRow, $previous)
-                        ? (((int) $candidateRow['scheduling_demand_id'] === (int) ($operation['requested_assignment']['scheduling_demand_id'] ?? 0)) ? 'RequestedRepair' : 'RepairImpact')
+                        ? (((int) $candidateRow['scheduling_demand_id'] === (int) ($operation['requested_assignment']['scheduling_demand_id'] ?? 0)
+                            && (int) $candidateRow['meeting_sequence'] === (int) ($operation['requested_assignment']['meeting_sequence'] ?? 0)) ? 'RequestedRepair' : 'RepairImpact')
                         : 'Unchanged';
                     $candidateRow['override_authority'] = $operation['authority_reference'] ?? null;
                     $candidateRow['override_reason'] = $operation['reason'] ?? null;
@@ -152,11 +195,13 @@ final class ScheduleCloudResultIngestor
                 : $run->solver_version,
             'model_version' => is_string($metadata['model_version']) ? $metadata['model_version'] : null,
             'runtime_ms' => $metadata['runtime_ms'],
-            'objective_value' => is_numeric($metadata['objective_score']) ? $metadata['objective_score'] : null,
-            'quality_measures' => is_array(data_get($solverResult, 'objective_details.values'))
+            'objective_value' => $validation->passes() && is_numeric($metadata['objective_score']) ? $metadata['objective_score'] : null,
+            'quality_measures' => $validation->passes() && is_array(data_get($solverResult, 'objective_details.values'))
                 ? data_get($solverResult, 'objective_details.values')
                 : null,
             'diagnostics' => $diagnostics,
+            'candidate_state' => $status === ScheduleGenerationRun::StatusUnderReview ? 'UnderReview'
+                : (($summary['current_sources_valid'] ?? null) === false ? 'Stale' : null),
         ];
 
         if ($replaceCandidateKey) {

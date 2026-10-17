@@ -19,6 +19,8 @@ return [
 
     'default' => env('DB_CONNECTION', 'sqlite'),
 
+    'test_database' => env('TALA_TEST_DATABASE', 'test_tala_db'),
+
     /*
     |--------------------------------------------------------------------------
     | Database Connections

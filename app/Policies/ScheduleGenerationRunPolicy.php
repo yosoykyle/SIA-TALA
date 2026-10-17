@@ -2,11 +2,14 @@
 
 namespace App\Policies;
 
+use App\Actions\Scheduling\ScheduleSolverRecoveryService;
 use App\Models\ScheduleGenerationRun;
 use App\Models\User;
 
 class ScheduleGenerationRunPolicy
 {
+    public function __construct(private readonly ScheduleSolverRecoveryService $recoveryService) {}
+
     /**
      * Determine whether the user can view any models.
      */
@@ -48,6 +51,12 @@ class ScheduleGenerationRunPolicy
     {
         return $user->hasRole(User::StaffRoleRegistrar)
             && $scheduleGenerationRun->canRetrySolver();
+    }
+
+    public function recover(User $user, ScheduleGenerationRun $scheduleGenerationRun): bool
+    {
+        return $user->hasRole(User::StaffRoleRegistrar)
+            && $this->recoveryService->canRequestRecovery($scheduleGenerationRun);
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Models\ScheduleRevisionEvent;
 use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
@@ -24,7 +25,7 @@ class RevisionEventsRelationManager extends RelationManager
 
     protected static string $relationship = 'revisionEvents';
 
-    protected static ?string $title = 'Revision History';
+    protected static ?string $title = 'Publication revisions';
 
     public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool
     {
@@ -100,7 +101,7 @@ class RevisionEventsRelationManager extends RelationManager
                     ->numeric(),
                 TextColumn::make('created_at')
                     ->label('Recorded At')
-                    ->dateTime()
+                    ->dateTime('M j, Y, g:i A')->timezone('Asia/Manila')
                     ->sortable(),
             ])
             ->filters([
@@ -108,12 +109,13 @@ class RevisionEventsRelationManager extends RelationManager
                     ->label('Change Type')
                     ->options(ScheduleRevisionEvent::changeTypeOptions()),
             ])
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->defaultSort('created_at', 'desc')
             ->recordActions([
                 ViewAction::make()
-                    ->label('Details'),
+                    ->label('View details')->button()->color('gray'),
             ])
-            ->toolbarActions([]);
+            ->toolbarActions([])->stackedOnMobile();
     }
 
     private static function meeting(ScheduleRevisionEvent $record): ?SectionMeeting

@@ -5,6 +5,8 @@ namespace App\Filament\Resources\SectionMeetings\Tables;
 use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
+use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -38,7 +40,7 @@ class SectionMeetingsTable
                     ->state(fn (SectionMeeting $record): string => collect([
                         SectionMeeting::dayOptions()[$record->day_of_week] ?? null,
                         filled($record->starts_at) && filled($record->ends_at)
-                            ? mb_substr((string) $record->starts_at, 0, 5).' - '.mb_substr((string) $record->ends_at, 0, 5)
+                            ? CarbonImmutable::parse($record->starts_at)->format('g:i A').'–'.CarbonImmutable::parse($record->ends_at)->format('g:i A')
                             : null,
                     ])->filter()->implode(' · '))
                     ->wrap(),
@@ -48,9 +50,11 @@ class SectionMeetingsTable
                     ->sortable(),
                 TextColumn::make('faculty.name')
                     ->label('Faculty')
+                    ->wrap()
                     ->searchable(),
                 TextColumn::make('room.code')
                     ->label('Room')
+                    ->wrap()
                     ->searchable()
                     ->placeholder('-'),
                 TextColumn::make('modality')
@@ -73,7 +77,7 @@ class SectionMeetingsTable
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('published_at')
                     ->label('Published at')
-                    ->dateTime()
+                    ->dateTime('M j, Y, g:i A')->timezone('Asia/Manila')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
@@ -114,8 +118,9 @@ class SectionMeetingsTable
                 SelectFilter::make('modality')
                     ->options(SectionMeeting::modalityOptions()),
             ])
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->recordActions([
-                ViewAction::make(),
+                ViewAction::make()->label('View details')->button()->color('gray'),
             ])
             ->toolbarActions([])
             ->stackedOnMobile()

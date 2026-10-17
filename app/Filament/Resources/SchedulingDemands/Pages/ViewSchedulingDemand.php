@@ -8,9 +8,17 @@ use Filament\Resources\Pages\ViewRecord;
 
 class ViewSchedulingDemand extends ViewRecord
 {
-    use HasTermPlanningContext;
+    use HasTermPlanningContext {
+        getPageClasses as protected getTermPlanningPageClasses;
+    }
 
     protected static string $resource = SchedulingDemandResource::class;
+
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-planning-source-detail'];
+    }
 
     protected function getHeaderActions(): array
     {

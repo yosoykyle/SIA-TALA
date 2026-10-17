@@ -47,7 +47,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotContains(DB::connection()->getDatabaseName(), ['tala_db', 'tala_test_codex']);
 
         $this->clearPersistedAcceptanceBaselineInsideTestTransaction();
@@ -593,6 +593,22 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             $this->assertStringContainsString('APP_ENV=testing', $exception->getMessage());
         } finally {
             $this->app->detectEnvironment(fn (): string => 'testing');
+        }
+    }
+
+    public function test_environment_guard_rejects_production_names_and_an_unselected_test_database(): void
+    {
+        $guard = app(AcceptanceBaselineEnvironmentGuard::class);
+
+        foreach (['tala_db', 'tala_test_codex', 'test_tala_db_unselected'] as $target) {
+            config()->set('database.test_database', $target);
+
+            try {
+                $guard->assertSafe();
+                $this->fail('The acceptance baseline guard accepted an unsafe or unselected database.');
+            } catch (RuntimeException $exception) {
+                $this->assertStringContainsString('explicit MySQL', $exception->getMessage());
+            }
         }
     }
 

@@ -2,14 +2,16 @@
 
 namespace App\Filament\Resources\Sections\Tables;
 
+use App\Filament\Resources\Sections\Pages\ListSections;
+use App\Filament\Resources\Sections\SectionResource;
 use App\Models\Section;
 use App\Models\TermOffering;
-use Filament\Actions\ActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Livewire\Component;
 
 class SectionsTable
 {
@@ -19,7 +21,7 @@ class SectionsTable
             ->modifyQueryUsing(fn ($query) => $query->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course']))
             ->columns([
                 TextColumn::make('code')
-                    ->label('Section')
+                    ->label('Class')
                     ->description(fn (Section $record): string => collect([
                         $record->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
                         $record->termOffering?->curriculumEntry?->courseSpecification?->title,
@@ -55,15 +57,19 @@ class SectionsTable
             ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([
-                ActionGroup::make([
-                    ViewAction::make(),
-                    EditAction::make(),
-                ]),
+                ViewAction::make()->color('gray')->url(fn (Section $record, Component $livewire): string => SectionResource::getUrl('view', [
+                    'record' => $record,
+                    ...($livewire instanceof ListSections && $livewire->termId !== null ? ['termId' => $livewire->termId] : []),
+                ])),
+                EditAction::make()->color('gray')->url(fn (Section $record, Component $livewire): string => SectionResource::getUrl('edit', [
+                    'record' => $record,
+                    ...($livewire instanceof ListSections && $livewire->termId !== null ? ['termId' => $livewire->termId] : []),
+                ])),
             ])
             ->toolbarActions([])
             ->stackedOnMobile()
-            ->emptyStateHeading('No sections are recorded')
-            ->emptyStateDescription('Create an offering first, then add the regular section and its delivery groups.');
+            ->emptyStateHeading('No student sections are recorded')
+            ->emptyStateDescription('Build a course offering first, then add its classes and delivery groups.');
     }
 
     /**

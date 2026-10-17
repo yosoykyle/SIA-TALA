@@ -23,6 +23,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Section;
@@ -33,9 +34,17 @@ use Livewire\Attributes\Url;
 
 class ListTermOfferings extends ListRecords
 {
-    use HasTermPlanningContext;
+    use HasTermPlanningContext {
+        getPageClasses as protected getTermPlanningPageClasses;
+    }
 
     protected static string $resource = TermOfferingResource::class;
+
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-planning-source-list'];
+    }
 
     #[Url]
     public ?int $programId = null;
@@ -48,7 +57,7 @@ class ListTermOfferings extends ListRecords
 
     public function getTitle(): string
     {
-        return 'Offered courses';
+        return 'Classes & sections';
     }
 
     protected function getHeaderActions(): array
@@ -62,16 +71,18 @@ class ListTermOfferings extends ListRecords
     private function regularBuilderAction(): Action
     {
         return Action::make('buildRegularOfferings')
-            ->label('Set up a year level')->slideOver()
-            ->modalHeading('Build regular offerings and classes')
-            ->modalDescription('Choose one curriculum scope, review its eligible courses and confirm their class setup. Build saves the selected offerings, class sections and delivery groups together. To prepare a single class section for an existing offering, return to Classes and use New class section.')
-            ->modalSubmitActionLabel('Build selected offerings and classes')
+            ->label('Build classes from a curriculum year')->modalWidth('6xl')
+            ->modalHeading('Build classes from a curriculum year')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+            ->modalDescription('Choose a program, active curriculum and year level. Include or skip each eligible course, then review its classes and delivery groups. Building saves the selected course offerings and their class setup together. Use Add a class in Classes & sections for an existing offering.')
+            ->modalSubmitActionLabel('Build selected course offerings and classes')
             ->authorize(fn (): bool => auth()->user()?->can('create', TermOffering::class) ?? false)
             ->fillForm(fn (): array => ['term_id' => $this->termId, 'program_id' => $this->programId, 'curriculum_version_id' => $this->curriculumVersionId, 'year_level' => $this->yearLevel, 'rows' => []])
             ->schema([
                 Section::make('Choose the curriculum scope')
                     ->description('Choose the program, active curriculum and year level. Eligible courses appear below after the scope is complete.')
                     ->columns(2)
+                    ->contained(false)
                     ->schema([
                         Select::make('term_id')
                             ->label('Target Term')
@@ -113,10 +124,9 @@ class ListTermOfferings extends ListRecords
                             ->afterStateUpdated(fn (Get $get, Set $set, BuildTermOfferings $builder) => $this->loadEligibleRows($get, $set, $builder)),
                     ]),
                 Repeater::make('rows')
-                    ->label('Review eligible courses and class setup')
-                    ->helperText('Include the courses to build. Academic facts are inherited and read only; confirm the expected students, modality, class capacity and delivery groups before building.')
+                    ->label('Eligible courses and classes')
+                    ->helperText('Each course is shown with its current decision and class setup. Include or skip the course, then confirm expected students, modality, class capacity and delivery groups before building.')
                     ->defaultItems(0)
-                    ->collapsed()->collapsible()
                     ->afterStateHydrated(fn (Get $get, Set $set, BuildTermOfferings $builder) => $this->loadEligibleRows($get, $set, $builder))
                     ->itemLabel(fn (array $state): string => ($state['already_offered'] ?? false ? 'Already offered · ' : 'New · ').(strtok((string) ($state['inherited_facts'] ?? ''), "\n") ?: 'Eligible course'))
                     ->addable(false)
@@ -144,10 +154,11 @@ class ListTermOfferings extends ListRecords
     private function specialOfferingAction(): Action
     {
         return Action::make('recordSpecialOffering')
-            ->label('Record approved special offering')->slideOver()
-            ->modalHeading('Record an approved special offering')
-            ->modalDescription('Record an additional offering already approved outside TALA, including its reason and class setup. The course still comes from an active curriculum entry. This command records the offering, classes and delivery groups together; it does not grant the approval.')
-            ->modalSubmitActionLabel('Record offering and classes')
+            ->label('Record an approved additional offering')
+            ->modalHeading('Record an approved additional offering')
+            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+            ->modalDescription('Record an additional offering already approved outside TALA, including its reason and class setup. Choose a course from an active curriculum entry. This records the offering, classes and delivery groups; it does not grant the approval.')
+            ->modalSubmitActionLabel('Record additional offering and classes')
             ->authorize(fn (): bool => auth()->user()?->can('create', TermOffering::class) ?? false)
             ->schema([
                 Select::make('term_id')
@@ -158,7 +169,7 @@ class ListTermOfferings extends ListRecords
                     ->options(fn (): array => Term::query()->latest('starts_on')->pluck('label', 'id')->all())
                     ->required(),
                 Select::make('curriculum_entry_id')
-                    ->label('Active Curriculum Entry')
+                    ->label('Course from active curriculum')
                     ->options(fn (): array => CurriculumEntry::query()
                         ->whereHas('curriculumVersion', fn ($query) => $query->where('state', CurriculumVersion::StateActive))
                         ->whereHas('courseSpecification', fn ($query) => $query->where('state', 'ACTIVE'))
@@ -177,23 +188,23 @@ class ListTermOfferings extends ListRecords
                         ->all())
                     ->searchable()
                     ->required(),
-                Textarea::make('special_reason')->label('Approved Special Offering Reason')->required()->maxLength(2000),
+                Textarea::make('special_reason')->label('Reason for the approved additional offering')->required()->maxLength(2000),
                 Select::make('delivery_variant')->label('Delivery Arrangement')->options([
                     TermOffering::ArrangementNormalClass => 'Normal Class',
                     TermOffering::ArrangementTutorial => 'Tutorial',
                 ])->required()->default(TermOffering::ArrangementTutorial),
-                Select::make('modality')->options(TermOffering::modalityOptions())->required(),
+                Select::make('modality')->label('Teaching modality')->options(TermOffering::modalityOptions())->required(),
                 TextInput::make('expected_count')->label('Expected students')->numeric()->minValue(0)->required(),
-                Section::make('Authorized overrides (optional)')
+                Section::make('Authorized exceptions (optional)')
                     ->description('Use only when the approved offering needs an exception to its inherited course specification.')
                     ->collapsible()
-                    ->collapsed()
+                    ->collapsed(fn (Get $get): bool => blank($get('room_type_override')) && $get('same_faculty_override') === null)
                     ->schema([
                         TextInput::make('room_type_override')->label('Authorized room-type override'),
                         Toggle::make('same_faculty_override')->label('Authorized same-faculty override')->nullable(),
                     ]),
                 Repeater::make('sections')
-                    ->label('Classes for this offering')
+                    ->label('Classes for this additional offering')
                     ->addActionLabel('Add class')
                     ->schema($this->sectionSchema())
                     ->defaultItems(1)
@@ -222,23 +233,22 @@ class ListTermOfferings extends ListRecords
             Toggle::make('include')->label('Include this course')->default(true),
             Hidden::make('curriculum_entry_id'),
             Hidden::make('already_offered'),
-            Textarea::make('inherited_facts')
-                ->label('Academic facts from the course specification (read only)')
-                ->disabled()
-                ->dehydrated(false)
-                ->rows(3)
+            TextEntry::make('inherited_facts_display')
+                ->label('Course facts from the active specification')
+                ->state(fn (Get $get): ?string => $get('inherited_facts'))
                 ->columnSpanFull(),
             Select::make('modality')
+                ->label('Teaching modality')
                 ->options(fn (Get $get): array => collect($get('allowed_modalities') ?? [])
                     ->mapWithKeys(fn (string $modality): array => [$modality => TermOffering::modalityOptions()[$modality] ?? str($modality)->lower()->headline()->toString()])
                     ->all())
                 ->required(),
             Hidden::make('allowed_modalities'),
             TextInput::make('expected_count')->label('Expected students')->numeric()->minValue(0)->required(),
-            Section::make('Authorized overrides (optional)')
+            Section::make('Authorized exceptions (optional)')
                 ->description('Inherited room-type and same-faculty rules apply unless an approved exception is recorded.')
                 ->collapsible()
-                ->collapsed()
+                ->collapsed(fn (Get $get): bool => blank($get('room_type_override')) && $get('same_faculty_override') === null)
                 ->schema([
                     TextInput::make('room_type_override')->label('Authorized room-type override'),
                     Toggle::make('same_faculty_override')->label('Authorized same-faculty override')->nullable(),

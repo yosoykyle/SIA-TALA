@@ -46,7 +46,7 @@ final class TAL94CCandidateReviewUxTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotContains(DB::connection()->getDatabaseName(), [
             'tala_db',
             'demo_tala_db',
@@ -81,9 +81,9 @@ final class TAL94CCandidateReviewUxTest extends TestCase
                 'pageClass' => ViewScheduleGenerationRun::class,
             ])
             ->assertCanSeeTableRecords([$candidate])
-            ->assertTableColumnExists('schedulingDemand.courseComponent.courseSpecification.course.code')
-            ->assertTableColumnExists('schedulingDemand.sectionDeliveryGroup.section.code')
-            ->assertTableColumnExists('time_range')
+            ->assertSee($context['demands'][0]->sectionDeliveryGroup->section->code)
+            ->assertSee('Lecture')->assertSee('Face-to-Face')
+            ->assertSee('Monday')->assertSee('8:00 AM - 11:00 AM')
             ->assertTableActionVisible('correctAssignment', $candidate);
 
         Livewire::actingAs($academicHead)
@@ -132,7 +132,7 @@ final class TAL94CCandidateReviewUxTest extends TestCase
                 'pageClass' => ViewScheduleGenerationRun::class,
             ])
             ->assertCanSeeTableRecords([$faceToFaceCandidate, $onlineCandidate])
-            ->assertTableColumnExists('schedulingDemand.modality')
+            ->assertSee('Online')->assertSee('Face-to-Face')
             ->assertTableFilterExists('teaching_mode')
             ->assertSchemaComponentExists('schedulingDemand.modality', 'infolist')
             ->filterTable('teaching_mode', TermOffering::ModalityOnline)
@@ -178,7 +178,10 @@ final class TAL94CCandidateReviewUxTest extends TestCase
         $this->assertSame(ScheduleGenerationRun::StatusSuperseded, $context['run']->fresh()->status);
         $this->assertSame('08:00:00', $candidate->fresh()->starts_at);
         $this->assertSame('accepted', $diagnostics['current_revalidation']['status']);
-        $this->assertSame('original-result-preserved', $diagnostics['solver_result']['marker']);
+        $this->assertSame('original-result-preserved', $diagnostics['source_solver_evidence']['result']['marker']);
+        $this->assertSame($context['run']->id, $diagnostics['source_solver_evidence']['run_id']);
+        $this->assertSame('original-result-preserved', $context['run']->fresh()->diagnostics['solver_result']['marker']);
+        $this->assertArrayNotHasKey('solver_result', $diagnostics);
         $this->assertDatabaseHas('activity_log', [
             'subject_id' => $successor->id,
             'event' => 'candidate_correction',
@@ -310,9 +313,9 @@ final class TAL94CCandidateReviewUxTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
-            ->assertSee('Current Validation')
+            ->assertSee('Current validation')
             ->assertSee('Original Solver Score')
-            ->assertSee('Original Solver Result')
+            ->assertSee('Original solver result')
             ->assertSee('Timetable')
             ->assertSee('Source Contract')
             ->assertSee('Historical compatibility: tal94-demand-v2 / balanced_v1.')

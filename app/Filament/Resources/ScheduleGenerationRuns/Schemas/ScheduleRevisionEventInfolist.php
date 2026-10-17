@@ -43,7 +43,7 @@ final class ScheduleRevisionEventInfolist
                             ->state(fn (ScheduleRevisionEvent $record): string => self::actorLabel($record)),
                         TextEntry::make('created_at')
                             ->label('Recorded At')
-                            ->dateTime(),
+                            ->dateTime('M j, Y, g:i A')->timezone('Asia/Manila'),
                         TextEntry::make('reason')
                             ->columnSpanFull(),
                     ])

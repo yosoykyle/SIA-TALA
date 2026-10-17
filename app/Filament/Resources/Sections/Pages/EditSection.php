@@ -3,13 +3,17 @@
 namespace App\Filament\Resources\Sections\Pages;
 
 use App\Actions\Scheduling\SectionPlanningService;
+use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\Section;
 use App\Models\User;
 use App\Support\HasTermPlanningContext;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\Alignment;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
@@ -18,25 +22,71 @@ class EditSection extends EditRecord
 {
     use HasTermPlanningContext {
         getSubheading as private termPlanningSubheading;
+        getPageClasses as protected getTermPlanningPageClasses;
     }
 
     protected static string $resource = SectionResource::class;
 
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-class-settings'];
+    }
+
+    public function getTitle(): string
+    {
+        return $this->isSourceProtected() ? 'Class settings' : 'Edit class';
+    }
+
     public function getSubheading(): string|Htmlable|null
     {
-        $context = $this->termPlanningSubheading();
-        if ($this->record->confirmed_at !== null || PublishedTimetableMeeting::query()->where('section_id', $this->record->id)->exists()) {
-            return trim($context.' · Confirmed class identity, capacity and state are protected. Published changes require a validated timetable revision.', ' ·');
+        if ($this->isSourceProtected()) {
+            $record = $this->getRecord();
+            $courseTitle = $record->courseRevision?->title ?? $record->termOffering?->curriculumEntry?->courseSpecification?->title;
+
+            return collect([$courseTitle, $record->code])->filter()->implode(' · ');
         }
 
-        return $context;
+        return $this->termPlanningSubheading();
+    }
+
+    public function isSourceProtected(): bool
+    {
+        return $this->record->confirmed_at !== null || $this->isPublished();
+    }
+
+    public function isPublished(): bool
+    {
+        return PublishedTimetableMeeting::query()->where('section_id', $this->record->id)->exists();
+    }
+
+    public function publishedTimetableUrl(): string
+    {
+        $termId = $this->termId ?? (int) ($this->record->calendarPackage()->value('term_id') ?? $this->record->termOffering()->value('term_id'));
+
+        return TermPlanningWorkbench::getUrl(['termId' => $termId, 'viewTab' => 'published']);
     }
 
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make(),
+            ViewAction::make()
+                ->label('View class details')
+                ->url(fn (): string => $this->getResourceUrl('view', ['record' => $this->getRecord()])),
         ];
+    }
+
+    /** @return array<Action|ActionGroup> */
+    protected function getFormActions(): array
+    {
+        return $this->isSourceProtected()
+            ? [$this->getCancelFormAction()->label('Cancel')]
+            : [$this->getCancelFormAction()->label('Cancel'), $this->getSaveFormAction()->label('Save changes')];
+    }
+
+    public function getFormActionsAlignment(): string|Alignment
+    {
+        return Alignment::End;
     }
 
     /**

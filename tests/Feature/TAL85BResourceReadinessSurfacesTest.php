@@ -37,7 +37,7 @@ final class TAL85BResourceReadinessSurfacesTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotContains(DB::connection()->getDatabaseName(), [
             'tala_db',
             'demo_tala_db',
@@ -102,13 +102,13 @@ final class TAL85BResourceReadinessSurfacesTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ListRooms::class)
             ->assertTableColumnExists('code')
-            ->assertTableColumnExists('name')
-            ->assertTableColumnExists('building')
             ->assertTableColumnExists('room_type')
             ->assertTableColumnExists('capacity')
             ->assertTableColumnExists('features.feature_key')
             ->assertTableColumnExists('is_active')
-            ->assertCanSeeTableRecords([$room]);
+            ->assertCanSeeTableRecords([$room])
+            ->assertSee($room->name)
+            ->assertSee($room->building);
 
         Livewire::actingAs($registrar)
             ->test(FeaturesRelationManager::class, [

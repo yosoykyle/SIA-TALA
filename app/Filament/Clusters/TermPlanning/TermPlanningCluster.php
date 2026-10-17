@@ -38,7 +38,11 @@ class TermPlanningCluster extends Cluster
             if (! $page::canAccess()) {
                 continue;
             }
-            $items[] = NavigationItem::make($page::getNavigationLabel())
+            $items[] = NavigationItem::make(match ($key) {
+                'plan' => 'Term summary',
+                'classes' => 'Classes & sections',
+                default => $page::getNavigationLabel(),
+            })
                 ->url($page::getUrl(['termId' => $termId]))
                 ->isActiveWhen(fn (): bool => $active === $key)
                 ->sort(count($items));

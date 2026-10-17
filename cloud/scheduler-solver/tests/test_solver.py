@@ -432,6 +432,19 @@ class SolveSnapshotTest(unittest.TestCase):
             result["objective_details"]["values"],
         )
 
+    def test_load_imbalance_includes_unused_eligible_faculty_in_scaled_load_units(self) -> None:
+        snapshot = self.snapshot()
+        snapshot["faculty"].append({"faculty_id": 202, "max_allowed_units": "21.00"})
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(600, result["objective_details"]["values"]["faculty_load_imbalance"])
+        self.assertEqual(
+            self.reference_objective_values(snapshot, result["assignments"]),
+            result["objective_details"]["values"],
+        )
+
     def test_solver_statistics_are_typed_allowlisted_and_reproducible(self) -> None:
         snapshot = self.snapshot()
 
@@ -1073,7 +1086,7 @@ class SolveSnapshotTest(unittest.TestCase):
             for group in cohort_days.values()
             for ordered in [sorted(group)]
         )
-        loads = [sum(group_loads.values()) for group_loads in faculty_loads.values()]
+        loads = [sum(faculty_loads.get(int(faculty["faculty_id"]), {}).values()) for faculty in snapshot["faculty"]]
         load_imbalance = sum(
             abs(left - right)
             for left_index, left in enumerate(loads)

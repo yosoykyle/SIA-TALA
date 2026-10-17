@@ -15,7 +15,10 @@ use Illuminate\Validation\ValidationException;
 
 final class RequestTimetableRepair
 {
-    public function __construct(private readonly ScheduleSolverSnapshotService $snapshotService) {}
+    public function __construct(
+        private readonly ScheduleSolverSnapshotService $snapshotService,
+        private readonly ScheduleSolverRecoveryService $recoveryService,
+    ) {}
 
     /**
      * @param  array{faculty_user_id:int,room_id?:int|null,day_of_week:int,starts_at:string,ends_at:string}  $assignment
@@ -26,10 +29,12 @@ final class RequestTimetableRepair
         array $assignment,
         string $reason,
         string $authority,
+        ?ScheduleGenerationRun $recoverySource = null,
+        ?string $correctionExplanation = null,
     ): ScheduleGenerationRun {
         Gate::forUser($actor)->authorize('reviewCandidates', $requestedRow->scheduleRun);
 
-        return DB::transaction(function () use ($requestedRow, $actor, $assignment, $reason, $authority): ScheduleGenerationRun {
+        return DB::transaction(function () use ($requestedRow, $actor, $assignment, $reason, $authority, $recoverySource, $correctionExplanation): ScheduleGenerationRun {
             $termId = $requestedRow->scheduleRun()->value('term_id');
             $term = Term::query()->whereKey($termId)->lockForUpdate()->firstOrFail();
             $sourceRun = ScheduleGenerationRun::query()->whereKey($requestedRow->schedule_run_id)->lockForUpdate()->firstOrFail();
@@ -52,6 +57,8 @@ final class RequestTimetableRepair
             }
 
             $timestamp = CarbonImmutable::now(config('app.timezone'));
+            $recoverySource?->refresh();
+            $recovery = $recoverySource ? $this->recoveryService->recoveryEvidence($recoverySource, $actor, (int) $term->id, $correctionExplanation) : null;
             $placeholder = [
                 'contract_version' => 'pending-repair-capture',
                 'nonce' => (string) Str::uuid(),
@@ -67,6 +74,7 @@ final class RequestTimetableRepair
                 'candidate_version' => ((int) $sourceRun->candidate_version) + 1,
                 'candidate_state' => 'RepairQueued',
                 'diagnostics' => [
+                    ...($recovery ? ['technical_recovery' => $recovery] : []),
                     'solver_dispatch' => [
                         'status' => 'queued',
                         'dispatch_cycle' => 1,
@@ -74,12 +82,13 @@ final class RequestTimetableRepair
                         'latest_outcome' => 'queued',
                         'queued_at' => $timestamp->toIso8601String(),
                         'driver' => config('tala_integrations.scheduling_solver.driver', 'local_stub'),
+                        'technical_context_fingerprint' => $this->recoveryService->contextFingerprint(),
                         'operation' => 'repair',
                     ],
                 ],
             ]);
 
-            $this->snapshotService->captureRepairForRun(
+            $snapshot = $this->snapshotService->captureRepairForRun(
                 run: $repairRun,
                 sourceRun: $sourceRun,
                 requestedRow: $requestedRow,
@@ -88,6 +97,34 @@ final class RequestTimetableRepair
                 reason: $reason,
                 authority: $authority,
             );
+            $previous = ScheduleGenerationRun::query()
+                ->where('term_id', $term->id)
+                ->whereKeyNot($repairRun->id)
+                ->where('input_snapshot->operation->kind', 'repair')
+                ->where('input_snapshot->operation->source_candidate->run_id', $sourceRun->id)
+                ->latest('id')
+                ->get()
+                ->first(fn (ScheduleGenerationRun $previous): bool => data_get($previous->input_snapshot, 'operation.requested_assignment') == $snapshot['operation']['requested_assignment']);
+
+            if ($recoverySource && ((int) $previous?->id !== (int) $recoverySource->id
+                || data_get($recoverySource->input_snapshot, 'operation') != $snapshot['operation'])) {
+                throw ValidationException::withMessages(['recovery_source' => 'Recovery must preserve the original repair candidate and requested change.']);
+            }
+
+            if ($previous instanceof ScheduleGenerationRun
+                && ! ($recoverySource && (int) $previous->id === (int) $recoverySource->id)
+                && ! $this->recoveryService->canRecover($previous)
+                && ! (data_get($previous->diagnostics, 'solver_result.solver_status') === 'unknown'
+                    && data_get($previous->diagnostics, 'solver_result.summary.outcome') !== 'TechnicalFailure')
+                && $previous->candidate_state !== 'Rejected'
+                && ! (data_get($previous->diagnostics, 'solver_result.solver_status') === 'model_invalid'
+                    && data_get($previous->diagnostics, 'solver_result.summary.outcome') !== 'TechnicalFailure'
+                    && $previous->solver_version !== ScheduleGenerationRun::SolverVersion
+                    && config('tala_integrations.scheduling_solver.driver') !== 'local_stub')) {
+                throw ValidationException::withMessages([
+                    'repair' => 'This repair request already has a result. Review or reject a valid candidate, correct conflicting sources, the model or integration defect, or retry a retryable failure before repeating it.',
+                ]);
+            }
             ScheduleSolverDispatchJob::dispatch((int) $repairRun->id)->afterCommit();
 
             return $repairRun->fresh();

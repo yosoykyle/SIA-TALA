@@ -8,6 +8,8 @@ use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\RequestTimetableRepair;
 use App\Actions\Scheduling\RevisePublishedTimetable;
+use App\Actions\Scheduling\ScheduleGenerationService;
+use App\Actions\Scheduling\ScheduleSolverRetryService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\CandidateScheduleRow;
@@ -65,6 +67,143 @@ final class Slice3ConformanceGapsTest extends TestCase
         $this->assertSame('2x90', $demand->source_snapshot['meeting_pattern']);
     }
 
+    public function test_current_validation_scope_includes_added_demands_and_omits_cancelled_groups(): void
+    {
+        $fixture = $this->classFixture('1x60', 1.0);
+        $fixture['section']->update(['confirmed_at' => now()]);
+        $first = SchedulingDemand::factory()->for($fixture['offering'])->for($fixture['component'])->for($fixture['group'])->create();
+        $run = ScheduleGenerationRun::factory()->for($fixture['term'])->create([
+            'input_snapshot' => ['scheduling_demands' => [['scheduling_demand_id' => $first->id]]],
+        ]);
+        $addedGroup = SectionDeliveryGroup::factory()->for($fixture['section'])->create(['state' => SectionDeliveryGroup::StateReady]);
+        $added = SchedulingDemand::factory()->for($fixture['offering'])->for($fixture['component'])->for($addedGroup)->create();
+
+        $snapshot = app(ScheduleSolverSnapshotService::class)->currentForRun($run);
+
+        $this->assertSame([$first->id, $added->id], array_column($snapshot['scheduling_demands'], 'scheduling_demand_id'));
+
+        $run->update(['input_snapshot' => ['scheduling_demands' => $snapshot['scheduling_demands']]]);
+        $addedGroup->update(['state' => SectionDeliveryGroup::StateCancelled]);
+        $snapshot = app(ScheduleSolverSnapshotService::class)->currentForRun($run, [$added->id]);
+
+        $this->assertSame([$first->id], array_column($snapshot['scheduling_demands'], 'scheduling_demand_id'));
+    }
+
+    public function test_confirmed_recurring_class_without_a_demand_blocks_current_scope_validation(): void
+    {
+        $fixture = $this->classFixture('1x60', 1.0);
+        $fixture['section']->update(['confirmed_at' => now()]);
+        $run = ScheduleGenerationRun::factory()->for($fixture['term'])->create();
+
+        try {
+            app(ScheduleSolverSnapshotService::class)->currentForRun($run);
+            $this->fail('A confirmed recurring class disappeared from the complete scope.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('scheduling_demands', $exception->errors());
+        }
+    }
+
+    public function test_externally_arranged_course_retains_history_without_artificial_recurring_demands(): void
+    {
+        $fixture = $this->classFixture('1x60', 1.0);
+        $fixture['section']->update(['confirmed_at' => now()]);
+        $fixture['specification']->update(['scheduling_treatment' => CourseSpecification::SchedulingExternallyArranged]);
+        $historical = SchedulingDemand::factory()->for($fixture['offering'])->for($fixture['component'])->for($fixture['group'])->create();
+        $run = ScheduleGenerationRun::factory()->for($fixture['term'])->create();
+
+        $snapshot = app(ScheduleSolverSnapshotService::class)->currentForRun($run);
+
+        $this->assertSame([], $snapshot['scheduling_demands']);
+        $this->assertModelExists($historical);
+    }
+
+    public function test_equivalent_generation_requires_an_outcome_specific_reason_and_preserves_prior_runs(): void
+    {
+        Queue::fake([ScheduleSolverDispatchJob::class]);
+        config()->set('tala_integrations.scheduling_solver.driver', 'local_stub');
+        $fixture = $this->classFixture('1x60', 1.0);
+        $fixture['section']->update(['term_calendar_package_id' => null]);
+        SchedulingDemand::factory()->for($fixture['offering'])->for($fixture['component'])->for($fixture['group'])->create();
+        $registrar = $this->registrar();
+        $first = app(ScheduleGenerationService::class)->generate($fixture['term'], $registrar);
+
+        foreach (['optimal', 'feasible', 'infeasible', 'model_invalid'] as $outcome) {
+            $first->forceFill([
+                'status' => ScheduleGenerationRun::StatusBlocked,
+                'diagnostics' => ['solver_result' => ['solver_status' => $outcome]],
+            ])->save();
+
+            try {
+                app(ScheduleGenerationService::class)->generate($fixture['term'], $registrar);
+                $this->fail('An equivalent run ignored its prior outcome.');
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('generation', $exception->errors());
+            }
+
+            $this->assertSame(1, ScheduleGenerationRun::query()->where('term_id', $fixture['term']->id)->count());
+        }
+
+        $first->forceFill(['diagnostics' => ['solver_result' => ['solver_status' => 'unknown']]])->save();
+        $before = $first->fresh()->getAttributes();
+        $second = app(ScheduleGenerationService::class)->generate($fixture['term'], $registrar);
+
+        $this->assertNotSame($first->id, $second->id);
+        $this->assertSame($before, $first->fresh()->getAttributes());
+
+        $second->forceFill([
+            'status' => ScheduleGenerationRun::StatusBlocked,
+            'candidate_state' => 'Rejected',
+            'candidate_review_reason' => 'Registrar rejected this candidate after review.',
+            'diagnostics' => ['solver_result' => ['solver_status' => 'feasible']],
+        ])->save();
+        $third = app(ScheduleGenerationService::class)->generate($fixture['term'], $registrar);
+
+        $this->assertNotSame($second->id, $third->id);
+        $third->forceFill([
+            'status' => ScheduleGenerationRun::StatusBlocked,
+            'diagnostics' => ['solver_result' => ['solver_status' => 'infeasible']],
+        ])->save();
+        $fixture['term']->update(['default_max_units' => 24]);
+        $fourth = app(ScheduleGenerationService::class)->generate($fixture['term'], $registrar);
+
+        $this->assertNotSame($third->id, $fourth->id);
+        $this->assertSame(4, ScheduleGenerationRun::query()->where('term_id', $fixture['term']->id)->count());
+    }
+
+    public function test_unknown_retry_preserves_its_repair_request_and_original_outcome_in_a_new_run(): void
+    {
+        Queue::fake([ScheduleSolverDispatchJob::class]);
+        $registrar = $this->registrar();
+        $snapshot = [
+            'contract_version' => ScheduleGenerationRun::ContractVersion,
+            'run_metadata' => ['solver_run_id' => 1],
+            'operation' => [
+                'kind' => 'repair',
+                'requested_assignment' => ['scheduling_demand_id' => 23, 'meeting_sequence' => 2, 'starts_at' => '10:00:00'],
+            ],
+        ];
+        $unknown = ScheduleGenerationRun::factory()->create([
+            'status' => ScheduleGenerationRun::StatusBlocked,
+            'input_snapshot' => $snapshot,
+            'candidate_state' => null,
+            'published_at' => null,
+            'published_by' => null,
+            'publication_version' => null,
+            'diagnostics' => ['solver_result' => ['solver_status' => 'unknown']],
+        ]);
+        $before = $unknown->fresh()->getAttributes();
+        $operation = $unknown->fresh()->input_snapshot['operation'];
+
+        $retry = app(ScheduleSolverRetryService::class)->retry($unknown, $registrar);
+
+        $this->assertNotSame($unknown->id, $retry->id);
+        $this->assertSame($before, $unknown->fresh()->getAttributes());
+        $this->assertSame($operation, $retry->input_snapshot['operation']);
+        $this->assertSame($retry->id, $retry->input_snapshot['run_metadata']['solver_run_id']);
+        $this->assertSame('RepairQueued', $retry->candidate_state);
+        Queue::assertPushed(ScheduleSolverDispatchJob::class, 1);
+    }
+
     public function test_verification_stub_preserves_every_meeting_sequence(): void
     {
         $snapshot = json_decode(
@@ -103,6 +242,13 @@ final class Slice3ConformanceGapsTest extends TestCase
         $this->assertSame(3, $result['assigned_count']);
         $this->assertSame([1, 2], $firstDemandAssignments->pluck('meeting_sequence')->all());
         $this->assertSame(['2x60'], $firstDemandAssignments->pluck('meeting_pattern')->unique()->values()->all());
+
+        $snapshot['rooms'] = [];
+        $incomplete = app(LocalStubSchedulingSolverClient::class)->solve(new SchedulingSolverRequest($snapshot, 'verification-search-incomplete'))->payload();
+
+        $this->assertSame('unknown', $incomplete['solver_status']);
+        $this->assertSame('verification_search_incomplete', $incomplete['warnings'][0]['type']);
+        $this->assertStringContainsString('no proof of infeasibility', $incomplete['warnings'][0]['message']);
     }
 
     public function test_class_confirmation_rejects_cross_term_and_nonpositive_cohorts_without_partial_sync(): void
@@ -219,6 +365,7 @@ final class Slice3ConformanceGapsTest extends TestCase
     public function test_section_commitment_is_demand_scoped_and_dated_exceptions_are_not_recurring_blocks(): void
     {
         $fixture = $this->classFixture('1x60', 1.0);
+        $fixture['section']->update(['confirmed_at' => now()]);
         $room = Room::factory()->create();
         $demand = SchedulingDemand::factory()
             ->for($fixture['offering'])
@@ -268,6 +415,8 @@ final class Slice3ConformanceGapsTest extends TestCase
     public function test_latest_faculty_declaration_projects_deterministic_hard_calendar_blocks(): void
     {
         $fixture = $this->classFixture('1x60', 1.0);
+        $fixture['section']->update(['confirmed_at' => now()]);
+        SchedulingDemand::factory()->for($fixture['offering'])->for($fixture['component'])->for($fixture['group'])->create();
         $faculty = User::factory()->create(['status' => User::StatusActive]);
         $faculty->assignRole(User::StaffRoleFaculty);
         FacultyAvailabilityDeclaration::factory()->create([
@@ -388,6 +537,22 @@ final class Slice3ConformanceGapsTest extends TestCase
             $this->fail('A duplicate active repair run was created.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('term_id', $exception->errors());
+        }
+
+        $this->assertSame(2, ScheduleGenerationRun::query()->where('term_id', $fixture['term']->id)->count());
+
+        $repair->forceFill([
+            'status' => ScheduleGenerationRun::StatusBlocked,
+            'diagnostics' => ['solver_result' => ['solver_status' => 'infeasible']],
+        ])->save();
+        $assignment = $repair->input_snapshot['operation']['requested_assignment'];
+        unset($assignment['scheduling_demand_id'], $assignment['meeting_sequence']);
+
+        try {
+            app(RequestTimetableRepair::class)->execute($requestedRow, $registrar, $assignment, 'Repeat an identical infeasible request.', 'SYNTH-REPAIR-AUTHORITY');
+            $this->fail('An identical infeasible repair was queued again.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('repair', $exception->errors());
         }
 
         $this->assertSame(2, ScheduleGenerationRun::query()->where('term_id', $fixture['term']->id)->count());

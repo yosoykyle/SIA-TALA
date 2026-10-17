@@ -135,6 +135,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         $official = $this->timetableState === 'official' || ! $data['activeRun'] || ($data['activeRun']->status === 'published' && $data['selectedVersion']);
         $presentation = $official ? $data['publishedPresentation'] : $data['candidatePresentation'];
         $allMeetings = $presentation['meetings'] ?? [];
+        $courseColors = collect($allMeetings)->pluck('courseCode')->unique()->sort()->values()
+            ->mapWithKeys(fn (string $code, int $index): array => [$code => ($index % 4) + 1])->all();
         $groups = [];
         foreach ($allMeetings as $meeting) {
             foreach ($meeting['sections'] ?? [] as $section) {
@@ -174,6 +176,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         })->filter(fn (array $group): bool => $group['meetings'] !== [])->values()->all();
         if ($presentation) {
             $presentation['meetings'] = $filtered;
+            $presentation['courseColors'] = $courseColors;
         }
 
         return [...$data, 'showOfficial' => $official, 'timetablePresentation' => $presentation,
