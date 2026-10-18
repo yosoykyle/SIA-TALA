@@ -32,13 +32,13 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
         $objectiveScore = $conflictCount === 0 && ! $isLexicographic ? count($assignments) : null;
         $resultSource = $conflictCount === 0 ? ($isLexicographic ? 'feasibility_fallback' : 'optimization') : 'none';
         $searchStages = $this->searchStages(
-            feasibilityStatus: $conflictCount === 0 ? 'optimal' : 'infeasible',
+            feasibilityStatus: $conflictCount === 0 ? 'optimal' : 'unknown',
             optimizationStatus: $conflictCount === 0 ? ($isLexicographic ? 'not_run' : 'optimal') : 'not_run',
         );
 
         $payload = [
             'solver_run_id' => $snapshot['run_metadata']['solver_run_id'] ?? null,
-            'solver_status' => $conflictCount > 0 ? 'infeasible' : ($isLexicographic ? 'feasible' : 'optimal'),
+            'solver_status' => $conflictCount > 0 ? 'unknown' : ($isLexicographic ? 'feasible' : 'optimal'),
             'candidate_schedule_id' => 'local-stub-'.($snapshot['run_metadata']['solver_run_id'] ?? 'unknown'),
             'assignments' => $assignments,
             'hard_constraint_violations' => $hardViolations,
@@ -49,7 +49,10 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
                 'stub_score' => $objectiveScore,
             ],
             'infeasible_reasons' => $hardViolations,
-            'warnings' => [],
+            'warnings' => $conflictCount > 0 ? [[
+                'type' => 'verification_search_incomplete',
+                'message' => 'The verification adapter attempted greedy placement only. It found no complete candidate and supplies no proof of infeasibility. Use CP-SAT generation.',
+            ]] : [],
             'runtime_seconds' => 0.0,
             'objective_score' => $objectiveScore,
             'objective_details' => $this->objectiveDetails($snapshot, $objectiveScore),
@@ -81,7 +84,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             'assigned_count' => count($assignments) - $conflictCount,
             'unassigned_count' => $conflictCount,
             'warning_count' => 0,
-            'timeout' => false,
+            'timeout' => $conflictCount > 0,
         ];
 
         return new SchedulingSolverResponse(

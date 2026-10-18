@@ -9,14 +9,21 @@ use Filament\Resources\Pages\ListRecords;
 
 class ListFacultyQualifications extends ListRecords
 {
-    use HasTermPlanningContext;
+    use HasTermPlanningContext {
+        getPageClasses as protected getTermPlanningPageClasses;
+    }
 
     protected static string $resource = FacultyQualificationResource::class;
+
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-qualifications-list'];
+    }
 
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            CreateAction::make()->label('Add qualification')->icon('heroicon-o-plus'),
         ];
     }
 }

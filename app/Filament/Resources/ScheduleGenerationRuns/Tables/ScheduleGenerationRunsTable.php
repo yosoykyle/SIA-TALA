@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ScheduleGenerationRuns\Tables;
 
 use App\Models\ScheduleGenerationRun;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -47,7 +48,7 @@ class ScheduleGenerationRunsTable
                     ->placeholder('-'),
                 TextColumn::make('created_at')
                     ->label('Requested at')
-                    ->dateTime()
+                    ->dateTime('M j, Y, g:i A')->timezone('Asia/Manila')
                     ->sortable(),
                 TextColumn::make('solver_version')
                     ->label('Solver version')
@@ -64,7 +65,7 @@ class ScheduleGenerationRunsTable
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('updated_at')
                     ->label('Last updated')
-                    ->dateTime()
+                    ->dateTime('M j, Y, g:i A')->timezone('Asia/Manila')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
@@ -78,13 +79,14 @@ class ScheduleGenerationRunsTable
                     ->options(ScheduleGenerationRun::statusOptions()),
             ])
             ->defaultSort('created_at', 'desc')
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->recordActions([
                 ViewAction::make()
-                    ->label('Review timetable'),
+                    ->label('Review timetable')->button()->color('gray'),
             ])
             ->toolbarActions([])
             ->stackedOnMobile()
             ->emptyStateHeading('No generated timetables are recorded')
-            ->emptyStateDescription('Resolve every schedule requirement first, then request timetable generation from Class Planning.');
+            ->emptyStateDescription('Prepare the Term inputs, then generate a timetable from Timetable.');
     }
 }

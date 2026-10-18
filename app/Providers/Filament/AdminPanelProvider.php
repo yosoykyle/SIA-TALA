@@ -26,6 +26,7 @@ use App\Filament\Pages\StaffEntry;
 use App\Filament\Pages\SystemHealth;
 use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermClasses;
+use App\Filament\Pages\TermClassProposal;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Pages\TermResources;
@@ -174,6 +175,7 @@ class AdminPanelProvider extends PanelProvider
                 TermOverview::class,
                 TermCalendar::class,
                 TermClasses::class,
+                TermClassProposal::class,
                 TermResources::class,
                 TermTimetable::class,
                 AcademicApprovals::class,

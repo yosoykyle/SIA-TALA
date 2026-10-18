@@ -8,13 +8,21 @@ use Filament\Resources\Pages\ListRecords;
 
 class ListSectionMeetings extends ListRecords
 {
-    use HasTermPlanningContext;
+    use HasTermPlanningContext {
+        getPageClasses as protected getTermPlanningPageClasses;
+    }
 
     protected static string $resource = SectionMeetingResource::class;
 
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-planning-source-list'];
+    }
+
     public function getTitle(): string
     {
-        return 'Published Timetable';
+        return 'Official meetings';
     }
 
     public function getSubheading(): string

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\CalendarEvents\Pages;
 
 use App\Filament\Pages\MyAvailability;
+use App\Filament\Pages\TermCalendar;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Models\User;
 use App\Support\HasTermPlanningContext;
@@ -15,10 +16,16 @@ class ListCalendarEvents extends ListRecords
 {
     use HasTermPlanningContext {
         getBreadcrumbs as protected termPlanningBreadcrumbs;
-        getSubheading as protected termPlanningSubheading;
+        getPageClasses as protected getTermPlanningPageClasses;
     }
 
     protected static string $resource = CalendarEventResource::class;
+
+    /** @return array<string> */
+    public function getPageClasses(): array
+    {
+        return [...$this->getTermPlanningPageClasses(), 'tala-weekly-unavailable-list'];
+    }
 
     /** @return array<string> */
     public function getBreadcrumbs(): array
@@ -39,7 +46,7 @@ class ListCalendarEvents extends ListRecords
             return $this->termPlanningContextDescription().'Read-only earlier unavailable-time records belonging to you. Record new declarations and corrections in My Availability.';
         }
 
-        return $this->termPlanningSubheading();
+        return 'Prevent recurring meetings for a room, Faculty member or the school. Dated no-class exceptions belong in Calendar.';
     }
 
     protected function getHeaderActions(): array
@@ -55,7 +62,12 @@ class ListCalendarEvents extends ListRecords
         }
 
         return [
-            CreateAction::make(),
+            Action::make('calendar')
+                ->label('Calendar')->icon('heroicon-o-calendar-days')->color('gray')
+                ->url(fn (): string => TermCalendar::getUrl(['termId' => $this->termId]))
+                ->visible(fn (): bool => TermCalendar::canAccess()),
+            CreateAction::make()->label('Add unavailable time')->icon('heroicon-o-plus')
+                ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false),
         ];
     }
 }

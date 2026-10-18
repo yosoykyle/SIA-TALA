@@ -281,6 +281,8 @@ Clinic 5 consumes the official `ClassOffering`, designated submitting-Faculty as
 
 A Faculty member may teach multiple approved courses. TALA records externally determined course eligibility, term unit limit, applicable preparation limit, authority/evidence, and effective dates. It does not reproduce HR, appointment, or academic workload-approval workflows.
 
+For the current institutional scope, one preparation means one distinct canonical course assigned to a Faculty member in the Term; multiple classes or meeting components of that course count once. Show this as a distinct-course count alongside teaching units. The institution has supplied no numeric preparation cap, so this count is informational and introduces no mandatory setup or generation blocker. A future cap requires a specific applicable institutional/program rule and an explicitly scoped implementation; TALA assumes no numeric default. The terminology is consistent with the course/subject meaning in [CHED CMO 20, s. 2007](https://ched.gov.ph/wp-content/uploads/2017/10/CMO-No.20-s2007.pdf), Section 18.4, whose Physics-specific numeric limits are not adopted for Servitech.
+
 Each Faculty member makes one declaration for the selected term: genuine hard-unavailability periods or **No additional restrictions**. The declaration has a scheduling-input deadline and one action-required email. That deadline belongs to scheduling readiness and does not gate core Term activation. It has no approval queue and no preferred-time field. Late corrections record actor and reason and trigger candidate revalidation or the published revision path; they never silently move a meeting.
 
 ### 9.2 Rooms and commitments

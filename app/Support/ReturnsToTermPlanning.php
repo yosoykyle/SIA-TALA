@@ -3,17 +3,16 @@
 namespace App\Support;
 
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
-use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\TermPlanningWorkbench;
-use App\Models\User;
 use Filament\Navigation\NavigationItem;
-use Filament\Resources\Pages\CreateRecord;
 use Livewire\Attributes\Url;
 
 trait ReturnsToTermPlanning
 {
+    use HasTermPlanningShell;
+
     /** @return array<NavigationItem> */
-    public function getSubNavigation(): array
+    public function getWorkspaceNavigation(): array
     {
         $termId = (method_exists($this, 'getRecord') ? $this->getRecord()?->id : null) ?? ($this->termId ?? null);
 
@@ -40,12 +39,8 @@ trait ReturnsToTermPlanning
             return $parent;
         }
 
-        $labels = ['plan' => 'Overview', 'overview' => 'Calendar', 'classes' => 'Sections & classes', 'resources' => 'Faculty & rooms', 'generate' => 'Timetable', 'published' => 'Timetable'];
-
         return [
-            ...(auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? [AcademicApprovals::getUrl(['termId' => $termId]) => 'Academic Oversight'] : []),
-            TermPlanningWorkbench::getUrl(['termId' => $termId]) => 'Term Planning',
-            ...($this instanceof CreateRecord || $this->termPlanningReturnTab() === 'plan' ? [] : [$this->termPlanningReturnUrl($termId) => $labels[$this->termPlanningReturnTab()]]),
+            TermPlanningWorkbench::getUrl(['termId' => $termId]) => 'Term summary',
             ...array_slice(array_values($parent), -1),
         ];
     }
@@ -54,5 +49,10 @@ trait ReturnsToTermPlanning
     {
         return in_array($this->viewTab, ['plan', 'overview', 'classes', 'resources', 'generate', 'published'], true)
             ? $this->viewTab : 'plan';
+    }
+
+    private function termPlanningContextTermId(): ?int
+    {
+        return (method_exists($this, 'getRecord') ? $this->getRecord()?->id : null) ?? ($this->termId ?? null);
     }
 }

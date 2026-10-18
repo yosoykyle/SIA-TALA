@@ -7,7 +7,14 @@ use App\Actions\Scheduling\SchedulePublishService;
 use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermResources;
 use App\Filament\Pages\TermTimetable;
+use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
+use App\Filament\Resources\FacultyQualifications\Pages\ListFacultyQualifications;
+use App\Filament\Resources\Rooms\Pages\ListRooms;
+use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
+use App\Filament\Resources\ScheduleGenerationRuns\Schemas\ScheduleGenerationRunInfolist;
+use App\Filament\Resources\Sections\Pages\ListSections;
+use App\Filament\Resources\Sections\SectionResource;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\AcademicYear;
 use App\Models\CandidateScheduleRow;
@@ -15,6 +22,7 @@ use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
+use App\Models\FacultyQualification;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -44,7 +52,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
         $this->seed(DatabaseSeeder::class);
 
         foreach (User::staffRoleNames() as $role) {
@@ -96,6 +104,51 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->callAction('generateTimetable')
             ->assertHasNoActionErrors()
             ->assertNotified('Timetable generation requested');
+    }
+
+    public function test_term_context_is_preserved_in_source_record_actions_and_run_evidence_links(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $academicYear = $this->getOrCreateAcademicYear();
+        $term = Term::factory()->for($academicYear, 'academicYear')->create();
+        $offering = $this->createTermOffering($term);
+        $section = Section::factory()->for($offering, 'termOffering')->create();
+        $qualification = FacultyQualification::factory()->create(['recorded_by' => $registrar->id]);
+        $room = Room::factory()->create();
+
+        Livewire::actingAs($registrar)
+            ->test(ListSections::class, ['termId' => $term->id])
+            ->assertTableActionHasUrl('view', SectionResource::getUrl('view', ['record' => $section, 'termId' => $term->id]), $section)
+            ->assertTableActionHasUrl('edit', SectionResource::getUrl('edit', ['record' => $section, 'termId' => $term->id]), $section);
+
+        Livewire::actingAs($registrar)
+            ->test(ListFacultyQualifications::class, ['termId' => $term->id])
+            ->assertTableActionHasUrl('view', FacultyQualificationResource::getUrl('view', ['record' => $qualification, 'termId' => $term->id]), $qualification)
+            ->assertTableActionHasUrl('edit', FacultyQualificationResource::getUrl('edit', ['record' => $qualification, 'termId' => $term->id]), $qualification);
+
+        Livewire::actingAs($registrar)
+            ->test(ListRooms::class, ['termId' => $term->id])
+            ->assertTableActionHasUrl('edit', RoomResource::getUrl('edit', ['record' => $room, 'termId' => $term->id]), $room);
+
+        $source = ScheduleGenerationRunInfolist::sourcePresentation(['source_type' => 'room', 'source_id' => $room->id], $term->id);
+        $this->assertSame(RoomResource::getUrl('view', ['record' => $room, 'termId' => $term->id]), $source['url']);
+
+        $run = ScheduleGenerationRun::factory()->create([
+            'term_id' => $term->id,
+            'status' => ScheduleGenerationRun::StatusBlocked,
+            'diagnostics' => ['solver_result' => ['findings' => [[
+                'severity' => 'blocking',
+                'constraint' => 'room_capacity',
+                'message' => 'The selected room cannot hold this class.',
+                'source_type' => 'room',
+                'source_id' => $room->id,
+                'source_field' => 'capacity',
+            ]]]],
+        ]);
+
+        Livewire::actingAs($registrar)
+            ->test(ViewScheduleGenerationRun::class, ['record' => $run->id, 'termId' => $term->id])
+            ->assertSee(RoomResource::getUrl('view', ['record' => $room, 'termId' => $term->id]));
     }
 
     public function test_candidate_review_renders_matrix_quality_measures_and_review_actions(): void
@@ -156,7 +209,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ])
             ->assertViewHas('activeRun', fn ($activeRun): bool => $activeRun->id === $run->id)
             ->assertSee('Under Review')->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'FEASIBLE')
-            ->assertSee('0 recorded clashes')->assertSee('Whole Term')->assertSee('Meeting list')
+            ->assertSee('Hard validity not established')->assertDontSee('0 recorded clashes')->assertSee('Whole Term')->assertSee('Meeting list')
             ->assertSee('TEST-RM-101')
             ->assertActionVisible('acceptCandidate')
             ->assertActionVisible('rejectCandidate')
@@ -170,7 +223,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         $this->assertSame($registrar->id, $run->fresh()->candidate_reviewed_by);
     }
 
-    public function test_infeasible_failed_solver_run_renders_diagnostics_and_allows_retry(): void
+    public function test_technical_failed_solver_run_renders_diagnostics_and_allows_retry(): void
     {
         Queue::fake([ScheduleSolverDispatchJob::class]);
 
@@ -191,16 +244,16 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'solver_dispatch' => [
                     'status' => 'failed',
                     'dispatch_cycle' => 1,
-                    'latest_outcome' => 'infeasible',
+                    'latest_outcome' => 'technical_failure',
                     'failure' => [
-                        'code' => 'INFEASIBLE',
-                        'message' => 'The CP-SAT solver proved no schedule exists satisfying all hard constraints.',
+                        'code' => 'TRANSPORT_TIMEOUT',
+                        'message' => 'The solver connection timed out without a trusted result.',
                         'retryable' => true,
                         'final' => true,
                     ],
                 ],
                 'solver_outcome' => [
-                    'status' => 'INFEASIBLE',
+                    'status' => 'TECHNICAL_FAILURE',
                     'conflicts' => [
                         ['type' => 'room_capacity', 'description' => 'Room capacity exceeded by section demand.'],
                     ],
@@ -211,9 +264,9 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         $diagnostics = Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $run->id])
             ->assertSee('What happens next')
-            ->assertSee('Sections & classes')
+            ->assertSee('Classes & sections')
             ->assertSee('Faculty & rooms');
-        $sourceUrls = array_map(fn ($item): string => $item->getUrl(), $diagnostics->instance()->getSubNavigation());
+        $sourceUrls = array_map(fn ($item): string => $item->getUrl(), $diagnostics->instance()->getWorkspaceNavigation());
         $this->assertContains(TermClasses::getUrl(['termId' => $term->id]), $sourceUrls);
         $this->assertContains(TermResources::getUrl(['termId' => $term->id]), $sourceUrls);
 
@@ -222,8 +275,8 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'termId' => $term->id,
                 'viewTab' => 'generate',
             ])
-            ->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'INFEASIBLE')
-            ->assertSee('The CP-SAT solver proved no schedule exists satisfying all hard constraints.')
+            ->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'TECHNICAL_FAILURE')
+            ->assertSee('The solver connection timed out without a trusted result.')
             ->assertViewHas('solverOutcome', fn (array $outcome): bool => data_get($outcome, 'conflicts.0.description') === 'Room capacity exceeded by section demand.')
             ->assertSee('Inspect generation diagnostics and validation findings')
             ->assertActionVisible('retrySolverRun')
@@ -235,7 +288,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         Queue::assertPushed(ScheduleSolverDispatchJob::class);
     }
 
-    public function test_publish_official_timetable_requires_authority_reference_and_switches_to_published_tab(): void
+    public function test_publish_official_timetable_records_optional_reference_and_switches_to_published_tab(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $academicYear = $this->getOrCreateAcademicYear();
@@ -355,7 +408,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'termId' => $term->id,
                 'viewTab' => 'generate',
             ])
-            ->assertSee('Read-only oversight')
+            ->assertSee('Read-only · Registrar owns these records')
             ->assertActionHidden('generateTimetable')
             ->assertActionHidden('acceptCandidate')
             ->assertActionHidden('rejectCandidate')

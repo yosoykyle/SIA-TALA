@@ -17,10 +17,6 @@ final class TermCalendarPackageReadinessService
         $package->loadMissing(['term', 'windows', 'teachingGridRows', 'datedExceptions']);
         $blockers = [];
 
-        if (blank($package->authority_reference) || blank($package->authority_date)) {
-            $blockers[] = $this->blocker('calendar_authority_missing', 'Term Calendar Package', 'Registrar', 'The external calendar authority is incomplete.', 'Record its approval reference and date.', 'Correct the Draft package and retry activation.');
-        }
-
         $administrativeStartsOn = CarbonImmutable::parse((string) $package->administrative_starts_on);
         $administrativeEndsOn = CarbonImmutable::parse((string) $package->administrative_ends_on);
         $classesStartOn = CarbonImmutable::parse((string) $package->classes_start_on);

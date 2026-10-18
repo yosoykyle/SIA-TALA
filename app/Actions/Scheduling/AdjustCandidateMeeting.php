@@ -71,6 +71,15 @@ final class AdjustCandidateMeeting
             }
 
             $successor = $run->replicate();
+            $diagnostics = is_array($run->diagnostics) ? $run->diagnostics : [];
+            $sourceEvidence = [
+                'run_id' => $run->id,
+                'solver_version' => $run->solver_version,
+                'runtime_ms' => $run->runtime_ms,
+                'result' => $diagnostics['solver_result'] ?? null,
+                'dispatch' => $diagnostics['solver_dispatch'] ?? null,
+            ];
+            unset($diagnostics['solver_result'], $diagnostics['solver_dispatch']);
             $adjustmentSnapshot = [
                 'source_run_id' => $run->id,
                 'source_candidate_version' => $run->candidate_version,
@@ -88,12 +97,17 @@ final class AdjustCandidateMeeting
                 'input_hash' => hash('sha256', $run->input_hash.'|candidate-adjustment|'.json_encode($adjustmentSnapshot, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
                 'objective_value' => null,
                 'quality_measures' => null,
+                'runtime_ms' => null,
+                'solver_version' => 'local-adjustment-hard-validation',
                 'diagnostics' => [
-                    ...($run->diagnostics ?? []),
+                    ...$diagnostics,
+                    'candidate_origin' => 'LocalAdjustment',
+                    'source_solver_evidence' => $sourceEvidence,
                     'current_revalidation' => [
                         'status' => 'accepted',
                         'context' => 'candidate_correction',
                         'findings' => [],
+                        'summary' => $validation->summary(),
                     ],
                     'quality_comparison' => [
                         'status' => 'requires_attributable_review',

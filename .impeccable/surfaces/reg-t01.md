@@ -9,9 +9,25 @@ related_targets: ["REG-T03","FAC-001","AHD-001"]
 
 <!-- impeccable:surface-brief 1 -->
 
+## October 16 selected composition and navigation correction
+
+The owner selected the third displayed Product Design concept, Term Preparation Guide, for the complete Issue #66 journey. Impeccable remains the primary design method. This selection supersedes the earlier flat/neutral Registrar composition below: a deep green Term masthead, visible inset navigation, seated amber current location, Inter, labeled green teaching hours and gray breaks, clear button faces, and responsive task pages. Preserve the established school identity, paired dark appearance and supported Filament extension points.
+
+Subsequent hands-on steering requires one consistent five-destination navigation: Term summary, Calendar, Classes & sections, Faculty & rooms, Timetable. Keep exact-Term identity through source/detail links, retain distinct Cancel behavior, and remove repeated global breadcrumbs/returns. Preparation remains parallel. Overview leads with actual unfinished work and its remedy; program/year coverage and association findings remain visible. Course decisions stay visible; only the required preparation fields follow inclusion. Calendar shows actual hours, breaks and each activity's dates without inventing activation gates.
+
+Color supports meaning and never substitutes for workflow. Current timetable completeness, conflict checks, result meaning and permitted decisions stay visible; official schedules and work in progress have explicit selection. Earlier attempts and source records remain clearly named and reachable. Preserve all AC1–AC7 safeguards and concern dispositions in [#66](https://github.com/yosoykyle/SIA-TALA/issues/66). Implementation verification and owner usability acceptance remain separate.
+
+### Continuation through every reached surface
+
+The owner rejected a guide-only redesign because deeper record pages, forms and dialogs reverted to the previous experience. Continue the selected direction through the complete reached Term Planning flow. For each unfinished page, show a separate image prototype, implement that page using supported Filament extension points, show its running result, then continue to the next page. Reuse the selected visual direction and shared components; no new direction-selection gate is required. Keep all necessary facts, source evidence, permissions and safeguards findable. The previous dark appearance was rejected and requires a coherent paired design and rendered review. Delegate bounded routine implementation and research to economical helpers; the primary agent owns design judgment, integration and browser verification.
+
 Current scope, assignments, progress and acceptance evidence belong to [#48](https://github.com/yosoykyle/SIA-TALA/issues/48) and [#58](https://github.com/yosoykyle/SIA-TALA/issues/58). October 9–12 decisions and superseded comparisons remain there and in Git history. The [Orchestrator Protocol](../../00_Project_Documents/TALA-Orchestrator-Protocol.md) governs verification, owner review, reporting and publication.
 
 ## Current preparation and calendar direction
+
+### October 15 owner refinement
+
+The owner rejected the entire Registrar Term Planning composition after hands-on use. Refine all five destinations and the class proposal as one Operate flow: compact exact-Term context, conspicuous neutral buttons for Create Term and Term details/history, left-aligned navigation, one main action, consistent Inter roles, and neutral supporting facts. Remove repeated explanatory bands. Teaching dates and hours lead Calendar; enrollment/grading/examination windows and source history use named progressive disclosure. Every working table and toolbar must fit its containing grid at 788px and 912px as well as phone and desktop widths. Preserve source ownership, immutable calendar successors, role permissions, parallel preparation and timetable geometry. The owner separately authorized updating the existing private Cloud Run solver; preserve its deployed resource/security envelope and verify the candidate before traffic promotion.
 
 Working lists use native search, sorting and pagination; changing their local view resets search and page state. Fixed weekly grids, complete generation-confirmation scope and official prints retain their task-specific structure. Ordinary related records render eagerly; real loading and disabled feedback remains visible.
 
@@ -65,7 +81,7 @@ Choose or create Term -> record approved calendar -> inspect first failed checkp
 
 ### FIRST VIEWPORT
 
-Lead with the selected Term, current task and state-appropriate next action. The Overview groups source-backed Program/year preparation records and unfinished work. Calendar shows approved instruction dates and weekly hours before downstream activity dates. Secondary history must not bury the current task or create a wall of cards.
+Lead with the selected Term, current task and state-appropriate next action. With no selected Term, keep the green school masthead, offer one role-appropriate action, and group every available Term by academic year with its type, Term dates, recorded state and exact-Term entry. The Overview groups source-backed Program/year preparation records and unfinished work. Calendar shows approved instruction dates and weekly hours before downstream activity dates. Secondary history must not bury the current task or create a wall of cards.
 
 ### FORM
 

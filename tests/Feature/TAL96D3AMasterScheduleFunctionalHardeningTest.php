@@ -6,7 +6,6 @@ use App\Actions\Scheduling\BuildOfficialScheduleOutput;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
 use App\Actions\Scheduling\ScheduleGenerationService;
-use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\MyAvailability;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
@@ -61,7 +60,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
 
         foreach ([
             'student',
@@ -127,16 +126,9 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             )
             ->assertDontSee('solver-token.json');
 
-        $this->app->instance(
-            ScheduleGenerationService::class,
-            new class(app(ScheduleSolverSnapshotService::class)) extends ScheduleGenerationService
-            {
-                public function generate(Term $term, User $registrar): ScheduleGenerationRun
-                {
-                    throw new RuntimeException('https://private-solver.example.test');
-                }
-            },
-        );
+        $this->mock(ScheduleGenerationService::class)
+            ->shouldReceive('generate')->once()
+            ->andThrow(new RuntimeException('https://private-solver.example.test'));
 
         Livewire::actingAs($registrar)
             ->test(ListScheduleGenerationRuns::class)
@@ -178,18 +170,11 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
                     ->persistent(),
             );
 
-        $this->app->instance(
-            ScheduleGenerationService::class,
-            new class(app(ScheduleSolverSnapshotService::class)) extends ScheduleGenerationService
-            {
-                public function generate(Term $term, User $registrar): ScheduleGenerationRun
-                {
-                    throw ValidationException::withMessages([
-                        'term_id' => 'Another queued or dispatching solver run already exists for this term.',
-                    ]);
-                }
-            },
-        );
+        $this->mock(ScheduleGenerationService::class)
+            ->shouldReceive('generate')->once()
+            ->andThrow(ValidationException::withMessages([
+                'term_id' => 'Another queued or dispatching solver run already exists for this term.',
+            ]));
 
         Livewire::actingAs($registrar)
             ->test(ListScheduleGenerationRuns::class)
@@ -228,10 +213,11 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $run->getRouteKey()])
             ->assertOk()
-            ->assertSee('Solution Quality')
+            ->assertSee('Schedule quality')
             ->assertSee('Feasible')
-            ->assertSee('18 of 20 demands assigned')
-            ->assertSee('The schedule satisfies the validated hard constraints, but the solver did not prove it was the best possible result within the time limit.')
+            ->assertSee('Independent completeness not established')
+            ->assertDontSee('18 of 20 demands assigned')
+            ->assertSee('The recorded outcome does not establish a usable current candidate. Inspect independent validation and source findings before review or publication.')
             ->assertSee('20.00%')
             ->assertSee('8.75 seconds')
             ->assertSee('optimization-quality measures')

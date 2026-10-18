@@ -103,6 +103,7 @@
                                 @if ($meeting['plottable'] && $meeting['day'] === $day['number'])
                                     <button
                                         type="button"
+                                        data-course-color="{{ $presentation['courseColors'][$meeting['courseCode']] ?? (crc32($meeting['courseCode']) % 4) + 1 }}"
                                         class="tala-timetable-meeting {{ $meeting['component'] === 'Laboratory' ? 'tala-timetable-laboratory' : '' }} {{ $meeting['end'] - $meeting['start'] < 60 ? 'tala-timetable-compact-meeting' : '' }}"
                                         style="top: {{ $meeting['top'] }}%; height: {{ $meeting['height'] }}%; inset-inline-start: {{ $meeting['lane'] / $meeting['lanes'] * 100 }}%; width: {{ 100 / $meeting['lanes'] }}%;"
                                         x-show="matches(meetings.find(meeting => meeting.id === {{ \Illuminate\Support\Js::from($meeting['id']) }}))"
@@ -129,7 +130,7 @@
             @foreach ($presentation['meetings'] as $meeting)
                 @if ($nativeDetails)
                     <div class="tala-timetable-list-meeting" x-show="matches(meetings.find(meeting => meeting.id === {{ \Illuminate\Support\Js::from($meeting['id']) }}))">
-                        <button type="button" class="tala-timetable-mobile-meeting" wire:click="mountAction('viewMeeting', {}, { table: true, recordKey: '{{ $meeting['id'] }}' })">
+                        <button type="button" class="tala-timetable-mobile-meeting" data-course-color="{{ $presentation['courseColors'][$meeting['courseCode']] ?? (crc32($meeting['courseCode']) % 4) + 1 }}" wire:click="mountAction('viewMeeting', {}, { table: true, recordKey: '{{ $meeting['id'] }}' })">
                             <span class="tala-timetable-list-time">{{ $meeting['dayLabel'] }}<br>{{ $meeting['time'] }}</span>
                             <span><strong>{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong></span>
                             <span class="tala-timetable-meeting-room">{{ $meeting['room'] }}<span class="tala-timetable-list-title">View details</span></span>

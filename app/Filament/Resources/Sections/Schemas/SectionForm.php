@@ -7,6 +7,7 @@ use App\Filament\Resources\Sections\Pages\EditSection;
 use App\Filament\Resources\Sections\Pages\ListSections;
 use App\Models\Section;
 use App\Models\TermOffering;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section as FormSection;
@@ -18,17 +19,34 @@ class SectionForm
     {
         return $schema
             ->components([
-                FormSection::make('Class')
-                    ->description('One course taught to one or more linked student sections.')
+                FormSection::make(fn (CreateSection|EditSection|ListSections $livewire): string => $livewire instanceof EditSection && $livewire->isSourceProtected() ? 'Class settings' : 'Class')
+                    ->extraAttributes(fn (CreateSection|EditSection|ListSections $livewire): array => $livewire instanceof EditSection && $livewire->isPublished() ? ['class' => 'tala-class-published-banner'] : [])
+                    ->description(fn (CreateSection|EditSection|ListSections $livewire): string => $livewire instanceof EditSection && $livewire->isPublished()
+                        ? 'This class is in the official timetable. The course, class code, capacity and state are protected; make changes through a validated timetable revision.'
+                        : ($livewire instanceof EditSection && $livewire->isSourceProtected()
+                            ? 'This confirmed class identity, capacity and state are protected.'
+                            : 'One course taught to one or more linked student sections.'))
+                    ->icon(fn (CreateSection|EditSection|ListSections $livewire): ?string => $livewire instanceof EditSection && $livewire->isPublished() ? 'heroicon-o-lock-closed' : null)
+                    ->headerActions([
+                        Action::make('openOfficialTimetable')
+                            ->label('Open timetable')
+                            ->visible(fn (CreateSection|EditSection|ListSections $livewire): bool => $livewire instanceof EditSection && $livewire->isPublished())
+                            ->url(fn (EditSection $livewire): string => $livewire->publishedTimetableUrl()),
+                    ])
                     ->schema([
                         Select::make('term_offering_id')
                             ->label('Offered course')
-                            ->options(fn (CreateSection|EditSection|ListSections $livewire): array => self::termOfferingOptions($livewire->termId))
+                            ->options(fn (CreateSection|EditSection|ListSections $livewire): array => self::termOfferingOptions(
+                                $livewire->termId,
+                                $livewire instanceof EditSection && $livewire->termId !== null,
+                            ))
                             ->searchable()
                             ->preload()
+                            ->disabled(fn (CreateSection|EditSection|ListSections $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected())
                             ->required(),
                         TextInput::make('code')
                             ->label('Class code')
+                            ->disabled(fn (CreateSection|EditSection|ListSections $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected())
                             ->required()
                             ->maxLength(255),
                         TextInput::make('capacity')
@@ -36,10 +54,12 @@ class SectionForm
                             ->required()
                             ->integer()
                             ->minValue(1)
-                            ->helperText('Registrar planning capacity. Enrollment/reservations are downstream records and are not counted here.'),
+                            ->helperText('Maximum learners in this class.')
+                            ->disabled(fn (CreateSection|EditSection|ListSections $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected()),
                         Select::make('state')
                             ->options(Section::stateOptions())
                             ->default(Section::StatePlanned)
+                            ->disabled(fn (CreateSection|EditSection|ListSections $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected())
                             ->required(),
                     ])
                     ->columns(2)
@@ -50,7 +70,7 @@ class SectionForm
     /**
      * @return array<int, string>
      */
-    private static function termOfferingOptions(?int $termId): array
+    private static function termOfferingOptions(?int $termId, bool $omitTerm = false): array
     {
         return TermOffering::query()
             ->when($termId !== null, fn ($query) => $query->where('term_id', $termId))
@@ -61,8 +81,8 @@ class SectionForm
                 $offering->id => collect([
                     $offering->curriculumEntry?->courseSpecification?->title ?: 'Course title unavailable',
                     $offering->curriculumEntry?->courseSpecification?->course?->code,
-                    $offering->term?->label,
-                    str((string) $offering->delivery_variant)->headline()->toString(),
+                    ...($omitTerm ? [] : [$offering->term?->label]),
+                    str(strtolower((string) $offering->delivery_variant))->replace('_', ' ')->headline()->toString(),
                     TermOffering::modalityOptions()[$offering->modality] ?? str((string) $offering->modality)->headline()->toString(),
                     "{$offering->expected_count} expected learners",
                 ])->filter()->implode(' | '),

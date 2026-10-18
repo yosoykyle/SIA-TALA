@@ -68,8 +68,10 @@ final class Issue58ExactTermPreparationTest extends TestCase
 
         $this->assertSame(Term::StateActive, $package->term->fresh()->state);
         Livewire::actingAs($actor)->test(TermCalendar::class, ['termId' => $package->term_id])
-            ->assertSee('Calendar active')->assertSee('Not configured')
-            ->assertSee('Grade Entry')->assertSee('Sections & classes')
+            ->assertSet('termId', $package->term_id)
+            ->assertSee('Calendar ready for class planning.')->assertSee('Not set')
+            ->assertSee('Grade Entry')->assertSee('Only affects grade entry')->assertSee('Classes & sections')
+            ->assertViewHas('operationalDates', fn ($dates): bool => $dates->every(fn (array $date): bool => $date['window'] === null))
             ->assertViewHas('coreReadiness', fn (array $readiness): bool => $readiness['ready']);
     }
 
@@ -183,7 +185,8 @@ final class Issue58ExactTermPreparationTest extends TestCase
     {
         $actor = $this->staff();
         $term = Term::factory()->create(['scheduling_days' => [1, 3]]);
-        Livewire::actingAs($actor)->test(ViewTerm::class, ['record' => $term->id])->assertSee('Mon, Wed')->assertSee('Return to Term Planning');
+        Livewire::actingAs($actor)->test(ViewTerm::class, ['record' => $term->id])->assertSee('Mon, Wed')->assertSee('Open planning')
+            ->assertActionHasUrl('returnToPlanning', TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'plan']));
         $term->update(['scheduling_days' => null]);
         Livewire::actingAs($actor)->test(ViewTerm::class, ['record' => $term->id])->assertSee('Approved grid is recorded in Term Planning');
     }
@@ -203,7 +206,7 @@ final class Issue58ExactTermPreparationTest extends TestCase
             $document = new \DOMDocument;
             @$document->loadHTML($page->html());
             $cancel = collect(iterator_to_array($document->getElementsByTagName('a')))
-                ->first(fn (\DOMElement $link): bool => trim($link->textContent) === 'Cancel and return to Term Planning');
+                ->first(fn (\DOMElement $link): bool => trim($link->textContent) === 'Cancel');
             $this->assertNotNull($cancel);
             $this->assertSame($returnUrl, $cancel->getAttribute('href'));
         }
@@ -252,7 +255,8 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $head = $this->staff(User::StaffRoleAcademicHead);
         $package = $this->core();
         Livewire::actingAs($head)->test(TermCalendar::class, ['termId' => $package->term_id])
-            ->assertSee('Read-only oversight')->assertActionHidden('recordCalendarPackage')->assertActionHidden('activateCalendarPackage');
+            ->assertSet('termId', $package->term_id)
+            ->assertSee('Read-only · Registrar owns these records.')->assertActionHidden('recordCalendarPackage')->assertActionHidden('activateCalendarPackage');
         $this->expectException(AuthorizationException::class);
         app(ActivateTermCalendarPackage::class)->execute($package, $head);
     }
@@ -323,7 +327,9 @@ final class Issue58ExactTermPreparationTest extends TestCase
                 ->assertActionExists('returnToOversight', fn (Action $action): bool => $action->getUrl() === $returnUrl);
         }
         Livewire::actingAs($head)->test(TermOverview::class, ['termId' => $package->term_id])
-            ->assertSee($returnUrl)->assertSee('Term evidence overview')->assertDontSee('Plan this Term');
+            ->assertSet('termId', $package->term_id)
+            ->assertSee($returnUrl)->assertSee('Inspect this Term')->assertDontSee('Plan this Term')
+            ->assertViewHas('readOnly', true);
     }
 
     public function test_overview_distinguishes_upcoming_closed_open_and_missing_windows_for_its_exact_term(): void

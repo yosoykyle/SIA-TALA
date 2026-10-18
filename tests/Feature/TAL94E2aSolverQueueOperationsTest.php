@@ -40,7 +40,7 @@ final class TAL94E2aSolverQueueOperationsTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotContains(DB::connection()->getDatabaseName(), ['tala_db', 'tala_test_codex']);
 
         foreach ([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin] as $role) {
