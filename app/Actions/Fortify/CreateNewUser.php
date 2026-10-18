@@ -50,7 +50,7 @@ class CreateNewUser implements CreatesNewUsers
                     'max:255',
                     Rule::unique(User::class),
                 ],
-                'password' => $this->passwordRules(),
+                'password' => $this->applicantPasswordRules(),
                 'privacy_acknowledged' => ['accepted'],
             ],
             ['email.unique' => self::DuplicateAccountMessage],

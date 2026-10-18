@@ -155,6 +155,7 @@
 .tala-auth-main { width: 100%; min-height: 100dvh; }
 .tala-auth-recovery { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.25rem; }
 .tala-auth-recovery a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.tala-auth-recovery a > .fi-link-label { align-self: center; }
 .fi-auth-layout.no-media { background: var(--tala-brand-strong); }
 .fi-auth-layout.no-media .fi-auth-form-container {
     background: var(--tala-surface);

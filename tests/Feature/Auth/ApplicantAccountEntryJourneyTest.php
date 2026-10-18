@@ -81,8 +81,8 @@ class ApplicantAccountEntryJourneyTest extends TestCase
 
         $applicant = app(CreateNewUser::class)->create([
             'email' => '  Applicant@Example.TEST  ',
-            'password' => 'a valid passphrase',
-            'password_confirmation' => 'a valid passphrase',
+            'password' => 'Valid1!passphrase',
+            'password_confirmation' => 'Valid1!passphrase',
             'privacy_acknowledged' => true,
         ]);
 
@@ -92,7 +92,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         $this->assertNull($applicant->email_verified_at);
         $this->assertSame(route('home', ['modal' => 'privacy']), $applicant->privacy_notice_reference);
         $this->assertNotNull($applicant->privacy_acknowledged_at);
-        $this->assertTrue(Hash::check('a valid passphrase', $applicant->password));
+        $this->assertTrue(Hash::check('Valid1!passphrase', $applicant->password));
         $this->assertTrue($applicant->hasRole('applicant'));
         $this->assertSame('Applicant account', $applicant->getFilamentName());
         $this->assertSame(1, User::query()->where('email', 'applicant@example.test')->count());
@@ -108,8 +108,8 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         try {
             app(CreateNewUser::class)->create([
                 'email' => 'applicant@example.test',
-                'password' => 'a valid passphrase',
-                'password_confirmation' => 'a valid passphrase',
+                'password' => 'Valid1!passphrase',
+                'password_confirmation' => 'Valid1!passphrase',
                 'privacy_acknowledged' => false,
             ]);
 
@@ -127,8 +127,8 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         $this->configureReadyApplicantEntry();
 
         foreach ([
-            'too-short@example.test' => str_repeat('a', 14),
-            'too-long@example.test' => str_repeat('a', 65),
+            'too-short@example.test' => 'Aa1!aaa',
+            'too-long@example.test' => 'Aa1!'.str_repeat('a', 61),
         ] as $email => $password) {
             try {
                 app(CreateNewUser::class)->create([
@@ -148,11 +148,66 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'too-long@example.test']);
     }
 
+    public function test_account_creation_requires_each_password_character_class(): void
+    {
+        $this->openAdmissions();
+        $this->configureReadyApplicantEntry();
+
+        foreach ([
+            'no-uppercase@example.test' => 'lowercase1!',
+            'no-lowercase@example.test' => 'UPPERCASE1!',
+            'no-number@example.test' => 'NoNumbers!',
+            'no-special@example.test' => 'NoSpecial1',
+        ] as $email => $password) {
+            try {
+                app(CreateNewUser::class)->create([
+                    'email' => $email,
+                    'password' => $password,
+                    'password_confirmation' => $password,
+                    'privacy_acknowledged' => true,
+                ]);
+
+                $this->fail('Each password character class should be required.');
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('password', $exception->errors());
+            }
+
+            $this->assertDatabaseMissing('users', ['email' => $email]);
+        }
+    }
+
+    public function test_account_creation_accepts_an_eight_character_password_with_every_class(): void
+    {
+        $this->openAdmissions();
+        $this->configureReadyApplicantEntry();
+
+        $applicant = app(CreateNewUser::class)->create([
+            'email' => 'eight-character@example.test',
+            'password' => 'Valid1!x',
+            'password_confirmation' => 'Valid1!x',
+            'privacy_acknowledged' => true,
+        ]);
+
+        $this->assertTrue(Hash::check('Valid1!x', $applicant->password));
+    }
+
+    public function test_registration_password_checklist_updates_as_the_applicant_types(): void
+    {
+        $this->openAdmissions();
+        $this->configureReadyApplicantEntry();
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        Livewire::test(RegisterApplicant::class)
+            ->assertSee('Not met')
+            ->fillForm(['password' => 'Valid1!x'])
+            ->assertDontSee('Not met');
+    }
+
     public function test_duplicate_account_creation_uses_non_disclosing_feedback(): void
     {
         $this->openAdmissions();
         $this->configureReadyApplicantEntry();
-        $password = 'a valid passphrase';
+        $password = 'Valid1!passphrase';
 
         app(CreateNewUser::class)->create([
             'email' => 'applicant@example.test',
@@ -196,7 +251,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             User::withoutEvents(fn (): User => User::query()->create([
                 'name' => null,
                 'email' => 'race@example.test',
-                'password' => 'a valid passphrase',
+                'password' => 'Valid1!passphrase',
                 'status' => User::StatusActive,
             ]));
         });
@@ -204,8 +259,8 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         try {
             app(CreateNewUser::class)->create([
                 'email' => 'race@example.test',
-                'password' => 'a valid passphrase',
-                'password_confirmation' => 'a valid passphrase',
+                'password' => 'Valid1!passphrase',
+                'password_confirmation' => 'Valid1!passphrase',
                 'privacy_acknowledged' => true,
             ]);
 
@@ -224,7 +279,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
     public function test_compromised_password_is_rejected_without_creating_an_account(): void
     {
         $this->openAdmissions();
-        $password = 'a compromised passphrase';
+        $password = 'A compromised1!passphrase';
         $hash = strtoupper(sha1($password));
 
         Http::fake([
@@ -254,8 +309,8 @@ class ApplicantAccountEntryJourneyTest extends TestCase
 
         $applicant = app(CreateNewUser::class)->create([
             'email' => 'provider-failure@example.test',
-            'password' => 'a valid passphrase',
-            'password_confirmation' => 'a valid passphrase',
+            'password' => 'Valid1!passphrase',
+            'password_confirmation' => 'Valid1!passphrase',
             'privacy_acknowledged' => true,
         ]);
 
@@ -280,8 +335,8 @@ class ApplicantAccountEntryJourneyTest extends TestCase
 
         app(CreateNewUser::class)->create([
             'email' => 'applicant@example.test',
-            'password' => 'a valid passphrase',
-            'password_confirmation' => 'a valid passphrase',
+            'password' => 'Valid1!passphrase',
+            'password_confirmation' => 'Valid1!passphrase',
             'privacy_acknowledged' => true,
         ]);
     }
@@ -290,8 +345,8 @@ class ApplicantAccountEntryJourneyTest extends TestCase
     {
         $this->post('/register', [
             'email' => 'applicant@example.test',
-            'password' => 'a valid passphrase',
-            'password_confirmation' => 'a valid passphrase',
+            'password' => 'Valid1!passphrase',
+            'password_confirmation' => 'Valid1!passphrase',
             'privacy_acknowledged' => true,
         ])->assertNotFound();
     }
@@ -311,8 +366,8 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             ->assertFormFieldExists('privacy_acknowledged')
             ->fillForm([
                 'email' => 'new-applicant@example.test',
-                'password' => 'another valid passphrase',
-                'password_confirmation' => 'another valid passphrase',
+                'password' => 'Another1!passphrase',
+                'password_confirmation' => 'Another1!passphrase',
                 'privacy_acknowledged' => true,
             ])
             ->call('register')
@@ -327,7 +382,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         Notification::assertSentTo($applicant, VerifyEmail::class);
     }
 
-    public function test_registration_validation_errors_have_an_announced_focusable_summary(): void
+    public function test_registration_validation_errors_stay_on_their_fields_and_focus_the_first_invalid_field(): void
     {
         $this->openAdmissions();
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
@@ -341,11 +396,9 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             ])
             ->call('register')
             ->assertHasFormErrors(['password'])
-            ->assertSeeHtml('id="applicant-registration-error-summary"')
-            ->assertSeeHtml('role="alert"')
-            ->assertSeeHtml('aria-live="assertive"')
-            ->assertSeeHtml('data-error-field="password"')
-            ->assertSee('Review the highlighted fields');
+            ->assertDispatched('focus-applicant-password')
+            ->assertNotDispatched('focus-applicant-email')
+            ->assertDontSeeHtml('id="applicant-registration-error-summary"');
     }
 
     public function test_resending_verification_supersedes_the_previous_link_and_success_clears_the_nonce(): void
@@ -463,7 +516,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         $applicant->forceFill([
             'name' => null,
             'email' => 'dispatch-failure@example.test',
-            'password' => 'a valid passphrase',
+            'password' => 'Valid1!passphrase',
             'status' => User::StatusActive,
         ])->save();
 
@@ -490,7 +543,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
 
         $component = Livewire::actingAs($applicant)
             ->test(ApplicantEmailVerification::class)
-            ->assertSee($applicant->email)
+            ->assertSee('A verification link was sent to your email address.')
             ->assertDontSee('existing-secret-nonce')
             ->callAction('resendNotification');
 
@@ -503,6 +556,50 @@ class ApplicantAccountEntryJourneyTest extends TestCase
 
         $this->assertSame($rotatedNonce, $applicant->fresh()->email_verification_nonce);
         Notification::assertSentToTimes($applicant, VerifyEmail::class, 1);
+    }
+
+    public function test_verification_page_shows_a_live_expiry_countdown_and_no_sign_out_or_recovery_links(): void
+    {
+        $applicant = User::factory()->unverified()->create(['status' => User::StatusActive]);
+        Role::findOrCreate('applicant', 'web');
+        $applicant->assignRole('applicant');
+
+        $this->actingAs($applicant)
+            ->withSession([DispatchApplicantEmailVerification::SentAtSessionKey => now()->getTimestamp()])
+            ->get('/applicant/email-verification/prompt')
+            ->assertOk()
+            ->assertSee('Verify your account')
+            ->assertSee('Link expires in 60:00')
+            ->assertSee('Only the most recent verification link can be used.')
+            ->assertSee('Resend Verification Link')
+            ->assertSee('Contact School Support')
+            ->assertDontSee('Sign out')
+            ->assertDontSee('Return to school home')
+            ->assertDontSee('Contact school support');
+    }
+
+    public function test_sending_a_verification_link_starts_the_expiry_countdown_from_that_send(): void
+    {
+        $applicant = User::factory()->unverified()->create(['status' => User::StatusActive]);
+        Notification::fake();
+        $this->withSession([]);
+        $this->assertNull(DispatchApplicantEmailVerification::expiresAt());
+
+        $this->assertTrue(app(DispatchApplicantEmailVerification::class)->execute($applicant));
+
+        $this->assertSame(now()->addMinutes(60)->getTimestamp(), DispatchApplicantEmailVerification::expiresAt()?->getTimestamp());
+    }
+
+    public function test_verification_countdown_falls_back_to_the_window_when_no_send_time_is_known(): void
+    {
+        $applicant = User::factory()->unverified()->create(['status' => User::StatusActive]);
+        Role::findOrCreate('applicant', 'web');
+        $applicant->assignRole('applicant');
+
+        $this->actingAs($applicant)
+            ->get('/applicant/email-verification/prompt')
+            ->assertOk()
+            ->assertSee('Link expires 60 minutes after it was sent.');
     }
 
     private function openAdmissions(): AdmissionCycle

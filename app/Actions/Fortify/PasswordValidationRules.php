@@ -16,4 +16,14 @@ trait PasswordValidationRules
     {
         return ['required', 'string', Password::defaults(), 'confirmed'];
     }
+
+    /**
+     * Applicant registration rule: 8–64 characters with an uppercase letter, a lowercase letter, a number and a special character.
+     *
+     * @return array<int, Rule|array<mixed>|string>
+     */
+    protected function applicantPasswordRules(): array
+    {
+        return ['required', 'string', Password::min(8)->max(64)->mixedCase()->numbers()->symbols()->uncompromised(), 'confirmed'];
+    }
 }
