@@ -16,6 +16,8 @@ class ApplicationHistory extends Dashboard
 
     protected static ?string $slug = 'history';
 
+    protected static bool $shouldRegisterNavigation = false;
+
     protected string $view = 'filament.applicant.pages.application-history';
 
     public static function getNavigationLabel(): string

@@ -461,7 +461,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         // Case A: No calendar package exists yet
         Livewire::actingAs($application->user)
             ->test(ApplicantDashboard::class)
-            ->assertSee('Ready for enrollment')
+            ->assertSee('You are admitted and cleared by the Registrar for enrollment.')
             ->assertSee('Enrollment has not opened yet. The official academic calendar package is being prepared by the Registrar.')
             ->assertSee('Enrollment has not opened yet.')
             ->assertActionHidden('startRegistration')
