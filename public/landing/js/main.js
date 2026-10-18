@@ -178,6 +178,37 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('hashchange', revealRequestedModal);
     revealRequestedModal();
 
+    const replaceProgramParameter = (programId) => {
+        const currentUrl = new URL(window.location.href);
+
+        if (programId) {
+            currentUrl.searchParams.set('program', programId);
+        } else {
+            currentUrl.searchParams.delete('program');
+        }
+
+        window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+    };
+
+    document.querySelectorAll('[data-program-detail-modal]').forEach((modalElement) => {
+        const programId = modalElement.dataset.programDetailModal;
+
+        modalElement.addEventListener('shown.bs.modal', () => replaceProgramParameter(programId));
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            replaceProgramParameter(null);
+            document.querySelector(`[data-program-read-more="${programId}"]`)?.focus({ preventScroll: true });
+        });
+    });
+
+    const requestedProgramModal = new URLSearchParams(window.location.search).get('program');
+    const requestedProgramElement = requestedProgramModal
+        ? document.getElementById(`programDetailModal-${requestedProgramModal}`)
+        : null;
+
+    if (requestedProgramElement && window.bootstrap?.Modal) {
+        window.bootstrap.Modal.getOrCreateInstance(requestedProgramElement).show();
+    }
+
     const navbar = document.querySelector('.navbar');
     const navigation = document.getElementById('navbarNav');
     const navigationToggle = navbar?.querySelector('.navbar-toggler');
