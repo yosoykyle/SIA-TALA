@@ -114,7 +114,7 @@ class ApplicationToReadinessJourneyTest extends TestCase
                 'prior_school_country_code' => 'PH',
                 'credential_basis' => AdmissionApplication::CredentialSeniorHighSchool,
                 'prior_school_completion_year' => 2025,
-                'lrn_availability' => 'NotIssued',
+                'lrn' => '123456789012',
                 'privacy_acknowledged' => true,
                 'accuracy_declared' => true,
             ])
@@ -314,7 +314,7 @@ class ApplicationToReadinessJourneyTest extends TestCase
             ->assertDontSee('queue=history', false);
 
         $this->actingAs($applicant)
-            ->get(route('filament.applicant.pages.dashboard', ['application' => $application->id]))
+            ->get(route('filament.applicant.pages.history', ['application' => $application->id]))
             ->assertOk()
             ->assertSee('href="'.e(SubmissionReceipt::getUrl(['application' => $application->id, 'version' => $version->id], panel: 'applicant')).'"', false);
     }

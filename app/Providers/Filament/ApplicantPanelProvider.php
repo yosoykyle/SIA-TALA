@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Actions\Authentication\TalaAppAuthentication;
 use App\Filament\Applicant\Pages\Application;
+use App\Filament\Applicant\Pages\ApplicationHistory;
 use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
 use App\Filament\Applicant\Pages\Dashboard;
@@ -17,6 +18,7 @@ use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
+use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -25,6 +27,7 @@ use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -84,6 +87,13 @@ class ApplicantPanelProvider extends PanelProvider
                 $this->navigationItem(Dashboard::class, 'Home', 'filament.applicant.pages.dashboard'),
                 $this->navigationItem(Application::class, 'Application', 'filament.applicant.pages.application'),
             ]))
+            ->userMenuItems([
+                'history' => Action::make('history')
+                    ->label("Applicant's History")
+                    ->icon(Heroicon::OutlinedClock)
+                    ->url(fn (): string => ApplicationHistory::getUrl(panel: 'applicant'))
+                    ->sort(0),
+            ])
             ->discoverWidgets(in: app_path('Filament/Applicant/Widgets'), for: 'App\Filament\Applicant\Widgets')
             ->widgets([
                 AccountWidget::class,

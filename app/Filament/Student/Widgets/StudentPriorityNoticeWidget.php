@@ -20,6 +20,12 @@ class StudentPriorityNoticeWidget extends BaseWidget
         return self::resolveNotice() !== null;
     }
 
+    /** The single priority notice spans the full content width. */
+    protected function getColumns(): int
+    {
+        return 1;
+    }
+
     protected function getStats(): array
     {
         $notice = self::resolveNotice();

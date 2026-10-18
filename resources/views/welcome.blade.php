@@ -33,12 +33,13 @@
             <div class="collapse navbar-collapse justify-content-center" id="navbarNav">
                 <ul class="navbar-nav gap-lg-1 pt-3 pt-lg-0">
                     <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#top">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#about">About</a></li>
                     <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#programs">Programs</a></li>
                     @if ($notices->isNotEmpty() || in_array('notices', $unavailable, true))
                         <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#notices">Announcements</a></li>
                     @endif
-                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#location">Visit</a></li>
                     <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#faq">FAQ</a></li>
+                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#location">Visit</a></li>
                 </ul>
             </div>
 
@@ -89,10 +90,6 @@
                                 <span>Explore programs</span>
                                 <x-filament::icon icon="heroicon-o-arrow-down" class="tala-public-icon" aria-hidden="true" />
                             </a>
-                            <a class="btn btn-hero-quiet" href="#location">
-                                <x-filament::icon icon="heroicon-o-map-pin" class="tala-public-icon" aria-hidden="true" />
-                                <span>Plan your visit</span>
-                            </a>
                         </div>
                     </div>
                 </div>
@@ -103,7 +100,7 @@
                 @endphp
                 <div class="hero-updates" @if ($notices->isNotEmpty() || $noticesUnavailable) id="notices" @endif role="region" aria-roledescription="carousel" aria-label="Admissions and school announcements" data-hero-updates>
                     <div class="hero-updates__stack" data-hero-updates-stack aria-live="polite">
-                        <article class="update-card update-card--admissions admission-status is-active" role="group" aria-roledescription="slide" aria-label="Admissions, 1 of {{ $updateCount }}" data-update-slide>
+                        <div class="update-card update-card--admissions admission-status is-active" role="group" aria-roledescription="slide" aria-label="Admissions, 1 of {{ $updateCount }}" data-update-slide>
                             <p class="update-card__type">
                                 <x-filament::icon icon="heroicon-o-academic-cap" class="tala-public-icon" aria-hidden="true" />
                                 <span>Admissions</span>
@@ -159,7 +156,7 @@
                                     @endif
                                     <div class="admission-links">
                                         <a class="hero-inline-link" href="{{ route('filament.admin.auth.login') }}">
-                                            <x-filament::icon icon="heroicon-o-magnifying-glass" class="tala-public-icon" aria-hidden="true" />
+                                            <x-filament::icon icon="heroicon-o-arrow-right-end-on-rectangle" class="tala-public-icon" aria-hidden="true" />
                                             <span>Sign in for application updates</span>
                                         </a>
                                         <button type="button" class="hero-inline-link" data-bs-toggle="modal" data-bs-target="#supportModal">
@@ -169,9 +166,9 @@
                                     </div>
                                 </div>
                             </div>
-                        </article>
+                        </div>
                         @foreach ($notices as $notice)
-                            <article class="update-card update-card--notice" role="group" aria-roledescription="slide" aria-label="School announcement, {{ $loop->iteration + 1 }} of {{ $updateCount }}" data-update-slide>
+                            <div class="update-card update-card--notice" role="group" aria-roledescription="slide" aria-label="School announcement, {{ $loop->iteration + 1 }} of {{ $updateCount }}" data-update-slide>
                                 <p class="update-card__type">
                                     <x-filament::icon icon="heroicon-o-megaphone" class="tala-public-icon" aria-hidden="true" />
                                     <span>School announcement</span>
@@ -188,16 +185,16 @@
                                         <span class="visually-hidden">(opens in a new tab)</span>
                                     </a>
                                 @endif
-                            </article>
+                            </div>
                         @endforeach
                         @if ($notices->isEmpty() && $noticesUnavailable)
-                            <article class="update-card update-card--notice" role="group" aria-roledescription="slide" aria-label="School announcements, 2 of {{ $updateCount }}" data-update-slide>
+                            <div class="update-card update-card--notice" role="group" aria-roledescription="slide" aria-label="School announcements, 2 of {{ $updateCount }}" data-update-slide>
                                 <p class="update-card__type">
                                     <x-filament::icon icon="heroicon-o-megaphone" class="tala-public-icon" aria-hidden="true" />
                                     <span>School announcements</span>
                                 </p>
                                 <p class="update-card__message mb-0" role="status">Announcements are temporarily unavailable. <button class="hero-inline-link hero-inline-link--inline" type="button" data-bs-toggle="modal" data-bs-target="#supportModal">Contact Support</button> for current school guidance.</p>
-                            </article>
+                            </div>
                         @endif
                     </div>
 
@@ -218,6 +215,49 @@
                             <x-filament::icon icon="heroicon-o-play" class="tala-public-icon hero-motion-toggle__play" aria-hidden="true" />
                             <span data-hero-motion-label>Pause motion</span>
                         </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        {{-- About SIA (#61 F100): overview, objectives and facts supplied by the owner (Oct 17); the photo frame is a placeholder until the school supplies photographs. --}}
+        <section class="section-block about-section" id="about" data-navbar-contrast-surface="theme" aria-labelledby="about-title">
+            <div class="container">
+                <div class="about-layout">
+                    <div class="about-copy">
+                        <h2 class="section-title" id="about-title">About Servitech Institute Asia</h2>
+                        <p class="about-lead">Servitech Institute Asia is an educational institution in Laguna, Region IV-A, established in 2017 to give people a fighting edge through quality education. It aims to offer senior high school, college, and technical-vocational programs, with a current focus on TESDA technical-vocational training.</p>
+                        {{-- Objectives, establishment year and TESDA recognition supplied by the owner (Oct 17). --}}
+                        <section class="about-objectives" aria-labelledby="about-objectives-title">
+                            <h3 class="about-objectives__title" id="about-objectives-title">Objectives</h3>
+                            <p class="about-objectives__intro">Servitech Institute Asia shall exist to meet the following objectives:</p>
+                            <ul class="about-objectives__list">
+                                <li>Be the leading TechVoc Training and Assessment Center in Region IV-A.</li>
+                                <li>Be the leading provider of quality training and assessment for all its students.</li>
+                                <li>Be an institution that will provide job assistance to all its graduates.</li>
+                            </ul>
+                        </section>
+                        <div class="about-actions">
+                            <a class="btn btn-primary-custom" href="#programs">
+                                <span>Explore programs</span>
+                                <x-filament::icon icon="heroicon-o-arrow-down" class="tala-public-icon" aria-hidden="true" />
+                            </a>
+                            <a class="btn btn-secondary-custom" href="#location">
+                                <x-filament::icon icon="heroicon-o-map-pin" class="tala-public-icon" aria-hidden="true" />
+                                <span>Plan your visit</span>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="about-aside">
+                        {{-- Placeholder for the school's campus photograph; replace with an <img> in the same frame. --}}
+                        <div class="about-media" aria-hidden="true">
+                            <img src="{{ asset('images/brand/servitech-crest-outlined-320.webp') }}" width="320" height="320" alt="" loading="lazy" decoding="async">
+                        </div>
+                        <dl class="about-facts">
+                            <div class="about-fact"><dt>Established</dt><dd>2017</dd></div>
+                            <div class="about-fact"><dt>Location</dt><dd>San Pedro, Laguna</dd></div>
+                            <div class="about-fact"><dt>Recognized by</dt><dd>TESDA</dd></div>
+                        </dl>
                     </div>
                 </div>
             </div>
@@ -327,8 +367,8 @@
                 @if ($faqEntries->isNotEmpty())
                     <div class="discovery-grid">
                         <div class="discovery-intro">
-                            <h2 class="section-title" id="faq-title">Questions before applying?</h2>
-                            <p class="section-lead">Read the school’s published answers.</p>
+                            <h2 class="section-title" id="faq-title">Frequently Asked Questions</h2>
+                            <p class="section-lead">Find out what you need to know before starting your journey at SIA.</p>
                             <button type="button" class="btn btn-secondary-custom" data-bs-toggle="modal" data-bs-target="#supportModal">
                                 <x-filament::icon icon="heroicon-o-lifebuoy" class="tala-public-icon" aria-hidden="true" />
                                 <span>Contact Support</span>
@@ -358,7 +398,7 @@
                     <div class="faq-help">
                         <x-filament::icon icon="heroicon-o-question-mark-circle" class="faq-help__mark" aria-hidden="true" />
                         <div class="faq-help__copy">
-                            <h2 class="faq-help__title" id="faq-title">Questions before applying?</h2>
+                            <h2 class="faq-help__title" id="faq-title">Frequently Asked Questions</h2>
                             <p class="mb-0" role="status">{{ in_array('faqEntries', $unavailable, true) ? 'FAQs are temporarily unavailable.' : 'No public FAQs are available yet.' }} Admissions can answer questions about programs, requirements and applying.</p>
                         </div>
                         <button type="button" class="btn btn-secondary-custom" data-bs-toggle="modal" data-bs-target="#supportModal">
@@ -375,21 +415,20 @@
                 <div class="visit-layout">
                     <div class="visit-details">
                         <h2 class="section-title" id="location-title">Visit Servitech</h2>
-                        <p class="section-lead">Find the school on the map, and contact the school before your visit.</p>
+                        {{-- Campus address from the school's public Google listing, supplied by the owner on Oct 16; a configured institution address takes precedence. --}}
+                        @php($campusAddress = config('institution.address') ?: '162 R. Magsaysay Ave, San Pedro, Laguna, Philippines')
                         <dl class="visit-facts">
-                            @if (filled(config('institution.address')))
-                                <div class="visit-fact">
-                                    <dt><x-filament::icon icon="heroicon-o-map-pin" class="tala-public-icon" aria-hidden="true" /> Address</dt>
-                                    <dd><address class="institution-address mb-0">{{ config('institution.address') }}</address></dd>
-                                </div>
-                            @endif
+                            <div class="visit-fact">
+                                <dt><x-filament::icon icon="heroicon-o-map-pin" class="tala-public-icon" aria-hidden="true" /> Address</dt>
+                                <dd><address class="institution-address mb-0">{{ $campusAddress }}</address></dd>
+                            </div>
                         </dl>
                         <div class="visit-actions">
                             @if ($officialReferences['map'])
-                                <a href="{{ $officialReferences['map'] }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary-custom">
-                                    <x-filament::icon icon="heroicon-o-arrow-top-right-on-square" class="tala-public-icon" aria-hidden="true" />
-                                    <span>Open in Google Maps</span>
-                                    <span class="visually-hidden">(opens in a new tab)</span>
+                                <a href="{{ $officialReferences['map'] }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary-custom">
+                                    <x-filament::icon icon="heroicon-o-paper-airplane" class="tala-public-icon" aria-hidden="true" />
+                                    <span>Get directions</span>
+                                    <span class="visually-hidden">(opens Google Maps in a new tab)</span>
                                 </a>
                             @else
                                 <a href="{{ route('home', ['modal' => 'support']) }}" class="text-link">Contact the school for location guidance</a>
@@ -399,11 +438,22 @@
                                 <span>Support</span>
                             </button>
                         </div>
+
+                        {{-- Owner-supplied reference values (Oct 16); approximate travel times await the school's confirmation. --}}
+                        <div class="visit-landmarks">
+                            <h3 class="visit-subtitle"><x-filament::icon icon="heroicon-o-map" class="tala-public-icon" aria-hidden="true" /> Nearby landmarks</h3>
+                            <ul class="visit-landmarks__list">
+                                <li><span>San Pedro Public Market</span> <span class="visit-landmarks__time">about 5 min</span></li>
+                                <li><span>San Pedro Town Plaza</span> <span class="visit-landmarks__time">about 7 min</span></li>
+                                <li><span>SM City San Pedro</span> <span class="visit-landmarks__time">about 10 min</span></li>
+                            </ul>
+                        </div>
+
                     </div>
                     <div class="visit-map">
                         @if ($officialReferences['map_embed'])
                             <iframe class="institution-map" src="{{ $officialReferences['map_embed'] }}" title="Map showing Servitech Institute Asia Inc. campus location" width="100%" height="448" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                            <p class="form-text mt-2 mb-0">Map provided by Google.@if ($officialReferences['map']) Use Open in Google Maps for directions.@endif</p>
+                            <p class="form-text mt-2 mb-0">Map provided by Google.@if ($officialReferences['map']) Use Get directions for a route to campus.@endif</p>
                         @else
                             <div class="location-guidance">
                                 <x-filament::icon icon="heroicon-o-map-pin" class="tala-public-icon" aria-hidden="true" />
@@ -413,6 +463,44 @@
                         @endif
                     </div>
                 </div>
+
+                {{-- Visitor guidelines: owner-supplied reference content (Oct 16), placeholder until the school confirms hours, rules and its appointment process. --}}
+                <section class="visit-guidelines" aria-labelledby="visit-guidelines-title">
+                    {{-- Placeholder for the campus photo the school will supply; replace with an <img> of the same frame. --}}
+                    <div class="visit-guidelines__media" aria-hidden="true">
+                        <img src="{{ asset('images/brand/servitech-crest-outlined-320.webp') }}" width="320" height="320" alt="" loading="lazy" decoding="async">
+                    </div>
+                    <div class="visit-guidelines__body">
+                        <h3 class="visit-guidelines__title" id="visit-guidelines-title">Office hours and visitor guidelines</h3>
+                        <div class="visit-guidelines__cards">
+                            <section class="visit-card" aria-labelledby="visit-hours-title">
+                                <x-filament::icon icon="heroicon-o-clock" class="visit-card__icon" aria-hidden="true" />
+                                <h4 class="visit-card__title" id="visit-hours-title">Office hours</h4>
+                                <p class="visit-card__lead">Monday to Friday<br><span class="visit-card__strong">7:00 AM – 5:00 PM</span></p>
+                                <p class="visit-card__note">Closed on holidays</p>
+                            </section>
+                            <section class="visit-card" aria-labelledby="visit-rules-title">
+                                <x-filament::icon icon="heroicon-o-identification" class="visit-card__icon" aria-hidden="true" />
+                                <h4 class="visit-card__title" id="visit-rules-title">Visitor guidelines</h4>
+                                <ul class="visit-card__list">
+                                    <li>Register at the guardhouse</li>
+                                    <li>Bring a valid ID</li>
+                                    <li>Follow campus policies</li>
+                                    <li>Respect the learning environment</li>
+                                </ul>
+                            </section>
+                            <section class="visit-card" aria-labelledby="visit-appointment-title">
+                                <x-filament::icon icon="heroicon-o-calendar-days" class="visit-card__icon" aria-hidden="true" />
+                                <h4 class="visit-card__title" id="visit-appointment-title">Appointments</h4>
+                                <p class="visit-card__lead">For school tours, meetings, or other concerns, contact the school before your visit.</p>
+                                <button type="button" class="btn btn-primary-custom visit-card__action" data-bs-toggle="modal" data-bs-target="#supportModal">
+                                    <x-filament::icon icon="heroicon-o-calendar" class="tala-public-icon" aria-hidden="true" />
+                                    <span>Schedule a visit</span>
+                                </button>
+                            </section>
+                        </div>
+                    </div>
+                </section>
             </div>
         </section>
 
@@ -432,12 +520,13 @@
                     <div class="footer-link-group">
                         <h2 class="footer-heading">Explore</h2>
                         <ul class="list-unstyled">
+                            <li><a class="footer-link" href="#about">About</a></li>
                             <li><a class="footer-link" href="#programs">Programs</a></li>
                             @if ($notices->isNotEmpty() || in_array('notices', $unavailable, true))
                                 <li><a class="footer-link" href="#notices">Announcements</a></li>
                             @endif
-                            <li><a class="footer-link" href="#location">Visit</a></li>
                             <li><a class="footer-link" href="#faq">FAQ</a></li>
+                            <li><a class="footer-link" href="#location">Visit</a></li>
                         </ul>
                     </div>
                     <div class="footer-link-group">

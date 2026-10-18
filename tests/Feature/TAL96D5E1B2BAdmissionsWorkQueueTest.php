@@ -38,13 +38,11 @@ class TAL96D5E1B2BAdmissionsWorkQueueTest extends TestCase
         $application = AdmissionApplication::factory()->transferee()->submitted()->create();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::actingAs($registrar)
-            ->test(ListAdmissionApplications::class)
-            ->assertSee('Needs review')
-            ->assertSee('Waiting for applicant')
-            ->assertSee('Registrar clearance')
-            ->assertSee('Ready for enrollment')
-            ->assertSee('Closed applications')
+        $queue = Livewire::actingAs($registrar)
+            ->test(ListAdmissionApplications::class);
+        $this->assertSame(['Needs review', 'Waiting for applicant', 'Registrar clearance', 'Ready for enrollment', 'Closed applications'],
+            collect($queue->instance()->getTabs())->map->getLabel()->values()->all());
+        $queue->assertSee('Needs review')
             ->assertCanSeeTableRecords([$application])
             ->assertSee('Transferee')
             ->assertTableColumnExists('applicant')

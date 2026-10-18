@@ -142,7 +142,8 @@ class ApplicantIntakeSubmissionTest extends TestCase
             'prior_school_name' => 'Synthetic Senior High School',
             'prior_school_country_code' => 'PH',
             'prior_school_completion_year' => now()->year - 1,
-            'lrn_availability' => 'NotIssued',
+            'lrn_availability' => 'Provided',
+            'lrn' => '123456789012',
             'privacy_acknowledged' => true,
             'accuracy_declared' => true,
         ];

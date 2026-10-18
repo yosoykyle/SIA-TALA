@@ -48,7 +48,7 @@ class PublicLandingAndFilamentAuthTest extends TestCase
             ->assertSee('aria-labelledby="privacyModalTitle"', false)
             ->assertSee('id="privacyModalTitle"', false)
             ->assertSee('aria-label="Close privacy notice"', false)
-            ->assertSee('Open in Google Maps')
+            ->assertSee('Get directions')
             ->assertSee('title="Map showing Servitech Institute Asia Inc. campus location"', false)
             ->assertDontSee('Student Registration')
             ->assertDontSee('applicant.login')

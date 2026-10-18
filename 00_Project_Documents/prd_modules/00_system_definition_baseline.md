@@ -623,7 +623,7 @@ Every readiness projection names its source, owner, effective version or as-of t
 | Title/label | Title maximum 160 characters; short label maximum 120 |
 | Administrative reason | Required for rejection, correction, reversal and authority-backed exceptions; 10–1,000 characters. An owning PRD may use an attributable fixed result for routine successful verification/clearance without a separate narrative. Actor, time and current source are still required. |
 | Safe learner explanation | 1–500 characters; no internal notes, secrets, private evidence, or unsupported accusation |
-| LRN | Explicit Provided / Not issued / Not available route. Provided is exactly 12 digits stored as text, preserving leading zeros. Before `Admitted`, Registrar resolves a verified identity collision or unavailable-LRN warning through the non-disclosing PRD 02 path. Initial submission remains available; `NotAdmitted` uses its own recorded decision basis. |
+| LRN | Required for every first submission (owner decision, October 14, 2026): exactly 12 digits stored as text, preserving leading zeros. Historical Not issued / Not available facts are retained. Before `Admitted`, Registrar resolves a verified identity collision or unavailable-LRN warning through the non-disclosing PRD 02 path. Initial submission remains available; `NotAdmitted` uses its own recorded decision basis. |
 | Telephone | Requiredness belongs to the owning field contract; normalize to 8–15 international digits while accepting Philippine-friendly input |
 | Money | PHP only for MVP, two decimal places, nonnegative; payment and coverage postings must be positive |
 | Units | Positive, up to two decimal places; curriculum/authority reconciliation controls validity, not a universal cap |

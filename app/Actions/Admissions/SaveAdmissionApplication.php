@@ -57,7 +57,7 @@ class SaveAdmissionApplication
             ]);
         }
 
-        $validated = Validator::make($data, $this->draftRules())->validate();
+        $validated = Validator::make($data, $this->draftRules($application))->validate();
 
         $expectedSubmissionVersionId = $expectedSubmissionVersionId === 0 ? null : ($expectedSubmissionVersionId ?? $application?->current_submission_version_id);
         $storedEvidence = [];
@@ -398,7 +398,7 @@ class SaveAdmissionApplication
     }
 
     /** @return array<string, mixed> */
-    private function draftRules(): array
+    private function draftRules(?AdmissionApplication $application = null): array
     {
         return [
             'program_id' => ['sometimes', 'nullable', 'integer', Rule::exists((new Program)->getTable(), 'id')],
@@ -427,8 +427,8 @@ class SaveAdmissionApplication
             'privacy_acknowledged' => ['sometimes', 'boolean'],
             'accuracy_declared' => ['sometimes', 'boolean'],
             'optional_identity_consent' => ['sometimes', 'boolean'],
-            'gender' => ['sometimes', 'nullable', 'string', 'between:1,40', 'prohibited_unless:optional_identity_consent,true'],
-            'civil_status' => ['sometimes', 'nullable', 'string', 'between:1,40', 'prohibited_unless:optional_identity_consent,true'],
+            'gender' => ['sometimes', 'nullable', 'string', 'between:1,40', 'prohibited_unless:optional_identity_consent,true', Rule::in(AdmissionApplication::choicesKeepingRecorded(AdmissionApplication::SexChoices, $application?->getRawOriginal('gender')))],
+            'civil_status' => ['sometimes', 'nullable', 'string', 'between:1,40', 'prohibited_unless:optional_identity_consent,true', Rule::in(AdmissionApplication::choicesKeepingRecorded(AdmissionApplication::CivilStatusChoices, $application?->getRawOriginal('civil_status')))],
             'lrn_availability' => ['sometimes', 'nullable', Rule::in(['Provided', 'NotIssued', 'NotAvailable'])],
             'current_barangay' => ['sometimes', 'nullable', 'string', 'between:1,120'],
             'current_street_address' => ['sometimes', 'nullable', 'string', 'between:1,160'],

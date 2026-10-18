@@ -23,6 +23,11 @@ class AssistedAdmissionApplication extends ApplicantApplication
 
     public int $applicantId;
 
+    protected function showsApplicantProgramNames(): bool
+    {
+        return false;
+    }
+
     public function mount(): void
     {
         $this->applicantId = request()->integer('applicant');

@@ -128,6 +128,27 @@ class AdmissionApplicationDomainActionsTest extends TestCase
         $this->assertSame($submitted->application_reference, $successor->application_reference);
     }
 
+    public function test_first_submission_requires_a_twelve_digit_lrn(): void
+    {
+        [$cycle, $program] = $this->openCycle();
+        $applicant = $this->applicant();
+        $draft = app(SaveAdmissionApplication::class)->execute(
+            $applicant,
+            $cycle,
+            [...$this->applicationData($program), 'lrn_availability' => 'NotIssued', 'lrn' => null],
+        );
+
+        try {
+            app(SubmitAdmissionApplication::class)->execute($draft, $applicant);
+            $this->fail('A first submission without an LRN must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('lrn', $exception->errors());
+        }
+
+        $this->assertSame(AdmissionApplication::StateDraft, $draft->fresh()->application_state);
+        $this->assertSame(0, $draft->submissionVersions()->count());
+    }
+
     public function test_switching_a_transferee_draft_to_first_year_clears_its_hidden_prior_college_identifier(): void
     {
         [$cycle, $program] = $this->openCycle();
@@ -459,7 +480,7 @@ class AdmissionApplicationDomainActionsTest extends TestCase
         [$cycle, $program] = $this->openCycle();
         $applicant = $this->applicant();
         $draft = app(SaveAdmissionApplication::class)->execute($applicant, $cycle, [
-            ...$this->applicationData($program), 'lrn_availability' => 'Provided',
+            ...$this->applicationData($program), 'lrn_availability' => 'Provided', 'lrn' => null,
         ]);
         $this->assertSame('Provided', $draft->lrn_availability);
         $this->assertNull($draft->lrn);
@@ -546,7 +567,8 @@ class AdmissionApplicationDomainActionsTest extends TestCase
             'current_province' => 'Laguna',
             'prior_school_name' => 'Synthetic Senior High School',
             'prior_school_country_code' => 'PH',
-            'lrn_availability' => 'NotIssued',
+            'lrn_availability' => 'Provided',
+            'lrn' => '123456789012',
             'prior_school_completion_year' => now()->year - 1,
             'privacy_acknowledged' => true,
             'accuracy_declared' => true,
