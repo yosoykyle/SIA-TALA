@@ -24,6 +24,16 @@ class Program extends Model
     ];
 
     /**
+     * Applicant-facing program name without the leading "Diploma in"; official records and outputs keep the full name.
+     */
+    public static function applicantName(string $name): string
+    {
+        $shortened = preg_replace('/^Diploma in\s+/i', '', $name);
+
+        return filled($shortened) ? $shortened : $name;
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

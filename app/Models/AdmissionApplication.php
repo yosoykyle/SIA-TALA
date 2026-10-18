@@ -38,6 +38,12 @@ class AdmissionApplication extends Model
 
     public const StateWithdrawn = 'Withdrawn';
 
+    /** PSA-style Sex choices (#61 F84). */
+    public const SexChoices = ['Male', 'Female'];
+
+    /** PSA-style Civil status choices (#61 F84). */
+    public const CivilStatusChoices = ['Single', 'Married', 'Widowed', 'Separated', 'Annulled'];
+
     public const PathFirstYear = AdmissionCycle::PathFirstYear;
 
     public const PathTransferee = AdmissionCycle::PathTransferee;
@@ -281,5 +287,16 @@ class AdmissionApplication extends Model
     public function evidenceVersions(): HasMany
     {
         return $this->hasMany(DocumentEvidence::class, 'admission_application_id');
+    }
+
+    /**
+     * Fixed choices plus a previously recorded legacy value, so older free-text answers stay valid.
+     *
+     * @param  list<string>  $choices
+     * @return list<string>
+     */
+    public static function choicesKeepingRecorded(array $choices, ?string $recorded): array
+    {
+        return filled($recorded) && ! in_array($recorded, $choices, true) ? [...$choices, $recorded] : $choices;
     }
 }

@@ -34,6 +34,7 @@ use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
+use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Courses\CourseResource;
@@ -67,6 +68,7 @@ use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\FaqEntry;
 use App\Models\User;
+use App\Queries\Admissions\AdmissionQueueCounts;
 use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
@@ -320,11 +322,13 @@ class AdminPanelProvider extends PanelProvider
         }
 
         if ($selectedContext === User::StaffRoleRegistrar) {
-            return $builder->group('Learner work', $this->labeledNavigationItems([
-                'Admissions' => Admissions::class,
-                'Students & Enrollment' => EnrollmentResource::class,
-                'Grades & Completion' => GradesAndCompletion::class,
-            ]))->group('Academic setup', $this->labeledNavigationItems([
+            return $builder->group('Learner work', [
+                ...$this->admissionsWithQueues($this->labeledNavigationItems(['Admissions' => Admissions::class])),
+                ...$this->labeledNavigationItems([
+                    'Students & Enrollment' => EnrollmentResource::class,
+                    'Grades & Completion' => GradesAndCompletion::class,
+                ]),
+            ])->group('Academic setup', $this->labeledNavigationItems([
                 'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
                 'Term Planning' => TermPlanningCluster::class,
             ]));
@@ -364,5 +368,33 @@ class AdminPanelProvider extends PanelProvider
             return collect($component::getNavigationItems())
                 ->map(fn (NavigationItem $item): NavigationItem => $item->label($label))->all();
         })->values()->all();
+    }
+
+    /**
+     * Admissions shows the Registrar-action count and, while inside Admissions, one sub-item per queue (#61 F101).
+     *
+     * @param  list<NavigationItem>  $items
+     * @return list<NavigationItem>
+     */
+    private function admissionsWithQueues(array $items): array
+    {
+        if ($items === [] || ! AdmissionApplicationResource::canAccess()) {
+            return $items;
+        }
+
+        $queues = app(AdmissionQueueCounts::class);
+        $counts = collect(AdmissionQueueCounts::labels())->map(fn (string $label, string $queue): int => $queues->count($queue));
+        $actionCount = collect(AdmissionQueueCounts::registrarActionQueues())->sum(fn (string $queue): int => $counts[$queue]);
+        $onList = fn (): bool => request()->routeIs(ListAdmissionApplications::getRouteName());
+
+        $children = $counts->map(fn (int $count, string $queue): NavigationItem => NavigationItem::make(AdmissionQueueCounts::labels()[$queue])
+            ->url(ListAdmissionApplications::getUrl(['tab' => $queue]))
+            ->badge($count ?: null, in_array($queue, AdmissionQueueCounts::registrarActionQueues(), true) ? 'warning' : 'gray')
+            ->isActiveWhen(fn (): bool => $onList() && (request()->query('tab') ?? AdmissionQueueCounts::NeedsReview) === $queue))
+            ->values()->all();
+
+        return array_map(fn (NavigationItem $item): NavigationItem => $item
+            ->badge($actionCount ?: null, 'warning')
+            ->childItems($children), $items);
     }
 }

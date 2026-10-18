@@ -104,7 +104,7 @@ class PublicGatewayProjectionTest extends TestCase
             config()->set('institution.public.map_embed_url', $reference);
 
             $this->get('/')->assertDontSee('<iframe', false)
-                ->assertSee('Open in Google Maps')
+                ->assertSee('Get directions')
                 ->assertSee(config('institution.public.map_url'));
         }
     }

@@ -668,7 +668,6 @@ class Issue57AdmissionsPresentationTest extends TestCase
     public static function draftDiscardPages(): array
     {
         return [
-            'Applicant Home' => [Dashboard::class],
             'Draft form' => [Application::class],
         ];
     }
@@ -692,23 +691,20 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertModelMissing($application);
     }
 
-    public function test_home_discard_rejects_a_draft_that_was_submitted_after_confirmation_opened(): void
+    public function test_draft_form_discard_rejects_a_draft_that_was_submitted_after_confirmation_opened(): void
     {
         [$application, $applicant] = $this->editableDraft();
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
-        $page = Livewire::actingAs($applicant)->test(Dashboard::class, ['sourceApplicationId' => $application->id])
+        $page = Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
             ->mountAction('discardDraft');
         $application->update(['application_state' => AdmissionApplication::StateSubmitted]);
 
         $page->callMountedAction();
         $this->assertModelExists($application);
         $this->assertSame(AdmissionApplication::StateSubmitted, $application->fresh()->application_state);
-
-        Livewire::actingAs($applicant)->test(Dashboard::class, ['sourceApplicationId' => $application->id])
-            ->assertActionHidden('discardDraft');
     }
 
-    public function test_home_discard_dialog_is_outside_the_collapsed_application_history(): void
+    public function test_home_action_dialogs_are_outside_the_collapsed_application_history(): void
     {
         [$application, $applicant] = $this->editableDraft();
         Filament::setCurrentPanel(Filament::getPanel('applicant'));

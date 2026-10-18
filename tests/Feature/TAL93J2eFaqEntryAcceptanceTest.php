@@ -70,7 +70,7 @@ class TAL93J2eFaqEntryAcceptanceTest extends TestCase
     public function test_seeding_is_idempotent_and_does_not_overwrite_admin_edits(): void
     {
         // DatabaseSeeder (setUp) already ran FaqEntrySeeder once.
-        $this->assertSame(3, FaqEntry::query()->count());
+        $this->assertSame(4, FaqEntry::query()->count());
 
         $original = FaqEntry::query()->where('system_key', 'apply-admission')->firstOrFail();
         $edited = app(ManagePublicContent::class)->save($original, $this->actingAsSuperAdmin(), [
@@ -83,9 +83,9 @@ class TAL93J2eFaqEntryAcceptanceTest extends TestCase
         $edited->refresh();
         $this->assertSame('Admin curated question?', $edited->question, 'Re-seeding must not overwrite later admin edits.');
         $this->assertSame(99, $edited->sort_order);
-        $this->assertSame(4, FaqEntry::query()->count(), 'Re-seeding must preserve the original and successor without duplicates.');
-        $this->assertSame('How do I apply for admission?', $original->fresh()->question);
-        $this->assertSame(3, FaqEntry::query()->distinct()->count('system_key'));
+        $this->assertSame(5, FaqEntry::query()->count(), 'Re-seeding must preserve the original and successor without duplicates.');
+        $this->assertSame('How do I apply for admission to SIA?', $original->fresh()->question);
+        $this->assertSame(4, FaqEntry::query()->distinct()->count('system_key'));
     }
 
     public function test_super_admin_can_create_edit_and_delete_with_attribution(): void

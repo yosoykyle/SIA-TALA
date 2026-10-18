@@ -260,7 +260,8 @@ class TAL96D5E1D4AdmissionsJourneyClosureTest extends TestCase
         Livewire::actingAs($applicant)
             ->test(Dashboard::class)
             ->assertOk()
-            ->assertSee('No application yet')
+            ->assertSee('Not started')
+            ->assertSee("You haven't started an application yet.", false)
             ->assertDontSee('Identity Document')
             ->assertDontSee('Submitted Digital Documents');
 

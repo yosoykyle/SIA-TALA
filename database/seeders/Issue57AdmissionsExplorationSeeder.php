@@ -115,7 +115,7 @@ class Issue57AdmissionsExplorationSeeder extends Seeder
                 ];
                 $definitions['applicant.als.demo@example.test'] = [
                     ...$definitions['applicant.review.demo@example.test'],
-                    'credential_basis' => 'ALS_AE', 'lrn_availability' => 'NotAvailable',
+                    'credential_basis' => 'ALS_AE',
                     'prior_school_name' => 'Synthetic ALS learning center',
                 ];
 
@@ -226,7 +226,7 @@ class Issue57AdmissionsExplorationSeeder extends Seeder
             'citizenship_country_code' => 'PH', 'phone' => '09170000001', 'current_city_municipality' => 'Synthetic City',
             'current_province' => 'Synthetic Province', 'prior_school_name' => $definition['prior_school_name'] ?? 'Synthetic Prior School',
             'prior_school_country_code' => 'PH', 'prior_school_completion_year' => now()->year - 1,
-            'privacy_acknowledged' => true, 'accuracy_declared' => true, 'lrn_availability' => $definition['lrn_availability'] ?? 'NotIssued',
+            'privacy_acknowledged' => true, 'accuracy_declared' => true, 'lrn_availability' => 'Provided', 'lrn' => sprintf('%012d', crc32($user->email)),
         ]);
 
         if ($definition['application_state'] === AdmissionApplication::StateDraft) {

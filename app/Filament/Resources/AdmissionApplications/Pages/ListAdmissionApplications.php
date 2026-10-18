@@ -6,11 +6,12 @@ use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Models\AdmissionApplication;
 use App\Models\User;
+use App\Queries\Admissions\AdmissionQueueCounts;
 use App\Queries\Admissions\AssistedDraftApplicantQuery;
-use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\ValidationException;
@@ -30,9 +31,6 @@ class ListAdmissionApplications extends ListRecords
     {
         abort_unless(static::canAccess(), 403);
     }
-
-    /** @var list<int>|null */
-    private ?array $readyApplicationIdCache = null;
 
     public function getBreadcrumb(): string
     {
@@ -130,53 +128,36 @@ class ListAdmissionApplications extends ListRecords
     /** @return array<string, Tab> */
     public function getTabs(): array
     {
-        return [
-            'needs_review' => Tab::make('Needs review')
-                ->badge(fn (): ?int => $this->queueCount(AdmissionApplication::StateSubmitted))
-                ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('application_state', AdmissionApplication::StateSubmitted)),
-            'waiting_for_applicant' => Tab::make('Waiting for applicant')
-                ->badge(fn (): ?int => $this->queueCount(AdmissionApplication::StateActionNeeded))
-                ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('application_state', AdmissionApplication::StateActionNeeded)),
-            'official_credentials' => Tab::make('Registrar clearance')
-                ->badge(fn (): ?int => AdmissionApplicationResource::getEloquentQuery()->where('application_state', AdmissionApplication::StateAdmitted)->whereNotIn('id', $this->readyApplicationIds())->count() ?: null)
-                ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('application_state', AdmissionApplication::StateAdmitted)
-                    ->whereNotIn('id', $this->readyApplicationIds())),
-            'ready_for_enrollment' => Tab::make('Ready for enrollment')
-                ->badge(fn (): ?int => AdmissionApplicationResource::getEloquentQuery()->whereIn('id', $this->readyApplicationIds())->count() ?: null)
-                ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->whereIn('id', $this->readyApplicationIds())),
-            'history' => Tab::make('Closed applications')
-                ->badge(fn (): ?int => AdmissionApplicationResource::getEloquentQuery()->whereIn('application_state', [AdmissionApplication::StateNotAdmitted, AdmissionApplication::StateWithdrawn])->count() ?: null)
-                ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->whereIn('application_state', [
-                        AdmissionApplication::StateNotAdmitted,
-                        AdmissionApplication::StateWithdrawn,
-                    ])),
-        ];
+        $queues = app(AdmissionQueueCounts::class);
+
+        return collect(AdmissionQueueCounts::labels())->mapWithKeys(fn (string $label, string $queue): array => [
+            $queue => Tab::make($label)
+                ->badge(fn (): ?int => $queues->count($queue) ?: null)
+                ->modifyQueryUsing(fn (Builder $query): Builder => $queues->scope($query, $queue)),
+        ])->all();
+    }
+
+    /**
+     * The sidebar's Admissions sub-items switch queues, so the tab bar is hidden while its tabs still filter the list (#61 F101).
+     */
+    public function getTabsContentComponent(): Component
+    {
+        return parent::getTabsContentComponent()->hidden();
+    }
+
+    public function getHeading(): string
+    {
+        return AdmissionQueueCounts::labels()[$this->activeTab ?? AdmissionQueueCounts::NeedsReview] ?? 'Admissions';
     }
 
     public function getSubheading(): ?string
     {
-        if ($this->activeTab === 'history') {
+        if ($this->activeTab === AdmissionQueueCounts::Closed) {
             return 'Terminal admission applications (withdrawn or not admitted). For an individual application audit trail, view Record history within that application.';
         }
 
-        return null;
-    }
+        $count = app(AdmissionQueueCounts::class)->count($this->activeTab ?? AdmissionQueueCounts::NeedsReview);
 
-    private function queueCount(string $state): ?int
-    {
-        return AdmissionApplicationResource::getEloquentQuery()->where('application_state', $state)->count() ?: null;
-    }
-
-    /** @return list<int> */
-    private function readyApplicationIds(): array
-    {
-        return $this->readyApplicationIdCache ??= app(ReadyApplicantProjectionQuery::class)
-            ->readyApplicationIds()
-            ->all();
+        return $count === 1 ? '1 application' : $count.' applications';
     }
 }

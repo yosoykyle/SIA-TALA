@@ -17,6 +17,16 @@ class StudentProfileOverviewWidget extends BaseWidget
 
     protected ?string $pollingInterval = null;
 
+    /**
+     * Two summary cards per row until the content area can hold four readable cards.
+     *
+     * @return array<string, int>
+     */
+    protected function getColumns(): array
+    {
+        return ['@lg' => 2, '!@md' => 2, '@4xl' => 4, '!@xl' => 4];
+    }
+
     protected function getStats(): array
     {
         /** @var User $user */
@@ -40,7 +50,7 @@ class StudentProfileOverviewWidget extends BaseWidget
         $curriculum = app(CurriculumEvaluation::class)->forStudent($profile);
 
         $stats = [
-            Stat::make('Lifecycle Status', str((string) $profile->lifecycle_status)->headline()->toString())
+            Stat::make('Lifecycle Status', StudentProfile::lifecycleStatusLabel($profile->lifecycle_status))
                 ->description(match ($profile->lifecycle_status) {
                     StudentProfile::LifecycleArchived => 'This is your official Student Profile status. Contact the Registrar Office if this is unexpected.',
                     default => 'This is your official Student Profile status.',
@@ -50,7 +60,7 @@ class StudentProfileOverviewWidget extends BaseWidget
                     StudentProfile::LifecycleArchived => 'danger',
                     default => 'info',
                 }),
-            Stat::make('Enrollment Guidance', str($academicEffect['effect'])->headline()->toString())
+            Stat::make('Enrollment Guidance', AcademicDecision::effectOptions()[$academicEffect['effect']] ?? str($academicEffect['effect'])->lower()->headline()->toString())
                 ->description($academicEffect['reason'].' Source: '.$academicEffect['source'].'.')
                 ->color(match ($academicEffect['effect']) {
                     AcademicDecision::EffectBlocked => 'danger',
