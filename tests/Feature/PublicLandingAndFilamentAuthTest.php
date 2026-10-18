@@ -120,14 +120,14 @@ class PublicLandingAndFilamentAuthTest extends TestCase
 
         $user = $method->invoke($page, [
             'email' => 'test-applicant@example.test',
-            'password' => 'a valid passphrase',
-            'password_confirmation' => 'a valid passphrase',
+            'password' => 'Valid1!passphrase',
+            'password_confirmation' => 'Valid1!passphrase',
             'privacy_acknowledged' => true,
         ]);
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertTrue($user->hasRole('applicant'));
-        $this->assertTrue(Hash::check('a valid passphrase', $user->password));
+        $this->assertTrue(Hash::check('Valid1!passphrase', $user->password));
     }
 
     /**
