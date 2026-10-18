@@ -92,6 +92,20 @@
                             </a>
                         </div>
                     </div>
+                    <dl class="hero-facts">
+                        <div class="hero-fact">
+                            <dt>Established</dt>
+                            <dd>2017</dd>
+                        </div>
+                        <div class="hero-fact">
+                            <dt>Location</dt>
+                            <dd>San Pedro, Laguna</dd>
+                        </div>
+                        <div class="hero-fact">
+                            <dt>Recognized by</dt>
+                            <dd>TESDA</dd>
+                        </div>
+                    </dl>
                 </div>
 
                 @php
@@ -213,14 +227,14 @@
                         <button type="button" class="hero-motion-toggle" aria-pressed="false" data-hero-motion-toggle>
                             <x-filament::icon icon="heroicon-o-pause" class="tala-public-icon hero-motion-toggle__pause" aria-hidden="true" />
                             <x-filament::icon icon="heroicon-o-play" class="tala-public-icon hero-motion-toggle__play" aria-hidden="true" />
-                            <span data-hero-motion-label>Pause motion</span>
+                            <span class="visually-hidden" data-hero-motion-label>Pause motion</span>
                         </button>
                     </div>
                 </div>
             </div>
         </section>
 
-        {{-- About SIA (#61 F100): overview, objectives and facts supplied by the owner (Oct 17); the photo frame is a placeholder until the school supplies photographs. --}}
+        {{-- About SIA (#61 F100): overview, objectives and facts supplied by the owner (Oct 17); the campus photograph is supplied by the owner (Oct 18). --}}
         <section class="section-block about-section" id="about" data-navbar-contrast-surface="theme" aria-labelledby="about-title">
             <div class="container">
                 <div class="about-layout">
@@ -249,9 +263,8 @@
                         </div>
                     </div>
                     <div class="about-aside">
-                        {{-- Placeholder for the school's campus photograph; replace with an <img> in the same frame. --}}
-                        <div class="about-media" aria-hidden="true">
-                            <img src="{{ asset('images/brand/servitech-crest-outlined-320.webp') }}" width="320" height="320" alt="" loading="lazy" decoding="async">
+                        <div class="about-media">
+                            <img src="{{ asset('images/about-computer-lab-800.webp') }}" srcset="{{ asset('images/about-computer-lab-800.webp') }} 800w, {{ asset('images/about-computer-lab-1600.webp') }} 1600w" sizes="(min-width: 992px) 45vw, 100vw" width="1600" height="1066" alt="Servitech Institute Asia computer laboratory with rows of desktop computers and black chairs" loading="lazy" decoding="async">
                         </div>
                         <dl class="about-facts">
                             <div class="about-fact"><dt>Established</dt><dd>2017</dd></div>
@@ -310,23 +323,6 @@
                     @endif
                 </form>
                 @endif
-                @if ($selectedProgram)
-                    @php($selectedIsAccepting = in_array($selectedProgram->id, $acceptingProgramIds, true))
-                    <article class="program-detail" aria-labelledby="program-detail-title">
-                        <a class="text-link" href="{{ route('home', $programFilters) }}#programs">Back to filtered Programs</a>
-                        <h3 id="program-detail-title">{{ $selectedProgram->name }}</h3>
-                        <dl class="program-facts">
-                            <div class="program-fact"><dt>Program length:&nbsp;</dt><dd>{{ $selectedProgram->duration_years }} {{ Str::plural('year', $selectedProgram->duration_years) }}</dd></div>
-                            <div class="program-fact"><dt>Admission:&nbsp;</dt><dd>{{ $selectedIsAccepting ? 'Applications open' : 'Ask Admissions about applying' }}</dd></div>
-                        </dl>
-                        <p>Contact Admissions for course and qualification details and the requirements for your Student type.</p>
-                        @if ($selectedIsAccepting && $applicantEntryReady)
-                            <a class="btn btn-primary-custom" href="{{ route('public.apply', ['program' => $selectedProgram->id]) }}">Apply for {{ $selectedProgram->name }}</a>
-                        @else
-                            <button class="btn btn-secondary-custom" type="button" data-bs-toggle="modal" data-bs-target="#supportModal">Contact Admissions</button>
-                        @endif
-                    </article>
-                @else
                 <ul class="program-list list-unstyled mb-0">
                     @forelse ($programs as $program)
                         @php($isAccepting = in_array($program->id, $acceptingProgramIds, true))
@@ -349,7 +345,7 @@
                                     </dd>
                                 </div>
                             </dl>
-                            <a class="text-link program-read-more" href="{{ route('home', [...$programFilters, 'program' => $program->id]) }}#programs">Read more<span class="visually-hidden"> about {{ $program->name }}</span></a>
+                            <a class="text-link program-read-more" href="{{ route('home', [...$programFilters, 'program' => $program->id]) }}#programs" data-bs-toggle="modal" data-bs-target="#programDetailModal-{{ $program->id }}" data-program-read-more="{{ $program->id }}">Read more<span class="visually-hidden"> about {{ $program->name }}</span></a>
                         </li>
                     @empty
                         <li class="program-empty">
@@ -358,11 +354,10 @@
                         </li>
                     @endforelse
                 </ul>
-                @endif
             </div>
         </section>
 
-        <section @class(['faq-section', 'section-block', 'faq-section--compact' => $faqEntries->isEmpty()]) id="faq" data-navbar-contrast-surface="theme" aria-labelledby="faq-title">
+        <section class="faq-section section-block" id="faq" data-navbar-contrast-surface="theme" aria-labelledby="faq-title">
             <div class="container">
                 @if ($faqEntries->isNotEmpty())
                     <div class="discovery-grid">
@@ -467,8 +462,8 @@
                 {{-- Visitor guidelines: owner-supplied reference content (Oct 16), placeholder until the school confirms hours, rules and its appointment process. --}}
                 <section class="visit-guidelines" aria-labelledby="visit-guidelines-title">
                     {{-- Placeholder for the campus photo the school will supply; replace with an <img> of the same frame. --}}
-                    <div class="visit-guidelines__media" aria-hidden="true">
-                        <img src="{{ asset('images/brand/servitech-crest-outlined-320.webp') }}" width="320" height="320" alt="" loading="lazy" decoding="async">
+                    <div class="visit-guidelines__media">
+                        <img src="{{ asset('images/visit-computer-room-800.webp') }}" srcset="{{ asset('images/visit-computer-room-800.webp') }} 800w, {{ asset('images/visit-computer-room-1152.webp') }} 1152w" sizes="(min-width: 992px) 45vw, 100vw" width="1152" height="768" alt="Servitech Institute Asia computer room with two desktop computers beside tall windows" loading="lazy" decoding="async">
                     </div>
                     <div class="visit-guidelines__body">
                         <h3 class="visit-guidelines__title" id="visit-guidelines-title">Office hours and visitor guidelines</h3>
@@ -557,6 +552,35 @@
             </div>
         </div>
     </footer>
+
+    @foreach ($programs as $program)
+        @php($isAccepting = in_array($program->id, $acceptingProgramIds, true))
+        <div class="modal fade tala-info-modal program-detail-modal" id="programDetailModal-{{ $program->id }}" tabindex="-1" aria-labelledby="program-detail-title-{{ $program->id }}" aria-hidden="true" data-program-detail-modal="{{ $program->id }}">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title h3" id="program-detail-title-{{ $program->id }}">{{ $program->name }}</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close program details"></button>
+                    </div>
+                    <div class="modal-body">
+                        <dl class="program-facts">
+                            <div class="program-fact"><dt>Program length:&nbsp;</dt><dd>{{ $program->duration_years }} {{ Str::plural('year', $program->duration_years) }}</dd></div>
+                            <div class="program-fact"><dt>Admission:&nbsp;</dt><dd>{{ $isAccepting ? 'Applications open' : 'Ask Admissions about applying' }}</dd></div>
+                        </dl>
+                        <p>Contact Admissions for course and qualification details and the requirements for your Student type.</p>
+                        <div class="modal-action-list">
+                            @if ($isAccepting && $applicantEntryReady)
+                                <a class="btn btn-primary-custom" href="{{ route('public.apply', ['program' => $program->id]) }}">Apply for {{ $program->name }}</a>
+                            @else
+                                <a class="btn btn-secondary-custom" href="{{ route('home', ['modal' => 'support']) }}">Contact Admissions</a>
+                            @endif
+                            <a class="btn btn-secondary-custom" href="{{ route('home', $programFilters) }}#programs" data-bs-dismiss="modal">Back to all Programs</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
 
     <div class="modal fade tala-info-modal" id="supportModal" tabindex="-1" aria-labelledby="supportModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">

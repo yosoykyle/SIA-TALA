@@ -420,6 +420,24 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 
 .school-identity-copy { min-width: 0; }
 
+.hero-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+}
+
+.hero-fact {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 1rem;
+    background: rgb(255 255 255 / 6%);
+}
+
+.hero-fact dt { color: var(--landing-hero-muted); font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
+.hero-fact dd { margin: 0.25rem 0 0; color: #ffffff; font-size: 1.0625rem; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+
 .display-headline {
     font-size: clamp(2.5rem, 5vw, 4.25rem);
     font-weight: 700;
@@ -643,9 +661,11 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
     margin-inline-start: auto;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.4rem;
+    width: 2.75rem;
     min-height: 2.75rem;
-    padding: 0 0.875rem;
+    padding: 0;
     border: 1px solid rgb(255 255 255 / 30%);
     border-radius: 999px;
     background-color: rgb(255 255 255 / 6%);
@@ -784,9 +804,9 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 body .btn:focus-visible,
 body .navbar-toggler:focus-visible { outline: 0.2rem solid var(--tala-focus); outline-offset: 0.2rem; }
 .program-read-more { grid-column: 2; padding-block: 0.5rem; justify-self: start; }
-.program-detail { max-width: 65ch; padding-block: 1rem; }
-.program-detail h3 { margin-block: 1.5rem 0.75rem; font-size: 1.5rem; }
-.program-detail .program-facts { gap: 0.75rem 1.5rem; margin-block-end: 1rem; }
+.program-detail-modal .program-facts { display: grid; gap: 0.75rem; margin-block-end: 1rem; }
+.program-detail-modal .program-fact { display: flex; flex-wrap: wrap; gap: 0 0.5rem; }
+.program-detail-modal .modal-body > p { color: var(--tala-muted); line-height: 1.6; }
 
 .program-empty {
     grid-column: 1 / -1;
@@ -812,8 +832,6 @@ body .navbar-toggler:focus-visible { outline: 0.2rem solid var(--tala-focus); ou
 .discovery-intro,
 .discovery-content { min-width: 0; }
 .discovery-intro > .btn { margin-block-start: 1.5rem; }
-
-.faq-section--compact { padding-block: clamp(2rem, 4vw, 3rem); }
 
 .faq-help {
     display: grid;
@@ -938,18 +956,18 @@ body .navbar-toggler:focus-visible { outline: 0.2rem solid var(--tala-focus); ou
 .about-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 1rem 1.5rem; margin: 0; padding-top: 1.25rem; border-top: 1px solid var(--tala-border); }
 .about-fact dt { color: var(--tala-muted); font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
 .about-fact dd { margin: 0.25rem 0 0; color: var(--tala-ink); font-size: 1.0625rem; font-weight: 650; line-height: 1.35; }
-.about-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.75rem; }
+.about-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
 .about-media {
     display: grid;
     place-items: center;
-    min-height: 18rem;
+    min-height: 14rem;
     overflow: hidden;
     border-radius: var(--tala-radius-lg);
     background:
         radial-gradient(120% 90% at 20% 0%, rgb(255 255 255 / 10%), transparent 60%),
         linear-gradient(160deg, #1d4f27 0%, #0f2e18 100%);
 }
-.about-media img { width: min(11rem, 45%); height: auto; opacity: 0.85; }
+.about-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 /* Visitor guidelines band: campus photo frame beside three fact cards. */
 .visit-guidelines {
@@ -974,7 +992,7 @@ body .navbar-toggler:focus-visible { outline: 0.2rem solid var(--tala-focus); ou
         linear-gradient(160deg, #1d4f27 0%, #0f2e18 100%);
 }
 
-.visit-guidelines__media img { width: min(9rem, 45%); height: auto; opacity: 0.85; }
+.visit-guidelines__media img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .visit-guidelines__title { margin: 0 0 1rem; color: var(--tala-ink); font-size: 1.375rem; font-weight: 700; line-height: 1.3; text-wrap: balance; }
 .visit-guidelines__cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
 
@@ -1283,13 +1301,14 @@ button.btn-scroll-top { transition: opacity 160ms ease, transform 160ms ease, bo
 @media (min-width: 48rem) {
     .visit-guidelines__cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .school-identity {
-        grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr);
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.5fr) minmax(0, 0.9fr);
         align-items: center;
         gap: 3rem;
         padding-block: 1rem 3.5rem;
     }
 
     .school-identity-crest { justify-self: center; }
+    .hero-facts { grid-template-columns: minmax(0, 1fr); }
     .discovery-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 3rem; }
     .faq-help { grid-template-columns: auto minmax(0, 1fr) auto; padding: 1.5rem 1.75rem; }
     .faq-help > .btn { grid-column: auto; }
