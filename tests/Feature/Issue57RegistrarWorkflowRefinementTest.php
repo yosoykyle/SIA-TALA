@@ -427,7 +427,7 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
         $response = $this->actingAs($user)
             ->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAccounting])
             ->get('/admin?application='.$application->id);
-        $response->assertRedirect('/admin/fee-plans');
+        $response->assertRedirect('/admin/enrollments');
     }
 
     public function test_staff_entry_selected_faculty_context_redirects_to_faculty_destination_ignoring_application_param(): void

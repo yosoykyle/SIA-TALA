@@ -17,23 +17,28 @@ class RecordLateEnrollmentReopenAuthority
         Enrollment $enrollment,
         User $actor,
         string $authorityReference,
-        string $reason,
+        ?string $reason = null,
+        ?int $expectedLockVersion = null,
     ): RegistrationCaseEvent {
         if (! $actor->canAuthenticate()
             || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only authorized Registrar staff may record late-enrollment reopen authority.');
         }
 
-        return DB::transaction(function () use ($enrollment, $actor, $authorityReference, $reason): RegistrationCaseEvent {
+        return DB::transaction(function () use ($enrollment, $actor, $authorityReference, $reason, $expectedLockVersion): RegistrationCaseEvent {
             $locked = Enrollment::query()->whereKey($enrollment->id)->lockForUpdate()->firstOrFail();
             $authorityReference = trim($authorityReference);
-            $reason = trim($reason);
+            $reason = filled($reason) ? trim($reason) : null;
 
-            if (! in_array($locked->canonical_outcome, Enrollment::reopenableOutcomes(), true)
-                || $authorityReference === ''
-                || $reason === '') {
+            if ($expectedLockVersion !== null && $locked->lock_version !== $expectedLockVersion) {
                 throw ValidationException::withMessages([
-                    'late_authority' => 'Late-enrollment authority requires the exact terminal case, Term, authority reference, and reason.',
+                    'case' => 'The Registration Case changed. Reopen this review before recording approval.',
+                ]);
+            }
+
+            if (! in_array($locked->canonical_outcome, Enrollment::reopenableOutcomes(), true) || $authorityReference === '') {
+                throw ValidationException::withMessages([
+                    'late_authority' => 'Late-enrollment authority requires the exact terminal case, Term and approval reference.',
                 ]);
             }
 
@@ -41,7 +46,31 @@ class RecordLateEnrollmentReopenAuthority
                 ->where('enrollment_id', $locked->id)
                 ->where('event_type', self::EventType)
                 ->where('authority_reference', $authorityReference)
+                ->lockForUpdate()
                 ->first();
+
+            if ($existing instanceof RegistrationCaseEvent && (
+                $existing->from_outcome !== $locked->canonical_outcome
+                || $existing->to_outcome !== $locked->canonical_outcome
+                || ($reason !== null && $existing->reason !== $reason)
+                || RegistrationCaseEvent::query()
+                    ->where('enrollment_id', $locked->id)
+                    ->where('id', '>', $existing->id)
+                    ->whereNotNull('from_outcome')
+                    ->whereNotNull('to_outcome')
+                    ->whereColumn('from_outcome', '!=', 'to_outcome')
+                    ->exists()
+                || RegistrationCaseEvent::query()
+                    ->where('enrollment_id', $locked->id)
+                    ->where('event_type', 'Reopened')
+                    ->where('authority_reference', $authorityReference)
+                    ->where('id', '>', $existing->id)
+                    ->exists()
+            )) {
+                throw ValidationException::withMessages([
+                    'late_authority' => 'This approval conflicts with an existing same-case approval or reopening. Record the current approval for this case.',
+                ]);
+            }
 
             if ($existing instanceof RegistrationCaseEvent) {
                 return $existing;

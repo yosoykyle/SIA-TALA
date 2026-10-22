@@ -16,6 +16,27 @@ class ListGradeRosters extends ListRecords
     #[Url]
     public ?int $oversightTermId = null;
 
+    public function getTitle(): string
+    {
+        return $this->isHeadReader() ? 'Class rosters' : parent::getTitle();
+    }
+
+    public function getSubheading(): ?string
+    {
+        return $this->isHeadReader() ? 'Find a class, check official membership and inspect released results. Use the filters to select a term.' : parent::getSubheading();
+    }
+
+    private function isHeadReader(): bool
+    {
+        return (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? false)
+            && ! auth()->user()->hasRole(User::StaffRoleRegistrar);
+    }
+
+    public function getExtraBodyAttributes(): array
+    {
+        return $this->isHeadReader() ? ['class' => 'tala-head-rosters-page'] : parent::getExtraBodyAttributes();
+    }
+
     protected function getHeaderActions(): array
     {
         return auth()->user()?->hasRole(User::StaffRoleAcademicHead)

@@ -41,20 +41,20 @@ final class ExactDuePaymentSnapshotService
 
         $projection = $this->projection->forAccount($account, $asOf);
 
-        if (($projection['assessment_id'] ?? null) !== $assessment->id) {
+        if ($projection['state'] === 'Unavailable' || (int) ($projection['assessment_id'] ?? 0) !== (int) $assessment->id) {
             throw new PaymentAttemptSnapshotException('assessment_projection_mismatch');
         }
 
         $obligations = collect($projection['obligations'])
             ->filter(fn (array $row): bool => ($row['is_due'] ?? false) === true
-                && $this->money->greaterThanZero((string) ($row['balance'] ?? '0.00')))
+                && $this->money->greaterThanZero((string) ($row['available_balance'] ?? '0.00')))
             ->values()
             ->map(fn (array $row, int $index): array => [
                 'id' => (int) $row['id'],
                 'sequence' => $index + 1,
                 'code' => (string) $row['code'],
                 'label' => (string) $row['label'],
-                'amount' => $this->money->normalize((string) $row['balance']),
+                'amount' => $this->money->normalize((string) $row['available_balance']),
             ])
             ->all();
         $amount = $this->money->fromCents((int) collect($obligations)
@@ -96,7 +96,7 @@ final class ExactDuePaymentSnapshotService
 
         $account = TermAccount::query()->lockForUpdate()->find($attempt->term_account_id);
 
-        if (! $account instanceof TermAccount || $account->state !== TermAccount::StateOpen) {
+        if (! $account instanceof TermAccount) {
             throw new PaymentAttemptSnapshotException('term_account_unavailable');
         }
 

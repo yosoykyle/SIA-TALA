@@ -218,8 +218,8 @@ class AdmissionsStudentHandoverUiTest extends TestCase
         $this->actingAs($student);
 
         Livewire::test(StudentProfilePage::class)
-            ->assertSee('Official Student Record')
-            ->assertSee('Correction guidance')
+            ->assertSee('Contact details')
+            ->assertSee('For corrections, contact the Registrar.')
             ->assertDontSee('Save Contact Details');
 
         $studentProfile->refresh();

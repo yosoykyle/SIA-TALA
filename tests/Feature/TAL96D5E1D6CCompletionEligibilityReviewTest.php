@@ -27,7 +27,7 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         foreach (['student', User::StaffRoleRegistrar, User::StaffRoleAcademicHead] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
@@ -71,7 +71,7 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
     }
 
     #[Test]
-    public function graduation_withdrawal_action_uses_unambiguous_task_label(): void
+    public function recorded_graduation_history_remains_read_only_for_the_student(): void
     {
         $student = $this->staff('student');
         $profile = StudentProfile::factory()->create(['user_id' => $student->id]);
@@ -83,11 +83,12 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        Livewire::actingAs($student)
+        Livewire::actingAs($student)->withQueryParams(['view' => 'graduation'])
             ->test(Academics::class)
-            ->assertActionExists('withdrawGraduationApplication')
-            ->assertActionVisible('withdrawGraduationApplication')
-            ->assertSee('Withdraw graduation application');
+            ->assertSee('Application history')
+            ->assertDontSee('Apply for graduation')
+            ->assertDontSee('Withdraw graduation application')
+            ->assertActionDoesNotExist('withdrawGraduationApplication');
     }
 
     private function staff(string $role): User

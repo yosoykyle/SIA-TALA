@@ -150,23 +150,40 @@ final class PayMongoCheckoutRecoveryService
     /**
      * @return array{status:string,event_id:int,payment_id:int}
      */
-    public function confirm(int $eventId, string $reason, User $actor): array
+    public function confirm(int $eventId, ?string $reason, User $actor): array
     {
         $this->authorize($actor);
-        $reason = $this->normalizedReason($reason);
+        $reason = filled($reason) ? $this->normalizedReason((string) $reason) : null;
 
         return DB::transaction(function () use ($actor, $eventId, $reason): array {
             $event = $this->recoveryEventForUpdate($eventId);
             $attempt = $this->attemptForEvent($event);
             $existingPayment = Payment::query()
-                ->with('ledgerEntry')
+                ->with('allocations')
                 ->where('payment_attempt_id', $attempt->id)
                 ->lockForUpdate()
                 ->first();
 
             if ($event->status === OperationalEvent::StatusProcessed
-                && $existingPayment instanceof Payment
-                && $existingPayment->ledgerEntry !== null) {
+                && data_get($event->diagnostics, 'resolution.action') === 'confirmed') {
+                $payment = data_get($event->payload, 'payment');
+                if (! $existingPayment instanceof Payment || ! is_array($payment)
+                    || $event->related_record_type !== Payment::class || $event->related_record_id !== $existingPayment->id
+                    || (int) data_get($event->diagnostics, 'resolution.payment_id') !== $existingPayment->id
+                    || $existingPayment->term_account_id !== $attempt->term_account_id
+                    || $attempt->status !== PaymentAttempt::StatusConfirmed || $attempt->currency !== 'PHP' || $existingPayment->currency !== 'PHP'
+                    || $existingPayment->state !== Payment::StatePosted || $existingPayment->evidence_status !== 'verified'
+                    || $existingPayment->provider_reference !== 'paymongo:'.($payment['id'] ?? '')
+                    || $this->money->normalize($existingPayment->amount) !== $this->money->normalize($attempt->amount)) {
+                    throw new RuntimeException('The confirmed recovery no longer matches its original payment.');
+                }
+                $this->assertExactPaymentEvidence($event, $attempt, $payment);
+                $captured = $attempt->obligations->mapWithKeys(fn ($target): array => [$target->assessment_obligation_id => $this->money->normalize($target->amount)])->sortKeys()->all();
+                $applied = $existingPayment->allocations->mapWithKeys(fn ($allocation): array => [$allocation->assessment_obligation_id => $this->money->normalize($allocation->amount)])->sortKeys()->all();
+                if ($captured === [] || $captured !== $applied) {
+                    throw new RuntimeException('The confirmed recovery no longer matches its captured payment targets.');
+                }
+
                 return [
                     'status' => 'duplicate',
                     'event_id' => $event->id,
@@ -405,7 +422,7 @@ final class PayMongoCheckoutRecoveryService
         OperationalEvent $event,
         User $actor,
         string $action,
-        string $reason,
+        ?string $reason,
         int $paymentAttemptId,
         ?int $paymentId = null,
     ): void {

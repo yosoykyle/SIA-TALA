@@ -156,6 +156,7 @@ class TAL89AGradesAcceptanceTest extends TestCase
             'credential_user_id' => $student->user_id,
             'term_id' => $offering->term_id,
             'officially_enrolled_at' => now(),
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
         ]);
         CourseEnrollment::query()->create([
             'enrollment_id' => $enrollment->id,

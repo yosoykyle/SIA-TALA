@@ -3,6 +3,7 @@
 namespace App\Actions\Finance;
 
 use App\Models\ApprovedCoverage;
+use App\Models\TermAccount;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,7 @@ class ReverseApprovedCoverage
         }
 
         return DB::transaction(function () use ($coverage, $actor, $authorityReference, $safeReason): ApprovedCoverage {
+            TermAccount::query()->whereKey($coverage->term_account_id)->lockForUpdate()->firstOrFail();
             $locked = ApprovedCoverage::query()->whereKey($coverage->id)->lockForUpdate()->firstOrFail();
             if ($locked->state !== ApprovedCoverage::StateApplied || blank($authorityReference) || blank($safeReason)) {
                 throw ValidationException::withMessages(['coverage' => 'Only active coverage may be reversed with attributable authority and a safe reason.']);

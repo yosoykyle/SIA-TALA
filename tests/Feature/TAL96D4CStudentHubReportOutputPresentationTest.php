@@ -31,7 +31,7 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotContains(DB::connection()->getDatabaseName(), ['tala_db', 'tala_test_codex']);
 
         foreach (['student', User::StaffRoleAccounting] as $role) {
@@ -70,7 +70,9 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
             ->assertDontSee('blockers:');
 
         Livewire::test(Profile::class)
-            ->assertSee('Enrollment guidance')
+            ->assertSee('Your studies')
+            ->assertSee('Current enrollment details become available after official enrollment.')
+            ->assertSee('View enrollment')
             ->assertDontSee('IRREGULAR');
 
         $holds = Livewire::test(ActiveHoldsWidget::class)->instance();
@@ -103,7 +105,7 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
         $this->assertStringContainsString((string) config('institution.name'), $output);
         $this->assertStringContainsString('Test Output', $output);
         $this->assertStringContainsString('Student Copy', $output);
-        $this->assertStringContainsString('Print / Save as PDF', $output);
+        $this->assertStringContainsString('Print or save PDF', $output);
         $this->assertStringContainsString('Verified body', $output);
 
         $released = (new ScheduleReleasedMail(

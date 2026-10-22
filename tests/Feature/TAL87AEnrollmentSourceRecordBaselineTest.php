@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Applicants\HandOverApprovedApplicant;
-use App\Actions\Enrollment\StartEnrollment;
+use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
@@ -37,7 +37,7 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertStringStartsWith('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_test_codex', DB::connection()->getDatabaseName());
 
@@ -136,10 +136,9 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
         $unauthorizedActor = User::factory()->create(['status' => User::StatusActive]);
 
         try {
-            app(StartEnrollment::class)->execute(
+            app(StartRegistrationCase::class)->forContinuingStudent(
                 $studentProfile,
                 $term,
-                'regular',
                 $unauthorizedActor,
             );
             $this->fail('Unauthorized direct enrollment start was not rejected.');

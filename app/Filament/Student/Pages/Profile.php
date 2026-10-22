@@ -2,13 +2,22 @@
 
 namespace App\Filament\Student\Pages;
 
-use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\StudentHub\StudentStudyContext;
 use App\Models\StudentProfile;
 use App\Models\User;
 use DateTimeInterface;
+use Filament\Actions\Action;
+use Filament\Forms\Components\FileUpload;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Pages\PageConfiguration;
 use Filament\Panel;
+use Filament\Support\Enums\Width;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class Profile extends Page
 {
@@ -16,13 +25,13 @@ class Profile extends Page
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user';
 
-    protected static ?string $navigationLabel = 'My Profile';
+    protected static ?string $navigationLabel = 'My profile';
 
-    protected static ?string $title = 'My Profile';
+    protected static ?string $title = 'My profile';
 
     protected string $view = 'filament.student.pages.profile';
 
-    /** @var array<int, array{heading:string,items:array<int, array{label:string,value:string}>}> */
+    /** @var array<int, array{heading:string,secondary?:bool,description?:string,items:array<int, array{label:string,value:string}>}> */
     public array $profileSections = [];
 
     /** @var list<array{event:string,effective_at:string,reason:string}> */
@@ -35,7 +44,13 @@ class Profile extends Page
 
     public static function getLabel(): string
     {
-        return static::$title ?? 'My Profile';
+        return static::$title ?? 'My profile';
+    }
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [Dashboard::getUrl(panel: 'student') => 'Overview', 'My profile'];
     }
 
     public static function getRelativeRouteName(Panel $panel): string
@@ -76,26 +91,44 @@ class Profile extends Page
             ->where('lifecycle_status', '!=', StudentProfile::LifecycleArchived)
             ->firstOrFail();
 
+        $studyContext = app(StudentStudyContext::class)->forStudent($user);
+
         $this->profileSections = [
             [
-                'heading' => 'Official Student Record',
+                'heading' => 'Student details',
                 'items' => [
-                    ['label' => 'Legal name', 'value' => $this->value(collect([$profile->first_name, $profile->middle_name, $profile->last_name])->filter()->implode(' '))],
+                    ['label' => 'Name', 'value' => $this->value(collect([$profile->first_name, $profile->middle_name, $profile->last_name])->filter()->implode(' '))],
                     ['label' => 'Student number', 'value' => $this->value($profile->student_number)],
-                    ['label' => 'Program', 'value' => $this->value($profile->program?->name)],
-                    ['label' => 'Curriculum', 'value' => $this->value($profile->curriculumVersion?->name)],
-                    ['label' => 'Entry Term', 'value' => $this->value($profile->entryTerm?->label)],
-                    ['label' => 'Lifecycle status', 'value' => $this->status($profile->lifecycle_status)],
-                    ['label' => 'Academic standing', 'value' => $this->status($profile->academic_standing)],
-                    ['label' => 'Enrollment guidance', 'value' => $this->status(app(AcademicEnrollmentEffect::class)->forStudent($profile)['effect'])],
                 ],
             ],
             [
-                'heading' => 'Official Contact Projection',
+                'heading' => 'Current studies',
+                'description' => $studyContext['is_official']
+                    ? 'Year level follows the subjects in your current official enrollment.'
+                    : 'Current enrollment details become available after official enrollment.',
+                'items' => [
+                    ['label' => 'Program', 'value' => $this->value($studyContext['program_name'])],
+                    ['label' => 'Year level', 'value' => $studyContext['study_level_label']],
+                    ['label' => 'Term', 'value' => $this->value($studyContext['semester'])],
+                    ['label' => 'School year', 'value' => $this->value($studyContext['academic_year'])],
+                ],
+            ],
+            [
+                'heading' => 'Contact details',
                 'items' => [
                     ['label' => 'Email', 'value' => $this->value($profile->email)],
                     ['label' => 'Phone', 'value' => $this->value($profile->phone)],
                     ['label' => 'Address', 'value' => $this->value($profile->address)],
+                ],
+            ],
+            [
+                'heading' => 'School record',
+                'secondary' => true,
+                'items' => [
+                    ['label' => 'Student status', 'value' => $this->status($profile->lifecycle_status)],
+                    ['label' => 'Curriculum', 'value' => $this->value($profile->curriculumVersion?->name)],
+                    ['label' => 'Entry term', 'value' => $this->value($profile->entryTerm?->label)],
+                    ['label' => 'Academic standing', 'value' => $this->status($profile->academic_standing)],
                 ],
             ],
         ];
@@ -111,6 +144,58 @@ class Profile extends Page
             ->all();
     }
 
+    public function changePhotoAction(): Action
+    {
+        return Action::make('changePhoto')
+            ->label('Change photo')
+            ->icon('heroicon-o-camera')
+            ->color('gray')
+            ->modalHeading('Change profile photo')
+            ->modalWidth(Width::Large)
+            ->modalDescription('Choose a photo for your profile. Your official school record stays the same.')
+            ->modalSubmitActionLabel('Save photo')
+            ->authorize(fn (): bool => auth()->user() instanceof User
+                && auth()->user()->hasRole('student') && auth()->user()->canAuthenticate()
+                && auth()->user()->hasAccessibleStudentProfile())
+            ->schema([
+                FileUpload::make('photo')->label('Profile photo')->image()->storeFiles(false)
+                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])->maxSize(2048)->required()
+                    ->helperText('JPG, PNG or WebP · up to 2 MB. Your photo stays private.'),
+            ])
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User && $actor->hasRole('student')
+                    && $actor->canAuthenticate() && $actor->hasAccessibleStudentProfile(), 403);
+                Validator::make($data, ['photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048']])->validate();
+                /** @var UploadedFile $photo */
+                $photo = $data['photo'];
+                $prefix = 'profile-photos/'.$actor->id.'/';
+                $path = $photo->store($prefix, ['disk' => 'local', 'visibility' => 'private']);
+                if ($path === false || ! Storage::disk('local')->exists($path)) {
+                    throw ValidationException::withMessages(['photo' => 'Unable to save your photo. Try again.']);
+                }
+
+                try {
+                    $oldPath = DB::transaction(function () use ($actor, $path): ?string {
+                        $locked = User::query()->whereKey($actor->id)->lockForUpdate()->firstOrFail();
+                        $previous = $locked->avatar_path;
+                        $locked->forceFill(['avatar_path' => $path])->save();
+
+                        return $previous;
+                    });
+                } catch (\Throwable $exception) {
+                    Storage::disk('local')->delete($path);
+                    throw $exception;
+                }
+
+                if (is_string($oldPath) && str_starts_with($oldPath, $prefix) && ! str_contains($oldPath, '../')) {
+                    Storage::disk('local')->delete($oldPath);
+                }
+                $actor->refresh();
+                Notification::make()->title('Profile photo updated')->success()->send();
+            });
+    }
+
     private function value(mixed $value): string
     {
         if ($value instanceof DateTimeInterface) {
@@ -122,6 +207,6 @@ class Profile extends Page
 
     private function status(mixed $value): string
     {
-        return filled($value) ? str((string) $value)->replace('_', ' ')->headline()->toString() : 'Not recorded';
+        return filled($value) ? str((string) $value)->lower()->replace('_', ' ')->ucfirst()->toString() : 'Not recorded';
     }
 }

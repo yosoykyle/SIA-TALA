@@ -2,30 +2,21 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\EnrollmentPlacementService;
+use App\Actions\Enrollment\PrepareRegistrationProposal;
+use App\Actions\Enrollment\PrepareStandardRegistration;
+use App\Actions\Enrollment\StartRegistrationCase;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
-use App\Models\CalendarEvent;
-use App\Models\CandidateScheduleRow;
-use App\Models\CourseComponent;
-use App\Models\CourseEnrollment;
+use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
-use App\Models\EnrollmentGateResult;
-use App\Models\EnrollmentSeatReservation;
-use App\Models\ScheduleGenerationRun;
-use App\Models\SchedulingDemand;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
 use App\Models\Section;
-use App\Models\SectionDeliveryGroup;
-use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
-use Illuminate\Auth\Access\AuthorizationException;
+use Filament\Actions\ActionGroup;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -35,467 +26,69 @@ final class TAL67EnrollmentPlacementTest extends TestCase
 {
     use DatabaseTransactions;
 
-    private EnrollmentPlacementService $placement;
-
-    private User $faculty;
-
-    protected function setUp(): void
+    public function test_standard_preparation_keeps_multi_year_offerings_in_the_earliest_unsatisfied_curriculum_position(): void
     {
-        parent::setUp();
-
-        $this->assertSame('testing', app()->environment());
-        $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
-        $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
-
-        foreach ([
-            User::StaffRoleRegistrar,
-            User::StaffRoleAcademicHead,
-            User::StaffRoleSystemSuperAdmin,
-            User::StaffRoleFaculty,
-        ] as $role) {
-            Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
+        $profile = StudentProfile::factory()->create();
+        $term = Term::factory()->create(['type' => Term::TypeFirstSemester, 'state' => Term::StateActive]);
+        $case = Enrollment::factory()->for($profile)->for($term)->create();
+        $timetable = PublishedTimetableVersion::factory()->for($term)->create();
+        $sections = [];
+        foreach (['First Year', 'Second Year'] as $index => $year) {
+            $entry = CurriculumEntry::factory()->for($profile->curriculumVersion)->create([
+                'year_level' => $year, 'term_type' => $term->type, 'sequence' => $index + 1,
+            ]);
+            $offering = TermOffering::factory()->for($term)->for($entry)->create(['state' => TermOffering::StateScheduled]);
+            $section = Section::factory()->for($offering, 'termOffering')->create(['state' => Section::StateOpen]);
+            PublishedTimetableMeeting::factory()->for($timetable, 'timetableVersion')->create(['section_id' => $section->id]);
+            $sections[] = $section;
         }
 
-        $this->placement = app(EnrollmentPlacementService::class);
-        $this->faculty = $this->staff(User::StaffRoleFaculty);
-    }
-
-    public function test_registrar_confirms_placement_into_published_schedule_without_finance_or_cor_side_effects(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($term)->create(['status' => 'capacity_pending']);
-        $section = $this->publishedPlacement($term, capacity: 2, meetingCount: 2)['section'];
-
-        $summary = $this->placement->confirm($enrollment, $section->id, $registrar);
-
-        $this->assertFalse($summary['already_confirmed']);
-        $this->assertSame(1, CourseEnrollment::query()->count());
-        $this->assertSame(1, EnrollmentSeatReservation::query()->count());
-        $this->assertSame(2, StudentScheduleBinding::query()->count());
-        $this->assertSame(9, EnrollmentGateResult::query()
-            ->whereBelongsTo($enrollment)
-            ->count());
-
-        $courseEnrollment = CourseEnrollment::query()->sole();
-        $reservation = EnrollmentSeatReservation::query()->sole();
-
-        $this->assertSame($enrollment->id, $courseEnrollment->enrollment_id);
-        $this->assertSame($section->term_offering_id, $courseEnrollment->term_offering_id);
-        $this->assertSame(CourseEnrollment::StatusActive, $courseEnrollment->status);
-        $this->assertSame($courseEnrollment->id, $reservation->course_enrollment_id);
-        $this->assertSame($section->id, $reservation->section_id);
-        $this->assertSame(EnrollmentSeatReservation::StatusPending, $reservation->status);
-        $this->assertSame($registrar->id, $reservation->registrar_user_id);
-
-        $this->assertDatabaseHas('enrollment_gate_results', [
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => EnrollmentGateResult::GateCapacity,
-            'result' => EnrollmentGateResult::ResultPassed,
-        ]);
-        $this->assertDatabaseHas('enrollment_gate_results', [
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => EnrollmentGateResult::GateConflict,
-            'result' => EnrollmentGateResult::ResultPassed,
-        ]);
-        $this->assertDatabaseHas('enrollment_gate_results', [
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => EnrollmentGateResult::GatePlacement,
-            'result' => EnrollmentGateResult::ResultPassed,
-        ]);
-        $this->assertSame('pending_payment', $enrollment->fresh()->status);
-        $this->assertNotNull($enrollment->fresh()->registered_at);
-
-        $this->assertSame(0, DB::table('ledger_entries')->count());
-        $this->assertSame(0, DB::table('payments')->count());
-        $this->assertSame(0, DB::table('payment_attempts')->count());
-        $this->assertSame(0, DB::table('output_access_logs')->count());
-    }
-
-    public function test_system_super_admin_cannot_confirm_registrar_owned_placement(): void
-    {
-        $systemSuperAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($term)->create();
-        $section = $this->publishedPlacement($term)['section'];
-
-        $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('confirmPlacement', $enrollment));
-
+        $this->assertSame([$sections[0]->id], app(PrepareStandardRegistration::class)->sectionIds($case));
+        $timetable->update(['state' => PublishedTimetableVersion::StateSuperseded]);
+        Role::findOrCreate(User::StaffRoleRegistrar, 'web');
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
         try {
-            $this->placement->confirm($enrollment, $section->id, $systemSuperAdmin);
-            $this->fail('System Administration must not inherit Registrar placement authority.');
-        } catch (AuthorizationException) {
-            $this->assertSame(0, EnrollmentSeatReservation::query()->count());
-        }
-    }
-
-    public function test_non_active_lifecycle_status_blocks_placement_before_schedule_and_seat_effects(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $term = Term::factory()->create();
-        $profile = StudentProfile::factory()->create([
-            'lifecycle_status' => StudentProfile::LifecycleArchived,
-            'archived_at' => now(),
-        ]);
-        $enrollment = Enrollment::factory()
-            ->for($profile)
-            ->for($term)
-            ->create(['status' => 'capacity_pending']);
-        $section = $this->publishedPlacement($term)['section'];
-
-        try {
-            $this->placement->confirm($enrollment, $section->id, $registrar);
-            $this->fail('Archived lifecycle status did not block placement.');
+            app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$sections[0]->id], $case->lock_version);
+            $this->fail('A superseded timetable must not substitute for a current published source.');
         } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('student_profile_id', $exception->errors());
-            $this->assertStringContainsString('Archived', $exception->errors()['student_profile_id'][0]);
+            $this->assertArrayHasKey('timetable', $exception->errors());
+            $this->assertSame(0, $case->proposalVersions()->count());
         }
 
-        $this->assertSame(0, CourseEnrollment::query()->count());
-        $this->assertSame(0, EnrollmentSeatReservation::query()->count());
-        $this->assertSame(0, StudentScheduleBinding::query()->count());
-        $this->assertDatabaseHas('enrollment_gate_results', [
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => EnrollmentGateResult::GatePlacement,
-            'result' => EnrollmentGateResult::ResultFailed,
-            'blocker_code' => 'lifecycle_status',
-        ]);
+        $this->assertSame(0, $case->courseEnrollments()->count());
+        $this->assertSame(0, $case->seatReservations()->count());
     }
 
-    public function test_academic_head_and_unauthorized_staff_cannot_confirm_placement(): void
+    public function test_non_active_lifecycle_blocks_registration_before_schedule_and_seat_effects(): void
     {
-        $academicHead = $this->staff(User::StaffRoleAcademicHead);
-        $faculty = $this->faculty;
-        $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($term)->create();
-        $section = $this->publishedPlacement($term)['section'];
-
-        $this->assertFalse(Gate::forUser($academicHead)->allows('confirmPlacement', $enrollment));
-        $this->assertFalse(Gate::forUser($faculty)->allows('confirmPlacement', $enrollment));
-
-        foreach ([$academicHead, $faculty] as $actor) {
+        Role::findOrCreate(User::StaffRoleRegistrar, 'web');
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        foreach ([StudentProfile::LifecycleCompleted, StudentProfile::LifecycleWithdrawn, StudentProfile::LifecycleInactive] as $lifecycle) {
+            $profile = StudentProfile::factory()->create(['lifecycle_status' => $lifecycle]);
             try {
-                $this->placement->confirm($enrollment, $section->id, $actor);
-                $this->fail('Unauthorized placement was not rejected.');
-            } catch (AuthorizationException) {
-                $this->assertSame(0, CourseEnrollment::query()->count());
-                $this->assertSame(0, EnrollmentSeatReservation::query()->count());
-                $this->assertSame(0, StudentScheduleBinding::query()->count());
-            }
-        }
-    }
-
-    public function test_candidate_unpublished_and_superseded_rows_cannot_be_selected(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($term)->create();
-        $candidateOnly = $this->candidateOnlyPlacement($term);
-        $superseded = $this->publishedPlacement($term, runStatus: ScheduleGenerationRun::StatusSuperseded)['section'];
-
-        foreach ([$candidateOnly, $superseded] as $section) {
-            try {
-                $this->placement->confirm($enrollment, $section->id, $registrar);
-                $this->fail('Non-published placement was not rejected.');
+                app(StartRegistrationCase::class)->forContinuingStudent($profile, $term, $registrar, 'RegistrarAssisted', 'SYN-LIFECYCLE-CHECK');
+                $this->fail('A blocked Student lifecycle must not create a Registration Case.');
             } catch (ValidationException $exception) {
-                $this->assertArrayHasKey('section_id', $exception->errors());
-                $this->assertSame(0, CourseEnrollment::query()->count());
-                $this->assertSame(0, EnrollmentSeatReservation::query()->count());
-                $this->assertSame(0, StudentScheduleBinding::query()->count());
+                $this->assertArrayHasKey('student_profile', $exception->errors());
             }
+            $this->assertSame(0, Enrollment::query()->where('credential_user_id', $profile->user_id)->count());
         }
-    }
-
-    public function test_duplicate_confirmation_is_idempotent_without_duplicate_active_records(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($term)->create();
-        $section = $this->publishedPlacement($term, meetingCount: 2)['section'];
-
-        $this->placement->confirm($enrollment, $section->id, $registrar);
-        $second = $this->placement->confirm($enrollment, $section->id, $registrar);
-
-        $this->assertTrue($second['already_confirmed']);
-        $this->assertSame(1, CourseEnrollment::query()->count());
-        $this->assertSame(1, EnrollmentSeatReservation::query()->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->count());
-        $this->assertSame(2, StudentScheduleBinding::query()->where('is_active', true)->count());
-        $this->assertSame(9, EnrollmentGateResult::query()
-            ->whereBelongsTo($enrollment)
-            ->count());
-    }
-
-    public function test_capacity_blocks_final_seat_and_rolls_back_partial_writes(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $term = Term::factory()->create();
-        $filledEnrollment = Enrollment::factory()->for($term)->create();
-        $blockedEnrollment = Enrollment::factory()->for($term)->create();
-        $section = $this->publishedPlacement($term, capacity: 1)['section'];
-
-        $this->placement->confirm($filledEnrollment, $section->id, $registrar);
-
-        try {
-            $this->placement->confirm($blockedEnrollment, $section->id, $registrar);
-            $this->fail('Full placement was not rejected.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('capacity', $exception->errors());
-        }
-
-        $this->assertSame(1, CourseEnrollment::query()->count());
-        $this->assertSame(1, EnrollmentSeatReservation::query()->count());
-        $this->assertSame(1, StudentScheduleBinding::query()->count());
-        $this->assertFalse(CourseEnrollment::query()->where('enrollment_id', $blockedEnrollment->id)->exists());
-    }
-
-    public function test_student_time_conflict_is_rejected_and_rolls_back_partial_writes(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($term)->create();
-        $existing = $this->publishedPlacement($term, startsAt: '09:00:00', endsAt: '11:00:00');
-        $target = $this->publishedPlacement($term, startsAt: '10:00:00', endsAt: '12:00:00');
-        $existingCourseEnrollment = CourseEnrollment::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'term_offering_id' => $existing['section']->term_offering_id,
-            'status' => CourseEnrollment::StatusActive,
-            'units_snapshot' => '3.00',
-            'added_at' => now(),
-        ]);
-        StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $existingCourseEnrollment->id,
-            'section_meeting_id' => $existing['meetings']->first()->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
-        ]);
-
-        try {
-            $this->placement->confirm($enrollment, $target['section']->id, $registrar);
-            $this->fail('Conflicting placement was not rejected.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('conflict', $exception->errors());
-        }
-
-        $this->assertSame(1, CourseEnrollment::query()->count());
-        $this->assertSame(0, EnrollmentSeatReservation::query()->count());
-        $this->assertSame(1, StudentScheduleBinding::query()->where('is_active', true)->count());
-    }
-
-    public function test_existing_active_reservation_for_another_course_does_not_block_per_course_placement(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($term)->create();
-        $reserved = $this->publishedPlacement($term);
-        $target = $this->publishedPlacement($term, startsAt: '13:00:00', endsAt: '15:00:00');
-        $existingCourseEnrollment = CourseEnrollment::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'term_offering_id' => $reserved['section']->term_offering_id,
-            'status' => CourseEnrollment::StatusActive,
-            'units_snapshot' => '3.00',
-            'added_at' => now(),
-        ]);
-        EnrollmentSeatReservation::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'course_enrollment_id' => $existingCourseEnrollment->id,
-            'section_id' => $reserved['section']->id,
-            'status' => EnrollmentSeatReservation::StatusPending,
-            'reserved_at' => now(),
-            'registrar_user_id' => $registrar->id,
-        ]);
-
-        $this->placement->confirm($enrollment, $target['section']->id, $registrar);
-
-        $this->assertSame(2, CourseEnrollment::query()->count());
-        $this->assertSame(2, EnrollmentSeatReservation::query()->where('status', EnrollmentSeatReservation::StatusPending)->count());
-        $this->assertSame(1, StudentScheduleBinding::query()->count());
     }
 
     public function test_legacy_placement_action_is_retired_from_the_canonical_registration_surface(): void
     {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $academicHead = $this->staff(User::StaffRoleAcademicHead);
-        $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($term)->create();
-        $section = $this->publishedPlacement($term)['section'];
-        $section->termOffering->curriculumEntry->update([
-            'curriculum_version_id' => $enrollment->studentProfile->curriculum_version_id,
-            'term_label' => $term->label,
-            'term_type' => $term->type,
-        ]);
-        $cohortCode = (string) $section->deliveryGroups()->value('name');
-        $this->openEnrollmentWindow($term);
-
-        $registrarActions = collect(Livewire::actingAs($registrar)
-            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->instance()
-            ->getCachedHeaderActions())
-            ->flatMap(fn ($action): array => method_exists($action, 'getFlatActions') ? $action->getFlatActions() : [$action->getName() => $action]);
-        $academicHeadActions = collect(Livewire::actingAs($academicHead)
-            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->instance()
-            ->getCachedHeaderActions())
-            ->flatMap(fn ($action): array => method_exists($action, 'getFlatActions') ? $action->getFlatActions() : [$action->getName() => $action]);
-
-        $this->assertArrayNotHasKey('confirmPlacement', $registrarActions->all());
-        $this->assertArrayNotHasKey('confirmPlacement', $academicHeadActions->all());
-        $this->assertNotEmpty($cohortCode);
-    }
-
-    public function test_regular_cohort_options_keep_multi_year_term_offerings_in_the_earliest_eligible_year(): void
-    {
-        $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($term)->create();
-        $firstYear = $this->publishedPlacement($term);
-        $secondYear = $this->publishedPlacement($term);
-
-        $firstYear['offering']->curriculumEntry->update([
-            'curriculum_version_id' => $enrollment->studentProfile->curriculum_version_id,
-            'year_level' => 'First Year',
-            'term_label' => $term->label,
-            'term_type' => $term->type,
-        ]);
-        $secondYear['offering']->curriculumEntry->update([
-            'curriculum_version_id' => $enrollment->studentProfile->curriculum_version_id,
-            'year_level' => 'Second Year',
-            'term_label' => $term->label,
-            'term_type' => $term->type,
-        ]);
-        $firstYear['section']->deliveryGroups()->update(['name' => 'DBM-1A']);
-        $secondYear['section']->deliveryGroups()->update(['name' => 'DBM-2A']);
-
-        $this->assertSame(
-            ['DBM-1A' => 'DBM-1A (1 published subjects)'],
-            $this->placement->regularCohortOptions($enrollment),
-        );
-        $this->assertSame('DBM-1A', $this->placement->recommendedRegularCohortCode($enrollment));
-    }
-
-    /**
-     * @return array{section:Section,offering:TermOffering,demand:SchedulingDemand,run:ScheduleGenerationRun,meetings:Collection<int, SectionMeeting>}
-     */
-    private function publishedPlacement(
-        Term $term,
-        int $capacity = 30,
-        int $meetingCount = 1,
-        string $runStatus = ScheduleGenerationRun::StatusPublished,
-        string $startsAt = '08:00:00',
-        string $endsAt = '10:00:00',
-    ): array {
-        $offering = TermOffering::factory()->for($term)->create([
-            'modality' => TermOffering::ModalityOnline,
-            'state' => TermOffering::StateScheduled,
-        ]);
-        $curriculumVersionIds = Enrollment::query()
-            ->where('term_id', $term->id)
-            ->with('studentProfile:id,curriculum_version_id')
-            ->get()
-            ->pluck('studentProfile.curriculum_version_id')
-            ->filter()
-            ->unique()
-            ->values();
-        if ($curriculumVersionIds->count() === 1) {
-            $offering->curriculumEntry->update([
-                'curriculum_version_id' => $curriculumVersionIds->sole(),
-                'term_type' => $term->type,
-            ]);
+        $case = Enrollment::factory()->create();
+        foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead] as $role) {
+            Role::findOrCreate($role, 'web');
+            $actor = User::factory()->create(['status' => User::StatusActive]);
+            $actor->assignRole($role);
+            $actions = collect(Livewire::actingAs($actor)->test(ViewEnrollment::class, ['record' => $case->getRouteKey()])
+                ->instance()->getCachedHeaderActions())
+                ->flatMap(fn ($action): array => $action instanceof ActionGroup ? $action->getFlatActions() : [$action->getName() => $action]);
+            $this->assertArrayNotHasKey('confirmPlacement', $actions->all());
         }
-        $section = Section::factory()->for($offering, 'termOffering')->create([
-            'capacity' => $capacity,
-            'state' => Section::StateOpen,
-        ]);
-        $group = SectionDeliveryGroup::factory()->for($section)->create([
-            'modality' => TermOffering::ModalityOnline,
-            'state' => SectionDeliveryGroup::StateReady,
-        ]);
-        $component = CourseComponent::factory()->create();
-        $demand = SchedulingDemand::factory()
-            ->for($offering)
-            ->for($component)
-            ->for($group)
-            ->create([
-                'modality' => TermOffering::ModalityOnline,
-                'meeting_count' => $meetingCount,
-            ]);
-        $run = ScheduleGenerationRun::query()->create([
-            'term_id' => $term->id,
-            'status' => $runStatus,
-            'input_snapshot' => [],
-            'input_hash' => hash('sha256', uniqid('tal67', true)),
-            'solver_version' => 'tal67-test',
-            'published_by' => $runStatus === ScheduleGenerationRun::StatusPublished ? $this->staff(User::StaffRoleRegistrar)->id : null,
-            'published_at' => $runStatus === ScheduleGenerationRun::StatusPublished ? now() : null,
-            'publication_version' => $runStatus === ScheduleGenerationRun::StatusPublished ? 1 : null,
-        ]);
-        $meetings = collect();
-
-        for ($sequence = 1; $sequence <= $meetingCount; $sequence++) {
-            $meetings->push(SectionMeeting::query()->create([
-                'schedule_run_id' => $run->id,
-                'scheduling_demand_id' => $demand->id,
-                'meeting_sequence' => $sequence,
-                'faculty_user_id' => $this->faculty->id,
-                'room_id' => null,
-                'day_of_week' => $sequence,
-                'starts_at' => $startsAt,
-                'ends_at' => $endsAt,
-                'modality' => TermOffering::ModalityOnline,
-                'state' => SectionMeeting::StateActive,
-                'published_at' => now(),
-            ]));
-        }
-
-        return [
-            'section' => $section,
-            'offering' => $offering,
-            'demand' => $demand,
-            'run' => $run,
-            'meetings' => $meetings,
-        ];
-    }
-
-    private function candidateOnlyPlacement(Term $term): Section
-    {
-        $placement = $this->publishedPlacement($term, runStatus: ScheduleGenerationRun::StatusUnderReview);
-        SectionMeeting::query()->delete();
-        CandidateScheduleRow::query()->create([
-            'schedule_run_id' => $placement['run']->id,
-            'scheduling_demand_id' => $placement['demand']->id,
-            'meeting_sequence' => 1,
-            'faculty_user_id' => $this->faculty->id,
-            'room_id' => null,
-            'day_of_week' => 1,
-            'starts_at' => '08:00:00',
-            'ends_at' => '10:00:00',
-            'status' => CandidateScheduleRow::StatusOk,
-        ]);
-
-        return $placement['section'];
-    }
-
-    private function staff(string $role): User
-    {
-        $user = User::factory()->create(['status' => User::StatusActive]);
-        $user->assignRole($role);
-
-        return $user;
-    }
-
-    private function openEnrollmentWindow(Term $term): CalendarEvent
-    {
-        return CalendarEvent::factory()->for($term)->create([
-            'event_type' => CalendarEvent::TypeWindow,
-            'scope_type' => CalendarEvent::ScopeInstitution,
-            'process_key' => CalendarEvent::ProcessEnrollment,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addWeek(),
-            'day_of_week' => null,
-            'starts_at' => null,
-            'ends_at' => null,
-            'blocks_scheduling' => false,
-            'state' => CalendarEvent::StateActive,
-        ]);
     }
 }

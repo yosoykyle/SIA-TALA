@@ -300,8 +300,7 @@ class StudentHubPriorityResolver
      * Missing Requirements tier (PRD `12_student_hub.md` §12.2 tier 6). Reuses
      * {@see ChecklistItem::isResolved()} rather than duplicating its logic; the
      * `requirement_type` value is a plain student-safe label already displayed
-     * verbatim elsewhere (e.g. `ChecklistItemsRelationManager`,
-     * `EnrollmentGateEvaluator::documentGate()`), so no additional formatting
+     * verbatim by `ChecklistItemsRelationManager`, so no additional formatting
      * is needed here.
      *
      * @return array{tier:string, student_reason:string, required_action:?string, office_to_contact:?string}|null

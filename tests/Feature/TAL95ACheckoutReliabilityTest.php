@@ -45,7 +45,7 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
 
         Role::query()->firstOrCreate(['name' => 'student', 'guard_name' => 'web']);
     }
@@ -135,7 +135,7 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
             ->assertActionDoesNotExist('checkout')
-            ->assertSee('Submit payment evidence');
+            ->assertSee('Submit payment proof');
 
         $this->assertSame(0, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count());
         Http::assertNothingSent();

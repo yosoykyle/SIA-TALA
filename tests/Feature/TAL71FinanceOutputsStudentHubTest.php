@@ -39,7 +39,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_test_codex', DB::connection()->getDatabaseName());
 
@@ -59,12 +59,12 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Current Term Account')
+            ->assertSee('Account balance')
             ->assertSee('Tuition obligation')
-            ->assertSee('Due through as-of')
+            ->assertSee('Amount due now')
             ->assertSee('PHP 8,500.00')
-            ->assertSee('Online checkout')
-            ->assertSee('Manual payment evidence');
+            ->assertSee('Online payment is unavailable.')
+            ->assertSee('Submit payment proof');
     }
 
     public function test_finance_outputs_are_authenticated_owned_and_logged(): void
@@ -96,7 +96,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->get(route('finance.payments.acknowledgement', $fixture['payment']).'?print=1')
             ->assertOk()
             ->assertSee('Payment Acknowledgment')
-            ->assertSee('Actual Verified Amount')
+            ->assertSee('Actual verified amount')
             ->assertSee('PHP 500.00');
 
         $this->assertDatabaseHas('output_access_logs', [
@@ -176,8 +176,8 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Online checkout')
-            ->assertSee('Manual payment evidence');
+            ->assertSee('Online payment is unavailable.')
+            ->assertSee('Submit payment proof');
         $this->assertSame(0, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count());
     }
 

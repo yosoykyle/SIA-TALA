@@ -1,0 +1,1 @@
+@if ($course)<div class="accounting-proof-context"><strong>{{ $course->proposalItem?->course_title_snapshot }}</strong><p>{{ $course->section?->code }} &middot; {{ (float) $course->units_snapshot }} units</p><p>{{ max(0,$remaining) }} other active subjects remain. Dropping the final active subject requires the separate full-withdrawal process.</p></div>@endif

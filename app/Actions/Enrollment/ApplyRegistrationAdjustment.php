@@ -4,6 +4,7 @@ namespace App\Actions\Enrollment;
 
 use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
+use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Models\Assessment;
 use App\Models\CorVersion;
 use App\Models\CourseComponent;
@@ -35,6 +36,7 @@ class ApplyRegistrationAdjustment
         private readonly RegistrationAcademicEligibilityQuery $eligibility,
         private readonly StudentUnitLoadService $unitLoad,
         private readonly RegistrationNotificationLedger $notifications,
+        private readonly SynchronizeOfficialGradeRoster $rosters,
     ) {}
 
     public function execute(
@@ -42,7 +44,7 @@ class ApplyRegistrationAdjustment
         RegistrationProposalVersion $adjustmentProposal,
         User $actor,
         string $financialEffect,
-        string $authorityReference,
+        string $authorityReference = '',
         ?Assessment $successorAssessment = null,
         ?RegistrationLateAuthority $lateAuthority = null,
         ?RegistrationAdjustmentFinanceConfirmation $financialConfirmation = null,
@@ -96,9 +98,8 @@ class ApplyRegistrationAdjustment
                 || $proposal->purpose !== RegistrationProposalVersion::PurposeAdjustment
                 || $proposal->state !== RegistrationProposalVersion::StateConfirmed
                 || $proposal->confirmation === null
-                || (int) $proposal->published_timetable_version_id !== (int) $timetable->id
-                || blank($authorityReference)) {
-                throw ValidationException::withMessages(['adjustment' => 'Adjustment requires one current learner-confirmed change proposal, official enrollment, and recorded authority.']);
+                || (int) $proposal->published_timetable_version_id !== (int) $timetable->id) {
+                throw ValidationException::withMessages(['adjustment' => 'Adjustment requires one current learner-confirmed change proposal and official enrollment.']);
             }
 
             $change = $this->deriveSingleChange($currentCourses, $proposal->items);
@@ -117,14 +118,16 @@ class ApplyRegistrationAdjustment
                 $this->calendar->assertEnrollmentAdjustmentWindowOpen((int) $locked->term_id);
             }
             if ($late instanceof RegistrationLateAuthority
-                && ((int) $late->enrollment_id !== (int) $locked->id
+                && (blank($authorityReference)
+                    || (int) $late->enrollment_id !== (int) $locked->id
                     || (int) $late->term_id !== (int) $locked->term_id
                     || $late->action_type !== RegistrationLateAuthority::ActionAdjustment
                     || ($late->before_course_enrollment_id === null ? null : (int) $late->before_course_enrollment_id) !== ($beforeCourse?->id === null ? null : (int) $beforeCourse->id)
                     || (int) $late->after_section_id !== (int) $replacement->id
                     || $late->authority_reference !== $authorityReference
-                    || $late->consumed_at !== null)) {
-                throw ValidationException::withMessages(['late_authority' => 'The late authority is stale, already used, or does not match this exact add or replacement.']);
+                    || $late->consumed_at !== null
+                    || $late->effective_at?->isFuture())) {
+                throw ValidationException::withMessages(['late_authority' => 'The late approval is not yet effective, already used, or does not match this add or replacement.']);
             }
 
             if ($replacement->state !== Section::StateOpen
@@ -206,6 +209,8 @@ class ApplyRegistrationAdjustment
                     || ($accountingConfirmation->current_course_enrollment_id === null ? null : (int) $accountingConfirmation->current_course_enrollment_id) !== ($beforeCourse?->id === null ? null : (int) $beforeCourse->id)
                     || (int) $accountingConfirmation->replacement_section_id !== (int) $replacement->id
                     || $accountingConfirmation->financial_effect !== RegistrationAdjustmentFinanceConfirmation::EffectNoAdditionalCost
+                    || (str_starts_with($accountingConfirmation->authority_reference, 'accounting-no-cost:')
+                        && $accountingConfirmation->authority_reference !== 'accounting-no-cost:'.$locked->id.':proposal:'.$proposal->id.':'.($beforeCourse?->id ?? 'new').':'.$replacement->id)
                     || $accountingConfirmation->consumed_at !== null)) {
                 throw ValidationException::withMessages(['financial_confirmation' => 'No-additional-cost adjustment requires the matching unused Accounting confirmation.']);
             }
@@ -250,7 +255,7 @@ class ApplyRegistrationAdjustment
             $adjustment = EnrollmentAdjustment::query()->create([
                 'enrollment_id' => $locked->id,
                 'supersedes_cor_version_id' => $currentCor->id,
-                'authority_reference' => trim($authorityReference),
+                'authority_reference' => filled($authorityReference) ? trim($authorityReference) : null,
                 'financial_effect' => $financialEffect,
                 'change_snapshot' => $changeSnapshot,
                 'recorded_by' => $actor->id,
@@ -267,7 +272,7 @@ class ApplyRegistrationAdjustment
                 'from_outcome' => $locked->canonical_outcome,
                 'to_outcome' => $locked->canonical_outcome,
                 'reason' => $change['type'].' applied from learner-confirmed proposal version '.$proposal->version.'.',
-                'authority_reference' => trim($authorityReference),
+                'authority_reference' => filled($authorityReference) ? trim($authorityReference) : null,
                 'actor_id' => $actor->id,
                 'recorded_at' => now(),
             ]);
@@ -308,6 +313,16 @@ class ApplyRegistrationAdjustment
             $snapshot['change'] = ['type' => $change['type'], 'record_id' => $adjustment->id, 'financial_effect' => $financialEffect, 'details' => $changeSnapshot];
             $assessmentId = $successorAssessment instanceof Assessment ? $successorAssessment->id : $currentCor->assessment_id;
             $snapshot['assessment_id'] = $assessmentId;
+            if ($successorAssessment instanceof Assessment) {
+                $snapshot['assessment_version'] = $successorAssessment->version;
+                $snapshot['assessment_basis'] = $successorAssessment->assessment_basis;
+                $snapshot['fee_plan_id'] = $successorAssessment->fee_plan_id;
+                $snapshot['assessment_authority_reference'] = $successorAssessment->authority_reference;
+                $snapshot['assessment_authority_date'] = $successorAssessment->authority_date?->toDateString();
+                $snapshot['assessment_total'] = $successorAssessment->total;
+                $snapshot['fees'] = $successorAssessment->lines()->orderBy('id')->get()->map(fn ($line): array => ['label' => $line->description_snapshot, 'amount' => $line->amount])->all();
+                $snapshot['finance_satisfaction'] = ['state' => 'Satisfied at adjustment', 'source' => 'EnrollmentPaymentRequirementProjection', 'assessment_id' => $successorAssessment->id, 'assessment_version' => $successorAssessment->version, 'recorded_at' => now()->toIso8601String()];
+            }
             $snapshot['published_timetable_version_id'] = $timetable->id;
             $snapshot['issued_by_user_id'] = $actor->id;
             $snapshot['issued_by_name'] = $actor->getFilamentName();
@@ -325,6 +340,8 @@ class ApplyRegistrationAdjustment
                 'issued_at' => now(),
             ]);
             $locked->update(['current_cor_version_id' => $successor->id, 'lock_version' => $locked->lock_version + 1]);
+
+            $this->rosters->forSections([$beforeCourse?->section_id, $successorCourse->section_id], $actor);
 
             return $adjustment;
         }, attempts: 3);

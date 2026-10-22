@@ -165,7 +165,8 @@ class StudentHubTest extends TestCase
 
         $this->get('/student/grades-view')
             ->assertOk()
-            ->assertSee('Grades will appear here after posting and release.');
+            ->assertSee('No released grades yet')
+            ->assertSee('Your results appear here after release. You can check your enrolled subjects in Academics.');
     }
 
     #[Test]
@@ -190,9 +191,9 @@ class StudentHubTest extends TestCase
 
         Livewire::actingAs($student)
             ->test(Profile::class)
-            ->assertSee('Official Student Record')
+            ->assertSee('My profile')
             ->assertSee('SIA-2026-8399')
-            ->assertSee('Correction guidance')
+            ->assertSee('For corrections, contact the Registrar.')
             ->assertDontSee('Save Contact Details');
 
         $profile->refresh();

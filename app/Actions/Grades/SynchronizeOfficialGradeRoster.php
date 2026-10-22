@@ -5,6 +5,7 @@ namespace App\Actions\Grades;
 use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CourseEnrollment;
+use App\Models\Enrollment;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\GradeRosterVersion;
@@ -16,6 +17,20 @@ use RuntimeException;
 class SynchronizeOfficialGradeRoster
 {
     public function __construct(private readonly AcademicRecordNotificationService $notifications) {}
+
+    /** @param list<int|null> $sectionIds */
+    public function forSections(array $sectionIds, ?User $actor = null): void
+    {
+        $assignedSectionIds = ClassOfferingTeachingAssignment::query()
+            ->whereIn('section_id', array_filter($sectionIds))
+            ->where('role', ClassOfferingTeachingAssignment::RoleDesignated)
+            ->where('state', ClassOfferingTeachingAssignment::StateActive)
+            ->pluck('section_id');
+
+        foreach (Section::query()->whereIn('id', $assignedSectionIds)->orderBy('id')->get() as $section) {
+            $this->execute($section, $actor);
+        }
+    }
 
     public function execute(Section $section, ?User $actor = null): GradeRoster
     {
@@ -36,6 +51,8 @@ class SynchronizeOfficialGradeRoster
                 ->where('term_offering_id', $section->term_offering_id)
                 ->where('status', CourseEnrollment::StatusActive)
                 ->where('is_current', true)
+                ->whereHas('enrollment', fn ($query) => $query
+                    ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled))
                 ->where(function ($query) use ($section): void {
                     $query->where('section_id', $section->id)
                         ->orWhereHas('seatReservations', fn ($reservationQuery) => $reservationQuery

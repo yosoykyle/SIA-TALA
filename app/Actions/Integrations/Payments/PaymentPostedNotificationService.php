@@ -77,7 +77,7 @@ class PaymentPostedNotificationService
                 recipientName: (string) $recipient->name,
                 amount: 'PHP '.number_format((float) $this->money->normalize((string) $payment->amount), 2),
                 termLabel: $payment->term instanceof Term ? (string) $payment->term->label : 'your current term',
-                financeUrl: route('filament.student.pages.finance'),
+                financeUrl: route($recipient->hasRole('student') ? 'filament.student.pages.finance' : 'filament.applicant.pages.enrollment'),
             ));
         } catch (Throwable $exception) {
             $this->markFailed($deliveryEvent, 'Mail could not be queued.', $exception);

@@ -5,7 +5,7 @@ namespace App\Actions\Authentication;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
-use App\Filament\Resources\FeePlans\FeePlanResource;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Users\UserResource;
 use App\Models\AdmissionApplication;
 use App\Models\User;
@@ -50,7 +50,7 @@ class WorkspaceContextResolver
             if ($user->hasAssignedRole($role)) {
                 $destination = match ($role) {
                     User::StaffRoleRegistrar => AdmissionApplicationResource::getUrl(panel: 'admin', isAbsolute: false),
-                    User::StaffRoleAccounting => FeePlanResource::getUrl(panel: 'admin', isAbsolute: false),
+                    User::StaffRoleAccounting => EnrollmentResource::getUrl(panel: 'admin', isAbsolute: false),
                     User::StaffRoleFaculty => FacultySchedule::getUrl(panel: 'admin', isAbsolute: false),
                     User::StaffRoleAcademicHead => AcademicApprovals::getUrl(panel: 'admin', isAbsolute: false),
                     User::StaffRoleSystemSuperAdmin => UserResource::getUrl(panel: 'admin', isAbsolute: false),

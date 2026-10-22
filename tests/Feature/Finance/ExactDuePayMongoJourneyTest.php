@@ -3,10 +3,12 @@
 namespace Tests\Feature\Finance;
 
 use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
+use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\Integrations\Payments\PaymentCheckoutRequest;
 use App\Actions\Integrations\Payments\PaymentCheckoutSession;
 use App\Actions\Integrations\Payments\PaymentGateway;
 use App\Actions\Integrations\Payments\PayMongoCheckoutReadinessService;
+use App\Actions\Integrations\Payments\PayMongoPaymentPostingService;
 use App\Models\Assessment;
 use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
@@ -16,6 +18,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -33,8 +36,9 @@ final class ExactDuePayMongoJourneyTest extends TestCase
         parent::setUp();
 
         $this->assertSame('testing', app()->environment());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         Role::query()->firstOrCreate(['name' => 'student', 'guard_name' => 'web']);
+        Role::query()->firstOrCreate(['name' => 'applicant', 'guard_name' => 'web']);
     }
 
     public function test_checkout_commits_one_exact_due_snapshot_before_the_provider_call(): void
@@ -122,7 +126,7 @@ final class ExactDuePayMongoJourneyTest extends TestCase
         $unconfigured = $readiness->for($fixture['student'], $fixture['account']);
 
         $this->assertFalse($unconfigured['enabled']);
-        $this->assertStringContainsString('Manual payment evidence remains available', $unconfigured['reason']);
+        $this->assertStringContainsString('You can submit payment proof instead.', $unconfigured['reason']);
 
         $this->configurePayMongoReadiness();
         $ready = $readiness->for($fixture['student'], $fixture['account']);
@@ -173,17 +177,37 @@ final class ExactDuePayMongoJourneyTest extends TestCase
         config()->set('queue.default', 'database');
     }
 
+    public function test_pre_student_posting_uses_canonical_targets_and_live_due_instead_of_stored_account_state(): void
+    {
+        $fixture = $this->fixture(preStudent: true);
+        $fixture['account']->update(['state' => TermAccount::StateCleared]);
+        $this->app->instance(PaymentGateway::class, new ExactDueRecordingGateway);
+        $result = app(CreatePaymentCheckoutSession::class)->create(actor: $fixture['student']);
+        $attempt = PaymentAttempt::query()->findOrFail($result['payment_attempt_id']);
+        $this->assertNull($attempt->student_profile_id);
+        app(ExactDuePaymentSnapshotService::class)->assertCurrent($attempt);
+        $attempt->update(['provider' => 'paymongo']);
+        $posting = app(PayMongoPaymentPostingService::class)->post($attempt->fresh(), '2000.00', 'SYN-PRE-STUDENT-PAYMENT', null, CarbonImmutable::now(), 'Synthetic verified provider evidence');
+        $this->assertSame('posted', $posting['status']);
+        $this->assertNull($posting['payment']->student_profile_id);
+        $this->assertNull($posting['ledger_entry']);
+        $this->assertSame($fixture['due']->pluck('id')->all(), $posting['payment']->allocations()->orderBy('sequence')->pluck('assessment_obligation_id')->all());
+        $this->assertSame(0, StudentProfile::query()->where('user_id', $fixture['student']->id)->count());
+    }
+
     /**
      * @return array{student:User,profile:StudentProfile,term:Term,enrollment:Enrollment,account:TermAccount,assessment:Assessment,due:Collection<int, AssessmentObligation>}
      */
-    private function fixture(): array
+    private function fixture(bool $preStudent = false): array
     {
         $student = User::factory()->create(['status' => User::StatusActive, 'email_verified_at' => now()]);
-        $student->assignRole('student');
-        $profile = StudentProfile::factory()->for($student)->for(Program::factory())->create();
+        $student->assignRole($preStudent ? 'applicant' : 'student');
+        $profile = $preStudent ? null : StudentProfile::factory()->for($student)->for(Program::factory())->create();
         $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
+        $enrollment = Enrollment::factory()->for($term)->create([
+            'student_profile_id' => $profile?->id,
             'credential_user_id' => $student->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
             'registered_at' => now()->subDay(),
         ]);
         $account = TermAccount::factory()->for($enrollment)->create([

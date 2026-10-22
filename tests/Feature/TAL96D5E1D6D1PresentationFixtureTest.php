@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Completion\CompletionReadinessProjection;
 use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
 use App\Actions\SystemAdministration\TAL96D5E1ExplorationPersonaCatalog;
 use App\Models\CurriculumEntry;
@@ -29,7 +30,7 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->artisan('acceptance:seed-client-baseline')->assertSuccessful();
         $this->artisan('acceptance:seed-tal96d5e1-exploration')->assertSuccessful();
     }
@@ -161,18 +162,27 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
     }
 
     #[Test]
-    public function student_academics_progressively_discloses_large_completion_blocker_sets(): void
+    public function student_academics_keeps_large_completion_review_details_out_of_current_studies(): void
     {
         $student = User::query()->where('email', 'student.demo@example.test')->sole();
 
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
+        $completion = app(CompletionReadinessProjection::class)->forStudent($student->studentProfile);
+        $this->assertCount(53, $completion['blockers']);
+        foreach ($completion['blockers'] as $blocker) {
+            foreach (['source', 'owner', 'reason', 'recovery'] as $field) {
+                $this->assertNotEmpty($blocker[$field]);
+            }
+        }
+
         $this->get(route('filament.student.pages.academics'))
             ->assertOk()
-            ->assertSee('Showing 3 of 53 named blockers.')
-            ->assertSee('Review remaining 50 blockers')
-            ->assertSee('Each item identifies its source, consequence, responsible office, and safe next step.');
+            ->assertSee('Current subjects')
+            ->assertSee('View study plan')
+            ->assertDontSee('Showing 3 of 53 named blockers.')
+            ->assertDontSee('Review remaining 50 blockers');
     }
 
     private function presentationTerm(): Term

@@ -4,14 +4,13 @@ namespace App\Filament\Student\Pages;
 
 use App\Actions\Cor\BuildCorOutput;
 use App\Models\CorVersion;
+use App\Models\User;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\TextEntry;
 use Filament\Pages\Page;
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Schema;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\Url;
 
 class CorView extends Page
 {
@@ -21,112 +20,121 @@ class CorView extends Page
 
     protected static ?string $title = 'Certificate of Registration';
 
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [Dashboard::getUrl(panel: 'student') => 'Overview', Enrollment::getUrl(panel: 'student') => 'Enrollment', 'Certificate of registration'];
+    }
+
+    protected string $view = 'filament.student.pages.cor-view';
+
+    #[Url(as: 'version')]
+    public ?int $version = null;
+
     /**
      * @var array<string, mixed>
      */
+    #[Locked]
     public array $cor = [];
 
     public function mount(Request $request): void
     {
         $actor = auth()->user();
 
-        abort_unless($actor !== null, 403);
+        abort_unless($actor instanceof User, 403);
 
-        $this->cor = app(BuildCorOutput::class)->forStudent($actor);
+        $builder = app(BuildCorOutput::class);
+        $selected = $this->version !== null ? $this->ownedVersions($actor)->firstWhere('id', $this->version) : null;
+        if ($selected instanceof CorVersion) {
+            $this->cor = $builder->forEnrollment($selected->enrollment, $actor, BuildCorOutput::CopyStudent, false, $selected);
+        } else {
+            $currentCor = $builder->forStudent($actor);
+            if (($currentCor['available'] ?? false) === true) {
+                $this->cor = $currentCor;
+            } else {
+                $latestOwned = $this->ownedVersions($actor)->first();
+                $this->cor = $latestOwned instanceof CorVersion
+                    ? $builder->forEnrollment($latestOwned->enrollment, $actor, BuildCorOutput::CopyStudent, false, $latestOwned)
+                    : $currentCor;
+            }
+        }
 
         if (($this->cor['available'] ?? false) === true) {
-            app(BuildCorOutput::class)->recordAccess($this->cor, $actor, BuildCorOutput::ActionView, $request);
+            $builder->recordAccess($this->cor, $actor, BuildCorOutput::ActionView, $request);
         }
     }
 
-    public function content(Schema $schema): Schema
+    /** @return array<string, mixed> */
+    protected function getViewData(): array
     {
-        return $schema
-            ->state($this->cor['state'] ?? [])
-            ->components([
-                Section::make('Current COR Status')
-                    ->schema([
-                        TextEntry::make('availability_status')
-                            ->label('Status')
-                            ->badge()
-                            ->color(fn (string $state): string => $state === 'Available' ? 'success' : 'warning'),
-                        TextEntry::make('term')->label('Term'),
-                        TextEntry::make('version_status')->label('Version')->badge(),
-                        TextEntry::make('notice')
-                            ->label('Notice')
-                            ->columnSpanFull(),
-                    ])
-                    ->columns(['default' => 1, 'sm' => 2]),
-                Section::make('Student Information')
-                    ->visible(fn (): bool => ($this->cor['available'] ?? false) === true)
-                    ->schema([
-                        TextEntry::make('student_number')->label('Student No.'),
-                        TextEntry::make('student_name')->label('Full Name'),
-                        TextEntry::make('program')->label('Program'),
-                        TextEntry::make('curriculum_level')->label('Curriculum Level'),
-                        TextEntry::make('registration_date')->label('Registration Date'),
-                        TextEntry::make('course_delivery_mix')->label('Course Delivery Mix'),
-                        TextEntry::make('selection_basis')->label('Selection Basis'),
-                        TextEntry::make('payment_status')->label('Clearance at Issue'),
-                    ])
-                    ->columns(['default' => 1, 'sm' => 2, 'xl' => 4]),
-                Section::make('Current Enrolled Subjects')
-                    ->visible(fn (): bool => ($this->cor['available'] ?? false) === true)
-                    ->schema([
-                        TextEntry::make('total_units')->label('Total Units'),
-                        RepeatableEntry::make('subjects')
-                            ->label('Subjects and Schedule')
-                            ->schema([
-                                TextEntry::make('subject_code')->label('Code'),
-                                TextEntry::make('subject_description')->label('Description'),
-                                TextEntry::make('units')->label('Units'),
-                                TextEntry::make('lecture_hours')->label('Lec Hrs'),
-                                TextEntry::make('laboratory_hours')->label('Lab Hrs'),
-                                TextEntry::make('section')->label('Section'),
-                                TextEntry::make('day')->label('Day'),
-                                TextEntry::make('time')->label('Time'),
-                                TextEntry::make('room')->label('Room'),
-                                TextEntry::make('instructor')->label('Instructor'),
-                                TextEntry::make('modality')->label('Modality')->badge(),
-                            ])
-                            ->columns(['default' => 1, 'sm' => 2, 'lg' => 3])
-                            ->columnSpanFull(),
-                    ])
-                    ->columns(1),
-            ]);
+        return [
+            'output' => $this->cor,
+            'versions' => $this->versionChoices(),
+            'selectedVersionId' => $this->selectedVersionId(),
+        ];
     }
 
     protected function getHeaderActions(): array
     {
         return [
             Action::make('print')
-                ->label('Print / Save as PDF')
+                ->label('Print or save PDF')
                 ->icon('heroicon-o-printer')
-                ->labeledFrom('sm')
                 ->tooltip('Print or save the current COR as PDF')
-                ->url(fn (): string => route('cor.print', $this->cor['summary']['enrollment_id'] ?? 0))
+                ->url(fn (): string => route('cor.print', array_filter([
+                    'enrollment' => $this->cor['summary']['enrollment_id'] ?? 0,
+                    'version' => $this->cor['summary']['cor_version'] ?? null,
+                ])))
                 ->openUrlInNewTab()
                 ->visible(fn (): bool => ($this->cor['available'] ?? false) === true),
-            Action::make('printHistory')
-                ->label('Print COR history')
-                ->icon('heroicon-o-document-duplicate')
-                ->visible(fn (): bool => ($this->cor['available'] ?? false) === true
-                    && CorVersion::query()->where('enrollment_id', $this->cor['summary']['enrollment_id'] ?? 0)->count() > 1)
-                ->schema([
-                    Select::make('version')
-                        ->label('Immutable COR version')
-                        ->options(fn (): array => CorVersion::query()
-                            ->where('enrollment_id', $this->cor['summary']['enrollment_id'] ?? 0)
-                            ->orderByDesc('version')
-                            ->pluck('version', 'version')
-                            ->mapWithKeys(fn (mixed $version): array => [(int) $version => 'COR version '.$version])
-                            ->all())
-                        ->required(),
-                ])
-                ->action(fn (array $data) => $this->redirect(route('cor.print', [
-                    'enrollment' => $this->cor['summary']['enrollment_id'] ?? 0,
-                    'version' => (int) $data['version'],
-                ]))),
         ];
+    }
+
+    /** @return Collection<int, CorVersion> */
+    private function ownedVersions(User $actor)
+    {
+        return CorVersion::query()
+            ->whereHas('enrollment', fn ($query) => $query->where('credential_user_id', $actor->id))
+            ->with('enrollment.term')
+            ->orderByDesc('issued_at')->orderByDesc('id')
+            ->get();
+    }
+
+    private function selectedVersionId(): ?int
+    {
+        $enrollmentId = $this->cor['summary']['enrollment_id'] ?? null;
+        $number = $this->cor['summary']['cor_version'] ?? null;
+
+        return $enrollmentId === null ? null : CorVersion::query()->where('enrollment_id', $enrollmentId)->where('version', $number)->value('id');
+    }
+
+    /** @return list<array{id:int,label:string,current:bool,url:string}> */
+    private function versionChoices(): array
+    {
+        $actor = auth()->user();
+        if (! $actor instanceof User) {
+            return [];
+        }
+
+        $currentEnrollment = app(BuildCorOutput::class)->forStudent($actor)['enrollment'] ?? null;
+
+        return $this->ownedVersions($actor)->map(function (CorVersion $version) use ($currentEnrollment): array {
+            $isLatestForCase = (int) $version->enrollment->current_cor_version_id === (int) $version->id;
+            $isCurrentTerm = $currentEnrollment instanceof \App\Models\Enrollment && $currentEnrollment->is($version->enrollment);
+            $statusLabel = match (true) {
+                $isCurrentTerm && $isLatestForCase => 'Current',
+                $isLatestForCase => 'Latest for this Term',
+                default => 'Earlier copy',
+            };
+
+            return [
+                'id' => $version->id,
+                'current' => $isCurrentTerm && $isLatestForCase,
+                'label' => ($version->enrollment->term?->label ?? 'Term unavailable')
+                    .' · '.$statusLabel
+                    .' · issued '.$version->issued_at?->timezone(config('app.display_timezone'))->format('M j, Y'),
+                'url' => static::getUrl(['version' => $version->id], panel: 'student'),
+            ];
+        })->all();
     }
 }

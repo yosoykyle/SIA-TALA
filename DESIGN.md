@@ -37,11 +37,13 @@ typography:
     fontSize: '0.75rem'
   title:
     fontFamily: "'Inter Variable', Inter, system-ui, sans-serif"
-    fontSize: '1.5rem'
+    fontSize: 'clamp(1.5rem, 1.2rem + 1vw, 1.875rem)'
+    fontWeight: 700
     lineHeight: 1.25
   section:
     fontFamily: "'Inter Variable', Inter, system-ui, sans-serif"
     fontSize: '1.125rem'
+    fontWeight: 600
     lineHeight: 1.3
 rounded:
   compact: '6px'
@@ -49,7 +51,7 @@ rounded:
   surface: '12px'
 components:
   button-primary:
-    backgroundColor: '{colors.primary}'
+    backgroundColor: '{colors.primary-deep}'
     textColor: '{colors.on-primary}'
     rounded: '{rounded.control}'
   input:
@@ -65,11 +67,29 @@ components:
 
 **Creative North Star: "Clear Institutional Operations"**
 
-Neutral light/dark surfaces, green-led actions, supporting TALA blue, Inter typography and restrained tactile controls form the shared visual identity. Preserve school artwork. Servitech leads; the Blueprint governs workspace/person identity and where system attribution appears.
+Neutral light/dark surfaces, green-led actions, supporting TALA blue, Inter typography and restrained tactile controls form the shared visual identity. Page titles and primary task/record headings use 700; supporting section headings, meaningful data emphasis and actions use 600; body copy uses 400. Supporting labels may use 500. Program identity, the current task and the main subject/account record are primary groups; use size and spacing to keep their headings subordinate to the page title. Avoid competing 550/650 weights. Sidebar navigation is flat, with a tinted selected destination; primary task controls retain the restrained Aqua finish and readable contrasting text. Preserve school artwork. Servitech leads; the Blueprint governs workspace/person identity and where system attribution appears.
 
 [PRODUCT.md](PRODUCT.md) owns purpose. The [Blueprint](00_Project_Documents/ui_surface_blueprint.md) owns role/page flow, fields and interaction outcomes. Surface strategy belongs in the matching brief; live work and acceptance belong in GitHub.
 
-The shared visual direction uses neutral light/dark surfaces, green-led primary actions, supporting TALA blue, Inter typography, and native Heroicons. Earlier blue-primary and Outfit/Inter requirements are superseded; product behavior, school-first branding, role ownership, accessibility, and official-output contracts remain governed by canonical authority. Historical prototype captures remain comparison evidence, not binding screen templates. Light-first references do not disable native Light/Dark/System behavior. The approved yellow TALA star artwork is the product mark; the word **TALA** is rendered as live text rather than a separate raster wordmark. The institution-supplied Servitech/SIA crest is the institution mark. Both marks remain full color on screen. File presence, a legacy screenshot, or an existing template cannot substitute for approval of the underlying artwork. The Blueprint governs role/output outcomes; these shared visual rules govern appearance.## Colors
+Operational overviews use the shared heading weight for actionable queue figures, emphasis weight for task names, and regular body weight for explanation. Scale and grouping establish the hierarchy; a count remains attached to its named task and destination. Reusable financial form sections follow one reading sequence with compact field rows and a reachable action footer. Shared tokens own type, color, spacing and restrained Aqua control depth across role workspaces.
+
+Use the shared `tala-task-surface` class when a task group needs separation from the canvas: a solid surface, fine edge, inset rim and restrained elevation from the paired theme tokens. Apply it to meaningful groups rather than every nested section. Financial totals lead their supporting breakdown; dated payments use an ordered schedule with prominent amounts and readable dates. Approval and retained source details stay secondary and reachable. Preserve forced-colors boundaries and remove screen elevation in print.
+
+The October 23 shared dark refinement uses a charcoal canvas, separate sidebar chrome, graphite task surfaces and a lighter overlay tier. Keep brand-tinted foreground/background pairs distinct from standalone green text/icons; enabled neutral commands retain readable icons and a raised neutral fill while native disabled, danger, focus and loading meanings remain intact. Apply this through shared semantic tokens, with restrained green emphasis on current navigation, current handoff ownership and the existing enrollment-status surface. Student and Applicant identity gradients reuse these roles. Preserve layout, Light/Dark/System selection, forced colors, print and the approved light appearance. Adwaita's paired/standalone color roles and Apple's semantic base/elevated backgrounds inform this adaptation; neither system replaces the product's existing school identity or native Filament components.
+
+Cross-role waiting states reuse the `workflow-handoff` component: an ordered **Now → Next** row with the current owner/task emphasized and the following owner/task readable. Keep its context and explanation in the same task group; stack the row on narrow screens. It conveys responsibility rather than completion, percentages or a new approval gate. The caller supplies source-backed role/task text and retains its existing actions and safeguards. Use the same semantic text and surface tokens across roles.
+
+In the shared handoff, give the next step a quiet surface outline. When steps stack, center the downward connector in the gap between them; keep it outside the step boundary. The current step retains the stronger tinted treatment.
+
+Place tinted handoff steps on a neutral parent surface so the current step stays distinct. In Registrar confirmation waits, group status and deadline first, the shared handoff second, and assisted confirmation in a separate action row below. Keep the explanation beside that action rather than interleaving it with the deadline.
+
+In that waiting state, expose subject changes beside the subject list and explain the effect of saving before submission. Keep cancellation separate with its consequences and existing confirmation. Do not put these actions in a generic options menu or offer another class-place reservation while the displayed places are already valid. Placement recovery keeps its own contextual action. Use “class places” in plain-language guidance instead of assuming the meaning of “seats” is understood.
+
+Supporting enrollment details remain a native disclosure. Put status and update time first, with labels above their values; place the long, selectable enrollment reference on a separate full-width row. Stack the facts on phones and avoid repeating an explanation of what the details are.
+
+The shared visual direction uses neutral light/dark surfaces, green-led primary actions, supporting TALA blue, Inter typography, and native Heroicons. Product behavior, school-first branding, role ownership, accessibility, and official-output contracts remain governed by canonical authority. Historical prototype captures remain comparison evidence, not binding screen templates. Light-first references do not disable native Light/Dark/System behavior. The approved yellow TALA star artwork is the product mark; the word **TALA** is rendered as live text rather than a separate raster wordmark. The institution-supplied Servitech/SIA crest is the institution mark. Both marks remain full color on screen. File presence, a legacy screenshot, or an existing template cannot substitute for approval of the underlying artwork. The Blueprint governs role/output outcomes; these shared visual rules govern appearance.
+
+## Colors
 
 Use the paired semantic tokens below. Green carries primary action and selection emphasis; supporting blue carries appropriate links/information and secondary identity. Primary action, selected navigation, success status, and destructive action retain distinct component treatments and text-backed meaning.
 
@@ -78,6 +98,8 @@ Compose light and dark appearances through the existing theme mechanism rather t
 The paired values guide semantic color adaptation. Filament generates its native primary palette from the approved green anchor `#2F7D3B` and retains native Zinc surfaces/borders; Bootstrap uses the paired light/dark anchors through its existing variables and color modes. Preserve each framework's accessible component/state palette. Keep school identity, meaning, hierarchy, and measured rendered contrast consistent across both frameworks.
 
 Shared action controls use the framework's native semantic palettes, outlined variants and state behavior. Green identifies the current primary task; achieved success remains a status, neutral controls support navigation and routine secondary work, warning marks consequential interruption, and danger marks withdrawal, discard or cancellation. A healthy operating state need not invent a primary task. Restrained tactile shading may clarify a control without overriding its native color or outlined boundary. Consequential actions keep their visible labels on small screens; compact filters and utilities retain accessible names. Preserve native navigation/link semantics, focus, loading, disabled and forced-colors behavior. Screen styling preserves official-output and print contracts.
+
+Cancellation color follows its effect across every workspace. An action that cancels an enrollment, import, cycle or approved change, withdraws an application, or discards a record uses the framework's `danger` palette; its confirming submit uses the same palette. A form's Cancel, Close, Back or Keep action that exits without applying the change uses neutral `gray`. Define the semantic color on the owning action and reuse it in templates; page-level overrides must not turn a destructive cancellation gray or green. Use explicit object labels where Cancel alone could mean either effect.
 
 
 ### Paired semantic anchors
@@ -133,19 +155,21 @@ Determine dimensions and component arrangements through task-led judgment and re
 
 ## Elevation & Depth
 
-The shared ladder is canvas → neutral chrome → solid content surface → floating overlay. Preserve the owner's approved light palette and existing action finish. Dark appearance uses explicit lightness separation, stronger rim/edge definition and soft shadow; more shadow alone cannot separate near-black layers. Its canvas/chrome/content/overlay values are `#111114`/`#1B1B20`/`#242429`/`#303036`, with sunken fields/tracks `#16161A`. Keep one visible elevation per nested content stack. Navigation chrome stays opaque and neutral. Skeuomorphic Aqua-like buttons use full action and shallow navigation variants, with seated current states; inset fields communicate editing. Native validation and focus rings remain authoritative. Check text across the brightest gloss stop as well as the base fill; native inactive/selected navigation labels in dark mode use readable shared muted/primary-300 values.
+The shared ladder is canvas → neutral chrome → solid content surface → floating overlay. Preserve the owner's approved light palette and existing action finish. Dark appearance uses explicit lightness separation, stronger rim/edge definition and soft shadow; more shadow alone cannot separate near-black layers. Its canvas/chrome/content/overlay values are `#111114`/`#1B1B20`/`#242429`/`#303036`, with sunken fields/tracks `#16161A`. Keep one visible elevation per nested content stack. Navigation chrome stays opaque and neutral. Aqua-like action controls retain a shallow highlight and fine edge, with reduced bottom bevel and outer shadow, especially on white controls. Navigation destinations are flat with a tinted selected state; inset fields communicate editing. Native validation and focus rings remain authoritative. Check text across the brightest gloss stop as well as the base fill; native inactive/selected navigation labels in dark mode use readable shared muted/primary-300 values.
 
 `public/css/tala-foundation.css` owns the reusable material tokens. Filament's theme adapts native CSS hooks and shadow/ring variables; the public Bootstrap adapter uses the same foundation without replacing either framework's lifecycle. The frontmatter captures implemented shared primitives; this document records paired semantic/material roles. `.impeccable/design.json` extends these records with extracted shadows, motion and component specimens.
 
-Use solid lit surfaces, raised actions, seated selection and inset fields within the existing school-first shell. Content, location, focus and clickable controls must remain recognizable. Detailed task composition follows the UI Surface Blueprint and matching brief; delivery/review history belongs to the owning Issue.
+Use solid reading surfaces, shallow tactile actions, clearly selected navigation and inset fields within the existing school-first shell. Content, location, focus and clickable controls must remain recognizable. Detailed task composition follows the UI Surface Blueprint and matching brief; delivery/review history belongs to the owning Issue.
 
 Use Filament's structure, Adwaita's restraint and paired appearances, and the existing skeuomorphic Aqua-like buttons family with Aqua/Aero as historical inspiration. Solid forms, tables, sidebar, notifications and modal content remain the readability baseline. Avoid decoration that competes with the task, including a new canvas wash or blurred modal scrim. The existing public masthead/progressive blur and finite recovery motion retain their own contracts.
 
-Native user/action menus and page-search results use solid --tala-overlay fills in both appearances, with existing edge, elevation and focus cues. No translucent menu fill, backdrop blur, glass feature gate or developer override is part of this treatment. Forms, filter/column panels, modals, notifications and sidebar remain solid. The public masthead/progressive blur keeps its separate decorative contract.
+Native user/action menus and page-search results use solid --tala-overlay fills in both appearances, with existing edge, elevation and focus cues. Liquid Glass supplies edge and layer inspiration for functional controls; this web adaptation retains solid readable fills and does not introduce translucent menus, backdrop blur or a separate appearance engine. Forms, filter/column panels, modals, notifications and sidebar remain solid. The public masthead/progressive blur keeps its separate decorative contract.
 
-[NN/g's signifier study](https://www.nngroup.com/articles/flat-ui-less-attention-cause-uncertainty/) supports recognizable clickability, rather than a universal raised-button prescription. [Apple's material guidance](https://developer.apple.com/videos/play/wwdc2025/219/) supplies inspiration for separating controls/navigation from content, rather than a web implementation contract.
+[NN/g's signifier study](https://www.nngroup.com/articles/flat-ui-less-attention-cause-uncertainty/) supports recognizable clickability, rather than a universal raised-button prescription. [Apple Materials](https://developer.apple.com/design/human-interface-guidelines/materials) guides functional layering and restraint; [Apple Buttons](https://developer.apple.com/design/human-interface-guidelines/buttons) guides primary-action emphasis and interaction states. [GNOME Typography](https://developer.gnome.org/hig/guidelines/typography.html) guides a small readable type hierarchy, while [GNOME Buttons](https://developer.gnome.org/hig/patterns/controls/buttons.html) guides recognizable, consistent controls. These are adapted to Filament's web components and the school task, rather than claimed native-platform conformance. Swiss/Bauhaus influence means deliberate grids, alignment and information hierarchy; bento grouping earns its place through distinct tasks. Brutalist influence supplies directness and strong contrast without overriding readability with thick outlines or hard shadows. [Poster House's Swiss design exhibition](https://posterhouse.org/wp-content/uploads/2019/10/PH_Exh_Swiss_Archive_interactive_Final.pdf) and [NN/g's neobrutalism guidance](https://www.nngroup.com/articles/neobrutalism/) supply visual context, not additional UI features.
 
-Use supported [Filament CSS hooks](https://filamentphp.com/docs/5.x/styling/css-hooks) and [Bootstrap component variables](https://getbootstrap.com/docs/5.3/customize/css-variables/). No dependency, business policy, PRD, architecture or official-output change accompanies this refinement. Screen-print stripping stays scoped to adapted components; official outputs use their independent templates.
+Formal school outputs use an independent, monochrome-safe document composition: portable Arial body text, clear institution/document identity, compact tabular facts and source references after the useful record. Their screen-only Back and Print controls reuse the shared foundation color, gloss, depth and focus tokens. Formal document type sizes and grayscale rules are intentional print values; they do not replace Inter or the application type hierarchy. The browser print action removes all controls and uses the output's A4 orientation, margins and continuation rules.
+
+Use supported [Filament CSS hooks](https://filamentphp.com/docs/5.x/styling/css-hooks) and [Bootstrap component variables](https://getbootstrap.com/docs/5.3/customize/css-variables/). Shared material changes preserve business policy and architecture. Screen-print stripping stays scoped to adapted components; official outputs use their independent templates.
 
 
 ### Material layers
@@ -159,11 +183,13 @@ Use supported [Filament CSS hooks](https://filamentphp.com/docs/5.x/styling/css-
 | `--tala-chrome-divider` | `#D4D4D8` | white at 8% | Real navigation separator |
 | `--tala-edge` / strong | black-Zinc at 9% / 14% | white at 16% / 22% | Decorative grouping rings; control boundaries remain stronger |
 | `--tala-rim` | white at 85% | white at 13% | Restrained top edge |
+| `--tala-control-depth` | 55% top highlight, 7% bottom bevel, 1px/4.5% outer shadow | 18% top highlight, 16% bottom bevel, 1px/14% outer shadow | Shallow tactile actions; do not recreate per page |
+| `--tala-control-pressed` | 1px/2px inset at 14% | Same shared pressed cue | Perceptible press without a heavy lower shelf |
 | `--tala-shadow-surface` | Soft three-part ambient shadow | Short dark ambient shadow | One elevation per content stack |
 | `--tala-shadow-overlay` | Stronger three-part shadow | Stronger dark two-part shadow | Floating layers |
 | `--tala-inset-well` | black-Zinc at 7% | black at 35% | Inset editable controls; native rings retained |
 
-Exact shadow values are extracted into `.impeccable/design.json` from the foundation. Floating user/action menus and page-search results use the solid `--tala-overlay` fill, existing edge/shadow cues and no backdrop blur in both appearances. Glass tokens, feature gates and a developer override are outside this direction. Forms, filter/column panels, modals, notifications and sidebar remain solid; native focus/contrast/forced-colors behavior remains. This presentation change affects no business policy.
+Exact shadow values are extracted into `.impeccable/design.json` from the foundation. Floating user/action menus and page-search results use the solid `--tala-overlay` fill, existing edge/shadow cues and no backdrop blur in both appearances. Use the same shared edge/highlight tokens for Liquid Glass-inspired functional borders; content remains solid and no new appearance toggle is introduced. Forms, filter/column panels, modals, notifications and sidebar remain solid; native focus/contrast/forced-colors behavior remains. This presentation change affects no business policy.
 
 ## Shapes
 
@@ -175,7 +201,7 @@ Start from the destination framework’s native corner, spacing, and component t
 
 TALA uses one material grammar across Filament and Bootstrap. Call the existing control family **skeuomorphic Aqua-like buttons** consistently. Action buttons, eligible icon actions (including the collapsed-sidebar “Find a workspace page” shortcut), the account trigger, public menu trigger and action-style links use its full highlight, lower edge, modest elevation and depressed press state. Frequently used sidebar navigation, native tabs/task selectors, theme selection and pagination use a shallower member of the same family; the current choice stays depressed/seated and distinguishable from an action. These priorities follow task structure, not measured usage telemetry. Editable fields and standalone navigation tracks use inset depth. Surfaces hold content: solid, softly elevated and hairline-edged, with a top rim in dark appearance. Floating menus and search results use solid opaque overlays with no backdrop blur. Reuse the explicit foundation selector whitelist; ordinary text links, menu rows, record expansion, input-affix icons, notification close, section toggles, sort headers, wizard steps and reorder handles retain quiet native presentation. Preserve native semantic palettes, focus, loading/disabled meaning and forced-colors behavior. Busy indicators reflect real pending work without hiding existing results; ordinary relationship tables and widgets follow the Loading Rule below.
 
-**The Control Meaning Rule.** Native Filament actions and Bootstrap buttons consume the existing full skeuomorphic Aqua-like action material; task navigation, Week/Meeting list and pagination consume its shallower seated selection material. Primary commands use native green; destructive commands retain native danger meaning. Supporting blue identifies appropriate ordinary links and information. Text links stay quiet, with underline and visible keyboard focus; menu rows, sort/disclosure/notification-close controls and input-affix icons keep the native quiet whitelist. Heroicons use native sizing and currentColor rather than a second icon family. Dropdowns and dialogs are solid opaque overlays. Searchable choices show human names first with codes as supporting identity; searching and clearing scope preserve the exact Term and source version. Keep the Applicant-only identity/attribution exception from Issue #59.
+**The Control Meaning Rule.** Native Filament actions and Bootstrap buttons consume the existing full skeuomorphic Aqua-like action material; task navigation, Week/Meeting list and pagination consume its shallower seated selection material. Primary commands use native green; destructive commands retain native danger meaning. Supporting blue identifies appropriate ordinary links and information. Text links stay quiet, with underline and visible keyboard focus; menu rows, sort/disclosure/notification-close controls and input-affix icons keep the native quiet whitelist. Heroicons use native sizing and currentColor rather than a second icon family. Dropdowns and dialogs are solid opaque overlays. Searchable choices show human names first with codes as supporting identity; searching and clearing scope preserve the exact Term and source version. Preserve the Applicant identity exception from Issue #59; every authenticated role omits Powered by TALA attribution.
 
 ALL native Filament and Bootstrap modal X controls use utility Aqua-like depth/gloss while retaining native names, Escape, focus and cancellation. This is the explicit modal-close exception to the quiet-control whitelist. Meeting inspection uses the opaque green Aqua-like family; source labels convey draft/valid/official meaning.
 
@@ -199,7 +225,7 @@ Native table layout, responsive rules and automatic inline CSS are retained. The
 ## Do's and Don'ts
 
 ### Do
-- Lead visible school services and official documents with Servitech Institute Asia Inc.; keep “Powered by TALA” secondary outside the Applicant panel and its account-entry pages. Preserve official-output “Generated through TALA” attribution.
+- Lead visible school services and official documents with Servitech Institute Asia Inc.; omit “Powered by TALA” from all authenticated pages. Public and anonymous non-Applicant account-entry attribution remains secondary; Applicant account-entry pages continue to omit it. Preserve official-output “Generated through TALA” attribution.
 - Apply the shared school-first visual direction while refining terminology, workflow, hierarchy and components where evidence warrants it.
 - Preserve native Light/Dark/System behavior, readable contrast, visible focus, and meaning that does not depend on color alone.
 - Choose a component for the user's task; use focused custom UI within Laravel/Filament when native presentation is inadequate.

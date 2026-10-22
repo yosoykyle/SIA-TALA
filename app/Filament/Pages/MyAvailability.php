@@ -28,7 +28,6 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\TextSize;
@@ -39,7 +38,6 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 use Spatie\Activitylog\Models\Activity;
@@ -99,7 +97,7 @@ class MyAvailability extends Page implements HasTable
             ->icon(Heroicon::OutlinedClock)
             ->modalHeading(fn (): string => $this->hasDeclaration() ? 'Update my availability' : 'Submit my availability')
             ->modalDescription(fn (): string => ($latest = $this->declarationsQuery()->latest('version')->first())
-                ? 'Current response · v'.$latest->version.': '.$this->intervalSummary($latest).'. Your update records a new version; current official meetings remain unchanged.'
+                ? 'Current answer: '.$this->intervalSummary($latest).'. Your update records a new response; current official meetings remain unchanged.'
                 : 'Your availability helps the Registrar plan teaching assignments.')
             ->modalSubmitActionLabel(fn (): string => $this->hasDeclaration() ? 'Update availability' : 'Submit response')
             ->fillForm(function (): array {
@@ -108,7 +106,6 @@ class MyAvailability extends Page implements HasTable
                 return [
                     'form_term_id' => $this->termId,
                     'declaration' => $latest?->declaration,
-                    'has_weekly_unavailability' => $latest ? ($latest->hard_unavailability === [] ? 'no' : 'yes') : null,
                     'hard_unavailability' => $latest?->hard_unavailability ?? [],
                     'correction_reason' => null,
                 ];
@@ -125,28 +122,13 @@ class MyAvailability extends Page implements HasTable
                     ->inline()
                     ->live()
                     ->required(),
-                Radio::make('has_weekly_unavailability')
-                    ->label('Any weekly times you cannot teach?')
-                    ->options(['yes' => 'Yes', 'no' => 'No'])
-                    ->inline()
-                    ->visible(fn (Get $get): bool => $get('declaration') === FacultyAvailabilityDeclaration::DeclarationAvailable)
-                    ->helperText(fn (Get $get): ?string => $get('has_weekly_unavailability') === 'no' ? 'No additional restrictions.' : null)
-                    ->live()
-                    ->afterStateUpdated(function (?string $state, Get $get, Set $set): void {
-                        if ($state === 'yes' && empty($get('hard_unavailability'))) {
-                            $set('hard_unavailability', [(string) Str::uuid() => ['day_of_week' => null, 'starts_at' => null, 'ends_at' => null]]);
-                        }
-                    })
-                    ->required(),
                 Repeater::make('hard_unavailability')
                     ->label('Weekly unavailable times')
-                    ->helperText('All times are in Asia/Manila.')
-                    ->visible(fn (Get $get): bool => $get('declaration') === FacultyAvailabilityDeclaration::DeclarationAvailable && $get('has_weekly_unavailability') === 'yes')
-                    ->addActionLabel('Add another unavailable time')
+                    ->helperText('Optional. Leave empty if you have no recurring restrictions. Times are in Asia/Manila.')
+                    ->visible(fn (Get $get): bool => $get('declaration') === FacultyAvailabilityDeclaration::DeclarationAvailable)
+                    ->addActionLabel('Add unavailable time')
                     ->addActionAlignment(Alignment::Start)
                     ->defaultItems(0)
-                    ->minItems(1)
-                    ->required()
                     ->schema([
                         Select::make('day_of_week')
                             ->label('Day')
@@ -188,7 +170,7 @@ class MyAvailability extends Page implements HasTable
                     $faculty,
                     $faculty,
                     (string) $data['declaration'],
-                    $data['declaration'] === FacultyAvailabilityDeclaration::DeclarationAvailable && ($data['has_weekly_unavailability'] ?? null) === 'yes' ? ($data['hard_unavailability'] ?? []) : [],
+                    $data['declaration'] === FacultyAvailabilityDeclaration::DeclarationAvailable ? ($data['hard_unavailability'] ?? []) : [],
                     $data['correction_reason'] ?? null,
                 );
 
@@ -299,13 +281,20 @@ class MyAvailability extends Page implements HasTable
         $term = $terms->firstWhere('id', $this->termId);
         $package = $this->activePackage();
         $deadlineSource = FacultyAvailabilityDeadline::query()->where('term_id', $term?->id)->latest('id')->first();
+        $currentDeclaration = $this->declarationsQuery()->latest('version')->first();
 
         return [
             'terms' => $terms,
             'term' => $term,
             'availabilityRequested' => $this->hasAvailabilityRequest(),
             'hasDeclaration' => $this->hasDeclaration(),
-            'currentDeclaration' => $this->declarationsQuery()->latest('version')->first(),
+            'currentDeclaration' => $currentDeclaration,
+            'weeklyUnavailableTimes' => collect($currentDeclaration?->hard_unavailability ?? [])
+                ->sortBy([['day_of_week', 'asc'], ['starts_at', 'asc']])
+                ->map(fn (array $interval): array => [
+                    'day' => SectionMeeting::dayOptions()[(int) $interval['day_of_week']] ?? 'Unknown day',
+                    'time' => $this->displayIntervalTime((string) $interval['starts_at']).'–'.$this->displayIntervalTime((string) $interval['ends_at']),
+                ])->values(),
             'availabilityDueAt' => $deadlineSource?->due_at ?? $package?->faculty_availability_due_at,
             'availabilityDeadlineSource' => $deadlineSource?->authority_reference ?? $package?->authority_reference,
             'historicalBlocksUrl' => CalendarEventResource::getUrl('index', ['termId' => $this->termId]),

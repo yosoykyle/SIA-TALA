@@ -108,9 +108,9 @@ class ImportBatchesTable
     private static function cancelAction(): Action
     {
         return Action::make('cancel')
-            ->label('Cancel')
+            ->label('Cancel import')
             ->icon(Heroicon::OutlinedXCircle)
-            ->color('gray')
+            ->color('danger')
             ->requiresConfirmation()
             ->authorize('update')
             ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()

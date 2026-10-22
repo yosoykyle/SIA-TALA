@@ -6,15 +6,18 @@ use App\Actions\Finance\FinanceEvidenceService;
 use App\Filament\Student\Pages\Finance;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\FeeRule;
 use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +36,7 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_test_codex', DB::connection()->getDatabaseName());
 
@@ -102,7 +105,7 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
 
         $component = Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Current Term Account')
+            ->assertSee('Account balance')
             ->assertDontSee('DSWD/LGU Certification')
             ->assertDontSee('Current-term Finance Gate');
 
@@ -138,12 +141,12 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixtureA['student'])
             ->test(Finance::class)
-            ->assertSee('Current Term Account')
+            ->assertSee('Account balance')
             ->assertDontSee($studentBNumber)
             ->assertDontSee($studentBName)
             ->assertDontSee('PHP 15,750.00')
             ->assertDontSee('DSWD/LGU Certification')
-            ->assertSee('Current Term Account');
+            ->assertSee('PHP 8,500.00');
     }
 
     #[Test]
@@ -152,8 +155,8 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
         $fixture = $this->financeFixture(['post_payment' => false]);
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Current Term Account')
-            ->assertSee('Submit payment evidence')
+            ->assertSee('Account balance')
+            ->assertSee('Submit payment proof')
             ->assertDontSee('Payment checkout')
             ->assertDontSee('Pending OR Mapping')
             ->assertDontSee('Mapped OR');
@@ -180,8 +183,14 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
             'registered_at' => now()->subDay(),
         ]);
         $assessmentTotal = $overrides['assessment_total'] ?? '9000.00';
+        $account = TermAccount::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'credential_user_id' => $student->id,
+            'term_id' => $term->id,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
@@ -190,6 +199,12 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
             'total' => $assessmentTotal,
             'required_downpayment' => '2000.00',
             'activated_at' => now(),
+        ]);
+        $obligation = AssessmentObligation::factory()->create([
+            'assessment_id' => $assessment->id,
+            'amount' => $assessmentTotal,
+            'due_at' => now()->subDay(),
+            'required_for_enrollment' => true,
         ]);
         $feeRule = FeeRule::query()->create([
             'code' => 'TUITION',
@@ -236,6 +251,7 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
             'state' => 'posted',
         ]);
         $payment = Payment::factory()->for($profile)->for($term)->create([
+            'term_account_id' => $account->id,
             'method' => 'paymongo',
             'channel' => 'paymongo',
             'amount' => '500.00',
@@ -247,6 +263,12 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
         ]);
 
         if ($postPayment) {
+            PaymentAllocation::factory()->create([
+                'payment_id' => $payment->id,
+                'assessment_obligation_id' => $obligation->id,
+                'assessment_line_id' => null,
+                'amount' => '500.00',
+            ]);
             LedgerEntry::query()->create([
                 'student_profile_id' => $profile->id,
                 'term_id' => $term->id,

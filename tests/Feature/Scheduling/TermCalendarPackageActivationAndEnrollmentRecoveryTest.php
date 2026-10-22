@@ -7,6 +7,7 @@ use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Actions\Calendar\TermCalendarPackageReadinessService;
 use App\Filament\Applicant\Pages\Dashboard as ApplicantDashboard;
+use App\Filament\Applicant\Pages\Enrollment as ApplicantEnrollment;
 use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermClasses;
 use App\Models\AdmissionApplication;
@@ -464,7 +465,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->assertSee('You are admitted and cleared by the Registrar for enrollment.')
             ->assertSee('Enrollment has not opened yet. The official academic calendar package is being prepared by the Registrar.')
             ->assertSee('Enrollment has not opened yet.')
-            ->assertActionHidden('startRegistration')
+            ->assertActionDoesNotExist('startRegistration')->assertActionVisible('openEnrollment')
             ->assertDontSee('Click Start enrollment to begin your Registration Case.');
 
         // Case B: Active package exists with upcoming enrollment window
@@ -481,7 +482,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Livewire::actingAs($application->user)
             ->test(ApplicantDashboard::class)
             ->assertSee('Enrollment will open on')
-            ->assertActionHidden('startRegistration')
+            ->assertActionDoesNotExist('startRegistration')->assertActionVisible('openEnrollment')
             ->assertDontSee('Click Start enrollment to begin your Registration Case.');
 
         // Case C: Enrollment window is closed
@@ -494,7 +495,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->test(ApplicantDashboard::class)
             ->assertSee('Ordinary enrollment for this Term closed on')
             ->assertSee('Contact the Registrar if you require late-enrollment assistance.')
-            ->assertActionHidden('startRegistration')
+            ->assertActionDoesNotExist('startRegistration')->assertActionVisible('openEnrollment')
             ->assertDontSee('Click Start enrollment to begin your Registration Case.');
 
         // Case D: Enrollment window is currently open
@@ -507,7 +508,9 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->test(ApplicantDashboard::class)
             ->assertSee('Enrollment is open.')
             ->assertSee('Enrollment is open. Start enrollment to begin your Registration Case.')
-            ->assertActionVisible('startRegistration');
+            ->assertActionVisible('openEnrollment');
+
+        Livewire::actingAs($application->user)->test(ApplicantEnrollment::class)->assertActionVisible('startRegistration');
     }
 
     public function test_attempting_start_enrollment_when_window_unavailable_produces_recoverable_explanation_no_500_no_records(): void
@@ -529,7 +532,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // When window is unavailable, action is hidden and not invited
         Livewire::actingAs($application->user)
-            ->test(ApplicantDashboard::class)
+            ->test(ApplicantEnrollment::class)
             ->assertActionHidden('startRegistration')
             ->assertDontSee('Click Start enrollment to begin your Registration Case.');
 
@@ -541,18 +544,17 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         ]);
 
         $raceComponent = Livewire::actingAs($application->user)
-            ->test(ApplicantDashboard::class)
-            ->assertActionVisible('startRegistration')
-            ->mountAction('startRegistration');
+            ->test(ApplicantEnrollment::class)
+            ->assertActionVisible('startRegistration');
 
-        // Window closes right after page load / modal opening
+        // The calendar closes after page load, before the applicant starts.
         $window->update([
             'closes_on' => now()->subDay()->toDateString(),
         ]);
 
-        // Applicant confirms in modal: backend gate blocks gracefully, no 500, no partial writes
-        $raceComponent->callMountedAction()
-            ->assertNotified('Enrollment is not currently available');
+        $raceComponent->call('$refresh')
+            ->assertActionHidden('startRegistration')
+            ->assertSee('Enrollment is outside the configured window.');
 
         // Verify zero Registration Cases and zero events created
         $this->assertSame(0, Enrollment::query()->where('credential_user_id', $application->user_id)->count());
@@ -565,10 +567,10 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         ]);
 
         Livewire::actingAs($application->user)
-            ->test(ApplicantDashboard::class)
+            ->test(ApplicantEnrollment::class)
             ->assertActionVisible('startRegistration')
             ->callAction('startRegistration')
-            ->assertNotified('Enrollment started');
+            ->assertNotified('Enrollment opened');
 
         // Exactly one Registration Case created
         $this->assertSame(1, Enrollment::query()->where('credential_user_id', $application->user_id)->count());

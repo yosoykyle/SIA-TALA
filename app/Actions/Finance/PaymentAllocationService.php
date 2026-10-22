@@ -10,15 +10,17 @@ use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentScheduleRow;
+use App\Models\TermAccount;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class PaymentAllocationService
 {
-    public function __construct(private readonly DecimalMoney $money) {}
+    public function __construct(private readonly DecimalMoney $money, private readonly TermAccountProjection $projection) {}
 
     /**
      * @return list<array{target_type:string,target_id:int,description:string,amount:string}>
@@ -63,6 +65,9 @@ class PaymentAllocationService
         CarbonImmutable $timestamp,
         string $description,
     ): Collection {
+        if ($enrollment->termAccount()->exists()) {
+            return $this->postToAccount($payment, $enrollment, $amount, $requested, $actor, $timestamp, $description);
+        }
         $normalizedAmount = $this->money->normalize($amount);
         $eligibleBalance = $this->eligibleBalance($enrollment);
 
@@ -130,6 +135,15 @@ class PaymentAllocationService
 
     private function eligibleBalance(Enrollment $enrollment): string
     {
+        $account = $enrollment->termAccount()->first();
+        if ($account instanceof TermAccount) {
+            $position = $this->projection->forAccount($account);
+            if ($position['state'] === 'Unavailable') {
+                throw new RuntimeException('The current assessment requires Accounting reconciliation.');
+            }
+
+            return $this->money->fromCents((int) collect($position['obligations'])->sum(fn (array $row): int => $this->money->toCents($row['available_balance'])));
+        }
         $assessment = Assessment::query()
             ->with(['obligations.paymentAllocations', 'obligations.coverages'])
             ->where('enrollment_id', $enrollment->id)
@@ -177,6 +191,23 @@ class PaymentAllocationService
      */
     private function automaticTargets(Enrollment $enrollment, string $amount): array
     {
+        $account = $enrollment->termAccount()->first();
+        if ($account instanceof TermAccount) {
+            $position = $this->projection->forAccount($account);
+            if ($position['state'] === 'Unavailable') {
+                throw new RuntimeException('The current assessment requires Accounting reconciliation.');
+            }
+            $remaining = $amount;
+            $targets = [];
+            foreach ($position['obligations'] as $row) {
+                $remaining = $this->appendTarget($targets, AssessmentObligation::class, (int) $row['id'], $row['label'], $row['available_balance'], $remaining);
+            }
+            if ($this->money->greaterThanZero($remaining)) {
+                throw new RuntimeException('Payment exceeds the current named obligation balances.');
+            }
+
+            return $targets;
+        }
         $assessment = Assessment::query()
             ->where('enrollment_id', $enrollment->id)
             ->where('state', Assessment::StateActive)
@@ -383,6 +414,50 @@ class PaymentAllocationService
      *     term_id:?int
      * }
      */
+    private function postToAccount(Payment $payment, Enrollment $enrollment, string $amount, ?array $requested, ?User $actor, CarbonImmutable $timestamp, string $description): Collection
+    {
+        return DB::transaction(function () use ($payment, $enrollment, $amount, $requested, $actor, $timestamp, $description): Collection {
+            $account = TermAccount::query()->where('enrollment_id', $enrollment->id)->lockForUpdate()->firstOrFail();
+            $existing = $payment->allocations()->with('ledgerEntry')->get();
+            if ($existing->isNotEmpty()) {
+                $total = (int) $existing->sum(fn (PaymentAllocation $row): int => $this->money->toCents($row->amount));
+                if ($total !== $this->money->toCents($amount)) {
+                    throw new RuntimeException('Existing payment allocations differ from this posting.');
+                }
+
+                return $existing->pluck('ledgerEntry')->filter()->values();
+            }
+            $position = $this->projection->forAccount($account);
+            $rows = collect($position['obligations'])->keyBy('id');
+            $targets = $requested ?? $this->automaticTargets($enrollment, $amount);
+            if ($position['state'] === 'Unavailable' || $targets === []
+                || collect($targets)->pluck('target_id')->unique()->count() !== count($targets)
+                || (int) collect($targets)->sum(fn (array $target): int => $this->money->toCents($target['amount'])) !== $this->money->toCents($amount)) {
+                throw new RuntimeException('Current named payment targets must reconcile exactly.');
+            }
+            $entries = collect();
+            foreach ($targets as $index => $target) {
+                $row = $rows->get((int) $target['target_id']);
+                if ($target['target_type'] !== AssessmentObligation::class || $row === null
+                    || ! $this->money->greaterThanZero($target['amount'])
+                    || $this->money->toCents($target['amount']) > $this->money->toCents($row['available_balance'])) {
+                    throw new RuntimeException('A named obligation is stale, covered, or exceeds its remaining balance.');
+                }
+                $allocation = PaymentAllocation::query()->create(['payment_id' => $payment->id, 'sequence' => $index + 1, 'assessment_obligation_id' => $row['id'], 'amount' => $this->money->normalize($target['amount'])]);
+                if ($enrollment->student_profile_id !== null) {
+                    $entries->push(LedgerEntry::query()->create([
+                        'student_profile_id' => $enrollment->student_profile_id, 'term_id' => $enrollment->term_id, 'enrollment_id' => $enrollment->id,
+                        'direction' => LedgerEntry::DirectionPayment, 'category' => 'payment', 'amount' => $allocation->amount,
+                        'source_type' => PaymentAllocation::class, 'source_id' => $allocation->id, 'payment_id' => $payment->id, 'payment_allocation_id' => $allocation->id,
+                        'description' => $target['description'] ?? $description, 'posted_by' => $actor?->id, 'posted_at' => $timestamp, 'state' => 'posted',
+                    ]));
+                }
+            }
+
+            return $entries;
+        }, attempts: 3);
+    }
+
     private function validatedTarget(Enrollment $enrollment, array $target, string $amount): array
     {
         $type = $target['target_type'];

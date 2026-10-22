@@ -56,7 +56,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
 
         $this->baselineOperationalEventId = (int) (OperationalEvent::query()->max('id') ?? 0);
@@ -492,6 +492,22 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         config()->set('tala_integrations.payments.driver', 'paymongo');
         config()->set('tala_integrations.payments.paymongo.secret_key');
         $this->assertSandboxGuardRejects($guard, 'required PayMongo sandbox configuration is missing');
+    }
+
+    public function test_sandbox_guard_rejects_unsafe_or_unselected_database_targets_without_provider_calls(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->configureSafeSandbox();
+        $guard = app(PayMongoSandboxEnvironmentGuard::class);
+
+        foreach (['tala_db', 'tala_test_codex', 'test_tala_db_unselected_target'] as $target) {
+            config()->set('database.test_database', $target);
+
+            $this->assertSandboxGuardRejects($guard, 'explicit MySQL');
+        }
+
+        Http::assertNothingSent();
     }
 
     public function test_guarded_sandbox_commands_create_reuse_and_expire_one_attempt(): void

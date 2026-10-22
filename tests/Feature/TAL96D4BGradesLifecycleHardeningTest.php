@@ -42,7 +42,7 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
 
         foreach ([User::StaffRoleRegistrar, User::StaffRoleFaculty, 'student'] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
@@ -59,7 +59,7 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         Livewire::test(FacultyGradeRoster::class)->assertSee('No assigned roster');
         $facultySource = file_get_contents((new \ReflectionClass(FacultyGradeRoster::class))->getFileName());
         $this->assertStringContainsString("Repeater::make('rows')", $facultySource);
-        $this->assertStringContainsString('->table([', $facultySource);
+        $this->assertStringContainsString("->columns(['default' => 1, 'md' => 3])", $facultySource);
         $this->assertStringContainsString('SaveGradeRosterDraft', $facultySource);
 
         $registrar = $this->staff(User::StaffRoleRegistrar);
@@ -158,7 +158,9 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $studentLifecyclePage = $lifecycle->instance();
         $this->assertInstanceOf(LifecycleView::class, $studentLifecyclePage);
         $this->assertTrue($studentLifecyclePage->getTable()->isStackedOnMobile());
-        $lifecycle->assertSee('Enrollment guidance: ALLOWED');
+        $lifecycle->assertSee('No changes recorded')
+            ->assertSee('Approved school record changes will appear here.')
+            ->assertSee('View enrollment');
     }
 
     #[Test]

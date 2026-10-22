@@ -13,6 +13,8 @@ use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\GradeRosters\Pages\ListGradeRosters;
 use App\Filament\Resources\Programs\ProgramResource;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
@@ -22,13 +24,20 @@ use App\Filament\Resources\Terms\Pages\EditTerm;
 use App\Filament\Resources\Terms\Pages\ViewTerm;
 use App\Filament\Resources\Terms\TermResource;
 use App\Models\AcademicYear;
+use App\Models\AdmissionApplication;
 use App\Models\CurriculumVersion;
+use App\Models\Enrollment;
 use App\Models\FacultyAvailabilityDeadline;
+use App\Models\GradeRoster;
 use App\Models\OperationalEvent;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationProposalVersion;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
+use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -52,8 +61,10 @@ final class Issue58ExactTermPreparationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
-        $this->assertSame('test_tala_db', DB::selectOne('SELECT DATABASE() AS active_database')->active_database);
+        $expectedDatabase = env('TALA_TEST_DATABASE', 'test_tala_db');
+        $this->assertMatchesRegularExpression('/^test_tala_db(?:_[a-z0-9_]+)?$/', $expectedDatabase);
+        $this->assertSame($expectedDatabase, DB::connection()->getDatabaseName());
+        $this->assertSame($expectedDatabase, DB::selectOne('SELECT DATABASE() AS active_database')->active_database);
         Filament::setCurrentPanel(Filament::getPanel('staff'));
         foreach (User::staffRoleNames() as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
@@ -285,11 +296,19 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $second->update(['state' => TermCalendarPackage::StateActive]);
         TermCalendarWindow::factory()->for($first, 'package')->create(['window_type' => TermCalendarWindow::TypeExaminationPeriod]);
 
-        Livewire::actingAs($head)->test(AcademicApprovals::class)->assertSet('termId', null)
-            ->assertSee('No exact Term is selected')->call('selectTerm', $first->term_id)
+        $page = Livewire::actingAs($head)->test(AcademicApprovals::class)->assertSet('termId', null)
+            ->assertSee('Choose an academic term')
+            ->assertSee('Select an academic year and term to view its calendar, enrollment and class rosters.')
+            ->assertSee('Institution-wide records')
+            ->assertSee('Catalog & Curricula', false)->assertSee('Grade Review')->assertSee('Lifecycle Exceptions')->assertSee('Student academic records')
+            ->assertDontSeeHtml('class="oversight-board"');
+        $this->assertSame(1, substr_count($page->html(), 'Academic Year and Term'));
+
+        $page->call('selectTerm', $first->term_id)
             ->assertSet('termId', $first->term_id)->assertSee('Issue58 first source')
             ->assertSee(TermPlanningWorkbench::getUrl(['termId' => $first->term_id]))
             ->assertSee('Academic Authority')->assertSee('Grades & Progress')->assertSee('Lifecycle & Completion')
+            ->assertDontSee('Choose an academic term')
             ->assertDontSee('Academic decisions requiring oversight')->assertDontSee('resolve their stated blockers')
             ->assertViewHas('timetable', null);
     }
@@ -352,6 +371,195 @@ final class Issue58ExactTermPreparationTest extends TestCase
                     && $statuses['CourseDrop'] === 'Open'
                     && $statuses['GradeEntry'] === 'Dates not configured';
             });
+    }
+
+    public function test_oversight_counts_exact_term_cases_and_rosters_with_unknown_states_explicit(): void
+    {
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $term = Term::factory()->create();
+        $otherTerm = Term::factory()->create();
+        foreach ([Enrollment::OutcomeOfficiallyEnrolled, Enrollment::OutcomeInProgress, Enrollment::OutcomeCancelledByLearner, Enrollment::OutcomeNotEnrolled, 'Unrecognized'] as $outcome) {
+            $case = Enrollment::factory()->create(['term_id' => $term->id, 'canonical_outcome' => $outcome]);
+        }
+        Enrollment::factory()->create(['term_id' => $otherTerm->id, 'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled]);
+        $offering = TermOffering::factory()->create(['term_id' => $term->id]);
+        foreach ([GradeRoster::StateReleased, GradeRoster::StateSubmitted, GradeRoster::StateDraft, GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted, 'Unrecognized'] as $state) {
+            GradeRoster::factory()->create(['term_offering_id' => $offering->id, 'state' => $state]);
+        }
+        GradeRoster::factory()->create(['term_offering_id' => TermOffering::factory()->create(['term_id' => $otherTerm->id])->id, 'state' => GradeRoster::StateReleased]);
+        $version = PublishedTimetableVersion::factory()->create(['term_id' => $term->id]);
+        $meeting = PublishedTimetableMeeting::factory()->create(['published_timetable_version_id' => $version->id]);
+        PublishedTimetableMeeting::factory()->create(['published_timetable_version_id' => $version->id, 'section_id' => $meeting->section_id, 'meeting_sequence' => 2]);
+        PublishedTimetableVersion::factory()->create(['term_id' => $otherTerm->id, 'version' => 7]);
+
+        $page = Livewire::actingAs($head)->test(AcademicApprovals::class, ['termId' => $term->id])->assertDontSee($case->case_reference);
+        $page->assertViewHas('enrollmentSummary', function (array $summary) use ($term): bool {
+            $this->assertSame(['total' => 5, 'official' => 1, 'in_progress' => 1, 'closed' => 2, 'unknown' => 1], array_diff_key($summary, ['url' => null]));
+            parse_str(parse_url($summary['url'], PHP_URL_QUERY), $query);
+            $this->assertSame((string) $term->id, $query['filters']['term']['value']);
+            $this->assertArrayNotHasKey('tableFilters', $query);
+
+            return true;
+        })->assertViewHas('gradeSummary', function (array $summary) use ($term): bool {
+            $this->assertSame(['total' => 6, 'released' => 1, 'submitted' => 1, 'in_progress' => 3, 'unknown' => 1], array_diff_key($summary, ['url' => null]));
+            parse_str(parse_url($summary['url'], PHP_URL_QUERY), $query);
+            $this->assertSame((string) $term->id, $query['filters']['term']['value']);
+            $this->assertArrayNotHasKey('tableFilters', $query);
+            $this->assertSame((string) $term->id, $query['oversightTermId']);
+
+            return true;
+        })->assertViewHas('timetable', fn ($timetable): bool => $timetable->id === $version->id && $timetable->meetings_count === 2);
+    }
+
+    public function test_oversight_timeline_scales_recorded_dates_and_keeps_invalid_dates_unavailable(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-19 09:00:00', 'Asia/Manila'));
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $package = $this->core();
+        $package->update(['state' => TermCalendarPackage::StateActive, 'classes_start_on' => '2026-10-17', 'classes_end_on' => '2027-03-31']);
+        $window = TermCalendarWindow::factory()->for($package, 'package')->create(['window_type' => TermCalendarWindow::TypeEnrollment, 'opens_on' => '2026-10-16', 'closes_on' => '2026-11-17']);
+
+        Livewire::actingAs($head)->test(AcademicApprovals::class, ['termId' => $package->term_id])
+            ->assertViewHas('calendarTimeline', function (array $timeline): bool {
+                $this->assertSame(['Oct 2026', 'Nov 2026', 'Dec 2026', 'Jan 2027', 'Feb 2027', 'Mar 2027'], array_column($timeline['months'], 'label'));
+                $this->assertSame('2026-10-01', $timeline['starts_on']->toDateString());
+                $this->assertSame('2027-04-01', $timeline['ends_on']->toDateString());
+                $this->assertSame(9.8901, $timeline['today_percent']);
+                $this->assertSame(18.1319, $timeline['rows'][0]['width_percent']);
+                $this->assertFalse($timeline['rows'][2]['available']);
+                $this->assertNull($timeline['rows'][2]['left_percent']);
+                $this->assertSame('Enrollment period open', $timeline['enrollment_status']);
+
+                return true;
+            });
+        $window->update(['closes_on' => '2026-10-15']);
+        $package->update(['classes_end_on' => '2026-10-16']);
+
+        Livewire::actingAs($head)->test(AcademicApprovals::class, ['termId' => $package->term_id])
+            ->assertViewHas('calendarTimeline', function (array $timeline): bool {
+                $this->assertSame([], $timeline['months']);
+                $this->assertNull($timeline['starts_on']);
+                $this->assertNull($timeline['today_percent']);
+                $this->assertSame([false, false, false], array_column($timeline['rows'], 'available'));
+
+                return true;
+            });
+    }
+
+    public function test_oversight_enrollment_period_respects_approved_closing_cutoff_without_changing_day_geometry(): void
+    {
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $package = $this->core();
+        $package->update(['state' => TermCalendarPackage::StateActive]);
+        TermCalendarWindow::factory()->for($package, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeEnrollment,
+            'opens_on' => '2026-10-18', 'closes_on' => '2026-10-19', 'cutoff_at' => '17:00:00',
+        ]);
+        $this->travelTo(Carbon::parse('2026-10-19 17:00:00', 'Asia/Manila'));
+
+        $page = Livewire::actingAs($head)->test(AcademicApprovals::class, ['termId' => $package->term_id]);
+        $page->assertViewHas('calendarTimeline', fn (array $timeline): bool => $timeline['enrollment_status'] === 'Enrollment period open');
+        $before = $page->viewData('calendarTimeline')['rows'][0];
+        $this->travelTo(Carbon::parse('2026-10-19 17:00:01', 'Asia/Manila'));
+
+        $page->call('$refresh')->assertViewHas('calendarTimeline', function (array $timeline) use ($before): bool {
+            $this->assertSame('Enrollment period closed', $timeline['enrollment_status']);
+            $this->assertSame($before['left_percent'], $timeline['rows'][0]['left_percent']);
+            $this->assertSame($before['width_percent'], $timeline['rows'][0]['width_percent']);
+
+            return true;
+        });
+        $this->travelTo(Carbon::parse('2026-10-17 23:59:59', 'Asia/Manila'));
+        $page->call('$refresh')->assertViewHas('calendarTimeline', fn (array $timeline): bool => $timeline['enrollment_status'] === 'Enrollment period upcoming');
+    }
+
+    public function test_oversight_without_selected_term_has_unavailable_counts_and_no_borrowed_dates(): void
+    {
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        foreach (range(1, 2) as $unused) {
+            $package = $this->core();
+            $package->update(['state' => TermCalendarPackage::StateActive]);
+            TermCalendarWindow::factory()->for($package, 'package')->create(['window_type' => TermCalendarWindow::TypeExaminationPeriod]);
+        }
+
+        Livewire::actingAs($head)->test(AcademicApprovals::class)
+            ->assertSet('termId', null)
+            ->assertViewHas('enrollmentSummary', fn (array $summary): bool => $summary['total'] === null && $summary['official'] === null)
+            ->assertViewHas('gradeSummary', fn (array $summary): bool => $summary['total'] === null && $summary['released'] === null)
+            ->assertViewHas('examination', fn (array $projection): bool => $projection['status'] === 'Unavailable' && $projection['opens_on'] === null)
+            ->assertViewHas('calendarTimeline', fn (array $timeline): bool => $timeline['months'] === [] && $timeline['today_percent'] === null)
+            ->assertViewHas('attention', fn (array $findings): bool => collect($findings)->every(fn (array $finding): bool => $finding['scope'] === 'Institution-wide'))
+            ->call('selectTerm', $package->term_id)
+            ->assertViewHas('enrollmentSummary', fn (array $summary): bool => $summary['total'] === 0 && $summary['official'] === 0)
+            ->assertViewHas('gradeSummary', fn (array $summary): bool => $summary['total'] === 0 && $summary['released'] === 0)
+            ->assertViewHas('examination', fn (array $projection): bool => $projection['status'] === 'Available');
+    }
+
+    public function test_head_enrollment_list_uses_native_search_filters_and_preserves_inspection_context(): void
+    {
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $originTerm = Term::factory()->create();
+        $term = Term::factory()->create();
+        $matching = Enrollment::factory()->create(['term_id' => $term->id]);
+        $matching->credentialUser->update(['first_name' => 'Head', 'middle_name' => 'searchable', 'last_name' => 'learner']);
+        $closed = Enrollment::factory()->create(['term_id' => $term->id, 'canonical_outcome' => Enrollment::OutcomeNotEnrolled]);
+        $otherTerm = Enrollment::factory()->create(['term_id' => $originTerm->id]);
+        $programId = $matching->studentProfile->program_id;
+
+        $page = Livewire::actingAs($head)->test(ListEnrollments::class, ['oversightTermId' => $originTerm->id])
+            ->assertSee('Enrollment oversight')->assertSee('Read-only enrollment records')
+            ->assertActionHasUrl('returnToOversight', AcademicApprovals::getUrl(['termId' => $originTerm->id]))
+            ->assertCanSeeTableRecords([$matching, $closed, $otherTerm])
+            ->filterTable('term', $term->id)->assertCanSeeTableRecords([$matching, $closed])->assertCanNotSeeTableRecords([$otherTerm])
+            ->filterTable('canonical_outcome', Enrollment::OutcomeInProgress)->assertCanSeeTableRecords([$matching])->assertCanNotSeeTableRecords([$closed])
+            ->filterTable('program', $programId)->assertCanSeeTableRecords([$matching])
+            ->searchTable('Head searchable learner')->assertCanSeeTableRecords([$matching])
+            ->assertSee('Subjects being prepared')->assertDontSee('Finalize selected cases')->assertDontSee('Ready applicant')
+            ->assertDontSee('Prepare subjects for learner confirmation.');
+        $this->assertSame(['term', 'program', 'canonical_outcome'], array_keys($page->instance()->getTable()->getFilters()));
+        $page->assertSee(EnrollmentResource::getUrl('view', [
+            'record' => $matching, 'oversightTermId' => $originTerm->id,
+            'returnFilters' => $page->get('tableFilters'), 'returnSearch' => 'Head searchable learner',
+        ]));
+        $page->searchTable('No such enrollment learner')->assertCanNotSeeTableRecords([$matching])->assertSee('No matching enrollments');
+    }
+
+    public function test_head_program_filter_matches_the_displayed_official_or_proposed_source_only(): void
+    {
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $officialProgram = Program::factory()->create(['name' => 'Official profile program']);
+        $proposedProgram = Program::factory()->create(['name' => 'Proposed curriculum program']);
+        $applicationProgram = Program::factory()->create(['name' => 'Earlier application program']);
+        $official = Enrollment::factory()->create(['canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled]);
+        $unfinished = Enrollment::factory()->create();
+        foreach ([$official, $unfinished] as $case) {
+            $case->studentProfile->update(['program_id' => $officialProgram->id]);
+            $application = AdmissionApplication::factory()->create([
+                'user_id' => $case->credential_user_id, 'term_id' => $case->term_id, 'program_id' => $applicationProgram->id,
+            ]);
+            $curriculum = CurriculumVersion::factory()->create(['program_id' => $proposedProgram->id]);
+            $proposal = RegistrationProposalVersion::factory()->create([
+                'enrollment_id' => $case->id, 'curriculum_version_id' => $curriculum->id,
+                'purpose' => $case->is($official) ? RegistrationProposalVersion::PurposeAdjustment : RegistrationProposalVersion::PurposeInitial,
+            ]);
+            $case->update(['admission_application_id' => $application->id, 'current_proposal_version_id' => $proposal->id]);
+        }
+
+        $page = Livewire::actingAs($head)->test(ListEnrollments::class)
+            ->filterTable('program', $officialProgram->id)
+            ->assertCanSeeTableRecords([$official])->assertCanNotSeeTableRecords([$unfinished])
+            ->assertSeeHtml('<p>Official profile program</p>')->assertDontSeeHtml('<p>Proposed curriculum program</p>')
+            ->filterTable('program', $proposedProgram->id)
+            ->assertCanSeeTableRecords([$unfinished])->assertCanNotSeeTableRecords([$official])
+            ->assertSeeHtml('<p>Proposed curriculum program</p>')->assertDontSeeHtml('<p>Official profile program</p>')
+            ->filterTable('program', $applicationProgram->id)->assertCanNotSeeTableRecords([$official, $unfinished]);
+
+        $unfinished->update(['current_proposal_version_id' => null]);
+        $page->call('$refresh')->assertCanSeeTableRecords([$unfinished])->assertCanNotSeeTableRecords([$official])
+            ->assertSeeHtml('<p>Earlier application program</p>')
+            ->filterTable('program', $officialProgram->id)->assertCanSeeTableRecords([$official])->assertCanNotSeeTableRecords([$unfinished]);
+        $unfinished->update(['admission_application_id' => null]);
+        $page->call('$refresh')->assertCanSeeTableRecords([$official, $unfinished]);
     }
 
     private function core(): TermCalendarPackage

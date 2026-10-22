@@ -1,0 +1,4 @@
+<x-filament::section heading="Selected-case finalization results" description="Each case was processed independently. Successful retries preserve the same official result." icon="heroicon-o-check-badge">
+    <div role="status" class="mb-3 text-sm">{{ collect($results)->where('result', 'Finalized')->count() }} finalized · {{ collect($results)->where('result', 'Not finalized')->count() }} require attention.</div>
+    <div class="divide-y divide-gray-200 dark:divide-white/10">@foreach ($results as $row)<div wire:key="batch-result-{{ $loop->index }}" class="flex flex-wrap items-start justify-between gap-3 py-3 text-sm"><div><p class="font-semibold">{{ $row['learner'] }} · {{ $row['case'] }} · {{ $row['result'] }}</p><p class="mt-1 text-gray-600 dark:text-gray-300">{{ $row['recovery'] }}</p></div><x-filament::link :href="$row['url']">Open case</x-filament::link></div>@endforeach</div>
+</x-filament::section>

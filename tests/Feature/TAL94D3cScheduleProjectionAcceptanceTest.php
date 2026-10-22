@@ -120,9 +120,9 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->assertSee($owned['section']->code)
             ->assertSee($owned['faculty']->name)
             ->assertSee('Monday')
-            ->assertSee('08:00-11:00')
+            ->assertSee('8:00 AM–11:00 AM')
             ->assertSee($owned['room']->code)
-            ->assertSee('Face-to-Face');
+            ->assertSee('Face to face');
 
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => 'STUDENT_SCHEDULE',
@@ -144,7 +144,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($emptyStudent['student'])
             ->test(ScheduleView::class)
-            ->assertSee('No current official schedule is available');
+            ->assertSee('Your class schedule starts with official enrollment');
 
         $this->assertSame($logCount, DB::table('output_access_logs')->count());
     }
@@ -251,7 +251,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->test(ScheduleView::class)
             ->assertSee($replacementFaculty->name)
             ->assertSee('Tuesday')
-            ->assertSee('09:00-12:00')
+            ->assertSee('9:00 AM–12:00 PM')
             ->assertSee($replacementRoom->code);
 
         $cor = app(BuildCorOutput::class)->forStudent($fixture['student']);
@@ -342,6 +342,8 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         $this->assertCount(1, $dashboard['schedule']['current']);
         $this->assertSame($current['course']->code, $dashboard['schedule']['current'][0]['subject_code']);
+        $this->actingAs($historical['student'])->get(route('student.schedule.print'))
+            ->assertOk()->assertSee($current['course']->code)->assertDontSee($historical['course']->code);
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Http\Controllers\PaymentEvidenceDownloadController;
 use App\Http\Controllers\PublicGatewayController;
 use App\Http\Controllers\StaffEmailChangeController;
 use App\Http\Controllers\StaffInvitationActivationController;
+use App\Http\Controllers\StudentProfilePhotoController;
 use App\Http\Controllers\StudentSchedulePrintController;
 use App\Http\Controllers\TimetableVersionPrintController;
 use App\Http\Controllers\TranscriptPreviewController;
@@ -39,6 +40,8 @@ Route::get('/staff-email-change/{change}', StaffEmailChangeController::class)
     ->name('staff-email-changes.verify');
 
 Route::middleware('auth')->group(function (): void {
+    Route::get('/student/profile-photo', StudentProfilePhotoController::class)
+        ->name('student.profile-photo');
     Route::get('/workspace-chooser', [WorkspaceContextController::class, 'show'])->name('workspace-chooser');
     Route::post('/workspace-chooser', [WorkspaceContextController::class, 'store'])
         ->name('workspace-chooser.select');
@@ -63,6 +66,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('finance.payments.acknowledgement');
     Route::get('/finance/payment-evidence/{evidence}', PaymentEvidenceDownloadController::class)
         ->name('finance.payment-evidence.download');
+    Route::get('/finance/payment-evidence/{evidence}/view', PaymentEvidenceDownloadController::class)
+        ->name('finance.payment-evidence.view');
     Route::get('/finance/exports/{export}', FinanceExportDownloadController::class)
         ->name('finance.exports.download');
     Route::get('/outputs/schedules/faculty', FacultySchedulePrintController::class)

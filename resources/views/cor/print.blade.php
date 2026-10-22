@@ -1,92 +1,99 @@
+@php
+    $summary = $cor['summary'];
+    $number = fn ($value) => is_numeric($value) ? (string) (float) $value : $value;
+    $money = fn ($value) => $value === null ? 'Not recorded' : 'PHP '.number_format((float) $value, 2);
+    $courses = collect($cor['subjects'])->groupBy(fn ($subject) => $subject['course_enrollment_id'] ?? $subject['subject_code'].'|'.$subject['section']);
+@endphp
 <x-official-output-layout
     title="Certificate of Registration"
-    :context="str($cor['copy_context'])->replace('_', ' ')->headline().' · '.$cor['summary']['document_status'].' · Version '.$cor['summary']['cor_version']"
-    :subtitle="$cor['summary']['term']"
-    :generated-at="\App\Support\DisplayDateTime::format($cor['generated_at'], 'M d, Y h:i A')"
-    :logo-src="asset('images/brand/servitech-crest.webp')"
-    page-margin="12mm"
+    :context="str($cor['copy_context'])->replace('_', ' ')->headline().' · '.$summary['document_status']"
+    page-orientation="landscape"
+    page-margin="8mm"
+    document-class="cor-document"
+    :back-url="$backUrl ?? null"
+    :back-label="$backLabel ?? 'Back to enrollment'"
 >
-    <section class="finance-grid" aria-label="Registration identity and authority">
-        <div><strong>Student No.:</strong> {{ $cor['summary']['student_number'] }}</div>
-        <div><strong>Legal name:</strong> {{ $cor['summary']['student_name'] }}</div>
-        <div><strong>Program:</strong> {{ $cor['summary']['program'] }}</div>
-        <div><strong>Curriculum Version:</strong> {{ $cor['summary']['curriculum_version'] }}</div>
-        <div><strong>Represented level:</strong> {{ $cor['summary']['curriculum_levels'] }}</div>
-        <div><strong>Selection basis:</strong> {{ str($cor['summary']['selection_basis'])->headline() }}</div>
-        <div><strong>Registration date:</strong> {{ $cor['summary']['registration_date'] }}</div>
-        <div><strong>Total units:</strong> {{ $cor['summary']['total_units'] }}</div>
-        <div><strong>Timetable source:</strong> {{ $cor['summary']['course_delivery_mix'] }}</div>
-        <div><strong>Assessment source:</strong> {{ $cor['summary']['assessment_reference'] }}</div>
-        <div><strong>Term Account:</strong> {{ $cor['summary']['term_account_reference'] }}</div>
-        <div><strong>Clearance at issue:</strong> {{ $cor['summary']['payment_status'] }}</div>
-        <div><strong>Recorded authority:</strong> {{ $cor['summary']['issued_by'] }}</div>
-        <div><strong>Recorded at:</strong> {{ \App\Support\DisplayDateTime::format(\Carbon\CarbonImmutable::parse($cor['summary']['issued_at']), 'M d, Y h:i A') }}</div>
-    </section>
+    <x-slot:documentStyles><link rel="stylesheet" href="{{ asset('css/tala-cor.css').'?v='.filemtime(public_path('css/tala-cor.css')) }}"></x-slot:documentStyles>
+    <x-slot:documentHeader>
+        <header class="cor-header">
+            <div class="cor-institution">
+                <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="{{ config('institution.name') }} crest" width="64" height="64">
+                <div><p>{{ config('institution.name') }}</p>
+                    @if (filled(config('institution.address')))<p class="cor-institution-address">{{ config('institution.address') }}</p>@endif
+                </div>
+            </div>
+            <div class="cor-title"><h1>Certificate of Registration</h1><p>{{ str($cor['copy_context'])->replace('_', ' ')->headline() }} · {{ $summary['document_status'] }}</p></div>
+        </header>
+    </x-slot:documentHeader>
 
-    <section>
-        <h2 class="finance-heading">Official courses and class schedule</h2>
-        <div class="official-output-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th colspan="9" style="background: #f3f4f6; font-weight: 700; border-bottom: 2px solid #111827;">
-                            {{ $cor['summary']['student_name'] }} ({{ $cor['summary']['student_number'] }}) · {{ $cor['summary']['program'] }} · {{ $cor['summary']['term'] }} · {{ $cor['summary']['document_status'] }}
-                        </th>
-                    </tr>
-                    <tr>
-                        <th>Course</th>
-                        <th>Title</th>
-                        <th>Units</th>
-                        <th>Contact hours</th>
-                        <th>Class</th>
-                        <th>Schedule</th>
-                        <th>Room</th>
-                        <th>Faculty</th>
-                        <th>Mode</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($cor['subjects'] as $subject)
-                        <tr>
-                            <td>{{ $subject['subject_code'] }}</td>
-                            <td>{{ $subject['subject_description'] }}</td>
-                            <td>{{ $subject['units'] }}</td>
-                            <td>Lecture {{ $subject['lecture_hours'] }}; Laboratory {{ $subject['laboratory_hours'] }}</td>
-                            <td>{{ $subject['section'] }}</td>
-                            <td>{{ $subject['day'] }}<br>{{ $subject['time'] }}</td>
-                            <td>{{ $subject['room'] }}</td>
-                            <td>{{ $subject['instructor'] }}</td>
-                            <td>{{ $subject['modality'] }}</td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="9">No official course snapshot is recorded for this version.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+    <section class="cor-student" aria-label="Student and term">
+        <dl><div><dt>Student name</dt><dd class="cor-student-name">{{ $summary['student_name'] }}</dd></div><div><dt>Student number</dt><dd>{{ $summary['student_number'] }}</dd></div></dl>
+        <dl><div><dt>Term</dt><dd>{{ $summary['term'] }}</dd></div><div><dt>Date issued</dt><dd>{{ $summary['registration_date'] ?? 'Not recorded' }}</dd></div></dl>
     </section>
+    <dl class="cor-registration" aria-label="Program and curriculum">
+        <div class="cor-program"><dt>Program</dt><dd>{{ $summary['program_name'] }}</dd></div>
+        <div><dt>Program code</dt><dd>{{ $summary['program_code'] }}</dd></div>
+        <div class="cor-levels"><dt>Year level</dt><dd>{{ $summary['curriculum_levels'] }}</dd></div>
+    </dl>
 
-    <section>
-        <h2 class="finance-heading">Assessment at finalization</h2>
-        <p>
-            <strong>Total assessed:</strong>
-            {{ $cor['summary']['assessment_total'] !== null ? 'PHP '.number_format((float) $cor['summary']['assessment_total'], 2) : 'Not recorded' }}
-        </p>
-        <div class="official-output-table">
-            <table>
-                <thead><tr><th>Category</th><th>Amount</th></tr></thead>
+    <div class="cor-body">
+        <section class="cor-subjects" aria-label="Official subjects and schedule">
+            <div class="cor-subject-table" role="region" aria-label="Subject table. Scroll horizontally on a small screen." tabindex="0">
+                <table>
+                    <caption class="cor-sr-only">Official subjects and schedule at issue</caption>
+                    <colgroup><col class="cor-code-column"><col class="cor-title-column"><col class="cor-section-column"><col class="cor-units-column"><col class="cor-schedule-column"></colgroup>
+                    <thead><tr><th scope="col">Subject code</th><th scope="col">Subject title / Faculty</th><th scope="col">Section / Mode</th><th scope="col" class="cor-number">Units<br><span>Contact hours</span></th><th scope="col">Schedule and room</th></tr></thead>
+                    <tbody>
+                        @forelse ($courses as $meetings)
+                            @php($subject = $meetings->first())
+                            <tr>
+                                <td>{{ $subject['subject_code'] }}</td>
+                                <th scope="row">{{ $subject['subject_description'] }}<span class="cor-secondary">{{ $meetings->pluck('instructor')->unique()->implode('; ') }}</span></th>
+                                <td>{{ $subject['section'] }}<span class="cor-secondary">{{ $meetings->pluck('modality')->unique()->map(fn ($mode) => match ($mode) { 'FACE_TO_FACE' => 'Face to face', 'ONLINE' => 'Online', 'HYBRID' => 'Hybrid', default => str($mode)->replace('_', ' ')->headline() })->implode('; ') }}</span></td>
+                                <td class="cor-number">{{ $number($subject['units']) }}<span class="cor-secondary">Lec {{ $number($subject['lecture_hours']) }}<br>Lab {{ $number($subject['laboratory_hours']) }}</span></td>
+                                <td>
+                                    @foreach ($meetings as $meeting)
+                                        <div class="cor-meeting"><span>{{ $meeting['day'] }} {{ $meeting['time'] === 'Not applicable' ? '' : $meeting['time'] }}</span><span class="cor-secondary">{{ $meeting['room'] }}</span></div>
+                                    @endforeach
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5">No subjects are recorded on this issued copy.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <section class="cor-assessment" aria-labelledby="assessment-heading">
+            <h2 id="assessment-heading">Assessment at issue</h2>
+            <table><caption class="cor-sr-only">Recorded assessment breakdown</caption>
+                <thead><tr><th scope="col">Description</th><th scope="col" class="cor-number">Amount</th></tr></thead>
                 <tbody>
                     @forelse ($cor['fees'] as $fee)
-                        <tr><td>{{ $fee['label'] }}</td><td>PHP {{ number_format((float) $fee['amount'], 2) }}</td></tr>
+                        <tr><th scope="row">{{ $fee['label'] }}</th><td class="cor-number">{{ $money($fee['amount']) }}</td></tr>
                     @empty
-                        <tr><td colspan="2">No assessment-category snapshot was recorded for this version.</td></tr>
+                        <tr><td colspan="2">No fee breakdown was recorded.</td></tr>
                     @endforelse
                 </tbody>
             </table>
-        </div>
-        <div class="official-output-notice">
-            This COR records assessment and clearance only as they stood at finalization. Current balances, later payments,
-            receipts, reversals, and future installments remain in Student Finance and the authenticated Statement of Account.
-        </div>
+            <dl class="cor-assessment-source">
+                <div><dt>Assessment source</dt><dd>{{ $summary['assessment_reference'] }}</dd></div>
+                <div><dt>Basis</dt><dd>{{ str($summary['assessment_basis'])->headline() }}</dd></div>
+                <div><dt>Authority</dt><dd>{{ $summary['assessment_authority_reference'] }}</dd></div>
+                @if ($summary['assessment_authority_date'])<div><dt>Authority date</dt><dd>{{ \Carbon\CarbonImmutable::parse($summary['assessment_authority_date'])->format('M j, Y') }}</dd></div>@endif
+            </dl>
+            @if ($summary['accounting_review_pending'])
+                <p class="cor-review">Accounting review pending for the recorded subject change. This assessment has not been recalculated.</p>
+            @endif
+        </section>
+    </div>
+    <div class="cor-totals"><p><strong>Total units</strong><span>{{ $number($summary['total_units']) }}</span></p><p><strong>Total assessment</strong><span>{{ $money($summary['assessment_total']) }}</span></p></div>
+
+    <section class="cor-sources" aria-label="Recorded authority and sources">
+        <dl><div><dt>Document reference</dt><dd>COR-{{ $summary['enrollment_id'] }}-{{ $summary['cor_version'] }}</dd></div><div><dt>Curriculum record</dt><dd>{{ $summary['curriculum_version'] }}</dd></div><div><dt>Subject selection</dt><dd>{{ str($summary['selection_basis'])->headline() }}</dd></div><div><dt>Timetable source</dt><dd>{{ $summary['course_delivery_mix'] }}</dd></div><div><dt>Term Account</dt><dd>{{ $summary['term_account_reference'] }}</dd></div><div><dt>Clearance at issue</dt><dd>{{ $summary['payment_status'] }}</dd></div></dl>
+        <dl><div><dt>Recorded by</dt><dd>{{ $summary['issued_by'] }}</dd></div><div><dt>Recorded at</dt><dd>{{ $summary['issued_at'] ? \App\Support\DisplayDateTime::format(\Carbon\CarbonImmutable::parse($summary['issued_at']), 'M j, Y g:i A') : 'Not recorded' }}</dd></div></dl>
     </section>
+    <x-slot:documentFooter>
+        <footer class="cor-footer"><p>Issued details are fixed. Current payments and balances appear in Finance / Statement of Account.</p><p>This document contains personal information. Keep it secure.</p></footer>
+    </x-slot:documentFooter>
 </x-official-output-layout>

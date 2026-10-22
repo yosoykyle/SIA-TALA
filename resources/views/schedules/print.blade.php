@@ -1,15 +1,17 @@
-@php($facultyOutput = $schedule['is_faculty_output'] ?? false)
+@php
+    $facultyOutput = $schedule['is_faculty_output'] ?? false;
+    $studentOutput = ! $facultyOutput && ! ($schedule['is_timetable_output'] ?? false);
+@endphp
 <x-official-output-layout
     :title="$schedule['title']"
-    :subtitle="$schedule['version_label'].' · '.$schedule['version_state']"
+    :subtitle="$studentOutput ? collect($schedule['rows'])->pluck('term')->unique()->implode('; ') : $schedule['version_label'].' · '.$schedule['version_state']"
     :generated-at="$schedule['generated_at'].($facultyOutput ? ' (Asia/Manila)' : '')"
     page-orientation="landscape"
     :page-margin="$schedule['page_margin'] ?? '14mm'"
-    :context="$schedule['role_filter_context'] ?? $schedule['owner']"
-    :tactile-toolbar="true"
+    :context="$studentOutput ? null : ($schedule['role_filter_context'] ?? $schedule['owner'])"
     :schedule-presentation="true"
-    :back-url="$schedule['back_url'] ?? null"
-    :back-label="$schedule['back_label'] ?? 'Back'"
+    :back-url="$studentOutput ? \App\Filament\Student\Pages\ScheduleView::getUrl(panel: 'student') : ($schedule['back_url'] ?? null)"
+    :back-label="$studentOutput ? 'Back to class schedule' : ($schedule['back_label'] ?? 'Back')"
 >
     @if ($schedule['is_timetable_output'] ?? false)
         <div class="finance-grid">
@@ -22,6 +24,7 @@
         </div>
     @endif
 
+    @unless ($studentOutput)
     <p class="schedule-owner">
         This A4 landscape output is bound to <strong>{{ $schedule['version_label'] }}</strong>
         for <strong>{{ $schedule['owner'] }}</strong>.
@@ -33,12 +36,33 @@
             Use the Student Hub or Faculty Workspace to confirm later revisions.
         @endif
     </p>
+    @endunless
     @if ($schedule['filter_description'] ?? null)
         <p><strong>Filtered schedule — this is a subset of your official assignments.</strong><br>{{ $schedule['filter_description'] }}</p>
     @endif
 
     @if ($schedule['rows'] === [])
         <div class="schedule-empty">No schedule is available for this exact timetable version.</div>
+    @elseif ($studentOutput)
+        <p><strong>{{ $schedule['owner'] }}</strong> · Times in Asia/Manila</p>
+        <div class="official-output-table finance-responsive-table">
+            <table class="schedule-table">
+                <thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Day and time</th><th scope="col">Room</th><th scope="col">Faculty</th></tr></thead>
+                <tbody>
+                    @foreach ($schedule['rows'] as $row)
+                        <tr>
+                            <td data-label="Subject"><div><strong>{{ $row['description'] }}</strong><br>{{ $row['course'] }}</div></td>
+                            <td data-label="Class"><div>{{ $row['section'] }}<br>{{ $row['modality'] }}</div></td>
+                            <td data-label="Day and time"><div>{{ $row['day'] }}<br>{{ $row['time'] }}</div></td>
+                            <td data-label="Room"><div>{{ $row['room'] }}</div></td>
+                            <td data-label="Faculty"><div>{{ $row['faculty'] ?: 'Not assigned' }}</div></td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        <p>Check Class schedule in the Student Hub for later changes.</p>
+        <p class="official-output-meta">Schedule source: {{ $schedule['version_label'] }} · {{ $schedule['version_state'] }}</p>
     @else
         <div class="official-output-table">
             <table class="schedule-table">

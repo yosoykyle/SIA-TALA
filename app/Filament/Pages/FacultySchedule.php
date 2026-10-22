@@ -18,7 +18,6 @@ use BackedEnum;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
-use Filament\Navigation\NavigationItem;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
@@ -59,12 +58,6 @@ class FacultySchedule extends Page implements HasTable
     protected function queryString(): array
     {
         return ['tableFilters' => ['except' => null], 'tableSearch' => ['except' => '']];
-    }
-
-    /** @return array<NavigationItem> */
-    public static function getNavigationItems(): array
-    {
-        return array_map(fn (NavigationItem $item): NavigationItem => $item->isActiveWhen(fn (): bool => request()->routeIs(static::getRouteName(), MyAvailability::getRouteName())), parent::getNavigationItems());
     }
 
     public function mount(): void
@@ -169,11 +162,11 @@ class FacultySchedule extends Page implements HasTable
                     : null;
             })
             ->toolbarActions([
-                Action::make('weekView')->label('Week')->color('gray')->extraAttributes(fn (): array => ['class' => 'tala-view-choice', 'aria-pressed' => $this->scheduleView === 'week' ? 'true' : 'false'])->action(function (): void {
+                Action::make('weekView')->label('Weekly schedule')->color('gray')->icon(Heroicon::OutlinedCalendarDays)->visible(fn (): bool => $this->scheduleView === 'list')->action(function (): void {
                     $this->scheduleView = 'week';
                     $this->resetPage($this->getTablePaginationPageName());
                 }),
-                Action::make('listView')->label('Meeting list')->color('gray')->extraAttributes(fn (): array => ['class' => 'tala-view-choice', 'aria-pressed' => $this->scheduleView === 'list' ? 'true' : 'false'])->action(function (): void {
+                Action::make('listView')->label('Meeting list and filters')->color('gray')->icon(Heroicon::OutlinedListBullet)->visible(fn (): bool => $this->scheduleView === 'week')->action(function (): void {
                     $this->scheduleView = 'list';
                     $this->resetPage($this->getTablePaginationPageName());
                 }),
@@ -288,6 +281,7 @@ class FacultySchedule extends Page implements HasTable
     {
         $terms = Term::query()->with('academicYear')->latest('starts_on')->get();
         $meetings = $this->getFilteredTableQuery()->get();
+        $assignedMeetings = $this->meetingsQuery()->get();
         $version = $this->currentVersion();
         $package = $this->termId === null ? null : TermCalendarPackage::query()
             ->where('term_id', $this->termId)
@@ -303,7 +297,9 @@ class FacultySchedule extends Page implements HasTable
             'term' => $terms->firstWhere('id', $this->termId),
             'version' => $version,
             'presentation' => $version ? TimetablePresentation::forPublished($version, $meetings) : null,
-            'assignmentCount' => $this->meetingsQuery()->count(),
+            'assignmentCount' => $assignedMeetings->count(),
+            'classCount' => $assignedMeetings->pluck('schedulingDemand.sectionDeliveryGroup.section.id')->filter()->unique()->count(),
+            'teachingDayCount' => $assignedMeetings->pluck('day_of_week')->filter()->unique()->count(),
             'meetingsByDay' => $meetings->groupBy('day_of_week'),
             'revisionEvents' => $this->revisionEvents(),
             'examinationPeriod' => $examinationPeriod,

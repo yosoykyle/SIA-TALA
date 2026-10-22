@@ -1,47 +1,14 @@
 <x-filament-panels::page>
-    <x-filament::section
-        heading="Current official class schedule"
-        description="This view follows your current official course registrations and their exact Published Timetable version."
-        icon="heroicon-o-calendar-days"
-    >
-        @if ($scheduleRows === [])
-            <p class="text-sm text-gray-600 dark:text-gray-300">
-                No current official schedule is available. Complete enrollment or ask the Registrar to review the current official registration.
-            </p>
+    @assets<link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">@endassets
+    <div class="learner-enrollment student-schedule-reading">
+        @if ($schedulePresentation && $schedulePresentation['meetings'] !== [])
+            <x-enrollment-schedule :presentation="$schedulePresentation" source-key="student-schedule" />
         @else
-            <div class="overflow-x-auto rounded-xl ring-1 ring-gray-950/10 dark:ring-white/10">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-600 dark:bg-white/5 dark:text-gray-300">
-                        <tr>
-                            <th class="px-4 py-3">Day and time</th>
-                            <th class="px-4 py-3">Course</th>
-                            <th class="px-4 py-3">Class</th>
-                            <th class="px-4 py-3">Faculty</th>
-                            <th class="px-4 py-3">Room / mode</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-950/5 dark:divide-white/10">
-                        @foreach ($scheduleRows as $row)
-                            <tr>
-                                <td class="px-4 py-3">
-                                    <span class="font-semibold text-gray-950 dark:text-white">{{ $row['day_label'] }}</span>
-                                    <span class="block text-gray-600 dark:text-gray-300">{{ $row['time_label'] }}</span>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <span class="font-semibold text-gray-950 dark:text-white">{{ $row['subject_code'] }}</span>
-                                    <span class="block text-gray-600 dark:text-gray-300">{{ $row['subject_description'] }}</span>
-                                </td>
-                                <td class="px-4 py-3">{{ $row['section_delivery_group_name'] }}</td>
-                                <td class="px-4 py-3">{{ $row['faculty_name'] ?: 'Not recorded' }}</td>
-                                <td class="px-4 py-3">
-                                    <span>{{ $row['room'] ?: 'TBA' }}</span>
-                                    <span class="block text-gray-600 dark:text-gray-300">{{ $row['modality_label'] }}</span>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+            <section class="student-read-empty">
+                <h2>{{ $hasOfficialEnrollment ? 'Class meetings are not available yet' : 'Your class schedule starts with official enrollment' }}</h2>
+                <p>{{ $hasOfficialEnrollment ? 'Ask the Registrar about the published meetings for your registered classes.' : 'Your weekly schedule appears here after your enrollment is official.' }}</p>
+                <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student')">View enrollment</x-filament::button>
+            </section>
         @endif
-    </x-filament::section>
+    </div>
 </x-filament-panels::page>

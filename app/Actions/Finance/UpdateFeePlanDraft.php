@@ -16,17 +16,21 @@ class UpdateFeePlanDraft
      * @param  list<array{code:string,label:string,category?:string,amount:string}>  $charges
      * @param  list<array{code:string,label:string,purpose:string,amount:string,due_at:string,required_for_enrollment?:bool}>  $obligations
      */
-    public function execute(FeePlan $feePlan, array $charges, array $obligations, User $actor): FeePlan
+    public function execute(FeePlan $feePlan, array $charges, array $obligations, User $actor, ?string $expectedContentFingerprint = null): FeePlan
     {
         if (! $actor->canAuthenticate() || ! $actor->hasRole(User::StaffRoleAccounting)) {
             throw new AuthorizationException('Only Accounting staff may edit a Draft Fee Plan.');
         }
 
-        return DB::transaction(function () use ($feePlan, $charges, $obligations): FeePlan {
+        return DB::transaction(function () use ($feePlan, $charges, $obligations, $expectedContentFingerprint): FeePlan {
             $locked = FeePlan::query()->whereKey($feePlan->id)->lockForUpdate()->firstOrFail();
+            if ($expectedContentFingerprint !== null && ! hash_equals($expectedContentFingerprint, $locked->contentFingerprint())) {
+                throw ValidationException::withMessages(['fee_plan' => 'This Fee Plan changed after you opened it. Close this form and review the current version before saving.']);
+            }
             if ($locked->state !== FeePlan::StateDraft || $charges === [] || $obligations === []) {
                 throw ValidationException::withMessages(['charges' => 'Only a Draft Fee Plan with fixed lines may be edited.']);
             }
+            app(CreateFeePlanDraft::class)->validateRows($charges, $obligations);
             $locked->charges()->delete();
             $locked->obligations()->delete();
             foreach ($charges as $index => $charge) {

@@ -13,19 +13,6 @@ class AcademicEnrollmentEffect
     /** @return array{effect: string, source: string, reason: string} */
     public function forStudent(StudentProfile $student, ?Term $term = null): array
     {
-        $decision = AcademicDecision::query()
-            ->where('student_profile_id', $student->id)
-            ->where('state', 'ACTIVE')
-            ->whereDate('effective_from', '<=', today())
-            ->where(fn ($query) => $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', today()))
-            ->when($term, fn ($query) => $query->where(fn ($termQuery) => $termQuery->whereNull('term_id')->orWhere('term_id', $term->id)))
-            ->latest('recorded_at')
-            ->first();
-
-        if ($decision instanceof AcademicDecision) {
-            return ['effect' => $decision->effect, 'source' => $decision->authority_reference, 'reason' => $decision->reason];
-        }
-
         if ($student->blocksEnrollmentByLifecycle()) {
             return [
                 'effect' => AcademicDecision::EffectBlocked,
@@ -34,27 +21,34 @@ class AcademicEnrollmentEffect
             ];
         }
 
-        $results = $this->results->forStudent($student);
-        $unresolvedPastResult = $results->contains(fn (array $result): bool => $result['event'] === null
-            && $result['term']?->ends_on !== null
-            && $result['term']->ends_on->isPast());
+        $decision = AcademicDecision::query()
+            ->where('student_profile_id', $student->id)
+            ->where('state', 'ACTIVE')
+            ->whereDate('effective_from', '<=', today())
+            ->where(fn ($query) => $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', today()))
+            ->where(fn ($query) => $query->whereNull('term_id')->when($term, fn ($termQuery) => $termQuery->orWhere('term_id', $term->id)))
+            ->latest('recorded_at')
+            ->latest('id')
+            ->first();
 
-        if ($unresolvedPastResult) {
-            return [
-                'effect' => AcademicDecision::EffectPendingDecision,
-                'source' => 'Released academic-record projection',
-                'reason' => 'An official result needed for the academic effect remains unresolved. Registrar review is required.',
-            ];
+        if ($decision instanceof AcademicDecision) {
+            return ['effect' => $decision->effect, 'source' => $decision->authority_reference, 'reason' => $decision->reason];
         }
 
-        $requiresAdvising = $results->contains(fn (array $result): bool => $result['result'] === 'INC'
+        $results = $this->results->forStudent($student)
+            ->filter(fn (array $result): bool => $result['course_specification']?->course_id !== null)
+            ->sortBy([['term.starts_on', 'asc'], ['course_enrollment.id', 'asc']])
+            ->keyBy('course_specification.course_id');
+        $requiresAdvising = $results->contains(fn (array $result): bool => ($result['event'] === null
+                && $result['term']?->ends_on !== null && $result['term']->ends_on->isPast())
+            || in_array($result['result'], ['INC', 'DRP', 'W'], true)
             || (is_numeric($result['result']) && (float) $result['result'] > 4.00));
 
         if ($requiresAdvising) {
             return [
                 'effect' => AcademicDecision::EffectAdvisingRequired,
                 'source' => 'Released academic-record projection',
-                'reason' => 'A released deficient or incomplete result requires an individually advised registration proposal.',
+                'reason' => 'Current unresolved or deficient course results require an individually advised selection; only affected prerequisites remain unavailable.',
             ];
         }
 

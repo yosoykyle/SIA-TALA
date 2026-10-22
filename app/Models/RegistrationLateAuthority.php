@@ -10,7 +10,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property Carbon $authority_date
- * @property Carbon $effective_at
+ * @property Carbon|null $effective_at
  * @property Carbon $recorded_at
  * @property Carbon|null $consumed_at
  */

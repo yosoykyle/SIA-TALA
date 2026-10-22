@@ -2,6 +2,8 @@
 
 namespace App\Actions\Enrollment;
 
+use App\Actions\Grades\SynchronizeOfficialGradeRoster;
+use App\Models\AdmissionApplication;
 use App\Models\Assessment;
 use App\Models\CorVersion;
 use App\Models\CourseEnrollment;
@@ -10,6 +12,7 @@ use App\Models\EnrollmentSeatReservation;
 use App\Models\RegistrationIdentityConfirmationVersion;
 use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
+use App\Models\TermAccount;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +27,7 @@ class FinalizeOfficialEnrollment
         private readonly RegistrationPlacementValidator $placementValidator,
         private readonly AllocateStudentNumber $studentNumbers,
         private readonly RegistrationNotificationLedger $notifications,
+        private readonly SynchronizeOfficialGradeRoster $rosters,
         private readonly ConfirmRegistrationIdentity $identityConfirmations,
     ) {}
 
@@ -32,11 +36,12 @@ class FinalizeOfficialEnrollment
         User $actor,
         ?string $remark = null,
         ?CarbonImmutable $recordedAt = null,
+        ?int $expectedProposalVersionId = null,
     ): Enrollment {
         Gate::forUser($actor)->authorize('officiallyEnroll', $enrollment);
         $recordedAt ??= CarbonImmutable::now(config('app.timezone'));
 
-        $official = DB::transaction(function () use ($enrollment, $actor, $remark, $recordedAt): Enrollment {
+        $official = DB::transaction(function () use ($enrollment, $actor, $remark, $recordedAt, $expectedProposalVersionId): Enrollment {
             $locked = Enrollment::query()
                 ->with([
                     'credentialUser.roles', 'admissionApplication.program', 'studentProfile.program',
@@ -47,13 +52,30 @@ class FinalizeOfficialEnrollment
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            if ($expectedProposalVersionId !== null
+                && (int) $locked->current_proposal_version_id !== $expectedProposalVersionId) {
+                throw ValidationException::withMessages([
+                    'proposal' => 'The proposal changed after this decision was opened. Review the current subjects before finalizing enrollment.',
+                ]);
+            }
+
             if ($locked->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled
                 && $locked->current_cor_version_id !== null) {
+                $this->rosters->forSections($locked->courseEnrollments()->where('is_current', true)->where('status', CourseEnrollment::StatusActive)->pluck('section_id')->all(), $actor);
+
                 return $locked;
             }
 
             if ($locked->canonical_outcome !== Enrollment::OutcomeInProgress) {
                 throw ValidationException::withMessages(['case' => 'Only an active Registration Case may be finalized.']);
+            }
+
+            $locked->setRelation('credentialUser', User::query()->whereKey($locked->credential_user_id)->lockForUpdate()->firstOrFail());
+            if (! TermAccount::query()->where('enrollment_id', $locked->id)->lockForUpdate()->first() instanceof TermAccount) {
+                throw ValidationException::withMessages(['readiness' => 'Accounting must assess the current reserved proposal before finalization.']);
+            }
+            if ($locked->admission_application_id !== null) {
+                $locked->setRelation('admissionApplication', AdmissionApplication::query()->whereKey($locked->admission_application_id)->lockForUpdate()->firstOrFail());
             }
 
             $proposal = RegistrationProposalVersion::query()
@@ -92,11 +114,6 @@ class FinalizeOfficialEnrollment
                 }
 
                 $identityConfirmation = $this->identityConfirmations->latestMatching($locked, $locked->admissionApplication);
-                if (! $identityConfirmation instanceof RegistrationIdentityConfirmationVersion) {
-                    throw ValidationException::withMessages([
-                        'identity' => 'The learner must confirm the current identity and contact source before Official Enrollment.',
-                    ]);
-                }
             }
 
             $studentProfile = $this->activateStudent($locked, $proposal, $recordedAt, $identityConfirmation);
@@ -164,9 +181,16 @@ class FinalizeOfficialEnrollment
                 'proposal_version_id' => $proposal->id,
                 'selection_basis' => $locked->selection_basis,
                 'identity_confirmation_version_id' => $identityConfirmation?->id,
-                'identity_source_hash' => $identityConfirmation?->source_hash,
+                'identity_source_hash' => $locked->admissionApplication !== null
+                    ? $this->identityConfirmations->sourceHash($this->identityConfirmations->sourceSnapshot($locked->admissionApplication))
+                    : null,
                 'published_timetable_version_id' => $proposal->published_timetable_version_id,
                 'assessment_id' => $assessment->id,
+                'assessment_version' => $assessment->version,
+                'assessment_basis' => $assessment->assessment_basis,
+                'fee_plan_id' => $assessment->fee_plan_id,
+                'assessment_authority_reference' => $assessment->authority_reference,
+                'assessment_authority_date' => $assessment->authority_date?->toDateString(),
                 'assessment_total' => $assessment->total,
                 'term_account_id' => $assessment->term_account_id,
                 'finance_satisfaction' => [
@@ -207,9 +231,11 @@ class FinalizeOfficialEnrollment
                 'registered_at' => $locked->registered_at ?? $recordedAt,
                 'officially_enrolled_at' => $recordedAt,
                 'finalized_by' => $actor->id,
-                'status_reason' => $remark ?: 'Registrar finalized all five authoritative checkpoints atomically.',
+                'status_reason' => $remark ?: 'Registrar completed official enrollment from current verified sources.',
                 'lock_version' => $locked->lock_version + 1,
             ]);
+
+            $this->rosters->forSections($proposal->items->pluck('section_id')->all(), $actor);
 
             return $locked->refresh()->load(['studentProfile.user', 'courseEnrollments.section', 'currentCorVersion']);
         }, attempts: 3);
@@ -235,10 +261,7 @@ class FinalizeOfficialEnrollment
             throw ValidationException::withMessages(['identity' => 'A first Student activation requires the admitted Application source.']);
         }
 
-        if (! $identityConfirmation instanceof RegistrationIdentityConfirmationVersion) {
-            throw ValidationException::withMessages(['identity' => 'The current identity confirmation snapshot is required.']);
-        }
-        $identity = $identityConfirmation->identity_snapshot;
+        $identity = $this->identityConfirmations->sourceSnapshot($application);
 
         $studentNumber = $this->studentNumbers->execute((int) $recordedAt->format('Y'));
         $profile = StudentProfile::query()->create([
@@ -264,6 +287,9 @@ class FinalizeOfficialEnrollment
         $enrollment->credentialUser->forceFill([
             'status' => User::StatusActive,
             'username' => $studentNumber,
+            'first_name' => $identity['first_name'],
+            'middle_name' => $identity['middle_name'],
+            'last_name' => $identity['last_name'],
         ])->save();
         $enrollment->credentialUser->assignRole('student');
 

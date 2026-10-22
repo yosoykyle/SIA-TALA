@@ -22,7 +22,7 @@ class FeePlan extends Model
 
     protected $fillable = [
         'program_id', 'term_id', 'supersedes_fee_plan_id', 'version', 'state', 'currency',
-        'authority_reference', 'authority_date', 'content_hash', 'created_by', 'published_by', 'published_at',
+        'authority_reference', 'authority_date', 'no_payment_required_authority_reference', 'content_hash', 'created_by', 'published_by', 'published_at',
     ];
 
     protected function casts(): array
@@ -58,6 +58,18 @@ class FeePlan extends Model
     public function obligations(): HasMany
     {
         return $this->hasMany(FeePlanObligation::class)->orderBy('sequence')->orderBy('id');
+    }
+
+    public function contentFingerprint(): string
+    {
+        $stored = self::query()->with(['charges', 'obligations'])->findOrFail($this->getKey());
+
+        return hash('sha256', json_encode([
+            'plan' => $stored->only(['id', 'program_id', 'term_id', 'version', 'state', 'currency', 'supersedes_fee_plan_id',
+                'authority_reference', 'authority_date', 'no_payment_required_authority_reference', 'content_hash', 'published_by', 'published_at']),
+            'charges' => $stored->charges->map->only(['sequence', 'code', 'label', 'category', 'amount'])->all(),
+            'obligations' => $stored->obligations->map->only(['sequence', 'code', 'label', 'purpose', 'amount', 'due_at', 'required_for_enrollment'])->all(),
+        ], JSON_THROW_ON_ERROR));
     }
 
     protected static function booted(): void

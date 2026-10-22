@@ -18,12 +18,13 @@ use Illuminate\Validation\ValidationException;
 class StudentUnitLoadService
 {
     /** @return array<string, string> */
-    public function positionOptions(Enrollment $enrollment): array
+    public function positionOptions(Enrollment $enrollment, ?int $selectedCurriculumVersionId = null): array
     {
-        $enrollment->loadMissing('studentProfile');
+        $enrollment->loadMissing(['studentProfile', 'admissionApplication']);
         $entries = CurriculumEntry::query()
             ->with('courseSpecification')
-            ->where('curriculum_version_id', $enrollment->studentProfile?->curriculum_version_id)
+            ->where('curriculum_version_id', $enrollment->studentProfile?->curriculum_version_id ?? $selectedCurriculumVersionId)
+            ->whereHas('curriculumVersion', fn ($query) => $query->where('program_id', $enrollment->studentProfile?->program_id ?? $enrollment->admissionApplication?->program_id))
             ->orderBy('year_level')
             ->orderBy('term_label')
             ->orderBy('sequence')

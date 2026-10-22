@@ -2,6 +2,7 @@
 
 namespace App\Actions\Enrollment;
 
+use App\Models\AdmissionApplication;
 use App\Models\Assessment;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
@@ -10,6 +11,7 @@ use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationCreditEvaluation;
 use App\Models\RegistrationProposalItem;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
@@ -17,6 +19,7 @@ use App\Models\TermAccount;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -38,8 +41,18 @@ class PrepareRegistrationProposal
         string $purpose = RegistrationProposalVersion::PurposeInitial,
         ?string $curriculumPosition = null,
     ): RegistrationProposalVersion {
+        $derivedStandard = (int) $enrollment->credential_user_id === (int) $actor->id
+            && $enrollment->selection_basis === Enrollment::SelectionStandardCurriculum
+            && $purpose === RegistrationProposalVersion::PurposeInitial;
+        if ($derivedStandard && ! $actor->hasRole(User::StaffRoleRegistrar)) {
+            $expected = app(PrepareStandardRegistration::class)->sectionIds($enrollment);
+            $selected = array_map('intval', $sectionIds);
+            sort($expected);
+            sort($selected);
+            $derivedStandard = $expected === $selected;
+        }
         if (! $actor->canAuthenticate()
-            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
+            || (! $actor->hasRole(User::StaffRoleRegistrar) && ! $derivedStandard)) {
             throw new AuthorizationException('Only authorized Registrar staff may prepare a Registration Proposal.');
         }
 
@@ -165,34 +178,17 @@ class PrepareRegistrationProposal
                 $sections->pluck('termOffering')->filter()->values(),
             );
 
-            if ($locked->selection_basis === Enrollment::SelectionStandardCurriculum) {
-                $expectedOfferingIds = TermOffering::query()
-                    ->where('term_id', $locked->term_id)
-                    ->where('state', TermOffering::StateScheduled)
-                    ->whereHas('curriculumEntry', fn ($query) => $query
-                        ->where('curriculum_version_id', $curriculum->id))
-                    ->pluck('id')
-                    ->map(fn (mixed $id): int => (int) $id)
-                    ->sort()
-                    ->values();
-                $selectedOfferingIds = $sections
-                    ->pluck('termOffering.id')
-                    ->map(fn (mixed $id): int => (int) $id)
-                    ->sort()
-                    ->values();
-
-                if ($expectedOfferingIds->isEmpty() || $selectedOfferingIds->all() !== $expectedOfferingIds->all()) {
-                    throw ValidationException::withMessages([
-                        'sections' => 'Standard Curriculum requires the complete active exact-Term curriculum offering set. Use Individually Advised for an authorized bounded selection.',
-                    ]);
-                }
-            }
-
             $unitLoad = $this->unitLoad->snapshotForSections(
                 $locked,
                 $sections->values(),
                 $curriculumPosition,
             );
+            if ($locked->selection_basis === Enrollment::SelectionStandardCurriculum) {
+                $selectedEntries = $sections->pluck('termOffering.curriculum_entry_id')->map(fn ($id): int => (int) $id)->sort()->values()->all();
+                if ($selectedEntries !== $unitLoad['curriculum_entry_ids']) {
+                    throw ValidationException::withMessages(['sections' => 'Standard Curriculum requires the complete curriculum position, including required subjects that are not currently offered. Registrar must advise a bounded alternative when that block is unavailable.']);
+                }
+            }
 
             $source = [
                 'purpose' => $purpose,
@@ -202,10 +198,16 @@ class PrepareRegistrationProposal
                 'published_timetable_version_id' => $timetable->id,
                 'sections' => $items,
                 'unit_load' => $unitLoad,
+                ...($locked->admissionApplication?->application_path === AdmissionApplication::PathTransferee ? ['credit_evaluation_id' => RegistrationCreditEvaluation::latestCurrentFor($locked, $curriculum->id)?->id] : []),
             ];
-            $hash = hash('sha256', json_encode($source, JSON_THROW_ON_ERROR));
             $previous = $locked->currentProposalVersion()->lockForUpdate()->first();
+            if ($previous instanceof RegistrationProposalVersion && Arr::except($previous->source_snapshot, ['proposal_version']) == $source
+                && in_array($previous->state, [RegistrationProposalVersion::StateDraft, RegistrationProposalVersion::StateIssued, RegistrationProposalVersion::StateConfirmed], true)) {
+                return $previous->load('items');
+            }
             $version = ((int) $locked->proposalVersions()->max('version')) + 1;
+            $source['proposal_version'] = $version;
+            $hash = hash('sha256', json_encode($source, JSON_THROW_ON_ERROR));
 
             if ($previous instanceof RegistrationProposalVersion && $purpose === RegistrationProposalVersion::PurposeInitial) {
                 EnrollmentSeatReservation::query()

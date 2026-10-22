@@ -39,7 +39,7 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->artisan('acceptance:seed-client-baseline')->assertSuccessful();
 
         Role::query()->firstOrCreate([
@@ -89,12 +89,19 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
 
         Livewire::actingAs($accounting)
             ->test(ViewEnrollment::class, ['record' => $assessment->enrollment->getRouteKey()])
-            ->assertSee('Registration Case')
-            ->assertSee('Five finalization checkpoints')
-            ->assertSee('Accounting clearance')
-            ->assertSee('Proposal and confirmation')
-            ->assertSee('Eligibility, placement, and shortage')
-            ->assertSee('Official result and history');
+            ->assertSee('Online payment needs source review')
+            ->assertSee('Accounting review required')
+            ->assertSee('no verified payment recorded')
+            ->assertSee('Payment evidence is missing');
+
+        Livewire::actingAs($accounting)->withQueryParams(['view' => 'account'])
+            ->test(ViewEnrollment::class, ['record' => $assessment->enrollment->getRouteKey()])
+            ->assertSee('Approved charges')
+            ->assertSee('Payment dates')
+            ->assertSee('Remaining term fees')
+            ->assertSee('Payments and coverage')
+            ->assertSee('Account history')
+            ->assertSee('Open account statement');
     }
 
     #[Test]

@@ -2,11 +2,15 @@
 
 namespace App\Actions\Enrollment;
 
+use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
+use App\Models\AcademicDecision;
+use App\Models\AdmissionApplication;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationCaseEvent;
+use App\Models\RegistrationCreditEvaluation;
 use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
@@ -21,7 +25,7 @@ class RegistrationReadinessQuery
         private readonly RegistrationPlacementValidator $placementValidator,
         private readonly RegistrationShortageProjection $shortages,
         private readonly StudentUnitLoadService $unitLoad,
-        private readonly ConfirmRegistrationIdentity $identityConfirmations,
+        private readonly AcademicEnrollmentEffect $academicEffect,
     ) {}
 
     /**
@@ -53,9 +57,9 @@ class RegistrationReadinessQuery
         $shortages = $this->shortages->for($enrollment);
         $eligibilityReady = $this->authoritativeEligibilityIsCurrent($enrollment, $proposal)
             && ! $this->hasUnresolvedImpactReview($enrollment);
-        $identityReady = $enrollment->studentProfile instanceof StudentProfile
+        $identityReady = $enrollment->credentialUser?->canAuthenticate() && ($enrollment->studentProfile instanceof StudentProfile
             || ($enrollment->admissionApplication !== null
-                && $this->identityConfirmations->latestMatching($enrollment, $enrollment->admissionApplication) !== null);
+                && $this->readyApplicants->forApplication($enrollment->admissionApplication)['ready']));
         $blockers = [];
 
         if (! $proposalReady) {
@@ -74,10 +78,12 @@ class RegistrationReadinessQuery
             $blockers[] = 'Accounting clearance';
         }
         if (! $eligibilityReady) {
-            $blockers[] = 'Current academic eligibility or source-impact review';
+            $blockers[] = $enrollment->admissionApplication?->application_path === AdmissionApplication::PathTransferee
+                && ($proposal === null || RegistrationCreditEvaluation::latestCurrentFor($enrollment, $proposal->curriculum_version_id) === null)
+                    ? 'Academic evaluation required' : 'Current academic eligibility or source-impact review';
         }
         if (! $identityReady) {
-            $blockers[] = 'Current learner-confirmed identity and contact source';
+            $blockers[] = 'Current verified admissions identity and clearance';
         }
 
         return [
@@ -91,6 +97,26 @@ class RegistrationReadinessQuery
             'shortages' => $shortages,
             'blockers' => $blockers,
         ];
+    }
+
+    public function assertPrepared(Enrollment $enrollment, RegistrationProposalVersion $proposal): void
+    {
+        $this->placementValidator->assertCurrent($enrollment, $proposal, lockForUpdate: true, requireConfirmation: false);
+
+        $this->assertSourcesCurrent($enrollment, $proposal);
+
+        if ($this->finance->forEnrollment($enrollment)['state'] === 'Unavailable') {
+            throw ValidationException::withMessages(['assessment' => 'Accounting must assess this reserved proposal before it can be confirmed.']);
+        }
+    }
+
+    public function assertSourcesCurrent(Enrollment $enrollment, RegistrationProposalVersion $proposal): void
+    {
+        $enrollment->loadMissing(['credentialUser', 'admissionApplication', 'studentProfile', 'term']);
+        $proposal->loadMissing(['curriculumVersion', 'items.termOffering.curriculumEntry.courseSpecification']);
+        if (! $this->authoritativeEligibilityIsCurrent($enrollment, $proposal) || $this->hasUnresolvedImpactReview($enrollment)) {
+            throw ValidationException::withMessages(['proposal' => 'The academic or admissions source changed. Registrar must review the current proposal.']);
+        }
     }
 
     private function unitLoadBlocker(
@@ -112,7 +138,7 @@ class RegistrationReadinessQuery
         Enrollment $enrollment,
         ?RegistrationProposalVersion $proposal,
     ): bool {
-        if ($enrollment->credentialUser === null || ! $proposal instanceof RegistrationProposalVersion) {
+        if (! $enrollment->credentialUser?->canAuthenticate() || ! $proposal instanceof RegistrationProposalVersion) {
             return false;
         }
 
@@ -122,14 +148,21 @@ class RegistrationReadinessQuery
             return $projection['ready']
                 && (int) $projection['user_id'] === (int) $enrollment->credential_user_id
                 && (int) $projection['term_id'] === (int) $enrollment->term_id
-                && (int) $projection['program_id'] === (int) $proposal->curriculumVersion?->program_id;
+                && (int) $projection['program_id'] === (int) $proposal->curriculumVersion?->program_id
+                && ($enrollment->admissionApplication->application_path !== AdmissionApplication::PathTransferee
+                    || (RegistrationCreditEvaluation::latestCurrentFor($enrollment, $proposal->curriculum_version_id)?->id !== null
+                        && (int) data_get($proposal->source_snapshot, 'credit_evaluation_id') === (int) RegistrationCreditEvaluation::latestCurrentFor($enrollment, $proposal->curriculum_version_id)?->id))
+                && $this->academicEligibility->passes($enrollment, $proposal->curriculumVersion, $proposal->items->pluck('termOffering')->filter()->values());
         }
 
         $profile = $enrollment->studentProfile;
         $curriculum = $proposal->curriculumVersion;
+        $effect = $profile instanceof StudentProfile ? $this->academicEffect->forStudent($profile, $enrollment->term) : null;
 
         return $profile instanceof StudentProfile
             && ! $profile->blocksEnrollmentByLifecycle()
+            && ! in_array($effect['effect'] ?? null, [AcademicDecision::EffectBlocked, AcademicDecision::EffectPendingDecision], true)
+            && (($effect['effect'] ?? null) !== AcademicDecision::EffectAdvisingRequired || $proposal->selection_basis === Enrollment::SelectionIndividuallyAdvised)
             && $curriculum instanceof CurriculumVersion
             && $this->academicEligibility->passes(
                 $enrollment,

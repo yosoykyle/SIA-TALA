@@ -145,7 +145,7 @@
 .tala-requirement-card__header h3 {
     color: var(--gray-950);
     font-size: 1rem;
-    font-weight: 650;
+    font-weight:600;
     line-height: 1.5rem;
     margin: 0;
     overflow-wrap: anywhere;

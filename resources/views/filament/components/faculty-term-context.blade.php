@@ -1,3 +1,13 @@
+@if (! $term)
+<section class="tala-faculty-term-chooser" aria-labelledby="faculty-term-chooser-heading">
+    <x-heroicon-o-calendar-days aria-hidden="true" />
+    <h2 id="faculty-term-chooser-heading">{{ $emptyHeading ?? 'Choose a Term' }}</h2>
+    <p>{{ $terms->isEmpty() ? 'No Term is available. Contact the Registrar.' : ($emptyDescription ?? 'Select an Academic Year and Term to continue.') }}</p>
+    @if ($terms->isNotEmpty())
+        <div class="tala-term-picker">@include('filament.components.faculty-term-select')</div>
+    @endif
+</section>
+@else
 <header class="tala-planning-context tala-faculty-term-context">
     <div class="tala-faculty-scope">
     <div class="tala-term-picker">@include('filament.components.faculty-term-select', ['termSelectorLabel' => 'Academic Year and Term'])</div>
@@ -15,3 +25,4 @@
     @if ($examinationPeriod)<details><summary>Examination source details</summary><p>{{ $examinationSource->authority_reference }} · Calendar v{{ $examinationSource->version }} · Registrar · As of {{ $asOf }} (Asia/Manila)</p><p>Arrange exact class examinations with your students.</p></details>@endif
 </div>@endif
 </header>
+@endif

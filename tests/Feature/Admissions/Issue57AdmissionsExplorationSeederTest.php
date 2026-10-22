@@ -165,4 +165,24 @@ class Issue57AdmissionsExplorationSeederTest extends TestCase
         $this->expectExceptionMessage('verified disposable');
         app(Issue57AdmissionsExplorationSeeder::class)->run();
     }
+
+    public function test_narrow_seed_rejects_unsafe_or_unselected_database_targets_before_writes(): void
+    {
+        $cyclesBefore = AdmissionCycle::query()->count();
+        $applicationsBefore = AdmissionApplication::query()->count();
+
+        foreach (['tala_db', 'tala_test_codex', 'test_tala_db_unselected_target'] as $target) {
+            config()->set('database.test_database', $target);
+
+            try {
+                app(Issue57AdmissionsExplorationSeeder::class)->run();
+                $this->fail('A seeder must reject an unsafe or unselected database target.');
+            } catch (RuntimeException $exception) {
+                $this->assertStringContainsString('verified disposable', $exception->getMessage());
+            }
+        }
+
+        $this->assertSame($cyclesBefore, AdmissionCycle::query()->count());
+        $this->assertSame($applicationsBefore, AdmissionApplication::query()->count());
+    }
 }

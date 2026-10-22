@@ -29,7 +29,7 @@ class ReopenRegistrationCase
         Enrollment $enrollment,
         User $actor,
         string $reason,
-        string $authorityReference,
+        ?string $authorityReference = null,
         ?int $expectedLockVersion = null,
         ?RegistrationCaseEvent $lateAuthority = null,
     ): Enrollment {
@@ -46,7 +46,7 @@ class ReopenRegistrationCase
                 ->firstOrFail();
             Term::query()->whereKey($locked->term_id)->lockForUpdate()->firstOrFail();
             User::query()->whereKey($locked->credential_user_id)->lockForUpdate()->firstOrFail();
-            $authorityReference = trim($authorityReference);
+            $authorityReference = filled($authorityReference) ? trim($authorityReference) : null;
             $reason = trim($reason);
 
             if ($expectedLockVersion !== null && $locked->lock_version !== $expectedLockVersion) {
@@ -57,8 +57,8 @@ class ReopenRegistrationCase
                 throw ValidationException::withMessages(['case' => 'Only a cancelled or not-enrolled case may be reopened.']);
             }
 
-            if ($authorityReference === '' || $reason === '') {
-                throw ValidationException::withMessages(['case' => 'Reopening requires a recorded reason and authority reference.']);
+            if ($reason === '') {
+                throw ValidationException::withMessages(['case' => 'Reopening requires a recorded reason.']);
             }
 
             $requiresLateAuthority = now()->isAfter($this->calendar->finalEnrollmentCutoff((int) $locked->term_id));
@@ -69,7 +69,17 @@ class ReopenRegistrationCase
             if ($requiresLateAuthority && (! $late instanceof RegistrationCaseEvent
                 || (int) $late->enrollment_id !== (int) $locked->id
                 || $late->event_type !== RecordLateEnrollmentReopenAuthority::EventType
-                || $late->authority_reference !== $authorityReference
+                || blank($late->authority_reference)
+                || $late->from_outcome !== $locked->canonical_outcome
+                || $late->to_outcome !== $locked->canonical_outcome
+                || ($authorityReference !== null && $late->authority_reference !== $authorityReference)
+                || RegistrationCaseEvent::query()
+                    ->where('enrollment_id', $locked->id)
+                    ->where('id', '>', $late->id)
+                    ->whereNotNull('from_outcome')
+                    ->whereNotNull('to_outcome')
+                    ->whereColumn('from_outcome', '!=', 'to_outcome')
+                    ->exists()
                 || RegistrationCaseEvent::query()
                     ->where('enrollment_id', $locked->id)
                     ->where('event_type', 'Reopened')
@@ -79,6 +89,10 @@ class ReopenRegistrationCase
                 throw ValidationException::withMessages([
                     'late_authority' => 'Reopening after the final cutoff requires an unused exact late-enrollment authority for this same case and Term.',
                 ]);
+            }
+
+            if ($requiresLateAuthority) {
+                $authorityReference = $late->authority_reference;
             }
 
             $this->assertCurrentSourceEligibility($locked);

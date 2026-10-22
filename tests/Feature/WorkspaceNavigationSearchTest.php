@@ -117,8 +117,8 @@ class WorkspaceNavigationSearchTest extends TestCase
     public static function otherStaffWorkspaces(): array
     {
         return [
-            'Accounting' => [User::StaffRoleAccounting, ['Fee Plans', 'Student Accounts'], []],
-            'Faculty' => [User::StaffRoleFaculty, ['Schedule & Availability', 'Grade Rosters'], []],
+            'Accounting' => [User::StaffRoleAccounting, ['Student Accounts', 'Fee Plans'], []],
+            'Faculty' => [User::StaffRoleFaculty, ['My schedule', 'My availability', 'Grade rosters'], []],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight'], []],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit'], ['manage-faqs', 'manage-public-notices']],
         ];
@@ -175,7 +175,7 @@ class WorkspaceNavigationSearchTest extends TestCase
     {
         $user = $this->signIn('student', panel: 'student');
         StudentProfile::factory()->for($user)->create();
-        $this->assertContains('Home', $this->titles('home'));
+        $this->assertContains('Overview', $this->titles('overview'));
         $this->assertSame([], $this->titles('Admission cycles'));
     }
 
@@ -209,10 +209,25 @@ class WorkspaceNavigationSearchTest extends TestCase
 
         Filament::getCurrentPanel()->boot();
 
-        Livewire::test(AccessibleSidebar::class)
+        $sidebar = Livewire::test(AccessibleSidebar::class)
             ->assertSee('Registrar workspace')
             ->assertSee('placeholder="Find a page"', false)
             ->assertDontSee('tala-workspace-search-caption', false);
+
+        $this->assertSame(1, substr_count($sidebar->html(), 'placeholder="Find a page"'));
+    }
+
+    public function test_page_only_student_sidebar_has_one_native_page_finder(): void
+    {
+        $user = $this->signIn('student', panel: 'student');
+        StudentProfile::factory()->for($user)->create();
+        Filament::getCurrentPanel()->boot();
+
+        $sidebar = Livewire::test(AccessibleSidebar::class)
+            ->assertSee('placeholder="Find a page"', false)
+            ->assertSee('Find a workspace page');
+
+        $this->assertSame(1, substr_count($sidebar->html(), 'placeholder="Find a page"'));
     }
 
     public function test_sidebar_names_the_selected_staff_context_for_a_multi_role_user(): void

@@ -9,6 +9,7 @@ use App\Models\Enrollment;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
+use App\Models\IncDeadlineAmendment;
 use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\TermOffering;
@@ -32,7 +33,7 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_test_codex', DB::connection()->getDatabaseName());
 
@@ -91,6 +92,58 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
             ->assertDontSee('TAL89D INTERNAL AUTHORITY')
             ->assertDontSee('TAL89D INTERNAL REASON')
             ->assertDontSee('TAL89D-PRIVATE-EVIDENCE');
+    }
+
+    #[Test]
+    public function released_inc_deadline_ignores_an_unreleased_replacement(): void
+    {
+        [$student, $profile] = $this->student();
+        $row = $this->gradeRowForStudent($profile, 'SYN-INC', 'Released incomplete result', 'INC', GradeRosterRow::CategoryIncomplete, released: true);
+        $released = GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $row->id, 'event_type' => GradeOutcomeEvent::TypeInitialRelease,
+            'result_code' => 'INC', 'new_value' => null, 'new_category' => GradeRosterRow::CategoryIncomplete,
+            'deadline' => '2026-11-05', 'released_at' => now()->subDay(),
+        ]);
+        GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $row->id, 'event_type' => GradeOutcomeEvent::TypePendingReplacement,
+            'new_value' => null, 'new_category' => GradeRosterRow::CategoryIncomplete,
+            'deadline' => '2099-12-31', 'released_at' => null,
+        ]);
+
+        $this->gradesViewComponent($student)->assertSee('Nov 5, 2026')->assertDontSee('Dec 31, 2099');
+
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+        IncDeadlineAmendment::query()->create([
+            'grade_outcome_event_id' => $released->id, 'previous_deadline' => '2026-11-05', 'new_deadline' => '2026-11-20',
+            'authority_reference' => 'SYNTHETIC-APPROVED-DEADLINE', 'authority_date' => now()->toDateString(),
+            'reason' => 'Synthetic approved amendment.', 'recorded_by' => $registrar->id, 'recorded_at' => now(),
+        ]);
+        $this->gradesViewComponent($student)->assertSee('Nov 20, 2026')->assertDontSee('Dec 31, 2099');
+        $this->actingAs($student)->get(route('student-academics.unofficial-record', $profile))
+            ->assertOk()->assertSee('Nov 20, 2026')->assertDontSee('Dec 31, 2099');
+    }
+
+    #[Test]
+    public function released_correction_overrides_a_stale_row_summary_without_exposing_a_draft(): void
+    {
+        [$student, $profile] = $this->student();
+        $row = $this->gradeRowForStudent($profile, 'SYN-CORRECTED', 'Corrected released result', '1.75', GradeRosterRow::CategoryPassing, released: true);
+        $row->courseEnrollment->update(['units_snapshot' => '3.50']);
+        GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $row->id, 'event_type' => GradeOutcomeEvent::TypePostedCorrection,
+            'result_code' => '2.00', 'new_category' => GradeRosterRow::CategoryPassing, 'released_at' => '2026-10-17 20:30:00',
+        ]);
+        GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $row->id, 'event_type' => GradeOutcomeEvent::TypePendingReplacement,
+            'result_code' => '1.00', 'authority' => 'DRAFT-PRIVATE-AUTHORITY', 'released_at' => null,
+        ]);
+
+        $this->gradesViewComponent($student)
+            ->assertTableColumnFormattedStateSet('current_outcome_code', '2.00', record: $row)
+            ->assertTableColumnFormattedStateSet('courseEnrollment.units_snapshot', '3.5', record: $row)
+            ->assertSee('Oct 18, 2026')
+            ->assertDontSee('DRAFT-PRIVATE-AUTHORITY');
     }
 
     #[Test]

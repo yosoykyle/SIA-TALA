@@ -239,7 +239,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             ->assertOk()
             ->assertSee($fixture['course']->code)
             ->assertDontSee($other['course']->code)
-            ->assertSee('Print / Save as PDF');
+            ->assertSee('Print or save PDF');
 
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => 'FACULTY_SCHEDULE',
@@ -262,7 +262,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             ->assertOk()
             ->assertSee($fixture['course']->code)
             ->assertDontSee($other['course']->code)
-            ->assertSee('Print / Save as PDF');
+            ->assertSee('Print or save PDF');
 
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => 'STUDENT_SCHEDULE',
@@ -294,12 +294,12 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $this->actingAs($faculty)
             ->get(route('faculty.schedule.print'))
             ->assertOk()
-            ->assertSee('No current published schedule is available for this account.');
+            ->assertSee('No schedule is available for this exact timetable version.');
 
         $this->actingAs($student)
             ->get(route('student.schedule.print'))
             ->assertOk()
-            ->assertSee('No current published schedule is available for this account.');
+            ->assertSee('No schedule is available for this exact timetable version.');
 
         $this->assertDatabaseMissing('output_access_logs', [
             'actor_user_id' => $faculty->id,
@@ -366,6 +366,33 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $tampered = app(BuildOfficialScheduleOutput::class)->forFaculty($fixture['faculty'], Request::create('/', 'GET', ['timetable_version' => $other['timetable']->id, 'scope' => 'filtered', 'faculty_user_id' => $other['faculty']->id, 'meeting_ids' => [$other['meeting']->id]]));
         $this->assertSame([], $tampered['rows']);
         $this->actingAs($fixture['faculty'])->getJson(route('faculty.schedule.print', ['scope' => 'filtered', 'day_of_week' => 8]))->assertUnprocessable();
+    }
+
+    #[Test]
+    public function faculty_schedule_distinguishes_unselected_and_unassigned_terms_and_keeps_figures_unfiltered(): void
+    {
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $emptyTerm = Term::factory()->create();
+
+        Livewire::actingAs($faculty)->test(FacultySchedule::class)
+            ->assertSee('Choose a Term to view your schedule')
+            ->assertDontSee('No official meetings assigned in this Term')
+            ->assertDontSee('Search courses, classes or rooms')
+            ->call('selectTerm', $emptyTerm->id)
+            ->assertSee('No official meetings assigned in this Term')
+            ->assertDontSee('Weekly meetings');
+
+        $fixture = $this->scheduleFixture();
+        $tuesday = $fixture['meeting']->replicate();
+        $tuesday->fill(['meeting_sequence' => 2, 'day_of_week' => 2])->save();
+
+        Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class, ['termId' => $fixture['term']->id])
+            ->filterTable('day_of_week', 2)
+            ->assertSeeHtml('<dt>Classes</dt><dd>1</dd>')
+            ->assertSeeHtml('<dt>Weekly meetings</dt><dd>2</dd>')
+            ->assertSeeHtml('<dt>Teaching days</dt><dd>2</dd>')
+            ->assertSee('Showing selected meetings:')
+            ->assertSee('Tuesday');
     }
 
     #[Test]

@@ -4,7 +4,9 @@ namespace App\Filament\Student\Pages;
 
 use App\Models\Hold;
 use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
+use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -17,11 +19,19 @@ class HoldsView extends Page implements HasTable
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-shield-exclamation';
 
-    protected static ?string $navigationLabel = 'Holds & Blockers';
+    protected static ?string $navigationLabel = 'School matters to resolve';
 
-    protected static ?string $title = 'Active Holds';
+    protected static ?string $title = 'School matters to resolve';
+
+    protected ?string $subheading = 'These notices show what needs attention and which school office can help.';
 
     protected string $view = 'filament.student.pages.generic-table';
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [Dashboard::getUrl(panel: 'student') => 'Overview', $this->getTitle()];
+    }
 
     public function table(Table $table): Table
     {
@@ -38,30 +48,38 @@ class HoldsView extends Page implements HasTable
                     ->where(fn (Builder $query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             )
             ->columns([
-                TextColumn::make('hold_type')
-                    ->label('Hold Type')
-                    ->badge()
-                    ->color('danger')
-                    ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
-                TextColumn::make('blocking_level')
-                    ->label('Blocking Effect')
-                    ->badge()
-                    ->color('warning')
-                    ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
                 TextColumn::make('required_action')
-                    ->label('Required Action')
+                    ->label('What needs attention')
                     ->state(fn (Hold $record): string => $record->studentFacingMessage())
                     ->wrap(),
+                TextColumn::make('blocking_level')
+                    ->label('Affects')
+                    ->badge()
+                    ->color(fn (string $state): string => $state === Hold::BlockingAdvisoryOnly ? 'gray' : 'warning')
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        Hold::BlockingEnrollment => 'Enrollment',
+                        Hold::BlockingCorPrint => 'Registration certificate',
+                        Hold::BlockingClearance => 'Clearance',
+                        Hold::BlockingRecordRelease => 'Record release',
+                        Hold::BlockingGraduationEligibility => 'Graduation',
+                        Hold::BlockingReactivation => 'Return to school',
+                        Hold::BlockingAdvisoryOnly => 'Advisory notice',
+                        default => str($state)->headline()->toString(),
+                    }),
                 TextColumn::make('office_to_contact')
-                    ->label('Office to Contact')
-                    ->state(fn (Hold $record): string => $record->studentFacingOfficeLabel()),
-                TextColumn::make('effective_at')
-                    ->label('Effective Date')
-                    ->date(),
+                    ->label('Contact')
+                    ->state(fn (Hold $record): string => $record->studentFacingOfficeLabel())
+                    ->weight(FontWeight::SemiBold)
+                    ->description(fn (Hold $record): ?string => $record->effective_at
+                        ? 'Since '.$record->effective_at->copy()->timezone(config('app.display_timezone'))->format('M j, Y') : null),
             ])
             ->stackedOnMobile()
-            ->emptyStateHeading('No active holds')
-            ->emptyStateDescription('You are clear from any blocks or deficiencies.')
-            ->emptyStateIcon('heroicon-o-check-circle');
+            ->emptyStateHeading('No active school notices')
+            ->emptyStateDescription('No active notices are recorded here. Enrollment and other requirements are checked separately.')
+            ->emptyStateIcon('heroicon-o-check-circle')
+            ->emptyStateActions([
+                Action::make('viewEnrollment')->label('View enrollment')->color('gray')
+                    ->url(Enrollment::getUrl(panel: 'student')),
+            ]);
     }
 }

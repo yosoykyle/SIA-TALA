@@ -209,6 +209,7 @@ class BuildCorOutput
         $currentEnrollment = $this->currentOfficialEnrollment($enrollment->studentProfile);
         $isCurrentEnrollment = $currentEnrollment instanceof Enrollment && $currentEnrollment->is($enrollment);
         $versionStatus = match (true) {
+            $enrollment->currentCorVersion === null => 'Retained copy - current version unavailable',
             $isCurrentEnrollment && (int) $enrollment->current_cor_version_id === (int) $corVersion->id => 'Current',
             (int) $enrollment->current_cor_version_id !== (int) $corVersion->id => 'Superseded',
             default => 'Historical',
@@ -259,6 +260,8 @@ class BuildCorOutput
                 'student_number' => $snapshot['student_number'] ?? 'Not recorded',
                 'student_name' => $snapshot['student_name'] ?? 'Not recorded',
                 'program' => (string) ($snapshot['program_code'] ?? $snapshot['program_name'] ?? $snapshot['program_id'] ?? 'Not recorded'),
+                'program_name' => $snapshot['program_name'] ?? $snapshot['program_code'] ?? 'Not recorded',
+                'program_code' => $snapshot['program_code'] ?? 'Not recorded',
                 'curriculum_version' => isset($snapshot['curriculum_version_id']) ? '#'.$snapshot['curriculum_version_id'] : 'Not recorded',
                 'curriculum_levels' => $curriculumLevels !== '' ? $curriculumLevels : 'Not recorded',
                 'selection_basis' => $snapshot['selection_basis'] ?? 'Not recorded',
@@ -267,6 +270,10 @@ class BuildCorOutput
                 'payment_status' => $financeSatisfaction,
                 'assessment_reference' => isset($snapshot['assessment_id']) ? 'Assessment #'.$snapshot['assessment_id'] : 'Not recorded',
                 'assessment_total' => $snapshot['assessment_total'] ?? null,
+                'assessment_basis' => $snapshot['assessment_basis'] ?? 'Not recorded',
+                'assessment_authority_reference' => $snapshot['assessment_authority_reference'] ?? 'Not recorded',
+                'assessment_authority_date' => $snapshot['assessment_authority_date'] ?? null,
+                'accounting_review_pending' => (data_get($snapshot, 'change.finance_state') ?? data_get($snapshot, 'change.financial_effect')) === 'AccountingReviewPending',
                 'term_account_reference' => isset($snapshot['term_account_id']) ? 'Term Account #'.$snapshot['term_account_id'] : 'Not recorded',
                 'course_delivery_mix' => 'Published timetable version #'.($snapshot['published_timetable_version_id'] ?? 'not recorded'),
                 'total_units' => number_format($totalUnits, 2, '.', ''),

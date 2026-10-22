@@ -1,39 +1,34 @@
-<x-official-output-layout
-    title="Payment Acknowledgment"
-    :context="$acknowledgement['posting_status'].' · Verified TALA Posting'"
-    :subtitle="$acknowledgement['term']"
-    :generated-at="\App\Support\DisplayDateTime::format($acknowledgement['generated_at'], 'M d, Y h:i A')"
->
-    <div class="official-output-table"><table><tbody>
-        <tr><th>Learner</th><td>{{ $acknowledgement['owner'] }}</td></tr>
-        <tr><th>Term Account</th><td>TERM-ACCOUNT-{{ $acknowledgement['payment']->term_account_id }}</td></tr>
-        <tr><th>Payment Reference</th><td>{{ $acknowledgement['payment']->provider_reference }}</td></tr>
-        <tr><th>Channel</th><td>{{ $acknowledgement['payment']->channelLabel() }}</td></tr>
-        <tr><th>Actual Verified Amount</th><td>PHP {{ number_format((float) $acknowledgement['payment']->amount, 2) }}</td></tr>
-        <tr><th>Paid</th><td>{{ \App\Support\DisplayDateTime::format($acknowledgement['payment']->paid_at, 'M d, Y h:i A') }}</td></tr>
-        <tr><th>Verified</th><td>{{ \App\Support\DisplayDateTime::format($acknowledgement['payment']->verified_at, 'M d, Y h:i A') }}</td></tr>
-        <tr><th>Posting State</th><td>{{ $acknowledgement['posting_status'] }}</td></tr>
-        @if ($acknowledgement['reversal'] !== null)
-            <tr><th>Reversal Reference</th><td>{{ $acknowledgement['reversal']->provider_reference }}</td></tr>
-            <tr><th>Reversal Authority</th><td>{{ $acknowledgement['reversal']->reversal_authority_reference }}</td></tr>
-            <tr><th>Reversal Reason</th><td>{{ $acknowledgement['reversal']->reversal_reason }}</td></tr>
-        @endif
-    </tbody></table></div>
-
-    <h2>Obligation Effects</h2>
-    <div class="official-output-table"><table>
-        <thead>
-            <tr>
-                <th colspan="2" style="background: #f3f4f6; font-weight: 700; border-bottom: 2px solid #111827;">
-                    TERM-ACCOUNT-{{ $acknowledgement['payment']->term_account_id }} · {{ $acknowledgement['owner'] }} · Ref: {{ $acknowledgement['payment']->provider_reference }} · {{ $acknowledgement['posting_status'] }}
-                </th>
-            </tr>
-            <tr><th>Applied To</th><th>Amount</th></tr>
-        </thead>
-        <tbody>@foreach ($acknowledgement['allocations'] as $allocation)
-            <tr><td>{{ $allocation['target'] }}</td><td>PHP {{ number_format((float) $allocation['amount'], 2) }}</td></tr>
-        @endforeach</tbody>
-    </table></div>
-
+@php
+    $backUrl = auth()->user()->hasRole(\App\Models\User::StaffRoleAccounting)
+        ? \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $acknowledgement['payment']->termAccount->enrollment_id], panel: 'admin')
+        : (auth()->user()->hasRole('student') ? \App\Filament\Student\Pages\Finance::getUrl(panel: 'student') : \App\Filament\Applicant\Pages\Enrollment::getUrl(panel: 'applicant'));
+@endphp
+<x-official-output-layout title="Payment Acknowledgment" :subtitle="$acknowledgement['term']" document-class="finance-output" :back-url="$backUrl" back-label="Back to account">
+    <x-slot:documentStyles><link rel="stylesheet" href="{{ asset('css/tala-finance-output.css').'?v='.filemtime(public_path('css/tala-finance-output.css')) }}"></x-slot:documentStyles>
+    <p class="finance-owner"><strong>{{ $acknowledgement['owner'] }}</strong></p>
+    <dl class="finance-position finance-payment-position">
+        @if ($acknowledgement['net_amount'] !== null)<div><dt>Amount still applied</dt><dd>PHP {{ number_format((float) $acknowledgement['net_amount'], 2) }}</dd></div>
+        @else<div><dt>Actual verified amount</dt><dd>PHP {{ number_format((float) $acknowledgement['payment']->amount, 2) }}</dd></div>@endif
+        <div><dt>Payment status</dt><dd>{{ $acknowledgement['posting_status'] }}</dd></div></dl>
+    @if ($acknowledgement['net_amount'] !== null)<dl class="finance-payment-facts"><div><dt>Original verified payment</dt><dd>PHP {{ number_format((float) $acknowledgement['payment']->amount, 2) }}</dd></div><div><dt>Refunded so far</dt><dd>PHP {{ number_format((float) $acknowledgement['reversed_total'], 2) }}</dd></div></dl>@endif
+    <dl class="finance-payment-facts"><div><dt>Payment method</dt><dd>{{ $acknowledgement['payment']->channelLabel() }}</dd></div><div><dt>Paid</dt><dd>{{ \App\Support\DisplayDateTime::format($acknowledgement['payment']->paid_at) }}</dd></div><div><dt>Verified</dt><dd>{{ \App\Support\DisplayDateTime::format($acknowledgement['payment']->verified_at) }}</dd></div></dl>
+    @if ($acknowledgement['corrections'] !== [])
+        <section><h2>Recorded refunds</h2><div class="official-output-table finance-responsive-table"><table><thead><tr><th scope="col">Date</th><th scope="col">Reason</th><th scope="col">Amount</th></tr></thead><tbody>
+            @foreach ($acknowledgement['corrections'] as $correction)<tr><td data-label="Date">{{ \App\Support\DisplayDateTime::format($correction['date']) }}</td><td data-label="Reason">{{ $correction['reason'] }}<span class="finance-source">Reference {{ $correction['reference'] }} · Authority {{ $correction['authority'] }}</span></td><td data-label="Amount">PHP {{ number_format((float) $correction['amount'], 2) }}</td></tr>@endforeach
+        </tbody></table></div><p class="finance-source">These records reflect completed refunds outside TALA. Recording them does not send money.</p></section>
+    @endif
+    <section><h2>{{ $acknowledgement['net_amount'] !== null ? 'Original payment allocation' : 'Account effect' }}</h2>
+        @if ($acknowledgement['net_amount'] !== null)<p class="finance-source">The original posting stays unchanged. These are the amounts applied before the recorded refunds.</p>@endif
+        <div class="official-output-table finance-responsive-table"><table><thead><tr><th scope="col">Applied to</th><th scope="col">{{ $acknowledgement['net_amount'] !== null ? 'Originally applied' : 'Amount applied' }}</th></tr></thead><tbody>
+            @foreach ($acknowledgement['allocations'] as $allocation)<tr><td data-label="Applied to">{{ $allocation['target'] }}</td><td data-label="{{ $acknowledgement['net_amount'] !== null ? 'Originally applied' : 'Amount applied' }}">PHP {{ number_format((float) $allocation['amount'], 2) }}</td></tr>@endforeach
+        </tbody></table></div>
+    </section>
     <div class="official-output-notice">{{ $acknowledgement['disclaimer'] }}</div>
+    <section class="finance-source"><h2>Source details</h2><dl class="finance-source-facts">
+        <div><dt>Account</dt><dd>TERM-ACCOUNT-{{ $acknowledgement['payment']->term_account_id }}</dd></div>
+        <div><dt>Verification basis</dt><dd>{{ $acknowledgement['payment']->verification_basis ? str($acknowledgement['payment']->verification_basis)->headline() : 'Not recorded' }}</dd></div>
+        <div><dt>Posting reference</dt><dd>{{ $acknowledgement['payment']->provider_reference ?: 'Not recorded' }}</dd></div>
+        @if ($acknowledgement['external_reference'])<div><dt>External reference</dt><dd>{{ $acknowledgement['external_reference'] }}</dd></div>@endif
+        <div><dt>Copy generated</dt><dd>{{ \App\Support\DisplayDateTime::format($acknowledgement['generated_at']) }} · {{ config('app.display_timezone') }}</dd></div>
+    </dl></section>
 </x-official-output-layout>

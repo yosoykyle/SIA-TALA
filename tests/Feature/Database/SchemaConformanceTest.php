@@ -20,7 +20,7 @@ final class SchemaConformanceTest extends TestCase
         'admission_cycle_program', 'admission_cycles', 'admission_decisions', 'admission_requirement_policies',
         'admission_requirement_sets', 'admission_requirements', 'applicant_intakes', 'application_correction_items',
         'application_correction_requests', 'application_submission_versions', 'approved_coverages',
-        'assessment_lines', 'assessment_obligations', 'assessments',
+        'assessment_effect_revalidations', 'assessment_lines', 'assessment_obligations', 'assessments',
         'calendar_events', 'candidate_schedule_rows', 'class_offering_teaching_assignments',
         'checklist_items', 'completion_readiness_versions', 'cor_versions', 'course_components', 'course_drop_records', 'course_enrollments', 'course_requirements',
         'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
@@ -38,7 +38,7 @@ final class SchemaConformanceTest extends TestCase
         'pending_email_changes',
         'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances',
         'public_notices', 'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
-        'registrar_enrollment_clearances', 'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_identity_confirmation_versions', 'registration_late_authorities',
+        'registrar_enrollment_clearances', 'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_credit_evaluations', 'registration_identity_confirmation_versions', 'registration_late_authorities',
         'registration_proposal_confirmations', 'registration_proposal_items', 'registration_proposal_versions',
         'room_features', 'rooms', 'schedule_revision_events', 'schedule_runs',
         'scheduling_commitments', 'scheduling_demands', 'section_delivery_groups', 'section_meetings',
@@ -68,9 +68,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(129, self::APPLICATION_TABLES);
+        $this->assertCount(131, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(147, $actual);
+        $this->assertCount(149, $actual);
         $this->assertSame($expected, $actual);
     }
 
@@ -144,7 +144,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertUniqueIndex('payments', ['or_number']);
         $this->assertUniqueIndex('payments', ['provider_reference']);
         $this->assertUniqueIndex('payments', ['payment_evidence_version_id']);
-        $this->assertUniqueIndex('payments', ['reverses_payment_id']);
+        $this->assertIndex('payments', ['reverses_payment_id']);
+        $this->assertUniqueIndex('payments', ['term_account_id', 'external_refund_reference']);
         $this->assertUniqueIndex('payment_attempts', ['active_term_account_id']);
         $this->assertUniqueIndex('payment_attempt_obligations', ['payment_attempt_id', 'assessment_obligation_id']);
         $this->assertUniqueIndex('payment_attempt_obligations', ['payment_attempt_id', 'sequence']);

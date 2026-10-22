@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title>{{ $statusCode }} — {{ $pageTitle }} | Servitech Institute Asia Inc. — Powered by TALA</title>
+    <title>{{ $statusCode }} — {{ $pageTitle }} | Servitech Institute Asia Inc.{{ $statusCode < 500 && auth()->guest() ? ' — Powered by TALA' : '' }}</title>
     <link rel="icon" href="{{ asset('talalogo.png') }}">
     <link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-foundation.css') }}">
@@ -65,10 +65,12 @@
             @if ($admissionRecovery)
                 <p class="status-code">HTTP {{ $statusCode }}</p>
             @endif
+            @if ($statusCode < 500 && auth()->guest())
             <footer class="error-attribution">
                 <img src="{{ asset('talalogo.png') }}" alt="" aria-hidden="true" width="48" height="48">
                 <span>Powered by TALA</span>
             </footer>
+            @endif
         </article>
     </main>
 

@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources\Enrollments\Tables;
 
+use App\Actions\Finance\IndividualAssessmentSources;
 use App\Actions\Finance\TermAccountProjection;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\Program;
-use Filament\Actions\ViewAction;
-use Filament\Tables\Columns\TextColumn;
+use Filament\Actions\Action;
+use Filament\Tables\Columns\Layout\View as RecordView;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,94 +19,78 @@ class StudentAccountsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->extraAttributes(['class' => 'accounting-records-table'])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
-                'credentialUser',
-                'admissionApplication.program',
-                'studentProfile.program',
-                'term',
-                'termAccount.assessments',
-                'termAccount.paymentAttempts.obligations.assessmentObligation',
-            ])->whereHas('termAccount'))
+                'credentialUser', 'admissionApplication.program', 'studentProfile.program', 'term',
+                'currentProposalVersion.items.reservation', 'termAccount.assessments',
+            ])->where(fn (Builder $scope): Builder => $scope->whereHas('termAccount')->orWhere('canonical_outcome', Enrollment::OutcomeInProgress)))
             ->defaultSort('updated_at', 'desc')
-            ->columns([
-                TextColumn::make('learner')
-                    ->label('Learner')
-                    ->state(fn (Enrollment $record): string => $record->credentialUser?->getFilamentName() ?? 'Identity unavailable')
-                    ->description(fn (Enrollment $record): string => collect([
-                        $record->studentProfile?->student_number,
-                        $record->admissionApplication?->application_reference,
-                        $record->credentialUser?->email,
-                    ])->filter()->implode(' · '))
-                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(function (Builder $query) use ($search): void {
-                        $query->where('case_reference', 'like', "%{$search}%")
-                            ->orWhereHas('credentialUser', fn (Builder $query): Builder => $query
-                                ->where('name', 'like', "%{$search}%")
-                                ->orWhere('email', 'like', "%{$search}%"))
-                            ->orWhereHas('studentProfile', fn (Builder $query): Builder => $query
-                                ->where('student_number', 'like', "%{$search}%"));
-                    }))
-                    ->wrap(),
-                TextColumn::make('account_reference')
-                    ->label('Account')
-                    ->state(fn (Enrollment $record): string => 'TERM-ACCOUNT-'.$record->termAccount?->id)
-                    ->copyable(),
-                TextColumn::make('program')
-                    ->state(fn (Enrollment $record): string => self::programLabel($record)),
-                TextColumn::make('term.label')->label('Term')->sortable(),
-                TextColumn::make('account_state')
-                    ->label('Account state')
-                    ->state(fn (Enrollment $record): string => app(TermAccountProjection::class)->forAccount($record->termAccount)['state'])
-                    ->description(fn (Enrollment $record): string => 'Current due: PHP '.app(TermAccountProjection::class)->forAccount($record->termAccount)['current_due'])
-                    ->badge()
-                    ->color(fn (string $state): string => $state === 'Cleared' ? 'success' : 'warning'),
-                TextColumn::make('payment_attempt_state')
-                    ->label('Online payment')
-                    ->state(function (Enrollment $record): string {
-                        $attempt = $record->termAccount->paymentAttempts->sortByDesc('id')->first();
-
-                        return $attempt === null ? 'No attempt' : $attempt->status;
-                    })
-                    ->description(function (Enrollment $record): ?string {
-                        $attempt = $record->termAccount?->paymentAttempts->sortByDesc('id')->first();
-
-                        if ($attempt === null) {
-                            return null;
-                        }
-
-                        $targets = $attempt->obligations
-                            ->map(fn ($target): string => $target->assessmentObligation?->label.' — PHP '.$target->amount)
-                            ->filter()
-                            ->implode('; ');
-
-                        return $targets !== '' ? $targets : 'Historical attempt; no canonical target snapshot.';
-                    })
-                    ->badge()
-                    ->wrap()
-                    ->toggleable(),
-                TextColumn::make('updated_at')->label('Last activity')->since()->sortable(),
-            ])
+            ->columns([RecordView::make('filament.admin.enrollments.accounting-record-row')])
+            ->searchable([fn (Builder $query, string $search): Builder => $query->where(function (Builder $query) use ($search): void {
+                $query->where('case_reference', 'like', "%{$search}%")
+                    ->orWhereHas('credentialUser', fn (Builder $person): Builder => $person->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('studentProfile', fn (Builder $profile): Builder => $profile->where('student_number', 'like', "%{$search}%"))
+                    ->orWhereHas('admissionApplication', fn (Builder $application): Builder => $application->where('application_reference', 'like', "%{$search}%"));
+            })])
+            ->searchPlaceholder('Name or student number')
             ->filters([
                 SelectFilter::make('term')->relationship('term', 'label')->searchable()->preload(),
-                SelectFilter::make('program')
-                    ->options(fn (): array => Program::query()->orderBy('name')->pluck('name', 'id')->all())
-                    ->query(fn (Builder $query, array $data): Builder => $query->when(
-                        $data['value'] ?? null,
-                        fn (Builder $query, string $programId): Builder => $query->where(
-                            fn (Builder $programQuery): Builder => $programQuery
-                                ->whereHas('admissionApplication', fn (Builder $application): Builder => $application->where('program_id', $programId))
-                                ->orWhereHas('studentProfile', fn (Builder $profile): Builder => $profile->where('program_id', $programId)),
-                        ),
+                SelectFilter::make('program')->options(fn (): array => Program::query()->orderBy('name')->pluck('name', 'id')->all())
+                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null,
+                        fn (Builder $query, string $programId): Builder => $query->where(fn (Builder $scope): Builder => $scope
+                            ->whereHas('admissionApplication', fn (Builder $application): Builder => $application->where('program_id', $programId))
+                            ->orWhereHas('studentProfile', fn (Builder $profile): Builder => $profile->where('program_id', $programId))),
                     )),
             ])
-            ->recordActions([ViewAction::make()])
-            ->stackedOnMobile()
-            ->toolbarActions([]);
+            ->recordUrl(null)->recordAction(null)->recordActions([])->toolbarActions([])
+            ->emptyStateHeading(fn ($livewire): string => filled($livewire->getTableSearch()) ? 'No matching accounts' : match ($livewire->activeTab) {
+                'assessment_required' => 'No assessments waiting for review',
+                'payment_proof' => 'No payment proof waiting for review',
+                'payment_exceptions' => 'No online payment issues to review',
+                default => 'No account records found',
+            })
+            ->emptyStateDescription(fn ($livewire): string => filled($livewire->getTableSearch())
+                ? 'Try another name or number, or clear the search and filters.'
+                : match ($livewire->activeTab) {
+                    'assessment_required' => 'Unassessed subjects, recorded changes and retained payments appear here when they need review.',
+                    'payment_proof' => 'Submitted proof appears here. Existing payments remain in account records.',
+                    'payment_exceptions' => 'Failed or unmatched online payment records appear here. Payment history remains in the account.',
+                    default => 'Accounts appear when enrollment begins. Choose another task from Student accounts.',
+                })
+            ->emptyStateActions([Action::make('openAccountRecords')->label('Open account records')->color('gray')
+                ->url(EnrollmentResource::getUrl('index', ['tab' => 'accounts']))]);
     }
 
-    private static function programLabel(Enrollment $enrollment): string
+    /** @return array{status:string,detail:?string,color:string,action:string,program:string} */
+    public static function rowData(Enrollment $case, ?string $context): array
     {
-        $program = $enrollment->studentProfile->program ?? $enrollment->admissionApplication->program ?? null;
+        $assessment = $case->termAccount?->assessments->where('state', Assessment::StateActive)->sortByDesc('version')->first();
+        $position = $case->termAccount !== null ? app(TermAccountProjection::class)->forAccount($case->termAccount) : null;
+        $sources = app(IndividualAssessmentSources::class)->forEnrollment($case);
+        $status = match (true) {
+            $sources['course_drop'] !== null => 'Course Drop needs assessment',
+            $position['reconciliation_required'] ?? false => 'Retained payments need review',
+            $sources['adjustment'] && (int) $assessment?->source_proposal_version_id !== (int) $case->current_proposal_version_id => 'Changed subjects need assessment',
+            $assessment === null => 'Assessment needed',
+            $position === null || $position['state'] === 'Unavailable' => 'Assessment needs review',
+            (float) $position['current_due'] > 0 => 'PHP '.number_format((float) $position['current_due'], 2).' due now',
+            default => 'No payment due now',
+        };
+        $detail = $position !== null && $position['state'] !== 'Unavailable' && (float) $position['remaining_balance'] > (float) $position['current_due']
+            ? 'Later term fees: PHP '.number_format((float) $position['remaining_balance'] - (float) $position['current_due'], 2) : null;
+        if ($context === 'payment_proof') {
+            $status = 'Payment proof awaiting review';
+        } elseif ($context === 'payment_exceptions') {
+            $status = 'Online payment needs review';
+        }
 
-        return $program->code ?? 'Program unavailable';
+        return [
+            'status' => $status, 'detail' => $detail, 'color' => $status === 'No payment due now' ? 'success' : 'warning',
+            'action' => match ($context) {
+                'assessment_required' => 'Review assessment', 'payment_proof' => 'Review proof',
+                'payment_exceptions' => 'Review online payment', default => 'Open account',
+            },
+            'program' => $case->studentProfile?->program?->name ?? $case->admissionApplication?->program?->name ?? 'Program unavailable',
+        ];
     }
 }

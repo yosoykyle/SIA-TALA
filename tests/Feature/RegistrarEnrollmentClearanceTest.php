@@ -218,11 +218,13 @@ class RegistrarEnrollmentClearanceTest extends TestCase
     public function test_registration_consumer_revalidates_the_same_clearance_source(): void
     {
         [$application, $actor] = $this->admittedApplication();
+        Role::findOrCreate('applicant', 'web');
+        $application->user->assignRole('applicant');
         $case = Enrollment::factory()->create([
             'student_profile_id' => null, 'admission_application_id' => $application->id,
             'credential_user_id' => $application->user_id, 'term_id' => $application->term_id,
         ]);
-        $curriculum = CurriculumVersion::factory()->create(['program_id' => $application->program_id]);
+        $curriculum = CurriculumVersion::factory()->create(['program_id' => $application->program_id, 'state' => CurriculumVersion::StateActive]);
         $timetable = PublishedTimetableVersion::factory()->create(['term_id' => $application->term_id]);
         $proposal = RegistrationProposalVersion::factory()->create([
             'enrollment_id' => $case->id, 'curriculum_version_id' => $curriculum->id,
@@ -232,7 +234,8 @@ class RegistrarEnrollmentClearanceTest extends TestCase
         $query = app(RegistrationReadinessQuery::class);
         $this->assertFalse($query->for($case->fresh())['eligibility']);
         $clearance = $this->record($application, $actor);
-        $this->assertTrue($query->for($case->fresh())['eligibility']);
+        $readiness = $query->for($case->fresh());
+        $this->assertTrue($readiness['eligibility'], json_encode($readiness['blockers']));
         $this->record($application, $actor, 'ActionNeeded', $clearance->id);
         $this->assertFalse($query->for($case->fresh())['eligibility']);
     }

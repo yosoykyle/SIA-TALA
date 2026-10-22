@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Finance\CanonicalFinanceOutputPresenter;
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Finance\ReversePaymentPosting;
 use App\Filament\Student\Pages\Finance;
@@ -36,7 +37,7 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
 
         foreach (['student', User::StaffRoleAccounting] as $role) {
@@ -52,7 +53,7 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
         $this->actingAs($accounting)
             ->get(route('finance.statement', $fixture['assessment']))
             ->assertOk()
-            ->assertSee('Authenticated Account Copy')
+            ->assertSee('Account position as of generation')
             ->assertSee('Tuition obligation');
 
         $this->actingAs($accounting)
@@ -84,8 +85,8 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
         $this->actingAs($fixture['student'])
             ->get(route('finance.statement', $fixture['assessment']).'?print=1')
             ->assertOk()
-            ->assertSee('Assessment Version')
-            ->assertSee('Dated Obligations')
+            ->assertSee('Assessment 1')
+            ->assertSee('Payment schedule')
             ->assertSee('Tuition obligation')
             ->assertSee('123 Servitech Ave, Metro Manila');
     }
@@ -136,6 +137,7 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
         $fixture = $this->financeFixture();
         PaymentAttempt::query()->create([
             'assessment_id' => $fixture['assessment']->id,
+            'term_account_id' => $fixture['assessment']->term_account_id,
             'student_profile_id' => $fixture['profile']->id,
             'channel' => 'paymongo',
             'provider' => 'mock',
@@ -152,8 +154,8 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Online checkout')
-            ->assertSee('Manual payment evidence');
+            ->assertSee('Online payment needs Accounting review')
+            ->assertSee('Submit payment proof');
     }
 
     public function test_student_finance_reports_payment_rejected_when_latest_attempt_failed_without_posted_payment(): void
@@ -181,17 +183,25 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
         $fixture = $this->financeFixture();
         $accounting = $this->accountingUser();
 
-        app(ReversePaymentPosting::class)->execute(
+        $refund = app(ReversePaymentPosting::class)->execute(
             $fixture['payment'],
             $accounting,
             'REVERSAL-AUTH-001',
             'Verified duplicate posting.',
+            'SYN-REFUND-TAL88B-001',
+            '500.00',
+            now(),
         );
+
+        $this->assertSame($fixture['payment']->id, $refund->reverses_payment_id);
+        $this->assertSame('500.00', $fixture['payment']->fresh()->amount);
+        $this->assertSame('0.00', app(CanonicalFinanceOutputPresenter::class)
+            ->acknowledgement($fixture['payment']->fresh(), $accounting)['net_amount']);
 
         $this->actingAs($fixture['student'])
             ->get(route('finance.payments.acknowledgement', $fixture['payment']))
             ->assertOk()
-            ->assertSee('Reversed')
+            ->assertSee('Recorded refunds')
             ->assertSee('REVERSAL-AUTH-001')
             ->assertSee('Verified duplicate posting.');
     }

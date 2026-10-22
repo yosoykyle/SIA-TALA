@@ -5,6 +5,7 @@ namespace App\Actions\Academics;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
 use App\Models\ProgramShiftCreditEntry;
+use App\Models\RegistrationCreditEvaluation;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 
@@ -23,28 +24,21 @@ class CurriculumEvaluation
                 ->where('state', StudentLifecycleChange::StateApplied))
             ->get()
             ->keyBy('curriculum_entry_id');
-        $currentEntryIds = CourseEnrollment::query()
-            ->where('status', CourseEnrollment::StatusActive)
-            ->where('is_current', true)
-            ->whereHas('enrollment', fn ($query) => $query->where('student_profile_id', $student->id))
-            ->with('termOffering')
-            ->get()
-            ->pluck('termOffering.curriculum_entry_id')
-            ->filter()
-            ->map(fn (mixed $id): int => (int) $id)
-            ->unique();
+        $transferCredits = RegistrationCreditEvaluation::creditedEntryIdsForStudent($student);
         $rows = CurriculumEntry::query()
             ->where('curriculum_version_id', $student->curriculum_version_id)
             ->with(['courseSpecification.course', 'courseSpecification.requirements.relatedCourse'])
             ->orderBy('sequence')
             ->get()
-            ->map(function (CurriculumEntry $entry) use ($attempts, $acceptedCredits, $currentEntryIds): array {
+            ->map(function (CurriculumEntry $entry) use ($attempts, $acceptedCredits, $transferCredits): array {
                 $entryAttempts = $attempts->filter(fn (array $attempt): bool => (int) $attempt['course_specification']?->id === (int) $entry->course_specification_id
                 );
                 $passed = $entryAttempts->contains(fn (array $attempt): bool => is_numeric($attempt['result']) && (float) $attempt['result'] <= 4.00
                 );
-                $credited = $acceptedCredits->has($entry->id);
-                $inProgress = $currentEntryIds->contains((int) $entry->id);
+                $credited = $acceptedCredits->has($entry->id) || in_array((int) $entry->id, $transferCredits, true);
+                $inProgress = $entryAttempts->contains(fn (array $attempt): bool => $attempt['event'] === null
+                    && $attempt['course_enrollment']->is_current
+                    && $attempt['course_enrollment']->status === CourseEnrollment::StatusActive);
 
                 return [
                     'curriculum_entry' => $entry,

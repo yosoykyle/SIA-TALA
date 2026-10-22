@@ -34,14 +34,14 @@ final class PayMongoCheckoutReadinessService
 
         if ($active instanceof PaymentAttempt) {
             return $this->blocked($active->status === PaymentAttempt::StatusReviewRequired
-                ? 'Accounting must resolve the current Payment Exception before another checkout.'
+                ? 'Accounting is checking your online payment. Wait for their review before paying again.'
                 : 'Payment confirmation is pending. Do not start another checkout.');
         }
 
         if (config('tala_integrations.payments.driver') !== 'paymongo'
             || blank(config('tala_integrations.payments.paymongo.secret_key'))
             || blank(config('tala_integrations.payments.paymongo.webhook_signature'))) {
-            return $this->blocked('Online checkout is unavailable. Manual payment evidence remains available.');
+            return $this->blocked('Online payment is unavailable. You can submit payment proof instead.');
         }
 
         if (config('queue.default') === 'sync') {

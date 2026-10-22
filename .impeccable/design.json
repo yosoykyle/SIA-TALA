@@ -3,6 +3,12 @@
   "generatedAt": "2026-10-11T00:40:28.7961583Z",
   "title": "Design System: Servitech Institute Asia — TALA",
   "extensions": {
+    "sharedDarkAppearance": {
+      "source": "DESIGN.md",
+      "updated": "2026-10-23",
+      "roles": "Charcoal canvas, separate chrome, graphite task surface, lighter overlay; paired brand tint and foreground, standalone brand foreground, readable enabled neutral-control icons.",
+      "preserve": "School identity, native states, layout, light appearance, Light/Dark/System selection, print and forced colors."
+    },
     "shadows": [
       {
         "name": "shadow-surface-light",
@@ -63,6 +69,21 @@
         "name": "navigation-depth-dark",
         "value": "inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(0 0 0 / 22%), 0 1px 2px rgb(0 0 0 / 20%)",
         "purpose": "Extracted shallow skeuomorphic Aqua-like buttons navigation depth."
+      },
+      {
+        "name": "control-depth-light",
+        "value": "inset 0 1px 0 rgb(255 255 255 / 55%), inset 0 -1px 0 rgb(0 0 0 / 7%), 0 1px 1px rgb(0 0 0 / 4.5%)",
+        "purpose": "Shared shallow tactile control; retain native focus and semantic states."
+      },
+      {
+        "name": "control-depth-dark",
+        "value": "inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 -1px 0 rgb(0 0 0 / 16%), 0 1px 2px rgb(0 0 0 / 14%)",
+        "purpose": "Shared shallow tactile control; retain native focus and semantic states."
+      },
+      {
+        "name": "control-pressed",
+        "value": "inset 0 1px 2px rgb(0 0 0 / 14%)",
+        "purpose": "Shared shallow tactile control; retain native focus and semantic states."
       }
     ],
     "motion": [
@@ -105,7 +126,7 @@
       "refersTo": "button-primary",
       "description": "Full skeuomorphic Aqua-like buttons variant; native semantic color, state and focus remain authoritative.",
       "html": "<button class=\"ds-action\">Save changes</button>",
-      "css": ".ds-action{background:var(--tala-brand);color:var(--tala-on-brand);background-image:var(--tala-control-gloss);border:1px solid transparent;border-radius:8px;padding:8px 16px;min-height:44px;font:600 14px var(--tala-font-body);box-shadow:var(--tala-control-depth)}.ds-action:hover{background-color:var(--tala-brand-strong)}.ds-action:active{background-image:none;box-shadow:var(--tala-control-pressed)}.ds-action:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+      "css": ".ds-action{background:var(--tala-brand-strong);color:var(--tala-on-brand);background-image:var(--tala-control-gloss);border:1px solid transparent;border-radius:8px;padding:8px 16px;min-height:44px;font:600 14px var(--tala-font-body);box-shadow:var(--tala-control-depth)}.ds-action:hover{background-color:var(--tala-brand-strong)}.ds-action:active{background-image:none;box-shadow:var(--tala-control-pressed)}.ds-action:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
     },
     {
       "name": "Editable field",
@@ -184,14 +205,14 @@
     ],
     "rules": [
       "TALA uses one material grammar across Filament and Bootstrap. Call the existing control family **skeuomorphic Aqua-like buttons** consistently. Action buttons, eligible icon actions (including the collapsed-sidebar “Find a workspace page” shortcut), the account trigger, public menu trigger and action-style links use its full highlight, lower edge, modest elevation and depressed press state. Frequently used sidebar navigation, native tabs/task selectors, theme selection and pagination use a shallower member of the same family; the current choice stays depressed/seated and distinguishable from an action. These priorities follow task structure, not measured usage telemetry. Editable fields and standalone navigation tracks use inset depth. Surfaces hold content: solid, softly elevated and hairline-edged, with a top rim in dark appearance. Floating menus and search results use solid opaque overlays with no backdrop blur. Reuse the explicit foundation selector whitelist; ordinary text links, menu rows, record expansion, input-affix icons, notification close, section toggles, sort headers, wizard steps and reorder handles retain quiet native presentation. Preserve native semantic palettes, focus, loading/disabled meaning and forced-colors behavior. Busy indicators reflect real pending work without hiding existing results; ordinary relationship tables and widgets follow the Loading Rule below.",
-      "**The Control Meaning Rule.** Native Filament actions and Bootstrap buttons consume the existing full skeuomorphic Aqua-like action material; task navigation, Week/Meeting list and pagination consume its shallower seated selection material. Primary commands use native green; destructive commands retain native danger meaning. Supporting blue identifies appropriate ordinary links and information. Text links stay quiet, with underline and visible keyboard focus; menu rows, sort/disclosure/notification-close controls and input-affix icons keep the native quiet whitelist. Heroicons use native sizing and currentColor rather than a second icon family. Dropdowns and dialogs are solid opaque overlays. Searchable choices show human names first with codes as supporting identity; searching and clearing scope preserve the exact Term and source version. Keep the Applicant-only identity/attribution exception from Issue #59.",
+      "**The Control Meaning Rule.** Native Filament actions and Bootstrap buttons consume the existing full skeuomorphic Aqua-like action material; task navigation, Week/Meeting list and pagination consume its shallower seated selection material. Primary commands use native green; destructive commands retain native danger meaning. Supporting blue identifies appropriate ordinary links and information. Text links stay quiet, with underline and visible keyboard focus; menu rows, sort/disclosure/notification-close controls and input-affix icons keep the native quiet whitelist. Heroicons use native sizing and currentColor rather than a second icon family. Dropdowns and dialogs are solid opaque overlays. Searchable choices show human names first with codes as supporting identity; searching and clearing scope preserve the exact Term and source version. Preserve the Applicant identity exception from Issue #59; every authenticated role omits Powered by TALA attribution.",
       "The shared ladder is canvas → neutral chrome → solid content surface → floating overlay. Preserve the owner's approved light palette and existing action finish. Dark appearance uses explicit lightness separation, stronger rim/edge definition and soft shadow; more shadow alone cannot separate near-black layers. Its canvas/chrome/content/overlay values are `#111114`/`#1B1B20`/`#242429`/`#303036`, with sunken fields/tracks `#16161A`. Keep one visible elevation per nested content stack. Navigation chrome stays opaque and neutral. Skeuomorphic Aqua-like buttons use full action and shallow navigation variants, with seated current states; inset fields communicate editing. Native validation and focus rings remain authoritative. Check text across the brightest gloss stop as well as the base fill; native inactive/selected navigation labels in dark mode use readable shared muted/primary-300 values.",
       "**The Loading Rule.** Ordinary record and relationship content loads with its owning page. Remove decorative skeleton/deferred-placeholder surfaces for the current shared interface. Keep visible results, native busy/disabled feedback, accessible status and truthful progress for saving or asynchronous generation; never hide loading with a blanket CSS rule.",
       "All native Filament and Bootstrap modal X controls use utility Aqua-like depth/gloss while retaining names, Escape, focus and cancellation.",
       "The selected background uses soft state-aware color blooms and a brief arrival behind readable content. Complete the decorative animation within five seconds of page arrival, then retain the settled background throughout that page visit. Respect reduced motion with an immediate static composition; omit decoration in forced colors and print. Suspend active decoration while hidden or offscreen and preserve the original completion deadline when the page returns. Recovery actions stay immediately available, content stays stationary, and focus remains visible. Verify contrast throughout the effect in both appearances and on narrow screens. This finite treatment follows [WCAG 2.2 Pause, Stop, Hide](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html)."
     ],
     "dos": [
-      "Lead visible school services and official documents with Servitech Institute Asia Inc.; keep “Powered by TALA” secondary outside the Applicant panel and its account-entry pages. Preserve official-output “Generated through TALA” attribution.",
+      "Lead visible school services and official documents with Servitech Institute Asia Inc.; omit “Powered by TALA” from all authenticated pages. Public and anonymous non-Applicant account-entry attribution remains secondary; Applicant account-entry pages continue to omit it. Preserve official-output “Generated through TALA” attribution.",
       "Apply the shared school-first visual direction while refining terminology, workflow, hierarchy and components where evidence warrants it.",
       "Preserve native Light/Dark/System behavior, readable contrast, visible focus, and meaning that does not depend on color alone.",
       "Choose a component for the user's task; use focused custom UI within Laravel/Filament when native presentation is inadequate."

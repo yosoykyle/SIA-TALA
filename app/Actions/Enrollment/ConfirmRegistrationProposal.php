@@ -2,6 +2,8 @@
 
 namespace App\Actions\Enrollment;
 
+use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
+use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\RegistrationProposalConfirmation;
 use App\Models\RegistrationProposalVersion;
@@ -12,6 +14,8 @@ use Illuminate\Validation\ValidationException;
 
 class ConfirmRegistrationProposal
 {
+    public function __construct(private readonly RegistrationReadinessQuery $readiness) {}
+
     public function execute(
         RegistrationProposalVersion $proposal,
         User $learner,
@@ -33,24 +37,25 @@ class ConfirmRegistrationProposal
             throw new AuthorizationException('Assisted confirmation requires authorized Registrar staff.');
         }
 
-        if ($assistedBy !== null && blank($assistedEvidenceReference)) {
-            throw ValidationException::withMessages(['assisted_evidence_reference' => 'Assisted confirmation requires retained evidence.']);
-        }
-
         return DB::transaction(function () use ($proposal, $learner, $assistedBy, $assistedEvidenceReference): RegistrationProposalVersion {
+            $enrollment = Enrollment::query()->whereKey($proposal->enrollment_id)->lockForUpdate()->firstOrFail();
             $locked = RegistrationProposalVersion::query()->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
-            $enrollment = Enrollment::query()->whereKey($locked->enrollment_id)->lockForUpdate()->firstOrFail();
 
-            if ($locked->confirmation()->exists()) {
-                return $locked->load('confirmation');
-            }
             $expectedOutcome = $locked->purpose === RegistrationProposalVersion::PurposeAdjustment
                 ? Enrollment::OutcomeOfficiallyEnrolled
                 : Enrollment::OutcomeInProgress;
             if ($enrollment->canonical_outcome !== $expectedOutcome
                 || (int) $enrollment->current_proposal_version_id !== (int) $locked->id
-                || $locked->state !== RegistrationProposalVersion::StateIssued) {
+                || ! in_array($locked->state, [RegistrationProposalVersion::StateIssued, RegistrationProposalVersion::StateConfirmed], true)) {
                 throw ValidationException::withMessages(['proposal' => 'Only an issued current proposal may be confirmed.']);
+            }
+
+            if ($locked->purpose === RegistrationProposalVersion::PurposeInitial) {
+                $this->readiness->assertPrepared($enrollment, $locked);
+            }
+
+            if ($locked->confirmation()->exists()) {
+                return $locked->load('confirmation');
             }
 
             RegistrationProposalConfirmation::query()->create([
@@ -62,6 +67,11 @@ class ConfirmRegistrationProposal
                 'confirmed_at' => now(),
             ]);
             $locked->update(['state' => RegistrationProposalVersion::StateConfirmed]);
+
+            $assessment = $enrollment->termAccount?->assessments()->where('state', Assessment::StateActive)->latest('version')->first();
+            if ($assessment !== null && app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($enrollment)['state'] === 'ActionNeeded') {
+                app(RegistrationNotificationLedger::class)->recordPaymentActionRequired($assessment);
+            }
 
             return $locked->refresh()->load('confirmation');
         }, attempts: 3);

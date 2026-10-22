@@ -2,6 +2,7 @@
 
 namespace App\Actions\Finance;
 
+use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\TermAccount;
 use App\Support\DecimalMoney;
@@ -20,20 +21,24 @@ class EnrollmentPaymentRequirementProjection
             return $this->unavailable();
         }
         $position = $this->accounts->forAccount($account);
-        if ($position['assessment_id'] === null) {
+        if ($position['assessment_id'] === null || $position['state'] === 'Unavailable') {
             return $this->unavailable();
         }
         $required = collect($position['obligations'])->where('required_for_enrollment', true);
         $totalCents = $required->sum(fn (array $row): int => $this->money->toCents($row['amount']));
+        $assessment = Assessment::query()->find($position['assessment_id']);
+        if ($required->isEmpty() || ($totalCents === 0 && blank(data_get($assessment?->source_snapshot, 'no_payment_required_authority_reference')))) {
+            return $this->unavailable();
+        }
         $balanceCents = $required->sum(fn (array $row): int => $this->money->toCents($row['balance']));
         $satisfiedCents = max(0, $totalCents - $balanceCents);
         $state = $balanceCents === 0 ? 'Cleared' : 'ActionNeeded';
         $satisfactionBasis = match (true) {
             $state !== 'Cleared' => 'None',
             $totalCents === 0 => 'NoPaymentRequired',
-            $this->money->greaterThanZero($position['payment_applied']) && $this->money->greaterThanZero($position['coverage_applied']) => 'Mixed',
-            $this->money->greaterThanZero($position['payment_applied']) => 'VerifiedPayment',
-            $this->money->greaterThanZero($position['coverage_applied']) => 'ApprovedCoverage',
+            $required->sum(fn (array $row): int => $this->money->toCents($row['payment_applied'])) > 0 && $required->sum(fn (array $row): int => $this->money->toCents($row['coverage_applied'])) > 0 => 'Mixed',
+            $required->sum(fn (array $row): int => $this->money->toCents($row['payment_applied'])) > 0 => 'VerifiedPayment',
+            $required->sum(fn (array $row): int => $this->money->toCents($row['coverage_applied'])) > 0 => 'ApprovedCoverage',
             default => 'None',
         };
 
@@ -44,8 +49,8 @@ class EnrollmentPaymentRequirementProjection
             'satisfied' => $this->money->fromCents($satisfiedCents),
             'balance' => $this->money->fromCents($balanceCents),
             'assessment_id' => $position['assessment_id'],
-            'payment_applied' => $position['payment_applied'],
-            'coverage_applied' => $position['coverage_applied'],
+            'payment_applied' => $this->money->fromCents((int) $required->sum(fn (array $row): int => $this->money->toCents($row['payment_applied']))),
+            'coverage_applied' => $this->money->fromCents((int) $required->sum(fn (array $row): int => $this->money->toCents($row['coverage_applied']))),
             'satisfaction_basis' => $satisfactionBasis,
             'later_obligation' => collect($position['obligations'])->contains(fn (array $row): bool => ! $row['required_for_enrollment']),
             'as_of' => $position['as_of'],

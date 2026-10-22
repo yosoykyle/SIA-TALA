@@ -64,7 +64,7 @@ class SharedAccessPresentationTest extends TestCase
     }
 
     #[DataProvider('nonApplicantPanels')]
-    public function test_non_applicant_panels_preserve_identity_and_attribution_for_multi_role_accounts(string $panelId, string $context): void
+    public function test_signed_in_panels_preserve_identity_without_product_attribution(string $panelId, string $context): void
     {
         foreach (['applicant', 'student', User::StaffRoleRegistrar] as $role) {
             Role::findOrCreate($role, 'web');
@@ -82,8 +82,27 @@ class SharedAccessPresentationTest extends TestCase
         $this->assertStringContainsString('servitech-crest.webp', $panel->getBrandLogo()->render());
         $this->assertStringNotContainsString('Shared Account', (string) FilamentView::renderHook(PanelsRenderHook::CONTENT_START));
         foreach ([PanelsRenderHook::SIDEBAR_FOOTER, PanelsRenderHook::CONTENT_END, PanelsRenderHook::SIMPLE_PAGE_END] as $hook) {
-            $this->assertStringContainsString('Powered by TALA', (string) FilamentView::renderHook($hook));
+            $this->assertStringNotContainsString('Powered by TALA', (string) FilamentView::renderHook($hook));
         }
+    }
+
+    #[DataProvider('nonApplicantPanels')]
+    public function test_anonymous_non_applicant_panels_retain_account_entry_attribution(string $panelId, string $context): void
+    {
+        $this->bootPanel($panelId);
+
+        $this->assertStringContainsString('Powered by TALA', (string) FilamentView::renderHook(PanelsRenderHook::SIMPLE_PAGE_END));
+    }
+
+    public function test_signed_in_access_and_error_pages_omit_product_attribution(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->blade('<x-tala-access-layout title="Test Access" heading-id="test-heading"><h1 id="test-heading">Test Heading</h1></x-tala-access-layout>')
+            ->assertSee('Servitech Institute Asia')
+            ->assertDontSee('Powered by TALA');
+        $this->view('errors.403')->assertSee('Access not allowed')->assertDontSee('Powered by TALA');
+        $this->view('errors.500')->assertDontSee('Powered by TALA');
     }
 
     public function test_workspace_choice_has_a_shared_appearance_and_an_empty_state_recovery(): void
@@ -114,7 +133,7 @@ class SharedAccessPresentationTest extends TestCase
         Auth::shouldReceive('user')->never();
         $this->view('errors.500')->assertSee('Servitech Institute Asia')
             ->assertSee('Error 500')
-            ->assertSee('Powered by TALA')
+            ->assertDontSee('Powered by TALA')
             ->assertSee('The request outcome is unconfirmed.')
             ->assertSee('Contact school support')
             ->assertSee('System Administration')

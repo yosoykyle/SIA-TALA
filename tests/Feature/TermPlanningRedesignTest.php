@@ -459,6 +459,42 @@ final class TermPlanningRedesignTest extends TestCase
         $this->assertFalse($button->hasAttribute('role'));
     }
 
+    public function test_default_meeting_tiles_open_distinct_dialogs_without_inline_selection_focus(): void
+    {
+        $row = new CandidateScheduleRow(['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '09:00']);
+        $row->setAttribute('id', 77)->setRelation('schedulingDemand', null);
+        $presentation = TimetablePresentation::forCandidate(new ScheduleGenerationRun, collect([$row]));
+
+        $html = Blade::render('<x-tala-timetable :presentation="$presentation" focused controlled embedded /><x-tala-timetable :presentation="$presentation" focused controlled embedded />', ['presentation' => $presentation]);
+        $document = new \DOMDocument;
+        $document->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new \DOMXPath($document);
+        $timetables = $xpath->query('//section[contains(concat(" ", normalize-space(@class), " "), " tala-timetable ")]');
+
+        $this->assertCount(2, $timetables);
+        $dialogIds = [];
+        foreach ($timetables as $timetable) {
+            $buttons = $xpath->query('.//button[@aria-haspopup="dialog"]', $timetable);
+            $this->assertCount(2, $buttons);
+            $dialogId = $buttons->item(0)->getAttribute('aria-controls');
+            $this->assertNotSame('', $dialogId);
+            $this->assertSame($dialogId, $buttons->item(1)->getAttribute('aria-controls'));
+            $this->assertSame(1, $xpath->query('//*[@id="'.$dialogId.'"]')->count());
+            foreach ($buttons as $button) {
+                $this->assertSame('button', $button->getAttribute('type'));
+                $this->assertFalse($button->hasAttribute('x-bind:aria-pressed'));
+                $this->assertStringContainsString("\$dispatch('open-modal'", $button->getAttribute('x-on:click'));
+            }
+            $dialogIds[] = $dialogId;
+        }
+
+        $this->assertNotSame($dialogIds[0], $dialogIds[1]);
+        $this->assertStringNotContainsString('selectionSummary', $html);
+        $this->assertStringNotContainsString('tala-timetable-selection', $html);
+        $this->assertStringContainsString('selectedMeeting?.courseTitle', $html);
+        $this->assertStringNotContainsString('x-html="selectedMeeting', $html);
+    }
+
     public function test_registrar_uses_the_same_class_details_dialog_and_separate_management_destination(): void
     {
         $this->staff();

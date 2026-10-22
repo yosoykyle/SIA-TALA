@@ -129,10 +129,10 @@ class TalaPanelTheme
         ]);
     }
 
-    /** Secondary Powered by TALA attribution, omitted from the Applicant panel (#59 F66). */
+    /** Secondary attribution is limited to anonymous non-Applicant account-entry pages. */
     private static function attribution(Panel $panel, string $wrapper): HtmlString
     {
-        if (self::isApplicantPanel($panel)) {
+        if (self::isApplicantPanel($panel) || $panel->auth()->check()) {
             return new HtmlString('');
         }
 

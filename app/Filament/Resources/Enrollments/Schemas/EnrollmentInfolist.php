@@ -2,27 +2,146 @@
 
 namespace App\Filament\Resources\Enrollments\Schemas;
 
+use App\Actions\Enrollment\RegistrationPlacementValidator;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\RegistrationShortageProjection;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
+use App\Actions\Finance\TermAccountProjection;
+use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
+use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
+use App\Models\AdmissionApplication;
+use App\Models\Assessment;
+use App\Models\CourseEnrollment;
+use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
+use App\Models\EnrollmentSeatReservation;
+use App\Models\PaymentAttempt;
+use App\Models\PaymentEvidenceVersion;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationCaseEvent;
+use App\Models\RegistrationCreditEvaluation;
 use App\Models\RegistrationProposalItem;
+use App\Models\RegistrationProposalVersion;
+use App\Models\User;
 use App\Support\DisplayDateTime;
+use App\Support\RegistrationSchedulePresentation;
+use App\Support\TimetablePresentation;
 use Carbon\CarbonImmutable;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class EnrollmentInfolist
 {
+    /** @return array<string, mixed> */
+    private static function overview(Enrollment $case): array
+    {
+        $case->loadMissing(['credentialUser', 'term', 'studentProfile.program', 'admissionApplication.program',
+            'currentProposalVersion.items.section', 'currentProposalVersion.items.reservation', 'currentProposalVersion.confirmation',
+            'currentProposalVersion.timetableVersion.scheduleRun', 'termAccount.paymentEvidenceVersions', 'termAccount.payments', 'termAccount.coverages']);
+        $proposal = $case->currentProposalVersion;
+        $schedule = null;
+        if ($proposal?->timetableVersion !== null) {
+            $ids = $proposal->items->flatMap(fn ($item) => collect($item->meeting_snapshot)->pluck('id'))->filter()->unique();
+            $meetings = PublishedTimetableMeeting::query()->where('published_timetable_version_id', $proposal->published_timetable_version_id)
+                ->whereIn('id', $ids)->with(['classOffering.courseRevision.course', 'faculty', 'room'])->get();
+            $schedule = TimetablePresentation::forPublished($proposal->timetableVersion, $meetings);
+            $captured = $proposal->items->flatMap(fn (RegistrationProposalItem $item) => collect($item->meeting_snapshot)
+                ->map(fn (array $meeting): array => ['id' => $meeting['id'] ?? null, 'item' => $item, 'meeting' => $meeting]))->keyBy('id');
+            $schedule['meetings'] = collect($schedule['meetings'])->map(function (array $meeting) use ($captured): array {
+                $source = $captured->get($meeting['id']);
+                if ($source !== null) {
+                    $meeting['courseCode'] = $source['item']->course_code_snapshot;
+                    $meeting['courseTitle'] = $source['item']->course_title_snapshot;
+                    $meeting['class'] = $source['item']->section?->code ?? $meeting['class'];
+                    $meeting['faculty'] = $source['meeting']['faculty_name'] ?? $meeting['faculty'];
+                    $meeting['room'] = $source['meeting']['room_label'] ?? $meeting['room'];
+                }
+
+                return $meeting;
+            })->all();
+            $schedule['source'] = 'Registration proposal v'.$proposal->version.' · Published timetable v'.$proposal->timetableVersion->version;
+        }
+        $position = $case->termAccount !== null ? app(TermAccountProjection::class)->forAccount($case->termAccount) : null;
+        $assessment = $case->termAccount?->assessments()->with('lines')->where('state', Assessment::StateActive)->latest('version')->first();
+        $placementCurrent = false;
+        if ($proposal !== null) {
+            try {
+                app(RegistrationPlacementValidator::class)->assertCurrent($case, $proposal, requireConfirmation: false);
+                $placementCurrent = true;
+            } catch (ValidationException) {
+                $placementCurrent = false;
+            }
+        }
+
+        return ['case' => $case, 'proposal' => $proposal, 'schedule' => $schedule, 'position' => $position, 'assessment' => $assessment,
+            'requirement' => self::finance($case), 'readiness' => self::readiness($case), 'placementCurrent' => $placementCurrent,
+            'accounting' => auth()->user()?->hasRole(User::StaffRoleAccounting) ?? false];
+    }
+
     public static function configure(Schema $schema): Schema
     {
-        return $schema->components([
+        $page = $schema->getLivewire();
+        if ($page instanceof ViewEnrollment && $page->isHeadReader()
+            && $page->getRecord()->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled) {
+            return $schema->components([View::make('filament.admin.enrollments.head-official')
+                ->viewData(fn (Enrollment $record): array => self::headOfficial($record))
+                ->columnSpanFull()]);
+        }
+        if ($page instanceof ViewEnrollment && $page->isHeadReader()
+            && $page->getRecord()->canonical_outcome === Enrollment::OutcomeInProgress) {
+            return $schema->components([View::make('filament.admin.enrollments.head-progress')
+                ->viewData(fn (Enrollment $record): array => self::headProgress($record))
+                ->columnSpanFull()]);
+        }
+        if ($page instanceof ViewEnrollment && $page->isHeadReader()) {
+            return $schema->components([View::make('filament.admin.enrollments.head-closed')
+                ->viewData(fn (Enrollment $record): array => self::headClosed($record))
+                ->columnSpanFull()]);
+        }
+        if ($page instanceof ViewEnrollment && ($accountingView = $page->focusedAccountingView()) !== null) {
+            return $schema->components([View::make('filament.admin.enrollments.'.$accountingView)
+                ->viewData(fn (): array => $page->accountingViewData() + match ($accountingView) {
+                    'accounting-proof' => $page->paymentProofViewData(),
+                    'accounting-online' => $page->onlinePaymentViewData(),
+                    'accounting-webhook' => $page->webhookPaymentViewData(),
+                    'accounting-history' => ['onlineHistory' => $page->onlinePaymentHistory()],
+                    default => [],
+                })
+                ->columnSpanFull()]);
+        }
+        if ($page instanceof ViewEnrollment && ($focusedView = $page->focusedRegistrarView()) !== null) {
+            return $schema->components([
+                View::make('filament.admin.enrollments.'.($page->enrollmentView === 'history' ? 'history'
+                    : (in_array($focusedView, ['payment-waiting', 'assessment-recovery', 'placement-recovery'], true) ? 'progress' : $focusedView)))
+                    ->viewData(fn (Enrollment $record): array => match (true) {
+                        $page->enrollmentView === 'history' => self::history($record),
+                        $focusedView === 'requirements' => self::overview($record) + ['requirements' => $page->registrarRequirements()],
+                        in_array($focusedView, ['payment-waiting', 'assessment-recovery', 'placement-recovery'], true) => self::registrarProgress($record, $focusedView),
+                        $focusedView === 'review' => ['review' => $page->registrarReviewData()],
+                        $focusedView === 'official' => self::official($record),
+                        $focusedView === 'adjustment' => $page->adjustmentViewData(),
+                        $focusedView === 'missing-cor' => self::official($record),
+                        $focusedView === 'closed' => self::registrarClosed($record) + [
+                            'cutoff' => $page->reopenCutoff(),
+                            'lateAuthorityRequired' => $page->reopenRequiresLateAuthority(),
+                            'hasLateAuthority' => $page->lateReopenAuthorityOptions() !== [],
+                        ],
+                        $focusedView === 'preparing' => self::preparation($record),
+                        default => self::overview($record),
+                    })
+                    ->columnSpanFull(),
+            ]);
+        }
+
+        $evidence = [
             Section::make('State, owner, and next action')
                 ->description('One exact-Term Registration Case. Current state is derived from authoritative facts, not an editable gate record.')
                 ->schema([
@@ -66,7 +185,7 @@ class EnrollmentInfolist
                         ?? 'Curriculum unavailable'),
                     TextEntry::make('term.label')->label('Exact Term'),
                     TextEntry::make('identity_source')->label('Identity source')->state(fn (Enrollment $record): string => $record->admission_application_id !== null
-                        ? 'Ready Applicant and confirmed identity/contact version'
+                        ? 'Verified admissions identity and contact source'
                         : 'Existing official Student profile'),
                 ])
                 ->columns(3),
@@ -207,7 +326,152 @@ class EnrollmentInfolist
                         ->columnSpanFull(),
                 ])
                 ->collapsible(),
-        ]);
+        ];
+
+        return $schema->components(auth()->user()?->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAccounting]) ? [
+            View::make('filament.pages.partials.enrollment-case-overview')->viewData(fn (Enrollment $record): array => self::overview($record))->columnSpanFull(),
+            Section::make('Source evidence and case history')->schema($evidence)->collapsible()->collapsed()->columnSpanFull(),
+        ] : $evidence);
+    }
+
+    /** @return array<string, mixed> */
+    private static function preparation(Enrollment $case): array
+    {
+        $case->loadMissing(['credentialUser', 'term', 'studentProfile.program', 'admissionApplication.program']);
+
+        $evaluation = null;
+        if ($case->admissionApplication?->application_path === AdmissionApplication::PathTransferee) {
+            $latest = RegistrationCreditEvaluation::query()->where('enrollment_id', $case->id)->latest('id')->first();
+            if ($latest !== null
+                && (int) $latest->application_submission_version_id === (int) $case->admissionApplication->current_submission_version_id
+                && CurriculumVersion::query()->whereKey($latest->curriculum_version_id)
+                    ->where('program_id', $case->admissionApplication->program_id)->where('state', CurriculumVersion::StateActive)->exists()) {
+                $evaluation = $latest;
+            }
+        }
+
+        return ['case' => $case, 'evaluation' => $evaluation];
+    }
+
+    /** @return array<string, mixed> */
+    private static function official(Enrollment $case): array
+    {
+        $case->loadMissing(['credentialUser', 'term', 'studentProfile.program', 'currentCorVersion']);
+        $subjects = $case->courseEnrollments()->where('is_current', true)->where('status', CourseEnrollment::StatusActive)
+            ->with(['proposalItem', 'termOffering.curriculumEntry.courseSpecification.course', 'section'])->get();
+
+        return ['case' => $case, 'subjects' => $subjects, 'schedule' => app(RegistrationSchedulePresentation::class)->currentForEnrollment($case)];
+    }
+
+    /** @return array<string, mixed> */
+    private static function headOfficial(Enrollment $case): array
+    {
+        $data = self::official($case);
+        $case->loadMissing(['finalizer', 'studentProfile.curriculumVersion', 'currentCorVersion.proposalVersion.curriculumVersion',
+            'currentCorVersion.proposalVersion.confirmation', 'registrationEvents.actor',
+            'currentProposalVersion.curriculumVersion', 'currentProposalVersion.items.section']);
+        $pendingProposal = $case->currentProposalVersion?->purpose === RegistrationProposalVersion::PurposeAdjustment
+            && in_array($case->currentProposalVersion->state, [RegistrationProposalVersion::StateDraft, RegistrationProposalVersion::StateIssued, RegistrationProposalVersion::StateConfirmed], true)
+            && $case->currentProposalVersion->id !== $case->currentCorVersion?->registration_proposal_version_id
+                ? $case->currentProposalVersion : null;
+
+        return $data + ['requirement' => self::finance($case), 'pendingProposal' => $pendingProposal];
+    }
+
+    /** @return array<string, mixed> */
+    private static function headProgress(Enrollment $case): array
+    {
+        $data = self::overview($case);
+        $case->loadMissing(['currentProposalVersion.curriculumVersion.program', 'registrationEvents.actor']);
+        $stage = EnrollmentsTable::stage($case);
+        $deadline = $case->currentProposalVersion?->items
+            ->filter(fn (RegistrationProposalItem $item): bool => in_array($item->reservation?->status, EnrollmentSeatReservation::capacityHoldingStatuses(), true))
+            ->map(fn (RegistrationProposalItem $item) => $item->reservation?->deadline)->filter()->min();
+
+        return $data + ['progress' => EnrollmentsTable::headProgress($case), 'stage' => $stage,
+            'owner' => match ($stage) {
+                'Waiting for learner' => 'Learner', 'Payment or fee review' => 'Accounting', default => 'Registrar'
+            },
+            'deadline' => $deadline];
+    }
+
+    /** @return array<string, mixed> */
+    private static function registrarProgress(Enrollment $case, string $view): array
+    {
+        $data = self::overview($case);
+        $proposal = $data['proposal'];
+        $issues = [];
+        try {
+            app(RegistrationPlacementValidator::class)->assertCurrent($case, $proposal, requireConfirmation: false);
+        } catch (ValidationException $exception) {
+            $issues = $exception->errors();
+        }
+        $currentTimetableId = PublishedTimetableVersion::query()->where('term_id', $case->term_id)
+            ->where('state', PublishedTimetableVersion::StatePublished)->latest('version')->value('id');
+        $canReserve = $proposal->items->isNotEmpty() && (int) $proposal->published_timetable_version_id === (int) $currentTimetableId
+            && ($issues === [] || array_keys($issues) === ['placement']) && $data['readiness']['shortages'] === []
+            && $proposal->items->every(fn (RegistrationProposalItem $item): bool => $item->section?->state === \App\Models\Section::StateOpen
+                && ! ($item->reservation?->status === EnrollmentSeatReservation::StatusActive && $item->reservation->deadline?->isPast()));
+        $assessment = $data['assessment'];
+        $paymentReview = $assessment !== null && ($case->termAccount?->paymentEvidenceVersions
+            ->where('assessment_id', $assessment->id)->where('state', PaymentEvidenceVersion::StateSubmitted)->isNotEmpty()
+            || PaymentAttempt::query()->where('term_account_id', $case->termAccount?->id)->where('assessment_id', $assessment->id)
+                ->where('status', PaymentAttempt::StatusReviewRequired)->exists());
+        $deadline = $data['placementCurrent'] ? $proposal->items->map(fn (RegistrationProposalItem $item) => $item->reservation?->deadline)
+            ->filter()->sort()->first() : null;
+
+        return $data + ['progressView' => $view, 'paymentReview' => $paymentReview, 'canReserve' => $canReserve,
+            'reservationDeadline' => $deadline, 'placementIssues' => $issues,
+            'taskTitle' => match ($view) {
+                'assessment-recovery' => 'Waiting for Accounting assessment',
+                'placement-recovery' => $canReserve ? 'Seats need a new reservation' : 'Review the selected classes',
+                default => $paymentReview ? 'Payment awaiting Accounting review' : 'Waiting for enrollment payment',
+            }];
+    }
+
+    /** @return array<string, mixed> */
+    private static function registrarClosed(Enrollment $case): array
+    {
+        $case->loadMissing(['credentialUser', 'term', 'studentProfile.program', 'admissionApplication.program', 'registrationEvents.actor']);
+        $event = $case->registrationEvents->filter(fn (RegistrationCaseEvent $event): bool => $event->to_outcome === $case->canonical_outcome
+            && $event->from_outcome !== $case->canonical_outcome)->sortByDesc('sequence')->first();
+
+        return ['case' => $case, 'closingEvent' => $event,
+            'knownOutcome' => in_array($case->canonical_outcome, Enrollment::reopenableOutcomes(), true),
+            'outcome' => match ($case->canonical_outcome) {
+                Enrollment::OutcomeCancelledByLearner => 'Cancelled by learner',
+                Enrollment::OutcomeCancelledByRegistrar => 'Cancelled by Registrar',
+                Enrollment::OutcomeCancelled => 'Cancelled',
+                Enrollment::OutcomeNotEnrolled => 'Not enrolled',
+                default => 'Outcome unavailable',
+            }];
+    }
+
+    /** @return array<string, mixed> */
+    private static function headClosed(Enrollment $case): array
+    {
+        $case->loadMissing(['credentialUser', 'term', 'studentProfile.program', 'admissionApplication.program',
+            'currentProposalVersion.curriculumVersion.program', 'registrationEvents.actor', 'corVersions']);
+
+        return ['case' => $case, 'requirement' => self::finance($case),
+            'knownOutcome' => in_array($case->canonical_outcome, Enrollment::reopenableOutcomes(), true),
+            'outcome' => match ($case->canonical_outcome) {
+                Enrollment::OutcomeCancelledByLearner => 'Cancelled by learner',
+                Enrollment::OutcomeCancelledByRegistrar => 'Cancelled by Registrar',
+                Enrollment::OutcomeCancelled => 'Cancelled',
+                Enrollment::OutcomeNotEnrolled => 'Not enrolled',
+                default => 'Outcome unavailable',
+            }];
+    }
+
+    /** @return array<string, mixed> */
+    private static function history(Enrollment $case): array
+    {
+        $case->loadMissing(['credentialUser', 'term', 'admissionApplication.program', 'studentProfile.program',
+            'proposalVersions.timetableVersion', 'proposalVersions.curriculumVersion', 'proposalVersions.confirmation', 'proposalVersions.items.section',
+            'termAccount.assessments.lines', 'registrationEvents.actor', 'corVersions']);
+
+        return ['case' => $case];
     }
 
     /** @return array<string, mixed> */
@@ -239,11 +503,14 @@ class EnrollmentInfolist
         $readiness = self::readiness($enrollment);
 
         return match (true) {
+            $enrollment->currentProposalVersion === null || $enrollment->currentProposalVersion->state === RegistrationProposalVersion::StateDraft => 'Prepare proposal',
+            $enrollment->currentProposalVersion->state === RegistrationProposalVersion::StateIssued => 'Waiting for learner',
             ! $readiness['eligibility'] || ! $readiness['identity'] => 'Eligibility action required',
             ! $readiness['proposal'] => 'Prepare proposal',
             ! $readiness['confirmation'] => 'Waiting for learner',
             ! $readiness['placement'] => 'Placement and shortage review',
             ! $readiness['finance'] => 'Finance pending',
+            ! $readiness['ready'] => 'Source review required',
             default => 'Ready to finalize',
         };
     }
@@ -265,6 +532,7 @@ class EnrollmentInfolist
             'Waiting for learner' => 'The learner confirms the exact issued proposal, or the Registrar records bounded assisted-confirmation evidence.',
             'Placement and shortage review' => 'Resolve the named prerequisite, class, capacity, conflict, or timetable-source blocker.',
             'Finance pending' => 'Accounting resolves the current assessment and payment or coverage requirement.',
+            'Source review required' => 'Resolve the current finalization blockers before retrying.',
             'Ready to finalize' => 'Registrar revalidates all five checkpoints and finalizes atomically.',
             'Officially enrolled' => 'Current official registrations and immutable COR are available.',
             default => 'Review preserved history and the authorized same-case recovery path.',
@@ -278,7 +546,7 @@ class EnrollmentInfolist
         $asOf = $enrollment->updated_at?->format('M j, Y g:i A') ?? 'Current source time unavailable';
 
         return [
-            ['label' => 'Student eligibility', 'state' => $readiness['eligibility'] && $readiness['identity'] ? 'Verified' : 'Action required', 'source' => $enrollment->admission_application_id !== null ? 'Ready Applicant and confirmed identity/contact version' : 'Released Student lifecycle, result, and progress facts', 'owner' => 'Registrar consumes; source office owns the fact', 'as_of' => $asOf, 'consequence' => 'A stale or blocked source prevents the next consuming action.', 'recovery' => 'Correct the owning source or prepare a source-valid successor; no local override is created.'],
+            ['label' => 'Student eligibility', 'state' => $readiness['eligibility'] && $readiness['identity'] ? 'Verified' : 'Action required', 'source' => $enrollment->admission_application_id !== null ? 'Verified admissions identity and contact source' : 'Released Student lifecycle, result, and progress facts', 'owner' => 'Registrar consumes; source office owns the fact', 'as_of' => $asOf, 'consequence' => 'A stale or blocked source prevents the next consuming action.', 'recovery' => 'Correct the owning source or prepare a source-valid successor; no local override is created.'],
             ['label' => 'Confirmed proposed subjects', 'state' => $readiness['confirmation'] ? 'Verified' : 'Action required', 'source' => 'Current immutable Registration Proposal and exact-version confirmation', 'owner' => 'Registrar and learner', 'as_of' => $asOf, 'consequence' => 'An unconfirmed or superseded proposal cannot be placed or finalized.', 'recovery' => 'Issue the current proposal and obtain online or attributable assisted confirmation.'],
             ['label' => 'Valid class placement', 'state' => $readiness['placement'] ? 'Verified' : 'Action required', 'source' => 'Current Published Timetable, prerequisites, conflicts, capacity, and reservations', 'owner' => 'Registrar', 'as_of' => $asOf, 'consequence' => 'Only the affected course is blocked; no ranked waitlist or silent move is created.', 'recovery' => 'Resolve the named placement or shortage condition using a current authorized source.'],
             ['label' => 'Accounting clearance', 'state' => $readiness['finance'] ? 'Verified' : 'Action required', 'source' => 'Enrollment Payment Requirement and exact Term Account', 'owner' => 'Accounting', 'as_of' => self::asOf(self::finance($enrollment)['as_of']), 'consequence' => 'Unavailable or unsatisfied current requirement blocks finalization only.', 'recovery' => 'Accounting records the current Fee Plan or eligible exact assessment and valid payment or coverage result.'],
