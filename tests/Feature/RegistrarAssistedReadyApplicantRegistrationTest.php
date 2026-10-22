@@ -114,15 +114,15 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         $draft = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$sections->first()->id], $case->lock_version);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $page = Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $case->id])
-            ->assertSee('Review subjects')->assertDontSee('Assessed total')->mountAction('placeProposal');
+            ->assertSee('Review subjects')->assertDontSee('Assessed total');
         $newer = app(PrepareRegistrationProposal::class)->execute($case->fresh(), $registrar, $sections->pluck('id')->all(), $case->fresh()->lock_version);
 
-        $page->callMountedAction()->assertNotified('Seats were not reserved');
+        $page->callAction('placeProposal')->assertNotified('Seats were not reserved');
         $this->assertSame(0, $case->seatReservations()->count());
         $this->assertSame($newer->id, $case->fresh()->current_proposal_version_id);
 
         Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $case->id])
-            ->mountAction('placeProposal')->callMountedAction()->assertNotified('Seats reserved')
+            ->callAction('placeProposal')->assertNotified('Seats reserved')
             ->assertRedirect(EnrollmentResource::getUrl('view', ['record' => $case]));
         $this->assertSame(2, $case->seatReservations()->where('status', EnrollmentSeatReservation::StatusActive)->count());
         $this->assertSame(RegistrationProposalVersion::StateSuperseded, $draft->fresh()->state);

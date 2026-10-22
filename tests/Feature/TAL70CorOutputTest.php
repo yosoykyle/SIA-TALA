@@ -51,7 +51,7 @@ final class TAL70CorOutputTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
 
         foreach ([
@@ -71,12 +71,12 @@ final class TAL70CorOutputTest extends TestCase
 
         Livewire::actingAs($student)
             ->test(CorView::class)
-            ->assertSee('Available')
+            ->assertSee('Issued copy')
             ->assertSee($fixture['course_code'])
-            ->assertSee('Course Delivery Mix')
-            ->assertSee('Modality')
-            ->assertSee('Face-to-Face')
-            ->assertSee('Print / Save as PDF');
+            ->assertSee('Subjects')
+            ->assertSee('Recorded on this issued copy.')
+            ->assertSet('cor.subjects.0.modality', 'Face-to-Face')
+            ->assertSee('Print or save PDF');
 
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => BuildCorOutput::OutputType,
@@ -96,7 +96,7 @@ final class TAL70CorOutputTest extends TestCase
             ->assertSee($fixture['course_code'])
             ->assertSee('Timetable source')
             ->assertSee('Mode')
-            ->assertSee('Face-to-Face')
+            ->assertSee('Face To Face')
             ->assertSee('PHP 4,500.00');
 
         $this->assertDatabaseHas('output_access_logs', [
@@ -122,7 +122,8 @@ final class TAL70CorOutputTest extends TestCase
             ->first(fn ($action): bool => $action->getName() === 'print');
 
         $this->assertNotNull($corPrintAction);
-        $this->assertSame('sm', $corPrintAction->getLabeledFromBreakpoint());
+        $this->assertSame('Print or save PDF', $corPrintAction->getLabel());
+        $this->assertNull($corPrintAction->getLabeledFromBreakpoint());
         $this->assertSame('Print or save the current COR as PDF', $corPrintAction->getTooltip());
 
         $schedulePage = Livewire::actingAs($student)->test(ScheduleView::class)->instance();
@@ -154,7 +155,7 @@ final class TAL70CorOutputTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(CorView::class)
-            ->assertSee('Unavailable')
+            ->assertSee('No issued COR to show')
             ->assertSee('Please contact Accounting to clear your COR hold.')
             ->assertDontSee('Private reconciliation note.');
 
@@ -244,7 +245,7 @@ final class TAL70CorOutputTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(CorView::class)
-            ->assertSee('Unavailable')
+            ->assertSee('No issued COR to show')
             ->assertSee('Inactive')
             ->assertSee('Registrar Office')
             ->assertDontSee('staff-only');
@@ -272,7 +273,7 @@ final class TAL70CorOutputTest extends TestCase
 
         Livewire::actingAs($student)
             ->test(CorView::class)
-            ->assertSee('Unavailable')
+            ->assertSee('No issued COR to show')
             ->assertSee('No current official enrollment is available for COR viewing.')
             ->assertDontSee('Student Information')
             ->assertDontSee('Current Enrolled Subjects')

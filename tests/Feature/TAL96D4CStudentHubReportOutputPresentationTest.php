@@ -70,9 +70,9 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
             ->assertDontSee('blockers:');
 
         Livewire::test(Profile::class)
-            ->assertSee('Current studies')
-            ->assertSee('Year level')
-            ->assertSee('School year')
+            ->assertSee('Your studies')
+            ->assertSee('Current enrollment details become available after official enrollment.')
+            ->assertSee('View enrollment')
             ->assertDontSee('IRREGULAR');
 
         $holds = Livewire::test(ActiveHoldsWidget::class)->instance();

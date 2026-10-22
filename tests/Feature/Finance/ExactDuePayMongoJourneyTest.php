@@ -126,7 +126,7 @@ final class ExactDuePayMongoJourneyTest extends TestCase
         $unconfigured = $readiness->for($fixture['student'], $fixture['account']);
 
         $this->assertFalse($unconfigured['enabled']);
-        $this->assertStringContainsString('Manual payment evidence remains available', $unconfigured['reason']);
+        $this->assertStringContainsString('You can submit payment proof instead.', $unconfigured['reason']);
 
         $this->configurePayMongoReadiness();
         $ready = $readiness->for($fixture['student'], $fixture['account']);

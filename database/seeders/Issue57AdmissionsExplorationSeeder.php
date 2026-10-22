@@ -153,7 +153,10 @@ class Issue57AdmissionsExplorationSeeder extends Seeder
     {
         $connection = DB::connection();
         $target = $connection->selectOne('SELECT DATABASE() AS selected_database, @@port AS instance_port');
-        $standardTest = app()->environment('testing') && $connection->getDatabaseName() === 'test_tala_db';
+        $expectedDatabase = (string) config('database.test_database', 'test_tala_db');
+        $standardTest = app()->environment('testing')
+            && preg_match('/^test_tala_db(?:_[a-z0-9_]+)?$/', $expectedDatabase) === 1
+            && $connection->getDatabaseName() === $expectedDatabase;
         $isolatedIssue64 = app()->environment('local', 'testing') && $connection->getDatabaseName() === 'issue64_e2dd_disposable'
             && (int) $connection->getConfig('port') === 3364 && (int) $target->instance_port === 3364;
         if ($connection->getDriverName() !== 'mysql' || (! $standardTest && ! $isolatedIssue64)

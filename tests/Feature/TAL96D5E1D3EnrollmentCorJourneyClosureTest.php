@@ -141,8 +141,8 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
             'Published timetable version #'.$fixture['timetable']->id,
             $cor['state']['course_delivery_mix'],
         );
-        $this->assertStringContainsString('Curriculum Version', $print);
-        $this->assertStringContainsString('Curriculum level(s)', $print);
+        $this->assertStringContainsString('Curriculum record', $print);
+        $this->assertStringContainsString('Year level', $print);
         $this->assertStringContainsString('Timetable source', $print);
         $this->assertStringNotContainsString('Student Modality', $print);
     }
@@ -155,13 +155,13 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ListEnrollments::class)
-            ->assertSee('Ready to prepare')
-            ->assertSee('Waiting for learner')
-            ->assertSee('Placement and shortages')
-            ->assertSee('Finance pending')
-            ->assertSee('Ready to finalize')
-            ->assertSee('Adjustments and Drops')
-            ->assertSee('Official and history')
+            ->assertSee('Prepare subjects')
+            ->assertSee('Waiting for subject confirmation')
+            ->assertSee('Resolve enrollment issues')
+            ->assertSee('Waiting for payment or fee review')
+            ->assertSee('Make enrollment official')
+            ->assertSee('Enrollment records')
+            ->assertSee('Find a record')
             ->set('activeTab', 'official_history')
             ->assertTableFilterExists('term')
             ->assertTableFilterExists('program')
@@ -214,10 +214,10 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
         Livewire::actingAs($student)
             ->test(StudentEnrollmentPage::class)
             ->assertSee('D3 Active Waiting Term')
-            ->assertSee('In Progress')
-            ->assertSee('The Registrar is preparing your class selection.')
-            ->assertSee('Charges and payment requirement')
-            ->assertSee('Subjects and schedule');
+            ->assertSee('Your classes are being prepared')
+            ->assertSee('The Registrar is preparing your subjects and schedule. You can confirm when your classes and fees are ready.')
+            ->assertSee('No action is needed from you yet.')
+            ->assertSee('Refresh enrollment');
 
         $this->assertSame(0, CourseEnrollment::query()->where('enrollment_id', $activeEnrollment->id)->count());
         $this->assertSame(0, EnrollmentSeatReservation::query()->where('enrollment_id', $activeEnrollment->id)->count());

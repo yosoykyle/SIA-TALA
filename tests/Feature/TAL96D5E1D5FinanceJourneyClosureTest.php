@@ -32,7 +32,6 @@ use App\Models\TermAccount;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Filament\Actions\ActionGroup;
 use Filament\Facades\Filament;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -54,7 +53,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
 
         Role::query()->firstOrCreate([
             'name' => User::StaffRoleAccounting,
@@ -69,6 +68,8 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $obligation = $fixture['assessment']->obligations()->orderBy('id')->firstOrFail();
         $evidence = PaymentEvidenceVersion::factory()->create([
             'term_account_id' => $fixture['assessment']->term_account_id,
+            'assessment_id' => $fixture['assessment']->id,
+            'obligation_snapshot' => $fixture['assessment']->obligations->map(fn ($row): array => ['id' => $row->id, 'amount' => $row->amount])->all(),
             'claimed_amount' => '600.00',
             'channel' => 'bank_transfer',
             'paid_at' => now()->subMinute(),
@@ -121,14 +122,14 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             confirmedAt: CarbonImmutable::now(config('app.timezone'))->subHour(),
             allocations: [
                 [
-                    'target_type' => AssessmentLine::class,
-                    'target_id' => $fixture['lines'][0]->id,
+                    'target_type' => AssessmentObligation::class,
+                    'target_id' => $fixture['assessment']->obligations()->orderBy('id')->firstOrFail()->id,
                     'description' => 'Tuition',
                     'amount' => '900.00',
                 ],
                 [
-                    'target_type' => AssessmentLine::class,
-                    'target_id' => $fixture['lines'][1]->id,
+                    'target_type' => AssessmentObligation::class,
+                    'target_id' => $fixture['assessment']->obligations()->orderBy('id')->skip(1)->firstOrFail()->id,
                     'description' => 'Miscellaneous fees',
                     'amount' => '300.00',
                 ],
@@ -207,7 +208,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             );
             $this->fail('A current-Term payment must reject a prior-Term allocation target.');
         } catch (RuntimeException $exception) {
-            $this->assertSame('Payment allocation target is not eligible.', $exception->getMessage());
+            $this->assertSame('A named obligation is stale, covered, or exceeds its remaining balance.', $exception->getMessage());
         }
 
         $this->assertFalse(Payment::query()->where('provider_reference', 'BANK-D5E1D5-PRIOR-DEBT')->exists());
@@ -234,8 +235,8 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
                 actor: $first['accounting'],
                 confirmedAt: CarbonImmutable::now(config('app.timezone'))->subHour(),
                 allocations: [[
-                    'target_type' => AssessmentLine::class,
-                    'target_id' => $fixture['lines'][0]->id,
+                    'target_type' => AssessmentObligation::class,
+                    'target_id' => $fixture['assessment']->obligations()->orderBy('id')->firstOrFail()->id,
                     'amount' => '100.00',
                 ]],
             );
@@ -288,15 +289,11 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $this->actingAs($fixture['accounting']);
         $this->assertFalse(AssessmentResource::canAccess());
 
-        $actions = collect(Livewire::actingAs($fixture['accounting'])
+        $page = Livewire::actingAs($fixture['accounting'])
             ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->getRouteKey()])
-            ->instance()
-            ->getCachedHeaderActions())
-            ->flatMap(fn ($action): array => $action instanceof ActionGroup
-                ? $action->getFlatActions()
-                : [$action->getName() => $action]);
+            ->instance();
 
-        $this->assertArrayHasKey('verifyPaymentEvidence', $actions->all());
+        $this->assertNotNull($page->getAction('verifyPaymentEvidence', isMounting: false));
     }
 
     public function test_current_due_follows_exact_obligation_satisfaction_before_the_remaining_balance(): void
@@ -305,6 +302,8 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $obligations = $fixture['assessment']->obligations()->orderBy('id')->get();
         $firstEvidence = PaymentEvidenceVersion::factory()->create([
             'term_account_id' => $fixture['assessment']->term_account_id,
+            'assessment_id' => $fixture['assessment']->id,
+            'obligation_snapshot' => $fixture['assessment']->obligations->map(fn ($row): array => ['id' => $row->id, 'amount' => $row->amount])->all(),
             'claimed_amount' => '600.00',
             'channel' => 'bank_transfer',
             'paid_at' => now()->subMinute(),
@@ -325,6 +324,8 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
 
         $secondEvidence = PaymentEvidenceVersion::factory()->create([
             'term_account_id' => $fixture['assessment']->term_account_id,
+            'assessment_id' => $fixture['assessment']->id,
+            'obligation_snapshot' => $fixture['assessment']->obligations->map(fn ($row): array => ['id' => $row->id, 'amount' => $row->amount])->all(),
             'supersedes_version_id' => $firstEvidence->id,
             'version' => 2,
             'path' => 'registration-payment-evidence/'.$fixture['assessment']->term_account_id.'/second-synthetic.pdf',
@@ -396,8 +397,8 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             ->get(route('finance.statement', ['assessment' => $fixture['assessment']]))
             ->assertOk()
             ->assertSee('finance-responsive-table', false)
-            ->assertSee('data-label="Obligation"', false)
-            ->assertSee('data-label="Balance"', false);
+            ->assertSee('data-label="Description"', false)
+            ->assertSee('data-label="Remaining"', false);
     }
 
     public function test_automatic_provider_allocation_does_not_retarget_a_satisfied_obligation(): void
@@ -406,6 +407,8 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $obligations = $fixture['assessment']->obligations()->orderBy('id')->get();
         $evidence = PaymentEvidenceVersion::factory()->create([
             'term_account_id' => $fixture['assessment']->term_account_id,
+            'assessment_id' => $fixture['assessment']->id,
+            'obligation_snapshot' => $fixture['assessment']->obligations->map(fn ($row): array => ['id' => $row->id, 'amount' => $row->amount])->all(),
             'claimed_amount' => '1000.00',
             'channel' => 'bank_transfer',
             'paid_at' => now()->subMinute(),
@@ -453,7 +456,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
 
             $this->fail('An overpayment must not create finance records.');
         } catch (RuntimeException $exception) {
-            $this->assertSame('Payment amount cannot exceed the eligible outstanding balance.', $exception->getMessage());
+            $this->assertSame('Payment exceeds the current named obligation balances.', $exception->getMessage());
         }
 
         $this->assertSame(0, Payment::query()->where('provider_reference', 'CASH-D5E1D5-OVERPAY')->count());
@@ -478,8 +481,8 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
                 actor: $fixture['accounting'],
                 confirmedAt: CarbonImmutable::now(config('app.timezone'))->subHour(),
                 allocations: [[
-                    'target_type' => AssessmentLine::class,
-                    'target_id' => $other['lines'][0]->id,
+                    'target_type' => AssessmentObligation::class,
+                    'target_id' => $other['assessment']->obligations()->orderBy('id')->firstOrFail()->id,
                     'amount' => '500.00',
                 ]],
                 orNumber: 'OR-D5E1D5-CROSS-STUDENT',
@@ -487,7 +490,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
 
             $this->fail('A payment allocation must stay inside the selected student account.');
         } catch (RuntimeException $exception) {
-            $this->assertSame('Payment allocation target is not eligible.', $exception->getMessage());
+            $this->assertSame('A named obligation is stale, covered, or exceeds its remaining balance.', $exception->getMessage());
         }
 
         $this->assertFalse(Payment::query()

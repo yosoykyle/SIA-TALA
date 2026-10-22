@@ -239,7 +239,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             ->assertOk()
             ->assertSee($fixture['course']->code)
             ->assertDontSee($other['course']->code)
-            ->assertSee('Print / Save as PDF');
+            ->assertSee('Print or save PDF');
 
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => 'FACULTY_SCHEDULE',
@@ -262,7 +262,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             ->assertOk()
             ->assertSee($fixture['course']->code)
             ->assertDontSee($other['course']->code)
-            ->assertSee('Print / Save as PDF');
+            ->assertSee('Print or save PDF');
 
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => 'STUDENT_SCHEDULE',
@@ -294,12 +294,12 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $this->actingAs($faculty)
             ->get(route('faculty.schedule.print'))
             ->assertOk()
-            ->assertSee('No current published schedule is available for this account.');
+            ->assertSee('No schedule is available for this exact timetable version.');
 
         $this->actingAs($student)
             ->get(route('student.schedule.print'))
             ->assertOk()
-            ->assertSee('No current published schedule is available for this account.');
+            ->assertSee('No schedule is available for this exact timetable version.');
 
         $this->assertDatabaseMissing('output_access_logs', [
             'actor_user_id' => $faculty->id,

@@ -40,7 +40,7 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
 
         foreach (['student', User::StaffRoleAccounting, User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin] as $role) {
@@ -65,15 +65,15 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
             ->test(Finance::class)
             ->assertDontSee('Checkout completed')
             ->assertDontSee('Waiting for verified payment confirmation')
-            ->assertSee('Due through as-of')
-            ->assertSee('Remaining Term balance')
-            ->assertSee('Submit payment evidence');
+            ->assertSee('Amount due now')
+            ->assertSee('Remaining term balance')
+            ->assertSee('Submit payment proof');
 
         Livewire::withQueryParams(['checkout' => 'cancelled'])
             ->actingAs($fixture['student'])
             ->test(Finance::class)
             ->assertDontSee('Checkout cancelled')
-            ->assertSee('Submit payment evidence');
+            ->assertSee('Submit payment proof');
 
         $this->assertSame(0, Payment::query()
             ->where('payment_attempt_id', $fixture['attempt']->id)

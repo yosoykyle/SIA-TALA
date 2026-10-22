@@ -6,6 +6,7 @@ use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Actions\Enrollment\StartRegistrationCase;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Student\Pages\Enrollment as StudentEnrollmentPage;
@@ -228,9 +229,9 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ]);
         $component = $this->studentEnrollmentComponent($student)
             ->assertOk()
-            ->assertSee($enrollment->case_reference)
-            ->assertSee('Charges and payment requirement')
-            ->assertSee('The Registrar is preparing your class selection.');
+            ->assertSee('Your classes are being prepared')
+            ->assertSee('Enrollment payment')
+            ->assertSee('No action is needed from you yet.');
 
         $this->assertFalse(method_exists($component->instance(), 'getTable'));
         $this->assertSame(0, EnrollmentSeatReservation::query()->whereBelongsTo($enrollment)->count());
@@ -240,7 +241,11 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
     public function test_retired_staff_confirmation_action_is_absent_for_every_registration_case_state(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $terminalEnrollment = Enrollment::factory()->create(['status' => 'officially_enrolled']);
+        $terminalEnrollment = Enrollment::factory()->create([
+            'status' => 'officially_enrolled',
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'officially_enrolled_at' => now(),
+        ]);
         $unproposedIrregularEnrollment = Enrollment::factory()->create([
             'student_type' => 'irregular',
             'status' => 'pending_review',
@@ -270,11 +275,13 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->create([
                 'student_type' => 'irregular',
                 'status' => 'officially_enrolled',
+                'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+                'officially_enrolled_at' => now(),
             ]);
         $this->openEnrollmentWindow($term);
         $component = $this->studentEnrollmentComponent($student);
 
-        $component->assertOk()->assertSee('Charges and payment requirement');
+        $component->assertOk()->assertSee('Registered subjects');
         $this->assertFalse(method_exists($component->instance(), 'getTable'));
     }
 
@@ -297,7 +304,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
 
         $component = app(LivewireManager::class)->test(StudentEnrollmentPage::class);
         $component->assertOk()
-            ->assertSee('The Registrar is preparing your class selection.')
+            ->assertSee('Your classes are being prepared')
             ->assertDontSee('Proposed cohort DIT-1A');
         $this->assertFalse(method_exists($component->instance(), 'getTable'));
     }
@@ -320,8 +327,8 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->openEnrollmentWindow($term);
 
         $component = $this->studentEnrollmentComponent($student)
-            ->assertSee('Subjects and schedule')
-            ->assertSee('Charges and payment requirement');
+            ->assertSee('Your classes are being prepared')
+            ->assertSee('Enrollment payment');
 
         $this->assertFalse(method_exists($component->instance(), 'getTable'));
     }
@@ -342,7 +349,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
                 'status' => 'pending_review',
             ]);
         $component = $this->studentEnrollmentComponent($student);
-        $component->assertOk()->assertSee($enrollment->case_reference);
+        $component->assertOk()->assertSee('Your classes are being prepared');
         $this->assertFalse(method_exists($component->instance(), 'getTable'));
         $this->assertSame(0, CourseEnrollment::query()->whereBelongsTo($enrollment)->count());
     }
@@ -381,7 +388,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ListEnrollments::class)
-            ->callAction('startContinuingEnrollment', data: [
+            ->callAction('startLateContinuingEnrollment', data: [
                 'student_profile_id' => $profile->id,
                 'term_id' => $term->id,
                 'start_method' => 'LateAuthority',
@@ -427,7 +434,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
                 'start_method' => 'RegistrarAssisted',
                 'authority_reference' => 'SYN-ASSISTED-REGISTRATION-003',
             ])
-            ->assertNotified('Enrollment already exists');
+            ->assertNotified('Existing enrollment opened');
 
         $this->assertSame(1, Enrollment::query()
             ->whereBelongsTo($profile)
@@ -459,7 +466,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
                 'start_method' => 'RegistrarAssisted',
                 'authority_reference' => 'SYN-ASSISTED-REGISTRATION-004',
             ])
-            ->assertNotified('Enrollment already exists');
+            ->assertNotified('Existing enrollment opened');
 
         $enrollment->refresh();
 
@@ -486,24 +493,25 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->assertSame('Accounting Office', $summary->responsibleOffice($pendingPayment));
     }
 
-    public function test_staff_enrollment_list_keeps_one_view_action_and_assisted_start_recovery(): void
+    public function test_staff_enrollment_list_uses_a_direct_record_link_and_assisted_start_recovery(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $component = Livewire::actingAs($registrar)->test(ListEnrollments::class);
+        $case = Enrollment::factory()->create();
+        $component = Livewire::actingAs($registrar)->test(ListEnrollments::class)->set('activeTab', 'all_cases');
         $page = $component->instance();
 
         $this->assertInstanceOf(ListEnrollments::class, $page);
 
         $table = $page->getTable();
         $recordActions = $table->getRecordActions();
-        $startAction = collect($page->getCachedHeaderActions())
-            ->first(fn ($action): bool => $action->getName() === 'startContinuingEnrollment');
+        $startAction = $page->getAction('startContinuingEnrollment', isMounting: false);
 
-        $this->assertTrue($table->isStackedOnMobile());
-        $this->assertCount(1, $recordActions);
-        $this->assertSame('view', $recordActions[0]->getName());
+        $component->assertCanSeeTableRecords([$case])
+            ->assertSee(EnrollmentResource::getUrl('view', ['record' => $case, 'queue' => 'all_cases']), false)
+            ->assertSee('Open record');
+        $this->assertSame([], $recordActions);
         $this->assertNotNull($startAction);
-        $this->assertSame('md', $startAction->getLabeledFromBreakpoint());
+        $this->assertSame('Continuing student', $startAction->getLabel());
         $this->assertSame('Start continuing enrollment', $startAction->getTooltip());
     }
 
@@ -519,14 +527,10 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
             ->instance();
         $this->assertInstanceOf(ViewEnrollment::class, $page);
-        $actions = collect($page->getCachedHeaderActions());
-        $supporting = $actions->first(fn ($action): bool => $action instanceof ActionGroup);
-        $this->assertNotNull($supporting);
-        $flat = $supporting->getFlatActions();
-        $this->assertArrayHasKey('prepareProposal', $flat);
-        $this->assertArrayHasKey('reopenCase', $flat);
-        $this->assertArrayHasKey('resolveImpactReview', $flat);
-        $this->assertSame('prepareProposal', $actions->first()->getName());
+        $this->assertNotNull($page->getAction('prepareProposal', isMounting: false));
+        $this->assertNotNull($page->getAction('reopenCase', isMounting: false));
+        $this->assertNotNull($page->getAction('resolveImpactReview', isMounting: false));
+        $this->assertSame('preparing', $page->focusedRegistrarView());
     }
 
     public function test_enrollment_record_never_exposes_retired_placement_or_gate_officialization_actions(): void

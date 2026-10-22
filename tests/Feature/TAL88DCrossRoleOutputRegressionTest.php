@@ -36,7 +36,7 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
 
         foreach ([
@@ -130,7 +130,7 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
         $this->actingAs($fixture['student'])
             ->get(route('finance.statement', $fixture['assessment']))
             ->assertOk()
-            ->assertSee('Authenticated Account Copy');
+            ->assertSee('Account position as of generation');
 
         $this->actingAs($fixture['student'])
             ->get(route('finance.payments.acknowledgement', $fixture['payment']).'?print=1')
@@ -140,7 +140,7 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
         $this->actingAs($accounting)
             ->get(route('finance.statement', $fixture['assessment']))
             ->assertOk()
-            ->assertSee('Authenticated Account Copy');
+            ->assertSee('Account position as of generation');
 
         $this->actingAs($accounting)
             ->get(route('finance.payments.acknowledgement', $fixture['payment']).'?print=1')

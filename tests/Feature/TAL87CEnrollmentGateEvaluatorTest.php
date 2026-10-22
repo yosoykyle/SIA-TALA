@@ -27,7 +27,7 @@ final class TAL87CEnrollmentGateEvaluatorTest extends TestCase
 
         $registrarComponent = Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->assertSee('Source evidence and case history');
+            ->assertSee('Enrollment history');
         $academicHeadComponent = Livewire::actingAs($academicHead)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()]);
         $accountingComponent = Livewire::actingAs($accounting)

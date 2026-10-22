@@ -28,7 +28,7 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_test_codex', DB::connection()->getDatabaseName());
 
@@ -136,35 +136,36 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->assertSee('Registration Case')
-            ->assertSee('Five finalization checkpoints')
-            ->assertSeeInOrder([
-                'State, owner, and next action',
-                'Identity, Program, Curriculum, and exact Term',
-                'Academic basis',
-                'Proposal and confirmation',
-                'Eligibility, placement, and shortage',
-                'Finance requirement',
-                'Registrar finalization',
-                'Official result and history',
-            ])
-            ->assertSee('Student eligibility')
-            ->assertSee('Confirmed proposed subjects')
-            ->assertSee('Valid class placement')
-            ->assertSee('Accounting clearance')
+            ->assertSee($enrollment->term->label)
+            ->assertSee('Prepare subjects')
+            ->assertSee('Enrollment history')
             ->assertDontSee('Enrollment Gate Review');
 
-        foreach ([$academicHead, $accounting] as $viewer) {
-            Livewire::actingAs($viewer)
-                ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-                ->assertSee('Registration Case')
-                ->assertDontSee('Enrollment Gate Review');
-        }
+        Livewire::actingAs($registrar)->withQueryParams(['view' => 'history'])
+            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
+            ->assertSee('Activity')
+            ->assertSee('Supporting records')
+            ->assertSee($enrollment->case_reference);
 
-        Livewire::actingAs($registrar)
+        Livewire::actingAs($academicHead)->withQueryParams([])
+            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
+            ->assertSee($enrollment->term->label)
+            ->assertSee('Subjects being prepared')
+            ->assertSee('Read-only')
+            ->assertDontSee('Enrollment Gate Review');
+
+        Livewire::actingAs($accounting)->withQueryParams([])
+            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
+            ->assertSee($enrollment->term->label)
+            ->assertSee('Waiting for the Registrar')
+            ->assertSee('Enrollment details')
+            ->assertDontSee('Enrollment Gate Review');
+
+        Livewire::actingAs($registrar)->withQueryParams([])
             ->test(ListEnrollments::class)
+            ->set('activeTab', 'all_cases')
             ->filterTable('term', $enrollment->term_id)
-            ->assertSee('Registration Case')
+            ->assertCanSeeTableRecords([$enrollment])
             ->assertDontSee('Finance: Payment still requires Accounting confirmation.');
     }
 

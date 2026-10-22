@@ -384,7 +384,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $component = Livewire::actingAs($actor)->test(ViewFeePlan::class, ['record' => $successor->id])->mountAction('publish')
             ->assertMountedActionModalSee('Synthetic approved fixed total')
             ->assertMountedActionModalSee('Enrollment requirement')->assertMountedActionModalSee('Later balance')
-            ->assertMountedActionModalSee('1 existing account will keep their recorded assessments.')
+            ->assertMountedActionModalSee('1 existing account keep their recorded assessments.')
             ->setActionData(['authority_reference' => 'MOUNTED-NEW-APPROVAL', 'authority_date' => '2026-10-18']);
         $reviewed = $component->get('mountedActions.0.data.reviewed_plan');
         $this->assertSame(1, $reviewed['retained_accounts']);

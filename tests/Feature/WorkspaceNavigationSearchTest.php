@@ -175,7 +175,7 @@ class WorkspaceNavigationSearchTest extends TestCase
     {
         $user = $this->signIn('student', panel: 'student');
         StudentProfile::factory()->for($user)->create();
-        $this->assertContains('Home', $this->titles('home'));
+        $this->assertContains('Overview', $this->titles('overview'));
         $this->assertSame([], $this->titles('Admission cycles'));
     }
 

@@ -199,9 +199,9 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
         Livewire::test(LifecycleView::class)
             ->assertCanSeeTableRecords([$ownChange])
             ->assertCanNotSeeTableRecords([$otherChange])
-            ->assertSee('Enrollment guidance: ALLOWED')
-            ->assertSee('Applied to your official record')
-            ->assertSee('Registrar Office')
+            ->assertSee('School record changes')
+            ->assertSee('Withdrawal')
+            ->assertSee('Contact the Registrar about corrections.')
             ->assertDontSee('STAFF-ONLY AUTHORITY')
             ->assertDontSee('STAFF-ONLY REASON')
             ->assertDontSee('STAFF-ONLY REFERENCE');

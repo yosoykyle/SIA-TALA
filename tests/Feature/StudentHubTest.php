@@ -165,7 +165,8 @@ class StudentHubTest extends TestCase
 
         $this->get('/student/grades-view')
             ->assertOk()
-            ->assertSee('Grades will appear here after posting and release.');
+            ->assertSee('No released grades yet')
+            ->assertSee('Your results appear here after release. You can check your enrolled subjects in Academics.');
     }
 
     #[Test]

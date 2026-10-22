@@ -85,7 +85,7 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
 
         Livewire::actingAs($student)->withQueryParams(['view' => 'graduation'])
             ->test(Academics::class)
-            ->assertSee('Recorded application history')
+            ->assertSee('Application history')
             ->assertDontSee('Apply for graduation')
             ->assertDontSee('Withdraw graduation application')
             ->assertActionDoesNotExist('withdrawGraduationApplication');

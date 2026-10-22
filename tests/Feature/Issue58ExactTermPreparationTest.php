@@ -62,7 +62,7 @@ final class Issue58ExactTermPreparationTest extends TestCase
     {
         parent::setUp();
         $expectedDatabase = env('TALA_TEST_DATABASE', 'test_tala_db');
-        $this->assertContains($expectedDatabase, ['test_tala_db', 'test_tala_db_issue68_fca3']);
+        $this->assertMatchesRegularExpression('/^test_tala_db(?:_[a-z0-9_]+)?$/', $expectedDatabase);
         $this->assertSame($expectedDatabase, DB::connection()->getDatabaseName());
         $this->assertSame($expectedDatabase, DB::selectOne('SELECT DATABASE() AS active_database')->active_database);
         Filament::setCurrentPanel(Filament::getPanel('staff'));
@@ -300,7 +300,7 @@ final class Issue58ExactTermPreparationTest extends TestCase
             ->assertSee('Choose an academic term')
             ->assertSee('Select an academic year and term to view its calendar, enrollment and class rosters.')
             ->assertSee('Institution-wide records')
-            ->assertSee('Catalog & Curricula')->assertSee('Recorded decisions')->assertSee('Student academic records')
+            ->assertSee('Catalog & Curricula', false)->assertSee('Grade Review')->assertSee('Lifecycle Exceptions')->assertSee('Student academic records')
             ->assertDontSeeHtml('class="oversight-board"');
         $this->assertSame(1, substr_count($page->html(), 'Academic Year and Term'));
 
