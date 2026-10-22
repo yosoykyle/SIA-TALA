@@ -342,6 +342,8 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         $this->assertCount(1, $dashboard['schedule']['current']);
         $this->assertSame($current['course']->code, $dashboard['schedule']['current'][0]['subject_code']);
+        $this->actingAs($historical['student'])->get(route('student.schedule.print'))
+            ->assertOk()->assertSee($current['course']->code)->assertDontSee($historical['course']->code);
     }
 
     /**

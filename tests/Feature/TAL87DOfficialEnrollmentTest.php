@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\EnrollmentGateEvaluator;
 use App\Actions\Enrollment\FinalizeOfficialEnrollment;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Models\Assessment;
@@ -11,6 +10,7 @@ use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
+use App\Models\EnrollmentGateResult;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
@@ -25,7 +25,6 @@ use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Filament\Actions\ActionGroup;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -49,7 +48,7 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertStringStartsWith('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_test_codex', DB::connection()->getDatabaseName());
 
@@ -91,7 +90,6 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
     {
         $fixture = $this->clearSourceGateFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        app(EnrollmentGateEvaluator::class)->persist($fixture['enrollment']);
         $enrollment = $fixture['enrollment']->refresh();
 
         $component = Livewire::actingAs($registrar)
@@ -106,9 +104,10 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
             ->values()
             ->all();
 
-        $this->assertSame(['finalizeOfficialEnrollment'], $actions);
+        $this->assertNotContains('finalizeOfficialEnrollment', $actions);
+        $this->assertTrue($page->prepareProposalAction()->isVisible());
         $this->assertNotContains('recordOfficialEnrollment', $actions);
-        $component->assertActionHidden('finalizeOfficialEnrollment');
+        $this->assertNotContains('finalizeOfficialEnrollment', $actions);
     }
 
     #[Test]
@@ -116,7 +115,6 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
     {
         $fixture = $this->clearSourceGateFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        app(EnrollmentGateEvaluator::class)->persist($fixture['enrollment']);
         $enrollment = $fixture['enrollment']->refresh();
 
         Hold::query()->create([
@@ -135,11 +133,12 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
 
         $component = Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->assertActionHidden('finalizeOfficialEnrollment');
+            ->assertOk();
 
         $actions = collect($component->instance()->getCachedHeaderActions())
             ->flatMap(fn ($action): array => $action instanceof ActionGroup ? $action->getFlatActions() : [$action->getName() => $action]);
         $this->assertArrayNotHasKey('recordOfficialEnrollment', $actions->all());
+        $this->assertArrayNotHasKey('finalizeOfficialEnrollment', $actions->all());
         $this->assertNotSame(Enrollment::OutcomeOfficiallyEnrolled, $enrollment->fresh()->canonical_outcome);
     }
 
@@ -234,7 +233,12 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
         $fixture = $this->clearSourceGateFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
 
-        app(EnrollmentGateEvaluator::class)->persist($fixture['enrollment']->fresh(), CarbonImmutable::parse('2026-07-06 12:00:00'));
+        EnrollmentGateResult::query()->create([
+            'enrollment_id' => $fixture['enrollment']->id, 'gate_type' => EnrollmentGateResult::GateFinalApproval,
+            'sequence' => 9, 'result' => EnrollmentGateResult::ResultPassed,
+            'responsible_office' => EnrollmentGateResult::ResponsibleOfficeRegistrar,
+            'checked_at' => now(), 'rule_version' => EnrollmentGateResult::RuleVersionTal87D,
+        ]);
 
         try {
             app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment']->fresh(), $registrar);

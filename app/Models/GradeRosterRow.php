@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use Database\Factories\GradeRosterRowFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
@@ -76,6 +78,14 @@ class GradeRosterRow extends Model
     public function outcomeEvents(): HasMany
     {
         return $this->hasMany(GradeOutcomeEvent::class);
+    }
+
+    /** @return HasOne<GradeOutcomeEvent, $this> */
+    public function latestReleasedOutcome(): HasOne
+    {
+        return $this->hasOne(GradeOutcomeEvent::class)->ofMany(['id' => 'max'], function (Builder $query): void {
+            $query->whereNotNull('released_at');
+        });
     }
 
     public function versionRows(): HasMany

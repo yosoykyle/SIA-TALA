@@ -13,6 +13,7 @@ use App\Actions\Academics\RecordExternalCompetencyResult;
 use App\Actions\Academics\TermWeightedAverageProjection;
 use App\Actions\Completion\CompletionReadinessProjection;
 use App\Actions\Grades\AmendIncDeadline;
+use App\Actions\Grades\CurrentClassRosterOutput;
 use App\Actions\Grades\FinalResultPolicy;
 use App\Actions\Grades\IncDeadlineService;
 use App\Actions\Grades\ManageTeachingAssignment;
@@ -27,6 +28,9 @@ use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\GradesAndCompletion;
+use App\Filament\Resources\GradeRosters\GradeRosterResource;
+use App\Filament\Resources\GradeRosters\Pages\ListGradeRosters;
+use App\Filament\Resources\GradeRosters\Pages\ViewGradeRoster;
 use App\Filament\Student\Pages\Academics as StudentAcademics;
 use App\Mail\AcademicRecordChangedMail;
 use App\Models\AcademicDecision;
@@ -59,10 +63,12 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
@@ -74,7 +80,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         parent::setUp();
 
         $this->assertSame('testing', app()->environment());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
 
         foreach (['student', User::StaffRoleRegistrar, User::StaffRoleFaculty, User::StaffRoleAcademicHead] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
@@ -446,11 +452,90 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
 
         Filament::setCurrentPanel(Filament::getPanel('student'));
         Livewire::actingAs($fixture['student']->user)->test(StudentAcademics::class)
-            ->assertSee('Examination Period')
+            ->assertSee('Exam dates')
+            ->assertSee('Calendar details')
             ->assertSee('May 10, 2027')
             ->assertSee('May 15, 2027')
             ->assertSee('BOARD-CALENDAR-2026-03')
             ->assertSee('Class-level examination arrangements are not inferred.');
+    }
+
+    #[Test]
+    public function faculty_roster_access_is_limited_to_exact_assigned_sections_and_locked_selection(): void
+    {
+        $fixture = $this->fixture();
+        $coFaculty = $this->staff(User::StaffRoleFaculty);
+        $siblingFaculty = $this->staff(User::StaffRoleFaculty);
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-ISOLATION-MAIN');
+        app(ManageTeachingAssignment::class)->addCoFaculty($fixture['section'], $coFaculty, $fixture['registrar'], 'ASSIGN-ISOLATION-CO');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $siblingSection = Section::factory()->create([
+            'term_offering_id' => $fixture['section']->term_offering_id,
+            'state' => Section::StateOpen,
+        ]);
+        $siblingEnrollment = Enrollment::factory()->create([
+            'term_id' => $fixture['term']->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'status' => 'officially_enrolled',
+            'officially_enrolled_at' => now(),
+        ]);
+        CourseEnrollment::factory()->create([
+            'enrollment_id' => $siblingEnrollment->id,
+            'term_offering_id' => $siblingSection->term_offering_id,
+            'section_id' => $siblingSection->id,
+            'published_timetable_version_id' => null,
+        ]);
+        app(ManageTeachingAssignment::class)->designate($siblingSection, $siblingFaculty, $fixture['registrar'], 'ASSIGN-ISOLATION-SIBLING');
+        $siblingRoster = app(SynchronizeOfficialGradeRoster::class)->execute($siblingSection, $fixture['registrar']);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $page = Livewire::actingAs($coFaculty)->test(FacultyGradeRoster::class)
+            ->assertSet('rosterId', $roster->id)
+            ->assertSet('rosterEditable', false)
+            ->assertActionHidden('selectRoster');
+        $this->assertSame([$fixture['student']->student_number], array_column($page->get('data.rows'), 'student_number'));
+
+        Livewire::actingAs($fixture['faculty'])->test(FacultyGradeRoster::class)
+            ->assertSet('rosterId', $roster->id)
+            ->assertSet('rosterEditable', true);
+
+        foreach ([$fixture['faculty'], $coFaculty] as $faculty) {
+            $faculty->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+            $faculty->saveAppAuthenticationRecoveryCodes(['stored-code']);
+            Livewire::actingAs($faculty)->test(ListGradeRosters::class)
+                ->assertCanSeeTableRecords([$roster])
+                ->assertCanNotSeeTableRecords([$siblingRoster]);
+            $this->actingAs($faculty)->get(GradeRosterResource::getUrl('view', ['record' => $siblingRoster]))->assertNotFound();
+        }
+
+        $unrelatedFaculty = $this->staff(User::StaffRoleFaculty);
+        Livewire::actingAs($unrelatedFaculty)->test(ListGradeRosters::class)
+            ->assertCanNotSeeTableRecords([$roster, $siblingRoster]);
+        Livewire::actingAs($unrelatedFaculty)->test(FacultyGradeRoster::class)
+            ->assertSet('rosterId', null)
+            ->assertSet('data.rows', []);
+
+        foreach ([$fixture['registrar'], $this->staff(User::StaffRoleAcademicHead)] as $staff) {
+            Livewire::actingAs($staff)->test(ListGradeRosters::class)
+                ->assertCanSeeTableRecords([$roster, $siblingRoster]);
+        }
+
+        $this->actingAs($coFaculty)->get(FacultyGradeRoster::getUrl(['roster' => $siblingRoster->id]))->assertNotFound();
+
+        app(ManageTeachingAssignment::class)->addCoFaculty($siblingSection, $coFaculty, $fixture['registrar'], 'ASSIGN-ISOLATION-SECOND');
+        Livewire::actingAs($coFaculty)->test(FacultyGradeRoster::class)
+            ->assertSet('rosterId', null)
+            ->assertSee('Choose a class')
+            ->assertSee($roster->section->code)
+            ->assertSee($siblingRoster->section->code)
+            ->assertSee(FacultyGradeRoster::getUrl(['roster' => $roster->id]), escape: false);
+
+        Livewire::withQueryParams(['roster' => $roster->id])->actingAs($coFaculty)->test(FacultyGradeRoster::class)
+            ->assertSet('rosterId', $roster->id);
+        Livewire::withQueryParams([]);
+
+        $this->expectException(CannotUpdateLockedPropertyException::class);
+        Livewire::actingAs($coFaculty)->test(FacultyGradeRoster::class)->set('rosterId', $siblingRoster->id);
     }
 
     #[Test]
@@ -477,7 +562,9 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             (string) $csv->headers->get('content-disposition'),
         );
         $this->assertStringStartsWith("\xEF\xBB\xBF", $csv->streamedContent());
-        $this->assertStringContainsString('Term,"Class Reference","Course Code","Course Title","Program or Cohort","Student Number","Legal Name","Official Enrollment State","As of (Asia/Manila)"', $csv->streamedContent());
+        $lines = explode("\r\n", substr($csv->streamedContent(), 3));
+        $this->assertSame(['Term', 'Class Reference', 'Course Code', 'Course Title', 'Program or Cohort', 'Student Number', 'Legal Name', 'As of (Asia/Manila)'], str_getcsv($lines[0], ',', '"', ''));
+        $this->assertCount(8, str_getcsv($lines[1], ',', '"', ''));
         $this->assertMatchesRegularExpression('/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} PHT/', $csv->streamedContent());
         $this->assertStringContainsString("'=HYPERLINK", $csv->streamedContent());
         $this->assertStringContainsString("\r\n", $csv->streamedContent());
@@ -486,6 +573,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
         $this->actingAs($unrelatedFaculty)->get(route('grade-rosters.print', $roster))->assertForbidden();
         $this->actingAs($academicHead)->get(route('grade-rosters.print', $roster))->assertForbidden();
+        $this->actingAs($academicHead)->get(route('grade-rosters.csv', $roster))->assertForbidden();
         $this->assertSame(2, OutputAccessLog::query()->where('source_record_type', GradeRoster::class)->where('source_record_id', $roster->id)->count());
 
         $this->actingAs($fixture['registrar'])->get(route('grade-rosters.print', $roster))->assertOk();
@@ -501,7 +589,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             ->get(route('student-academics.unofficial-record', $fixture['student']))
             ->assertOk()
             ->assertSee('UNOFFICIAL STUDENT RECORD')
-            ->assertSee('Curriculum and enrollment guidance');
+            ->assertSee('Academic progress');
 
         $otherStudent = StudentProfile::factory()->create();
         $otherStudent->user?->assignRole('student');
@@ -702,6 +790,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
     #[Test]
     public function empty_and_changed_roster_sources_fail_closed_without_partial_artifacts(): void
     {
+        Storage::fake('local');
         $fixture = $this->fixture();
         $emptyOffering = TermOffering::factory()->create(['term_id' => $fixture['term']->id]);
         $emptySection = Section::factory()->create(['term_offering_id' => $emptyOffering->id, 'state' => Section::StateOpen]);
@@ -711,10 +800,18 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->actingAs($fixture['faculty'])->get(route('grade-rosters.print', $emptyRoster))->assertStatus(409);
         $this->actingAs($fixture['faculty'])->get(route('grade-rosters.csv', $emptyRoster))->assertStatus(409);
 
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::withQueryParams(['roster' => $emptyRoster->id])->actingAs($fixture['faculty'])->test(FacultyGradeRoster::class)
+            ->assertSet('rosterId', $emptyRoster->id)->assertActionHidden('printRoster')->assertActionHidden('downloadRoster')
+            ->assertActionHidden('submit')->assertDontSee('Save draft')->assertSee('No students enrolled yet');
+        Livewire::withQueryParams([]);
+        Livewire::actingAs($fixture['registrar'])->test(ViewGradeRoster::class, ['record' => $emptyRoster->id])
+            ->assertActionHidden('exportRoster');
+
         app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-MAIN-001');
         $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
         $otherStudent = StudentProfile::factory()->create();
-        $otherEnrollment = Enrollment::factory()->create(['student_profile_id' => $otherStudent->id, 'term_id' => $fixture['term']->id, 'status' => 'officially_enrolled']);
+        $otherEnrollment = Enrollment::factory()->create(['student_profile_id' => $otherStudent->id, 'term_id' => $fixture['term']->id, 'status' => 'officially_enrolled', 'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled]);
         CourseEnrollment::query()->create([
             'enrollment_id' => $otherEnrollment->id,
             'term_offering_id' => $fixture['section']->term_offering_id,
@@ -821,6 +918,293 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             collect(Storage::disk('local')->allFiles())->filter(fn (string $file) => str_contains($file, 'roster') || str_ends_with($file, '.tmp')),
             'No partial roster artifacts must exist in storage for stale roster sources.'
         );
+    }
+
+    #[Test]
+    public function class_roster_preview_and_csv_share_current_legal_identity_order_without_grade_or_finance_fields(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-18 10:00:00', 'Asia/Manila'));
+        $fixture = $this->fixture();
+        $fixture['student']->update(['last_name' => 'Santos', 'first_name' => 'Mira', 'middle_name' => 'B', 'student_number' => 'ROSTER-003']);
+        foreach ([['Santos', 'Mira', 'A', 'ROSTER-010'], ['Cruz', 'Ana', null, 'ROSTER-001'], ['Santos', 'Mira', 'A', 'ROSTER-002']] as [$last, $first, $middle, $number]) {
+            $student = StudentProfile::factory()->create(['last_name' => $last, 'first_name' => $first, 'middle_name' => $middle, 'student_number' => $number]);
+            $enrollment = Enrollment::factory()->create(['student_profile_id' => $student->id,
+                'term_id' => $fixture['term']->id, 'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled]);
+            CourseEnrollment::query()->create(['enrollment_id' => $enrollment->id,
+                'term_offering_id' => $fixture['section']->term_offering_id, 'section_id' => $fixture['section']->id,
+                'status' => CourseEnrollment::StatusActive, 'is_current' => true, 'units_snapshot' => '3.00', 'added_at' => now()]);
+        }
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-PREVIEW-001');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $roster->rows()->update(['final_result' => 'INC', 'inc_completion_note' => 'PRIVATE-GRADE-NOTE']);
+
+        $preview = app(CurrentClassRosterOutput::class)->preview($roster, $fixture['faculty']);
+        $response = $this->actingAs($fixture['registrar'])->get(route('grade-rosters.csv', $roster))->assertOk();
+        $lines = explode("\r\n", substr($response->streamedContent(), 3));
+        $headers = str_getcsv(array_shift($lines), ',', '"', '');
+        $rows = array_map(fn (string $line): array => str_getcsv($line, ',', '"', ''), array_values(array_filter($lines)));
+
+        $this->assertSame(4, $preview['count']);
+        $this->assertSame($preview['headers'], $headers);
+        $this->assertSame($preview['rows'], $rows);
+        $this->assertSame(['Cruz, Ana', 'Santos, Mira A', 'Santos, Mira A', 'Santos, Mira B'], array_column($rows, 6));
+        $this->assertSame(['ROSTER-001', 'ROSTER-002', 'ROSTER-010', 'ROSTER-003'], array_column($rows, 5));
+        $this->assertSame('2026-10-18 10:00:00 PHT', $rows[0][7]);
+        $this->assertStringNotContainsString('PRIVATE-GRADE-NOTE', $response->streamedContent());
+        $this->assertCount(8, $headers);
+        $this->assertSame(1, OutputAccessLog::query()->where('source_record_type', GradeRoster::class)->where('source_record_id', $roster->id)->count());
+
+        $this->actingAs($fixture['faculty'])->get(route('grade-rosters.print', $roster))
+            ->assertSeeInOrder(['Cruz, Ana', 'Santos, Mira A', 'Santos, Mira A', 'Santos, Mira B'])
+            ->assertDontSee('Santos, Mira, B')
+            ->assertDontSee('PRIVATE-GRADE-NOTE');
+    }
+
+    #[Test]
+    public function class_roster_requires_canonical_official_membership_and_rechecks_changed_and_retained_rows(): void
+    {
+        $fixture = $this->fixture();
+        $student = StudentProfile::factory()->create(['student_number' => 'LEGACY-ONLY']);
+        $enrollment = Enrollment::factory()->create(['student_profile_id' => $student->id,
+            'term_id' => $fixture['term']->id, 'status' => 'officially_enrolled', 'canonical_outcome' => Enrollment::OutcomeInProgress]);
+        $course = CourseEnrollment::query()->create(['enrollment_id' => $enrollment->id,
+            'term_offering_id' => $fixture['section']->term_offering_id, 'section_id' => $fixture['section']->id,
+            'status' => CourseEnrollment::StatusActive, 'is_current' => true, 'units_snapshot' => '3.00', 'added_at' => now()]);
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-STRICT-001');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $service = app(CurrentClassRosterOutput::class);
+        $this->assertSame(1, $service->forRoster($roster, $fixture['faculty'])['count']);
+
+        $enrollment->update(['canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled]);
+        $this->actingAs($fixture['faculty'])->get(route('grade-rosters.csv', $roster))->assertStatus(409);
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $this->assertSame(2, $service->forRoster($roster, $fixture['faculty'])['count']);
+        $course->update(['is_current' => false, 'status' => CourseEnrollment::StatusDropped]);
+        $stale = $service->preview($roster, $fixture['faculty']);
+        $this->assertSame([], $stale['rows']);
+        $this->assertSame('The class roster changed. Refresh the roster before generating an output.', $stale['error']);
+        $this->actingAs($fixture['faculty'])->get(route('grade-rosters.csv', $roster))->assertStatus(409);
+        $this->actingAs($fixture['faculty'])->get(route('grade-rosters.print', $roster))->assertStatus(409);
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $preview = $service->forRoster($roster, $fixture['faculty']);
+        $this->assertSame(1, $preview['count']);
+        $this->assertSame(2, $roster->rows()->count());
+        $this->assertNotContains('LEGACY-ONLY', array_column($preview['rows'], 5));
+        $this->assertSame(0, OutputAccessLog::query()->where('source_record_type', GradeRoster::class)->where('source_record_id', $roster->id)->count());
+    }
+
+    #[Test]
+    public function class_roster_modal_is_shared_by_assigned_faculty_and_registrar_and_refresh_keeps_the_grade_draft(): void
+    {
+        $fixture = $this->fixture();
+        $fixture['student']->update(['first_name' => 'Mira', 'middle_name' => 'A', 'last_name' => 'Santos', 'student_number' => 'MODAL-ROSTER-001']);
+        $coFaculty = $this->staff(User::StaffRoleFaculty);
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-MODAL-MAIN');
+        app(ManageTeachingAssignment::class)->addCoFaculty($fixture['section'], $coFaculty, $fixture['registrar'], 'ASSIGN-MODAL-CO');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        foreach ([$fixture['faculty'], $coFaculty] as $faculty) {
+            Livewire::actingAs($faculty)->test(FacultyGradeRoster::class)->mountAction('downloadRoster')
+                ->assertMountedActionModalSee('MODAL-ROSTER-001')->assertMountedActionModalSee('Santos, Mira A')
+                ->assertMountedActionModalSee('8 columns')->assertMountedActionModalSee('Current membership is checked again on download.');
+        }
+        Livewire::actingAs($fixture['registrar'])->test(ViewGradeRoster::class, ['record' => $roster->id])
+            ->mountAction('exportRoster')->assertMountedActionModalSee('MODAL-ROSTER-001')
+            ->assertMountedActionModalSee('Santos, Mira A');
+        Livewire::actingAs($this->staff(User::StaffRoleAcademicHead))->test(ViewGradeRoster::class, ['record' => $roster->id])
+            ->assertActionHidden('exportRoster');
+
+        $page = Livewire::actingAs($fixture['faculty'])->test(FacultyGradeRoster::class);
+        $rowKey = array_key_first($page->get('data.rows'));
+        $page->set('data.rows.'.$rowKey.'.final_result', '2.00')->mountAction('downloadRoster');
+        $fixture['course_enrollment']->update(['is_current' => false]);
+        $page->callMountedAction()->assertMountedActionModalSee('No current learners')
+            ->assertSet('data.rows.'.$rowKey.'.final_result', '2.00');
+        $fixture['course_enrollment']->update(['is_current' => true]);
+        $page->callMountedAction(['refresh' => true])->assertMountedActionModalSee('MODAL-ROSTER-001')
+            ->assertSet('data.rows.'.$rowKey.'.final_result', '2.00');
+        $this->assertNull($roster->rows()->sole()->final_result);
+        $this->assertSame(0, OutputAccessLog::query()->where('source_record_type', GradeRoster::class)->where('source_record_id', $roster->id)->count());
+    }
+
+    #[Test]
+    public function authorized_membership_snapshots_allow_head_reading_without_granting_output_access(): void
+    {
+        $fixture = $this->fixture();
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-SNAPSHOT');
+        $coFaculty = $this->staff(User::StaffRoleFaculty);
+        app(ManageTeachingAssignment::class)->addCoFaculty($fixture['section'], $coFaculty, $fixture['registrar'], 'CO-SNAPSHOT');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $service = app(CurrentClassRosterOutput::class);
+
+        foreach ([$fixture['faculty'], $coFaculty, $fixture['registrar'], $head] as $actor) {
+            $snapshot = $service->membershipSnapshot($roster, $actor);
+            $this->assertTrue($snapshot['isCurrent']);
+            $this->assertNull($snapshot['error']);
+            $this->assertSame(1, $snapshot['count']);
+            $this->assertSame([$fixture['course_enrollment']->id], $snapshot['roster']->rows->pluck('course_enrollment_id')->all());
+        }
+        $this->actingAs($head)->get(route('grade-rosters.csv', $roster))->assertForbidden();
+        $this->actingAs($head)->get(route('grade-rosters.print', $roster))->assertForbidden();
+        $head->assignRole(User::StaffRoleFaculty);
+        $this->actingAs($head)->get(route('grade-rosters.csv', $roster))->assertForbidden();
+        foreach ([$this->staff(User::StaffRoleFaculty), $fixture['student']->user] as $actor) {
+            try {
+                $service->membershipSnapshot($roster, $actor);
+                $this->fail('An unassigned actor read the membership snapshot.');
+            } catch (HttpException $exception) {
+                $this->assertSame(403, $exception->getStatusCode());
+            }
+        }
+        $this->assertSame(0, OutputAccessLog::query()->where('source_record_type', GradeRoster::class)->where('source_record_id', $roster->id)->count());
+    }
+
+    #[Test]
+    public function membership_snapshots_hide_stale_rows_and_distinguish_a_current_empty_class(): void
+    {
+        $fixture = $this->fixture();
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-SNAPSHOT-STATE');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $service = app(CurrentClassRosterOutput::class);
+        $fixture['course_enrollment']->update(['is_current' => false]);
+
+        $stale = $service->membershipSnapshot($roster, $fixture['registrar']);
+
+        $this->assertFalse($stale['isCurrent']);
+        $this->assertSame(0, $stale['count']);
+        $this->assertCount(0, $stale['roster']->rows);
+        $this->assertSame('The class roster changed. Refresh the roster before generating an output.', $stale['error']);
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $empty = $service->membershipSnapshot($roster, $fixture['faculty']);
+        $this->assertTrue($empty['isCurrent']);
+        $this->assertNull($empty['error']);
+        $this->assertSame(0, $empty['count']);
+        $this->assertCount(0, $empty['roster']->rows);
+        $this->assertSame(1, $roster->rows()->count());
+        $this->actingAs($fixture['faculty'])->get(route('grade-rosters.csv', $roster))->assertStatus(409);
+    }
+
+    #[Test]
+    public function faculty_result_entry_saves_native_result_fields_without_retyping_student_identity(): void
+    {
+        $fixture = $this->fixture();
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-ENTRY');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $page = Livewire::actingAs($fixture['faculty'])->test(FacultyGradeRoster::class)->assertSet('rosterEditable', true);
+        $rowKey = array_key_first($page->get('data.rows'));
+        $page->set('data.rows.'.$rowKey.'.final_result', '2.00')->call('saveDraft')->assertHasNoErrors()->assertNotified('Roster draft saved');
+        $this->assertSame('2.00', $roster->rows()->sole()->final_result);
+        $rowKey = array_key_first($page->get('data.rows'));
+        $page->set('data.rows.'.$rowKey.'.final_result', 'INC')->set('data.rows.'.$rowKey.'.inc_completion_note', 'Complete the remaining project')
+            ->call('saveDraft')->assertHasNoErrors()->assertNotified('Roster draft saved');
+        $this->assertSame('INC', $roster->rows()->sole()->final_result);
+        $this->assertSame('Complete the remaining project', $roster->rows()->sole()->inc_completion_note);
+    }
+
+    #[Test]
+    public function faculty_class_worklist_filters_owned_classes_and_keeps_stale_membership_unavailable(): void
+    {
+        $fixture = $this->fixture();
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-WORKLIST');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::withQueryParams(['classes' => 1])->actingAs($fixture['faculty'])->test(FacultyGradeRoster::class)
+            ->assertSet('rosterId', null)->assertSee('Choose a class')->assertSee($fixture['section']->code)
+            ->assertSee(FacultyGradeRoster::getUrl(['roster' => $roster->id]), escape: false)
+            ->assertActionHidden('submit')->assertDontSee('Save draft');
+        Livewire::withQueryParams(['classes' => 1, 'q' => 'nonexistent-class-search'])->actingAs($fixture['faculty'])->test(FacultyGradeRoster::class)
+            ->assertDontSee($fixture['section']->code)->assertSee('No assigned roster');
+        $fixture['course_enrollment']->update(['is_current' => false]);
+        Livewire::withQueryParams(['classes' => 1])->actingAs($fixture['faculty'])->test(FacultyGradeRoster::class)
+            ->assertSee('Membership needs an update')->assertDontSee($fixture['student']->student_number);
+        Livewire::withQueryParams([]);
+    }
+
+    #[Test]
+    public function faculty_page_hides_stale_membership_and_refuses_to_save_a_previously_open_grade_draft(): void
+    {
+        $fixture = $this->fixture();
+        $fixture['student']->update(['student_number' => 'STALE-FACULTY-001']);
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-STALE-PAGE');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $page = Livewire::actingAs($fixture['faculty'])->test(FacultyGradeRoster::class);
+        $rowKey = array_key_first($page->get('data.rows'));
+        $page->set('data.rows.'.$rowKey.'.final_result', '2.00');
+        $fixture['course_enrollment']->update(['is_current' => false]);
+
+        $page->call('saveDraft')->assertHasErrors(['rows'])->assertNotified('Class membership changed')
+            ->assertSee('Class membership needs an update')->assertDontSee('STALE-FACULTY-001')
+            ->assertActionHidden('printRoster')->assertActionHidden('downloadRoster');
+
+        $this->assertFalse($page->instance()->canEditSelectedRoster());
+        $this->assertNull($roster->rows()->sole()->final_result);
+        $this->assertSame(0, $roster->versions()->count());
+    }
+
+    #[Test]
+    public function cofaculty_page_shows_current_legal_identity_and_results_as_read_only_membership(): void
+    {
+        $fixture = $this->fixture();
+        $fixture['student']->update(['student_number' => 'CO-FACULTY-001', 'first_name' => 'Mira', 'middle_name' => 'A', 'last_name' => 'Santos']);
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-READ-PAGE');
+        $coFaculty = $this->staff(User::StaffRoleFaculty);
+        app(ManageTeachingAssignment::class)->addCoFaculty($fixture['section'], $coFaculty, $fixture['registrar'], 'ASSIGN-CO-READ-PAGE');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $roster->rows()->sole()->update(['final_result' => '2.00']);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $page = Livewire::actingAs($coFaculty)->test(FacultyGradeRoster::class)
+            ->assertSee('View-only co-faculty')->assertSee('CO-FACULTY-001')->assertSee('Santos, Mira A')
+            ->assertSee('2.00')->assertDontSee('Save draft')->assertActionHidden('submit');
+
+        $this->assertFalse($page->instance()->canEditSelectedRoster());
+        $page->assertSee('1 enrolled student');
+    }
+
+    #[Test]
+    public function head_membership_reading_hides_draft_results_and_stale_or_historical_members(): void
+    {
+        $fixture = $this->fixture();
+        $fixture['student']->update(['first_name' => 'Mira', 'middle_name' => 'A', 'last_name' => 'Santos', 'student_number' => 'HEAD-MEMBER-001']);
+        app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'HEAD-MEMBERSHIP-001');
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        $roster->rows()->update(['final_result' => '1.25', 'inc_completion_note' => 'PRIVATE-DRAFT-NOTE']);
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($head)->test(ViewGradeRoster::class, ['record' => $roster->id])
+            ->assertSee('1 enrolled student')->assertSee('HEAD-MEMBER-001')->assertSee('Santos, Mira A')
+            ->assertDontSee('1.25')->assertDontSee('PRIVATE-DRAFT-NOTE')
+            ->assertActionHidden('exportRoster')->assertActionHidden('return')->assertActionHidden('postAndRelease');
+
+        $other = $this->fixture();
+        app(ManageTeachingAssignment::class)->designate($other['section'], $other['faculty'], $other['registrar'], 'HEAD-MEMBERSHIP-OTHER');
+        $otherRoster = app(SynchronizeOfficialGradeRoster::class)->execute($other['section'], $other['registrar']);
+        Livewire::actingAs($head)->test(ListGradeRosters::class)
+            ->set('oversightTermId', $other['term']->id)
+            ->assertCanSeeTableRecords([$roster, $otherRoster])
+            ->filterTable('term', $fixture['term']->id)
+            ->assertCanSeeTableRecords([$roster])->assertCanNotSeeTableRecords([$otherRoster])
+            ->searchTable('NO-SUCH-CLASS')->assertCanNotSeeTableRecords([$roster]);
+
+        $fixture['course_enrollment']->update(['is_current' => false, 'status' => CourseEnrollment::StatusDropped]);
+
+        Livewire::actingAs($head)->test(ViewGradeRoster::class, ['record' => $roster->id])
+            ->assertSee('Class membership needs an update')->assertDontSee('HEAD-MEMBER-001');
+
+        $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+        Livewire::actingAs($head)->test(ViewGradeRoster::class, ['record' => $roster->id])
+            ->assertSee('0 enrolled students')->assertSee('No officially enrolled students are currently assigned to this class.')
+            ->assertDontSee('HEAD-MEMBER-001');
+        $page = Livewire::actingAs($head)->test(ListGradeRosters::class)->assertCanSeeTableRecords([$roster]);
+        $this->assertSame(0, $page->instance()->getTableRecords()->firstWhere('id', $roster->id)->current_members_count);
+        Livewire::actingAs($fixture['registrar'])->test(ListGradeRosters::class)
+            ->assertTableColumnStateSet('rows_count', 0, $roster);
+        $this->assertSame(1, $roster->rows()->count());
+        $this->assertSame('1.25', $roster->rows()->sole()->final_result);
     }
 
     /** @return array{registrar: User, faculty: User, student: StudentProfile, term: Term, section: Section, course_enrollment: CourseEnrollment} */

@@ -8,7 +8,7 @@ final readonly class PaymentCheckoutRequest
      * @param  array<string, mixed>  $metadata
      */
     public function __construct(
-        public int $studentProfileId,
+        public ?int $studentProfileId,
         public string $amount,
         public string $description,
         public ?int $assessmentId = null,

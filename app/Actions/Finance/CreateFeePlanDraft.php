@@ -8,8 +8,10 @@ use App\Models\FeePlanObligation;
 use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 class CreateFeePlanDraft
@@ -31,6 +33,7 @@ class CreateFeePlanDraft
             if ($charges === [] || $obligations === []) {
                 throw ValidationException::withMessages(['fee_plan' => 'A Fee Plan requires reconciled fixed charges and explicit dated obligations.']);
             }
+            $this->validateRows($charges, $obligations);
 
             $version = ((int) FeePlan::query()->where('program_id', $program->id)->where('term_id', $term->id)->lockForUpdate()->max('version')) + 1;
             $plan = FeePlan::query()->create([
@@ -88,5 +91,24 @@ class CreateFeePlanDraft
 
             return $plan->load(['charges', 'obligations']);
         }, attempts: 3);
+    }
+
+    /** @param list<array<string,mixed>> $charges @param list<array<string,mixed>> $obligations */
+    public function validateRows(array $charges, array $obligations): void
+    {
+        foreach (['charges' => $charges, 'obligations' => $obligations] as $key => $rows) {
+            if (collect($rows)->map(fn (array $row): string => mb_strtolower(trim((string) ($row['code'] ?? ''))))->duplicates()->isNotEmpty()) {
+                throw ValidationException::withMessages([$key => 'Use a different code for each '.($key === 'charges' ? 'charge' : 'payment obligation').'.']);
+            }
+        }
+        Validator::make(['obligations' => $obligations], ['obligations.*.due_at' => ['required', 'date']])->validate();
+        $previous = null;
+        foreach ($obligations as $obligation) {
+            $dueAt = CarbonImmutable::parse($obligation['due_at'], config('app.timezone'));
+            if ($previous !== null && $dueAt->lessThan($previous)) {
+                throw ValidationException::withMessages(['obligations' => 'Keep payment due dates in chronological order, starting with the enrollment payment.']);
+            }
+            $previous = $dueAt;
+        }
     }
 }

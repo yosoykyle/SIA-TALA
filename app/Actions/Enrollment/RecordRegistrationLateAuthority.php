@@ -23,10 +23,10 @@ class RecordRegistrationLateAuthority
         string $approvingOffice,
         string $authorityReference,
         CarbonImmutable $authorityDate,
-        string $reason,
-        CarbonImmutable $effectiveAt,
+        ?string $reason,
+        ?CarbonImmutable $effectiveAt,
         string $learnerAcknowledgementBasis,
-        string $sourceAcademicDecision,
+        ?string $sourceAcademicDecision,
     ): RegistrationLateAuthority {
         if (! $actor->canAuthenticate()
             || ! $actor->hasRole(User::StaffRoleRegistrar)) {
@@ -42,18 +42,20 @@ class RecordRegistrationLateAuthority
                 ? Section::query()->whereKey($afterSection->id)->lockForUpdate()->firstOrFail()
                 : null;
 
-            if (! in_array($actionType, [RegistrationLateAuthority::ActionAdjustment, RegistrationLateAuthority::ActionCourseDrop], true)
+            if ($locked->canonical_outcome !== Enrollment::OutcomeOfficiallyEnrolled
+                || $locked->current_cor_version_id === null
+                || ! in_array($actionType, [RegistrationLateAuthority::ActionAdjustment, RegistrationLateAuthority::ActionCourseDrop], true)
                 || ($course instanceof CourseEnrollment && ((int) $course->enrollment_id !== (int) $locked->id
                     || ! $course->is_current
                     || $course->status !== CourseEnrollment::StatusActive))
                 || ($actionType === RegistrationLateAuthority::ActionCourseDrop && ! $course instanceof CourseEnrollment)
                 || ($actionType === RegistrationLateAuthority::ActionAdjustment && ! $section instanceof Section)
                 || ($section instanceof Section && (int) $section->termOffering()->value('term_id') !== (int) $locked->term_id)
-                || collect([$approvingOffice, $authorityReference, $reason, $learnerAcknowledgementBasis, $sourceAcademicDecision])->contains(fn (string $value): bool => blank($value))) {
-                throw ValidationException::withMessages(['late_authority' => 'Late authority must identify the exact case, Term, before/after course or class, approving office/reference/date, reason, effective date, learner acknowledgement, and source academic decision.']);
+                || collect([$approvingOffice, $authorityReference, $learnerAcknowledgementBasis])->contains(fn (string $value): bool => blank($value))) {
+                throw ValidationException::withMessages(['late_authority' => 'Identify the current official registration, exact subject change, approving office, approval reference/date and student acknowledgement.']);
             }
 
-            return RegistrationLateAuthority::query()->firstOrCreate(
+            $authority = RegistrationLateAuthority::query()->firstOrCreate(
                 [
                     'enrollment_id' => $locked->id,
                     'action_type' => $actionType,
@@ -65,14 +67,25 @@ class RecordRegistrationLateAuthority
                     'after_section_id' => $section?->id,
                     'approving_office' => trim($approvingOffice),
                     'authority_date' => $authorityDate,
-                    'reason' => trim($reason),
+                    'reason' => filled($reason) ? trim($reason) : null,
                     'effective_at' => $effectiveAt,
                     'learner_acknowledgement_basis' => trim($learnerAcknowledgementBasis),
-                    'source_academic_decision' => trim($sourceAcademicDecision),
+                    'source_academic_decision' => filled($sourceAcademicDecision) ? trim($sourceAcademicDecision) : null,
                     'recorded_by' => $actor->id,
                     'recorded_at' => now(),
                 ],
             );
+
+            if (($authority->before_course_enrollment_id === null ? null : (int) $authority->before_course_enrollment_id) !== $course?->id
+                || ($authority->after_section_id === null ? null : (int) $authority->after_section_id) !== $section?->id
+                || (int) $authority->term_id !== (int) $locked->term_id
+                || $authority->approving_office !== trim($approvingOffice)
+                || $authority->authority_date->toDateString() !== $authorityDate->toDateString()
+                || $authority->consumed_at !== null) {
+                throw ValidationException::withMessages(['late_authority' => 'This approval reference is already recorded for different facts or has been used. Review its existing record.']);
+            }
+
+            return $authority;
         }, attempts: 3);
     }
 }

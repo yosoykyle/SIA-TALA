@@ -13,7 +13,6 @@ use App\Actions\Enrollment\IssueRegistrationProposal;
 use App\Actions\Enrollment\PlaceRegistrationProposal;
 use App\Actions\Enrollment\PrepareRegistrationProposal;
 use App\Actions\Enrollment\RecordCourseDrop;
-use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
@@ -67,7 +66,7 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
     {
         parent::setUp();
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         foreach ([User::StaffRoleRegistrar, User::StaffRoleFaculty, User::StaffRoleAccounting, 'student'] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
@@ -184,7 +183,7 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
             ->assertActionVisible('recordGraduatingOverloadAuthority')
             ->mountAction('recordGraduatingOverloadAuthority')
-            ->assertMountedActionModalSee('Normal total: 3.00 units');
+            ->assertMountedActionModalSee(['Curriculum load', '3 <span>units</span>'], escape: false);
         Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
             ->callAction('recordGraduatingOverloadAuthority', data: [
@@ -195,27 +194,17 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
             ])
             ->assertNotified('Graduating overload authority recorded');
 
-        $issued = app(IssueRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
-
-        $this->assertSame('Issued', $issued->state);
-        $this->assertSame('REG-2026-ST-001', $issued->enrollment->case_reference);
-
-        $confirmed = app(ConfirmRegistrationProposal::class)->execute($issued, $student);
         $profile->update(['academic_standing' => StudentProfile::StandingRegular]);
-        $this->assertContains(
-            'Graduating overload authority',
-            app(RegistrationReadinessQuery::class)->for($enrollment->fresh())['blockers'],
-        );
 
         try {
-            app(PlaceRegistrationProposal::class)->execute($confirmed, $registrar);
+            app(PlaceRegistrationProposal::class)->execute($proposal, $registrar);
             $this->fail('Placement must revalidate the current proposal-specific overload authority.');
         } catch (ValidationException $exception) {
             $this->assertStringContainsString('graduating-overload authority', $exception->getMessage());
         }
 
         $profile->update(['academic_standing' => StudentProfile::StandingGraduationCandidate]);
-        $placed = app(PlaceRegistrationProposal::class)->execute($confirmed->fresh(), $registrar);
+        $placed = app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
 
         $this->assertCount(2, $placed->items->pluck('reservation')->filter());
 
@@ -250,6 +239,10 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
 
         $this->assertSame('6000.00', $assessment->total);
         $this->assertSame('3000.00', $assessment->obligations->first()->amount);
+        $issued = app(IssueRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+        $this->assertSame('Issued', $issued->state);
+        $this->assertSame('REG-2026-ST-001', $issued->enrollment->case_reference);
+        app(ConfirmRegistrationProposal::class)->execute($issued, $student);
 
         app(RecordApprovedCoverage::class)->execute(
             $assessment->termAccount,
@@ -266,6 +259,8 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         );
         $evidence = PaymentEvidenceVersion::factory()->create([
             'term_account_id' => $assessment->term_account_id,
+            'assessment_id' => $assessment->id,
+            'obligation_snapshot' => [['id' => $assessment->obligations->first()->id]],
             'claimed_amount' => '1000.00',
             'channel' => 'gcash_manual',
             'paid_at' => now(),

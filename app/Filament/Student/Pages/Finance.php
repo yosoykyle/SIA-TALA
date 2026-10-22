@@ -2,40 +2,69 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\StudentTermAccountPresenter;
+use App\Actions\Finance\SubmitPaymentEvidence;
+use App\Actions\Finance\TermAccountProjection;
 use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
 use App\Actions\Integrations\Payments\PaymentCheckoutException;
-use App\Models\Payment;
+use App\Models\PaymentAttempt;
+use App\Models\PaymentEvidenceVersion;
+use App\Models\StudentProfile;
+use App\Models\TermAccount;
 use App\Models\User;
+use App\Support\StudentPaymentActions;
 use Filament\Actions\Action;
-use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Schema;
+use Illuminate\Http\UploadedFile;
+use Livewire\Attributes\Locked;
+use Throwable;
 
 class Finance extends Page
 {
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
 
-    protected static ?string $navigationLabel = 'Finance';
+    protected static ?string $navigationLabel = 'Fees and payments';
 
-    protected static ?string $title = 'Finance';
+    protected static ?string $title = 'Fees and payments';
+
+    protected string $view = 'filament.student.pages.finance';
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [Dashboard::getUrl(panel: 'student') => 'Overview', ...($this->showHistory
+            ? [static::getUrl(panel: 'student') => 'Fees and payments', 'Past statements and payments']
+            : ['Fees and payments'])];
+    }
 
     /** @var array<string, mixed> */
     public array $finance = [];
+
+    #[Locked]
+    public bool $showHistory = false;
+
+    #[Locked]
+    public ?int $pastAccountId = null;
 
     public function mount(): void
     {
         $actor = auth()->user();
         abort_unless($actor instanceof User, 403);
-        $this->finance = app(StudentTermAccountPresenter::class)->forUser($actor);
+        $view = request()->query('view');
+        $accountId = request()->query('account');
+        abort_if($view !== null && $view !== 'history', 404);
+        abort_if($accountId !== null && ($view !== 'history' || ! is_string($accountId)
+            || ! ctype_digit($accountId) || filter_var($accountId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false), 404);
+        $this->showHistory = $view === 'history';
+        $this->pastAccountId = $accountId !== null ? (int) $accountId : null;
+        $this->refreshFinance();
 
         if (request()->query('checkout') === 'success') {
             Notification::make()
                 ->title('Payment confirmation pending')
-                ->body('No balance changes until TALA verifies signed PayMongo evidence.')
+                ->body('Your balance changes only after the payment is verified.')
                 ->info()
                 ->send();
         }
@@ -49,61 +78,94 @@ class Finance extends Page
         }
     }
 
-    public function content(Schema $schema): Schema
+    public function refreshFinance(): void
     {
-        return $schema->state($this->finance['state'] ?? [])->components([
-            Section::make('Current Term Account')
-                ->description('The amount due today is separate from later Term obligations.')
-                ->schema([
-                    TextEntry::make('status')->badge(),
-                    TextEntry::make('current_due')->label('Due through as-of'),
-                    TextEntry::make('remaining_balance')->label('Remaining Term balance'),
-                    TextEntry::make('term'),
-                    TextEntry::make('account_reference')->label('Account reference'),
-                    TextEntry::make('assessment_version')->label('Assessment version'),
-                    TextEntry::make('notice')->columnSpanFull(),
-                ])->columns(['default' => 1, 'md' => 3]),
-            Section::make('Payment options')->schema([
-                TextEntry::make('manual_payment')->label('Manual payment evidence')->columnSpanFull(),
-                TextEntry::make('paymongo')->label('Online checkout')->columnSpanFull(),
-            ]),
-            Section::make('Obligations')->schema([
-                RepeatableEntry::make('obligations')->hiddenLabel()->schema([
-                    TextEntry::make('label'), TextEntry::make('purpose'), TextEntry::make('due_at')->label('Due'),
-                    TextEntry::make('amount'), TextEntry::make('balance'), TextEntry::make('state')->badge(),
-                ])->columns(['default' => 1, 'md' => 3])->columnSpanFull(),
-            ]),
-            Section::make('Approved coverage')->schema([
-                RepeatableEntry::make('coverages')->hiddenLabel()->schema([
-                    TextEntry::make('category'), TextEntry::make('source'), TextEntry::make('amount'),
-                    TextEntry::make('effective_date')->label('Effective'), TextEntry::make('state')->badge(),
-                ])->columns(['default' => 1, 'md' => 3])->columnSpanFull(),
-            ])->collapsible()->collapsed(),
-            Section::make('Verified payments')->schema([
-                RepeatableEntry::make('payments')->hiddenLabel()->schema([
-                    TextEntry::make('paid_at')->label('Paid'), TextEntry::make('reference'), TextEntry::make('channel'),
-                    TextEntry::make('amount'), TextEntry::make('state')->badge(),
-                ])->columns(['default' => 1, 'md' => 3])->columnSpanFull(),
-            ])->collapsible(),
-        ]);
+        $actor = auth()->user();
+        abort_unless($actor instanceof User && $actor->hasRole('student'), 403);
+        $this->finance = app(StudentTermAccountPresenter::class)->forUser($actor);
+    }
+
+    /** @return array<string, mixed> */
+    protected function getViewData(): array
+    {
+        $actor = auth()->user();
+        abort_unless($actor instanceof User && $actor->hasRole('student'), 403);
+        $finance = app(StudentTermAccountPresenter::class)->forUser($actor);
+        $account = $finance['account'] ?? null;
+        $pastAccounts = TermAccount::query()->with('term')->where('credential_user_id', $actor->id)
+            ->when($account !== null, fn ($query) => $query->where('id', '<>', $account->id))->latest('id')->get();
+        $pastAccount = null;
+        if ($this->pastAccountId !== null) {
+            abort_unless($this->showHistory && $pastAccounts->contains('id', $this->pastAccountId), 404);
+            $pastAccount = TermAccount::query()->where('credential_user_id', $actor->id)->with([
+                'term', 'assessments' => fn ($query) => $query->latest('version'),
+                'payments' => fn ($query) => $query->latest('paid_at'),
+                'paymentEvidenceVersions' => fn ($query) => $query->latest('version'),
+                'coverages' => fn ($query) => $query->latest('id'),
+            ])->findOrFail($this->pastAccountId);
+        }
+        ($finance['assessment'] ?? null)?->loadMissing('lines');
+
+        return [
+            'pastAccounts' => $pastAccounts,
+            'pastAccount' => $pastAccount,
+            'accountData' => $finance,
+            'requirement' => $account !== null ? app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($account->enrollment) : null,
+            'position' => $account !== null ? app(TermAccountProjection::class)->forAccount($account) : null,
+            'evidence' => $account?->paymentEvidenceVersions ?? collect(),
+            'payments' => $account?->payments ?? collect(),
+            'assessmentLines' => ($finance['assessment'] ?? null)?->lines ?? collect(),
+            'latestEvidence' => $account?->paymentEvidenceVersions->first(),
+            'activeAttempt' => $account !== null ? PaymentAttempt::query()->where('term_account_id', $account->id)
+                ->whereIn('status', PaymentAttempt::ActiveStatuses)->latest('id')->first() : null,
+        ];
+    }
+
+    protected function hasPayableObligations(): bool
+    {
+        if ($this->showHistory) {
+            return false;
+        }
+        $account = $this->finance['account'] ?? null;
+        if ($account === null) {
+            return false;
+        }
+
+        $position = app(TermAccountProjection::class)->forAccount($account);
+
+        return $position['state'] !== 'Unavailable'
+            && collect($position['obligations'])->contains(fn (array $obligation): bool => $obligation['is_due'] && (float) $obligation['available_balance'] > 0);
     }
 
     protected function getHeaderActions(): array
     {
+        return [];
+    }
+
+    public function payExactCurrentDueAction(): Action
+    {
+        return $this->financeActions()[0];
+    }
+
+    public function statementAction(): Action
+    {
+        return $this->financeActions()[1];
+    }
+
+    public function submitEvidenceAction(): Action
+    {
+        return $this->financeActions()[2];
+    }
+
+    /** @return list<Action> */
+    private function financeActions(): array
+    {
         return [
-            Action::make('payExactCurrentDue')
-                ->label('Pay exact current due')
-                ->icon('heroicon-o-credit-card')
-                ->color('primary')
-                ->requiresConfirmation()
-                ->modalHeading('Pay exact current due')
-                ->modalDescription(fn (): string => collect([
-                    'Amount: '.(string) data_get($this->finance, 'state.checkout_amount', 'Unavailable'),
-                    'For: '.collect(data_get($this->finance, 'state.checkout_obligations', []))
-                        ->map(fn (array $target): string => $target['label'].' ('.$target['amount'].')')
-                        ->implode(', '),
-                    'PayMongo confirmation may remain pending. This page return never posts payment by itself.',
-                ])->filter()->implode("\n\n"))
+            StudentPaymentActions::online(
+                Action::make('payExactCurrentDue')->label('Pay online')->icon('heroicon-o-credit-card')->color('primary'),
+                fn (): array => $this->finance['checkout'],
+            )
+                ->visible(fn (): bool => $this->hasPayableObligations())
                 ->disabled(fn (): bool => data_get($this->finance, 'checkout.enabled') !== true)
                 ->tooltip(fn (): ?string => data_get($this->finance, 'checkout.enabled') === true
                     ? null
@@ -130,21 +192,40 @@ class Finance extends Page
                     }
                 }),
             Action::make('statement')
-                ->label('Statement of Account')
+                ->label('View statement')
                 ->icon('heroicon-o-document-text')
                 ->url(fn (): string => route('finance.statement', data_get($this->finance, 'assessment.id', 0)))
                 ->openUrlInNewTab()
-                ->disabled(fn (): bool => ($this->finance['available'] ?? false) !== true),
-            Action::make('latestAcknowledgement')
-                ->label('Latest Payment Acknowledgment')
-                ->icon('heroicon-o-check-badge')
-                ->url(fn (): string => route('finance.payments.acknowledgement', data_get($this->finance, 'latest_payment.id', 0)))
-                ->openUrlInNewTab()
-                ->visible(fn (): bool => ($this->finance['latest_payment'] ?? null) instanceof Payment),
-            Action::make('submitEvidence')
-                ->label('Submit payment evidence')
+                ->visible(fn (): bool => ! $this->showHistory && ($this->finance['available'] ?? false) === true)
+                ->color('gray'),
+            StudentPaymentActions::proof(Action::make('submitEvidence'))
+                ->label(fn (): string => data_get($this->finance, 'state.latest_evidence_state') === PaymentEvidenceVersion::StateRejected
+                    ? 'Upload corrected proof' : 'Submit payment proof')
                 ->icon('heroicon-o-arrow-up-tray')
-                ->url(route('filament.student.pages.enrollment')),
+                ->visible(fn (): bool => $this->hasPayableObligations()
+                    && data_get($this->finance, 'account.enrollment.studentProfile.lifecycle_status') !== StudentProfile::LifecycleCompleted)
+                ->action(function (array $data): void {
+                    $actor = auth()->user();
+                    abort_unless($actor instanceof User, 403);
+                    $finance = app(StudentTermAccountPresenter::class)->forUser($actor);
+                    $account = $finance['account'] ?? null;
+                    $file = $data['evidence'] ?? null;
+                    abort_unless($account !== null && $file instanceof UploadedFile, 404);
+                    try {
+                        $position = app(TermAccountProjection::class)->forAccount($account);
+                        $targets = collect($position['obligations'])
+                            ->filter(fn (array $obligation): bool => $obligation['is_due'] && (float) $obligation['available_balance'] > 0)
+                            ->pluck('id')->all();
+                        app(SubmitPaymentEvidence::class)->execute(
+                            $account, $actor, $file, (string) $data['claimed_amount'], $data['channel'],
+                            $data['paid_at'], $data['payment_reference'] ?? null, $targets,
+                        );
+                        $this->refreshFinance();
+                        Notification::make()->title('Evidence submitted for Accounting review')->body('Submission posts no payment.')->success()->send();
+                    } catch (Throwable $exception) {
+                        Notification::make()->title('Payment evidence was not submitted')->body($exception->getMessage())->danger()->persistent()->send();
+                    }
+                }),
         ];
     }
 }

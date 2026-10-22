@@ -25,6 +25,7 @@ class RegistrationPlacementValidator
         Enrollment $enrollment,
         RegistrationProposalVersion $proposal,
         bool $lockForUpdate = false,
+        bool $requireConfirmation = true,
     ): void {
         $proposal->loadMissing([
             'curriculumVersion',
@@ -34,8 +35,11 @@ class RegistrationPlacementValidator
 
         if ($enrollment->canonical_outcome !== Enrollment::OutcomeInProgress
             || (int) $enrollment->current_proposal_version_id !== (int) $proposal->id
-            || $proposal->state !== RegistrationProposalVersion::StateConfirmed) {
-            throw ValidationException::withMessages(['placement' => 'Placement requires the current confirmed Registration Proposal.']);
+            || ! in_array($proposal->state, [RegistrationProposalVersion::StateDraft, RegistrationProposalVersion::StateIssued, RegistrationProposalVersion::StateConfirmed], true)
+            || ($requireConfirmation && ($proposal->state !== RegistrationProposalVersion::StateConfirmed || ! $proposal->confirmation()->exists()))) {
+            throw ValidationException::withMessages(['placement' => $requireConfirmation
+                ? 'Finalization requires the current confirmed proposal and its protected classes.'
+                : 'Preparation requires the current proposal and its protected classes.']);
         }
 
         $timetableQuery = PublishedTimetableVersion::query()

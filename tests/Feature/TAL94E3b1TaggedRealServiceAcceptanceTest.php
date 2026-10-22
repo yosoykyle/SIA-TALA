@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
@@ -16,8 +15,10 @@ use App\Filament\Student\Pages\ScheduleView;
 use App\Mail\ScheduleReleasedMail;
 use App\Models\CalendarEvent;
 use App\Models\CandidateScheduleRow;
+use App\Models\CorVersion;
 use App\Models\Course;
 use App\Models\CourseComponent;
+use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
@@ -32,7 +33,6 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -150,14 +150,19 @@ final class TAL94E3b1TaggedRealServiceAcceptanceTest extends TestCase
         ])->save();
         $student->assignRole('student');
 
-        $placement = app(EnrollmentPlacementService::class)->confirm($enrollment, $source['section']->id, $registrar);
-        $bindings = StudentScheduleBinding::query()
-            ->where('course_enrollment_id', $placement['course_enrollment']->id)
-            ->where('is_active', true)
-            ->get();
-
-        $this->assertSame(2, $placement['bindings']);
-        $this->assertCount(2, $bindings);
+        $timetableId = $published->timetableVersions()->value('id');
+        CourseEnrollment::factory()->create([
+            'enrollment_id' => $enrollment->id, 'term_offering_id' => $source['section']->term_offering_id,
+            'section_id' => $source['section']->id, 'published_timetable_version_id' => $timetableId,
+            'is_current' => true, 'status' => CourseEnrollment::StatusActive,
+        ]);
+        $cor = CorVersion::factory()->create([
+            'enrollment_id' => $enrollment->id, 'published_timetable_version_id' => $timetableId,
+            'issued_by' => $registrar->id,
+            'snapshot' => ['source' => 'synthetic-schedule-projection-prerequisite', 'courses' => [], 'fees' => []],
+        ]);
+        $enrollment->update(['status' => 'officially_enrolled', 'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'current_cor_version_id' => $cor->id, 'officially_enrolled_at' => now()]);
 
         Livewire::actingAs($superAdmin)
             ->test(SystemHealth::class)
@@ -175,10 +180,10 @@ final class TAL94E3b1TaggedRealServiceAcceptanceTest extends TestCase
             ->test(FacultySchedule::class)
             ->assertOk()
             ->assertCanSeeTableRecords($meetings);
-        Livewire::actingAs($student)
-            ->test(ScheduleView::class)
-            ->assertOk()
-            ->assertCanSeeTableRecords($bindings);
+        $studentSchedule = Livewire::actingAs($student)->test(ScheduleView::class)->assertOk();
+        $studentRows = $studentSchedule->viewData('scheduleRows');
+        $this->assertCount(2, $studentRows);
+        $this->assertEqualsCanonicalizing([$source['section']->id], array_values(array_unique(array_column($studentRows, 'section_id'))));
 
         $rejected = $this->schedulingSource('rejected', $faculty);
         $rejectedSummary = app(GenerateSchedulingDemand::class)->forTerm($registrar, $rejected['term']);

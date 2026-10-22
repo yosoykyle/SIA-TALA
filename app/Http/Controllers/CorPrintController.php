@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Cor\BuildCorOutput;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Student\Pages\CorView;
 use App\Models\CorVersion;
 use App\Models\Enrollment;
 use App\Models\User;
@@ -41,6 +43,10 @@ class CorPrintController extends Controller
 
         return view('cor.print', [
             'cor' => $cor,
+            'backUrl' => $actor->hasRole(User::StaffRoleRegistrar)
+                ? EnrollmentResource::getUrl('view', ['record' => $enrollment])
+                : CorView::getUrl(panel: 'student'),
+            'backLabel' => $actor->hasRole(User::StaffRoleRegistrar) ? 'Back to enrollment' : 'Back to registration',
         ]);
     }
 }

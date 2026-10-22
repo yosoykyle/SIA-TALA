@@ -18,6 +18,7 @@ use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
+use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -49,6 +50,16 @@ class StudentPanelProvider extends PanelProvider
             ->emailVerification()
             ->emailChangeVerification()
             ->profile(AccountSecurity::class, isSimple: false)
+            ->userMenuItems([
+                'profile' => fn (Action $action): Action => $action
+                    ->label('My profile')
+                    ->icon('heroicon-o-user')
+                    ->url(fn (): string => Profile::getUrl(panel: 'student')),
+                Action::make('accountSecurity')
+                    ->label('Password and security')
+                    ->icon('heroicon-o-shield-check')
+                    ->url(fn (): string => AccountSecurity::getUrl(panel: 'student')),
+            ])
             ->multiFactorAuthentication(
                 TalaAppAuthentication::make()->recoverable(),
                 isRequired: true,
@@ -79,14 +90,10 @@ class StudentPanelProvider extends PanelProvider
                 Profile::class,
             ])
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $builder->items([
-                $this->navigationItem(Dashboard::class, 'Home'),
+                $this->navigationItem(Dashboard::class, 'Overview'),
                 $this->navigationItem(Enrollment::class, 'Enrollment'),
                 $this->navigationItem(Academics::class, 'Academics'),
-                $this->navigationItem(Finance::class, 'Finance'),
-                NavigationItem::make('Profile')
-                    ->icon('heroicon-o-user')
-                    ->url(fn (): string => Profile::getUrl())
-                    ->isActiveWhen(fn (): bool => request()->routeIs(Profile::getRouteName())),
+                $this->navigationItem(Finance::class, 'Fees and payments'),
             ]))
             ->discoverWidgets(in: app_path('Filament/Student/Widgets'), for: 'App\Filament\Student\Widgets')
             ->widgets([

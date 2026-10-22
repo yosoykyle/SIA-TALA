@@ -46,6 +46,8 @@ class Term extends Model
         'scheduling_day_starts_at',
         'scheduling_day_ends_at',
         'default_max_units',
+        'registration_applicability',
+        'registration_applicability_authority',
     ];
 
     /**

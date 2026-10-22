@@ -2,29 +2,20 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Actions\Finance\ReversePaymentPosting;
 use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\Integrations\Payments\PayMongoReconciliationService;
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Models\Assessment;
 use App\Models\AssessmentObligation;
-use App\Models\CourseEnrollment;
-use App\Models\CourseSpecification;
-use App\Models\CurriculumEntry;
-use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
-use App\Models\FeeRule;
 use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentAttempt;
-use App\Models\Program;
 use App\Models\StudentProfile;
-use App\Models\Term;
 use App\Models\TermAccount;
-use App\Models\TermOffering;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
@@ -38,8 +29,6 @@ use Tests\TestCase;
 final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 {
     use DatabaseTransactions;
-
-    private EnrollmentAssessmentService $assessments;
 
     private int $ledgerEntryIdBoundary;
 
@@ -55,7 +44,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertStringStartsWith('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
 
         $this->ledgerEntryIdBoundary = (int) (LedgerEntry::query()->max('id') ?? 0);
@@ -72,7 +61,6 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
 
-        $this->assessments = app(EnrollmentAssessmentService::class);
     }
 
     public function test_verified_paymongo_webhook_creates_payment_evidence_and_posts_one_ledger_payment(): void
@@ -429,6 +417,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
             $accounting,
             'SYNTH-PAYMONGO-REFUND-0001',
             'Provider refund evidence was verified by Accounting.',
+            'SYN-EXTERNAL-REFUND-TAL69', '1000.00', now(),
         );
         $resolution = app(PayMongoReconciliationService::class)->recordRefundReversal(
             $refundEvent->id,
@@ -481,46 +470,36 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
     private function activeAssessment(): Assessment
     {
         $accounting = $this->staff(User::StaffRoleAccounting);
-        $enrollment = $this->placedEnrollmentWithCourseUnits([3.00, 2.00]);
-        $this->configureMvpFeeRules($enrollment);
-        $assessment = $this->assessments->generateDraft($enrollment, $accounting, CarbonImmutable::parse('2026-06-10'));
-        $assessment = $this->assessments->activate($assessment, $accounting, CarbonImmutable::parse('2026-06-11 09:00:00'));
+        $enrollment = Enrollment::factory()->create(['status' => 'pending_payment']);
         $account = TermAccount::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'credential_user_id' => $enrollment->credential_user_id,
-            'term_id' => $enrollment->term_id,
-            'state' => TermAccount::StateOpen,
+            'enrollment_id' => $enrollment->id, 'credential_user_id' => $enrollment->credential_user_id,
+            'term_id' => $enrollment->term_id, 'state' => TermAccount::StateOpen,
         ]);
-        $assessment->update(['term_account_id' => $account->id]);
-        $required = (string) $assessment->required_downpayment;
+        $assessment = Assessment::factory()->create([
+            'enrollment_id' => $enrollment->id, 'term_account_id' => $account->id,
+            'subtotal' => '5800.00', 'total' => '5800.00', 'required_downpayment' => '0.00',
+            'assessment_basis' => 'AuthorizedIndividualAssessment',
+            'authority_reference' => 'SYN-FIXED-PAYMONGO-TEST-ASSESSMENT', 'authority_date' => now()->toDateString(),
+            'source_snapshot' => ['source' => 'synthetic-fixed-payment-ledger-fixture', 'fixed_total' => '5800.00'],
+            'activated_by' => $accounting->id,
+        ]);
         AssessmentObligation::query()->create([
-            'assessment_id' => $assessment->id,
-            'code' => 'CURRENT_DUE',
-            'label' => 'Current enrollment payment',
-            'amount' => $required,
-            'due_at' => now()->subMinute(),
-            'required_for_enrollment' => true,
+            'assessment_id' => $assessment->id, 'sequence' => 1, 'code' => 'CURRENT_DUE', 'purpose' => 'Enrollment',
+            'label' => 'Current enrollment payment', 'amount' => '1500.00',
+            'due_at' => now()->subMinute(), 'required_for_enrollment' => true,
         ]);
-        $remaining = app(DecimalMoney::class)->subtract((string) $assessment->total, $required);
-        if (app(DecimalMoney::class)->greaterThanZero($remaining)) {
-            AssessmentObligation::query()->create([
-                'assessment_id' => $assessment->id,
-                'code' => 'LATER_BALANCE',
-                'label' => 'Later enrollment balance',
-                'amount' => $remaining,
-                'due_at' => now()->addMonth(),
-                'required_for_enrollment' => false,
-            ]);
-        }
-
-        $assessment->update([
-            'content_hash' => hash('sha256', json_encode(
-                [
-                    'assessment_id' => $assessment->id,
-                    'obligations' => $assessment->obligations()->orderBy('id')->get(['code', 'amount', 'due_at'])->toArray(),
-                ],
-                JSON_THROW_ON_ERROR,
-            )),
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id, 'sequence' => 2, 'code' => 'LATER_BALANCE', 'purpose' => 'Later',
+            'label' => 'Later enrollment balance', 'amount' => '4300.00',
+            'due_at' => now()->addMonth(), 'required_for_enrollment' => false,
+        ]);
+        LedgerEntry::factory()->create([
+            'student_profile_id' => $enrollment->student_profile_id, 'term_id' => $enrollment->term_id,
+            'enrollment_id' => $enrollment->id, 'direction' => LedgerEntry::DirectionCharge,
+            'category' => 'fixed-assessment-history', 'amount' => '5800.00',
+            'source_type' => Assessment::class, 'source_id' => $assessment->id,
+            'description' => 'Synthetic retained fixed assessment charge', 'posted_by' => $accounting->id,
+            'posted_at' => now()->subDay(), 'state' => 'posted',
         ]);
 
         return $assessment->refresh();
@@ -529,6 +508,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
     private function paymentAttempt(Assessment $assessment, string $amount, string $checkoutSessionId): PaymentAttempt
     {
         $assessment->obligations()->where('code', 'CURRENT_DUE')->update(['amount' => $amount]);
+        $assessment->obligations()->where('code', 'LATER_BALANCE')->update(['amount' => app(DecimalMoney::class)->subtract('5800.00', $amount)]);
         $assessment->update([
             'content_hash' => hash('sha256', json_encode(
                 [
@@ -672,93 +652,6 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         );
 
         return $webhookCallId;
-    }
-
-    /**
-     * @param  list<float>  $units
-     */
-    private function placedEnrollmentWithCourseUnits(array $units): Enrollment
-    {
-        $term = Term::factory()->create([
-            'starts_on' => '2026-08-01',
-        ]);
-        $program = Program::factory()->create();
-        $curriculum = CurriculumVersion::factory()->for($program)->create([
-            'state' => CurriculumVersion::StateActive,
-        ]);
-        $studentProfile = StudentProfile::factory()->for($program)->create([
-            'curriculum_version_id' => $curriculum->id,
-        ]);
-        $enrollment = Enrollment::factory()
-            ->for($studentProfile)
-            ->for($term)
-            ->create(['status' => 'pending_payment']);
-
-        foreach ($units as $unit) {
-            $specification = CourseSpecification::factory()->create([
-                'credit_units' => $unit,
-                'state' => CourseSpecification::StateActive,
-            ]);
-            $entry = CurriculumEntry::factory()
-                ->for($curriculum)
-                ->for($specification, 'courseSpecification')
-                ->create();
-            $offering = TermOffering::factory()
-                ->for($term)
-                ->for($entry, 'curriculumEntry')
-                ->create([
-                    'state' => TermOffering::StateScheduled,
-                ]);
-
-            CourseEnrollment::query()->create([
-                'enrollment_id' => $enrollment->id,
-                'term_offering_id' => $offering->id,
-                'status' => CourseEnrollment::StatusActive,
-                'units_snapshot' => number_format($unit, 2, '.', ''),
-                'added_at' => now(),
-            ]);
-        }
-
-        return $enrollment->refresh();
-    }
-
-    private function configureMvpFeeRules(Enrollment $enrollment): void
-    {
-        $programId = $enrollment->studentProfile->program_id;
-        $termId = $enrollment->term_id;
-
-        $this->feeRule('TUITION', FeeRule::DisplayCategoryTuition, FeeRule::CalculationPerUnit, rate: '900.00');
-        $this->feeRule('LAB', FeeRule::DisplayCategoryLaboratory, FeeRule::CalculationFixed, amount: '300.00', programId: $programId, termId: $termId);
-        $this->feeRule('MISC', FeeRule::DisplayCategoryMiscellaneous, FeeRule::CalculationFixed, amount: '650.00', programId: $programId, termId: $termId);
-        $this->feeRule('OTHER', FeeRule::DisplayCategoryOther, FeeRule::CalculationFixed, amount: '250.00', termId: $termId);
-        $this->feeRule('REG', FeeRule::DisplayCategoryRegistration, FeeRule::CalculationFixed, amount: '100.00', programId: $programId);
-        $this->feeRule('DOWNPAYMENT', FeeRule::DisplayCategoryDownpayment, FeeRule::CalculationFixed, amount: '1500.00', programId: $programId, termId: $termId);
-    }
-
-    private function feeRule(
-        string $code,
-        string $displayCategory,
-        string $calculationType,
-        ?string $amount = null,
-        ?string $rate = null,
-        ?int $programId = null,
-        ?int $termId = null,
-    ): FeeRule {
-        return FeeRule::query()->create([
-            'code' => $code,
-            'name' => str($displayCategory)->headline()->toString(),
-            'ledger_category' => $displayCategory === FeeRule::DisplayCategoryDownpayment ? FeeRule::LedgerCategoryDownpayment : FeeRule::LedgerCategoryCharge,
-            'display_category' => $displayCategory,
-            'program_id' => $programId,
-            'term_id' => $termId,
-            'calculation_type' => $calculationType,
-            'amount' => $amount,
-            'rate' => $rate,
-            'effective_from' => '2026-06-01',
-            'effective_until' => null,
-            'is_active' => true,
-            'authority' => 'TAL-69 payment evidence test fee matrix',
-        ]);
     }
 
     private function staff(string $role): User

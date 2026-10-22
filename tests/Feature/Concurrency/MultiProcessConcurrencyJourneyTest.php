@@ -11,9 +11,6 @@ use App\Actions\Completion\RecordTranscriptRequest;
 use App\Actions\Completion\SubmitGraduationApplication;
 use App\Actions\Completion\TranscriptLifecycleProjection;
 use App\Actions\Completion\VoidTranscript;
-use App\Actions\Enrollment\ConfirmRegistrationIdentity;
-use App\Actions\Enrollment\ConfirmRegistrationProposal;
-use App\Actions\Enrollment\IssueRegistrationProposal;
 use App\Actions\Enrollment\PrepareRegistrationProposal;
 use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Finance\RecordOfficialOutputPaymentClearance;
@@ -30,6 +27,9 @@ use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationSubmissionVersion;
+use App\Models\ApprovedCoverage;
+use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CompletionReadinessVersion;
 use App\Models\Course;
@@ -44,6 +44,8 @@ use App\Models\GradeOutcomeEvent;
 use App\Models\IncCompletionSubmission;
 use App\Models\IncDeadlineAmendment;
 use App\Models\OfficialOutputPaymentClearance;
+use App\Models\Payment;
+use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\PublishedTimetableMeeting;
@@ -54,6 +56,7 @@ use App\Models\Section;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
@@ -116,6 +119,15 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         'registration_proposal_versions',
         'registration_proposal_items',
         'registration_proposal_confirmations',
+        'term_accounts',
+        'assessments',
+        'assessment_lines',
+        'assessment_obligations',
+        'assessment_effect_revalidations',
+        'approved_coverages',
+        'payment_evidence_versions',
+        'payments',
+        'payment_allocations',
         'enrollment_seat_reservations',
         'course_enrollments',
         'student_lifecycle_changes',
@@ -141,7 +153,7 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
     {
         parent::setUp();
 
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
 
         config([
             'institution.address' => 'Synthetic Servitech Campus, Philippines',
@@ -249,6 +261,11 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         ]);
         $this->registerCleanup(fn () => $section->forceDelete());
 
+        $app1 = $this->createReadyApplicant($term, $program);
+        $case1 = app(StartRegistrationCase::class)->forReadyApplicant($app1, $term, $app1->user);
+        $app2 = $this->createReadyApplicant($term, $program);
+        $case2 = app(StartRegistrationCase::class)->forReadyApplicant($app2, $term, $app2->user);
+
         $timetable = PublishedTimetableVersion::factory()->create([
             'term_id' => $term->id,
             'state' => PublishedTimetableVersion::StatePublished,
@@ -279,24 +296,10 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         ]);
         $this->registerCleanup(fn () => $meeting->forceDelete());
 
-        // Setup Applicant 1 and confirmed proposal
-        $app1 = $this->createReadyApplicant($term, $program);
-        $case1 = app(StartRegistrationCase::class)->forReadyApplicant($app1, $term, $app1->user);
         $this->registerCleanup(fn () => $this->cleanupRegistrationCase($case1));
-        app(ConfirmRegistrationIdentity::class)->execute($case1, $app1->user);
-        $proposal1 = app(PrepareRegistrationProposal::class)->execute($case1, $registrar, [$section->id], $case1->lock_version);
-        app(IssueRegistrationProposal::class)->execute($proposal1, $registrar);
-        $proposal1 = app(ConfirmRegistrationProposal::class)->execute($proposal1->fresh(), $app1->user);
-
-        // Setup Applicant 2 and confirmed proposal for the SAME section
-        $app2 = $this->createReadyApplicant($term, $program);
-        $case2 = app(StartRegistrationCase::class)->forReadyApplicant($app2, $term, $app2->user);
         $this->registerCleanup(fn () => $this->cleanupRegistrationCase($case2));
-        app(ConfirmRegistrationIdentity::class)->execute($case2, $app2->user);
+        $proposal1 = app(PrepareRegistrationProposal::class)->execute($case1, $registrar, [$section->id], $case1->lock_version);
         $proposal2 = app(PrepareRegistrationProposal::class)->execute($case2, $registrar, [$section->id], $case2->lock_version);
-        app(IssueRegistrationProposal::class)->execute($proposal2, $registrar);
-        $proposal2 = app(ConfirmRegistrationProposal::class)->execute($proposal2->fresh(), $app2->user);
-
         $this->assertSame(0, EnrollmentSeatReservation::query()->where('section_id', $section->id)->count());
 
         // Execute genuine competing multi-process race
@@ -1142,6 +1145,55 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $this->assertSame(0, TranscriptIssuanceEvent::query()->where('transcript_request_id', $request->id)->count());
     }
 
+    public function test_concurrent_cross_account_receipt_claims_and_payment_coverage_cannot_double_apply_money(): void
+    {
+        $accounting = $this->createStaffUser(User::StaffRoleAccounting);
+        $term = $this->createUniqueTerm();
+        $accounts = [];
+        $evidence = [];
+        foreach ([1, 2] as $number) {
+            $learner = $this->createStaffUser('applicant');
+            $enrollment = Enrollment::factory()->create(['student_profile_id' => null, 'credential_user_id' => $learner->id, 'term_id' => $term->id]);
+            $account = TermAccount::factory()->create(['enrollment_id' => $enrollment->id, 'credential_user_id' => $learner->id, 'term_id' => $term->id]);
+            $assessment = Assessment::factory()->create(['enrollment_id' => $enrollment->id, 'term_account_id' => $account->id, 'total' => '1000.00', 'subtotal' => '1000.00']);
+            $obligation = AssessmentObligation::factory()->create(['assessment_id' => $assessment->id, 'amount' => '1000.00', 'due_at' => now()->subDay(), 'required_for_enrollment' => true]);
+            $evidence[] = PaymentEvidenceVersion::factory()->create(['term_account_id' => $account->id, 'assessment_id' => $assessment->id, 'obligation_snapshot' => [['id' => $obligation->id]], 'checksum' => hash('sha256', 'synthetic-shared-receipt'), 'claimed_amount' => '1000.00', 'channel' => 'bank_transfer', 'payment_reference' => null, 'paid_at' => now()->subMinute(), 'submitted_by' => $learner->id]);
+            $accounts[] = $account;
+        }
+        $accountIds = collect($accounts)->pluck('id');
+        $this->registerCleanup(function () use ($accountIds): void {
+            $paymentIds = DB::table('payments')->whereIn('term_account_id', $accountIds)->pluck('id');
+            $assessmentIds = DB::table('assessments')->whereIn('term_account_id', $accountIds)->pluck('id');
+            $enrollmentIds = DB::table('term_accounts')->whereIn('id', $accountIds)->pluck('enrollment_id');
+            DB::table('payment_allocations')->whereIn('payment_id', $paymentIds)->delete();
+            DB::table('approved_coverages')->whereIn('term_account_id', $accountIds)->delete();
+            DB::table('payments')->whereIn('id', $paymentIds)->delete();
+            DB::table('payment_evidence_versions')->whereIn('term_account_id', $accountIds)->update(['supersedes_version_id' => null]);
+            DB::table('payment_evidence_versions')->whereIn('term_account_id', $accountIds)->delete();
+            DB::table('assessment_obligations')->whereIn('assessment_id', $assessmentIds)->delete();
+            DB::table('assessments')->whereIn('id', $assessmentIds)->delete();
+            DB::table('term_accounts')->whereIn('id', $accountIds)->delete();
+            DB::table('enrollments')->whereIn('id', $enrollmentIds)->delete();
+        });
+        $results = $this->runConcurrentWorkers('manual_payment',
+            ['evidence_id' => $evidence[0]->id, 'accounting_id' => $accounting->id, 'amount' => '1000.00', 'check_reference' => 'SYN-CROSS-CHECK-A'],
+            ['evidence_id' => $evidence[1]->id, 'accounting_id' => $accounting->id, 'amount' => '1000.00', 'check_reference' => 'SYN-CROSS-CHECK-B']);
+        $this->assertSame(1, collect([$results['worker_a'], $results['worker_b']])->where('success', true)->count(), json_encode($results));
+        $this->assertSame(1, Payment::query()->whereIn('term_account_id', $accountIds)->count());
+        $this->assertSame(1, PaymentEvidenceVersion::query()->whereIn('term_account_id', $accountIds)->where('state', PaymentEvidenceVersion::StateVerified)->count());
+
+        $unpaid = collect($accounts)->first(fn (TermAccount $account): bool => ! $account->payments()->exists());
+        $previous = $unpaid->paymentEvidenceVersions()->sole();
+        $pending = PaymentEvidenceVersion::factory()->create(['term_account_id' => $unpaid->id, 'assessment_id' => $previous->assessment_id, 'obligation_snapshot' => $previous->obligation_snapshot, 'supersedes_version_id' => $previous->id, 'version' => 2, 'checksum' => hash('sha256', 'synthetic-distinct-receipt'), 'claimed_amount' => '600.00', 'channel' => 'bank_transfer', 'payment_reference' => null, 'paid_at' => now()->subMinute(), 'submitted_by' => $unpaid->credential_user_id]);
+        $obligation = $unpaid->assessments()->sole()->obligations()->sole();
+        $results = $this->runConcurrentWorkers('manual_payment',
+            ['evidence_id' => $pending->id, 'accounting_id' => $accounting->id, 'amount' => '600.00', 'check_reference' => 'SYN-COVERAGE-RACE-PAYMENT'],
+            ['account_id' => $unpaid->id, 'obligation_id' => $obligation->id, 'accounting_id' => $accounting->id, 'coverage' => ['category' => ApprovedCoverage::CategoryScholarship, 'safe_source_description' => 'Synthetic external approval', 'authority_reference' => 'SYN-COVERAGE-RACE', 'authority_date' => today()->toDateString(), 'effective_date' => today()->toDateString(), 'amount' => '600.00']],
+            'approved_coverage');
+        $this->assertSame(1, collect([$results['worker_a'], $results['worker_b']])->where('success', true)->count(), json_encode($results));
+        $this->assertSame(600.0, (float) $unpaid->payments()->sum('amount') + (float) $unpaid->coverages()->sum('amount'));
+    }
+
     /**
      * @return array{worker_a: ?array, worker_b: ?array, raw_a: string, raw_b: string}
      */
@@ -1182,6 +1234,9 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
             '--ready='.$readyFileB,
         ], base_path());
 
+        $environment = ['TALA_TEST_DATABASE' => DB::connection()->getDatabaseName(), 'DB_DATABASE' => DB::connection()->getDatabaseName()];
+        $processA->setEnv($environment);
+        $processB->setEnv($environment);
         $processA->start();
         $processB->start();
 

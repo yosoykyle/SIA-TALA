@@ -63,6 +63,21 @@
         "name": "navigation-depth-dark",
         "value": "inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(0 0 0 / 22%), 0 1px 2px rgb(0 0 0 / 20%)",
         "purpose": "Extracted shallow skeuomorphic Aqua-like buttons navigation depth."
+      },
+      {
+        "name": "control-depth-light",
+        "value": "inset 0 1px 0 rgb(255 255 255 / 55%), inset 0 -1px 0 rgb(0 0 0 / 7%), 0 1px 1px rgb(0 0 0 / 4.5%)",
+        "purpose": "Shared shallow tactile control; retain native focus and semantic states."
+      },
+      {
+        "name": "control-depth-dark",
+        "value": "inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 -1px 0 rgb(0 0 0 / 16%), 0 1px 2px rgb(0 0 0 / 14%)",
+        "purpose": "Shared shallow tactile control; retain native focus and semantic states."
+      },
+      {
+        "name": "control-pressed",
+        "value": "inset 0 1px 2px rgb(0 0 0 / 14%)",
+        "purpose": "Shared shallow tactile control; retain native focus and semantic states."
       }
     ],
     "motion": [
@@ -105,7 +120,7 @@
       "refersTo": "button-primary",
       "description": "Full skeuomorphic Aqua-like buttons variant; native semantic color, state and focus remain authoritative.",
       "html": "<button class=\"ds-action\">Save changes</button>",
-      "css": ".ds-action{background:var(--tala-brand);color:var(--tala-on-brand);background-image:var(--tala-control-gloss);border:1px solid transparent;border-radius:8px;padding:8px 16px;min-height:44px;font:600 14px var(--tala-font-body);box-shadow:var(--tala-control-depth)}.ds-action:hover{background-color:var(--tala-brand-strong)}.ds-action:active{background-image:none;box-shadow:var(--tala-control-pressed)}.ds-action:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+      "css": ".ds-action{background:var(--tala-brand-strong);color:var(--tala-on-brand);background-image:var(--tala-control-gloss);border:1px solid transparent;border-radius:8px;padding:8px 16px;min-height:44px;font:600 14px var(--tala-font-body);box-shadow:var(--tala-control-depth)}.ds-action:hover{background-color:var(--tala-brand-strong)}.ds-action:active{background-image:none;box-shadow:var(--tala-control-pressed)}.ds-action:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
     },
     {
       "name": "Editable field",

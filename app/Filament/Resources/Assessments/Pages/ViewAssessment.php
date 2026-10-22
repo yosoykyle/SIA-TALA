@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Assessments\Pages;
 
-use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Actions\Finance\PaymentAllocationService;
 use App\Actions\Finance\PaymentConfirmationService;
 use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
@@ -131,27 +130,6 @@ class ViewAssessment extends ViewRecord
                             ->send();
                     }
                 }),
-            Action::make('activateAssessment')
-                ->label('Activate Assessment')
-                ->icon(Heroicon::OutlinedCheckCircle)
-                ->color('success')
-                ->requiresConfirmation()
-                ->visible(fn (): bool => $this->canActivate())
-                ->action(function (): void {
-                    $actor = auth()->user();
-                    $assessment = $this->getRecord();
-
-                    if (! $actor instanceof User || ! $assessment instanceof Assessment) {
-                        abort(403);
-                    }
-
-                    $this->record = app(EnrollmentAssessmentService::class)->activate($assessment, $actor);
-
-                    Notification::make()
-                        ->title('Assessment activated')
-                        ->success()
-                        ->send();
-                }),
             ActionGroup::make([
                 Action::make('openAccountActivity')
                     ->label('Account Activity')
@@ -191,17 +169,6 @@ class ViewAssessment extends ViewRecord
         return $assessment instanceof Assessment
             ? (string) $assessment->enrollment?->studentProfile?->student_number
             : '';
-    }
-
-    private function canActivate(): bool
-    {
-        $user = auth()->user();
-        $assessment = $this->getRecord();
-
-        return $user instanceof User
-            && $assessment instanceof Assessment
-            && $assessment->state === Assessment::StateDraft
-            && $user->can('activate', $assessment);
     }
 
     private function canRecordManualPayment(): bool

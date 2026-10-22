@@ -10,19 +10,18 @@ use App\Actions\Academics\ExaminationPeriodProjection;
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Academics\TermWeightedAverageProjection;
 use App\Actions\Completion\CompletionReadinessProjection;
-use App\Actions\Completion\SubmitGraduationApplication;
-use App\Actions\Completion\WithdrawGraduationApplication;
-use App\Models\Enrollment;
+use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
+use App\Actions\StudentHub\StudentStudyContext;
+use App\Models\CourseEnrollment;
+use App\Models\CourseRequirement;
 use App\Models\ExternalCompetencyResult;
-use App\Models\GraduationApplication;
 use App\Models\OperationalEvent;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Throwable;
+use Livewire\Attributes\Url;
 
 class Academics extends Page
 {
@@ -30,114 +29,136 @@ class Academics extends Page
 
     protected static ?string $navigationLabel = 'Academics';
 
-    protected static ?string $title = 'Student Academics';
+    protected static ?string $title = 'Academics';
 
     protected string $view = 'filament.student.pages.academics';
+
+    #[Url(as: 'view', except: 'current', history: true)]
+    public string $academicView = 'current';
+
+    public function getTitle(): string
+    {
+        return match ($this->academicView) {
+            'plan' => 'Study plan',
+            'record' => 'Academic record',
+            'graduation' => 'Graduation records',
+            default => 'Academics',
+        };
+    }
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return $this->academicView === 'current' ? [Dashboard::getUrl(panel: 'student') => 'Overview', 'Academics'] : [
+            Dashboard::getUrl(panel: 'student') => 'Overview',
+            static::getUrl(panel: 'student') => 'Academics',
+            ...($this->academicView === 'graduation' ? [static::getUrl(['view' => 'record'], panel: 'student') => 'Academic record'] : []),
+            $this->getTitle(),
+        ];
+    }
+
+    /** @return list<Action> */
+    protected function getHeaderActions(): array
+    {
+        if ($this->academicView === 'record') {
+            $student = $this->actor()->studentProfile;
+
+            return [
+                Action::make('unofficialRecord')->label('Unofficial record')->icon('heroicon-o-printer')->color('gray')
+                    ->url($student ? route('student-academics.unofficial-record', $student) : null)->openUrlInNewTab()
+                    ->visible($student instanceof StudentProfile && app(OfficialCourseResultProjection::class)->forStudent($student)->whereNotNull('event')->isNotEmpty()),
+                Action::make('graduation')->label('Graduation records')->color('gray')
+                    ->url(static::getUrl(['view' => 'graduation'], panel: 'student'))
+                    ->visible($this->hasGraduationHistory()),
+            ];
+        }
+
+        return $this->academicView === 'current' ? [
+            Action::make('academicRecord')->label('Academic record')->icon('heroicon-o-document-text')->color('gray')
+                ->url(static::getUrl(['view' => 'record'], panel: 'student')),
+        ] : [];
+    }
 
     public static function canAccess(): bool
     {
         return auth()->user()?->hasRole('student') ?? false;
     }
 
-    /** @return list<Action> */
-    protected function getHeaderActions(): array
+    public function resendCompletionUpdateAction(): Action
     {
-        $student = auth()->user()?->studentProfile;
-        if (! $student instanceof StudentProfile) {
-            return [];
-        }
-        $projection = app(CompletionReadinessProjection::class)->forStudent($student);
-        $application = $projection['application'];
-
-        return [
-            Action::make('resendCompletionUpdate')
-                ->label('Resend failed completion update')
-                ->icon('heroicon-o-paper-airplane')
-                ->color('warning')
-                ->requiresConfirmation()
-                ->modalDescription('This retries only the failed completion email. Your application, readiness, conferral, and academic record will not change.')
-                ->visible($this->failedCompletionNotification() instanceof OperationalEvent)
-                ->action(function (): void {
-                    $event = $this->failedCompletionNotification();
-                    if (! $event instanceof OperationalEvent) {
-                        return;
-                    }
-                    app(AcademicRecordNotificationService::class)->resend($event, $this->actor());
-                    Notification::make()->title('Completion update queued again')->success()->send();
-                }),
-            Action::make('applyForGraduation')
-                ->label('Apply for graduation')
-                ->icon('heroicon-o-academic-cap')
-                ->color('primary')
-                ->requiresConfirmation()
-                ->modalDescription('This records your completion intent. Registrar still verifies every requirement before conferral.')
-                ->visible($projection['state'] === CompletionReadinessProjection::EligibleToApply)
-                ->action(function () use ($student): void {
-                    try {
-                        app(SubmitGraduationApplication::class)->execute($student, $this->actor());
-                        Notification::make()->title('Graduation application recorded')->success()->send();
-                    } catch (Throwable $exception) {
-                        report($exception);
-                        Notification::make()->title('Application was not recorded')->body('Refresh completion readiness and follow the named recovery step before retrying.')->danger()->send();
-                    }
-                }),
-            Action::make('withdrawGraduationApplication')
-                ->label('Withdraw graduation application')
-                ->icon('heroicon-o-x-circle')
-                ->color('gray')
-                ->requiresConfirmation()
-                ->schema([Textarea::make('reason')->required()->maxLength(1000)])
-                ->visible($application instanceof GraduationApplication)
-                ->action(function (array $data) use ($application): void {
-                    if (! $application instanceof GraduationApplication) {
-                        return;
-                    }
-                    app(WithdrawGraduationApplication::class)->execute($application, $this->actor(), (string) $data['reason']);
-                    Notification::make()->title('Graduation application withdrawn')->success()->send();
-                }),
-        ];
+        return Action::make('resendCompletionUpdate')
+            ->label('Resend failed completion update')
+            ->icon('heroicon-o-paper-airplane')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalDescription('This retries only the failed completion email. Your application, readiness, conferral, and academic record will not change.')
+            ->visible($this->failedCompletionNotification() instanceof OperationalEvent)
+            ->action(function (): void {
+                $event = $this->failedCompletionNotification();
+                if (! $event instanceof OperationalEvent) {
+                    return;
+                }
+                app(AcademicRecordNotificationService::class)->resend($event, $this->actor());
+                Notification::make()->title('Completion update queued again')->success()->send();
+            });
     }
 
     /** @return array<string, mixed> */
     protected function getViewData(): array
     {
+        abort_unless(in_array($this->academicView, ['current', 'plan', 'record', 'graduation'], true), 404);
         $student = auth()->user()?->studentProfile;
 
         if (! $student instanceof StudentProfile) {
             return ['student' => null];
         }
+        abort_if($this->academicView === 'graduation' && ! $this->hasGraduationHistory(), 404);
 
         $results = app(OfficialCourseResultProjection::class)->forStudent($student);
         $terms = $results->pluck('term')->filter()->unique('id')->sortByDesc('ends_on')->values();
-        $currentTerm = Enrollment::query()
-            ->where('student_profile_id', $student->id)
-            ->with('term')
-            ->latest('id')
-            ->first()?->term;
-        $examinationTerm = $currentTerm ?? $terms->first();
+        $currentEnrollment = app(CurrentOfficialEnrollmentResolver::class)->forProfile($student);
+        $currentResults = $results->filter(fn (array $result): bool => $currentEnrollment !== null
+            && (int) $result['course_enrollment']->enrollment_id === (int) $currentEnrollment->id
+            && $result['course_enrollment']->is_current
+            && $result['course_enrollment']->status === CourseEnrollment::StatusActive);
+        $historicalResults = $results->except($currentResults->keys()->all());
+        $examinationTerm = $currentEnrollment?->term ?? $terms->first();
         $termAverages = $terms->mapWithKeys(fn ($term): array => [
             $term->id => app(TermWeightedAverageProjection::class)->forStudentAndTerm($student, $term),
         ]);
 
         $completion = app(CompletionReadinessProjection::class)->forStudent($student);
+        $curriculum = app(CurriculumEvaluation::class)->forStudent($student);
 
         return [
             'student' => $student,
+            'studyContext' => app(StudentStudyContext::class)->forStudent($this->actor()),
             'results' => $results,
-            'terms' => $terms,
+            'recordTerms' => $terms,
+            'currentResults' => $currentResults,
+            'currentUnits' => $currentResults->sum(fn (array $result): float => (float) $result['units']),
+            'currentAverage' => $currentEnrollment !== null ? $termAverages->get($currentEnrollment->term_id) : null,
+            'historicalResults' => $historicalResults,
             'termAverages' => $termAverages,
             'examinationPeriod' => app(ExaminationPeriodProjection::class)->forTerm($examinationTerm),
             'cumulative' => app(CumulativeGwaProjection::class)->forStudent($student),
-            'curriculum' => app(CurriculumEvaluation::class)->forStudent($student),
+            'curriculum' => $curriculum,
+            'curriculumGroups' => collect($curriculum['required'])->groupBy('curriculum_entry.year_level')
+                ->map(fn ($rows) => $rows->groupBy('curriculum_entry.term_label')),
+            'planRequirements' => collect($curriculum['required'])->mapWithKeys(fn (array $row): array => [
+                $row['curriculum_entry']->id => $row['curriculum_entry']->courseSpecification?->requirements
+                    ->filter(fn (CourseRequirement $requirement): bool => $requirement->state === CourseRequirement::StateActive
+                        && in_array($requirement->rule_type, [CourseRequirement::TypePrerequisite, CourseRequirement::TypeCorequisite], true)
+                        && ($requirement->effective_from === null || $requirement->effective_from->lte(today()))
+                        && ($requirement->effective_until === null || $requirement->effective_until->gte(today()))),
+            ]),
             'effect' => app(AcademicEnrollmentEffect::class)->forStudent($student),
             'competencyResults' => ExternalCompetencyResult::query()
                 ->where('student_profile_id', $student->id)
                 ->with('requirement')
                 ->latest('recorded_at')->get(),
             'lifecycleChanges' => $student->lifecycleChanges()->latest('effective_on')->get(),
-            'scheduleUrl' => ScheduleView::getUrl(panel: 'student'),
-            'holdsUrl' => HoldsView::getUrl(panel: 'student'),
-            'unofficialRecordUrl' => route('student-academics.unofficial-record', $student),
+            'enrollmentUrl' => Enrollment::getUrl(panel: 'student'),
             'completion' => $completion,
             'graduationApplications' => $student->graduationApplications()->latest('version')->get(),
             'degreeConferrals' => $student->degreeConferrals()->latest('version')->get(),
@@ -150,6 +171,14 @@ class Academics extends Page
         abort_unless($actor instanceof User, 403);
 
         return $actor;
+    }
+
+    private function hasGraduationHistory(): bool
+    {
+        $student = $this->actor()->studentProfile;
+
+        return $student instanceof StudentProfile
+            && ($student->graduationApplications()->exists() || $student->degreeConferrals()->exists());
     }
 
     private function failedCompletionNotification(): ?OperationalEvent

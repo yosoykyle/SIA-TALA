@@ -31,8 +31,8 @@ class RecordGraduatingOverloadAuthority
         $validated = Validator::make($data, [
             'authority_reference' => ['required', 'string', 'max:255'],
             'authority_date' => ['required', 'date', 'before_or_equal:today'],
-            'evidence_reference' => ['required', 'string', 'max:255'],
-            'reason' => ['required', 'string', 'max:1000'],
+            'evidence_reference' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'reason' => ['sometimes', 'nullable', 'string', 'max:1000'],
         ])->validate();
 
         return DB::transaction(function () use ($proposal, $actor, $validated): EnrollmentException {
@@ -80,10 +80,34 @@ class RecordGraduatingOverloadAuthority
                 'recorded_by_role' => User::StaffRoleRegistrar,
                 'recorded_by_user_id' => (int) $actor->id,
             ];
+            if (! filled($validated['evidence_reference'] ?? null) && ! filled($validated['reason'] ?? null)) {
+                $existingSource = EnrollmentException::query()
+                    ->where('enrollment_id', $enrollment->id)
+                    ->where('exception_type', EnrollmentException::TypeGraduatingOverload)
+                    ->where('state', EnrollmentException::StateActive)
+                    ->where('scope_key', 'like', 'graduating_overload:proposal:'.$lockedProposal->id.':%')
+                    ->orderByDesc('id')->lockForUpdate()->get()
+                    ->first(function (EnrollmentException $exception) use ($payload): bool {
+                        $recorded = $exception->approved_values ?? [];
+
+                        return collect($payload)->except(['recorded_by_role', 'recorded_by_user_id'])
+                            ->every(fn (mixed $value, string $key): bool => array_key_exists($key, $recorded)
+                                && json_encode($value, JSON_THROW_ON_ERROR) === json_encode($recorded[$key], JSON_THROW_ON_ERROR));
+                    });
+                if ($existingSource instanceof EnrollmentException) {
+                    return $existingSource;
+                }
+            }
+
+            $evidenceReference = trim((string) ($validated['evidence_reference'] ?? ''));
+            $reason = trim((string) ($validated['reason'] ?? ''));
+            if ($reason === '') {
+                $reason = 'Overload approval recorded for the reviewed proposed subjects.';
+            }
             $payloadHash = hash('sha256', json_encode([
                 ...$payload,
-                'evidence_reference' => trim((string) $validated['evidence_reference']),
-                'reason' => trim((string) $validated['reason']),
+                'evidence_reference' => $evidenceReference,
+                'reason' => $reason,
             ], JSON_THROW_ON_ERROR));
             $scopeKey = 'graduating_overload:proposal:'.$lockedProposal->id.':'.substr($payloadHash, 0, 24);
             $existing = EnrollmentException::query()
@@ -117,8 +141,8 @@ class RecordGraduatingOverloadAuthority
                     'normal_total' => $snapshot['normal_total'],
                 ],
                 'approved_values' => $payload,
-                'reason' => trim((string) $validated['reason']),
-                'evidence_reference' => trim((string) $validated['evidence_reference']),
+                'reason' => $reason,
+                'evidence_reference' => $evidenceReference !== '' ? $evidenceReference : null,
                 'approved_by' => $actor->id,
                 'approved_at' => now(),
                 'state' => EnrollmentException::StateActive,

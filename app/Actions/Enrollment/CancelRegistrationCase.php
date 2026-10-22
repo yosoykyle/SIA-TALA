@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 class CancelRegistrationCase
 {
-    public function execute(Enrollment $enrollment, User $actor, string $reason, ?int $expectedLockVersion = null): Enrollment
+    public function execute(Enrollment $enrollment, User $actor, string $reason, ?int $expectedLockVersion = null, ?string $authorityReference = null): Enrollment
     {
         if (! $actor->canAuthenticate()) {
             throw new AuthorizationException('Only an active authorized user may cancel this Registration Case.');
@@ -23,7 +23,7 @@ class CancelRegistrationCase
             throw new AuthorizationException('Only the learner or authorized Registrar may cancel this Registration Case.');
         }
 
-        return DB::transaction(function () use ($enrollment, $actor, $reason, $expectedLockVersion): Enrollment {
+        return DB::transaction(function () use ($enrollment, $actor, $reason, $expectedLockVersion, $authorityReference): Enrollment {
             $locked = Enrollment::query()
                 ->with('currentProposalVersion.confirmation')
                 ->whereKey($enrollment->id)
@@ -48,6 +48,13 @@ class CancelRegistrationCase
                     'case' => 'After proposal confirmation, the Registrar must record cancellation and release protected capacity.',
                 ]);
             }
+            $reason = trim($reason);
+            if (! $learnerIsActor && $reason === '') {
+                throw ValidationException::withMessages([
+                    'reason' => 'Enter the reason for cancelling this enrollment.',
+                ]);
+            }
+            $authorityReference = trim((string) $authorityReference);
 
             $outcome = $learnerIsActor
                 ? Enrollment::OutcomeCancelledByLearner
@@ -65,13 +72,13 @@ class CancelRegistrationCase
                 'status_reason' => $reason,
                 'lock_version' => $locked->lock_version + 1,
             ]);
-            $this->record($locked, $actor, $outcome, $from, $outcome, $reason);
+            $this->record($locked, $actor, $outcome, $from, $outcome, $reason, $authorityReference !== '' ? $authorityReference : null);
 
             return $locked->refresh();
         }, attempts: 3);
     }
 
-    private function record(Enrollment $enrollment, User $actor, string $type, ?string $from, string $to, string $reason): void
+    private function record(Enrollment $enrollment, User $actor, string $type, ?string $from, string $to, string $reason, ?string $authorityReference): void
     {
         RegistrationCaseEvent::query()->create([
             'enrollment_id' => $enrollment->id,
@@ -80,6 +87,7 @@ class CancelRegistrationCase
             'from_outcome' => $from,
             'to_outcome' => $to,
             'reason' => $reason,
+            'authority_reference' => $authorityReference,
             'actor_id' => $actor->id,
             'recorded_at' => now(),
         ]);

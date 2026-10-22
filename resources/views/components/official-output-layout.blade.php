@@ -6,10 +6,10 @@
     'pageOrientation' => 'portrait',
     'pageMargin' => '12mm',
     'logoSrc' => null,
-    'tactileToolbar' => false,
     'backUrl' => null,
     'backLabel' => 'Back',
     'schedulePresentation' => false,
+    'documentClass' => null,
 ])
 
 @php
@@ -23,6 +23,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }} | {{ config('institution.name') }}</title>
     @if ($schedulePresentation)<link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">@endif
+    <link rel="stylesheet" href="{{ asset('css/tala-foundation.css').'?v='.filemtime(public_path('css/tala-foundation.css')) }}">
     <style>
         :root {
             color: #111827;
@@ -44,30 +45,39 @@
 
         .official-output-toolbar {
             padding: 24px 24px 0;
-            text-align: right;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
         }
-
-        .official-output-toolbar button {
-            background: #1d4ed8;
-            border: 0;
-            border-radius: 6px;
-            color: #ffffff;
-            cursor: pointer;
-            font-weight: 700;
-            padding: 10px 14px;
-        }
-        @if ($tactileToolbar)
-        .official-output-toolbar button {
-            background: linear-gradient(#a8e4ad, #5dc56a);
-            border: 1px solid #4b9954;
-            box-shadow: inset 0 1px 0 #e8f8ea, 0 2px 3px #0002;
-            color: #123b1a;
+        .official-output-toolbar :is(a, button) {
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            padding: 10px 16px;
+            border: 1px solid var(--tala-control-border);
             border-radius: 8px;
+            background-color: var(--tala-surface);
+            background-image: var(--tala-control-gloss);
+            box-shadow: var(--tala-control-depth);
+            color: var(--tala-text);
+            font: 600 14px/1.4 Arial, sans-serif;
+            text-decoration: none;
+            cursor: pointer;
         }
-        .official-output-toolbar button:focus-visible { outline: 2px solid #166534; outline-offset: 3px; }
-        @endif
-        .official-output-toolbar a { display: inline-block; margin-inline-end: 8px; padding: 10px 14px; border: 1px solid #9ca3af; border-radius: 8px; background: #ffffff; color: #111827; font-weight: 700; text-decoration: none; }
-        .official-output-toolbar a:focus-visible { outline: 2px solid #166534; outline-offset: 3px; }
+        .official-output-toolbar button {
+            background-color: var(--tala-brand-strong);
+            border-color: var(--tala-brand-strong);
+            color: var(--tala-on-brand);
+        }
+        .official-output-toolbar :is(a, button):focus-visible {
+            outline: 2px solid var(--tala-focus);
+            outline-offset: 3px;
+        }
+        .official-output-toolbar :is(a, button):active { box-shadow: var(--tala-control-pressed); }
 
         .official-output {
             background: #ffffff;
@@ -358,11 +368,12 @@
         }
 
     </style>
+    {{ $documentStyles ?? '' }}
 </head>
-<body>
+<body class="{{ $documentClass }}">
     <div class="official-output-toolbar">
         @if ($backUrl)<a href="{{ $backUrl }}">{{ $backLabel }}</a>@endif
-        <button type="button" onclick="window.print()">Print / Save as PDF</button>
+        <button type="button" onclick="window.print()">Print or save PDF</button>
     </div>
 
     @if (request()->boolean('print'))
@@ -370,6 +381,9 @@
     @endif
 
     <main class="official-output">
+        @isset($documentHeader)
+            {{ $documentHeader }}
+        @else
         <header class="official-output-header">
             <div class="official-output-identity">
                 @if (filled($resolvedLogo))
@@ -394,12 +408,17 @@
                 <div class="official-output-context">{{ $context }}</div>
             @endif
         </header>
+        @endisset
 
         {{ $slot }}
 
+        @isset($documentFooter)
+            {{ $documentFooter }}
+        @else
         <footer class="official-output-footer">
             Generated through TALA from authenticated records. Confirm any discrepancy with the responsible school office.
         </footer>
+        @endisset
     </main>
 </body>
 </html>

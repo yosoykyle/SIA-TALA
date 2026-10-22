@@ -1,0 +1,874 @@
+.learner-enrollment .fi-section-header {background:color-mix(in srgb,var(--tala-brand) 5%,var(--tala-surface));border-radius:.75rem .75rem 0 0;}
+.learner-money{font-size:.875rem;line-height:1.6;}
+.learner-money>div{display:flex;justify-content:space-between;gap:1.25rem;padding-block:.4rem;border-block-end:1px solid var(--tala-edge);}
+.learner-money dt{color:var(--tala-muted);}.learner-money dd{margin:0;text-align:end;font-variant-numeric:tabular-nums;}
+.learner-disclosure{border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface);}
+.learner-disclosure>summary{cursor:pointer;min-block-size:2.75rem;padding:.7rem 1rem;font-size:.875rem;font-weight:600;}
+.learner-disclosure>div{padding:.25rem 1rem 1rem;}.learner-disclosure summary:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+.learner-action-strip{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;padding:1rem;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface);}
+.learner-action-strip p{font-size:.875rem;color:var(--tala-muted);max-inline-size:65ch;}
+.learner-enrollment .tala-timetable-meeting .tala-timetable-meeting-room{color:var(--tala-muted);}
+@media(max-width:40rem){.learner-action-strip{flex-direction:column;align-items:stretch;gap:1rem;}.learner-action-strip .fi-btn{inline-size:100%;}.learner-money>div{gap:.75rem;}}
+@media(forced-colors:active){.learner-enrollment .tala-timetable-focused .tala-timetable-meeting{background:ButtonFace;color:ButtonText;box-shadow:none;border:1px solid ButtonText;}}
+.student-home-term{display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;align-items:center;color:var(--tala-muted);font-size:.9375rem;}
+.student-home-term strong{font-weight:600;}
+.student-home-payment{display:flex;flex-wrap:wrap;align-items:center;gap:1.25rem 2rem;padding:1.25rem 1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);margin-block:1.5rem 2rem;}
+.student-home-payment .fi-btn{margin-inline-start:auto;}
+.student-home-label{font-size:.875rem;color:var(--tala-muted);margin-block-end:.25rem;}
+.student-home-amount{font-size:1.375rem;font-weight:600;font-variant-numeric:tabular-nums;}
+.student-home-schedule{border-block-start:1px solid var(--tala-edge);padding-block-start:1.5rem;}
+.student-home-schedule-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-block-end:1rem;}
+.student-home h2{font-size:1.375rem;font-weight:600;line-height:1.3;}
+.student-home .tala-timetable{--timetable-slot-height:1.75rem;}
+.student-home .tala-timetable-weekly{max-block-size:none;overflow:visible;}
+.student-information{max-inline-size:72rem;}
+.student-information-intro{color:var(--tala-muted);font-size:1rem;}
+.student-information-section{padding-block:1.5rem;border-block-end:1px solid var(--tala-edge);}
+.student-information h2,.student-information summary{font-size:1.125rem;font-weight:600;line-height:1.5;}
+.student-information dl{display:grid;gap:1rem;margin-block-start:1rem;max-inline-size:62rem;}
+.student-information dl>div{display:grid;grid-template-columns:minmax(8rem,1fr) minmax(0,2fr);gap:1rem;}
+.student-information dt,.student-information-guidance{color:var(--tala-muted);}
+.student-information dd{margin:0;overflow-wrap:anywhere;}
+.student-information summary{cursor:pointer;min-block-size:2.75rem;padding-block:.5rem;}
+.student-information summary:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+.student-information-guidance{padding-block-start:1.5rem;font-size:.875rem;line-height:1.6;}
+@media(max-width:40rem){.student-information dl>div{grid-template-columns:1fr;gap:.25rem;}.student-information-section{padding-block:1.25rem;}}
+.student-finance-summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1.5rem;padding:1.5rem;margin-block:1.5rem;background:color-mix(in srgb,var(--tala-brand) 5%,var(--tala-surface));border:1px solid var(--tala-edge);border-radius:.75rem;}
+.student-finance h2{font-size:1.25rem;font-weight:600;line-height:1.4;}
+.student-finance-summary .student-home-label{margin-block-start:.75rem;}
+.student-finance-section{margin-block-start:1.75rem;}
+.student-finance-section h2{margin-block-end:.75rem;}
+.student-finance-table-wrap{overflow-x:auto;border:1px solid var(--tala-edge);border-radius:.5rem;}
+.student-finance-table{inline-size:100%;border-collapse:collapse;text-align:start;font-size:.875rem;}
+.student-finance-table :is(th,td){padding:1rem;text-align:start;vertical-align:middle;border-block-end:1px solid var(--tala-edge);}
+.student-finance-table thead th{color:var(--tala-muted);font-weight:600;background:var(--tala-surface-sunken);}
+.student-finance-table tbody th{font-weight:500;}
+.student-finance-table tbody tr:last-child>*{border-block-end:0;}
+.student-finance-number{font-variant-numeric:tabular-nums;white-space:nowrap;}
+.student-finance-links{display:flex;flex-wrap:wrap;gap:.5rem 1rem;}
+.student-finance-secondary{display:block;color:var(--tala-muted);font-size:.875rem;line-height:1.6;}
+.student-finance-refresh{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem;margin-block-start:1rem;font-size:.875rem;color:var(--tala-muted);}
+.student-finance :is(summary,[tabindex]):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+@media(max-width:40rem){.student-finance-summary{padding:1rem;}.student-finance-table :is(th,td){padding:.75rem;}.student-finance-table{min-inline-size:35rem;}}
+.student-home-notice{padding-block:1rem;border-block:1px solid var(--tala-edge);}
+.student-home-notice h2{font-size:1rem;}.student-home-notice p,.student-home-empty{font-size:.9375rem;line-height:1.6;max-inline-size:65ch;}
+.student-study-context{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(9rem,1fr) minmax(10rem,1fr);gap:1.5rem;padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;align-items:start;}
+.student-study-label,.student-study-term dt{color:var(--tala-muted);font-size:.875rem;margin-block-end:.375rem;}
+.student-study-program h2{font-size:1.5rem;line-height:1.25;font-weight:600;letter-spacing:-.02em;text-wrap:balance;}
+.student-study-value{font-size:1.5rem;line-height:1.25;font-weight:600;}
+.student-study-note{font-size:.8125rem;line-height:1.5;color:var(--tala-muted);margin-block-start:.75rem;max-inline-size:60ch;}
+.student-study-term{display:grid;gap:1rem;}.student-study-term dd{font-size:1.0625rem;line-height:1.4;margin:0;}
+.student-academics{display:grid;grid-template-columns:minmax(0,1fr);gap:1.75rem;color:var(--tala-text);}
+.student-academics h2{font-size:1.25rem;line-height:1.4;font-weight:600;letter-spacing:-.015em;}
+.student-academic-reading{padding-block:.25rem 1rem;}
+.student-academic-identity{padding-block:0 1.75rem;border-block-end:1px solid var(--tala-edge-strong);}
+.student-academic-identity h2{font-size:clamp(1.375rem,2.1vw,2rem);line-height:1.25;letter-spacing:-.025em;text-wrap:balance;max-inline-size:40ch;}
+.student-academic-identity dl{display:flex;flex-wrap:wrap;gap:1.25rem 2rem;margin-block-start:1.25rem;}
+.student-academic-identity dt{color:var(--tala-muted);font-size:.8125rem;margin-block-end:.25rem;}.student-academic-identity dd{font-size:1.0625rem;line-height:1.5;font-weight:500;margin:0;}
+.student-academic-reading-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(12rem,1fr);gap:2rem;align-items:start;}
+.student-academic-reading-grid>*,.student-academic-reading section{min-inline-size:0;}
+.student-academic-heading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.75rem;margin-block-end:1.25rem;}.student-academic-heading>p{font-size:.875rem;color:var(--tala-muted);font-variant-numeric:tabular-nums;}
+.student-academic-table-wrap{overflow-x:auto;min-inline-size:0;}
+.student-academic-table{inline-size:100%;border-collapse:collapse;text-align:start;font-size:.9375rem;}
+.student-academic-table :is(th,td){padding:1.25rem .5rem;text-align:start;border-block-end:1px solid var(--tala-edge);vertical-align:middle;line-height:1.5;}
+.student-academic-table thead th{color:var(--tala-muted);font-size:.8125rem;font-weight:500;padding-block:.5rem .75rem;}
+.student-academic-table tbody th{font-weight:600;}.student-academic-table tr>*:first-child{padding-inline-start:0;}.student-academic-table tr>*:last-child{padding-inline-end:0;}
+.student-academic-secondary{display:block;font-size:.8125rem;font-weight:400;line-height:1.5;color:var(--tala-muted);margin-block-start:.25rem;}
+.student-academic-number{font-variant-numeric:tabular-nums;white-space:nowrap;}
+.student-academic-note{font-size:.875rem;line-height:1.6;color:var(--tala-muted);padding-block-start:.75rem;max-inline-size:65ch;}
+.student-academic-average{font-size:.9375rem;line-height:1.6;padding-block-start:1rem;margin-block-start:1rem;}.student-academic-average strong{font-size:1.25rem;margin-inline-start:.5rem;font-variant-numeric:tabular-nums;}
+.student-academic-rail{padding-inline-start:1.5rem;border-inline-start:1px solid var(--tala-edge-strong);display:grid;gap:1.75rem;}
+.student-academic-rail section+section{padding-block-start:1.5rem;border-block-start:1px solid var(--tala-edge);}
+.student-academic-rail .fi-icon{inline-size:1.5rem;block-size:1.5rem;}.student-academic-rail>.fi-icon{margin-block-end:.75rem;}.student-academic-rail h2{font-size:1.0625rem;}
+.student-academic-total{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;margin-block:1rem 1.25rem;}.student-academic-total strong{font-size:2.5rem;line-height:1;font-weight:600;letter-spacing:-.025em;font-variant-numeric:tabular-nums;}.student-academic-total span{font-size:.875rem;line-height:1.5;color:var(--tala-muted);}
+.student-academic-program{font-size:1.125rem;line-height:1.5;color:var(--tala-muted);}
+.student-plan-figures{display:flex;flex-wrap:wrap;gap:1.25rem 2.5rem;border-block:1px solid var(--tala-edge);padding-block:1.5rem;}.student-plan-figures>div{display:flex;flex-direction:column-reverse;gap:.5rem;}.student-plan-figures dt{font-size:.875rem;color:var(--tala-muted);}.student-plan-figures dd{font-size:2rem;line-height:1;font-weight:600;letter-spacing:-.025em;font-variant-numeric:tabular-nums;margin:0;}
+.student-plan-map{display:grid;gap:2.5rem;}.student-plan-year{display:grid;grid-template-columns:minmax(8rem,.6fr) minmax(0,3fr);gap:1.5rem;}.student-plan-year>h2{border-inline-start:1px solid var(--tala-selected-edge);padding-inline-start:1rem;}.student-plan-term+.student-plan-term{margin-block-start:2rem;}.student-plan-term h3{font-weight:600;font-size:1.0625rem;line-height:1.5;padding-block-end:.75rem;}
+.student-plan-subjects{list-style:none;margin:0;padding:0;}.student-plan-subjects li{display:grid;grid-template-columns:minmax(0,2fr) minmax(4rem,.4fr) minmax(7rem,.8fr);gap:1rem;align-items:center;padding-block:1.25rem;border-block-start:1px solid var(--tala-edge);}.student-plan-subjects h4{font-size:1rem;font-weight:600;line-height:1.5;}.student-plan-subjects p{font-size:.875rem;line-height:1.5;}.student-plan-status{display:flex;align-items:center;gap:.5rem;}.student-plan-status>.fi-icon{inline-size:1.25rem;block-size:1.25rem;flex:none;color:var(--tala-brand);}
+.student-record-empty{display:grid;justify-items:start;gap:1rem;padding-block:1.75rem 2rem;border-block-end:1px solid var(--tala-edge);}.student-record-empty>.fi-icon{inline-size:2rem;block-size:2rem;color:var(--tala-muted);}.student-record-empty p{font-size:.9375rem;line-height:1.6;color:var(--tala-muted);max-inline-size:60ch;}.student-record-empty .fi-btn{margin-block-start:.5rem;}
+.student-record-gwa{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem 1rem;font-size:.9375rem;}.student-record-gwa strong{font-size:2rem;line-height:1.2;font-weight:600;font-variant-numeric:tabular-nums;}.student-record-gwa span{font-size:.875rem;color:var(--tala-muted);}
+.student-record-terms{display:grid;gap:2.5rem;}.student-record-section{border-block-start:1px solid var(--tala-edge);padding-block-start:1.5rem;}.student-record-section>p{font-size:.9375rem;line-height:1.6;margin-block-start:.75rem;}
+.student-academic-source{margin-block-start:1rem;font-size:.875rem;line-height:1.6;}.student-academic-source>summary{cursor:pointer;font-weight:500;min-block-size:2.75rem;padding-block:.625rem;color:var(--tala-brand);}.student-academic-source>p{margin-block:.75rem;max-inline-size:65ch;}
+.student-academic-notice{padding-block:1rem;border-block:1px solid var(--tala-edge);}.student-academic-notice p{margin-block:.5rem;line-height:1.6;font-size:.875rem;max-inline-size:65ch;}
+.student-registration{display:grid;gap:2rem;min-inline-size:0;}.student-registration-heading{display:flex;align-items:start;justify-content:space-between;gap:1.5rem;padding-block-end:1.5rem;border-block-end:1px solid var(--tala-edge);}.student-registration h2{font-size:1.25rem;font-weight:600;line-height:1.4;}.student-registration-heading p,.student-registration-subjects-heading p{font-size:.9375rem;color:var(--tala-muted);margin-block-start:.5rem;}.student-registration-heading>.fi-btn{flex:none;}.student-registration section{min-inline-size:0;}.student-registration-subjects-heading{margin-block-end:1rem;}.student-registration-links{display:flex;flex-wrap:wrap;gap:1rem 2rem;margin-block-start:1.5rem;}.student-registration-history-row{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding-block:.75rem;}.student-registration-help{font-size:.875rem;line-height:1.6;color:var(--tala-muted);padding-block-start:1.25rem;border-block-start:1px solid var(--tala-edge);max-inline-size:75ch;}
+.student-registration-heading+.student-academic-notice{border-block-start:0;padding-block-start:0;}.student-registration-shortages{padding-inline-start:1.25rem;list-style:disc;}.student-registration-details{display:grid;gap:.75rem;font-size:.875rem;line-height:1.6;}
+.student-review-deadline{font-size:.875rem;line-height:1.6;color:var(--tala-muted);}.student-review-layout,.student-review-subjects{display:grid;gap:2rem;min-inline-size:0;}.student-review-subjects>section{min-inline-size:0;}.student-review-subjects>section>h2{margin-block-end:1rem;}.student-review-payment{display:grid;gap:1rem;align-content:start;padding-block-start:1.5rem;border-block-start:1px solid var(--tala-edge);min-inline-size:0;}.student-review-payment>p:not(.student-review-amount){font-size:.875rem;line-height:1.6;color:var(--tala-muted);}.student-review-amount{font-size:1.75rem;font-weight:600;letter-spacing:-.025em;font-variant-numeric:tabular-nums;}.student-review-payment>.fi-btn{inline-size:100%;}.student-review-payment .learner-money>div{flex-wrap:wrap;gap:.25rem .75rem;}
+.student-review-schedule>h2{margin-block-end:1rem;}
+.enrollment-schedule{display:grid;gap:1rem;min-inline-size:0;}.enrollment-schedule-tools{display:flex;align-items:center;justify-content:space-between;gap:1rem;}.enrollment-schedule-tools>p{font-size:.8125rem;color:var(--tala-muted);}.enrollment-schedule-tools>.fi-btn{flex:none;}.enrollment-schedule .tala-timetable-list{display:none;}.enrollment-schedule .tala-timetable-weekly{display:grid;}.enrollment-schedule .tala-timetable-focused .tala-timetable-meeting{background:color-mix(in srgb,var(--tala-brand) 16%,var(--tala-surface));background-image:none;color:var(--tala-text);box-shadow:none;border-color:color-mix(in srgb,var(--tala-brand) 75%,var(--tala-text));}.enrollment-schedule .tala-timetable-focused .tala-timetable-meeting:hover{background:color-mix(in srgb,var(--tala-brand) 22%,var(--tala-surface));}.enrollment-schedule .tala-timetable-focused .tala-timetable-meeting[aria-pressed="true"]{background:color-mix(in srgb,var(--tala-brand) 28%,var(--tala-surface));box-shadow:none;}.enrollment-schedule .tala-timetable-meeting :is(.tala-timetable-meeting-room,.tala-timetable-detail-cue){color:var(--tala-muted);}
+.enrollment-agenda{display:grid;gap:2rem;}.enrollment-agenda h3{font-size:1.125rem;font-weight:600;line-height:1.5;margin-block-end:1rem;color:var(--tala-ink);}.enrollment-agenda ul{display:grid;gap:1rem;list-style:none;margin:0;padding:0;}.enrollment-agenda li{display:grid;grid-template-columns:minmax(8rem,.5fr) minmax(0,2fr);gap:1.5rem;padding:1.5rem;background:color-mix(in srgb,var(--tala-brand) 5%,var(--tala-surface));border-radius:.75rem;min-inline-size:0;overflow-wrap:anywhere;}.enrollment-agenda-time{font-size:1.0625rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.5;}.enrollment-agenda h4{font-size:1rem;font-weight:600;line-height:1.5;}.enrollment-agenda li>div>p{font-size:.9375rem;color:var(--tala-muted);line-height:1.6;margin-block-start:.35rem;}.enrollment-schedule .tala-timetable-meeting:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;}
+@media(max-width:40rem){.enrollment-agenda li{grid-template-columns:minmax(0,1fr);gap:.5rem;}.enrollment-schedule-tools>.fi-btn{font-size:.8125rem;}.enrollment-schedule .tala-timetable-weekly{min-inline-size:32rem;}.enrollment-schedule-week{overflow:auto;}}
+@media(min-width:64rem){.student-review-layout{grid-template-columns:minmax(0,2fr) minmax(14rem,1fr);}.student-review-payment{padding-block-start:0;padding-inline-start:1.5rem;border-block-start:0;border-inline-start:1px solid var(--tala-edge);}}
+@media(max-width:40rem){.student-registration-heading{flex-direction:column;}.student-registration-heading>.fi-btn{inline-size:100%;}.student-registration-history-row{flex-direction:column;align-items:start;}.student-registration .student-academic-table{font-size:.8125rem;}.student-registration .student-academic-table :is(th,td){padding:1rem .25rem;overflow-wrap:anywhere;}.student-registration .student-academic-table :is(th,td):last-child{white-space:nowrap;overflow-wrap:normal;}}
+.student-academic-empty{padding-block:1.5rem;color:var(--tala-muted);font-size:.9375rem;line-height:1.6;max-inline-size:65ch;}
+.student-academics :is(summary,[tabindex]):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+@media(max-width:50rem){.student-study-context{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}.student-study-program{grid-column:1/-1;}.student-academic-reading-grid{grid-template-columns:minmax(0,1fr);}.student-academic-rail{padding-inline-start:0;border-inline-start:0;border-block-start:1px solid var(--tala-edge);padding-block-start:1.5rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));}.student-academic-rail section+section{border:0;padding:0;}}
+@media(max-width:40rem){.student-study-context{padding:1.25rem;gap:1.25rem;}.student-study-program h2{font-size:1.25rem;}.student-study-value{font-size:1.25rem;}.student-study-term dd{font-size:.9375rem;}.student-academic-identity dl{gap:1rem 1.5rem;}.student-academic-identity dd{font-size:.9375rem;}.student-academic-reading-grid{gap:1.5rem;}.student-academic-table{font-size:.875rem;}.student-academic-table :is(th,td){padding:1rem .375rem;}.student-plan-year{grid-template-columns:minmax(0,1fr);gap:1rem;}.student-plan-subjects li{grid-template-columns:minmax(0,1fr) auto;gap:.5rem .75rem;}.student-plan-subjects li>div{grid-column:1/-1;}.student-plan-subjects h4{font-size:.9375rem;}.student-plan-status{justify-self:end;}.student-academic-rail{gap:1rem;}.student-academic-rail .fi-btn{font-size:.8125rem;}.student-academic-total strong{font-size:2rem;}}
+@media(max-width:40rem){.student-home-payment{padding:1rem;gap:1rem;}.student-home-payment .fi-btn{inline-size:100%;margin:0;}.student-home-schedule-heading{align-items:start;}.student-home-schedule-heading h2{font-size:1.25rem;}}
+
+.registrar-ready-list{list-style:none;padding:0;margin:0;}
+.registrar-ready-list>li{display:grid;grid-template-columns:minmax(8rem,1fr) minmax(12rem,1.4fr) auto;gap:.75rem 1.5rem;align-items:center;padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);}
+.registrar-ready-list h2{font-size:1rem;line-height:1.5;font-weight:600;}
+.registrar-ready-reference,.registrar-ready-studies p+ p{color:var(--tala-muted);font-size:.875rem;line-height:1.6;}
+.registrar-ready-studies{font-size:.875rem;line-height:1.6;}
+.registrar-ready-reference{margin-block-start:.25rem;}
+.registrar-ready-action{grid-column:3;grid-row:1;}
+.registrar-ready-empty{grid-template-columns:1fr!important;}
+.registrar-ready-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;margin-block-end:1.5rem;}
+.registrar-ready-search{inline-size:min(100%,28rem);}.registrar-ready-search label{display:block;font-size:.875rem;font-weight:600;margin-block-end:.5rem;}
+.registrar-ready-applicants .fi-pagination{margin-block-start:1.5rem;}
+.registrar-ready-empty{padding-block:3rem!important;gap:.5rem!important;}
+.registrar-ready-start{padding:1.25rem;background:var(--tala-surface-sunken);border-radius:.75rem;overflow-wrap:anywhere;}
+.registrar-ready-start h3{font-size:1.125rem;font-weight:600;line-height:1.4;}
+.registrar-ready-start>p,.registrar-ready-start dt,.registrar-ready-start-help{font-size:.875rem;line-height:1.6;color:var(--tala-muted);}
+.registrar-ready-start dl{display:grid;gap:1rem;margin-block-start:1.25rem;}.registrar-ready-start dd{font-weight:600;}
+@media(max-width:40rem){.registrar-ready-list>li{grid-template-columns:minmax(0,1fr);gap:.625rem;padding-block:1.25rem;}.registrar-ready-action{grid-column:1;grid-row:auto;}.registrar-ready-action .fi-btn{min-block-size:2.75rem;}.registrar-ready-studies{overflow-wrap:anywhere;}.registrar-ready-toolbar{align-items:stretch;flex-direction:column;gap:1rem;}}
+
+.registrar-enrollment-workbench .fi-header-heading{font-size:2rem;line-height:1.2;font-weight:700;letter-spacing:-.025em;}
+.registrar-workbench{display:grid;gap:1.5rem;color:var(--tala-text);}
+.registrar-workbench h2{font-size:1.25rem;line-height:1.4;font-weight:600;letter-spacing:-.015em;}
+.registrar-workbench-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(15rem,1fr);gap:1.5rem;align-items:stretch;}
+.registrar-work-panel,.registrar-start-panel,.registrar-progress-panel,.registrar-records-entry{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;}
+.registrar-start-panel{background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));}
+.registrar-work-list{margin-block-start:.75rem;}
+.registrar-work-row{display:grid;grid-template-columns:1.75rem minmax(0,1fr) auto 1rem;align-items:center;gap:1rem;min-block-size:4.75rem;padding-block:.875rem;border-block-end:1px solid var(--tala-edge);color:inherit;text-decoration:none;}
+.registrar-work-row:last-child{border-block-end:0;}
+.registrar-work-row strong{font-size:1rem;line-height:1.5;font-weight:600;}
+.registrar-work-description{display:block;font-size:.875rem;line-height:1.5;color:var(--tala-muted);margin-block-start:.25rem;}
+.registrar-work-count{font-size:1.125rem;font-weight:600;font-variant-numeric:tabular-nums;}
+.registrar-work-icon{inline-size:1.5rem;block-size:1.5rem;color:var(--tala-brand);}
+.registrar-work-arrow{inline-size:1rem;block-size:1rem;color:var(--tala-muted);}
+.registrar-work-row:hover{background:var(--tala-surface-sunken);}
+.registrar-work-row:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;border-radius:.5rem;}
+.registrar-start-panel>p,.registrar-records-entry p{color:var(--tala-muted);font-size:1rem;line-height:1.6;margin-block-start:.5rem;}
+.registrar-start-actions{display:grid;gap:1rem;margin-block-start:1.5rem;}
+.registrar-start-actions .fi-btn{inline-size:100%;min-block-size:2.75rem;justify-content:flex-start;}
+.registrar-progress-panel .registrar-work-row{min-block-size:3.5rem;}
+.registrar-progress-panel .registrar-work-icon{color:var(--tala-muted);}
+.accounting-workbench{display:grid;gap:1rem;color:var(--tala-text);}
+.accounting-work-queues{display:grid;grid-template-columns:minmax(15rem,.88fr) minmax(0,1fr);grid-template-rows:repeat(2,minmax(0,1fr));gap:1rem;align-items:stretch;}
+.accounting-queue{display:grid;grid-template-columns:3rem minmax(0,1fr);grid-template-rows:auto auto 1fr auto;column-gap:1rem;row-gap:.35rem;align-content:start;min-inline-size:0;padding:1.25rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;color:inherit;text-decoration:none;}
+.accounting-queue--lead{grid-row:span 2;display:flex;flex-direction:column;align-items:flex-start;gap:.5rem;padding:1.5rem;background:color-mix(in srgb,var(--tala-brand) 7%,var(--tala-surface));border-color:color-mix(in srgb,var(--tala-brand) 22%,var(--tala-edge));}
+.accounting-queue-icon{display:grid;place-items:center;inline-size:3rem;block-size:3rem;border-radius:.65rem;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));color:var(--tala-brand);}
+.accounting-queue-icon .fi-icon{inline-size:1.5rem;block-size:1.5rem;}
+.accounting-queue--provider .accounting-queue-icon{background:color-mix(in srgb,var(--warning-500,#f59e0b) 14%,var(--tala-surface));color:var(--warning-600,#b45309);}
+.dark .accounting-queue--provider .accounting-queue-icon{color:var(--warning-400,#fbbf24);}
+.accounting-queue-count{grid-column:2;grid-row:1;font-family:var(--tala-font-heading);font-size:1.875rem;line-height:1;font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;}
+.accounting-queue-title{grid-column:2;grid-row:2;font-family:var(--tala-font-heading);font-size:1.125rem;line-height:1.35;font-weight:var(--tala-weight-emphasis);}
+.accounting-queue-description{grid-column:2;grid-row:3;max-inline-size:48ch;font-size:.875rem;line-height:1.5;color:var(--tala-muted);}
+.accounting-queue--lead .accounting-queue-count{font-size:clamp(3.5rem,5vw,5rem);line-height:.95;}
+.accounting-queue--lead .accounting-queue-title{font-size:1.375rem;}
+.accounting-queue--lead .accounting-queue-description{font-size:1rem;}
+.accounting-queue-action{grid-column:1/-1;grid-row:4;display:flex;justify-content:space-between;align-items:center;gap:.75rem;min-block-size:2.75rem;margin-block-start:.5rem;font-size:.9375rem;line-height:1.25;font-weight:var(--tala-weight-emphasis);}
+.accounting-queue--lead .accounting-queue-action{inline-size:100%;margin-block-start:auto;}
+.accounting-queue-action .fi-icon{inline-size:1rem;block-size:1rem;flex:none;color:var(--tala-muted);}
+.accounting-queue:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+.accounting-workbench-note{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:.75rem 1.25rem;color:var(--tala-muted);font-size:.875rem;line-height:1.5;}
+.accounting-workbench-note p{display:inline-flex;align-items:center;gap:.5rem;}
+.accounting-workbench-note p{margin:0;}
+.accounting-workbench-note .fi-icon{inline-size:1rem;block-size:1rem;flex:none;}
+.accounting-search-panel{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;}
+.accounting-search-panel h2{font-family:var(--tala-font-heading);font-size:1.375rem;line-height:1.35;font-weight:var(--tala-weight-emphasis);letter-spacing:-.02em;}
+.accounting-finance-form-section .fi-section-header-heading{font-family:var(--tala-font-heading);font-size:1.25rem;line-height:1.35;font-weight:var(--tala-weight-emphasis);}
+.accounting-finance-form-section .fi-section-header-description{max-inline-size:72ch;font-size:.9375rem;line-height:1.55;color:var(--tala-muted);}
+.accounting-finance-form-section>.fi-section{padding-block:1.125rem;border-block-end:1px solid var(--tala-edge);}
+.accounting-finance-form-section .fi-section-content-ctn{padding:0;}
+.accounting-finance-form-section .fi-fo-repeater-item-content{padding:.75rem;}
+.accounting-assessment-modal .accounting-assessment-context{padding:.75rem 1rem;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface-sunken);font-weight:var(--tala-weight-emphasis);line-height:1.5;}
+.accounting-assessment-modal .accounting-assessment-summary{padding-block:.75rem;border-block-start:1px solid var(--tala-edge);color:var(--tala-muted);font-size:.875rem;line-height:1.5;}
+.registrar-records-entry{display:flex;justify-content:space-between;align-items:center;gap:1.5rem;}
+.registrar-records-entry .fi-btn{flex-shrink:0;min-block-size:2.75rem;}
+.registrar-enrollment-record{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(11rem,1fr);gap:1.5rem;align-items:center;padding:.75rem .25rem;}
+.registrar-enrollment-person h2{font-size:1.125rem;line-height:1.5;font-weight:600;}
+.registrar-enrollment-identifier,.registrar-enrollment-term,.registrar-enrollment-status>p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);}
+.registrar-enrollment-identifier{white-space:nowrap;margin-block-start:.125rem;}
+.registrar-enrollment-program{font-size:1rem;line-height:1.5;margin-block-start:.5rem;}
+.registrar-enrollment-status{display:flex;flex-direction:column;align-items:flex-start;gap:.75rem;}
+.registrar-enrollment-status .fi-link{min-block-size:2.75rem;display:inline-flex;align-items:center;}
+.registrar-enrollment-status .fi-link-label{align-self:center;}
+.registrar-enrollment-workbench .fi-ta-header-toolbar>div:has(>.fi-ta-search-field){flex:1;flex-wrap:nowrap;min-inline-size:0;}
+.registrar-enrollment-workbench .fi-ta-search-field{flex:1 1 0;min-inline-size:0;max-inline-size:none;}
+.registrar-enrollment-workbench .fi-ta-search-field .fi-input-wrp{inline-size:100%;}
+.registrar-enrollment-entry-modal .fi-modal-heading{padding-inline-end:2rem;font-size:1.5rem;line-height:1.25;font-weight:600;letter-spacing:-.02em;}
+.registrar-enrollment-entry-modal :is(.fi-modal-description,.fi-sc-text,.fi-fo-radio-label p){font-size:1rem;line-height:1.5;}
+.registrar-enrollment-entry-modal .fi-fo-radio-label{min-block-size:2.75rem;}
+.registrar-enrollment-entry-modal .fi-btn{font-size:1rem;min-block-size:2.75rem;}
+.registrar-enrollment-detail .fi-header-heading{font-size:2rem;line-height:1.2;font-weight:700;letter-spacing:-.025em;}
+.registrar-case{display:grid;gap:1.5rem;color:var(--tala-text);font-size:1rem;line-height:1.5;min-inline-size:0;}
+.registrar-case h2{font-size:1.25rem;line-height:1.4;font-weight:600;letter-spacing:-.015em;}
+.registrar-requirements,.registrar-requirement-subjects{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;min-inline-size:0;}
+.registrar-requirements-heading{display:flex;align-items:flex-start;gap:1rem;}
+.registrar-requirements-heading>.fi-icon{inline-size:1.75rem;block-size:1.75rem;flex-shrink:0;color:var(--tala-warning-text,var(--tala-text));}
+.registrar-requirements p{max-inline-size:65ch;color:var(--tala-muted);margin-block-start:.375rem;}
+.registrar-requirement-list{list-style:none;margin:1.5rem 0 0;padding:0;}
+.registrar-requirement-list>li{display:flex;justify-content:space-between;align-items:center;gap:1.5rem;padding-block:1.25rem;border-block-start:1px solid var(--tala-edge);}
+.registrar-requirement-list>li:last-child{padding-block-end:0;}
+.registrar-requirement-list h3{font-size:1.0625rem;font-weight:600;line-height:1.5;}
+.registrar-requirement-list .fi-btn{flex-shrink:0;max-inline-size:100%;}
+.registrar-evaluation-task .registrar-case-task-actions{margin-block-start:1.25rem;}
+.registrar-preparation-next{border-block-start:1px solid var(--tala-edge);margin-block-start:1.5rem;padding-block-start:1.25rem;}
+.registrar-preparation-next h3{font-size:1rem;font-weight:600;}
+.registrar-requirement-subjects-heading{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-block-end:1rem;}
+.registrar-requirement-subjects-heading p{color:var(--tala-muted);font-size:.875rem;font-variant-numeric:tabular-nums;}
+.registrar-history-records>details{border-block-end:1px solid var(--tala-edge);padding-block:.5rem;}
+.registrar-history-grid>section,.registrar-history-grid>.registrar-case-sources{background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;padding:1.5rem;min-inline-size:0;}
+.registrar-history-records>details>summary{display:list-item;list-style:disclosure-closed inside;}
+.registrar-history-records>details[open]>summary{list-style-type:disclosure-open;}
+.registrar-history-records>details>summary>span{display:block;margin-block-start:.25rem;font-size:.875rem;color:var(--tala-muted);font-weight:400;}
+.registrar-history-records>details>section{padding-block:1rem;border-block-start:1px solid var(--tala-edge);}
+.registrar-history-records>details>section h3{margin-block-end:.5rem;}
+@media(max-width:48rem){.registrar-requirement-list>li{align-items:stretch;flex-direction:column;gap:1rem;}.registrar-requirement-list .fi-btn{align-self:flex-start;}.registrar-requirement-subjects-heading{align-items:flex-start;flex-direction:column;gap:.25rem;}}
+@media(max-width:40rem){.registrar-requirements,.registrar-requirement-subjects{padding:1.25rem;}.registrar-requirement-list .fi-btn{inline-size:100%;}}
+.registrar-case-preparation{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;padding:1.5rem;border:1px solid var(--tala-selected-edge);border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 7%,var(--tala-surface));}
+.registrar-case-preparation p{margin-block-start:.5rem;max-inline-size:65ch;}
+.registrar-case-preparation .fi-btn{font-size:1rem;min-block-size:2.75rem;flex-shrink:0;}
+.registrar-subject-selection-modal .fi-fo-checkbox-list-option{padding-block:1rem;border-block-end:1px solid var(--tala-edge);}
+.registrar-subject-selection-modal .fi-fo-checkbox-list-option-label{font-size:1rem;line-height:1.5;font-weight:600;}
+.registrar-subject-selection-modal .fi-fo-checkbox-list-option-description{font-size:.875rem;line-height:1.6;margin-block-start:.375rem;color:var(--tala-muted);}
+.registrar-subject-selection-modal .fi-fo-checkbox-list-search-input{font-size:1rem;}
+.registrar-subject-selection-modal .fi-fo-checkbox-list-option input{inline-size:1.25rem;block-size:1.25rem;}
+@media(max-width:40rem){.registrar-case-preparation{flex-direction:column;align-items:stretch;padding:1.25rem;}.registrar-case-preparation .fi-btn{inline-size:100%;}}
+.registrar-case-identity{display:grid;gap:.375rem;}
+.registrar-case-progress-task{display:flex;justify-content:space-between;align-items:center;gap:2rem;padding-block:1.5rem;border-block:1px solid var(--tala-edge-strong);}
+.registrar-case-progress-task>div{display:grid;gap:.75rem;max-inline-size:70ch;}
+.registrar-case-progress-task>div>.fi-link{justify-self:start;}
+.registrar-case-progress-task>.fi-btn{flex-shrink:0;}
+.registrar-case-progress-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(15rem,1fr);gap:1.5rem;align-items:start;}
+.registrar-case-progress-grid>section{min-inline-size:0;}
+.registrar-case-progress-grid .registrar-subject-table td:nth-child(2){white-space:nowrap;}
+.registrar-case-progress-payment{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;}
+.registrar-case-progress-payment h3{margin-block:1rem .75rem;font-weight:600;}
+.registrar-case-progress-schedule{padding:1rem 1.25rem;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface);}
+.registrar-case-progress-schedule>summary{min-block-size:1.75rem;}
+.registrar-case-progress-cancel .fi-link{font-size:.875rem;}
+.registrar-case-shortages{display:grid;gap:.75rem;list-style:disc;padding-inline-start:1.25rem;}
+@media(max-width:48rem){.registrar-case-progress-task{flex-direction:column;align-items:start;gap:1rem;}.registrar-case-progress-grid{grid-template-columns:minmax(0,1fr);}.registrar-case-progress-payment{padding:1.25rem;}}
+.registrar-case-closed{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(15rem,1fr);gap:2rem;border-block-start:1px solid var(--tala-edge-strong);padding-block-start:1.75rem;align-items:start;}
+.registrar-case-closed>section{min-inline-size:0;display:grid;gap:1rem;}
+.registrar-case-closed .registrar-case-reopen{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;}
+.registrar-case-reopen>.fi-ac-btn-action{justify-self:start;}
+.registrar-recovery-context{padding:1rem;background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:.5rem;}
+.registrar-recovery-context p{margin-block-start:.25rem;color:var(--tala-muted);}
+@media(max-width:48rem){.registrar-case-closed{grid-template-columns:minmax(0,1fr);gap:1.5rem;}.registrar-case-closed .registrar-case-reopen{padding:1.25rem;}}
+.registrar-case-identity>p:first-child{font-size:.875rem;color:var(--tala-muted);}
+.registrar-case-identity>p:last-child{color:var(--tala-muted);}
+.registrar-case-waiting{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(12rem,1.2fr) minmax(9rem,1fr);align-items:center;gap:1.5rem;padding:1.5rem;background:color-mix(in srgb,var(--tala-brand) 7%,var(--tala-surface));border:1px solid var(--tala-selected-edge);border-radius:.75rem;}
+.registrar-case-waiting h2+p{margin-block-start:.5rem;}
+.registrar-case-confirm>p,.registrar-case-deadline{font-size:.875rem;line-height:1.5;}
+.registrar-case-confirm>p{margin-block-start:.5rem;max-inline-size:32ch;}
+.registrar-case-confirm .fi-btn{min-block-size:2.75rem;font-size:1rem;}
+.registrar-case-deadline strong{display:block;font-weight:500;margin-block-start:.25rem;}
+.registrar-case-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(15rem,1fr);gap:1.5rem;align-items:start;}
+.registrar-case-grid>section,.registrar-case-schedule{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;min-inline-size:0;}
+.registrar-case-meta{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.5rem;}
+.registrar-case-task-actions{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;}
+.accounting-record-search{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.75rem 1rem;margin-block-start:1rem;align-items:center;}
+.accounting-record-search label{grid-column:1/-1;font-size:.875rem;color:var(--tala-muted);}
+@media(max-width:40rem){.accounting-record-search{grid-template-columns:minmax(0,1fr);}.accounting-record-search .fi-btn{inline-size:100%;min-block-size:2.75rem;}}
+.registrar-case-status{font-size:1.125rem;font-weight:600;line-height:1.5;margin-block:1.5rem .5rem;}
+@media(max-width:40rem){.registrar-case-task-actions{inline-size:100%;flex-direction:column;align-items:stretch;}.registrar-case-task-actions .fi-btn{inline-size:100%;min-block-size:2.75rem;}}
+.registrar-subject-table{inline-size:100%;border-collapse:collapse;text-align:start;margin-block-start:1rem;font-size:1rem;line-height:1.5;}
+.registrar-subject-table :is(th,td){text-align:start;vertical-align:middle;padding:1rem .5rem;border-block-end:1px solid var(--tala-edge);}
+.registrar-subject-table thead th{color:var(--tala-muted);font-size:.875rem;font-weight:500;padding-block:.5rem;}
+.registrar-subject-table tbody th{font-weight:600;}
+.registrar-subject-table tr>*:first-child{padding-inline-start:0;}
+.registrar-subject-table tr>*:last-child{text-align:end;padding-inline-end:0;font-variant-numeric:tabular-nums;}
+.registrar-subject-table th span{display:block;font-size:.875rem;font-weight:400;color:var(--tala-muted);overflow-wrap:anywhere;margin-block-start:.25rem;}
+.registrar-subject-table .registrar-subject-actions{display:flex;justify-content:flex-end;gap:.5rem;white-space:nowrap;}
+.registrar-subject-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+.registrar-case-payment .registrar-case-amount{font-size:1.75rem;line-height:1.25;font-weight:600;letter-spacing:-.025em;font-variant-numeric:tabular-nums;margin-block:1.5rem .5rem;overflow-wrap:anywhere;}
+.registrar-case-payment dl{margin-block-start:1.25rem;}
+.registrar-case-payment dl>div{display:flex;justify-content:space-between;gap:1rem;padding-block:.75rem;border-block-start:1px solid var(--tala-edge);font-size:.875rem;}
+.registrar-case-payment dd{font-variant-numeric:tabular-nums;white-space:nowrap;}
+.registrar-case-schedule>h2{margin-block-end:1rem;}
+.registrar-case-official{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;padding:1.5rem;background:color-mix(in srgb,var(--tala-brand) 7%,var(--tala-surface));border:1px solid var(--tala-selected-edge);border-radius:.75rem;}
+.registrar-case-official h2{display:flex;align-items:center;gap:.75rem;}
+.registrar-case-official h2 .fi-icon{inline-size:1.75rem;block-size:1.75rem;color:var(--tala-brand);flex-shrink:0;}
+.registrar-case-official p{font-size:.875rem;margin-block-start:.5rem;}
+.registrar-case-certificate .fi-btn{font-size:1rem;min-block-size:2.75rem;}
+.registrar-case-current-subjects{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;min-inline-size:0;}
+@media(max-width:40rem){.registrar-case-official{flex-direction:column;align-items:stretch;padding:1.25rem;}.registrar-case-certificate .fi-btn{inline-size:100%;}.registrar-case-current-subjects{padding:1.25rem;}}
+.registrar-case-history-link{display:grid;grid-template-columns:1.5rem minmax(0,1fr) 1rem;gap:1rem;align-items:center;padding:1.25rem 1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;color:inherit;text-decoration:none;}
+.registrar-case-history-link>span>span{display:block;font-size:.875rem;color:var(--tala-muted);margin-block-start:.25rem;}
+.registrar-case-history-link .fi-icon{inline-size:1.5rem;block-size:1.5rem;}
+.registrar-case-history-link>.fi-icon:last-child{inline-size:1rem;block-size:1rem;}
+.registrar-case-history-link:hover{background:var(--tala-surface-sunken);}
+.registrar-case-history-link:focus-visible,.registrar-case-reference>summary:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+.registrar-history-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;align-items:start;}
+.registrar-case-events{list-style:none;margin:1rem 0 0;padding:0;}
+.registrar-case-events>li{display:grid;grid-template-columns:10rem minmax(0,1fr);gap:1.5rem;padding-block:1.5rem;border-block-end:1px solid var(--tala-edge);}
+.registrar-case-events time{font-size:.875rem;color:var(--tala-muted);font-variant-numeric:tabular-nums;}
+.registrar-case-events h3,.registrar-case-sources h3{font-size:1rem;font-weight:600;line-height:1.5;}
+.registrar-case-events p{margin-block-start:.5rem;overflow-wrap:anywhere;}
+.registrar-case-record-reference{margin-block-start:1.5rem;font-size:.875rem;line-height:1.6;}
+.registrar-case-record-reference dd{color:var(--tala-muted);overflow-wrap:anywhere;margin-block-start:.375rem;}
+.registrar-case-sources{padding-inline-start:1.5rem;border-inline-start:1px solid var(--tala-edge-strong);}
+.registrar-case-sources>section{padding-block:1.5rem;border-block-end:1px solid var(--tala-edge);}
+.registrar-case-sources p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.5rem;overflow-wrap:anywhere;}
+.registrar-case-reference{margin-block-start:.75rem;font-size:.875rem;line-height:1.6;}
+.registrar-case-reference>summary{cursor:pointer;min-block-size:2.75rem;padding-block:.625rem;color:var(--tala-text);}
+.registrar-source-charges{margin-block-start:.75rem;}
+.registrar-source-charges>div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem 1rem;padding-block:.625rem;border-block-start:1px solid var(--tala-edge);}
+.registrar-source-charges dd{font-variant-numeric:tabular-nums;white-space:nowrap;}
+.registrar-confirmation-context{font-size:1rem;line-height:1.5;}
+.registrar-confirmation-context>p+p{font-size:.875rem;color:var(--tala-muted);margin-block-start:.375rem;}
+@media(max-width:64rem){.registrar-case-waiting{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}.registrar-case-waiting>div:first-child{grid-column:1/-1;}.registrar-case-grid,.registrar-history-grid{grid-template-columns:minmax(0,1fr);}.registrar-case-sources{padding-inline-start:0;padding-block-start:1.5rem;border-inline-start:0;border-block-start:1px solid var(--tala-edge-strong);}}
+@media(max-width:40rem){.registrar-enrollment-detail .fi-header-heading{font-size:1.75rem;}.registrar-case-waiting{grid-template-columns:minmax(0,1fr);padding:1.25rem;}.registrar-case-grid>section,.registrar-case-schedule{padding:1.25rem;}.registrar-subject-table{font-size:.875rem;}.registrar-subject-table :is(th,td){padding-inline:.375rem;}.registrar-subject-table th span{font-size:.8125rem;}.registrar-case-events>li{grid-template-columns:minmax(0,1fr);gap:.5rem;}.registrar-case-history-link{padding:1.25rem;}}
+@media(max-width:40rem){.registrar-case-current-subjects .registrar-subject-table{display:block;}.registrar-case-current-subjects .registrar-subject-table thead{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}.registrar-case-current-subjects .registrar-subject-table tbody{display:block;}.registrar-case-current-subjects .registrar-subject-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"subject subject" "section units" "actions actions";gap:.5rem 1rem;padding-block:1rem;border-block-end:1px solid var(--tala-edge);}.registrar-case-current-subjects .registrar-subject-table tbody tr>:first-child{grid-area:subject;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(2){grid-area:section;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(3){grid-area:units;text-align:end;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(4){grid-area:actions;}.registrar-case-current-subjects .registrar-subject-table :is(th,td){min-inline-size:0;padding:0;border:0;}.registrar-case-current-subjects .registrar-subject-table tr>*:last-child{padding:0;}.registrar-case-current-subjects .registrar-subject-mobile-label{display:block;font-size:.75rem;color:var(--tala-muted);font-weight:400;}.registrar-case-current-subjects .registrar-subject-actions{justify-content:stretch;flex-wrap:wrap;white-space:normal;padding-block-start:.25rem!important;}.registrar-case-current-subjects .registrar-subject-actions .fi-btn{flex:1 1 8rem;min-inline-size:0;white-space:normal;overflow-wrap:anywhere;}}
+@media(max-width:64rem){.registrar-workbench-grid{grid-template-columns:minmax(0,1fr);}.registrar-start-actions{grid-template-columns:repeat(2,minmax(0,1fr));}.registrar-start-panel{padding:1.25rem;}}
+@media(max-width:40rem){.registrar-enrollment-workbench .fi-header-heading{font-size:1.75rem;}.registrar-work-panel,.registrar-progress-panel,.registrar-records-entry{padding:1.25rem;}.registrar-work-row{gap:.75rem;grid-template-columns:1.5rem minmax(0,1fr) auto 1rem;}.registrar-start-actions{grid-template-columns:minmax(0,1fr);}.registrar-records-entry{flex-direction:column;align-items:flex-start;}.registrar-enrollment-record{grid-template-columns:minmax(0,1fr);gap:1rem;}.registrar-enrollment-status{gap:.5rem;}.registrar-enrollment-program{overflow-wrap:anywhere;}}
+@media(forced-colors:active){.registrar-work-row:focus-visible{outline-color:Highlight;}.registrar-start-panel{background:Canvas;}.registrar-work-icon{color:CanvasText;}}
+
+/* Accounting account records: native search, filters, pagination and record views. */
+.accounting-records-table .fi-ta-header-toolbar>div:has(>.fi-ta-search-field){flex:1;min-inline-size:0;}
+.accounting-records-table .fi-ta-search-field{flex:1 1 0;min-inline-size:0;max-inline-size:none;}
+.accounting-records-table .fi-ta-search-field .fi-input-wrp{inline-size:100%;}
+.accounting-account-record{display:grid;grid-template-columns:minmax(10rem,1fr) minmax(12rem,1.2fr) minmax(12rem,1.2fr) auto;gap:1.25rem;align-items:center;padding:1.25rem;}
+.accounting-assessment-sources>div{padding-block:1.25rem;}
+.accounting-assessment-sources>div+div{border-block-start:1px solid var(--tala-edge);}
+.accounting-assessment-sources h3{font-size:1rem;font-weight:600;line-height:1.5;}
+.accounting-assessment-sources p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.5rem;}
+.accounting-assessment-sources .fi-btn{inline-size:100%;margin-block-start:1rem;min-block-size:2.75rem;white-space:normal;}
+.accounting-account-record>div{min-inline-size:0;overflow-wrap:anywhere;}
+.accounting-account-person h2{font-size:1.125rem;font-weight:600;line-height:1.5;}
+.accounting-account-person p,.accounting-account-program p+p,.accounting-account-status p{margin-block-start:.375rem;font-size:.875rem;line-height:1.5;color:var(--tala-muted);}
+.accounting-account-program p{line-height:1.5;}
+.accounting-account-status .fi-badge{white-space:normal;}
+.accounting-account-record>.fi-btn{min-block-size:2.75rem;justify-self:end;}
+.accounting-records-table .fi-ta-empty-state{padding-block:2rem;}
+.accounting-plan-confirmation{display:grid;gap:1.25rem;color:var(--tala-text);font-size:1rem;line-height:1.5;}
+.accounting-plan-confirmation>div>p+p,.accounting-plan-reference{font-size:.875rem;color:var(--tala-muted);overflow-wrap:anywhere;}
+.accounting-plan-confirmation h3{font-size:1rem;font-weight:600;margin-block-end:.5rem;}
+.accounting-plan-confirmation dl>div{display:flex;justify-content:space-between;gap:1rem;padding-block:.75rem;border-block-start:1px solid var(--tala-edge);}
+.accounting-plan-confirmation dt span{display:block;font-size:.875rem;color:var(--tala-muted);margin-block-start:.25rem;}
+.accounting-plan-confirmation dd{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600;}
+.accounting-account-summary{padding:1.5rem;border:1px solid var(--tala-edge-strong);border-radius:.75rem;background:var(--tala-surface);}
+.accounting-account-summary h2{font-size:1.5rem;line-height:1.3;font-variant-numeric:tabular-nums;}
+.accounting-account-summary p{margin-block-start:.5rem;color:var(--tala-muted);}
+.accounting-obligations{margin-block-start:.5rem;}
+.accounting-obligations>div{display:flex;align-items:start;justify-content:space-between;gap:1.5rem;padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);}
+.accounting-obligations h3,.accounting-history-record h3{font-size:1rem;font-weight:600;line-height:1.5;}
+.accounting-obligations p,.accounting-recent-records p{font-size:.875rem;margin-block-start:.375rem;}
+.accounting-obligations>div>div:first-child>p,.accounting-recent-records p{color:var(--tala-muted);}
+.accounting-obligation-balance{text-align:end;flex-shrink:0;font-variant-numeric:tabular-nums;}
+.accounting-obligation-balance .fi-badge{justify-self:end;}
+.accounting-context-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-block-start:1.25rem;}
+.accounting-context-actions .fi-btn{min-block-size:2.75rem;white-space:normal;}
+.accounting-recent-records{display:flex;justify-content:space-between;gap:1.5rem;align-items:center;padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;}
+.accounting-recent-records .fi-link{flex-shrink:0;}
+.accounting-account-history>div>section+section{margin-block-start:2rem;}
+.accounting-history-record{padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);overflow-wrap:anywhere;}
+.accounting-history-record>p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.375rem;}
+.accounting-history-record .registrar-source-charges dd{white-space:normal;overflow-wrap:anywhere;}
+.accounting-history-record>.fi-link{margin-block-start:.75rem;}
+.accounting-export{display:grid;gap:1.25rem;color:var(--tala-text);font-size:.9375rem;line-height:1.5;min-inline-size:0;}
+.accounting-export-scope{display:grid;grid-template-columns:1fr 1fr 1.1fr;padding:1rem 1.25rem;gap:1.25rem;background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:.75rem;}
+.accounting-export-scope>div{min-inline-size:0;overflow-wrap:anywhere;}
+.accounting-export-scope>div+div{padding-inline-start:1.25rem;border-inline-start:1px solid var(--tala-edge-strong);}
+.accounting-export-scope dt{font-weight:600;}
+.accounting-export-scope dd,.accounting-export-note,.accounting-export-columns p{font-size:.875rem;color:var(--tala-muted);margin-block-start:.375rem;}
+.accounting-export-table-wrap{max-inline-size:100%;overflow-x:auto;border:1px solid var(--tala-edge);border-radius:.75rem;}
+.accounting-export-table{inline-size:100%;border-collapse:collapse;text-align:start;font-size:.875rem;}
+.accounting-export-table :is(th,td){padding:1rem;vertical-align:top;text-align:start;border-block-end:1px solid var(--tala-edge);}
+.accounting-export-table thead th{font-weight:500;color:var(--tala-muted);background:var(--tala-surface-sunken);}
+.accounting-export-table tbody th{font-weight:600;min-inline-size:13rem;}
+.accounting-export-table th span{display:block;font-weight:400;color:var(--tala-muted);margin-block-start:.25rem;}
+.accounting-export-table th .accounting-export-review{color:var(--tala-text);font-weight:500;}
+.accounting-export-table :is(th,td):nth-last-child(-n+3){text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.accounting-export-table tbody tr:last-child>*{border-block-end:0;}
+.accounting-export-columns{padding:.25rem 1rem;border:1px solid var(--tala-edge);border-radius:.75rem;}
+.accounting-export-columns summary{cursor:pointer;min-block-size:2.75rem;padding-block:.75rem;font-weight:500;}
+.accounting-export-columns ol{columns:2;list-style:decimal;padding-inline-start:1.25rem;margin-block:.5rem 1rem;font-size:.875rem;}
+.accounting-export-columns li{break-inside:avoid;padding-block:.25rem;}
+.accounting-export-columns p{margin-block-end:1rem;}
+.accounting-export-mobile-preview{display:none;}
+.accounting-export-mobile-row{padding-block:1rem;border-block-end:1px solid var(--tala-edge);}
+.accounting-export-mobile-row h3{font-size:1rem;font-weight:600;}
+.accounting-export-mobile-row>p{font-size:.875rem;color:var(--tala-muted);margin-block-start:.25rem;}
+.accounting-export-mobile-row dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin-block-start:1rem;}
+.accounting-export-mobile-row dt{font-size:.75rem;color:var(--tala-muted);}
+.accounting-export-mobile-row dd{font-size:.9375rem;font-variant-numeric:tabular-nums;margin-block-start:.25rem;overflow-wrap:anywhere;}
+@media(max-width:40rem){.accounting-account-export-table,.accounting-export-scope .accounting-export-purpose,.accounting-export-scope .accounting-export-empty-search{display:none;}.accounting-export-mobile-preview{display:block;}}
+.accounting-export-identity{padding:1rem 1.25rem;background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:.75rem;color:var(--tala-text);line-height:1.5;overflow-wrap:anywhere;}
+.accounting-export-identity p+p{font-size:.875rem;color:var(--tala-muted);margin-block-start:.375rem;}
+.accounting-payment-export>h3{font-size:1.125rem;font-weight:600;}
+.accounting-payment-export-table tbody th{overflow-wrap:anywhere;}
+.accounting-payment-export-table tbody th span{max-inline-size:22rem;}
+.accounting-payment-export-table :is(th,td):nth-last-child(-n+3){text-align:start;white-space:normal;min-inline-size:9rem;}
+.accounting-payment-export-table :is(th,td):nth-child(2){text-align:end;white-space:nowrap;}
+.class-roster-export-table :is(th,td):nth-last-child(-n+3){text-align:start;white-space:normal;}
+.class-roster-export-table tbody th{min-inline-size:9rem;font-weight:500;font-variant-numeric:tabular-nums;}
+.accounting-fee-plan-record{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.75rem 1.5rem;align-items:center;padding:1.5rem;}
+.accounting-fee-plan-record>div,.accounting-fee-plan-identity{min-inline-size:0;overflow-wrap:anywhere;}
+.accounting-fee-plan-heading{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;}
+.accounting-fee-plan-record h2{font-family:var(--tala-font-heading);font-size:1.25rem;font-weight:var(--tala-weight-emphasis);line-height:1.35;letter-spacing:-.015em;}
+.accounting-fee-plan-record p{font-size:.875rem;line-height:1.5;margin-block-start:.3rem;}
+.accounting-fee-plan-meta,.accounting-fee-plan-readiness{color:var(--tala-muted);}
+.accounting-fee-plan-amounts{display:grid;grid-column:1;grid-template-columns:repeat(2,minmax(0,1fr));max-inline-size:38rem;}
+.accounting-fee-plan-amounts>div{min-inline-size:0;padding-inline:1rem;border-inline-start:1px solid var(--tala-edge);}
+.accounting-fee-plan-amounts>div:first-child{padding-inline-start:0;border-inline-start:0;}
+.accounting-fee-plan-amounts dt{font-size:.875rem;color:var(--tala-muted);}
+.accounting-fee-plan-amounts dd{font-family:var(--tala-font-heading);font-size:1.375rem;line-height:1.3;font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;margin-block-start:.25rem;white-space:nowrap;}
+.accounting-fee-plan-readiness{grid-column:1;font-size:.875rem;}
+.accounting-fee-plan-record>.fi-btn{grid-column:2;grid-row:1 / span 3;min-inline-size:13rem;min-block-size:2.75rem;justify-content:space-between;}
+.faculty-membership-context{display:flex;flex-wrap:wrap;align-items:center;gap:1.5rem;color:var(--tala-text);font-size:1rem;}
+.tala-faculty-membership-page .fi-header-heading{font-size:2rem;line-height:1.2;font-weight:700;letter-spacing:-.025em;}
+.faculty-membership-list{background:var(--tala-surface);padding:1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;}
+.faculty-membership-context>span{color:var(--tala-muted);}
+.faculty-membership-window{display:flex;flex-wrap:wrap;align-items:start;justify-content:space-between;gap:1rem;padding-block:1rem;border-block:1px solid var(--tala-edge);font-size:1rem;line-height:1.6;}
+.faculty-membership-window>p{max-inline-size:65ch;}
+.faculty-membership-window details{flex:0 1 auto;}
+.faculty-membership-window details[open]{flex-basis:100%;}
+.faculty-membership-window summary,.faculty-membership-source summary{cursor:pointer;min-block-size:2.75rem;font-weight:500;}
+.faculty-membership-window summary{color:var(--tala-text);text-decoration:underline;text-underline-offset:.2em;}
+.faculty-membership-window details[open] summary{margin-block-end:1rem;}
+.faculty-membership-list h2,.faculty-membership-message h2{font-size:1.25rem;font-weight:600;margin-block-end:1rem;}
+.faculty-membership-list table{inline-size:100%;border-collapse:collapse;font-size:1rem;line-height:1.6;}
+.faculty-membership-list :is(th,td){text-align:start;padding:1rem;border-block-end:1px solid var(--tala-edge);overflow-wrap:anywhere;}
+.faculty-membership-list thead th{background:var(--tala-surface-sunken);font-weight:500;font-size:.875rem;color:var(--tala-muted);}
+.faculty-membership-list tbody th{font-weight:500;}
+.faculty-membership-list td>span{display:block;font-size:.875rem;}
+.faculty-membership-note{color:var(--tala-muted);font-size:.875rem;margin-block-start:1rem;}
+.faculty-membership-source{border-block-start:1px solid var(--tala-edge);padding-block-start:1rem;}
+.faculty-membership-source dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;}
+.faculty-membership-source dt{font-size:.875rem;color:var(--tala-muted);}
+.faculty-membership-source dd{margin-block-start:.5rem;line-height:1.6;overflow-wrap:anywhere;}
+.faculty-membership-message{padding:1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;}
+.faculty-membership-message p{max-inline-size:65ch;line-height:1.6;}
+.academic-head-membership{display:grid;gap:2rem;color:var(--tala-text);}
+.oversight-header{display:grid;grid-template-columns:minmax(0,1fr) minmax(18rem,24rem);align-items:center;gap:1.5rem;color:var(--tala-text);}
+.oversight-header h1{font-size:2.25rem;line-height:1.15;letter-spacing:-.03em;font-weight:var(--tala-weight-heading);margin:0;text-wrap:balance;}
+.oversight-term-picker{min-inline-size:0;}
+.oversight-readonly{display:flex;align-items:center;gap:.5rem;margin-block-start:.75rem;font-size:.8125rem;line-height:1.5;color:var(--tala-muted);}
+.oversight-readonly>svg{inline-size:1.25rem;block-size:1.25rem;flex-shrink:0;}
+.oversight-readonly small{display:block;font-size:.75rem;}
+.oversight-welcome{display:grid;align-content:center;justify-items:center;gap:3rem;min-block-size:28rem;padding:2.5rem 1rem;color:var(--tala-text);text-align:center;}
+.oversight-welcome-main{display:grid;justify-items:center;gap:.75rem;inline-size:100%;}
+.oversight-welcome-main>svg{inline-size:3rem;block-size:3rem;color:var(--tala-muted);margin-block-end:.5rem;}
+.oversight-welcome h2{font-size:1.5rem;line-height:1.3;font-weight:var(--tala-weight-emphasis);letter-spacing:-.02em;text-wrap:balance;}
+.oversight-welcome-main>p{max-inline-size:52ch;color:var(--tala-muted);font-size:.9375rem;line-height:1.6;}
+.oversight-welcome-picker{inline-size:min(100%,24rem);margin-block-start:.75rem;text-align:start;}
+.oversight-welcome-records{display:grid;justify-items:center;gap:1rem;}
+.oversight-welcome-records h3{font-size:.875rem;line-height:1.5;font-weight:var(--tala-weight-emphasis);}
+.oversight-welcome-records nav{display:flex;justify-content:center;flex-wrap:wrap;gap:.75rem;}
+.oversight-board{--oversight-official:#168252;--oversight-in-progress:#b9e8d4;--oversight-pending:#cbd5e1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(17rem,.75fr);grid-template-areas:"calendar calendar attention" "enrollment grades attention" "authority authority authority" "lifecycle lifecycle lifecycle";gap:1rem;color:var(--tala-text);}
+.oversight-panel{min-inline-size:0;border:1px solid var(--tala-edge);border-radius:.75rem;padding:1.5rem;background:var(--tala-surface);box-shadow:0 1px 2px #00000008;}
+.oversight-panel h2{font-size:1.1875rem;line-height:1.3;font-weight:var(--tala-weight-emphasis);letter-spacing:-.015em;margin:0;}
+.oversight-panel-heading{display:flex;justify-content:space-between;align-items:start;gap:1rem;flex-wrap:wrap;}
+.oversight-calendar{grid-area:calendar;}
+.oversight-calendar h2,.oversight-attention h2{font-size:1.5rem;}
+.oversight-calendar-state{display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end;gap:.75rem;font-size:.8125rem;line-height:1.5;}
+.oversight-calendar-state>a,.oversight-panel-heading>a,.oversight-attention li>a{display:inline-flex;align-items:center;gap:.5rem;min-block-size:2.5rem;font-weight:var(--tala-weight-emphasis);}
+.oversight-period-state{display:inline-block;padding:.25rem .5rem;background:var(--tala-surface-sunken);border-radius:.375rem;color:var(--tala-text);font-size:.75rem;}
+.oversight-period-state.is-open{background:#e1f2e7;color:#14532d;}
+.oversight-timeline{--label-width:5.5rem;position:relative;padding-block-start:4.5rem;margin-block:1.5rem .75rem;}
+.oversight-timeline-grid{position:absolute;inset-block:0 1.5rem;inset-inline:var(--label-width) 0;pointer-events:none;}
+.oversight-month{position:absolute;inset-block:0;inline-size:1px;border-inline-start:1px solid var(--tala-edge);}
+.oversight-month>span{position:absolute;inset-block-start:-.125rem;inset-inline-start:.25rem;white-space:nowrap;font-size:.6875rem;color:var(--tala-muted);}
+.oversight-today{position:absolute;inset-block:1.75rem 0;border-inline-start:1px dashed #168252;z-index:1;}
+.oversight-today>span{position:absolute;inset-block-start:0;inset-inline-start:.375rem;white-space:nowrap;font-size:.6875rem;font-weight:600;color:var(--tala-text);line-height:1.3;background:var(--tala-surface);}
+.oversight-today small{display:block;font-size:.6875rem;font-weight:400;}
+.oversight-timeline dl{position:relative;z-index:2;}
+.oversight-timeline-row{display:grid;grid-template-columns:var(--label-width) minmax(0,1fr);min-block-size:4.75rem;align-items:start;}
+.oversight-timeline-row dt{font-size:.8125rem;line-height:1.5;font-weight:600;padding-block-start:.55rem;}
+.oversight-timeline-row dd{position:relative;min-inline-size:0;min-block-size:4rem;margin:0;}
+.oversight-date-bar{position:absolute;inset-block-start:.7rem;block-size:.875rem;min-inline-size:2px;border:1px solid #4d7d65;border-radius:1rem;background:#b9e8d4;}
+.oversight-date-bar::before,.oversight-date-bar::after{content:"";position:absolute;inset-block-start:-2px;inline-size:.875rem;block-size:.875rem;border-radius:50%;border:2px solid var(--tala-surface);background:#168252;}
+.oversight-date-bar::before{inset-inline-start:-.25rem;}.oversight-date-bar::after{inset-inline-end:-.25rem;}
+.oversight-date-bar-teaching{background:#c7dcf4;border-color:#376d9d;}.oversight-date-bar-teaching::before,.oversight-date-bar-teaching::after{background:#376d9d;}
+.oversight-date-bar-exams{background:#e9d8ad;border-color:#805f18;}.oversight-date-bar-exams::before,.oversight-date-bar-exams::after{background:#805f18;}
+.oversight-date-missing{position:absolute;inset-inline:0;inset-block-start:1.1rem;border-block-start:1px dashed #64748b;}
+.oversight-date-label{position:relative;display:block;padding-block-start:2rem;font-size:.75rem;color:var(--tala-muted);line-height:1.5;font-variant-numeric:tabular-nums;}
+.oversight-source-details{border-block-start:1px solid var(--tala-edge);padding-block-start:.625rem;font-size:.8125rem;line-height:1.6;}
+.oversight-source-details summary{cursor:pointer;min-block-size:2.75rem;padding-block:.625rem;font-weight:600;}
+.oversight-source-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-block:1rem;}
+.oversight-source-grid dt{font-size:.75rem;color:var(--tala-muted);}.oversight-source-grid dd{margin:.25rem 0 0;overflow-wrap:anywhere;}
+.oversight-source-details>p{max-inline-size:65ch;}
+.oversight-source-links{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;margin-block-start:1rem;}
+.oversight-source-links>a{display:inline-flex;align-items:center;min-block-size:2.75rem;}
+.oversight-calendar-empty{display:grid;justify-items:center;align-content:center;text-align:center;gap:.75rem;min-block-size:17.5rem;padding:1.5rem 0;}
+.oversight-calendar-empty>svg{inline-size:3rem;block-size:3rem;stroke-width:1.2;color:var(--tala-muted);margin-block-end:.75rem;}
+.oversight-calendar-empty h3{font-size:1.25rem;font-weight:var(--tala-weight-emphasis);}.oversight-calendar-empty p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);max-inline-size:50ch;}
+.oversight-attention{grid-area:attention;}
+.oversight-count{display:inline-flex;align-items:center;justify-content:center;min-inline-size:2rem;block-size:2rem;border-radius:.375rem;background:var(--tala-surface-sunken);font-size:1rem;font-variant-numeric:tabular-nums;}
+.oversight-panel-intro{font-size:.875rem;line-height:1.5;margin-block-start:.5rem;color:var(--tala-muted);}
+.oversight-attention ul{list-style:none;margin:1rem 0 0;padding:0;}
+.oversight-attention li{padding-block:1rem;border-block-start:1px solid var(--tala-edge);}
+.oversight-attention li:first-child{padding-block-start:.5rem;border:0;}
+.oversight-scope{display:inline-block;justify-self:start;padding:.2rem .45rem;border-radius:.3125rem;background:#edf3f8;color:#354b63;font-size:.6875rem;line-height:1.5;}
+.oversight-scope-institution{background:#fff3d9;color:#704808;}
+.oversight-attention h3{font-size:.9375rem;font-weight:var(--tala-weight-emphasis);line-height:1.4;margin-block:.5rem .375rem;overflow-wrap:anywhere;}
+.oversight-attention h3>a{display:flex;align-items:center;justify-content:space-between;gap:.75rem;min-block-size:2.75rem;}
+.oversight-attention h3>a>span{flex-shrink:0;}
+.oversight-attention li p{font-size:.8125rem;line-height:1.55;max-inline-size:45ch;}
+.oversight-attention .oversight-finding-owner{font-size:.75rem;color:var(--tala-muted);margin-block-start:.5rem;}
+.oversight-attention li>a{font-size:.8125rem;margin-block-start:.25rem;}
+.oversight-no-findings{margin-block-start:2rem;}.oversight-no-findings>svg{inline-size:2rem;block-size:2rem;color:var(--tala-muted);}.oversight-no-findings p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);}
+.oversight-enrollment{grid-area:enrollment;}.oversight-grades{grid-area:grades;}
+.oversight-figure{display:flex;align-items:baseline;flex-wrap:wrap;gap:.5rem;margin-block:1rem .75rem;font-variant-numeric:tabular-nums;}
+.oversight-figure>strong{font-size:2.5rem;line-height:1.1;letter-spacing:-.035em;font-weight:var(--tala-weight-heading);}.oversight-figure>span{font-size:.875rem;color:var(--tala-muted);}
+.oversight-distribution{display:flex;inline-size:100%;block-size:1.125rem;border:1px solid #60746a;border-radius:1rem;overflow:hidden;background:var(--tala-surface-sunken);}
+.oversight-distribution>span{flex-basis:0;min-inline-size:0;}
+.oversight-distribution>span+span{border-inline-start:1px solid #60746a;}
+.oversight-segment-official,.oversight-grade-released{background:var(--oversight-official);}
+.oversight-segment-in_progress{background:var(--oversight-in-progress);}
+.oversight-segment-closed,.oversight-grade-in_progress{background:var(--oversight-pending);}
+.oversight-segment-unknown,.oversight-grade-unknown{background:repeating-linear-gradient(135deg,#e5e7eb 0 4px,#64748b 4px 6px);}
+.oversight-grade-submitted{background:#89b4dd;}
+.oversight-legend{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem 1rem;margin-block:1rem 1.25rem;font-size:.8125rem;line-height:1.5;}
+.oversight-legend>div{display:flex;align-items:center;gap:.375rem;}.oversight-legend dt{display:flex;align-items:center;gap:.375rem;}.oversight-legend dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;}
+.oversight-legend i{display:inline-block;inline-size:.625rem;block-size:.625rem;border-radius:50%;border:1px solid #60746a;flex-shrink:0;}
+.oversight-enrollment>.fi-btn,.oversight-grades>.fi-btn{margin-block-start:.5rem;}
+.oversight-unavailable{min-block-size:8.5rem;display:grid;align-content:center;gap:.75rem;line-height:1.5;color:var(--tala-muted);font-size:.875rem;}.oversight-unavailable>strong{font-size:2rem;line-height:1;}
+.oversight-summary-note{font-size:.875rem;color:var(--tala-muted);line-height:1.6;margin-block:1rem 1.25rem;}
+.oversight-authority{grid-area:authority;}.oversight-heading-scope{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;}
+.oversight-program-summary{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1.5rem;align-items:center;margin-block:1rem;font-size:.8125rem;}.oversight-program-summary strong{font-weight:var(--tala-weight-emphasis);font-variant-numeric:tabular-nums;}.oversight-program-distribution{block-size:.75rem;}
+.oversight-programs{list-style:none;margin:0;padding:0;}.oversight-programs li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-block:.75rem;border-block-start:1px solid var(--tala-edge);}.oversight-programs a{font-size:.875rem;font-weight:var(--tala-weight-emphasis);line-height:1.6;}.oversight-programs small{display:block;font-size:.75rem;line-height:1.5;color:var(--tala-muted);margin-block-start:.25rem;}
+.oversight-lifecycle{grid-area:lifecycle;display:flex;align-items:center;justify-content:space-between;gap:1.5rem;}.oversight-lifecycle p{font-size:.75rem;color:var(--tala-muted);line-height:1.5;margin-block-start:.5rem;}.oversight-lifecycle nav{display:flex;flex-wrap:wrap;gap:.75rem;}.oversight-lifecycle nav>a{min-inline-size:13rem;}
+.oversight-checked{font-size:.75rem;color:var(--tala-muted);line-height:1.6;margin:0;}
+.oversight-board :is(.oversight-calendar-state,.oversight-panel-heading,.oversight-source-links,.oversight-attention h3,.oversight-programs) a:not(.fi-btn){text-decoration:none;}
+.oversight-board :is(.oversight-calendar-state,.oversight-panel-heading,.oversight-source-links,.oversight-attention h3,.oversight-programs) a:not(.fi-btn):is(:hover,:focus-visible){text-decoration:underline;text-underline-offset:.2em;}
+.oversight-board :is(a,summary):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;border-radius:.25rem;}
+.oversight-board ::selection{background:#c2e5ce;color:#153f26;}
+@media(max-width:80rem){.oversight-header{grid-template-columns:minmax(0,1fr) minmax(16rem,22rem);}.oversight-board{grid-template-columns:repeat(2,minmax(0,1fr)) minmax(15rem,.8fr);}.oversight-panel{padding:1.25rem;}.oversight-calendar-state{justify-content:flex-start;}.oversight-lifecycle{align-items:start;flex-direction:column;}}
+@media(max-width:65rem){.oversight-board{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"calendar calendar" "enrollment grades" "attention attention" "authority authority" "lifecycle lifecycle";}.oversight-attention ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;}.oversight-attention li,.oversight-attention li:first-child{padding-block:.5rem;border:0;}.oversight-header h1{font-size:2rem;}}
+@media(max-width:40rem){.oversight-header{grid-template-columns:minmax(0,1fr);gap:1rem;}.oversight-header h1{font-size:1.875rem;}.oversight-readonly{grid-column:auto;margin:0;}.oversight-readonly small{display:inline;margin-inline-start:.5rem;}.oversight-welcome{min-block-size:20rem;padding:2rem .5rem;gap:2rem;}.oversight-welcome-records nav{flex-direction:column;align-items:stretch;inline-size:min(100%,24rem);}.oversight-board{grid-template-columns:minmax(0,1fr);grid-template-areas:"calendar" "enrollment" "grades" "attention" "authority" "lifecycle";}.oversight-panel{padding:1.25rem;}.oversight-calendar h2,.oversight-attention h2{font-size:1.375rem;}.oversight-timeline{--label-width:4.25rem;margin-block-start:1.25rem;padding-block-start:3.5rem;}.oversight-month:nth-child(even)>span{display:none;}.oversight-month>span{font-size:.625rem;}.oversight-timeline-row{min-block-size:4.5rem;}.oversight-timeline-row dt{font-size:.75rem;}.oversight-date-label{font-size:.6875rem;}.oversight-attention ul{grid-template-columns:minmax(0,1fr);gap:0;}.oversight-attention li{border-block-start:1px solid var(--tala-edge);padding-block:1rem;}.oversight-source-grid{grid-template-columns:minmax(0,1fr);}.oversight-program-summary{grid-template-columns:minmax(0,1fr);gap:.625rem;}.oversight-programs li{align-items:start;flex-direction:column;}.oversight-lifecycle nav,.oversight-lifecycle nav>a{inline-size:100%;min-inline-size:0;}.oversight-figure>strong{font-size:2.25rem;}.oversight-calendar-empty{min-block-size:14rem;}}
+.tala-head-rosters-page .fi-header-heading{font-size:2rem;line-height:1.2;letter-spacing:-.025em;font-weight:700;}
+.tala-head-rosters-page .fi-header-subheading{max-inline-size:70ch;}
+.academic-roster-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.15fr) auto auto;align-items:center;gap:1.5rem;padding:1.5rem;white-space:normal;color:var(--tala-text);}
+.academic-roster-identity h2{font-size:1.125rem;font-weight:600;line-height:1.4;margin:0 0 .375rem;}
+.academic-roster-identity p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin:0;overflow-wrap:anywhere;}
+.academic-roster-figures{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1rem;}
+.academic-roster-figures dt{font-size:.8125rem;line-height:1.5;color:var(--tala-muted);}
+.academic-roster-figures dd{font-size:.9375rem;line-height:1.5;margin-block-start:.375rem;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+.academic-roster-state{display:inline-flex;justify-self:start;align-items:center;border:1px solid var(--tala-edge);background:var(--tala-surface-sunken);color:var(--tala-text);border-radius:.375rem;padding:.25rem .5rem;font-size:.8125rem;line-height:1.4;}
+.academic-roster-open{display:inline-flex;align-items:center;justify-self:start;gap:.5rem;min-block-size:2.75rem;line-height:1.5;font-size:.9375rem;font-weight:600;text-decoration:underline;text-underline-offset:.2em;}
+.academic-roster-open:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;border-radius:.25rem;}
+@media(max-width:75rem){.academic-roster-row{grid-template-columns:minmax(0,1fr) auto;}.academic-roster-identity{grid-column:1/-1;}.academic-roster-open{justify-self:end;}.academic-roster-figures{grid-column:1/2;}}
+@media(max-width:40rem){.tala-head-rosters-page .fi-header-heading{font-size:1.75rem;}.academic-roster-row{padding:1.25rem;gap:1rem;}.academic-roster-figures{grid-template-columns:minmax(0,1fr);}.academic-roster-state{grid-column:2;grid-row:2;align-self:start;}.academic-roster-open{grid-column:1/-1;justify-self:start;}.academic-head-membership .faculty-membership-context{align-items:start;}}
+.faculty-membership-source summary:focus-visible,.faculty-membership-window summary:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+@media(max-width:40rem){.faculty-membership-context{gap:.75rem;}.faculty-membership-list thead{display:none;}.faculty-membership-list :is(table,tbody,tr,th,td){display:block;}.faculty-membership-list tr{padding-block:1rem;border-block-end:1px solid var(--tala-edge);}.faculty-membership-list :is(th,td){padding:.25rem 0;border:0;}.faculty-membership-list :is(th,td)::before{content:attr(data-label);display:block;color:var(--tala-muted);font-size:.8125rem;font-weight:400;}.faculty-membership-source dl{grid-template-columns:minmax(0,1fr);}}
+@media(max-width:40rem){.tala-faculty-membership-page .fi-header-heading{font-size:1.75rem;}.faculty-membership-list{padding:1.25rem;}}
+.accounting-fee-plan-detail{color:var(--tala-text);}
+.accounting-fee-plan-intro{display:flex;align-items:start;gap:1rem;margin-block-end:2rem;}
+.accounting-fee-plan-intro p{max-inline-size:75ch;color:var(--tala-muted);font-size:1rem;line-height:1.6;}
+.accounting-fee-plan-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2rem;}
+.accounting-fee-plan-detail h2{font-size:1.375rem;font-weight:600;margin-block-end:1rem;line-height:1.35;}
+.accounting-fee-plan-detail table{inline-size:100%;border-collapse:collapse;text-align:start;}
+.accounting-fee-plan-detail :is(th,td){padding:1rem;line-height:1.5;border-block-end:1px solid var(--tala-edge);overflow-wrap:anywhere;}
+.accounting-fee-plan-detail thead th{background:var(--tala-surface-sunken);font-size:.875rem;color:var(--tala-muted);font-weight:500;text-align:start;}
+.accounting-fee-plan-detail tbody th{font-weight:500;text-align:start;}
+.accounting-fee-plan-detail :is(th,td):last-child{text-align:end;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.accounting-fee-plan-detail tfoot{font-weight:600;background:var(--tala-surface-sunken);}
+.accounting-fee-plan-detail tfoot th{text-align:start;}
+.accounting-fee-plan-payments>div{display:flex;justify-content:space-between;align-items:start;gap:1rem;padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);}
+.accounting-fee-plan-payments h3{font-weight:600;}
+.accounting-fee-plan-payments p{color:var(--tala-muted);font-size:.875rem;line-height:1.6;margin-block-start:.375rem;}
+.accounting-fee-plan-payments strong{white-space:nowrap;font-variant-numeric:tabular-nums;}
+.accounting-fee-plan-approval{margin-block-start:2.5rem;padding-block:1.5rem;border-block-start:1px solid var(--tala-edge);}
+.accounting-fee-plan-approval dl{display:grid;grid-template-columns:1.2fr .7fr 1fr;gap:1.5rem;}
+.accounting-fee-plan-approval dt,.accounting-fee-plan-source dt,.accounting-fee-plan-form-totals dt{color:var(--tala-muted);font-size:.875rem;}
+.accounting-fee-plan-approval dd{margin-block-start:.5rem;overflow-wrap:anywhere;line-height:1.6;}
+.accounting-fee-plan-source{margin-block-start:2rem;border-block-start:1px solid var(--tala-edge);}
+.accounting-fee-plan-source summary{cursor:pointer;min-block-size:2.75rem;padding-block:1rem;font-weight:600;}
+.accounting-fee-plan-source h3{font-weight:600;margin-block:1.5rem .75rem;}
+.accounting-fee-plan-source dl>div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem;padding-block:.75rem;border-block-end:1px solid var(--tala-edge);}
+.accounting-fee-plan-source dd{overflow-wrap:anywhere;}
+.accounting-fee-plan-source li{padding-block:.5rem;}
+.accounting-fee-plan-source a{text-decoration:underline;text-underline-offset:.2em;}
+.accounting-fee-plan-source :is(a,summary):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+.accounting-fee-plan-form-totals{padding:1.25rem 1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface-sunken);}
+.accounting-fee-plan-form-totals dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 2rem;}
+.accounting-fee-plan-form-totals dl>div{min-inline-size:0;}
+.accounting-fee-plan-form-totals dd{font-size:1.25rem;line-height:1.35;font-weight:var(--tala-weight-emphasis);margin-block-start:.375rem;font-variant-numeric:tabular-nums;}
+.accounting-fee-plan-form-totals p{margin-block-start:1rem;padding-block-start:.75rem;border-block-start:1px solid var(--tala-edge);font-size:.875rem;line-height:1.5;}
+@media(max-width:40rem){.accounting-fee-plan-form-totals{padding:1rem;}.accounting-fee-plan-form-totals dl{grid-template-columns:minmax(0,1fr);gap:.875rem;}}
+.accounting-fee-plan-confirmation h3{font-size:1.125rem;font-weight:600;line-height:1.5;}
+.accounting-fee-plan-confirmation p{margin-block-start:.75rem;line-height:1.6;overflow-wrap:anywhere;}
+.accounting-fee-plan-confirmation dl{margin-block:1.5rem;}
+.accounting-fee-plan-confirmation dl>div{display:flex;justify-content:space-between;gap:1rem;padding-block:.875rem;border-block-end:1px solid var(--tala-edge);}
+.accounting-fee-plan-confirmation dd{font-weight:600;font-variant-numeric:tabular-nums;}
+.accounting-fee-plan-publish h3:not(:first-child){margin-block-start:1.5rem;}
+.accounting-fee-plan-publish dt span{display:block;color:var(--tala-muted);font-size:.875rem;margin-block-start:.375rem;}
+.accounting-fee-plan-publish dd{white-space:nowrap;}
+@media(max-width:40rem){.accounting-fee-plan-publish dl>div{flex-wrap:wrap;}.accounting-fee-plan-publish dt{flex:1 1 11rem;}}
+.accounting-fee-plan-edit-context{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;}
+.accounting-fee-plan-edit-context dt{font-size:.875rem;color:var(--tala-muted);}
+.accounting-fee-plan-edit-context dd{line-height:1.6;margin-block-start:.5rem;overflow-wrap:anywhere;}
+@media(max-width:40rem){.accounting-fee-plan-edit-context{grid-template-columns:minmax(0,1fr);gap:1rem;}}
+@media(max-width:60rem){.accounting-fee-plan-layout{grid-template-columns:minmax(0,1fr);}.accounting-fee-plan-approval dl{grid-template-columns:minmax(0,1fr);}}
+@media(max-width:40rem){.accounting-fee-plan-intro{flex-wrap:wrap;}.accounting-fee-plan-detail :is(th,td){padding:.75rem .5rem;}.accounting-fee-plan-payments>div{flex-wrap:wrap;}.accounting-fee-plan-payments>div>div{flex:1 1 12rem;}}
+@media(max-width:75rem){.accounting-fee-plan-record{grid-template-columns:minmax(0,1fr) auto;}.accounting-fee-plan-record>.fi-btn{min-inline-size:11rem;}}
+@media(max-width:64rem){.accounting-work-queues{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;}.accounting-queue--lead{grid-row:auto;min-block-size:17rem;}.accounting-fee-plan-record{grid-template-columns:minmax(0,1fr);}.accounting-fee-plan-record>.fi-btn{grid-column:1;grid-row:auto;inline-size:100%;}}
+@media(max-width:40rem){.accounting-work-queues{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;}.accounting-queue--lead{grid-row:auto;min-block-size:0;}.accounting-queue{min-block-size:12rem;padding:1.25rem;}.accounting-queue--lead{min-block-size:19rem;padding:1.25rem;}.accounting-workbench-note{align-items:flex-start;flex-direction:column;}.accounting-search-panel{padding:1.25rem;}.accounting-search-panel h2{font-size:1.25rem;}.accounting-record-search{grid-template-columns:minmax(0,1fr);}.accounting-record-search .fi-btn{inline-size:100%;min-block-size:2.75rem;}.accounting-fee-plan-record{grid-template-columns:minmax(0,1fr);gap:1rem;padding:1.25rem;}.accounting-fee-plan-record>.fi-btn{grid-column:1;grid-row:auto;inline-size:100%;min-inline-size:0;}.accounting-fee-plan-amounts{grid-template-columns:minmax(0,1fr);gap:.75rem;max-inline-size:none;}.accounting-fee-plan-amounts>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:1rem;padding:0;border:0;}.accounting-fee-plan-amounts dd{margin:0;font-size:1.125rem;}}
+.accounting-export-notice,.accounting-export-empty{padding:1.25rem;border:1px solid var(--tala-edge-strong);border-radius:.75rem;background:var(--tala-surface-sunken);}
+.accounting-export-empty h3{font-weight:600;}
+.accounting-export-empty p{color:var(--tala-muted);margin-block-start:.5rem;}
+.accounting-export :is(summary,.accounting-export-table-wrap):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+@media(max-width:40rem){.accounting-export-scope{grid-template-columns:minmax(0,1fr);gap:1rem;padding:1rem;}.accounting-export-scope>div+div{border-inline-start:0;border-block-start:1px solid var(--tala-edge);padding-inline-start:0;padding-block-start:1rem;}.accounting-export-table :is(th,td){padding:.75rem;}.accounting-export-columns ol{columns:1;}}
+@media(max-width:40rem){.accounting-account-summary{padding:1.25rem;}.accounting-obligations>div{gap:1rem;}.accounting-obligation-balance{flex-shrink:1;}.accounting-recent-records{flex-direction:column;align-items:start;padding:1.25rem;}.accounting-context-actions .fi-btn{inline-size:100%;}.accounting-plan-confirmation dl>div{gap:.75rem;}}
+@media(max-width:70rem){.accounting-account-record{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}.accounting-account-record>.fi-btn{justify-self:start;}}
+@media(max-width:40rem){.accounting-account-record{grid-template-columns:minmax(0,1fr);gap:1rem;padding:1.25rem;}.accounting-account-record>.fi-btn{inline-size:100%;}.accounting-records-table .fi-ta-header-toolbar>div:has(>.fi-ta-search-field){flex-basis:100%;}}
+
+.tala-head-enrollments-page .fi-header-heading{font-size:2rem;line-height:1.2;letter-spacing:-.025em;}
+.tala-head-enrollments-page .fi-header-subheading{max-inline-size:70ch;}
+.academic-enrollment-row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) minmax(0,1fr) auto;align-items:center;gap:1.5rem;padding:1.5rem;color:var(--tala-text);white-space:normal;}
+.academic-enrollment-row h2{font-size:1.125rem;font-weight:600;line-height:1.4;margin:0 0 .375rem;}
+.academic-enrollment-row p{font-size:.875rem;line-height:1.6;overflow-wrap:anywhere;}
+.academic-enrollment-identity p,.academic-enrollment-program p+p,.academic-enrollment-status p{color:var(--tala-muted);}
+.academic-enrollment-status p{margin-block-start:.5rem;}
+.academic-enrollment-open{display:flex;align-items:center;gap:.75rem;min-block-size:2.75rem;font-size:.875rem;font-weight:600;text-decoration:underline;text-underline-offset:.2em;}
+.head-enrollment-detail{display:grid;gap:1.5rem;color:var(--tala-text);}
+.head-enrollment-context{display:flex;align-items:start;justify-content:space-between;gap:1.5rem;line-height:1.6;}
+.head-enrollment-context>div>p:first-child{font-size:1rem;font-weight:600;}
+.head-enrollment-context>div>p+p,.head-enrollment-context>div:last-child>p{font-size:.8125rem;color:var(--tala-muted);margin-block-start:.375rem;}
+.head-enrollment-board{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(16rem,1fr);grid-template-areas:"subjects record" "schedule schedule";align-items:start;gap:1rem;}
+.head-enrollment-panel{min-inline-size:0;padding:1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);}
+.head-enrollment-panel h2{font-size:1.25rem;font-weight:600;line-height:1.4;letter-spacing:-.015em;}
+.head-enrollment-subjects{grid-area:subjects;}.head-enrollment-record{grid-area:record;}.head-enrollment-schedule{grid-area:schedule;}
+.head-enrollment-panel-heading{display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:1rem;}
+.head-enrollment-figures{display:flex;gap:1.5rem;}.head-enrollment-figures>div{display:flex;flex-direction:column-reverse;align-items:center;gap:.25rem;}.head-enrollment-figures dt{font-size:.75rem;color:var(--tala-muted);}.head-enrollment-figures dd{font-size:2rem;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums;}
+.head-enrollment-subject-table{inline-size:100%;border-collapse:collapse;margin-block-start:1.5rem;text-align:start;font-size:.875rem;line-height:1.6;}
+.head-enrollment-subject-table :is(th,td){padding:.875rem .75rem;text-align:start;border-block-end:1px solid var(--tala-edge);vertical-align:top;}
+.head-enrollment-subject-table thead{background:var(--tala-surface-sunken);font-size:.75rem;color:var(--tala-muted);}.head-enrollment-subject-table tbody th{font-weight:600;}.head-enrollment-subject-table small{display:block;font-size:.75rem;font-weight:400;color:var(--tala-muted);margin-block-start:.25rem;}
+.head-enrollment-record dl{display:grid;margin-block-start:1rem;}.head-enrollment-record dl>div{padding-block:.875rem;border-block-start:1px solid var(--tala-edge);}.head-enrollment-record dt,.head-enrollment-source-grid dt{font-size:.8125rem;color:var(--tala-muted);line-height:1.5;}.head-enrollment-record dd,.head-enrollment-source-grid dd{margin:.375rem 0 0;font-size:.875rem;line-height:1.6;overflow-wrap:anywhere;}.head-enrollment-record small{display:block;font-size:.75rem;color:var(--tala-muted);margin-block-start:.375rem;}
+.head-enrollment-note{font-size:.8125rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.75rem;max-inline-size:75ch;}
+.head-enrollment-meetings{list-style:none;padding:0;margin:1rem 0 0;display:grid;gap:.75rem;}.head-enrollment-meetings li{display:grid;grid-template-columns:12rem minmax(0,1fr);gap:1rem;padding:1rem;border:1px solid var(--tala-edge);border-inline-start:1px solid #376d9d;border-radius:.5rem;background:var(--tala-surface-sunken);}.head-enrollment-meeting-time{display:grid;align-content:start;gap:.25rem;}.head-enrollment-meetings h3,.head-enrollment-meeting-time strong{font-size:.9375rem;line-height:1.5;font-weight:600;}.head-enrollment-meetings p,.head-enrollment-meeting-time span{font-size:.8125rem;line-height:1.6;color:var(--tala-muted);}.head-enrollment-meetings p{margin-block-start:.25rem;}
+.head-enrollment-evidence{padding:1.25rem 1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);}.head-enrollment-evidence summary{font-weight:600;min-block-size:2.75rem;cursor:pointer;padding-block:.625rem;line-height:1.5;}.head-enrollment-source-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.5rem;margin-block:1.5rem 2rem;}.head-enrollment-evidence h3{font-size:1rem;font-weight:600;line-height:1.5;}.head-enrollment-history{list-style:none;margin:1rem 0 0;padding:0;}.head-enrollment-history li{display:flex;justify-content:space-between;gap:1.5rem;padding-block:1rem;border-block-start:1px solid var(--tala-edge);font-size:.8125rem;line-height:1.6;}.head-enrollment-history li>p{color:var(--tala-muted);}.head-enrollment-history span{display:block;}.head-enrollment-pending{font-size:.875rem;line-height:1.6;margin-block:1rem 2rem;}
+:is(.head-enrollment-detail,.academic-enrollment-row) :is(a,summary):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;border-radius:.25rem;}
+@media(max-width:75rem){.academic-enrollment-row{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr);gap:1rem;}.academic-enrollment-open{grid-column:1/-1;justify-content:flex-end;}.head-enrollment-board{grid-template-columns:minmax(0,1.5fr) minmax(15rem,1fr);}}
+@media(max-width:60rem){.head-enrollment-board{grid-template-columns:minmax(0,1fr);grid-template-areas:"subjects" "record" "schedule";}.head-enrollment-source-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.head-enrollment-context{flex-direction:column;}}
+@media(max-width:40rem){.tala-head-enrollments-page .fi-header-heading{font-size:1.75rem;}.academic-enrollment-row{grid-template-columns:minmax(0,1fr);padding:1.25rem;gap:.75rem;}.academic-enrollment-open{justify-content:space-between;}.head-enrollment-panel,.head-enrollment-evidence{padding:1.25rem;}.head-enrollment-subject-table{display:block;min-inline-size:0;}.head-enrollment-subject-table thead{display:none;}.head-enrollment-subject-table tbody{display:grid;inline-size:100%;min-inline-size:0;}.head-enrollment-subject-table tr{display:grid;grid-template-columns:minmax(0,1fr) auto;padding-block:.75rem;border-block-end:1px solid var(--tala-edge);}.head-enrollment-subject-table :is(th,td){border:0;padding:.25rem 0;}.head-enrollment-subject-table th{grid-column:1/-1;}.head-enrollment-subject-table td::before{content:attr(data-label) " ";color:var(--tala-muted);font-size:.75rem;}.head-enrollment-meetings li{grid-template-columns:minmax(0,1fr);gap:.75rem;}.head-enrollment-source-grid{grid-template-columns:minmax(0,1fr);}.head-enrollment-history li{flex-direction:column;gap:.5rem;}}
+
+.head-enrollment-empty{min-block-size:16rem;display:grid;align-content:center;justify-items:center;text-align:center;gap:1rem;padding-block:1.5rem;}.head-enrollment-empty>svg{inline-size:2.5rem;block-size:2.5rem;stroke-width:1.25;color:var(--tala-muted);}.head-enrollment-empty>p{font-size:.875rem;line-height:1.6;max-inline-size:50ch;color:var(--tala-muted);}
+
+.head-enrollment-closed-message{display:flex;align-items:start;gap:1rem;padding:1.25rem 1.5rem;background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:.75rem;}.head-enrollment-closed-message>svg{inline-size:1.5rem;block-size:1.5rem;flex-shrink:0;}.head-enrollment-closed-message h2{font-size:1.125rem;font-weight:600;line-height:1.5;}.head-enrollment-closed-message p{font-size:.875rem;color:var(--tala-muted);line-height:1.6;max-inline-size:80ch;margin-block-start:.5rem;}.head-enrollment-source-grid small{display:block;font-size:.75rem;color:var(--tala-muted);}
+
+/* Student Finance task and account composition. */
+.student-finance-workspace{display:grid;gap:1.5rem;min-inline-size:0;color:var(--tala-text);}
+.student-finance-board{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(16rem,1fr);gap:1.25rem;}
+.student-finance-task,.student-finance-position{padding:1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);min-inline-size:0;}
+.student-finance-task{background:var(--tala-surface-sunken);}.student-finance-task-review{border-color:#b99b63;}
+.student-finance-workspace h2{font-size:1.25rem;line-height:1.35;font-weight:600;letter-spacing:-.015em;}
+.student-finance-task>p{font-size:.9375rem;line-height:1.65;max-inline-size:65ch;margin-block:1rem;overflow-wrap:anywhere;}
+.student-finance-actions{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem 1.25rem;margin-block-start:1.25rem;}
+.student-finance-position dl{margin-block-start:1rem;}.student-finance-position dl>div{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;padding-block:.875rem;border-block-end:1px solid var(--tala-edge);}
+.student-finance-position dt{font-size:.8125rem;line-height:1.5;color:var(--tala-muted);}.student-finance-position dd{font-size:1.125rem;font-weight:600;font-variant-numeric:tabular-nums;text-align:end;white-space:nowrap;}
+.student-finance-workspace .student-finance-section{min-inline-size:0;}.student-finance-workspace .student-finance-table-wrap{max-inline-size:100%;}
+.student-finance-workspace article{font-size:.875rem;line-height:1.65;overflow-wrap:anywhere;}.student-finance-workspace h3{font-weight:600;font-size:.9375rem;}.student-finance-workspace article p{margin-block:.5rem;}
+.student-finance-workspace :is(summary,a,[role="region"]):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+@media(max-width:55rem){.student-finance-board{grid-template-columns:minmax(0,1fr);}.student-finance-position dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;}.student-finance-position dl>div{display:block;border:0;}.student-finance-position dd{text-align:start;margin-block-start:.5rem;}}
+@media(max-width:34rem){.student-finance-task,.student-finance-position{padding:1.25rem;}.student-finance-position dl{grid-template-columns:minmax(0,1fr);gap:0;}.student-finance-position dl>div{display:flex;border-block-end:1px solid var(--tala-edge);}.student-finance-position dd{margin:0;}.student-finance-actions{align-items:stretch;}}
+.student-finance-workspace .student-finance-section{margin-block-start:0;}
+
+
+
+
+.accounting-proof-task{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;padding-block:1.5rem 2rem;border-block-end:1px solid var(--tala-edge)}
+.accounting-proof-task h2{font-size:1.5rem;font-weight:600;line-height:1.3}.accounting-proof-task p{margin-block-start:.5rem;color:var(--tala-muted)}
+.accounting-proof-review .registrar-case-grid{margin-block-start:2rem}.accounting-proof-amount{font-size:1.75rem;font-weight:600;font-variant-numeric:tabular-nums;margin-block:1.25rem}.accounting-proof-amount span{font-size:.875rem;font-weight:400;color:var(--tala-muted)}
+.accounting-proof-choices{display:flex;flex-wrap:wrap;gap:1rem;padding-block:1.5rem;border-block-end:1px solid var(--tala-edge)}.accounting-proof-choices [aria-current=page]{text-decoration:underline;text-underline-offset:.25em}
+.accounting-proof-history{display:flex;justify-content:flex-end;margin-block-start:2rem;padding-block:1.5rem;border-block-start:1px solid var(--tala-edge)}
+.accounting-proof-context,.accounting-proof-allocation{font-size:.875rem;line-height:1.6;overflow-wrap:anywhere}.accounting-proof-context p+p{margin-block-start:.5rem}.accounting-proof-allocation{padding:1rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface-sunken)}.accounting-proof-allocation h3{font-weight:600;margin-block-end:.5rem}.accounting-proof-allocation>div+div{margin-block-start:.75rem}.accounting-proof-warning{margin-block-start:1rem;padding:.75rem;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface-sunken)}
+@media(max-width:40rem){.accounting-proof-task{align-items:stretch;flex-direction:column}.accounting-proof-task .registrar-case-task-actions{align-items:stretch}.accounting-proof-task .fi-btn{flex:1}.accounting-proof-review .registrar-source-charges>div{align-items:flex-start;flex-wrap:wrap}.accounting-proof-review .registrar-source-charges dd{overflow-wrap:anywhere}.accounting-proof-history{justify-content:flex-start}}
+.accounting-webhook-retry{display:grid;gap:.75rem;margin-block-start:1rem}.accounting-webhook-retry label{font-weight:600}.accounting-webhook-retry textarea{width:100%;min-height:6rem;border:1px solid var(--tala-edge);border-radius:.5rem;padding:.75rem;background:var(--tala-surface);font:inherit}.accounting-webhook-retry textarea:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px}.accounting-webhook-retry p{font-size:.8125rem;color:var(--tala-muted)}.accounting-webhook-retry .fi-btn{justify-self:start}
+
+.registrar-adjustment-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-block:1.4rem}.registrar-adjustment-comparison>div{padding:1rem;border:1px solid var(--tala-border,#d4d4d8);border-radius:.6rem;background:var(--tala-canvas,#f7f7f8)}.registrar-adjustment-comparison h3{font-size:.875rem}.registrar-adjustment-comparison p{overflow-wrap:anywhere}@media(max-width:640px){.registrar-adjustment-comparison{grid-template-columns:1fr}}
+
+.accounting-correction-context{display:grid;gap:.75rem;min-inline-size:0;}
+.accounting-correction-identity{font-size:.875rem;color:var(--tala-muted);overflow-wrap:anywhere;}
+.accounting-correction-facts{padding:1rem 1.25rem;background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:.75rem;display:grid;gap:.5rem;}
+.accounting-correction-facts>div{display:grid;grid-template-columns:minmax(8rem,12rem) minmax(0,1fr);gap:.25rem 1rem;font-size:.875rem;}
+.accounting-correction-facts dt{color:var(--tala-muted);}
+.accounting-correction-facts dd{overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+.accounting-correction-unavailable,.accounting-correction-lead{padding:1rem 1.25rem;border:1px solid var(--tala-edge);border-radius:.75rem;font-size:.875rem;}
+@media(max-width:40rem){.accounting-correction-facts>div{grid-template-columns:minmax(0,1fr);gap:0;}}
+
+.learner-cancel-context ul{list-style:none;margin:.5rem 0 0;padding:0;display:grid;gap:.5rem;font-size:.9375rem;}
+.learner-status-page .student-academic-notice h2+*,.learner-status-page .student-academic-notice p+h2{margin-block-start:.75rem;}
+.learner-status-actions{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-block-start:1rem;}
+.learner-status-page>.student-academic-notice{padding:1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 4%,var(--tala-surface));}
+.learner-status-page .student-academic-notice .student-registration-help{padding-block-start:0;border-block-start:0;}
+.student-registration-official>.student-registration-heading,.student-registration-official>section{padding:1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);}
+@media(max-width:40rem){.learner-status-actions .fi-btn{inline-size:100%;}}
+.cor-identity{display:grid;justify-items:start;gap:.375rem;}
+.cor-identity .fi-badge{margin-block-end:.375rem;}
+.cor-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;margin-block-start:1.25rem;padding-block-start:1rem;border-block-start:1px solid var(--tala-edge);}
+.cor-facts dt{font-size:.8125rem;color:var(--tala-muted);}
+.cor-facts dd{margin: .25rem 0 0;font-size:1.125rem;font-weight:600;font-variant-numeric:tabular-nums;}
+.cor-versions{display:grid;gap:.5rem;padding:1rem;}
+.cor-versions a{padding:.75rem;border:1px solid var(--tala-edge-strong,#71717b);border-radius:.5rem;font-size:.875rem;color:inherit;text-decoration:none;overflow-wrap:anywhere;}
+.cor-versions a[aria-current]{border:2px solid var(--tala-primary,#2f7d3b);padding:calc(.75rem - 1px);font-weight:600;}
+.cor-versions a:hover{background:var(--tala-surface);}
+.cor-versions a:focus-visible{outline:2px solid var(--tala-primary,#2f7d3b);outline-offset:3px;}
+.cor-subject-meetings{font-size:.875rem;color:var(--tala-muted);}
+.accounting-current-account .registrar-case-grid .accounting-recent-records{flex-direction:column;align-items:flex-start;gap:1rem;}
+@media(max-width:30rem){.cor-facts{grid-template-columns:repeat(2,minmax(0,1fr));}.cor-facts>div:last-child{grid-column:1/-1;}.cor-facts>div:last-child dd{font-size:1rem;}}
+
+/* Contextual Accounting review states. */
+.accounting-review-task{margin-block:1.5rem 2rem;padding:1.5rem;border:1px solid var(--gray-200,#d4d4d8);border-radius:.75rem;background:var(--tala-surface,#fff)}
+.accounting-review-task h2{margin:0 0 .75rem;font-weight:600;line-height:1.35;text-wrap:balance}
+.accounting-review-task p{max-width:70ch;margin-block:.5rem 1rem;overflow-wrap:anywhere}
+.accounting-review-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;margin-block:1.25rem}
+.accounting-review-facts dt{font-size:.875rem;color:var(--gray-600,#52525c)}
+.accounting-review-facts dd{margin:.25rem 0 0;font-size:1.125rem;font-weight:600;font-variant-numeric:tabular-nums}
+.dark .accounting-review-task{background:var(--tala-dark-surface,#242429);border-color:var(--gray-700,#71717b)}
+.dark .accounting-review-facts dt{color:var(--gray-300,#d4d4d8)}
+@media(max-width:40rem){.accounting-review-task{padding:1.25rem}.accounting-review-facts{grid-template-columns:1fr;gap:1rem}.accounting-review-task .accounting-context-actions{align-items:stretch}.accounting-review-task .accounting-context-actions .fi-btn{max-width:100%;white-space:normal}}
+
+/* Student identity, task summaries and readable supporting records. */
+.student-profile-identity{display:flex;align-items:center;gap:1.5rem;padding:1.75rem 2rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));margin-block-end:2rem;color:var(--tala-ink);}
+.student-profile-identity h2{font-size:1.75rem;font-weight:600;line-height:1.25;letter-spacing:-.02em;margin-block-end:.4rem;text-wrap:balance;}
+.student-profile-identity p{line-height:1.6;overflow-wrap:anywhere;}
+.student-profile-avatar{display:grid;place-items:center;flex-shrink:0;inline-size:5.5rem;block-size:5.5rem;border-radius:50%;background:color-mix(in srgb,var(--tala-brand) 17%,var(--tala-surface));font-size:1.75rem;font-weight:600;overflow:hidden;}
+.student-profile-avatar img{inline-size:100%;block-size:100%;object-fit:cover;}
+.student-profile-meta,.student-proof-privacy{font-size:.875rem;color:var(--tala-muted);line-height:1.6;}
+.student-overview-board{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:1.25rem;margin-block-end:1.25rem;}
+.student-overview-board>section{padding:1.75rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);min-inline-size:0;}
+.student-overview-board .student-overview-enrollment{background:color-mix(in srgb,var(--tala-brand) 9%,var(--tala-surface));border-color:var(--tala-selected-edge);}
+.student-overview-enrollment h2{color:var(--tala-brand-strong);}
+.dark .student-overview-enrollment h2{color:var(--primary-200);}
+.student-overview-board h2,.student-review-home .student-home-schedule-heading h2{display:flex;align-items:center;gap:1rem;font-size:1.25rem;}
+.student-overview-task-icon{flex:none;inline-size:2.75rem;block-size:2.75rem;padding:.625rem;border-radius:50%;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));color:var(--tala-brand-strong);}
+.dark .student-overview-task-icon{color:var(--primary-200);}
+.student-overview-records{padding:1.75rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);min-inline-size:0;}
+.student-overview-board p{margin-block:.75rem;line-height:1.6;max-inline-size:65ch;}
+.student-overview-board .fi-btn{margin-block-start:.75rem;}
+.student-overview-links{display:flex;flex-wrap:wrap;gap:.75rem 2.5rem;padding-block:1.5rem 0;border-block-start:1px solid var(--tala-edge);margin-block-start:1.5rem;}
+.student-overview-links .fi-link{text-decoration:underline;text-underline-offset:.3em;min-block-size:2.75rem;}
+.student-review-home .student-home-schedule{padding:0;border:0;}
+.student-profile-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2.5rem;}
+.student-profile-section{min-inline-size:0;}
+.student-profile-page h2{font-size:1.25rem;line-height:1.4;margin-block-end:1rem;}
+.student-profile-page .student-profile-identity h2{font-size:1.75rem;margin-block-end:.4rem;}
+.student-profile-page dl>div{display:block;}
+.student-profile-page dl{gap:1.25rem;}
+.student-profile-page dt{font-size:.875rem;margin-block-end:.25rem;}
+.student-profile-page dd{font-size:1rem;line-height:1.6;}
+.student-profile-photo-action{margin-block-start:1rem;}
+.student-profile-study-note,.student-plan-start{padding:1.25rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));font-size:.9375rem;line-height:1.6;}
+.student-profile-school{padding-block:1.75rem;border-block-start:1px solid var(--tala-edge);margin-block-start:2rem;}
+.student-profile-school dl{grid-template-columns:repeat(2,minmax(0,1fr));}
+.student-profile-corrections{margin-block-start:1.5rem;}
+.student-profile-corrections summary{min-block-size:2.75rem;cursor:pointer;}
+.student-profile-corrections li{padding-block:.75rem;}
+.student-plan-intro{font-size:1rem;line-height:1.6;max-inline-size:65ch;margin-block:1rem 1.5rem;}
+.student-plan-start h2{font-size:1.125rem;font-weight:600;margin-block-end:.5rem;}
+.student-plan-start .fi-link{display:inline-flex;margin-block-start:.75rem;}
+.student-plan-status-future,.student-plan-status-future .fi-icon{color:var(--tala-muted);}
+.student-finance-records{padding-block:1.5rem;border-block-start:1px solid var(--tala-edge);}
+.student-finance-records h2{margin-block-end:.5rem;}
+.student-finance-records .learner-money{max-inline-size:58rem;margin-block-start:1rem;}
+.student-receipt-row{display:flex;align-items:center;justify-content:space-between;gap:1rem 2rem;padding-block:1rem;border-block-end:1px solid var(--tala-edge);}
+.student-receipt-row:last-child{border-block-end:0;}
+.student-receipt-row h3{font-size:1rem;font-weight:600;overflow-wrap:anywhere;}
+.student-receipt-row p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);}
+.payment-proof-preview{background:var(--tala-canvas,var(--tala-surface));border-radius:.75rem;overflow:hidden;min-inline-size:0;}
+.payment-proof-preview iframe{inline-size:100%;block-size:62vh;min-block-size:20rem;border:0;}
+.payment-proof-preview img{display:block;max-inline-size:100%;max-block-size:none;block-size:auto;margin-inline:auto;object-fit:contain;}
+.student-registration-help-panel{padding:1.5rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 4%,var(--tala-surface));margin-block-start:1.5rem;}
+.student-registration-help-panel h2{font-size:1.25rem;font-weight:600;margin-block-end:.5rem;}
+.student-registration-help-panel p{font-size:.9375rem;line-height:1.6;max-inline-size:65ch;color:var(--tala-muted);}
+.student-registration-help-panel .student-finance-actions{margin-block-start:1rem;}
+@media(max-width:48rem){.student-overview-board,.student-profile-columns{grid-template-columns:1fr;}.student-profile-identity{padding:1.25rem;gap:1rem;align-items:flex-start;}.student-profile-avatar{inline-size:4rem;block-size:4rem;font-size:1.25rem;}.student-profile-identity h2,.student-profile-page .student-profile-identity h2{font-size:1.375rem;}.student-profile-columns{gap:2rem;}.student-overview-board>section,.student-registration-help-panel{padding:1.25rem;}.student-receipt-row{align-items:flex-start;flex-direction:column;gap:.75rem;}.student-profile-school dl{grid-template-columns:1fr;}.payment-proof-preview iframe{min-block-size:18rem;}.student-overview-links{gap:1rem;}}
+
+.payment-proof-preview{padding:1rem;max-block-size:65vh;min-block-size:18rem;overflow:auto;overscroll-behavior:contain;}
+.payment-proof-pages{display:grid;gap:1rem;justify-items:center;inline-size:100%;min-inline-size:0;}
+.payment-proof-page{margin:0;max-inline-size:100%;min-inline-size:0;}
+.payment-proof-page canvas{display:block;max-inline-size:100%;block-size:auto;background:#fff;}
+.payment-proof-page figcaption{font-size:.8125rem;line-height:1.5;color:var(--tala-muted);text-align:center;padding-block:.5rem;}
+.payment-proof-preview>[data-proof-status]{padding-block:1rem;font-size:.9375rem;line-height:1.6;color:var(--tala-muted);}
+.student-read-empty{display:grid;justify-items:start;gap:1rem;padding-block:1.5rem;color:var(--tala-text);}
+.student-read-empty h2{font-size:1.25rem;font-weight:600;line-height:1.4;}
+.student-read-empty p{max-inline-size:65ch;font-size:.9375rem;line-height:1.6;color:var(--tala-muted);}
+.student-payment-schedule{list-style:none;padding:0;margin:0;}.student-payment-schedule>li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:1rem 2rem;padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);}.student-payment-schedule h3{font-size:1rem;line-height:1.5;font-weight:600;}.student-payment-schedule .student-finance-number{font-variant-numeric:tabular-nums;text-align:end;}.student-payment-schedule .fi-badge{justify-self:end;}@media(max-width:40rem){.student-payment-schedule>li{grid-template-columns:minmax(0,1fr) auto;gap:.75rem 1rem;align-items:start;}.student-payment-schedule>li>.fi-badge{grid-column:2;}.student-payment-schedule .student-finance-number{font-size:.9375rem;}}
+
+@media(max-width:48rem){.student-overview-records{padding:1.25rem;}.student-overview-board h2,.student-review-home .student-home-schedule-heading h2{align-items:flex-start;gap:.75rem;}.student-overview-task-icon{inline-size:2.25rem;block-size:2.25rem;padding:.5rem;}}
+
+.student-checkout-confirmation{font-size:1rem;line-height:1.6;min-inline-size:0;}
+.student-checkout-amount{font-size:2rem;line-height:1.2;font-weight:700;font-variant-numeric:tabular-nums;margin-block:1.25rem;}
+.student-checkout-targets{margin-block:1.5rem;}
+.student-checkout-confirmation p{max-inline-size:65ch;}
+
+.student-finance-history{min-inline-size:0;max-inline-size:72rem;display:grid;gap:1.5rem;}
+.student-finance-history>.fi-link{justify-self:start;}
+.student-finance-history p{line-height:1.6;max-inline-size:65ch;overflow-wrap:anywhere;}
+.student-finance-history>h2,.student-finance-history-heading h2{font-size:1.5rem;font-weight:700;line-height:1.3;}
+.student-finance-history .student-finance-past-list{list-style:none;padding:0;}
+.student-finance-history .student-finance-past-list{background:var(--tala-surface);border-radius:.75rem;overflow:hidden;}
+.student-finance-history .student-finance-past-list>li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.5rem;}
+.student-finance-history .student-finance-past-list>li+li{border-block-start:1px solid var(--tala-edge);}
+.student-finance-history .student-finance-past-list h3{font-size:1.125rem;font-weight:600;}
+.student-finance-history-heading{display:flex;justify-content:space-between;align-items:start;gap:1.5rem;}
+.student-finance-history-heading p{margin-block-start:.5rem;}
+.student-finance-history-heading>.fi-btn{flex:none;}
+.student-finance-history-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:2rem;align-items:start;}
+.student-finance-history-activity{display:grid;gap:2rem;min-inline-size:0;}
+.student-finance-history :is(h3,h4){font-weight:600;line-height:1.4;}
+.student-finance-history h3{font-size:1.25rem;margin-block-end:1rem;}
+.student-finance-history .student-finance-past-record{padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);overflow-wrap:anywhere;}
+.student-finance-history-record-heading{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;}
+.student-finance-history-record-heading strong{font-variant-numeric:tabular-nums;white-space:nowrap;}
+.student-finance-history .student-finance-past-record p{margin-block:.35rem;font-size:.9375rem;line-height:1.6;color:var(--tala-muted);}
+.student-finance-history-receipt{display:flex;justify-content:space-between;align-items:center;gap:1.5rem;}
+.student-finance-history-receipt>div{min-inline-size:0;}
+.student-finance-history-assistance{background:var(--tala-surface);padding:1.5rem;border-radius:.75rem;}
+.student-finance-history-assistance .student-finance-past-record:last-child{border:0;padding-block-end:0;}
+@media(min-width:64rem){.student-finance-history-layout:has(.student-finance-history-assistance){grid-template-columns:minmax(0,1fr) minmax(14rem,.35fr);}}
+@media(max-width:40rem){.student-finance-history-heading,.student-finance-history-receipt,.student-finance-history .student-finance-past-list>li{flex-direction:column;align-items:start;}.student-finance-history-record-heading{flex-wrap:wrap;gap:.35rem 1rem;}.student-finance-history .student-finance-past-list>li{padding:1.25rem;}}
+
+.student-enrollment-context{font-size:1rem;color:var(--tala-muted);line-height:1.6;}
+.student-enrollment-task-layout{display:grid;gap:1.5rem;align-items:start;min-inline-size:0;}
+.student-enrollment-task,.student-enrollment-fees{padding:1.75rem;border-radius:.75rem;min-inline-size:0;}
+.student-enrollment-task{background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));}
+.student-enrollment-fees{background:var(--tala-surface);display:grid;gap:1.25rem;}
+.student-enrollment-fees>.fi-link{justify-self:start;}
+.student-enrollment-task h2{font-size:1.5rem;line-height:1.3;font-weight:600;margin-block-end:1rem;}
+.student-enrollment-fees h2{font-size:1.25rem;line-height:1.3;font-weight:600;}
+.student-enrollment-task p,.student-enrollment-fees p{font-size:1rem;line-height:1.6;max-inline-size:65ch;overflow-wrap:anywhere;}
+.student-enrollment-task p+p{margin-block-start:1rem;}
+.student-enrollment-task .student-finance-actions{margin-block-start:1.5rem;}
+.student-enrollment-fees .student-enrollment-amount{font-size:1.75rem;font-weight:700;line-height:1.3;font-variant-numeric:tabular-nums;}
+.student-enrollment-fees .learner-money>div{flex-wrap:wrap;gap:.35rem 1rem;}
+.student-enrollment-receipt{margin-block-start:1.5rem;padding-block-start:1.5rem;border-block-start:1px solid var(--tala-edge);}
+.student-enrollment-receipt>.fi-modal-trigger{margin-block-start:1rem;}
+.student-enrollment-task .student-enrollment-payment-help{font-size:.875rem;color:var(--tala-muted);margin-block-start:1rem;}
+.student-academic-next{padding:1.5rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));border-radius:.75rem;}
+.student-academic-next p{font-size:1rem;line-height:1.6;max-inline-size:65ch;margin-block-end:1.25rem;}
+.student-academic-identity+.student-academic-notice{border-block-start:0;padding-block-start:0;}
+.student-graduation-records{display:grid;gap:2rem;}
+.student-graduation-records>.student-record-section{border:0;padding:0;}
+.student-degree-summary{padding:1.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));border-radius:.75rem;}
+.student-degree-summary h2{font-size:1.5rem;font-weight:600;line-height:1.35;max-inline-size:45ch;margin-block-end:.75rem;overflow-wrap:anywhere;}
+.student-degree-summary p{line-height:1.6;margin-block-start:.5rem;}
+.student-record-timeline{list-style:none;padding:0;margin:1rem 0 0;}
+.student-record-timeline li{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);line-height:1.6;overflow-wrap:anywhere;}
+.student-record-timeline strong{font-weight:600;}
+@media(max-width:40rem){.student-degree-summary{padding:1.5rem;}.student-record-timeline li{flex-wrap:wrap;}}
+@media(min-width:64rem){.student-enrollment-task-layout:has(.student-enrollment-fees){grid-template-columns:minmax(0,1.7fr) minmax(17.5rem,1fr);}}
+@media(max-width:40rem){.student-enrollment-task,.student-enrollment-fees{padding:1.5rem;}.student-enrollment-task h2{font-size:1.375rem;}}
+
+.registrar-overload-load{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-block-start:1rem;}
+.registrar-overload-load dt{font-size:.875rem;color:var(--tala-muted);line-height:1.5;}
+.registrar-overload-load dd{margin: .5rem 0 0;font-size:1.5rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.25;}
+.registrar-overload-load dd span{font-size:.875rem;font-weight:400;}
+
+.registrar-late-context{font-size:.875rem;line-height:1.5;font-weight:400;color:var(--tala-text);}
+.registrar-late-context strong{font-weight:600;}
+.registrar-late-context p{margin-block-start:.375rem;font-weight:400;}
+
+.faculty-class-worklist{color:var(--tala-text);}
+.faculty-class-worklist>h2{font-size:1.5rem;line-height:1.3;font-weight:var(--tala-weight-emphasis);margin:0 0 .5rem;}
+.faculty-class-worklist>p{color:var(--tala-muted);line-height:1.6;}
+.faculty-class-search{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:1rem;margin-block:1.5rem;}
+.faculty-class-search label{display:block;font-size:.875rem;font-weight:var(--tala-weight-emphasis);margin-block-end:.5rem;}
+.faculty-class-count{font-weight:var(--tala-weight-emphasis);margin-block:1rem;}
+.faculty-class-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:1.5rem;padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;margin-block:1rem;}
+.faculty-class-row h3{font-size:1.25rem;line-height:1.4;font-weight:var(--tala-weight-emphasis);text-wrap:balance;}
+.faculty-class-row p{font-size:.875rem;color:var(--tala-muted);line-height:1.6;margin-block-start:.375rem;}
+.faculty-class-members{display:grid;gap:.25rem;}
+.faculty-class-members strong{font-size:1.75rem;line-height:1.2;font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;}
+.faculty-class-members span{font-size:.875rem;color:var(--tala-muted);}
+.faculty-result-progress{display:flex;gap:2.5rem;padding-block:1rem;}
+.faculty-result-progress dt{color:var(--tala-muted);font-size:.875rem;}
+.faculty-result-progress dd{font-size:1.75rem;line-height:1.3;font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;}
+@media(max-width:40rem){.faculty-class-search{grid-template-columns:minmax(0,1fr);}.faculty-class-row{grid-template-columns:minmax(0,1fr) auto;gap:1rem;}.faculty-class-row>div:first-child{grid-column:1/-1;}.faculty-class-row>.fi-btn{grid-column:1/-1;inline-size:100%;}}

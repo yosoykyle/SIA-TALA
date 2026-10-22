@@ -149,12 +149,16 @@ Approved workspace map:
 - **Applicant:** Home, Application, and contextual Requirements
 - **Student:** Home, Enrollment, Academics, Finance, and Profile
 - **Registrar:** Admissions; Catalog & Curricula; Term Planning; Students & Enrollment; Grades & Completion
-- **Accounting:** Fee Plans; Student Accounts with Accounts and Payment Exceptions, including contextual TOR restrictions
+- **Accounting:** Student Accounts with its work overview, Accounts and Payment Exceptions, including contextual TOR restrictions; Fee Plans for setup
 - **Faculty:** Schedule & Availability, with My Schedule and My Availability sibling tasks; Grade Rosters
 - **Academic Head:** read-only Academic Oversight for understanding academic readiness, inspecting source-owned exceptions, and tracing calendar, curriculum, timetable, grade/progress, lifecycle and completion evidence to its responsible office. The landing surface prioritizes relevant findings and direct domain drill-ins rather than the Registrar's preparation sequence. Institutional approval remains outside TALA where the owning PRD specifies it; inspection grants no producer action.
 - **System Administrator:** Users & Access; Public Content; System Health; Governance & Audit
 
 Academic Head is not a universal co-approver. System Administrator does not decide academic calendars, curricula, fees, enrollment eligibility, payments, or grades.
+
+Forms collect only facts needed to complete the current task. Derive identity, account, Term, source/version, actor, time and system references from the selected records instead of asking users to retype them. An audit trail is a system responsibility, not a routine reference-entry task. Remove duplicated fields and purposeless optional notes as well as unnecessary required fields; changing a field to optional alone does not establish its usefulness.
+
+Retain an input only when its value changes a real decision, supplies a fact the system lacks, or identifies genuine external authority/evidence required by the owning action. Reuse a stored approved source when available rather than requesting its reference again. Financial corrections and exceptional institutional decisions retain their necessary evidence, without extra internal approval codes or invented audit references. Product contracts describe the resulting workflow and are revised when an older prescription adds work without a useful outcome.
 
 ### 3.2 Configuration and readiness
 
@@ -239,7 +243,7 @@ No email is sent for ordinary saves, navigation, successful or failed sign-in at
 ### 3.4 Operational views, contextual exports, and public content
 
 - Operational information remains in its owning queue, record, or read-only projection. There is no top-level Reports destination, report hub, BI product, report designer, or duplicate reporting page.
-- Existing allowlisted finance and selected-Class roster CSVs retain their authorization, minimum fields and history. Further refinement of those three exports is outside initial capstone delivery; operational views and prints remain required. No generic Student, grade or reporting export is introduced.
+- Account Status, selected-account Verified Payments and selected-Class Roster CSVs use their owning task context, fixed useful columns and private retrieval. Confirm the current scope with a readable preview and clear empty, stale and failure recovery. Preserve authorization, attributable sources, formula safety and retained history. Operational views and prints remain required; generic Student, grade and reporting exports remain outside scope.
 - Admissions analytics means a small operational summary—counts and aging—above the same filtered Admissions queue. It is not scoring, forecasting, or applicant ranking.
 - Staff queues use meaningful date ranges and native Filament filters with active-filter indicators. TALA does not reproduce custom dropdowns in every column header.
 - Public FAQs answer recurring process questions; announcements communicate current school notices, dates, and changes. [PRD 01 Section 4.7](01_identity_access_public_entry.md#47-public-content) owns their fields, publication, ordering, and history.
@@ -467,7 +471,7 @@ No public HTTP API is added. The shared vocabulary below names logical responsib
 | Registration Form / COR | Clinic 4 official enrollment and COR version | Official enrollment output for learner/authorized Staff; assessment-at-finalization snapshot, not live ledger | Change creates a new immutable version; failure produces no partial COR |
 | Unofficial Student Record | Clinic 5 released academic record | Clearly **Unofficial — for student reference** | Current projection only; print failure cannot imply official issuance |
 | TOR | Clinic 5 transcript snapshot and `TALA Standard TOR — Servitech v1` | Registrar-controlled official output from releasable history for authorized current/former Students, without a blanket graduation gate; completion/conferral appears only if recorded. Physical signing, sealing, delivery and CAV remain external | Void/replacement/supersession is append-only; failure produces no issuance event or official-looking artifact |
-| Account Statement / SOA with payment acknowledgment | Clinic 6 Term Account and verified posting | One authenticated non-tax account output with verified payment facts | Reversal remains visible; historically issued separate acknowledgments and snapshots stay attributable |
+| Account Statement / SOA with payment acknowledgment | Clinic 6 Term Account and verified posting | One authenticated non-tax account output with verified payment facts | Original posting/allocation facts and attributable reversal remain; existing printable records label current identity/view time. Preserve actually retained issued artifacts and authorized access |
 | Account Status CSV / Verified Payments CSV | Clinic 6 owning queues | Contextual, allowlisted, purpose-recorded, role-authorized | Failure records no completed export and exposes no partial file |
 
 Physical tables, classes, routes, tests, and current integrations are implementation evidence. They may be designed or changed only inside a separately planned and authorized journey-complete vertical slice that reconciles every relevant consumer against the standalone authority. Shared identifiers and cross-module records must remain consistent with this approved set.
@@ -672,7 +676,7 @@ The dialog shows the exact record/version, actor/authority, resulting state, dow
 | Failure | Produce no partial or official-looking artifact; preserve the source transaction and provide a safe retry/support path |
 | Claims | Output states whether it is official, unofficial, non-tax, superseded, voided, reversed, or externally certified; it never implies unrecorded authority |
 | Print frame | Institution identity leads official and institutional outputs; the TALA product mark is restrained, navigation and interactive controls are absent, headings remain semantic, table headers repeat, rows do not clip, and every copy is monochrome-safe |
-| Completeness | Published Timetable, COR, Unofficial Student Record, TALA Standard TOR and SOA with payment acknowledgment define source/version, status, content, orientation, generation, supersession and failure behavior. Application submission uses an on-screen receipt. Historically issued separate acknowledgments remain source-bound and accessible; no fixed count proves output completeness. |
+| Completeness | Published Timetable, COR, Unofficial Student Record, TALA Standard TOR and SOA with payment acknowledgment define source/version, status, content, orientation, generation, supersession and failure behavior. Application submission uses an on-screen receipt. Actually retained historical Application acknowledgments remain source-bound and accessible. Printable payment records preserve original posting/allocation facts, attributable current reversal status and private access, with any actually retained issued artifact accessible. No fixed count proves output completeness. |
 
 #### Matrix 11 — UI screens, actions, states, navigation, responsiveness, and accessibility
 

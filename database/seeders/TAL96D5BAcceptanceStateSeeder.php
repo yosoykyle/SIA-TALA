@@ -2,19 +2,20 @@
 
 namespace Database\Seeders;
 
-use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Actions\Finance\PaymentConfirmationService;
 use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
+use App\Models\AssessmentLine;
 use App\Models\AssessmentObligation;
 use App\Models\ChecklistItem;
 use App\Models\CourseEnrollment;
 use App\Models\DocumentEvidence;
 use App\Models\Enrollment;
 use App\Models\FeeRule;
+use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\PaymentAttemptObligation;
@@ -38,11 +39,8 @@ use RuntimeException;
  */
 final class TAL96D5BAcceptanceStateSeeder extends Seeder
 {
-    public const ChargeRuleCode = 'PRESENTATION-TUITION';
-
     public function __construct(
         private readonly TAL96D4BAcceptanceStateSeeder $gradeAndLifecycleStates,
-        private readonly EnrollmentAssessmentService $assessmentService,
         private readonly PaymentConfirmationService $paymentConfirmationService,
         private readonly ExactDuePaymentSnapshotService $paymentSnapshot,
         private readonly CanonicalTalaSchedulingDataset $canonicalDataset,
@@ -411,36 +409,52 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             return $this->ensureCanonicalPaymentAuthority($active, $enrollment, $term);
         }
 
-        $program = $enrollment->studentProfile()->with('program')->firstOrFail()->program;
-
-        FeeRule::query()->updateOrCreate(
-            [
-                'code' => self::ChargeRuleCode.'-'.$program->code,
-                'term_id' => $term->id,
-            ],
-            [
-                'name' => $program->code.' Second Semester Tuition',
-                'ledger_category' => FeeRule::LedgerCategoryCharge,
-                'display_category' => FeeRule::DisplayCategoryTuition,
-                'program_id' => $program->id,
-                'calculation_type' => FeeRule::CalculationFixed,
-                'amount' => '3000.00',
-                'rate' => null,
-                'effective_from' => $term->starts_on,
-                'effective_until' => $term->ends_on,
-                'is_active' => true,
-                'authority' => 'Accounting-approved Second Semester fee schedule.',
-            ],
-        );
-
-        $accounting = User::query()
-            ->where('email', 'accounting.demo@example.test')
-            ->sole();
+        $accounting = User::query()->where('email', 'accounting.demo@example.test')->sole();
         $effectiveAt = CarbonImmutable::parse($term->starts_on)->startOfDay();
-        $assessment = $this->assessmentService->generateDraft($enrollment->refresh(), $accounting, $effectiveAt);
+        $source = ['acceptance_case' => 'TAL-96-D5B', 'synthetic_fixture' => true, 'enrollment_id' => $enrollment->id];
+        $assessment = Assessment::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'version' => ((int) Assessment::query()->whereBelongsTo($enrollment)->max('version')) + 1,
+            'state' => Assessment::StateActive,
+            'assessment_basis' => 'AuthorizedIndividualAssessment',
+            'reason_category' => Assessment::CategoryIndividuallyAdvised,
+            'authority_reference' => 'TAL96D5B-SYNTHETIC-FIXED-AMOUNTS',
+            'authority_date' => $effectiveAt,
+            'source_snapshot' => $source,
+            'content_hash' => hash('sha256', json_encode($source, JSON_THROW_ON_ERROR)),
+            'currency' => 'PHP',
+            'subtotal' => '3000.00',
+            'discount_total' => '0.00',
+            'total' => '3000.00',
+            'required_downpayment' => '2000.00',
+            'activated_by' => $accounting->id,
+            'activated_at' => $effectiveAt,
+        ]);
+        $line = $assessment->lines()->create([
+            'source_line_key' => 'TAL96D5B-SYNTHETIC-FIXED-CHARGE',
+            'description_snapshot' => 'Synthetic fixed presentation charge',
+            'quantity' => 1,
+            'rate' => '3000.00',
+            'amount' => '3000.00',
+            'line_type' => 'Fixed',
+        ]);
+        LedgerEntry::query()->create([
+            'source_type' => AssessmentLine::class,
+            'source_id' => $line->id,
+            'direction' => LedgerEntry::DirectionCharge,
+            'student_profile_id' => $enrollment->student_profile_id,
+            'term_id' => $term->id,
+            'enrollment_id' => $enrollment->id,
+            'category' => FeeRule::LedgerCategoryCharge,
+            'amount' => $line->amount,
+            'description' => $line->description_snapshot,
+            'posted_by' => $accounting->id,
+            'posted_at' => $effectiveAt,
+            'state' => 'posted',
+        ]);
 
         return $this->ensureCanonicalPaymentAuthority(
-            $this->assessmentService->activate($assessment, $accounting, $effectiveAt),
+            $assessment,
             $enrollment,
             $term,
         );

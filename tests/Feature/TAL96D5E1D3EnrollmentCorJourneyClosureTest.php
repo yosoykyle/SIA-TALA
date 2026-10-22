@@ -38,7 +38,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertStringStartsWith('test_tala_db', DB::connection()->getDatabaseName());
 
         foreach (['student', User::StaffRoleRegistrar] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
@@ -142,7 +142,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
             $cor['state']['course_delivery_mix'],
         );
         $this->assertStringContainsString('Curriculum Version', $print);
-        $this->assertStringContainsString('Represented level', $print);
+        $this->assertStringContainsString('Curriculum level(s)', $print);
         $this->assertStringContainsString('Timetable source', $print);
         $this->assertStringNotContainsString('Student Modality', $print);
     }
@@ -215,10 +215,9 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
             ->test(StudentEnrollmentPage::class)
             ->assertSee('D3 Active Waiting Term')
             ->assertSee('In Progress')
-            ->assertSee('Individually Advised')
-            ->assertSee('The Registrar has not prepared the current proposal yet.')
-            ->assertSee('Five checkpoints')
-            ->assertSee('Current proposal');
+            ->assertSee('The Registrar is preparing your class selection.')
+            ->assertSee('Charges and payment requirement')
+            ->assertSee('Subjects and schedule');
 
         $this->assertSame(0, CourseEnrollment::query()->where('enrollment_id', $activeEnrollment->id)->count());
         $this->assertSame(0, EnrollmentSeatReservation::query()->where('enrollment_id', $activeEnrollment->id)->count());

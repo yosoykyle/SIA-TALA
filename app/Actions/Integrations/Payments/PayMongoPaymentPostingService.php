@@ -4,6 +4,7 @@ namespace App\Actions\Integrations\Payments;
 
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\PaymentAllocationService;
+use App\Actions\Finance\TermAccountProjection;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
@@ -24,10 +25,11 @@ final class PayMongoPaymentPostingService
         private readonly PaymentAllocationService $paymentAllocationService,
         private readonly PaymentPostedNotificationService $paymentPostedNotificationService,
         private readonly ExactDuePaymentSnapshotService $snapshots,
+        private readonly TermAccountProjection $accounts,
     ) {}
 
     /**
-     * @return array{status:string,payment:Payment,ledger_entry:LedgerEntry,finance_cleared:bool}
+     * @return array{status:string,payment:Payment,ledger_entry:?LedgerEntry,finance_cleared:bool}
      */
     public function post(
         PaymentAttempt $attempt,
@@ -43,14 +45,12 @@ final class PayMongoPaymentPostingService
             throw new RuntimeException('PayMongo payment amount must be greater than zero.');
         }
 
-        $assessment = Assessment::query()->lockForUpdate()->findOrFail($attempt->assessment_id);
+        $enrollmentId = Assessment::query()->whereKey($attempt->assessment_id)->value('enrollment_id');
+        $enrollment = Enrollment::query()->with('studentProfile')->lockForUpdate()->find($enrollmentId);
         $account = $attempt->term_account_id !== null
             ? TermAccount::query()->lockForUpdate()->find($attempt->term_account_id)
             : null;
-        $enrollment = Enrollment::query()
-            ->with('studentProfile')
-            ->lockForUpdate()
-            ->find($assessment->enrollment_id);
+        $assessment = Assessment::query()->lockForUpdate()->findOrFail($attempt->assessment_id);
         $student = $enrollment?->studentProfile;
 
         if ($attempt->provider !== 'paymongo'
@@ -59,8 +59,7 @@ final class PayMongoPaymentPostingService
             || $assessment->term_account_id !== $account->id
             || $account->enrollment_id !== $assessment->enrollment_id
             || ! $enrollment instanceof Enrollment
-            || ! $student instanceof StudentProfile
-            || $enrollment->student_profile_id !== $attempt->student_profile_id) {
+            || ($attempt->student_profile_id !== null && (int) $enrollment->student_profile_id !== (int) $attempt->student_profile_id)) {
             throw new RuntimeException('PayMongo payment source is no longer eligible for posting.');
         }
 
@@ -75,13 +74,13 @@ final class PayMongoPaymentPostingService
         }
 
         $existingPayment = Payment::query()
-            ->with('ledgerEntry')
+            ->with(['ledgerEntry', 'allocations'])
             ->where('payment_attempt_id', $attempt->id)
             ->lockForUpdate()
             ->first();
         $wasPosted = $existingPayment instanceof Payment
             && $existingPayment->evidence_status === 'verified'
-            && $existingPayment->ledgerEntry instanceof LedgerEntry;
+            && $existingPayment->allocations->isNotEmpty();
 
         if ($wasPosted) {
             $attempt->forceFill([
@@ -114,6 +113,7 @@ final class PayMongoPaymentPostingService
                 'amount' => $normalizedAmount,
                 'currency' => 'PHP',
                 'evidence_status' => 'verified',
+                'state' => Payment::StatePosted,
                 'paid_at' => $timestamp,
                 'verified_at' => $timestamp,
                 'verified_by' => $actor?->id,
@@ -132,20 +132,19 @@ final class PayMongoPaymentPostingService
         );
         $ledgerEntry = $ledgerEntries->first();
 
-        if (! $ledgerEntry instanceof LedgerEntry) {
+        if ($student instanceof StudentProfile && ! $ledgerEntry instanceof LedgerEntry) {
             throw new RuntimeException('Verified payment did not produce a ledger posting.');
         }
 
         $attempt->forceFill(['status' => PaymentAttempt::StatusConfirmed, 'paid_at' => $timestamp])->save();
         $projection = $this->paymentRequirementProjection->forEnrollment($enrollment->refresh());
+        $position = $this->accounts->forAccount($account);
         $account->forceFill([
-            'state' => $projection['state'] === 'Cleared' ? TermAccount::StateCleared : TermAccount::StateOpen,
+            'state' => $position['state'] === 'Cleared' ? TermAccount::StateCleared : TermAccount::StateOpen,
         ])->save();
         $financeCleared = $projection['state'] === 'Cleared';
 
-        if ($ledgerEntries->contains(fn (LedgerEntry $entry): bool => $entry->wasRecentlyCreated)) {
-            $this->paymentPostedNotificationService->record($payment);
-        }
+        $this->paymentPostedNotificationService->record($payment);
 
         return [
             'status' => 'posted',

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\GradeRosters\Pages;
 use App\Actions\Grades\AuthorizeLateGradeEncoding;
 use App\Actions\Grades\PostAndReleaseGradeRoster;
 use App\Actions\Grades\ReturnGradeRoster;
+use App\Filament\Resources\GradeRosters\Actions\ExportClassRosterAction;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Models\GradeRoster;
 use App\Models\LateGradeAuthorization;
@@ -15,14 +16,51 @@ use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Support\Carbon;
+use Livewire\Attributes\Url;
 
 class ViewGradeRoster extends ViewRecord
 {
     protected static string $resource = GradeRosterResource::class;
 
+    #[Url]
+    public ?int $oversightTermId = null;
+
+    public function getTitle(): string
+    {
+        return $this->isHeadReader()
+            ? ($this->record->termOffering?->curriculumEntry?->courseSpecification?->title ?? 'Class roster')
+            : parent::getTitle();
+    }
+
+    public function getSubheading(): ?string
+    {
+        return $this->isHeadReader() ? collect([
+            $this->record->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
+            $this->record->section?->code, $this->record->termOffering?->term?->label,
+        ])->filter()->implode(' · ') : parent::getSubheading();
+    }
+
+    private function isHeadReader(): bool
+    {
+        return (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? false)
+            && ! auth()->user()->hasRole(User::StaffRoleRegistrar);
+    }
+
+    public function getExtraBodyAttributes(): array
+    {
+        return $this->isHeadReader() ? ['class' => 'tala-head-rosters-page'] : parent::getExtraBodyAttributes();
+    }
+
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('backToClassRosters')->label('Back to class rosters')->color('gray')
+                ->url(fn (): string => GradeRosterResource::getUrl('index', ['oversightTermId' => $this->oversightTermId]))
+                ->visible(fn (): bool => $this->isHeadReader()),
+            ExportClassRosterAction::make('exportRoster')
+                ->record(fn (): GradeRoster => $this->gradeRoster())
+                ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+                    && $this->record->rows()->where('is_current_membership', true)->exists()),
             Action::make('return')
                 ->schema([
                     Textarea::make('reason')->required()->minLength(10)->maxLength(1000),

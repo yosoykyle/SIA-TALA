@@ -125,7 +125,7 @@ class StudentLifecycleChangesTable
                     Action::make('cancel')
                         ->label('Cancel Program Shift')
                         ->authorize('cancel')
-                        ->color('warning')
+                        ->color('danger')
                         ->requiresConfirmation()
                         ->visible(fn (StudentLifecycleChange $record): bool => $record->type === StudentLifecycleChange::TypeProgramShift && $record->state === StudentLifecycleChange::StateRecordedApproved)
                         ->action(function (StudentLifecycleChange $record): void {

@@ -45,7 +45,7 @@ class StartRegistrationCase
             throw ValidationException::withMessages(['application' => 'The Applicant is not Ready for Enrollment in this exact Term.']);
         }
 
-        return $this->createOrReturn(
+        $enrollment = $this->createOrReturn(
             credentialUser: $application->user()->firstOrFail(),
             term: $term,
             actor: $actor,
@@ -56,6 +56,8 @@ class StartRegistrationCase
             authorityReference: $authorityReference,
             expectedAdmissionSource: array_intersect_key($projection, array_flip(['user_id', 'submission_version_id', 'decision_id', 'clearance_id'])),
         );
+
+        return app(PrepareStandardRegistration::class)->execute($enrollment, $actor);
     }
 
     public function forContinuingStudent(
@@ -78,16 +80,18 @@ class StartRegistrationCase
             throw ValidationException::withMessages(['student_profile' => 'The Student lifecycle does not allow registration.']);
         }
 
-        return $this->createOrReturn(
+        $enrollment = $this->createOrReturn(
             credentialUser: $studentProfile->user()->firstOrFail(),
             term: $term,
             actor: $actor,
-            selectionBasis: $this->selectionBasisResolver->forContinuingStudent($studentProfile),
+            selectionBasis: $this->selectionBasisResolver->forContinuingStudent($studentProfile, $term),
             startMethod: $startMethod,
             application: null,
             studentProfile: $studentProfile,
             authorityReference: $authorityReference,
         );
+
+        return app(PrepareStandardRegistration::class)->execute($enrollment, $actor);
     }
 
     /** @param array{user_id: int, submission_version_id: int|null, decision_id: int|null, clearance_id: int|null}|null $expectedAdmissionSource */
@@ -108,8 +112,8 @@ class StartRegistrationCase
             throw ValidationException::withMessages(['start_method' => 'Select an approved start method.']);
         }
 
-        if (in_array($startMethod, ['RegistrarAssisted', 'LateAuthority'], true) && blank($authorityReference)) {
-            throw ValidationException::withMessages(['authority_reference' => 'Assisted or late registration requires recorded authority.']);
+        if ($startMethod === 'LateAuthority' && blank($authorityReference)) {
+            throw ValidationException::withMessages(['authority_reference' => 'Late registration requires recorded institutional authority.']);
         }
 
         if ($startMethod === 'SelfService' && (int) $actor->id !== (int) $credentialUser->id) {
@@ -126,7 +130,28 @@ class StartRegistrationCase
 
         return DB::transaction(function () use ($credentialUser, $term, $actor, $selectionBasis, $startMethod, $application, $studentProfile, $authorityReference, $expectedAdmissionSource): Enrollment {
             User::query()->whereKey($credentialUser->id)->lockForUpdate()->firstOrFail();
-            Term::query()->whereKey($term->id)->lockForUpdate()->firstOrFail();
+            $term = Term::query()->whereKey($term->id)->lockForUpdate()->firstOrFail();
+            $actor = $actor->fresh();
+            if (! $actor instanceof User || ! $actor->canAuthenticate()) {
+                throw new AuthorizationException('An active authorized user must start this Registration Case.');
+            }
+            if ($studentProfile instanceof StudentProfile) {
+                $studentProfile = StudentProfile::query()->lockForUpdate()->findOrFail($studentProfile->id);
+                if ($studentProfile->blocksEnrollmentByLifecycle() || ((int) $actor->id !== (int) $studentProfile->user_id && ! $actor->hasRole(User::StaffRoleRegistrar))) {
+                    throw new AuthorizationException('The active owning Student or authorized Registrar must start this Registration Case.');
+                }
+                $selectionBasis = $this->selectionBasisResolver->forContinuingStudent($studentProfile, $term);
+                if ($startMethod === 'SelfService' && ! Enrollment::query()->where('credential_user_id', $credentialUser->id)->where('term_id', $term->id)->exists()) {
+                    $entry = app(RegistrationEntryContext::class)->forUser($actor);
+                    if ((int) $entry['term']?->id !== (int) $term->id || ! $entry['can_start']) {
+                        throw ValidationException::withMessages(['term' => $entry['reason'] ?? 'Open the current exact-Term enrollment workspace.']);
+                    }
+                }
+            }
+            if ($startMethod !== 'LateAuthority') {
+                $this->calendarPhaseGate->assertEnrollmentWindowOpen($term->id);
+                app(RegistrationWindowApplicability::class)->assertPermitted($term, $selectionBasis, $application !== null);
+            }
             if ($application instanceof AdmissionApplication) {
                 $application = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
                 $actor = $actor->fresh();

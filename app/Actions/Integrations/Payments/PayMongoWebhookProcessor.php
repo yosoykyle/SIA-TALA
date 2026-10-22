@@ -316,7 +316,7 @@ class PayMongoWebhookProcessor
         return [
             'status' => 'posted',
             'payment_id' => $payment->id,
-            'ledger_entry_id' => $ledgerEntry->id,
+            'ledger_entry_id' => $ledgerEntry?->id,
             'finance_cleared' => $posting['finance_cleared'],
         ];
     }

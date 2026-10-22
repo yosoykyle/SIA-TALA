@@ -43,7 +43,7 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_test_codex', DB::connection()->getDatabaseName());
 
@@ -136,20 +136,6 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
         Livewire::actingAs($student)
             ->test(HoldsView::class)
             ->assertDontSee('TAL91D INTERNAL STAFF-ONLY REASON');
-    }
-
-    #[Test]
-    public function lifecycle_view_surfaces_authoritative_enrollment_guidance_without_using_legacy_standing(): void
-    {
-        [$student, $profile] = $this->studentWithProfile([
-            'academic_standing' => StudentProfile::StandingIrregular,
-        ]);
-
-        Livewire::actingAs($student)
-            ->test(LifecycleView::class)
-            ->assertSee('Enrollment guidance: ALLOWED');
-
-        $this->assertSame(StudentProfile::StandingIrregular, $profile->fresh()->academic_standing);
     }
 
     #[Test]

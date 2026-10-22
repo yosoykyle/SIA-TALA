@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverResponse;
@@ -20,14 +19,15 @@ use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\CandidateScheduleRow;
 use App\Models\CorVersion;
 use App\Models\CourseComponent;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\OperationalEvent;
+use App\Models\PublishedTimetableMeeting;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Console\Command;
@@ -351,8 +351,11 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             $this->assertCount($expectedSectionCount, $sections);
 
             foreach ($sections as $section) {
-                $placement = app(EnrollmentPlacementService::class)->confirm($enrollment, $section->id, $registrar);
-                $placement['course_enrollment']->update(['section_id' => $section->id, 'is_current' => true]);
+                CourseEnrollment::factory()->create([
+                    'enrollment_id' => $enrollment->id, 'term_offering_id' => $section->term_offering_id,
+                    'section_id' => $section->id, 'published_timetable_version_id' => $published->timetableVersions()->value('id'),
+                    'is_current' => true, 'status' => CourseEnrollment::StatusActive,
+                ]);
             }
 
             $cor = CorVersion::factory()->create([
@@ -368,13 +371,10 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
                 'officially_enrolled_at' => now(),
             ]);
 
-            $bindings = StudentScheduleBinding::query()
-                ->whereHas('courseEnrollment', fn ($query) => $query->where('enrollment_id', $enrollment->id))
-                ->where('is_active', true)
-                ->orderBy('id')
-                ->get();
-
-            $this->assertCount($expectedMeetingCount, $bindings);
+            $officialMeetingCount = PublishedTimetableMeeting::query()
+                ->where('published_timetable_version_id', $cor->published_timetable_version_id)
+                ->whereIn('section_id', $sections->modelKeys())->count();
+            $this->assertSame($expectedMeetingCount, $officialMeetingCount);
 
             $studentSchedule = Livewire::actingAs($student)
                 ->test(ScheduleView::class);
@@ -385,7 +385,7 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             $studentProjectionCounts[] = [
                 'cohort' => $cohortCode,
                 'student_number' => $profile->student_number,
-                'meeting_count' => $bindings->count(),
+                'meeting_count' => $officialMeetingCount,
             ];
         }
 

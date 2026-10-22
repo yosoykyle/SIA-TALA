@@ -4,26 +4,32 @@ namespace App\Filament\Student\Pages;
 
 use App\Actions\Enrollment\CancelRegistrationCase;
 use App\Actions\Enrollment\ConfirmRegistrationProposal;
+use App\Actions\Enrollment\RegistrationEntryContext;
 use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\StartRegistrationCase;
+use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\SubmitPaymentEvidence;
+use App\Actions\Finance\TermAccountProjection;
+use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
+use App\Actions\Integrations\Payments\PayMongoCheckoutReadinessService;
+use App\Models\Assessment;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment as EnrollmentRecord;
 use App\Models\OperationalEvent;
-use App\Models\Payment;
 use App\Models\RegistrationProposalVersion;
-use App\Models\StudentProfile;
-use App\Models\Term;
 use App\Models\User;
+use App\Support\RegistrationSchedulePresentation;
+use App\Support\StudentPaymentActions;
 use Filament\Actions\Action;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\View as SchemaView;
+use Filament\Support\Enums\Width;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Throwable;
 
 class Enrollment extends Page
@@ -36,238 +42,276 @@ class Enrollment extends Page
 
     protected string $view = 'filament.student.pages.enrollment';
 
+    /** Proposal fixed when the confirmation form opened. */
+    #[Locked]
+    public ?int $reviewedProposalId = null;
+
+    /** Case and version fixed when the cancellation form opened. */
+    #[Locked]
+    public ?int $reviewedCaseId = null;
+
+    #[Locked]
+    public ?int $reviewedCaseVersion = null;
+
     public static function canAccess(): bool
     {
         return auth()->user()?->hasRole('student') ?? false;
     }
 
-    /** @return list<Action> */
-    protected function getHeaderActions(): array
+    public function getHeading(): string
     {
-        return [
-            Action::make('startRegistration')
-                ->label('Start registration')
-                ->icon('heroicon-o-play')
-                ->visible(fn (): bool => ! $this->currentEnrollment() instanceof EnrollmentRecord)
-                ->schema([
-                    Select::make('term_id')
-                        ->label('Term')
-                        ->options(Term::query()->orderByDesc('starts_on')->pluck('label', 'id'))
-                        ->required()
-                        ->searchable(),
-                ])
-                ->action(function (array $data): void {
-                    $user = $this->actor();
-                    $profile = StudentProfile::query()->where('user_id', $user->id)->firstOrFail();
+        $case = $this->currentEnrollment();
 
-                    try {
-                        app(StartRegistrationCase::class)->forContinuingStudent(
-                            $profile,
-                            Term::query()->findOrFail($data['term_id']),
-                            $user,
-                        );
-                        Notification::make()->title('Registration started')->body('The Registrar can now prepare the exact-Term proposal.')->success()->send();
-                    } catch (Throwable $exception) {
-                        $this->failure('Registration was not started', $exception);
-                    }
-                }),
-            Action::make('confirmProposal')
-                ->label('Confirm current proposal')
-                ->icon('heroicon-o-check-circle')
-                ->color('success')
-                ->requiresConfirmation()
-                ->modalDescription('Confirm the complete course, class, schedule, and unit proposal shown on this page. Any later material revision requires a new confirmation.')
-                ->visible(fn (): bool => $this->currentEnrollment()?->currentProposalVersion?->state === RegistrationProposalVersion::StateIssued)
-                ->action(function (): void {
-                    $enrollment = $this->currentEnrollment();
+        return match (true) {
+            $case?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled => 'Official enrollment',
+            $case?->canonical_outcome === EnrollmentRecord::OutcomeInProgress
+                && $case->currentProposalVersion?->state === RegistrationProposalVersion::StateDraft => 'Enrollment is being prepared',
+            default => 'Enrollment',
+        };
+    }
 
-                    if (! $enrollment instanceof EnrollmentRecord || ! $enrollment->currentProposalVersion instanceof RegistrationProposalVersion) {
-                        return;
-                    }
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return $this->actor()->hasRole('student')
+            ? [Dashboard::getUrl(panel: 'student') => 'Overview', 'Enrollment']
+            : [\App\Filament\Applicant\Pages\Dashboard::getUrl(panel: 'applicant') => 'Applicant Home', 'Enrollment'];
+    }
 
-                    try {
-                        app(ConfirmRegistrationProposal::class)->execute($enrollment->currentProposalVersion, $this->actor());
-                        Notification::make()->title('Proposal confirmed')->body('The Registrar can now protect the complete placement.')->success()->send();
-                    } catch (Throwable $exception) {
-                        $this->failure('Proposal was not confirmed', $exception);
+    public function startRegistrationAction(): Action
+    {
+        return Action::make('startRegistration')->label('Prepare enrollment')->icon('heroicon-o-play')
+            ->visible(fn (): bool => $this->entryContext()['can_start'])
+            ->action(function (): void {
+                $context = $this->entryContext();
+                abort_unless($context['can_start'] && $context['term'] !== null, 403);
+                try {
+                    $starter = app(StartRegistrationCase::class);
+                    if ($context['application'] !== null) {
+                        $starter->forReadyApplicant($context['application'], $context['term'], $this->actor());
+                    } else {
+                        $starter->forContinuingStudent($context['student_profile'], $context['term'], $this->actor());
                     }
-                }),
-            Action::make('cancelRegistration')
-                ->label('Cancel registration')
-                ->icon('heroicon-o-x-circle')
-                ->color('danger')
-                ->requiresConfirmation()
-                ->visible(function (): bool {
-                    $enrollment = $this->currentEnrollment();
+                    Notification::make()->title('Enrollment opened')->body('Review the prepared proposal, or the named Registrar or Accounting action.')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Enrollment could not be prepared', $exception);
+                }
+            });
+    }
 
-                    return $enrollment instanceof EnrollmentRecord
-                        && $enrollment->canonical_outcome === EnrollmentRecord::OutcomeInProgress
-                        && $enrollment->currentProposalVersion?->confirmation === null;
-                })
-                ->schema([Textarea::make('reason')->required()->maxLength(2000)])
-                ->action(function (array $data): void {
-                    $enrollment = $this->currentEnrollment();
-                    if (! $enrollment instanceof EnrollmentRecord) {
-                        return;
+    public function confirmProposalAction(): Action
+    {
+        return Action::make('confirmProposal')->label('Confirm subjects')->icon('heroicon-o-check-circle')
+            ->color('primary')->modal()->modalHeading('Confirm these subjects?')
+            ->modalWidth(Width::Large)
+            ->modalIcon('heroicon-o-check-circle')
+            ->modalContent(fn (): View => view('filament.student.pages.enrollment-confirmation', $this->getViewData()))
+            ->modalCancelActionLabel('Keep reviewing')->modalSubmitActionLabel('Confirm subjects')
+            ->visible(fn (): bool => $this->preparedForConfirmation())
+            ->mountUsing(function (): void {
+                $this->reviewedProposalId = $this->currentEnrollment()?->currentProposalVersion?->id;
+            })
+            ->action(function (): void {
+                try {
+                    $proposal = $this->currentEnrollment()?->currentProposalVersion;
+                    if (! $proposal instanceof RegistrationProposalVersion || $this->reviewedProposalId !== $proposal->id) {
+                        throw ValidationException::withMessages(['proposal' => 'Your subjects changed after you opened this form. Close it and review the current subjects.']);
                     }
+                    app(ConfirmRegistrationProposal::class)->execute($proposal, $this->actor());
+                    Notification::make()->title('Subjects confirmed')->body('Check the next enrollment step below.')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Proposal was not confirmed', $exception);
+                }
+            });
+    }
 
-                    try {
-                        app(CancelRegistrationCase::class)->execute($enrollment, $this->actor(), $data['reason'], $enrollment->lock_version);
-                        Notification::make()->title('Registration cancelled')->body('Held capacity was released; the case and history remain available.')->success()->send();
-                    } catch (Throwable $exception) {
-                        $this->failure('Registration was not cancelled', $exception);
-                    }
-                }),
-            Action::make('submitPaymentEvidence')
-                ->label('Submit payment evidence')
-                ->icon('heroicon-o-arrow-up-tray')
-                ->visible(function (): bool {
-                    $enrollment = $this->currentEnrollment();
+    private function preparedForConfirmation(): bool
+    {
+        $case = $this->currentEnrollment();
+        if ($case?->currentProposalVersion?->state !== RegistrationProposalVersion::StateIssued) {
+            return false;
+        }
+        try {
+            app(RegistrationReadinessQuery::class)->assertPrepared($case, $case->currentProposalVersion);
 
-                    return $enrollment instanceof EnrollmentRecord
-                        && $enrollment->termAccount !== null
-                        && $enrollment->termAccount->state !== 'Cleared';
-                })
-                ->schema([
-                    FileUpload::make('evidence')
-                        ->label('Private payment evidence')
-                        ->storeFiles(false)
-                        ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
-                        ->maxSize(10240)
-                        ->required(),
-                    TextInput::make('claimed_amount')->numeric()->minValue(0.01)->prefix('PHP')->required(),
-                    Select::make('channel')->options(Payment::manualConfirmationChannelOptions())->required(),
-                    DateTimePicker::make('paid_at')->required()->seconds(false)->maxDate(now()),
-                    TextInput::make('payment_reference')->maxLength(255),
-                ])
-                ->action(function (array $data): void {
-                    $enrollment = $this->currentEnrollment();
-                    $file = $data['evidence'] ?? null;
-                    abort_unless($enrollment instanceof EnrollmentRecord
-                        && $enrollment->termAccount !== null
-                        && $file instanceof UploadedFile, 404);
+            return true;
+        } catch (ValidationException) {
+            return false;
+        }
+    }
 
-                    try {
-                        app(SubmitPaymentEvidence::class)->execute(
-                            $enrollment->termAccount,
-                            $this->actor(),
-                            $file,
-                            (string) $data['claimed_amount'],
-                            $data['channel'],
-                            $data['paid_at'],
-                            $data['payment_reference'] ?? null,
-                        );
-                        Notification::make()->title('Payment evidence submitted')->body('Accounting review remains required.')->success()->send();
-                    } catch (Throwable $exception) {
-                        $this->failure('Payment evidence was not submitted', $exception);
-                    }
-                }),
-            Action::make('viewClassSchedule')
-                ->label('Class schedule')
-                ->icon('heroicon-o-calendar-days')
-                ->url(ScheduleView::getUrl(panel: 'student'))
-                ->visible(fn (): bool => $this->currentEnrollment()?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled),
-            Action::make('viewCor')
-                ->label('Current COR')
-                ->icon('heroicon-o-document-text')
-                ->url(CorView::getUrl(panel: 'student'))
-                ->visible(fn (): bool => $this->currentEnrollment()?->current_cor_version_id !== null),
-            Action::make('resendRegistrationEmail')
-                ->label('Resend failed update')
-                ->icon('heroicon-o-arrow-path')
-                ->requiresConfirmation()
-                ->visible(fn (): bool => $this->failedRegistrationNotification() instanceof OperationalEvent)
-                ->action(function (): void {
-                    $event = $this->failedRegistrationNotification();
-                    if (! $event instanceof OperationalEvent) {
-                        return;
-                    }
+    public function cancelRegistrationAction(): Action
+    {
+        return Action::make('cancelRegistration')->label('Cancel enrollment')->button()->outlined()->color('danger')
+            ->modalHeading('Cancel this enrollment?')
+            ->modalWidth(Width::Large)
+            ->modalSubmitActionLabel('Cancel enrollment')->modalCancelActionLabel('Keep enrollment')
+            ->modalSubmitAction(fn (Action $action): Action => $action->color('danger'))
+            ->visible(fn (): bool => $this->currentEnrollment()?->canonical_outcome === EnrollmentRecord::OutcomeInProgress
+                && $this->currentEnrollment()?->currentProposalVersion?->confirmation === null)
+            ->fillForm(function (): array {
+                $case = $this->currentEnrollment();
+                $this->reviewedCaseId = $case?->id;
+                $this->reviewedCaseVersion = $case?->lock_version;
 
-                    try {
-                        app(RegistrationNotificationLedger::class)->resend($event, $this->actor());
-                        Notification::make()->title('Enrollment email queued again')->success()->send();
-                    } catch (Throwable $exception) {
-                        $this->failure('Enrollment email was not resent', $exception);
+                return [];
+            })
+            ->schema([
+                SchemaView::make('filament.student.pages.enrollment-cancel-context')->viewData(fn (): array => $this->getViewData()),
+            ])
+            ->action(function (): void {
+                try {
+                    $case = $this->currentEnrollment();
+                    if (! $case instanceof EnrollmentRecord || $case->id !== $this->reviewedCaseId
+                        || $case->canonical_outcome !== EnrollmentRecord::OutcomeInProgress
+                        || $case->currentProposalVersion?->confirmation !== null) {
+                        throw ValidationException::withMessages(['case' => 'This enrollment changed after you opened this form. Close it and review the current enrollment.']);
                     }
-                }),
-        ];
+                    app(CancelRegistrationCase::class)->execute($case, $this->actor(), 'Cancelled by the learner.', $this->reviewedCaseVersion);
+                    Notification::make()->title('Registration case cancelled')->body('Temporary seats were released. Your case and financial history remain.')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Registration was not cancelled', $exception);
+                }
+            });
+    }
+
+    public function submitPaymentEvidenceAction(): Action
+    {
+        return StudentPaymentActions::proof(Action::make('submitPaymentEvidence')->label('Submit payment proof')->icon('heroicon-o-arrow-up-tray'))
+            ->visible(function (): bool {
+                $case = $this->currentEnrollment();
+
+                return $case?->canonical_outcome === EnrollmentRecord::OutcomeInProgress
+                    && $case->currentProposalVersion?->confirmation !== null
+                    && app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case)['state'] === 'ActionNeeded';
+            })
+            ->action(function (array $data): void {
+                $case = $this->currentEnrollment();
+                $file = $data['evidence'] ?? null;
+                abort_unless($case?->termAccount !== null && $file instanceof UploadedFile, 404);
+                try {
+                    $position = app(TermAccountProjection::class)->forAccount($case->termAccount);
+                    $targets = collect($position['obligations'])->where('required_for_enrollment', true)->pluck('id')->all();
+                    app(SubmitPaymentEvidence::class)->execute(
+                        $case->termAccount, $this->actor(), $file, (string) $data['claimed_amount'],
+                        $data['channel'], $data['paid_at'], $data['payment_reference'] ?? null, $targets,
+                    );
+                    Notification::make()->title('Evidence submitted for Accounting review')->body('No payment is posted by submission. You can review the current evidence below.')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Payment evidence was not submitted', $exception);
+                }
+            });
+    }
+
+    public function payExactCurrentDueAction(): Action
+    {
+        return StudentPaymentActions::online(
+            Action::make('payExactCurrentDue')->label('Pay online')->icon('heroicon-o-credit-card'),
+            fn (): array => $this->checkout(),
+        )
+            ->visible(fn (): bool => $this->currentEnrollment()?->canonical_outcome === EnrollmentRecord::OutcomeInProgress
+                && $this->currentEnrollment()?->currentProposalVersion?->confirmation !== null)
+            ->disabled(fn (): bool => $this->checkout()['enabled'] !== true)
+            ->action(function (): void {
+                try {
+                    $result = app(CreatePaymentCheckoutSession::class)->create(
+                        actor: $this->actor(), successUrl: static::getUrl(['checkout' => 'success']),
+                        cancelUrl: static::getUrl(['checkout' => 'cancelled']), metadata: ['source' => 'learner_enrollment'],
+                    );
+                    $this->redirect($result['checkout_url'], navigate: false);
+                } catch (Throwable $exception) {
+                    $this->failure('Online payment is unavailable', $exception);
+                }
+            });
+    }
+
+    public function resendRegistrationEmailAction(): Action
+    {
+        return Action::make('resendRegistrationEmail')->label('Resend enrollment email')->icon('heroicon-o-arrow-path')
+            ->visible(fn (): bool => $this->failedRegistrationNotification() !== null)
+            ->action(function (): void {
+                $event = $this->failedRegistrationNotification();
+                abort_unless($event instanceof OperationalEvent, 404);
+                try {
+                    app(RegistrationNotificationLedger::class)->resend($event, $this->actor());
+                    Notification::make()->title('Enrollment email queued again')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Enrollment email was not resent', $exception);
+                }
+            });
     }
 
     /** @return array<string, mixed> */
     protected function getViewData(): array
     {
-        $enrollment = $this->currentEnrollment();
-        $readiness = $enrollment instanceof EnrollmentRecord
-            ? app(RegistrationReadinessQuery::class)->for($enrollment)
-            : null;
+        $context = $this->entryContext();
+        $case = $this->currentEnrollment();
+        $proposal = $case?->currentProposalVersion;
+        $official = $case?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled;
+        $position = ! $official && $case?->termAccount !== null ? app(TermAccountProjection::class)->forAccount($case->termAccount) : null;
+        $requirement = ! $official && $case !== null ? app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case) : null;
+        $assessment = isset($position['assessment_id']) ? Assessment::query()->with(['lines', 'obligations'])->find($position['assessment_id']) : null;
 
         return [
-            'enrollment' => $enrollment,
-            'readiness' => $readiness,
-            'proposal' => $enrollment?->currentProposalVersion?->loadMissing(['items.section', 'items.reservation', 'confirmation']),
-            'corHistory' => $this->corHistory($enrollment),
+            'entryContext' => $context, 'enrollment' => $case, 'proposal' => $proposal,
+            'readiness' => ! $official && $case !== null ? app(RegistrationReadinessQuery::class)->for($case) : null,
+            'preparedForConfirmation' => ! $official && $this->preparedForConfirmation(),
+            'paymentRequirement' => $requirement, 'accountPosition' => $position, 'assessment' => $assessment,
+            'schedulePresentation' => ! $official ? $this->schedulePresentation($proposal, $case) : null,
+            'checkout' => ! $official ? $this->checkout() : null,
+            'registeredSubjects' => $official ? $case->courseEnrollments()
+                ->where('is_current', true)->where('status', CourseEnrollment::StatusActive)
+                ->with(['termOffering.curriculumEntry.courseSpecification.course', 'section'])->get() : collect(),
+            'latestEvidence' => $case?->termAccount?->latestPaymentEvidenceVersion,
+            'corHistory' => $this->corHistory($case), 'isStudent' => $this->actor()->hasRole('student'),
         ];
     }
 
-    /**
-     * @return list<array{enrollment_id: int, term: string, version: int, status: 'Current'|'Historical'|'Superseded', url: string}>
-     */
+    /** @return array<string, mixed> */
+    protected function entryContext(): array
+    {
+        return app(RegistrationEntryContext::class)->forUser($this->actor());
+    }
+
+    protected function currentEnrollment(): ?EnrollmentRecord
+    {
+        $case = $this->entryContext()['enrollment'];
+
+        return $case?->loadMissing([
+            'term.academicYear', 'studentProfile', 'admissionApplication.program', 'currentProposalVersion.curriculumVersion.program', 'currentProposalVersion.items.section',
+            'currentProposalVersion.items.reservation', 'currentProposalVersion.confirmation',
+            'currentProposalVersion.timetableVersion.scheduleRun', 'termAccount.latestPaymentEvidenceVersion', 'currentCorVersion.timetableVersion.scheduleRun',
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    protected function checkout(): array
+    {
+        $account = $this->currentEnrollment()?->termAccount;
+
+        return $account !== null ? app(PayMongoCheckoutReadinessService::class)->for($this->actor(), $account)
+            : ['enabled' => false, 'reason' => 'Online payment is unavailable until Accounting records a current assessment.', 'amount' => null, 'obligations' => []];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function schedulePresentation(?RegistrationProposalVersion $proposal, ?EnrollmentRecord $case): ?array
+    {
+        return app(RegistrationSchedulePresentation::class)->for($proposal, $case);
+    }
+
+    /** @return list<array<string, mixed>> */
     private function corHistory(?EnrollmentRecord $currentEnrollment): array
     {
-        $history = [];
-        $enrollments = EnrollmentRecord::query()
-            ->with(['term', 'corVersions'])
-            ->where('credential_user_id', $this->actor()->id)
-            ->whereHas('corVersions')
-            ->latest('officially_enrolled_at')
-            ->get();
-
-        foreach ($enrollments as $enrollment) {
-            foreach ($enrollment->corVersions->sortByDesc('version') as $version) {
-                $history[] = [
-                    'enrollment_id' => $enrollment->id,
-                    'term' => $enrollment->term->label ?? 'Term not recorded',
-                    'version' => (int) $version->version,
-                    'status' => (int) $enrollment->current_cor_version_id === (int) $version->id
-                        ? ($enrollment->is($currentEnrollment) ? 'Current' : 'Historical')
-                        : 'Superseded',
-                    'url' => route('cor.print', ['enrollment' => $enrollment->id, 'version' => $version->version]),
-                ];
-            }
-        }
-
-        return $history;
+        return EnrollmentRecord::query()->with(['term', 'corVersions'])->where('credential_user_id', $this->actor()->id)
+            ->whereHas('corVersions')->latest('officially_enrolled_at')->get()
+            ->flatMap(fn (EnrollmentRecord $case) => $case->corVersions->sortByDesc('version')->map(fn ($version): array => [
+                'term' => $case->term?->label, 'version' => $version->version,
+                'status' => (int) $case->current_cor_version_id !== (int) $version->id ? 'Superseded' : ($case->is($currentEnrollment) ? 'Current' : 'Historical'),
+                'url' => route('cor.print', ['enrollment' => $case->id, 'version' => $version->version]),
+            ]))->values()->all();
     }
 
-    private function currentEnrollment(): ?EnrollmentRecord
-    {
-        $enrollments = EnrollmentRecord::query()
-            ->with([
-                'term',
-                'currentProposalVersion.items.section',
-                'currentProposalVersion.items.reservation',
-                'currentProposalVersion.confirmation',
-                'termAccount',
-                'currentCorVersion',
-            ])
-            ->where('credential_user_id', $this->actor()->id);
-
-        $activeEnrollment = (clone $enrollments)
-            ->select('enrollments.*')
-            ->join('terms', 'terms.id', '=', 'enrollments.term_id')
-            ->where('terms.state', Term::StateActive)
-            ->orderByDesc('terms.starts_on')
-            ->orderByDesc('terms.id')
-            ->orderByDesc('enrollments.id')
-            ->first();
-
-        return $activeEnrollment ?? $enrollments
-            ->latest('updated_at')
-            ->latest('id')
-            ->first();
-    }
-
-    private function actor(): User
+    protected function actor(): User
     {
         $actor = auth()->user();
         abort_unless($actor instanceof User, 403);
@@ -277,21 +321,13 @@ class Enrollment extends Page
 
     private function failedRegistrationNotification(): ?OperationalEvent
     {
-        $enrollment = $this->currentEnrollment();
-
-        return $enrollment instanceof EnrollmentRecord
-            ? OperationalEvent::query()
-                ->where('event_domain', OperationalEvent::DomainNotifications)
-                ->whereIn('event_type', OperationalEvent::registrationNotificationTypes())
-                ->where('user_id', $this->actor()->id)
-                ->where('status', OperationalEvent::StatusFailed)
-                ->latest('id')
-                ->first()
-            : null;
+        return OperationalEvent::query()->where('event_domain', OperationalEvent::DomainNotifications)
+            ->whereIn('event_type', OperationalEvent::registrationNotificationTypes())
+            ->where('user_id', $this->actor()->id)->where('status', OperationalEvent::StatusFailed)->latest('id')->first();
     }
 
-    private function failure(string $title, Throwable $exception): void
+    protected function failure(string $title, Throwable $exception): void
     {
-        Notification::make()->title($title)->body($exception->getMessage())->danger()->send();
+        Notification::make()->title($title)->body($exception->getMessage())->danger()->persistent()->send();
     }
 }

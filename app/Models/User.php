@@ -8,6 +8,7 @@ use Database\Factories\UserFactory;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
 use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasAvatar;
 use Filament\Models\Contracts\HasName;
 use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -24,7 +25,7 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable implements FilamentUser, HasAppAuthentication, HasAppAuthenticationRecovery, HasName, MustVerifyEmail
+class User extends Authenticatable implements FilamentUser, HasAppAuthentication, HasAppAuthenticationRecovery, HasAvatar, HasName, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable, TwoFactorAuthenticatable {
@@ -229,6 +230,7 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
      * @var list<string>
      */
     protected $hidden = [
+        'avatar_path',
         'password',
         'remember_token',
         'two_factor_secret',
@@ -380,6 +382,15 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
     public function getFilamentName(): string
     {
         return filled($this->name) ? (string) $this->name : 'Applicant account';
+    }
+
+    public function getFilamentAvatarUrl(): ?string
+    {
+        if (auth()->id() !== $this->getKey() || ! $this->hasRole('student') || blank($this->avatar_path)) {
+            return null;
+        }
+
+        return route('student.profile-photo', ['photo' => hash('sha256', $this->avatar_path)]);
     }
 
     public function getEmailForVerification(): string

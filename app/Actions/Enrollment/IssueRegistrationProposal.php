@@ -14,6 +14,7 @@ class IssueRegistrationProposal
     public function __construct(
         private readonly StudentUnitLoadService $unitLoad,
         private readonly RegistrationNotificationLedger $notifications,
+        private readonly RegistrationReadinessQuery $readiness,
     ) {}
 
     public function execute(RegistrationProposalVersion $proposal, User $actor): RegistrationProposalVersion
@@ -23,26 +24,44 @@ class IssueRegistrationProposal
             throw new AuthorizationException('Only authorized Registrar staff may issue a Registration Proposal.');
         }
 
-        $issued = DB::transaction(function () use ($proposal, $actor): RegistrationProposalVersion {
-            $locked = RegistrationProposalVersion::query()->with('items')->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
-            $enrollment = Enrollment::query()->whereKey($locked->enrollment_id)->lockForUpdate()->firstOrFail();
+        return $this->issue($proposal, $actor);
+    }
 
-            if ($locked->state === RegistrationProposalVersion::StateIssued) {
-                return $locked;
-            }
+    public function issuePrepared(RegistrationProposalVersion $proposal): RegistrationProposalVersion
+    {
+        if ($proposal->purpose !== RegistrationProposalVersion::PurposeInitial) {
+            throw ValidationException::withMessages(['proposal' => 'An adjustment proposal must be issued by Registrar.']);
+        }
+
+        return $this->issue($proposal, null);
+    }
+
+    private function issue(RegistrationProposalVersion $proposal, ?User $actor): RegistrationProposalVersion
+    {
+        $issued = DB::transaction(function () use ($proposal, $actor): RegistrationProposalVersion {
+            $enrollment = Enrollment::query()->whereKey($proposal->enrollment_id)->lockForUpdate()->firstOrFail();
+            $locked = RegistrationProposalVersion::query()->with('items')->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
             $expectedOutcome = $locked->purpose === RegistrationProposalVersion::PurposeAdjustment
                 ? Enrollment::OutcomeOfficiallyEnrolled
                 : Enrollment::OutcomeInProgress;
             if ($enrollment->canonical_outcome !== $expectedOutcome
                 || (int) $enrollment->current_proposal_version_id !== (int) $locked->id
-                || $locked->state !== RegistrationProposalVersion::StateDraft
+                || ! in_array($locked->state, [RegistrationProposalVersion::StateDraft, RegistrationProposalVersion::StateIssued], true)
                 || $locked->items->isEmpty()) {
                 throw ValidationException::withMessages(['proposal' => 'Only a complete current Draft proposal may be issued.']);
             }
 
             $this->unitLoad->assertProposalPermitted($enrollment, $locked, lockForUpdate: true);
 
-            $locked->update(['state' => RegistrationProposalVersion::StateIssued, 'issued_by' => $actor->id, 'issued_at' => now()]);
+            if ($locked->purpose === RegistrationProposalVersion::PurposeInitial) {
+                $this->readiness->assertPrepared($enrollment, $locked);
+            }
+
+            if ($locked->state === RegistrationProposalVersion::StateIssued) {
+                return $locked;
+            }
+
+            $locked->update(['state' => RegistrationProposalVersion::StateIssued, 'issued_by' => $actor?->id, 'issued_at' => now()]);
 
             return $locked->refresh();
         }, attempts: 3);

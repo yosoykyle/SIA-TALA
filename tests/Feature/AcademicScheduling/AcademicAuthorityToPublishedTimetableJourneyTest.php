@@ -568,6 +568,106 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             ->assertSee('Academic Head access is read-only');
     }
 
+    public function test_timetable_impact_records_system_sources_for_changed_and_cancelled_outcomes(): void
+    {
+        $registrar = $this->registrar();
+        $term = Term::factory()->create();
+        $version = PublishedTimetableVersion::factory()->for($term)->create();
+        $case = Enrollment::factory()->for($term)->create();
+        $section = Section::factory()->create();
+        $revision = TimetableRevision::factory()->for($version, 'sourceVersion')->create([
+            'term_id' => $term->id,
+            'impact_snapshot' => ['affected_registration_case_ids' => [$case->id], 'changed_section_ids' => [$section->id]],
+            'changes_snapshot' => [],
+        ]);
+        $opened = RegistrationCaseEvent::factory()->for($case)->create([
+            'event_type' => 'TimetableRevisionImpactReviewOpened',
+            'authority_reference' => 'timetable-revision:'.$revision->id,
+            'recorded_at' => now()->subMinute(),
+        ]);
+        $proposal = RegistrationProposalVersion::factory()->for($case)->create([
+            'created_at' => now(),
+            'prepared_at' => now(),
+        ]);
+        $case->update(['current_proposal_version_id' => $proposal->id]);
+
+        try {
+            app(ResolveTimetableRevisionRegistrationImpact::class)->execute(
+                $revision,
+                $case,
+                $opened,
+                $registrar,
+                ResolveTimetableRevisionRegistrationImpact::OutcomeRetainedWithAcknowledgement,
+                '',
+            );
+            $this->fail('Retaining the placement requires acknowledgement evidence for the changed meeting facts.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('evidence_reference', $exception->errors());
+        }
+
+        $changed = app(ResolveTimetableRevisionRegistrationImpact::class)->execute(
+            $revision,
+            $case,
+            $opened,
+            $registrar,
+            ResolveTimetableRevisionRegistrationImpact::OutcomeRegistrationChanged,
+            '',
+        );
+        $this->assertSame('registration-proposal:'.$proposal->id, json_decode($changed->reason, true)['evidence_reference']);
+
+        $cancelledCase = Enrollment::factory()->for($term)->create([
+            'canonical_outcome' => Enrollment::OutcomeCancelledByRegistrar,
+            'status' => 'cancelled',
+            'cancelled_at' => now(),
+        ]);
+        $cancelledRevision = TimetableRevision::factory()->for($version, 'sourceVersion')->create([
+            'term_id' => $term->id,
+            'impact_snapshot' => ['affected_registration_case_ids' => [$cancelledCase->id], 'changed_section_ids' => [$section->id]],
+            'changes_snapshot' => [],
+        ]);
+        $cancelledOpened = RegistrationCaseEvent::factory()->for($cancelledCase)->create([
+            'event_type' => 'TimetableRevisionImpactReviewOpened',
+            'authority_reference' => 'timetable-revision:'.$cancelledRevision->id,
+            'recorded_at' => now()->subMinute(),
+        ]);
+        $cancellation = RegistrationCaseEvent::factory()->for($cancelledCase)->create([
+            'sequence' => 2,
+            'event_type' => Enrollment::OutcomeCancelledByRegistrar,
+            'from_outcome' => Enrollment::OutcomeInProgress,
+            'to_outcome' => Enrollment::OutcomeCancelledByRegistrar,
+            'recorded_at' => now(),
+        ]);
+        $cancelled = app(ResolveTimetableRevisionRegistrationImpact::class)->execute(
+            $cancelledRevision,
+            $cancelledCase,
+            $cancelledOpened,
+            $registrar,
+            ResolveTimetableRevisionRegistrationImpact::OutcomeCaseCancelled,
+            '',
+        );
+        $this->assertSame('registration-case-event:'.$cancellation->id, json_decode($cancelled->reason, true)['evidence_reference']);
+
+        $foreignCase = Enrollment::factory()->for($term)->create();
+        $foreignOpened = RegistrationCaseEvent::factory()->for($foreignCase)->create([
+            'event_type' => 'TimetableRevisionImpactReviewOpened',
+            'authority_reference' => 'timetable-revision:'.$revision->id,
+        ]);
+        try {
+            app(ResolveTimetableRevisionRegistrationImpact::class)->execute(
+                $revision,
+                $case,
+                $foreignOpened,
+                $registrar,
+                ResolveTimetableRevisionRegistrationImpact::OutcomeRegistrationChanged,
+                '',
+            );
+            $this->fail('A foreign review event must not resolve this case.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('impact_review', $exception->errors());
+        }
+        $this->assertSame(1, $case->registrationEvents()->where('event_type', 'TimetableRevisionImpactReviewResolved')->count());
+    }
+
     public function test_term_planning_defaults_only_to_one_unambiguous_active_package(): void
     {
         $registrar = $this->registrar();

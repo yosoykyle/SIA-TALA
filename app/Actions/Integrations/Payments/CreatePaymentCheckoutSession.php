@@ -2,7 +2,6 @@
 
 namespace App\Actions\Integrations\Payments;
 
-use App\Actions\Finance\FinanceEvidenceService;
 use App\Models\Assessment;
 use App\Models\PaymentAttempt;
 use App\Models\StudentProfile;
@@ -21,7 +20,6 @@ class CreatePaymentCheckoutSession
     public function __construct(
         private readonly PaymentGateway $gateway,
         private readonly DecimalMoney $money,
-        private readonly FinanceEvidenceService $financeEvidence,
         private readonly ExactDuePaymentSnapshotService $snapshots,
     ) {}
 
@@ -37,17 +35,12 @@ class CreatePaymentCheckoutSession
         string $description = 'TALA current finance amount due',
         array $metadata = [],
     ): array {
-        $finance = $this->financeEvidence->studentFinance($actor);
-
-        if (($finance['available'] ?? false) !== true) {
-            throw PaymentCheckoutException::unavailable((string) ($finance['reason'] ?? 'Student finance is not available.'));
-        }
-
-        $assessment = $finance['assessment'] ?? null;
-        $profile = $finance['student_profile'] ?? null;
-
-        if (! $assessment instanceof Assessment || ! $profile instanceof StudentProfile) {
-            throw PaymentCheckoutException::unavailable('Student finance records are incomplete.');
+        $account = TermAccount::query()->where('credential_user_id', $actor->id)->latest('id')->first();
+        $assessment = $account?->assessments()->where('state', Assessment::StateActive)->latest('version')->first();
+        $profile = $account?->enrollment?->studentProfile;
+        if (! $actor->canAuthenticate() || ! $assessment instanceof Assessment
+            || ($profile instanceof StudentProfile && $profile->lifecycle_status === StudentProfile::LifecycleCompleted)) {
+            throw PaymentCheckoutException::unavailable('The current learner Term Account is unavailable for checkout.');
         }
 
         if ($assessmentId !== null && $assessmentId !== (int) $assessment->id) {
@@ -61,7 +54,7 @@ class CreatePaymentCheckoutSession
         }
 
         $request = new PaymentCheckoutRequest(
-            studentProfileId: (int) $profile->id,
+            studentProfileId: $profile?->id,
             amount: '0.00',
             description: $description,
             assessmentId: (int) $assessment->id,
@@ -387,7 +380,7 @@ class CreatePaymentCheckoutSession
         $stored = data_get($this->attemptMetadata($attempt), 'request', []);
 
         return new PaymentCheckoutRequest(
-            studentProfileId: (int) $attempt->student_profile_id,
+            studentProfileId: $attempt->student_profile_id !== null ? (int) $attempt->student_profile_id : null,
             amount: $this->money->normalize((string) $attempt->amount),
             description: (string) ($stored['description'] ?? $fallback->description),
             assessmentId: (int) $attempt->assessment_id,

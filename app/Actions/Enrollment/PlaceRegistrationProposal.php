@@ -25,7 +25,10 @@ class PlaceRegistrationProposal
     public function execute(RegistrationProposalVersion $proposal, User $actor, ?\DateTimeInterface $expectedDeadline = null): RegistrationProposalVersion
     {
         if (! $actor->canAuthenticate()
-            || ! $actor->hasRole(User::StaffRoleRegistrar)) {
+            || (! $actor->hasRole(User::StaffRoleRegistrar)
+                && ! ((int) $proposal->enrollment?->credential_user_id === (int) $actor->id
+                    && $proposal->selection_basis === Enrollment::SelectionStandardCurriculum
+                    && $proposal->purpose === RegistrationProposalVersion::PurposeInitial))) {
             throw new AuthorizationException('Only authorized Registrar staff may place a Registration Proposal.');
         }
 
@@ -33,10 +36,10 @@ class PlaceRegistrationProposal
             $locked = RegistrationProposalVersion::query()->with(['enrollment', 'items'])->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
             $enrollment = $locked->enrollment()->lockForUpdate()->firstOrFail();
 
-            if ($locked->state !== RegistrationProposalVersion::StateConfirmed
+            if (! in_array($locked->state, [RegistrationProposalVersion::StateDraft, RegistrationProposalVersion::StateIssued, RegistrationProposalVersion::StateConfirmed], true)
                 || $enrollment->canonical_outcome !== Enrollment::OutcomeInProgress
                 || (int) $enrollment->current_proposal_version_id !== (int) $locked->id) {
-                throw ValidationException::withMessages(['proposal' => 'Placement requires the current confirmed proposal.']);
+                throw ValidationException::withMessages(['proposal' => 'Reserve classes from the current prepared proposal.']);
             }
 
             $this->unitLoad->assertProposalPermitted($enrollment, $locked, lockForUpdate: true);
@@ -125,7 +128,7 @@ class PlaceRegistrationProposal
             }
 
             $placed = $locked->refresh()->load('items.reservation');
-            $this->validator->assertCurrent($enrollment->fresh(), $placed, lockForUpdate: true);
+            $this->validator->assertCurrent($enrollment->fresh(), $placed, lockForUpdate: true, requireConfirmation: false);
 
             return $placed;
         }, attempts: 3);

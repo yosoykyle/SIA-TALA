@@ -190,9 +190,9 @@ class StudentHubTest extends TestCase
 
         Livewire::actingAs($student)
             ->test(Profile::class)
-            ->assertSee('Official Student Record')
+            ->assertSee('My profile')
             ->assertSee('SIA-2026-8399')
-            ->assertSee('Correction guidance')
+            ->assertSee('For corrections, contact the Registrar.')
             ->assertDontSee('Save Contact Details');
 
         $profile->refresh();

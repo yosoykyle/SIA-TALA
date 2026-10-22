@@ -28,6 +28,11 @@ class PaymentEvidenceDownloadController extends Controller
             && ! str_contains($path, '../')
             && Storage::disk('local')->exists($path), 404);
 
+        $contents = Storage::disk('local')->get($path);
+        $inline = $request->routeIs('finance.payment-evidence.view');
+        $mime = $inline ? (new \finfo(FILEINFO_MIME_TYPE))->buffer($contents) : $evidence->mime_type;
+        abort_if($inline && ! in_array($mime, ['application/pdf', 'image/jpeg', 'image/png'], true), 415, 'This file can be downloaded for review.');
+
         DB::table('activity_log')->insert([
             'log_name' => 'registration_finance',
             'description' => 'Private payment evidence accessed.',
@@ -41,16 +46,16 @@ class PaymentEvidenceDownloadController extends Controller
             'updated_at' => now(),
         ]);
 
-        $extension = match ($evidence->mime_type) {
+        $extension = match ($mime) {
             'application/pdf' => 'pdf',
             'image/jpeg' => 'jpg',
             'image/png' => 'png',
             default => 'bin',
         };
 
-        return response(Storage::disk('local')->get($path), 200, [
-            'Content-Type' => $evidence->mime_type,
-            'Content-Disposition' => sprintf('attachment; filename="payment-evidence-%d.%s"', $evidence->id, $extension),
+        return response($contents, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => sprintf('%s; filename="payment-evidence-%d.%s"', $inline ? 'inline' : 'attachment', $evidence->id, $extension),
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);

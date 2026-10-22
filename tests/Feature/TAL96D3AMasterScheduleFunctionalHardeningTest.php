@@ -369,6 +369,33 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
     }
 
     #[Test]
+    public function faculty_schedule_distinguishes_unselected_and_unassigned_terms_and_keeps_figures_unfiltered(): void
+    {
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $emptyTerm = Term::factory()->create();
+
+        Livewire::actingAs($faculty)->test(FacultySchedule::class)
+            ->assertSee('Choose a Term to view your schedule')
+            ->assertDontSee('No official meetings assigned in this Term')
+            ->assertDontSee('Search courses, classes or rooms')
+            ->call('selectTerm', $emptyTerm->id)
+            ->assertSee('No official meetings assigned in this Term')
+            ->assertDontSee('Weekly meetings');
+
+        $fixture = $this->scheduleFixture();
+        $tuesday = $fixture['meeting']->replicate();
+        $tuesday->fill(['meeting_sequence' => 2, 'day_of_week' => 2])->save();
+
+        Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class, ['termId' => $fixture['term']->id])
+            ->filterTable('day_of_week', 2)
+            ->assertSeeHtml('<dt>Classes</dt><dd>1</dd>')
+            ->assertSeeHtml('<dt>Weekly meetings</dt><dd>2</dd>')
+            ->assertSeeHtml('<dt>Teaching days</dt><dd>2</dd>')
+            ->assertSee('Showing selected meetings:')
+            ->assertSee('Tuesday');
+    }
+
+    #[Test]
     public function faculty_course_title_search_matches_linked_specification_and_same_owned_output(): void
     {
         $fixture = $this->scheduleFixture();

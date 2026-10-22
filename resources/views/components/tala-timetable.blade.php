@@ -1,5 +1,8 @@
-@props(['presentation', 'focused' => false, 'controlled' => false, 'embedded' => false, 'nativeDetails' => false])
-@php($overviewId = 'timetable-overview-'.substr(hash('sha256', $presentation['source']), 0, 16))
+@props(['presentation', 'focused' => false, 'controlled' => false, 'embedded' => false, 'nativeDetails' => false, 'showWindow' => true])
+@php
+    $overviewId = 'timetable-overview-'.\Illuminate\Support\Str::uuid();
+    $meetingId = $overviewId.'-meeting';
+@endphp
 
 <section
     {{ $attributes->class(['tala-timetable', 'tala-timetable-focused' => $focused]) }}
@@ -61,23 +64,26 @@
         @endif
         <p x-cloak x-show="visibleCount === 0" class="tala-timetable-empty">No meetings match these filters. Clear the filters to see the full timetable.</p>
 
-        @if (! $nativeDetails)<details x-cloak x-show="selectedMeeting" x-bind:open="selected !== null" class="tala-timetable-selection">
-            <summary x-ref="selectionSummary">Selected meeting: <span x-text="selectedMeeting?.courseCode"></span> · <span x-text="selectedMeeting?.class"></span></summary>
-            <p><strong x-text="selectedMeeting?.courseTitle"></strong></p>
-            <dl>
-                <div><dt>When</dt><dd><span x-text="selectedMeeting?.dayLabel"></span> <span x-text="selectedMeeting?.time"></span></dd></div>
-                <div><dt>Duration</dt><dd x-text="selectedMeeting?.duration"></dd></div><div><dt>Faculty</dt><dd x-text="selectedMeeting?.faculty"></dd></div>
-                <div><dt>Location</dt><dd x-text="selectedMeeting?.room"></dd></div>
-                <div><dt>Delivery</dt><dd><span x-text="selectedMeeting?.component"></span> · <span x-text="selectedMeeting?.modality"></span></dd></div>
-                <div><dt>Record status</dt><dd x-text="selectedMeeting?.status"></dd></div>
-            </dl>
-            <p x-show="selectedMeeting?.offGrid">This meeting is outside the recorded teaching grid. Review it before relying on this timetable.</p>
-            <x-filament::button color="gray" x-on:click="selected = null">Close meeting details</x-filament::button>
-        </details>
+        @if (! $nativeDetails)
+            <x-filament::modal :id="$meetingId" width="xl" sticky-header sticky-footer teleport="body" class="tala-meeting-dialog">
+                <x-slot name="heading"><span x-text="selectedMeeting?.courseTitle || selectedMeeting?.courseCode || 'Meeting details'"></span></x-slot>
+                <x-slot name="description"><span x-text="selectedMeeting?.courseCode"></span> · <span x-text="selectedMeeting?.class"></span></x-slot>
+                <dl class="tala-meeting-facts">
+                    <div><dt>When</dt><dd><span x-text="selectedMeeting?.dayLabel"></span> · <span x-text="selectedMeeting?.time"></span></dd></div>
+                    <div><dt>Location</dt><dd x-text="selectedMeeting?.room"></dd></div>
+                    <div><dt>Instructor</dt><dd x-text="selectedMeeting?.faculty"></dd></div>
+                    <div><dt>Duration</dt><dd x-text="selectedMeeting?.duration"></dd></div>
+                    <div><dt>Delivery</dt><dd><span x-text="selectedMeeting?.modality"></span> · <span x-text="selectedMeeting?.component"></span></dd></div>
+                    <div><dt>Record status</dt><dd x-text="selectedMeeting?.status"></dd></div>
+                </dl>
+                <p x-cloak x-show="selectedMeeting && !selectedMeeting.plottable" class="tala-timetable-guide">Meeting time is unavailable or invalid. Contact the Registrar.</p>
+                <p x-cloak x-show="selectedMeeting?.offGrid" class="tala-timetable-guide">This meeting is outside the recorded teaching window. Contact the Registrar.</p>
+                <x-slot name="footerActions"><x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: '{{ $meetingId }}' })">Close</x-filament::button></x-slot>
+            </x-filament::modal>
         @endif
 
         @if ($presentation['slots'] > 0 && $presentation['days'] !== [])
-            <p x-show="mode === 'weekly'" class="tala-timetable-window">Recorded teaching window · {{ $presentation['ticks'][0]['label'] }}–{{ $presentation['ticks'][count($presentation['ticks']) - 1]['label'] }} · Asia/Manila</p>
+            @if ($showWindow)<p x-show="mode === 'weekly'" class="tala-timetable-window">Recorded teaching window · {{ $presentation['ticks'][0]['label'] }}–{{ $presentation['ticks'][count($presentation['ticks']) - 1]['label'] }} · Asia/Manila</p>@endif
             <div x-show="mode === 'weekly'" class="tala-timetable-weekly" tabindex="0" role="region" aria-label="Weekly calendar, full recorded teaching window. Scroll to later hours." style="--timetable-days: {{ count($presentation['days']) }}; --timetable-slots: {{ $presentation['slots'] }};">
                 <div class="tala-timetable-axis" aria-hidden="true">
                     <div class="tala-timetable-day-heading">Time</div>
@@ -108,8 +114,9 @@
                                         style="top: {{ $meeting['top'] }}%; height: {{ $meeting['height'] }}%; inset-inline-start: {{ $meeting['lane'] / $meeting['lanes'] * 100 }}%; width: {{ 100 / $meeting['lanes'] }}%;"
                                         x-show="matches(meetings.find(meeting => meeting.id === {{ \Illuminate\Support\Js::from($meeting['id']) }}))"
                                         @if ($nativeDetails) wire:click="mountAction('viewMeeting', {}, { table: true, recordKey: '{{ $meeting['id'] }}' })"
-                                        @else x-on:click="selected = {{ \Illuminate\Support\Js::from($meeting['id']) }}; $nextTick(() => $refs.selectionSummary.focus())" @endif
-                                        @if (! $nativeDetails) x-bind:aria-pressed="selected === {{ \Illuminate\Support\Js::from($meeting['id']) }}" @endif
+                                        @else x-on:click="selected = {{ \Illuminate\Support\Js::from($meeting['id']) }}; $dispatch('open-modal', { id: '{{ $meetingId }}' })" @endif
+                                        aria-haspopup="dialog"
+                                        @if (! $nativeDetails) aria-controls="{{ $meetingId }}" @endif
                                         aria-label="{{ $meeting['courseCode'] }}, {{ $meeting['courseTitle'] }}, {{ $meeting['class'] }}, {{ $day['label'] }} {{ $meeting['time'] }}, {{ $meeting['faculty'] }}, {{ $meeting['room'] }}, {{ $meeting['component'] }}, {{ $meeting['modality'] }}{{ $meeting['offGrid'] ? ', outside recorded teaching grid' : '' }}"
                                     >
                                         <strong class="tala-timetable-course-title">{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong>
@@ -137,23 +144,13 @@
                         </button>
                     </div>
                 @else
-                <details
-                    class="tala-timetable-list-meeting {{ ! $meeting['plottable'] ? 'tala-timetable-unplaced' : '' }}"
-                    x-show="matches(meetings.find(meeting => meeting.id === {{ \Illuminate\Support\Js::from($meeting['id']) }}))"
-                >
-                    <summary>
+                <div class="tala-timetable-list-meeting {{ ! $meeting['plottable'] ? 'tala-timetable-unplaced' : '' }}" x-show="matches(meetings.find(meeting => meeting.id === {{ \Illuminate\Support\Js::from($meeting['id']) }}))">
+                    <button type="button" class="tala-timetable-mobile-meeting" aria-haspopup="dialog" aria-controls="{{ $meetingId }}" x-on:click="selected = {{ \Illuminate\Support\Js::from($meeting['id']) }}; $dispatch('open-modal', { id: '{{ $meetingId }}' })">
                         <span class="tala-timetable-list-time">{{ $meeting['dayLabel'] }}<br>{{ $meeting['time'] }}</span>
                         <span><strong>{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong><span class="tala-timetable-list-title">{{ $meeting['courseCode'] }} · {{ $meeting['class'] }}</span></span>
-                        <span class="tala-timetable-meeting-room">{{ $meeting['room'] }} · {{ $meeting['component'] }}</span>
-                    </summary>
-                    <dl>
-                        <div><dt>Duration</dt><dd>{{ $meeting['duration'] }}</dd></div><div><dt>Faculty</dt><dd>{{ $meeting['faculty'] }}</dd></div>
-                        <div><dt>Modality</dt><dd>{{ $meeting['modality'] }}</dd></div>
-                        <div><dt>Record status</dt><dd>{{ $meeting['status'] }}</dd></div>
-                    </dl>
-                    @if (! $meeting['plottable'])<p>This meeting has an invalid or missing day or time. Review its source record; it cannot be placed on the weekly grid.</p>@endif
-                    @if ($meeting['offGrid'])<p>This meeting is outside the recorded teaching grid.</p>@endif
-                </details>
+                        <span class="tala-timetable-meeting-room">{{ $meeting['room'] }}<span class="tala-timetable-list-title">View details</span></span>
+                    </button>
+                </div>
                 @endif
             @endforeach
         </div>

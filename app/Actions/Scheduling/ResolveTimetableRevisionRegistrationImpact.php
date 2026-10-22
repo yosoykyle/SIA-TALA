@@ -46,7 +46,6 @@ class ResolveTimetableRevisionRegistrationImpact
                 || (int) $opened->enrollment_id !== (int) $lockedEnrollment->id
                 || $opened->event_type !== 'TimetableRevisionImpactReviewOpened'
                 || $opened->authority_reference !== $sourceReference
-                || $evidenceReference === ''
                 || ! in_array($outcome, [
                     self::OutcomeRetainedWithAcknowledgement,
                     self::OutcomeRegistrationChanged,
@@ -54,6 +53,12 @@ class ResolveTimetableRevisionRegistrationImpact
                 ], true)) {
                 throw ValidationException::withMessages([
                     'impact_review' => 'A current exact timetable revision, affected Registration Case, supported outcome, and attributable evidence are required.',
+                ]);
+            }
+
+            if ($outcome === self::OutcomeRetainedWithAcknowledgement && $evidenceReference === '') {
+                throw ValidationException::withMessages([
+                    'evidence_reference' => 'Record the attributable acknowledgement for these changed meeting facts.',
                 ]);
             }
 
@@ -100,6 +105,41 @@ class ResolveTimetableRevisionRegistrationImpact
                 && ! in_array($lockedEnrollment->canonical_outcome, Enrollment::reopenableOutcomes(), true)) {
                 throw ValidationException::withMessages([
                     'outcome' => 'Case-cancelled resolution requires the Registration Case to be terminal first.',
+                ]);
+            }
+
+            if ($evidenceReference === '' && $outcome === self::OutcomeRegistrationChanged) {
+                $currentProposal = $lockedEnrollment->currentProposalVersion()
+                    ->where('created_at', '>=', $opened->recorded_at)
+                    ->whereDoesntHave('items', fn ($query) => $query->whereIn('section_id', $changedSectionIds))
+                    ->first();
+                if ($currentProposal !== null) {
+                    $evidenceReference = 'registration-proposal:'.$currentProposal->id;
+                } else {
+                    $currentCertificate = $lockedEnrollment->currentCorVersion()
+                        ->where('created_at', '>=', $opened->recorded_at)
+                        ->first();
+                    if ($currentCertificate !== null) {
+                        $evidenceReference = 'registration-certificate:'.$currentCertificate->id;
+                    }
+                }
+            }
+
+            if ($evidenceReference === '' && $outcome === self::OutcomeCaseCancelled) {
+                $cancellationEvent = $lockedEnrollment->registrationEvents()
+                    ->where('event_type', $lockedEnrollment->canonical_outcome)
+                    ->where('to_outcome', $lockedEnrollment->canonical_outcome)
+                    ->where('recorded_at', '>=', $opened->recorded_at)
+                    ->orderByDesc('sequence')
+                    ->first();
+                if ($cancellationEvent !== null) {
+                    $evidenceReference = 'registration-case-event:'.$cancellationEvent->id;
+                }
+            }
+
+            if ($evidenceReference === '') {
+                throw ValidationException::withMessages([
+                    'evidence_reference' => 'The current outcome has no exact source recorded after this review was opened.',
                 ]);
             }
 

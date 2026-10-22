@@ -26,6 +26,8 @@
     --tala-focus: #a16207;
     --tala-font-body: 'Inter Variable', Inter, system-ui, sans-serif;
     --tala-font-heading: 'Inter Variable', Inter, system-ui, sans-serif;
+    --tala-weight-emphasis: 600;
+    --tala-weight-heading: 700;
 }
 
 :root.dark,
@@ -264,20 +266,20 @@
 
 /* Shared control material; each framework owns its semantic fill and foreground. */
 :root {
-    --tala-control-gloss: linear-gradient(180deg, rgb(255 255 255 / 22%), rgb(255 255 255 / 4%) 48%, rgb(0 0 0 / 5%));
-    --tala-control-depth: inset 0 1px 0 rgb(255 255 255 / 40%), inset 0 -1px 0 rgb(0 0 0 / 16%), 0 2px 3px rgb(0 0 0 / 10%);
-    --tala-control-pressed: inset 0 1px 3px rgb(0 0 0 / 22%);
+    --tala-control-gloss: linear-gradient(180deg, rgb(255 255 255 / 16%), rgb(255 255 255 / 2%) 50%, rgb(0 0 0 / 2%));
+    --tala-control-depth: inset 0 1px 0 rgb(255 255 255 / 55%), inset 0 -1px 0 rgb(0 0 0 / 7%), 0 1px 1px rgb(0 0 0 / 4.5%);
+    --tala-control-pressed: inset 0 1px 2px rgb(0 0 0 / 14%);
     --tala-navigation-depth: inset 0 1px 0 rgb(255 255 255 / 28%), inset 0 -1px 0 rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 6%);
 }
 :root.dark, :root[data-bs-theme='dark'] {
     --tala-control-gloss: linear-gradient(180deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 2%) 48%, rgb(0 0 0 / 9%));
-    --tala-control-depth: inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 -1px 0 rgb(0 0 0 / 24%), 0 2px 3px rgb(0 0 0 / 20%);
+    --tala-control-depth: inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 -1px 0 rgb(0 0 0 / 16%), 0 1px 2px rgb(0 0 0 / 14%);
     --tala-navigation-depth: inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(0 0 0 / 22%), 0 1px 2px rgb(0 0 0 / 20%);
 }
 @media (prefers-color-scheme: dark) {
     :root[data-tala-system-appearance] {
         --tala-control-gloss: linear-gradient(180deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 2%) 48%, rgb(0 0 0 / 9%));
-        --tala-control-depth: inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 -1px 0 rgb(0 0 0 / 24%), 0 2px 3px rgb(0 0 0 / 20%);
+        --tala-control-depth: inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 -1px 0 rgb(0 0 0 / 16%), 0 1px 2px rgb(0 0 0 / 14%);
         --tala-navigation-depth: inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(0 0 0 / 22%), 0 1px 2px rgb(0 0 0 / 20%);
     }
 }
@@ -338,18 +340,17 @@
     :is(.fi-modal-close-btn, .modal .btn-close):focus-visible { outline:3px solid var(--tala-focus); outline-offset:2px; }
     /* Navigation shares the skeuomorphic Aqua-like button family at lower elevation. */
     :is(.fi-tabs-item, .fi-pagination-item-btn, .fi-theme-switcher-btn,
-        .fi-sidebar-item-btn, .fi-layout-sidebar-toggle-btn, .fi-sidebar-open-collapse-sidebar-btn, .fi-sidebar-close-collapse-sidebar-btn) {
+        .fi-layout-sidebar-toggle-btn, .fi-sidebar-open-collapse-sidebar-btn, .fi-sidebar-close-collapse-sidebar-btn) {
         background-image: var(--tala-control-gloss);
         box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tala-navigation-depth);
     }
     :is(.fi-tabs-item, .fi-pagination-item-btn) { background-color: var(--tala-surface); }
     :is(.fi-tabs-item, .fi-pagination-item-btn, .fi-theme-switcher-btn,
-        .fi-sidebar-item-btn, .fi-layout-sidebar-toggle-btn, .fi-sidebar-open-collapse-sidebar-btn, .fi-sidebar-close-collapse-sidebar-btn):active:not(:disabled):not([aria-disabled='true']),
+        .fi-layout-sidebar-toggle-btn, .fi-sidebar-open-collapse-sidebar-btn, .fi-sidebar-close-collapse-sidebar-btn):active:not(:disabled):not([aria-disabled='true']),
     :is(.fi-tabs-item.fi-active, .fi-pagination-item-btn[aria-current='page'], .fi-theme-switcher-btn[aria-pressed='true']) {
         box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tala-control-pressed);
     }
-    :is(.fi-tabs-item, .fi-pagination-item-btn, .fi-theme-switcher-btn,
-        .fi-sidebar-item-btn):is(:disabled, .fi-disabled, [aria-disabled='true']) {
+    :is(.fi-tabs-item, .fi-pagination-item-btn, .fi-theme-switcher-btn):is(:disabled, .fi-disabled, [aria-disabled='true']) {
         background-image: none;
         box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
     }

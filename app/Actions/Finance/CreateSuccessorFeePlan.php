@@ -5,6 +5,8 @@ namespace App\Actions\Finance;
 use App\Models\FeePlan;
 use App\Models\FeePlanCharge;
 use App\Models\FeePlanObligation;
+use App\Models\Program;
+use App\Models\Term;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -12,14 +14,20 @@ use Illuminate\Validation\ValidationException;
 
 class CreateSuccessorFeePlan
 {
-    public function execute(FeePlan $publishedPlan, User $actor): FeePlan
+    public function execute(FeePlan $publishedPlan, User $actor, ?string $expectedContentFingerprint = null): FeePlan
     {
         if (! $actor->canAuthenticate() || ! $actor->hasRole(User::StaffRoleAccounting)) {
             throw new AuthorizationException('Only Accounting staff may prepare a successor Fee Plan.');
         }
 
-        return DB::transaction(function () use ($publishedPlan, $actor): FeePlan {
+        return DB::transaction(function () use ($publishedPlan, $actor, $expectedContentFingerprint): FeePlan {
+            $source = FeePlan::query()->findOrFail($publishedPlan->id);
+            Program::query()->whereKey($source->program_id)->lockForUpdate()->firstOrFail();
+            Term::query()->whereKey($source->term_id)->lockForUpdate()->firstOrFail();
             $locked = FeePlan::query()->with(['charges', 'obligations'])->whereKey($publishedPlan->id)->lockForUpdate()->firstOrFail();
+            if ($expectedContentFingerprint !== null && ! hash_equals($expectedContentFingerprint, $locked->contentFingerprint())) {
+                throw ValidationException::withMessages(['fee_plan' => 'This Fee Plan changed after you opened it. Close this confirmation and review the current published version before creating a successor.']);
+            }
 
             if ($locked->state !== FeePlan::StatePublished) {
                 throw ValidationException::withMessages(['fee_plan' => 'Only the current Published Fee Plan may receive a successor.']);
@@ -34,7 +42,7 @@ class CreateSuccessorFeePlan
                 'program_id' => $locked->program_id,
                 'term_id' => $locked->term_id,
                 'supersedes_fee_plan_id' => $locked->id,
-                'version' => $locked->version + 1,
+                'version' => ((int) FeePlan::query()->where('program_id', $locked->program_id)->where('term_id', $locked->term_id)->lockForUpdate()->max('version')) + 1,
                 'state' => FeePlan::StateDraft,
                 'currency' => $locked->currency,
                 'created_by' => $actor->id,

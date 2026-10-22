@@ -8,6 +8,7 @@ use App\Actions\StudentHub\StudentDashboardService;
 use App\Models\Enrollment;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Support\RegistrationSchedulePresentation;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
 
@@ -15,11 +16,19 @@ class ScheduleView extends Page
 {
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-calendar-days';
 
-    protected static ?string $navigationLabel = 'Class Schedule';
+    protected static ?string $navigationLabel = 'Class schedule';
 
-    protected static ?string $title = 'Class Schedule';
+    protected static ?string $title = 'Class schedule';
+
+    protected ?string $subheading = 'Your registered classes and published meeting times, all in Asia/Manila.';
 
     protected string $view = 'filament.student.pages.schedule-view';
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [Dashboard::getUrl(panel: 'student') => 'Overview', $this->getTitle()];
+    }
 
     public function mount(): void
     {
@@ -35,7 +44,7 @@ class ScheduleView extends Page
     {
         return [
             Action::make('printSchedule')
-                ->label('Print / Save as PDF')
+                ->label('Print schedule')
                 ->icon('heroicon-o-printer')
                 ->url(route('student.schedule.print'))
                 ->openUrlInNewTab()
@@ -46,7 +55,13 @@ class ScheduleView extends Page
     /** @return array<string, mixed> */
     protected function getViewData(): array
     {
-        return ['scheduleRows' => $this->scheduleRows()];
+        $actor = auth()->user();
+
+        return [
+            'scheduleRows' => $this->scheduleRows(),
+            'schedulePresentation' => $actor instanceof User ? app(RegistrationSchedulePresentation::class)->currentFor($actor) : null,
+            'hasOfficialEnrollment' => $actor instanceof User && app(CurrentOfficialEnrollmentResolver::class)->forStudent($actor) instanceof Enrollment,
+        ];
     }
 
     /** @return list<array<string, mixed>> */

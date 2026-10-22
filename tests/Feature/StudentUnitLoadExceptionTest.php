@@ -31,7 +31,9 @@ final class StudentUnitLoadExceptionTest extends TestCase
     {
         parent::setUp();
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $expectedDatabase = (string) env('TALA_TEST_DATABASE', 'test_tala_db');
+        $this->assertSame($expectedDatabase, DB::connection()->getDatabaseName());
+        $this->assertSame($expectedDatabase, DB::selectOne('SELECT DATABASE() AS name')->name);
         foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
@@ -171,6 +173,38 @@ final class StudentUnitLoadExceptionTest extends TestCase
     }
 
     #[Test]
+    public function a_repeated_approval_keeps_its_original_evidence_without_retyping_and_a_new_source_remains_distinct(): void
+    {
+        [$enrollment, $proposal] = $this->overloadProposal();
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+        $service = app(RecordGraduatingOverloadAuthority::class);
+        $source = ['authority_reference' => 'EXT-GRAD-2026-001', 'authority_date' => '2026-08-25'];
+        $original = $service->execute($proposal, $registrar, [
+            ...$source,
+            'evidence_reference' => 'DISTINCT-SIGNED-DOCUMENT',
+            'reason' => 'An earlier actual recorded explanation.',
+        ]);
+        $before = $original->fresh()->getAttributes();
+        $otherRegistrar = User::factory()->create(['status' => User::StatusActive]);
+        $otherRegistrar->assignRole(User::StaffRoleRegistrar);
+
+        $repeated = $service->execute($proposal, $otherRegistrar, $source);
+        $this->assertSame($original->id, $repeated->id);
+        $this->assertSame($before, $original->fresh()->getAttributes());
+        $this->assertSame(1, $enrollment->exceptions()->count());
+
+        $changed = $service->execute($proposal, $otherRegistrar, [...$source, 'authority_reference' => 'EXT-GRAD-2026-002']);
+        $this->assertNotSame($original->id, $changed->id);
+        $this->assertNull($changed->evidence_reference);
+        $this->assertSame('Overload approval recorded for the reviewed proposed subjects.', $changed->reason);
+        $this->assertSame($otherRegistrar->id, $changed->approved_by);
+        $this->assertSame(EnrollmentException::StateSuperseded, $original->fresh()->state);
+        $this->assertSame('DISTINCT-SIGNED-DOCUMENT', $original->fresh()->evidence_reference);
+        $this->assertTrue(app(StudentUnitLoadService::class)->assertProposalPermitted($enrollment, $proposal)['unit_load_passes']);
+    }
+
+    #[Test]
     public function incomplete_non_graduating_and_cross_term_authority_attempts_are_rejected(): void
     {
         [$enrollment, $proposal] = $this->overloadProposal();
@@ -187,8 +221,8 @@ final class StudentUnitLoadExceptionTest extends TestCase
             $this->fail('Incomplete external authority evidence must be rejected.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('authority_reference', $exception->errors());
-            $this->assertArrayHasKey('evidence_reference', $exception->errors());
-            $this->assertArrayHasKey('reason', $exception->errors());
+            $this->assertArrayNotHasKey('evidence_reference', $exception->errors());
+            $this->assertArrayNotHasKey('reason', $exception->errors());
         }
 
         $enrollment->studentProfile->update(['academic_standing' => StudentProfile::StandingRegular]);

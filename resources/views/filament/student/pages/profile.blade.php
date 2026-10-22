@@ -1,47 +1,30 @@
 <x-filament-panels::page>
-    <div class="space-y-6">
-        @foreach ($this->profileSections as $section)
-            <section class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <h2 class="text-base font-semibold text-gray-950 dark:text-white">
-                    {{ $section['heading'] }}
-                </h2>
-
-                <dl class="mt-4 grid gap-4 md:grid-cols-3">
-                    @foreach ($section['items'] as $item)
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">
-                                {{ $item['label'] }}
-                            </dt>
-                            <dd class="mt-1 text-sm text-gray-950 dark:text-white">
-                                {{ $item['value'] }}
-                            </dd>
-                        </div>
-                    @endforeach
-                </dl>
-            </section>
-        @endforeach
-
-        <x-filament::section
-            heading="Correction guidance"
-            description="This page is a read-only projection of the official Student record."
-            icon="heroicon-o-information-circle"
-        >
-            <p class="text-sm text-gray-600 dark:text-gray-300">
-                Contact the Registrar to record a factual correction with authority, evidence, reason, effective time, and append-only history. Issued COR and TOR versions are never rewritten.
-            </p>
-        </x-filament::section>
-
+    @assets<link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">@endassets
+    @php
+        $identity = collect($this->profileSections[0]['items'])->pluck('value', 'label');
+        $studies = $this->profileSections[1];
+        $program = collect($studies['items'])->firstWhere('label', 'Program')['value'];
+        $student = auth()->user()->studentProfile;
+    @endphp
+    <div class="student-information student-profile-page">
+        <section class="student-profile-identity" aria-label="Student identity">
+            <div class="student-profile-avatar" aria-hidden="true">@if (auth()->user()->avatar_path ?? null)<img src="{{ auth()->user()->getFilamentAvatarUrl() }}" alt="">@else{{ str($student?->first_name)->substr(0, 1) }}{{ str($student?->last_name)->substr(0, 1) }}@endif</div>
+            <div><h2>{{ $identity['Name'] }}</h2><p>Student {{ $identity['Student number'] }}</p><p>{{ $program }}</p><div class="student-profile-photo-action">{{ $this->changePhotoAction }}</div></div>
+        </section>
+        <div class="student-profile-columns">
+            @foreach (array_slice($this->profileSections, 1, 2) as $section)
+                @php($visibleItems = array_filter($section['items'], fn (array $item): bool => ! in_array($item['value'], ['Unavailable', 'Not recorded'], true) && ! ($section['heading'] === 'Current studies' && $item['label'] === 'Program')))
+                <section class="student-profile-section"><h2>{{ $section['heading'] === 'Current studies' ? 'Your studies' : $section['heading'] }}</h2>
+                    @if ($section['description'] ?? null)<p class="student-profile-study-note">{{ $section['description'] }}</p>@endif
+                    @if ($visibleItems !== [])<dl>@foreach ($visibleItems as $item)<div><dt>{{ $item['label'] }}</dt><dd>{{ $item['value'] }}</dd></div>@endforeach</dl>@endif
+                    @if ($section['heading'] === 'Current studies')<div class="student-profile-photo-action"><x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student')">View enrollment</x-filament::button></div>
+                    @else<p class="student-information-guidance">For corrections, contact the Registrar.</p>@endif
+                </section>
+            @endforeach
+        </div>
+        <section class="student-profile-school"><h2>School record</h2><dl>@foreach ($this->profileSections[3]['items'] as $item)<div><dt>{{ $item['label'] }}</dt><dd>{{ $item['value'] }}</dd></div>@endforeach</dl></section>
         @if ($correctionHistory !== [])
-            <x-filament::section heading="Recorded correction history" collapsible>
-                <ol class="space-y-3">
-                    @foreach ($correctionHistory as $event)
-                        <li>
-                            <p class="font-medium text-gray-950 dark:text-white">{{ $event['event'] }}</p>
-                            <p class="text-sm text-gray-600 dark:text-gray-300">Effective {{ $event['effective_at'] }} · {{ $event['reason'] }}</p>
-                        </li>
-                    @endforeach
-                </ol>
-            </x-filament::section>
+            <details class="student-profile-corrections"><summary>Recorded corrections</summary><ol>@foreach ($correctionHistory as $event)<li><strong>{{ $event['event'] }}</strong><p>{{ $event['effective_at'] }} · {{ $event['reason'] }}</p></li>@endforeach</ol></details>
         @endif
     </div>
 </x-filament-panels::page>

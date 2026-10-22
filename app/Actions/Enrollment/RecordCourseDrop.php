@@ -3,6 +3,7 @@
 namespace App\Actions\Enrollment;
 
 use App\Actions\Calendar\CalendarPhaseGateService;
+use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Models\CorVersion;
 use App\Models\CourseDropRecord;
 use App\Models\CourseEnrollment;
@@ -20,6 +21,7 @@ class RecordCourseDrop
     public function __construct(
         private readonly CalendarPhaseGateService $calendar,
         private readonly RegistrationNotificationLedger $notifications,
+        private readonly SynchronizeOfficialGradeRoster $rosters,
     ) {}
 
     public function execute(
@@ -27,7 +29,7 @@ class RecordCourseDrop
         CourseEnrollment $course,
         User $actor,
         string $reason,
-        string $authorityReference,
+        string $authorityReference = '',
         ?RegistrationLateAuthority $lateAuthority = null,
     ): CourseDropRecord {
         if (! $actor->canAuthenticate()
@@ -50,19 +52,21 @@ class RecordCourseDrop
             if ($lockedEnrollment->canonical_outcome !== Enrollment::OutcomeOfficiallyEnrolled
                 || (int) $lockedCourse->enrollment_id !== (int) $lockedEnrollment->id
                 || ! $lockedCourse->is_current || ! $currentCor instanceof CorVersion
-                || blank($reason) || blank($authorityReference)) {
-                throw ValidationException::withMessages(['drop' => 'Course Drop requires a current official course, reason, authority, and COR source.']);
+                || blank($reason)) {
+                throw ValidationException::withMessages(['drop' => 'Course Drop requires a current official course, reason, and COR source.']);
             }
 
             if ($late instanceof RegistrationLateAuthority
-                && ((int) $late->enrollment_id !== (int) $lockedEnrollment->id
+                && (blank($authorityReference)
+                    || (int) $late->enrollment_id !== (int) $lockedEnrollment->id
                     || (int) $late->term_id !== (int) $lockedEnrollment->term_id
                     || $late->action_type !== RegistrationLateAuthority::ActionCourseDrop
                     || (int) $late->before_course_enrollment_id !== (int) $lockedCourse->id
                     || $late->after_section_id !== null
                     || $late->authority_reference !== $authorityReference
-                    || $late->consumed_at !== null)) {
-                throw ValidationException::withMessages(['late_authority' => 'The late authority is stale, already used, or does not match this exact Course Drop.']);
+                    || $late->consumed_at !== null
+                    || $late->effective_at?->isFuture())) {
+                throw ValidationException::withMessages(['late_authority' => 'The late approval is not yet effective, already used, or does not match this subject drop.']);
             }
 
             if (CourseEnrollment::query()
@@ -83,7 +87,7 @@ class RecordCourseDrop
             $record = CourseDropRecord::query()->create([
                 'enrollment_id' => $lockedEnrollment->id,
                 'course_enrollment_id' => $lockedCourse->id,
-                'authority_reference' => $authorityReference,
+                'authority_reference' => filled($authorityReference) ? $authorityReference : null,
                 'reason' => $reason,
                 'finance_state' => 'AccountingReviewPending',
                 'recorded_by' => $actor->id,
@@ -98,7 +102,7 @@ class RecordCourseDrop
                 'from_outcome' => $lockedEnrollment->canonical_outcome,
                 'to_outcome' => $lockedEnrollment->canonical_outcome,
                 'reason' => $reason,
-                'authority_reference' => $authorityReference,
+                'authority_reference' => filled($authorityReference) ? $authorityReference : null,
                 'actor_id' => $actor->id,
                 'recorded_at' => now(),
             ]);
@@ -122,6 +126,8 @@ class RecordCourseDrop
                 'issued_at' => now(),
             ]);
             $lockedEnrollment->update(['current_cor_version_id' => $successor->id, 'lock_version' => $lockedEnrollment->lock_version + 1]);
+
+            $this->rosters->forSections([$lockedCourse->section_id], $actor);
 
             return $record;
         }, attempts: 3);

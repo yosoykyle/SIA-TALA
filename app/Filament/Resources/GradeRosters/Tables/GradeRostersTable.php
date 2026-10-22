@@ -8,6 +8,7 @@ use App\Actions\Grades\ReturnGradeRoster;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Models\GradeRoster;
 use App\Models\LateGradeAuthorization;
+use App\Models\Term;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -16,15 +17,21 @@ use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
+use Filament\Tables\Columns\Layout\View as RecordView;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
 class GradeRostersTable
 {
     public static function configure(Table $table): Table
     {
+        if (auth()->user()?->hasRole(User::StaffRoleAcademicHead) && ! auth()->user()->hasRole(User::StaffRoleRegistrar)) {
+            return self::headTable($table);
+        }
+
         return $table
             ->columns([
                 TextColumn::make('termOffering.term.label')->label('Term')->searchable(),
@@ -32,7 +39,7 @@ class GradeRostersTable
                 TextColumn::make('section.code')->label('Section')->searchable(),
                 TextColumn::make('faculty.name')->label('Faculty')->searchable(),
                 TextColumn::make('state')->badge()->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
-                TextColumn::make('rows_count')->counts('rows')->label('Students'),
+                TextColumn::make('rows_count')->counts(['rows' => fn (Builder $query): Builder => $query->where('is_current_membership', true)])->label('Students'),
                 TextColumn::make('completion')
                     ->label('Final results entered')
                     ->state(fn (GradeRoster $record): string => sprintf(
@@ -127,6 +134,39 @@ class GradeRostersTable
                     ->tooltip('Grade roster actions'),
             ])
             ->stackedOnMobile()
+            ->defaultSort('id', 'desc');
+    }
+
+    private static function headTable(Table $table): Table
+    {
+        return $table
+            ->extraAttributes(['class' => 'accounting-records-table academic-rosters-table'])
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                ->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section', 'teachingAssignment.faculty', 'faculty'])
+                ->withCount(['rows as current_members_count' => fn (Builder $rows): Builder => $rows->where('is_current_membership', true)]))
+            ->columns([RecordView::make('filament.admin.grade-rosters.head-record-row')])
+            ->searchable([fn (Builder $query, string $search): Builder => $query->where(fn (Builder $scope): Builder => $scope
+                ->whereHas('termOffering.term', fn (Builder $term): Builder => $term->where('label', 'like', "%{$search}%"))
+                ->orWhereHas('termOffering.curriculumEntry.courseSpecification', fn (Builder $course): Builder => $course
+                    ->where('title', 'like', "%{$search}%")
+                    ->orWhereHas('course', fn (Builder $code): Builder => $code->where('code', 'like', "%{$search}%")))
+                ->orWhereHas('section', fn (Builder $section): Builder => $section->where('code', 'like', "%{$search}%"))
+                ->orWhereHas('faculty', fn (Builder $faculty): Builder => $faculty->where('name', 'like', "%{$search}%")))])
+            ->searchPlaceholder('Course, class, term or faculty')
+            ->filters([
+                SelectFilter::make('term')->label('Term')->searchable()
+                    ->options(fn (): array => Term::query()->orderByDesc('starts_on')->pluck('label', 'id')->all())
+                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null,
+                        fn (Builder $scope, mixed $termId): Builder => $scope->whereHas('termOffering', fn (Builder $offering): Builder => $offering->where('term_id', $termId)))),
+                SelectFilter::make('state')->options([
+                    GradeRoster::StateDraft => 'Draft', GradeRoster::StateSubmitted => 'Submitted',
+                    GradeRoster::StateReturned => 'Returned', GradeRoster::StateReleased => 'Posted and released',
+                    GradeRoster::StateLateNotSubmitted => 'Late / not submitted',
+                ]),
+            ])
+            ->recordUrl(null)->recordAction(null)->recordActions([])
+            ->emptyStateHeading('No matching class rosters')
+            ->emptyStateDescription('Change the search or filters. The Registrar maintains official class membership.')
             ->defaultSort('id', 'desc');
     }
 }

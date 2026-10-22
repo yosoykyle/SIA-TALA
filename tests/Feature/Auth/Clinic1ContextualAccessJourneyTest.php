@@ -53,7 +53,7 @@ class Clinic1ContextualAccessJourneyTest extends TestCase
     {
         return [
             'Registrar' => [User::StaffRoleRegistrar, '/admin/admissions/admission-applications'],
-            'Accounting' => [User::StaffRoleAccounting, '/admin/fee-plans'],
+            'Accounting' => [User::StaffRoleAccounting, '/admin/enrollments'],
             'Faculty' => [User::StaffRoleFaculty, '/admin/faculty-schedule'],
             'Academic Head' => [User::StaffRoleAcademicHead, '/admin/academic-approvals'],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, '/admin/users'],

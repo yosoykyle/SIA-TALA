@@ -103,8 +103,8 @@ class TAL93CProfileUpdateAlignmentTest extends TestCase
         $this->actingAs($student);
 
         Livewire::test(StudentProfilePage::class)
-            ->assertSee('Official Student Record')
-            ->assertSee('Correction guidance')
+            ->assertSee('Student details')
+            ->assertSee('Contact the Registrar to update your record.')
             ->assertSee('Recorded correction history')
             ->assertSee('Corrected against the authenticated Registrar record.')
             ->assertDontSee('Save Contact Details');

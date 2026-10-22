@@ -7,6 +7,7 @@ use App\Filament\Resources\GradeRosters\Pages\ViewGradeRoster;
 use App\Filament\Resources\GradeRosters\RelationManagers\RowsRelationManager;
 use App\Filament\Resources\GradeRosters\Schemas\GradeRosterInfolist;
 use App\Filament\Resources\GradeRosters\Tables\GradeRostersTable;
+use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\GradeRoster;
 use App\Models\User;
 use BackedEnum;
@@ -14,6 +15,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class GradeRosterResource extends Resource
 {
@@ -36,6 +38,22 @@ class GradeRosterResource extends Resource
     public static function infolist(Schema $schema): Schema
     {
         return GradeRosterInfolist::configure($schema);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+
+        if ($user?->hasRole(User::StaffRoleFaculty)
+            && ! $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead])) {
+            $query->whereIn('section_id', ClassOfferingTeachingAssignment::query()
+                ->select('section_id')
+                ->where('faculty_user_id', $user->id)
+                ->where('state', ClassOfferingTeachingAssignment::StateActive));
+        }
+
+        return $query;
     }
 
     public static function shouldRegisterNavigation(): bool

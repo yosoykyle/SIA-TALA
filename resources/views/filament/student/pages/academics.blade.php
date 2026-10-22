@@ -1,185 +1,125 @@
 <x-filament-panels::page>
+    @assets
+        <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
+    @endassets
     @if (! $student)
-        <x-filament::section>
-            <x-slot name="heading">Student record unavailable</x-slot>
-            <p>Your account is not linked to an accessible Student profile. Contact the Registrar for assistance.</p>
-        </x-filament::section>
+        <x-filament::section heading="Student record unavailable"><p>Contact the Registrar to link your student record.</p></x-filament::section>
     @else
-        <div class="space-y-6">
-            <x-examination-period-summary :projection="$examinationPeriod" />
-
-            <x-filament::section>
-                <x-slot name="heading">Your released academic record</x-slot>
-                <x-slot name="description">
-                    Results appear only after Registrar release. Missing or pending records are named explicitly; TALA does not calculate partial averages.
-                </x-slot>
-                <div x-data="{ academicView: 'overview' }" class="space-y-3 pt-2">
-                    <x-tala-navigation label="Academics sections">
-                        <x-filament::tabs.item
-                            type="button"
-                            alpine-active="academicView === 'overview'"
-                            x-bind:aria-current="academicView === 'overview' ? 'true' : null"
-                            x-on:click="academicView = 'overview'"
-                        >
-                            Overview
-                        </x-filament::tabs.item>
-                        <x-filament::tabs.item
-                            type="button"
-                            alpine-active="academicView === 'details'"
-                            x-bind:aria-current="academicView === 'details' ? 'true' : null"
-                            x-on:click="academicView = 'details'"
-                        >
-                            Released records
-                        </x-filament::tabs.item>
-                    </x-tala-navigation>
-                    <div role="status" aria-live="polite" class="sr-only" x-text="academicView === 'overview' ? 'Showing academic overview' : 'Showing released academic records'">
-                        Showing academic overview
-                    </div>
-                    <div class="flex flex-wrap gap-3">
-                        <x-filament::button :href="$scheduleUrl" tag="a" color="gray" icon="heroicon-m-calendar-days">Class schedule</x-filament::button>
-                        <x-filament::button :href="$holdsUrl" tag="a" color="gray" icon="heroicon-m-exclamation-triangle">Holds and blockers</x-filament::button>
-                        @if ($results->whereNotNull('event')->isNotEmpty())
-                            <x-filament::button :href="$unofficialRecordUrl" tag="a" target="_blank" icon="heroicon-m-printer">Unofficial record</x-filament::button>
-                        @endif
-                    </div>
-                </div>
-            </x-filament::section>
-
-            <div class="grid gap-4 md:grid-cols-3">
-                <x-filament::section>
-                    <x-slot name="heading">Cumulative GWA</x-slot>
-                    <p class="text-2xl font-semibold">{{ $cumulative['value'] ?? 'Unavailable' }}</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">{{ $cumulative['through'] ? 'Through '.$cumulative['through'] : 'No complete included term yet' }}</p>
-                </x-filament::section>
-                <x-filament::section>
-                    <x-slot name="heading">Curriculum progress</x-slot>
-                    <p class="text-2xl font-semibold">{{ $curriculum['completed_units'] }} units</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">{{ $curriculum['deficiency_count'] }} requirement(s) not yet completed</p>
-                </x-filament::section>
-                <x-filament::section>
-                    <x-slot name="heading">Enrollment guidance</x-slot>
-                    <p class="text-lg font-semibold">{{ str($effect['effect'])->replace('_', ' ')->headline() }}</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">{{ $effect['reason'] }}</p>
-                    <p class="mt-2 text-xs text-gray-500">Source: {{ $effect['source'] }}</p>
-                </x-filament::section>
-            </div>
-
-            <x-filament::section>
-                <x-slot name="heading">Completion readiness</x-slot>
-                <x-slot name="description">Applying records your intent. Only Registrar can record conferral after every current source is ready.</x-slot>
-                <p class="text-xl font-semibold" aria-live="polite">{{ str($completion['state'])->headline() }}</p>
-                @if ($completion['blockers'] !== [])
-                    @php
-                        $leadCompletionBlockers = array_slice($completion['blockers'], 0, 3);
-                        $remainingCompletionBlockers = array_slice($completion['blockers'], 3);
-                    @endphp
-                    <div class="mt-4 space-y-3" aria-label="Completion blockers">
-                        <p class="text-sm text-gray-600 dark:text-gray-300">
-                            Showing {{ count($leadCompletionBlockers) }} of {{ count($completion['blockers']) }} named blockers. Each item identifies its source, consequence, responsible office, and safe next step.
-                        </p>
-                        @foreach ($leadCompletionBlockers as $blocker)
-                            <x-completion-blocker :$blocker />
-                        @endforeach
-                        @if ($remainingCompletionBlockers !== [])
-                            <details class="rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-white/5">
-                                <summary class="cursor-pointer px-4 py-3 font-medium text-primary-700 marker:text-gray-500 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 dark:text-primary-300 dark:hover:bg-white/5">
-                                    Review remaining {{ count($remainingCompletionBlockers) }} blockers
-                                </summary>
-                                <div class="space-y-3 border-t border-gray-200 p-4 dark:border-white/10">
-                                    @foreach ($remainingCompletionBlockers as $blocker)
-                                        <x-completion-blocker :$blocker />
-                                    @endforeach
-                                </div>
-                            </details>
-                        @endif
-                    </div>
+        <div class="student-academics student-academic-reading">
+            @if ($academicView === 'current')
+                <section class="student-academic-identity" aria-label="Current studies">
+                    <h2>{{ $studyContext['program_name'] ?? 'Program unavailable' }}</h2>
+                    @if ($studyContext['is_official'])<dl>
+                        <div><dt>Year level</dt><dd>{{ $studyContext['study_level_label'] }}</dd></div>
+                        <div><dt>Term</dt><dd>{{ $studyContext['semester'] ?? 'Unavailable' }}</dd></div>
+                        <div><dt>School year</dt><dd>{{ $studyContext['academic_year'] ?? 'Unavailable' }}</dd></div>
+                    </dl>@endif
+                    @if ($studyContext['is_official'])<p class="student-academic-note">Year level follows your current subjects.</p>@endif
+                </section>
+                @if ($effect['effect'] !== 'ALLOWED')
+                    <section class="student-academic-notice" aria-label="Enrollment guidance"><h2>Next enrollment guidance</h2><p>{{ $effect['reason'] }}</p><p>Contact the Registrar about your next enrollment.</p><x-filament::link :href="$enrollmentUrl">View enrollment</x-filament::link></section>
                 @endif
-                <div class="mt-4 grid gap-4 lg:grid-cols-2">
-                    <div>
-                        <h3 class="font-semibold">Application history</h3>
-                        @forelse ($graduationApplications as $application)
-                            <p class="mt-2 text-sm">Version {{ $application->version }} · {{ $application->state }} · {{ $application->applied_at->format('M j, Y') }}</p>
-                        @empty
-                            <p class="mt-2 text-sm">No graduation application recorded.</p>
-                        @endforelse
-                    </div>
-                    <div>
-                        <h3 class="font-semibold">Conferral history</h3>
-                        @forelse ($degreeConferrals as $conferral)
-                            <p class="mt-2 text-sm">{{ $conferral->degree_name }} · {{ $conferral->conferred_on->format('M j, Y') }}</p>
-                        @empty
-                            <p class="mt-2 text-sm">No degree conferral recorded.</p>
-                        @endforelse
-                    </div>
+                <div class="student-academic-reading-grid">
+                    <section aria-labelledby="current-subjects-heading">
+                        <div class="student-academic-heading"><h2 id="current-subjects-heading">Current subjects</h2>@if ($studyContext['is_official'])<p>{{ $currentResults->count() }} {{ str('subject')->plural($currentResults->count()) }} · {{ (float) $currentUnits }} units</p>@endif</div>
+                        @if ($currentResults->isNotEmpty())
+                            <div class="student-academic-table-wrap" role="region" aria-label="Current subjects and results" tabindex="0">
+                                <table class="student-academic-table">
+                                    <thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Result</th></tr></thead>
+                                    <tbody>@foreach ($currentResults as $result)
+                                        <tr><th scope="row">{{ $result['course_specification']?->title ?? 'Subject unavailable' }}<span class="student-academic-secondary">{{ $result['course_specification']?->course?->code }}</span></th><td class="student-academic-number">{{ (float) $result['units'] }}</td><td><x-student-academic-result :$result /></td></tr>
+                                    @endforeach</tbody>
+                                </table>
+                            </div>
+                            <p class="student-academic-note">Results appear after Registrar release.</p>
+                            @if ($currentAverage)
+                                @if ($currentAverage['value'] !== null)<p class="student-academic-average">{{ $currentAverage['label'] }} <strong>{{ $currentAverage['value'] }}</strong></p>
+                                @else<details class="student-academic-source"><summary>About your average</summary><p>{{ $currentAverage['reason'] }}</p>@if ($cumulative['value'] === null)<p>No released results currently count toward the cumulative GWA.</p>@endif</details>@endif
+                            @endif
+                        @else
+                            @if ($studyContext['is_official'])<p class="student-academic-empty">No active subjects are recorded in your current registration. Contact the Registrar if this looks incorrect.</p>
+                            @else<div class="student-academic-next"><p>Your current subjects appear after official enrollment.</p><x-filament::button tag="a" :href="$enrollmentUrl">View enrollment</x-filament::button></div>@endif
+                        @endif
+                    </section>
+                    <aside class="student-academic-rail" aria-label="Study plan and dates">
+                        <section><h2>Study plan</h2>@if ((float) $curriculum['completed_units'] > 0)<p class="student-academic-total"><strong>{{ (float) $curriculum['completed_units'] }}</strong><span>Units completed</span></p>@else<p class="student-academic-note">Explore the subjects required by your curriculum. Completed results appear after release.</p>@endif<x-filament::button tag="a" color="gray" :href="static::getUrl(['view' => 'plan'], panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">View study plan</x-filament::button></section>
+                        @if ($cumulative['value'] !== null)<section><h2>Cumulative average</h2><p class="student-academic-total"><strong>{{ $cumulative['value'] }}</strong></p><p class="student-academic-note">Through {{ $cumulative['through'] }}</p></section>@endif
+                        @if ($studyContext['is_official'] || $examinationPeriod['status'] === 'Available')
+                        <section aria-labelledby="academic-exams-heading"><x-filament::icon icon="heroicon-o-calendar-days" /><h2 id="academic-exams-heading">Exam dates</h2>
+                            @if (! $studyContext['is_official'] && $examinationPeriod['term'])<p class="student-academic-note">Recorded for {{ $examinationPeriod['term'] }}</p>@endif
+                            @if ($examinationPeriod['status'] === 'Available')<p>{{ $examinationPeriod['opens_on']->format('M j, Y') }}–{{ $examinationPeriod['closes_on']->format('M j, Y') }}</p><details class="student-academic-source"><summary>Calendar details</summary><p>{{ $examinationPeriod['authority_reference'] ?: 'Authority not recorded' }} · {{ $examinationPeriod['owner'] }}</p><p>{{ $examinationPeriod['message'] }}</p></details>
+                            @else<p class="student-academic-note">Dates unavailable. Check with the Registrar.</p>@endif
+                        </section>
+                        @endif
+                    </aside>
                 </div>
-            </x-filament::section>
-
-            @forelse ($terms as $term)
-                @php($termResults = $results->where('term.id', $term->id))
-                @php($average = $termAverages->get($term->id))
-                <x-filament::section>
-                    <x-slot name="heading">{{ $term->label }}</x-slot>
-                    <x-slot name="description">
-                        {{ $average['label'] }}: {{ $average['value'] ?? $average['reason'] }}
-                    </x-slot>
-                    <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
-                        <table class="w-full min-w-[42rem] text-left text-sm">
-                            <thead class="bg-gray-50 dark:bg-white/5">
-                                <tr><th class="px-4 py-3" scope="col">Course</th><th class="px-4 py-3" scope="col">Title</th><th class="px-4 py-3" scope="col">Units</th><th class="px-4 py-3" scope="col">Official result</th><th class="px-4 py-3" scope="col">Status</th></tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200 dark:divide-white/10">
-                                @foreach ($termResults as $result)
-                                    <tr>
-                                        <td class="px-4 py-3 font-medium">{{ $result['course_specification']?->course?->code }}</td>
-                                        <td class="px-4 py-3">{{ $result['course_specification']?->title }}</td>
-                                        <td class="px-4 py-3">{{ number_format((float) $result['units'], 2) }}</td>
-                                        <td class="px-4 py-3">{{ $result['result'] ?? 'Not released' }}</td>
-                                        <td class="px-4 py-3">{{ $result['event']?->event_type ? str($result['event']->event_type)->replace('_', ' ')->headline() : 'Awaiting official release' }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+            @elseif ($academicView === 'plan')
+                <p class="student-academic-program">{{ $studyContext['program_name'] ?? 'Program unavailable' }}</p>
+                @if ($curriculum['required'] !== [])
+                    @php($inProgressCount = collect($curriculum['required'])->where('status', 'In progress')->count())
+                    @if ((float) $curriculum['completed_units'] > 0 || $inProgressCount > 0)
+                        <dl class="student-plan-figures"><div><dt>Units completed</dt><dd>{{ (float) $curriculum['completed_units'] }}</dd></div><div><dt>Subjects in progress</dt><dd>{{ $inProgressCount }}</dd></div></dl>
+                    @else
+                        <section class="student-plan-start"><h2>{{ $studyContext['is_official'] ? 'No completed units recorded' : 'These are your planned subjects' }}</h2><p>{{ $studyContext['is_official'] ? 'Released passing results and approved credits will update this plan.' : 'Check Enrollment for the subjects being prepared. They become current subjects after official enrollment.' }}</p><x-filament::link :href="$enrollmentUrl">View enrollment</x-filament::link></section>
+                    @endif
+                    @if ($effect['effect'] !== 'ALLOWED' || collect($curriculum['required'])->contains('status', 'Deficient'))
+                        <section class="student-academic-notice" aria-label="Study plan guidance"><h2>Registrar advising needed</h2><p>{{ $effect['effect'] !== 'ALLOWED' ? $effect['reason'] : 'A deficient result remains in your plan.' }}</p><p>Ask the Registrar about your next subject selection.</p><x-filament::link :href="$enrollmentUrl">Review enrollment</x-filament::link></section>
+                    @endif
+                    <div class="student-plan-map">
+                        @foreach ($curriculumGroups as $year => $termGroups)
+                            <section class="student-plan-year" aria-label="{{ ctype_digit((string) $year) ? 'Year '.$year : $year }}">
+                                <h2>{{ ctype_digit((string) $year) ? 'Year '.$year : $year }}</h2>
+                                <div>@foreach ($termGroups as $termLabel => $rows)
+                                    <section class="student-plan-term"><h3>{{ $termLabel ?: 'Term not recorded' }}</h3>
+                                        <ul class="student-plan-subjects">@foreach ($rows as $row)
+                                            <li><div><h4>{{ $row['curriculum_entry']->courseSpecification?->title ?? 'Subject unavailable' }}</h4><p class="student-academic-secondary">{{ $row['curriculum_entry']->courseSpecification?->course?->code }}</p>
+                                                @if (! in_array($row['status'], ['Completed', 'Approved credit'], true))
+                                                    @foreach ($planRequirements->get($row['curriculum_entry']->id) ?? [] as $requirement)<p class="student-academic-secondary">{{ \App\Models\CourseRequirement::typeOptions()[$requirement->rule_type] }}: {{ $requirement->relatedCourse?->code ?? 'Subject not recorded' }}@if ($requirement->minimum_grade !== null) · Minimum grade {{ (float) $requirement->minimum_grade }}@endif</p>@endforeach
+                                                    @if ($row['status'] === 'Deficient')<p class="student-academic-secondary">Ask the Registrar about completing or retaking this subject.</p>@endif
+                                                @endif
+                                            </div><p>{{ (float) $row['curriculum_entry']->courseSpecification?->credit_units }} units</p><p @class(['student-plan-status', 'student-plan-status-future' => $row['status'] === 'Not taken'])><x-filament::icon :icon="match ($row['status']) { 'Completed', 'Approved credit' => 'heroicon-o-check-circle', 'In progress' => 'heroicon-o-clock', 'Deficient' => 'heroicon-o-exclamation-circle', default => 'heroicon-o-minus-circle' }" />{{ $row['status'] === 'Not taken' ? 'Not yet enrolled' : $row['status'] }}</p></li>
+                                        @endforeach</ul>
+                                    </section>
+                                @endforeach</div>
+                            </section>
+                        @endforeach
                     </div>
-                </x-filament::section>
-            @empty
-                <x-filament::section>
-                    <x-slot name="heading">No academic results yet</x-slot>
-                    <p>Official enrollment and released results will appear here. Your class schedule and holds remain available above.</p>
-                </x-filament::section>
-            @endforelse
-
-            <div class="grid gap-4 lg:grid-cols-2">
-                <x-filament::section>
-                    <x-slot name="heading">External competency history</x-slot>
-                    <x-slot name="description">Tracked evidence only. These records do not create grades, units, prerequisite credit, or financial effects.</x-slot>
-                    <div class="space-y-3">
-                        @forelse ($competencyResults as $result)
-                            <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
-                                <p class="font-medium">{{ $result->requirement?->qualification_label ?? $result->requirement?->requirement_code }}</p>
-                                <p>{{ str($result->outcome)->replace('_', ' ')->headline() }}{{ $result->is_current ? ' · Current' : ' · Superseded' }}</p>
-                                <p class="text-xs text-gray-500">Recorded {{ $result->recorded_at?->format('M j, Y') }}</p>
-                            </div>
-                        @empty
-                            <p>Not recorded.</p>
-                        @endforelse
-                    </div>
-                </x-filament::section>
-                <x-filament::section>
-                    <x-slot name="heading">Lifecycle history</x-slot>
-                    <x-slot name="description">Append-only Registrar-recorded leave, withdrawal, transfer, reactivation, and program-shift facts.</x-slot>
-                    <div class="space-y-3">
-                        @forelse ($lifecycleChanges as $change)
-                            <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
-                                <p class="font-medium">{{ str($change->type)->replace('_', ' ')->headline() }}</p>
-                                <p>{{ str($change->state)->replace('_', ' ')->headline() }}</p>
-                                <p class="text-xs text-gray-500">Effective {{ $change->effective_on?->format('M j, Y') }}</p>
-                            </div>
-                        @empty
-                            <p>No lifecycle change has been recorded.</p>
-                        @endforelse
-                    </div>
-                </x-filament::section>
-            </div>
+                    <p class="student-academic-note">Completed units include released passing results and approved credits. The Registrar maintains your curriculum evaluation and confirms your next subject selection.</p>
+                @else<p class="student-academic-empty">Your curriculum is unavailable. Contact the Registrar.</p>@endif
+            @elseif ($academicView === 'record')
+                <p class="student-academic-program">{{ $studyContext['program_name'] ?? 'Program unavailable' }}</p>
+                @if ($results->whereNotNull('event')->isEmpty() && $historicalResults->isEmpty())
+                    <section class="student-record-empty"><x-filament::icon icon="heroicon-o-document-text" /><h2>Your results will appear here after release.</h2><p>You can check enrolled subjects in Academics.</p><x-filament::button tag="a" color="gray" :href="static::getUrl(panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">View current subjects</x-filament::button></section>
+                    <p class="student-academic-note">An unofficial record becomes available after results are released.</p>
+                @else
+                    @if ($cumulative['value'] !== null)<p class="student-record-gwa">Cumulative average <strong>{{ $cumulative['value'] }}</strong><span>Through {{ $cumulative['through'] }}</span></p>@endif
+                    <div class="student-record-terms">@foreach ($recordTerms as $term)
+                        @php($average = $termAverages->get($term->id))
+                        <section><h2>{{ $term->label }}</h2><p class="student-academic-note">{{ $average['label'] }}: {{ $average['value'] ?? $average['reason'] }}</p>
+                            <div class="student-academic-table-wrap" role="region" aria-label="{{ $term->label }} results" tabindex="0"><table class="student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Result</th></tr></thead><tbody>
+                                @foreach ($results->where('term.id', $term->id) as $result)<tr><th scope="row">{{ $result['course_specification']?->title }}<span class="student-academic-secondary">{{ $result['course_specification']?->course?->code }}</span></th><td>{{ (float) $result['units'] }}</td><td><x-student-academic-result :$result /></td></tr>@endforeach
+                            </tbody></table></div>
+                        </section>
+                    @endforeach</div>
+                @endif
+                @if ($competencyResults->isNotEmpty())<section class="student-record-section"><h2>External competency results</h2>@foreach ($competencyResults as $result)<p>{{ $result->requirement?->qualification_label ?? $result->requirement?->requirement_code }} · {{ str($result->outcome)->replace('_', ' ')->headline() }} · {{ $result->is_current ? 'Current' : 'Superseded' }} · {{ $result->recorded_at?->format('M j, Y') }}</p>@endforeach</section>@endif
+                @if ($lifecycleChanges->isNotEmpty())<section class="student-record-section"><h2>Student record changes</h2>@foreach ($lifecycleChanges as $change)<p>{{ str($change->type)->replace('_', ' ')->headline() }} · {{ str($change->state)->replace('_', ' ')->headline() }} · {{ $change->effective_on?->format('M j, Y') }}</p>@endforeach</section>@endif
+            @else
+                @php($earlierConferrals = $degreeConferrals->reject(fn (\App\Models\DegreeConferral $conferral): bool => $conferral->is($completion['conferral'])))
+                <div class="student-graduation-records">
+                @if ($completion['conferral'])
+                    <section class="student-degree-summary"><h2>{{ $completion['conferral']->degree_name }}</h2><p>Conferred {{ $completion['conferral']->conferred_on->format('M j, Y') }}</p><p class="student-academic-note">Recorded by the Registrar {{ $completion['conferral']->recorded_at?->format('M j, Y') }}.</p></section>
+                @endif
+                @if ($earlierConferrals->isNotEmpty())
+                    <details class="learner-disclosure"><summary>Earlier degree records</summary><div><ol class="student-record-timeline">@foreach ($earlierConferrals as $conferral)<li><strong>{{ $conferral->degree_name }}</strong><time datetime="{{ $conferral->conferred_on->toDateString() }}">{{ $conferral->conferred_on->format('M j, Y') }}</time></li>@endforeach</ol></div></details>
+                @endif
+                @if ($graduationApplications->isNotEmpty())
+                    <section class="student-record-section"><h2>Application history</h2><ol class="student-record-timeline">@foreach ($graduationApplications as $application)<li><time datetime="{{ $application->applied_at->toDateString() }}">{{ $application->applied_at->format('M j, Y') }}</time><strong>{{ match ($application->state) { \App\Models\GraduationApplication::StateActive => 'On file', \App\Models\GraduationApplication::StateCorrected => 'Corrected record', default => str($application->state)->replace('_', ' ')->headline() } }}</strong></li>@endforeach</ol></section>
+                @endif
+                <p class="student-academic-note">These records are maintained by the Registrar. Contact the Registrar about corrections.</p>
+                @if ($this->resendCompletionUpdateAction->isVisible()){{ $this->resendCompletionUpdateAction }}@endif
+                </div>
+            @endif
         </div>
     @endif
 </x-filament-panels::page>

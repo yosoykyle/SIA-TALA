@@ -5,33 +5,19 @@ namespace App\Filament\Applicant\Pages;
 use App\Actions\Admissions\AdmissionNotificationLedger;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
 use App\Actions\Admissions\DiscardAdmissionApplication;
-use App\Actions\Calendar\Exceptions\CalendarGateViolation;
-use App\Actions\Enrollment\CancelRegistrationCase;
-use App\Actions\Enrollment\ConfirmRegistrationIdentity;
-use App\Actions\Enrollment\ConfirmRegistrationProposal;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
-use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Finance\StudentTermAccountPresenter;
-use App\Actions\Finance\SubmitPaymentEvidence;
-use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
-use App\Actions\Integrations\Payments\PaymentCheckoutException;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\Enrollment;
 use App\Models\OperationalEvent;
-use App\Models\Payment;
 use App\Models\Program;
 use App\Models\RegistrationProposalVersion;
-use App\Models\Term;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Tables\Columns\TextColumn;
@@ -39,11 +25,9 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
-use Throwable;
 
 class Dashboard extends BaseDashboard implements HasTable
 {
@@ -105,228 +89,15 @@ class Dashboard extends BaseDashboard implements HasTable
                     Notification::make()->title('Draft discarded')->success()->send();
                     $this->redirect(self::getUrl());
                 }),
-            Action::make('startRegistration')
-                ->label('Start enrollment')
-                ->icon('heroicon-o-play')
+            Action::make('openEnrollment')
+                ->label('Open enrollment')
+                ->icon('heroicon-o-academic-cap')
+                ->url(fn (): string => \App\Filament\Applicant\Pages\Enrollment::getUrl())
                 ->visible(function (): bool {
                     $application = $this->currentApplication();
 
-                    if (! $application instanceof AdmissionApplication
-                        || $this->registrationCase() instanceof Enrollment
-                        || ! (bool) (app(ReadyApplicantProjectionQuery::class)->forApplication($application)['ready'] ?? false)) {
-                        return false;
-                    }
-
-                    if (collect($this->mountedActions ?? [])->contains('name', 'startRegistration')) {
-                        return true;
-                    }
-
-                    return (bool) ($this->enrollmentAvailability($application)['available'] ?? false);
-                })
-                ->requiresConfirmation()
-                ->modalDescription('TALA will derive the registration basis from the authoritative Application source and create one exact-Term Registration Case.')
-                ->action(function (): void {
-                    $application = $this->currentApplication();
-                    $applicant = Auth::user();
-                    abort_unless($application instanceof AdmissionApplication && $applicant instanceof User, 404);
-
-                    try {
-                        app(StartRegistrationCase::class)->forReadyApplicant(
-                            $application,
-                            Term::query()->findOrFail($application->term_id),
-                            $applicant,
-                        );
-                        Notification::make()
-                            ->title('Enrollment started')
-                            ->body('The Registrar can now prepare the exact-Term proposal. No Student identity was created yet.')
-                            ->success()
-                            ->send();
-                    } catch (CalendarGateViolation $exception) {
-                        $availability = $this->enrollmentAvailability($application);
-                        Notification::make()
-                            ->title('Enrollment is not currently available')
-                            ->body($availability['explanation'] ?? $exception->getMessage())
-                            ->warning()
-                            ->send();
-                    } catch (ValidationException $exception) {
-                        Notification::make()
-                            ->title('Cannot start enrollment')
-                            ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
-                            ->danger()
-                            ->send();
-                    }
-                }),
-            Action::make('confirmRegistrationProposal')
-                ->label('Confirm enrollment proposal')
-                ->icon('heroicon-o-check-circle')
-                ->color('success')
-                ->requiresConfirmation()
-                ->modalDescription(fn (): string => $this->registrationProposalSummary())
-                ->visible(fn (): bool => $this->registrationCase()?->currentProposalVersion?->state === RegistrationProposalVersion::StateIssued)
-                ->action(function (): void {
-                    $case = $this->registrationCase();
-                    $applicant = Auth::user();
-                    abort_unless($case instanceof Enrollment
-                        && $case->currentProposalVersion instanceof RegistrationProposalVersion
-                        && $applicant instanceof User, 404);
-
-                    app(ConfirmRegistrationProposal::class)->execute($case->currentProposalVersion, $applicant);
-                    Notification::make()
-                        ->title('Enrollment proposal confirmed')
-                        ->body('The Registrar can now protect the complete placement. Any material revision requires a new confirmation.')
-                        ->success()
-                        ->send();
-                }),
-            Action::make('confirmRegistrationIdentity')
-                ->label('Confirm identity and contact details')
-                ->icon('heroicon-o-identification')
-                ->color('info')
-                ->requiresConfirmation()
-                ->modalHeading('Confirm identity and contact details')
-                ->modalDescription('Confirm that the identity and contact facts in your admitted Application remain current. This creates an attributable version for first enrollment; it does not create or alter your Student record by itself.')
-                ->visible(function (): bool {
-                    $case = $this->registrationCase();
-                    $application = $this->currentApplication();
-
-                    return $case instanceof Enrollment
-                        && $application instanceof AdmissionApplication
-                        && app(ConfirmRegistrationIdentity::class)->latestMatching($case, $application) === null;
-                })
-                ->action(function (): void {
-                    $case = $this->registrationCase();
-                    $applicant = Auth::user();
-                    abort_unless($case instanceof Enrollment && $applicant instanceof User, 404);
-
-                    app(ConfirmRegistrationIdentity::class)->execute($case, $applicant);
-                    Notification::make()
-                        ->title('Identity details confirmed')
-                        ->body('This confirmed version will be checked again before Official Enrollment. If the source changes, you will need to reconfirm it.')
-                        ->success()
-                        ->send();
-                }),
-            Action::make('cancelRegistration')
-                ->label('Cancel enrollment')
-                ->icon('heroicon-o-x-circle')
-                ->color('danger')
-                ->requiresConfirmation()
-                ->visible(function (): bool {
-                    $case = $this->registrationCase();
-
-                    return $case instanceof Enrollment
-                        && $case->canonical_outcome === Enrollment::OutcomeInProgress
-                        && $case->currentProposalVersion?->confirmation === null;
-                })
-                ->schema([
-                    Textarea::make('reason')->label('Reason')->required()->maxLength(2000),
-                ])
-                ->action(function (array $data): void {
-                    $case = $this->registrationCase();
-                    $applicant = Auth::user();
-                    abort_unless($case instanceof Enrollment && $applicant instanceof User, 404);
-
-                    try {
-                        app(CancelRegistrationCase::class)->execute(
-                            $case,
-                            $applicant,
-                            (string) $data['reason'],
-                            $case->lock_version,
-                        );
-                        Notification::make()
-                            ->title('Enrollment cancelled')
-                            ->body('The Registration Case and its history remain available. Registrar authority is required to reopen it.')
-                            ->success()
-                            ->send();
-                    } catch (Throwable $exception) {
-                        Notification::make()
-                            ->title('Enrollment was not cancelled')
-                            ->body($exception->getMessage())
-                            ->danger()
-                            ->send();
-                    }
-                }),
-            Action::make('submitPaymentEvidence')
-                ->label('Submit payment evidence')
-                ->icon('heroicon-o-arrow-up-tray')
-                ->visible(function (): bool {
-                    $case = $this->registrationCase();
-
-                    return $case instanceof Enrollment
-                        && $case->termAccount !== null
-                        && $case->termAccount->state !== 'Cleared';
-                })
-                ->schema([
-                    FileUpload::make('evidence')
-                        ->label('Private payment evidence')
-                        ->storeFiles(false)
-                        ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
-                        ->maxSize(10240)
-                        ->required(),
-                    TextInput::make('claimed_amount')->numeric()->minValue(0.01)->prefix('PHP')->required(),
-                    Select::make('channel')->options(Payment::manualConfirmationChannelOptions())->required(),
-                    DateTimePicker::make('paid_at')->required()->seconds(false)->maxDate(now()),
-                    TextInput::make('payment_reference')->maxLength(255),
-                ])
-                ->action(function (array $data): void {
-                    $case = $this->registrationCase();
-                    $applicant = Auth::user();
-                    $file = $data['evidence'] ?? null;
-                    abort_unless($case instanceof Enrollment
-                        && $case->termAccount !== null
-                        && $applicant instanceof User
-                        && $file instanceof UploadedFile, 404);
-
-                    app(SubmitPaymentEvidence::class)->execute(
-                        $case->termAccount,
-                        $applicant,
-                        $file,
-                        (string) $data['claimed_amount'],
-                        $data['channel'],
-                        $data['paid_at'],
-                        $data['payment_reference'] ?? null,
-                    );
-                    Notification::make()
-                        ->title('Payment evidence submitted')
-                        ->body('Accounting must verify and allocate this evidence before it can clear an obligation.')
-                        ->success()
-                        ->send();
-                }),
-            Action::make('payExactCurrentDue')
-                ->label('Pay exact current due')
-                ->icon('heroicon-o-credit-card')
-                ->color('primary')
-                ->requiresConfirmation()
-                ->modalHeading('Pay exact current due')
-                ->modalDescription(fn (): string => collect([
-                    'Amount: '.(string) data_get($this->financeContext(), 'state.checkout_amount', 'Unavailable'),
-                    'For: '.collect(data_get($this->financeContext(), 'state.checkout_obligations', []))
-                        ->map(fn (array $target): string => $target['label'].' ('.$target['amount'].')')
-                        ->implode(', '),
-                    'PayMongo confirmation may remain pending. This page return never posts payment by itself.',
-                ])->filter()->implode("\n\n"))
-                ->visible(fn (): bool => $this->registrationCase()?->termAccount !== null)
-                ->disabled(fn (): bool => data_get($this->financeContext(), 'checkout.enabled') !== true)
-                ->tooltip(fn (): ?string => data_get($this->financeContext(), 'checkout.enabled') === true
-                    ? null
-                    : (string) data_get($this->financeContext(), 'checkout.reason'))
-                ->action(function (): void {
-                    $applicant = Auth::user();
-                    abort_unless($applicant instanceof User, 403);
-
-                    try {
-                        $result = app(CreatePaymentCheckoutSession::class)->create(
-                            actor: $applicant,
-                            successUrl: self::getUrl(['checkout' => 'success']),
-                            cancelUrl: self::getUrl(['checkout' => 'cancelled']),
-                            metadata: ['source' => 'applicant_enrollment'],
-                        );
-                        $this->redirect($result['checkout_url'], navigate: false);
-                    } catch (PaymentCheckoutException $exception) {
-                        Notification::make()
-                            ->title('Online checkout is unavailable')
-                            ->body($exception->getMessage().' Manual payment evidence remains available.')
-                            ->warning()
-                            ->send();
-                    }
+                    return $this->registrationCase() instanceof Enrollment
+                        || ($application instanceof AdmissionApplication && app(ReadyApplicantProjectionQuery::class)->forApplication($application)['ready']);
                 }),
             Action::make('resendFailedNotification')
                 ->label('Resend failed update')

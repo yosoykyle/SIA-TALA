@@ -1,94 +1,57 @@
-<div class="space-y-4">
-    @forelse ($applications as $application)
-        @php
-            $existingCase = $casesMap[$application->id] ?? null;
-            $isOfficiallyEnrolled = $existingCase?->canonical_outcome === \App\Models\Enrollment::OutcomeOfficiallyEnrolled;
-            $isCancelled = $existingCase && in_array($existingCase->canonical_outcome, \App\Models\Enrollment::cancelledOutcomes(), true);
-            $isNotEnrolled = $existingCase?->canonical_outcome === \App\Models\Enrollment::OutcomeNotEnrolled;
-        @endphp
-        <article class="rounded-lg border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-gray-900">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div class="space-y-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="font-mono text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-white">
-                            {{ $application->application_reference }}
-                        </span>
-                        @if (! $existingCase)
-                            <span class="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20 ring-inset dark:bg-amber-950 dark:text-amber-300">
-                                Ready for Case Creation
-                            </span>
-                        @elseif ($isOfficiallyEnrolled)
-                            <span class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-600/20 ring-inset dark:bg-emerald-950 dark:text-emerald-300">
-                                Officially Enrolled: {{ $existingCase->case_reference }}
-                            </span>
-                        @elseif ($isCancelled)
-                            <span class="inline-flex items-center rounded-md bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700 ring-1 ring-rose-600/20 ring-inset dark:bg-rose-950 dark:text-rose-300">
-                                {{ str($existingCase->canonical_outcome)->headline() }}: {{ $existingCase->case_reference }}
-                            </span>
-                        @elseif ($isNotEnrolled)
-                            <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-600/20 ring-inset dark:bg-gray-800 dark:text-gray-300">
-                                Not Enrolled: {{ $existingCase->case_reference }}
-                            </span>
-                        @else
-                            <span class="inline-flex items-center rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-sky-600/20 ring-inset dark:bg-sky-950 dark:text-sky-300">
-                                Case Active: {{ $existingCase->case_reference }} ({{ str($existingCase->status)->headline() }})
-                            </span>
-                        @endif
-                    </div>
-                    <h4 class="text-sm font-semibold text-slate-900 dark:text-white">
-                        {{ collect([$application->first_name, $application->middle_name, $application->last_name])->filter()->implode(' ') }}
-                    </h4>
-                    <p class="text-xs text-slate-600 dark:text-gray-400">
-                        {{ $application->program?->name }} ({{ $application->program?->code }}) · {{ \App\Models\AdmissionCycle::studentTypeLabel($application->application_path) }} · {{ $application->admissionCycle?->label }}
-                    </p>
-                    <p class="text-xs font-medium text-slate-700 dark:text-gray-300">
-                        Exact Term: <span class="font-semibold">{{ $application->term?->label ?? 'Unassigned' }}</span>
-                    </p>
+@assets
+    <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
+@endassets
+
+<div class="registrar-ready-applicants">
+    <div class="registrar-ready-toolbar">
+        <div class="registrar-ready-search">
+            <label for="ready-applicant-search">Find an applicant</label>
+            <x-filament::input.wrapper>
+                <x-filament::input id="ready-applicant-search" type="search" wire:model.live.debounce.300ms="readyApplicantSearch" placeholder="Name or application number" />
+            </x-filament::input.wrapper>
+        </div>
+        <x-filament::link :href="\App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('index', ['tab' => 'all_cases'])">Find an enrollment</x-filament::link>
+    </div>
+    <ul class="registrar-ready-list" aria-label="Ready applicants">
+        @forelse ($applications as $application)
+            <li wire:key="ready-applicant-{{ $application->id }}">
+                <div>
+                    <h2>{{ collect([$application->first_name, $application->middle_name, $application->last_name])->filter()->implode(' ') }}</h2>
+                    <p class="registrar-ready-reference">{{ $application->application_reference }}</p>
                 </div>
-                <div class="shrink-0 pt-1">
-                    @if ($existingCase)
-                        <x-filament::button
-                            tag="a"
-                            :href="\App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $existingCase])"
-                            color="gray"
-                            outlined
-                            icon="heroicon-m-arrow-right"
-                            icon-position="after"
-                            class="min-h-11 sm:min-h-0"
-                        >
-                            Open case
-                        </x-filament::button>
-                    @else
+                <div class="registrar-ready-studies">
+                    <p>{{ $application->program?->name ?? 'Program not assigned' }}</p>
+                    <p>{{ $application->term?->label ?? 'Term not assigned' }}</p>
+                </div>
+                <div class="registrar-ready-action">
                         <x-filament::button
                             type="button"
+                            aria-label="Start enrollment for {{ collect([$application->first_name, $application->middle_name, $application->last_name])->filter()->implode(' ') }}"
                             wire:click="startRegistrationForApplicant({{ $application->id }}, {{ $application->term_id ?? 'null' }})"
                             wire:loading.attr="disabled"
                             color="primary"
                             icon="heroicon-m-arrow-right"
                             icon-position="after"
-                            class="min-h-11 sm:min-h-0"
                         >
-                            Start registration
+                            Start enrollment
                         </x-filament::button>
-                    @endif
                 </div>
-            </div>
-            <div class="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500 dark:border-white/5 dark:text-gray-400">
-                @if (! $existingCase)
-                    <p>Derived ready from verified admissions credentials for exact term {{ $application->term?->label }}.</p>
-                @elseif ($isOfficiallyEnrolled)
-                    <p class="font-medium text-emerald-700 dark:text-emerald-400">Next step: Official enrollment finalized.</p>
-                @elseif ($isCancelled || $isNotEnrolled)
-                    <p class="font-medium text-rose-700 dark:text-rose-400">Next step: Case closed/cancelled. Consult Registrar for authorized reopening or subsequent term intake.</p>
+            </li>
+        @empty
+            <li class="registrar-ready-empty">
+                @if (filled($this->readyApplicantSearch))
+                    <h2>No matching applicants</h2>
+                    <p>Try another name or application number, or clear the search.</p>
                 @else
-                    <p class="font-medium text-slate-600 dark:text-gray-300">Next step: Proceed with proposal course placement, schedule conflict review, and checkpoint clearance on case dossier.</p>
+                    <h2>No applicants waiting to start</h2>
+                    <p>Applicants appear after Admissions clears them for enrollment. Existing cases are in Enrollment records.</p>
                 @endif
-            </div>
-        </article>
-    @empty
-        <x-filament::callout color="gray" icon="heroicon-m-information-circle">
-            <x-slot name="heading">No ready applicants</x-slot>
-            <x-slot name="description">Applications appear automatically when the derived Admissions projection is ready.</x-slot>
-        </x-filament::callout>
-    @endforelse
+            </li>
+        @endforelse
+    </ul>
+    @if ($applications->total() > 0)
+        <x-filament::pagination :paginator="$applications" />
+    @endif
 </div>
+
+<x-filament-actions::modals />

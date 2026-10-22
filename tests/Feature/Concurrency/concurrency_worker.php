@@ -12,13 +12,18 @@ use App\Actions\Completion\TranscriptPreview;
 use App\Actions\Completion\TranscriptPreviewConfirmation;
 use App\Actions\Completion\VoidTranscript;
 use App\Actions\Enrollment\PlaceRegistrationProposal;
+use App\Actions\Finance\RecordApprovedCoverage;
+use App\Actions\Finance\ReviewPaymentEvidence;
 use App\Actions\Grades\AmendIncDeadline;
 use App\Actions\Grades\ReleaseIncCompletion;
+use App\Models\AssessmentObligation;
 use App\Models\GradeOutcomeEvent;
 use App\Models\IncCompletionSubmission;
 use App\Models\OutputAccessLog;
+use App\Models\PaymentEvidenceVersion;
 use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
+use App\Models\TermAccount;
 use App\Models\TranscriptIssuanceEvent;
 use App\Models\TranscriptRequest;
 use App\Models\TranscriptSnapshot;
@@ -37,9 +42,14 @@ putenv('DB_CONNECTION=mysql');
 $_ENV['DB_CONNECTION'] = 'mysql';
 $_SERVER['DB_CONNECTION'] = 'mysql';
 
-putenv('DB_DATABASE=test_tala_db');
-$_ENV['DB_DATABASE'] = 'test_tala_db';
-$_SERVER['DB_DATABASE'] = 'test_tala_db';
+$testDatabase = getenv('TALA_TEST_DATABASE') ?: 'test_tala_db';
+if (preg_match('/\Atest_tala_db(?:_[a-zA-Z0-9_]+)?\z/', $testDatabase) !== 1) {
+    fwrite(STDERR, "FATAL: An explicit disposable test database is required.\n");
+    exit(1);
+}
+putenv('DB_DATABASE='.$testDatabase);
+$_ENV['DB_DATABASE'] = $testDatabase;
+$_SERVER['DB_DATABASE'] = $testDatabase;
 
 putenv('CACHE_STORE=array');
 $_ENV['CACHE_STORE'] = 'array';
@@ -60,7 +70,7 @@ $kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 // Safety guard: Must strictly operate on test_tala_db
-if (config('database.default') !== 'mysql' || config('database.connections.mysql.database') !== 'test_tala_db') {
+if (config('database.default') !== 'mysql' || config('database.connections.mysql.database') !== $testDatabase) {
     fwrite(STDERR, "FATAL: Concurrency worker must connect strictly to test_tala_db\n");
     exit(1);
 }
@@ -116,6 +126,16 @@ try {
                 'state' => $placed->state,
                 'status' => 'placed',
             ];
+        })(),
+        'manual_payment' => (function () use ($payload): array {
+            $payment = app(ReviewPaymentEvidence::class)->verify(PaymentEvidenceVersion::findOrFail($payload['evidence_id']), User::findOrFail($payload['accounting_id']), $payload['amount'], $payload['check_reference']);
+
+            return ['payment_id' => $payment->id];
+        })(),
+        'approved_coverage' => (function () use ($payload): array {
+            $coverage = app(RecordApprovedCoverage::class)->execute(TermAccount::findOrFail($payload['account_id']), AssessmentObligation::findOrFail($payload['obligation_id']), $payload['coverage'], User::findOrFail($payload['accounting_id']));
+
+            return ['coverage_id' => $coverage->id];
         })(),
         'inc_release' => (function () use ($payload) {
             $submission = IncCompletionSubmission::findOrFail($payload['submission_id']);

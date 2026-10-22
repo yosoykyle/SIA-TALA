@@ -135,7 +135,7 @@ final class PayMongoReconciliationService
         return $result;
     }
 
-    /** @return array{status:string,payment_id:int,ledger_entry_id:int,finance_cleared:bool} */
+    /** @return array{status:string,payment_id:int,ledger_entry_id:?int,finance_cleared:bool} */
     public function confirm(int $eventId, string $reason, User $actor): array
     {
         $this->authorize($actor);
@@ -147,16 +147,33 @@ final class PayMongoReconciliationService
 
             if ($event->status === OperationalEvent::StatusProcessed && $resolution === 'confirmed') {
                 $payment = $this->relatedPayment($event);
-                $ledger = $payment->ledgerEntry;
-
-                if (! $ledger instanceof LedgerEntry) {
-                    throw new RuntimeException('Confirmed PayMongo evidence has no ledger posting.');
+                $attempt = PaymentAttempt::query()->with('obligations')->lockForUpdate()->findOrFail($payment->payment_attempt_id);
+                [, $webhookEvent, $context] = $this->evidenceFor($event);
+                $this->assertPaidPhpEvidence($event, $webhookEvent, $context);
+                $this->assertConfirmationIdentifiers($attempt, $context, allowReferenceMismatch: $this->eventReason($event) === 'reference_mismatch');
+                if ((int) data_get($event->diagnostics, 'resolution.payment_id') !== $payment->id
+                    || (int) data_get($event->diagnostics, 'resolution.attempt_id') !== $attempt->id
+                    || data_get($event->diagnostics, 'resolution.attempt_reference') !== $attempt->internal_reference
+                    || $attempt->provider !== 'paymongo' || $attempt->status !== PaymentAttempt::StatusConfirmed
+                    || $payment->term_account_id !== $attempt->term_account_id
+                    || $payment->state !== Payment::StatePosted || $payment->evidence_status !== 'verified'
+                    || $payment->currency !== 'PHP' || $attempt->currency !== 'PHP'
+                    || $payment->provider_reference !== 'paymongo:'.$context['provider_reference']
+                    || $this->money->toCents($payment->amount) !== $context['amount_centavos']
+                    || $this->money->normalize($payment->amount) !== $this->money->normalize($attempt->amount)) {
+                    throw new RuntimeException('The confirmed webhook no longer matches its original payment.');
                 }
+                $captured = $attempt->obligations->mapWithKeys(fn ($target): array => [$target->assessment_obligation_id => $this->money->normalize($target->amount)])->sortKeys()->all();
+                $applied = $payment->allocations->mapWithKeys(fn ($allocation): array => [$allocation->assessment_obligation_id => $this->money->normalize($allocation->amount)])->sortKeys()->all();
+                if ($captured === [] || $captured !== $applied) {
+                    throw new RuntimeException('The confirmed webhook no longer matches its captured payment targets.');
+                }
+                $ledger = $payment->ledgerEntry;
 
                 return [
                     'status' => 'duplicate',
                     'payment_id' => $payment->id,
-                    'ledger_entry_id' => $ledger->id,
+                    'ledger_entry_id' => $ledger?->id,
                     'finance_cleared' => false,
                 ];
             }
@@ -208,20 +225,22 @@ final class PayMongoReconciliationService
                         'actor_id' => $actor->id,
                         'reason' => $reason,
                         'payment_id' => $payment->id,
-                        'ledger_entry_id' => $ledger->id,
+                        'attempt_id' => $attempt->id,
+                        'attempt_reference' => $attempt->internal_reference,
+                        'ledger_entry_id' => $ledger?->id,
                         'decided_at' => $timestamp->toIso8601String(),
                     ],
                 ],
             ])->save();
             $this->recordActivity($event, $actor, 'paymongo_payment_confirmed', $reason, $timestamp, [
                 'payment_id' => $payment->id,
-                'ledger_entry_id' => $ledger->id,
+                'ledger_entry_id' => $ledger?->id,
             ]);
 
             return [
                 'status' => 'confirmed',
                 'payment_id' => $payment->id,
-                'ledger_entry_id' => $ledger->id,
+                'ledger_entry_id' => $ledger?->id,
                 'finance_cleared' => $posting['finance_cleared'],
             ];
         }, attempts: 3);

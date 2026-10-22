@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\OfficialCourseResultProjection;
@@ -19,7 +18,6 @@ class UnofficialStudentRecordController extends Controller
         private readonly TermWeightedAverageProjection $termAverages,
         private readonly CumulativeGwaProjection $cumulativeGwa,
         private readonly CurriculumEvaluation $curriculumEvaluation,
-        private readonly AcademicEnrollmentEffect $academicEnrollmentEffect,
     ) {}
 
     public function __invoke(StudentProfile $student): Response
@@ -45,7 +43,6 @@ class UnofficialStudentRecordController extends Controller
             'termAverages' => $termAverages,
             'cumulative' => $this->cumulativeGwa->forStudent($student),
             'curriculum' => $this->curriculumEvaluation->forStudent($student),
-            'academicEffect' => $this->academicEnrollmentEffect->forStudent($student),
             'asOf' => $asOf,
         ])->render();
 

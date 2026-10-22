@@ -53,6 +53,7 @@ class Payment extends Model
         'payment_attempt_id',
         'term_account_id',
         'payment_evidence_version_id',
+        'evidence_checksum',
         'reverses_payment_id',
         'student_profile_id',
         'term_id',
@@ -73,6 +74,9 @@ class Payment extends Model
         'provider_reference',
         'reversal_reason',
         'reversal_authority_reference',
+        'external_refund_reference',
+        'external_refund_amount',
+        'external_refund_at',
     ];
 
     /**
@@ -85,6 +89,8 @@ class Payment extends Model
             'paid_at' => 'datetime',
             'verified_at' => 'datetime',
             'or_mapped_at' => 'datetime',
+            'external_refund_amount' => 'decimal:2',
+            'external_refund_at' => 'datetime',
         ];
     }
 
@@ -136,7 +142,13 @@ class Payment extends Model
     /** @return HasOne<Payment, $this> */
     public function reversal(): HasOne
     {
-        return $this->hasOne(self::class, 'reverses_payment_id');
+        return $this->hasOne(self::class, 'reverses_payment_id')->latestOfMany();
+    }
+
+    /** @return HasMany<Payment, $this> */
+    public function reversals(): HasMany
+    {
+        return $this->hasMany(self::class, 'reverses_payment_id');
     }
 
     public function verifier(): BelongsTo

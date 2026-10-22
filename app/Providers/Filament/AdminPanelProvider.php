@@ -332,12 +332,13 @@ class AdminPanelProvider extends PanelProvider
 
         $components = match ($selectedContext) {
             User::StaffRoleAccounting => [
-                'Fee Plans' => FeePlanResource::class,
                 'Student Accounts' => EnrollmentResource::class,
+                'Fee Plans' => FeePlanResource::class,
             ],
             User::StaffRoleFaculty => [
-                'Schedule & Availability' => FacultySchedule::class,
-                'Grade Rosters' => FacultyGradeRoster::class,
+                'My schedule' => FacultySchedule::class,
+                'My availability' => MyAvailability::class,
+                'Grade rosters' => FacultyGradeRoster::class,
             ],
             User::StaffRoleAcademicHead => [
                 'Academic Oversight' => AcademicApprovals::class,
