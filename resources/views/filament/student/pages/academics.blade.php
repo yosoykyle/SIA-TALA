@@ -5,23 +5,23 @@
     @if (! $student)
         <x-filament::section heading="Student record unavailable"><p>Contact the Registrar to link your student record.</p></x-filament::section>
     @else
-        <div class="student-academics student-academic-reading">
+        <div @class(['student-academics student-academic-reading', 'student-academic-current' => $academicView === 'current'])>
             @if ($academicView === 'current')
-                <section class="student-academic-identity" aria-label="Current studies">
-                    <h2>{{ $studyContext['program_name'] ?? 'Program unavailable' }}</h2>
-                    @if ($studyContext['is_official'])<dl>
-                        <div><dt>Year level</dt><dd>{{ $studyContext['study_level_label'] }}</dd></div>
-                        <div><dt>Term</dt><dd>{{ $studyContext['semester'] ?? 'Unavailable' }}</dd></div>
-                        <div><dt>School year</dt><dd>{{ $studyContext['academic_year'] ?? 'Unavailable' }}</dd></div>
-                    </dl>@endif
-                    @if ($studyContext['is_official'])<p class="student-academic-note">Year level follows your current subjects.</p>@endif
-                </section>
+                @include('filament.components.student-study-context', [
+                    'contextProgram' => $studyContext['program_name'] ?? 'Program unavailable',
+                    'contextFacts' => $studyContext['is_official'] ? [
+                        'Year level' => $studyContext['study_level_label'],
+                        'Term' => $studyContext['semester'] ?? 'Unavailable',
+                        'School year' => $studyContext['academic_year'] ?? 'Unavailable',
+                    ] : [],
+                    'contextNote' => $studyContext['is_official'] ? 'Year level follows your current subjects.' : null,
+                ])
                 @if ($effect['effect'] !== 'ALLOWED')
                     <section class="student-academic-notice" aria-label="Enrollment guidance"><h2>Next enrollment guidance</h2><p>{{ $effect['reason'] }}</p><p>Contact the Registrar about your next enrollment.</p><x-filament::link :href="$enrollmentUrl">View enrollment</x-filament::link></section>
                 @endif
                 <div class="student-academic-reading-grid">
-                    <section aria-labelledby="current-subjects-heading">
-                        <div class="student-academic-heading"><h2 id="current-subjects-heading">Current subjects</h2>@if ($studyContext['is_official'])<p>{{ $currentResults->count() }} {{ str('subject')->plural($currentResults->count()) }} · {{ (float) $currentUnits }} units</p>@endif</div>
+                    <section class="student-record-panel tala-task-surface" aria-labelledby="current-subjects-heading">
+                        <div class="student-academic-heading"><h2 class="student-record-heading" id="current-subjects-heading"><x-filament::icon icon="heroicon-o-book-open" />Current subjects</h2>@if ($studyContext['is_official'])<p>{{ $currentResults->count() }} {{ str('subject')->plural($currentResults->count()) }} · {{ (float) $currentUnits }} units</p>@endif</div>
                         @if ($currentResults->isNotEmpty())
                             <div class="student-academic-table-wrap" role="region" aria-label="Current subjects and results" tabindex="0">
                                 <table class="student-academic-table">
@@ -42,10 +42,10 @@
                         @endif
                     </section>
                     <aside class="student-academic-rail" aria-label="Study plan and dates">
-                        <section><h2>Study plan</h2>@if ((float) $curriculum['completed_units'] > 0)<p class="student-academic-total"><strong>{{ (float) $curriculum['completed_units'] }}</strong><span>Units completed</span></p>@else<p class="student-academic-note">Explore the subjects required by your curriculum. Completed results appear after release.</p>@endif<x-filament::button tag="a" color="gray" :href="static::getUrl(['view' => 'plan'], panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">View study plan</x-filament::button></section>
-                        @if ($cumulative['value'] !== null)<section><h2>Cumulative average</h2><p class="student-academic-total"><strong>{{ $cumulative['value'] }}</strong></p><p class="student-academic-note">Through {{ $cumulative['through'] }}</p></section>@endif
+                        <section class="student-record-panel tala-task-surface"><h2 class="student-record-heading"><x-filament::icon icon="heroicon-o-map" />Study plan</h2>@if ((float) $curriculum['completed_units'] > 0)<p class="student-academic-total"><strong>{{ (float) $curriculum['completed_units'] }}</strong><span>Units completed</span></p>@else<p class="student-academic-note">Explore the subjects required by your curriculum. Completed results appear after release.</p>@endif<x-filament::button tag="a" color="gray" :href="static::getUrl(['view' => 'plan'], panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">View study plan</x-filament::button></section>
+                        @if ($cumulative['value'] !== null)<section class="student-record-panel tala-task-surface"><h2>Cumulative average</h2><p class="student-academic-total"><strong>{{ $cumulative['value'] }}</strong></p><p class="student-academic-note">Through {{ $cumulative['through'] }}</p></section>@endif
                         @if ($studyContext['is_official'] || $examinationPeriod['status'] === 'Available')
-                        <section aria-labelledby="academic-exams-heading"><x-filament::icon icon="heroicon-o-calendar-days" /><h2 id="academic-exams-heading">Exam dates</h2>
+                        <section class="student-record-panel tala-task-surface" aria-labelledby="academic-exams-heading"><h2 class="student-record-heading" id="academic-exams-heading"><x-filament::icon icon="heroicon-o-calendar-days" />Exam dates</h2>
                             @if (! $studyContext['is_official'] && $examinationPeriod['term'])<p class="student-academic-note">Recorded for {{ $examinationPeriod['term'] }}</p>@endif
                             @if ($examinationPeriod['status'] === 'Available')<p>{{ $examinationPeriod['opens_on']->format('M j, Y') }}–{{ $examinationPeriod['closes_on']->format('M j, Y') }}</p><details class="student-academic-source"><summary>Calendar details</summary><p>{{ $examinationPeriod['authority_reference'] ?: 'Authority not recorded' }} · {{ $examinationPeriod['owner'] }}</p><p>{{ $examinationPeriod['message'] }}</p></details>
                             @else<p class="student-academic-note">Dates unavailable. Check with the Registrar.</p>@endif

@@ -1,6 +1,10 @@
 :root {
     --tala-brand: #2f7d3b;
     --tala-brand-strong: #256331;
+    --tala-brand-tint: #eaf3ec;
+    --tala-on-brand-tint: #194f26;
+    --tala-brand-foreground: #256331;
+    --tala-control-icon: #52525c;
     --tala-on-brand: #ffffff;
     --tala-link: #1e3a8a;
     --tala-accent: #facc15;
@@ -32,16 +36,16 @@
 
 :root.dark,
 :root[data-bs-theme='dark'] {
-    --tala-canvas: #111114;
-    --tala-chrome: #1b1b20;
+    --tala-canvas: #151619;
+    --tala-chrome: #202226;
     --tala-chrome-divider: rgb(255 255 255 / 8%);
-    --tala-surface: #242429;
-    --tala-surface-sunken: #16161a;
-    --tala-overlay: #303036;
-    --tala-text: #fafafa;
-    --tala-muted: #d4d4d8;
-    --tala-border: #52525c;
-    --tala-control-border: #9f9fa9;
+    --tala-surface: #2b2d32;
+    --tala-surface-sunken: #1b1d21;
+    --tala-overlay: #393c42;
+    --tala-text: #f5f6f7;
+    --tala-muted: #c2c8cf;
+    --tala-border: #5d636e;
+    --tala-control-border: #a2acb9;
     --tala-edge: rgb(255 255 255 / 16%);
     --tala-edge-strong: rgb(255 255 255 / 22%);
     --tala-rim: rgb(255 255 255 / 13%);
@@ -53,6 +57,10 @@
     --tala-rim-inset: inset 0 1px 0 var(--tala-rim);
     --tala-focus: #facc15;
     --tala-link: #93c5fd;
+    --tala-brand-tint: #244b38;
+    --tala-on-brand-tint: #def4e6;
+    --tala-brand-foreground: #94e2a6;
+    --tala-control-icon: #c2c8cf;
 }
 
 [data-bs-theme='dark'] :is(.section-kicker, .workspace-audience, .workspace-icon, .text-link, .faq-category, .empty-guidance .tala-public-icon),
@@ -195,6 +203,7 @@
 .tala-access-main { display: grid; place-items: center; min-height: 100dvh; padding: 2rem 1rem; max-width: 36rem; margin-inline: auto; }
 .tala-access-main-wide { max-width: 48rem; }
 .tala-access-card { width: 100%; min-width: 0; padding: clamp(1rem, 4vw, 2rem); border: 1px solid var(--tala-border); border-radius: 0.75rem; background: var(--tala-surface); overflow-wrap: anywhere; }
+.tala-task-surface { border: 1px solid var(--tala-edge); border-radius: 0.75rem; background: var(--tala-surface); }
 .tala-access-card .tala-brand { margin-bottom: 1.5rem; }
 .tala-access-card .tala-crest-plate { width: 66px; height: 66px; }
 .tala-access-card .tala-brand__crest { display: block; width: 3.5rem; height: 3.5rem; }
@@ -214,16 +223,16 @@
 @media (prefers-color-scheme: dark) {
     :root[data-tala-system-appearance] {
         color-scheme: dark;
-        --tala-canvas: #111114;
-        --tala-chrome: #1b1b20;
+        --tala-canvas: #151619;
+        --tala-chrome: #202226;
         --tala-chrome-divider: rgb(255 255 255 / 8%);
-        --tala-surface: #242429;
-        --tala-surface-sunken: #16161a;
-        --tala-overlay: #303036;
-        --tala-text: #fafafa;
-        --tala-muted: #d4d4d8;
-        --tala-border: #52525c;
-        --tala-control-border: #9f9fa9;
+        --tala-surface: #2b2d32;
+        --tala-surface-sunken: #1b1d21;
+        --tala-overlay: #393c42;
+        --tala-text: #f5f6f7;
+        --tala-muted: #c2c8cf;
+        --tala-border: #5d636e;
+        --tala-control-border: #a2acb9;
         --tala-edge: rgb(255 255 255 / 16%);
         --tala-edge-strong: rgb(255 255 255 / 22%);
         --tala-rim: rgb(255 255 255 / 13%);
@@ -235,6 +244,10 @@
         --tala-rim-inset: inset 0 1px 0 var(--tala-rim);
         --tala-focus: #facc15;
         --tala-link: #93c5fd;
+        --tala-brand-tint: #244b38;
+        --tala-on-brand-tint: #def4e6;
+        --tala-brand-foreground: #94e2a6;
+        --tala-control-icon: #c2c8cf;
     }
 }
 
@@ -248,6 +261,12 @@
 }
 
 @media (forced-colors: active) {
+    .tala-task-surface {
+        color: CanvasText;
+        background: Canvas;
+        border-color: CanvasText;
+    }
+
     :is(:focus, :focus-visible) {
         outline: 3px solid Highlight !important;
         outline-style: solid !important;
@@ -284,6 +303,10 @@
     }
 }
 @media (forced-colors: none) {
+    .tala-task-surface {
+        box-shadow: var(--tala-rim-inset), var(--tala-shadow-surface);
+    }
+
     .tala-access-card {
         box-shadow: var(--tala-rim-inset), var(--tala-shadow-surface);
     }
@@ -408,5 +431,5 @@
 }
 
 @media print {
-    .tala-access-card { box-shadow: none; }
+    .tala-access-card, .tala-task-surface { box-shadow: none; }
 }

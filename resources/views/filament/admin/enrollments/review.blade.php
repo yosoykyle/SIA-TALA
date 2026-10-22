@@ -24,5 +24,5 @@
             @if ($review['case']->canonical_outcome === \App\Models\Enrollment::OutcomeInProgress){{ $this->getAction('prepareProposal', isMounting: false) }}@endif
         </section>
     </div>
-    <a class="registrar-case-history-link" href="{{ \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view',['record'=>$review['case'],'view'=>'history']) }}"><x-filament::icon icon="heroicon-o-clock" /><span><strong>Enrollment history</strong><span>Activity and supporting records</span></span><x-filament::icon icon="heroicon-m-chevron-right" /></a>
+    <a class="registrar-case-history-link" href="{{ $this->enrollmentUrl(['view' => 'history']) }}"><x-filament::icon icon="heroicon-o-clock" /><span><strong>Enrollment history</strong><span>Activity and supporting records</span></span><x-filament::icon icon="heroicon-m-chevron-right" /></a>
 </div>

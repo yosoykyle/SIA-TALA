@@ -37,7 +37,7 @@
             <p class="registrar-case-meta">These subjects have no recurring meetings. Check the arranged schedule with the responsible office.</p>
         @endif
     </section>
-    <a class="registrar-case-history-link" href="{{ \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $case, 'view' => 'history']) }}">
+    <a class="registrar-case-history-link" href="{{ $this->enrollmentUrl(['view' => 'history']) }}">
         <x-filament::icon icon="heroicon-o-clock" />
         <span><strong>Enrollment history</strong><span>Activity and supporting records</span></span>
         <x-filament::icon icon="heroicon-m-chevron-right" />

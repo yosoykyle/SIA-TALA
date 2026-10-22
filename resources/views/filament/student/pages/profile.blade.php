@@ -7,14 +7,17 @@
         $student = auth()->user()->studentProfile;
     @endphp
     <div class="student-information student-profile-page">
-        <section class="student-profile-identity" aria-label="Student identity">
-            <div class="student-profile-avatar" aria-hidden="true">@if (auth()->user()->avatar_path ?? null)<img src="{{ auth()->user()->getFilamentAvatarUrl() }}" alt="">@else{{ str($student?->first_name)->substr(0, 1) }}{{ str($student?->last_name)->substr(0, 1) }}@endif</div>
-            <div><h2>{{ $identity['Name'] }}</h2><p>Student {{ $identity['Student number'] }}</p><p>{{ $program }}</p><div class="student-profile-photo-action">{{ $this->changePhotoAction }}</div></div>
-        </section>
+        @include('filament.components.student-identity', [
+            'identityName' => $identity['Name'],
+            'identityProgram' => $program,
+            'identityNumber' => $identity['Student number'],
+            'identityPhotoAction' => $this->changePhotoAction,
+        ])
         <div class="student-profile-columns">
             @foreach (array_slice($this->profileSections, 1, 2) as $section)
                 @php($visibleItems = array_filter($section['items'], fn (array $item): bool => ! in_array($item['value'], ['Unavailable', 'Not recorded'], true) && ! ($section['heading'] === 'Current studies' && $item['label'] === 'Program')))
-                <section class="student-profile-section"><h2>{{ $section['heading'] === 'Current studies' ? 'Your studies' : $section['heading'] }}</h2>
+                <section class="student-profile-section tala-task-surface">
+                    <h2 class="student-profile-section-heading"><x-filament::icon :icon="$section['heading'] === 'Current studies' ? 'heroicon-o-academic-cap' : 'heroicon-o-identification'" />{{ $section['heading'] === 'Current studies' ? 'Your studies' : $section['heading'] }}</h2>
                     @if ($section['description'] ?? null)<p class="student-profile-study-note">{{ $section['description'] }}</p>@endif
                     @if ($visibleItems !== [])<dl>@foreach ($visibleItems as $item)<div><dt>{{ $item['label'] }}</dt><dd>{{ $item['value'] }}</dd></div>@endforeach</dl>@endif
                     @if ($section['heading'] === 'Current studies')<div class="student-profile-photo-action"><x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student')">View enrollment</x-filament::button></div>
@@ -22,7 +25,7 @@
                 </section>
             @endforeach
         </div>
-        <section class="student-profile-school"><h2>School record</h2><dl>@foreach ($this->profileSections[3]['items'] as $item)<div><dt>{{ $item['label'] }}</dt><dd>{{ $item['value'] }}</dd></div>@endforeach</dl></section>
+        <section class="student-profile-school tala-task-surface"><h2 class="student-profile-section-heading"><x-filament::icon icon="heroicon-o-document-text" />School record</h2><dl>@foreach ($this->profileSections[3]['items'] as $item)<div><dt>{{ $item['label'] }}</dt><dd>{{ $item['value'] }}</dd></div>@endforeach</dl></section>
         @if ($correctionHistory !== [])
             <details class="student-profile-corrections"><summary>Recorded corrections</summary><ol>@foreach ($correctionHistory as $event)<li><strong>{{ $event['event'] }}</strong><p>{{ $event['effective_at'] }} · {{ $event['reason'] }}</p></li>@endforeach</ol></details>
         @endif

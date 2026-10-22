@@ -139,6 +139,42 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         return ['freshman' => [AdmissionApplication::PathFirstYear, false], 'transferee' => [AdmissionApplication::PathTransferee, false], 'transferee with approved credit' => [AdmissionApplication::PathTransferee, true]];
     }
 
+    public function test_registrar_returns_to_the_originating_queue_through_case_and_history_without_accepting_foreign_destinations(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $case = Enrollment::factory()->create(['canonical_outcome' => Enrollment::OutcomeCancelledByRegistrar]);
+        $before = $case->fresh()->getAttributes();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $caseUrl = EnrollmentResource::getUrl('view', ['record' => $case, 'queue' => 'official_history']);
+        $historyUrl = EnrollmentResource::getUrl('view', ['record' => $case, 'view' => 'history', 'queue' => 'official_history']);
+
+        Livewire::actingAs($registrar)->test(ListEnrollments::class)
+            ->set('activeTab', 'official_history')
+            ->assertCanSeeTableRecords([$case])
+            ->assertSee($caseUrl, false);
+
+        Livewire::withQueryParams(['queue' => 'official_history'])->actingAs($registrar)
+            ->test(RegistrarEnrollment::class, ['record' => $case->id])
+            ->assertActionHasUrl('backToEnrollment', EnrollmentResource::getUrl('index', ['tab' => 'official_history']))
+            ->assertSee(e($historyUrl), false);
+
+        Livewire::withQueryParams(['queue' => 'official_history', 'view' => 'history'])->actingAs($registrar)
+            ->test(RegistrarEnrollment::class, ['record' => $case->id])
+            ->assertActionHasUrl('backToEnrollment', $caseUrl);
+
+        foreach (['https://example.invalid', 'payment_proof'] as $invalidQueue) {
+            Livewire::withQueryParams(['queue' => $invalidQueue])->actingAs($registrar)
+                ->test(RegistrarEnrollment::class, ['record' => $case->id])
+                ->assertActionHasUrl('backToEnrollment', EnrollmentResource::getUrl('index'));
+        }
+
+        Livewire::withQueryParams(['queue' => 'official_history'])->actingAs($this->staff(User::StaffRoleAccounting))
+            ->test(RegistrarEnrollment::class, ['record' => $case->id])
+            ->assertActionHasUrl('backToAccounts', EnrollmentResource::getUrl('index'));
+
+        $this->assertSame($before, $case->fresh()->getAttributes());
+    }
+
     #[DataProvider('admissionPaths')]
     public function test_ready_applicant_reaches_official_enrollment_and_immutable_cor_without_early_student_identity(string $path, bool $withTransferCredit): void
     {
@@ -1940,6 +1976,13 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
         $component = Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $case->id])
             ->assertSee('Waiting for confirmation')
+            ->assertSee('Change subjects')
+            ->assertDontSee('Enrollment options')
+            ->assertDontSee('Reserve seats')
+            ->mountAction('prepareProposal')
+            ->assertActionDataSet(['section_ids' => [$section->id]])
+            ->assertMountedActionModalSee('releases their temporary class places')
+            ->unmountAction()
             ->assertDontSee('Five finalization checkpoints')
             ->set('enrollmentView', 'history')
             ->assertSee('Enrollment started')

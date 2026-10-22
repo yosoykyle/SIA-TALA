@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $title }} — Servitech Institute Asia Inc. · Powered by TALA</title>
+    <title>{{ $title }} — Servitech Institute Asia Inc.{{ auth()->guest() ? ' · Powered by TALA' : '' }}</title>
     <link rel="icon" href="{{ asset('talalogo.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">

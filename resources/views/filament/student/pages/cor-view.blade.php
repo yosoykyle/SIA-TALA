@@ -7,7 +7,7 @@
         $selected = collect($versions)->firstWhere('id', $selectedVersionId);
         $documentStatus = data_get($output, 'summary.document_status') ?? ($selected && ! $selected['current'] ? 'Earlier copy' : 'Current');
     @endphp
-    <div class="learner-enrollment space-y-4">
+    <div class="learner-enrollment student-cor-record space-y-4">
         @if (! $available)
             <x-filament::section heading="No issued COR to show" icon="heroicon-o-document-text">
                 <div class="space-y-4">
@@ -18,11 +18,14 @@
         @else
             <x-filament::section>
                 <div class="cor-identity">
+                    <x-filament::icon icon="heroicon-o-document-text" class="student-context-icon" />
+                    <div class="cor-identity-content">
+                        <h2>{{ data_get($output, 'summary.student_name') }}</h2>
+                        <p class="student-academic-secondary">{{ data_get($output, 'summary.student_number') }}</p>
+                        <p class="cor-program">{{ data_get($output, 'summary.program') }}</p>
+                        <p class="student-academic-secondary">{{ data_get($output, 'summary.term') }}</p>
+                    </div>
                     <x-filament::badge :color="$documentStatus === 'Current' ? 'success' : 'gray'">Issued copy · {{ $documentStatus }}</x-filament::badge>
-                    <h2 class="text-xl font-semibold">{{ data_get($output, 'summary.student_name') }}</h2>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">{{ data_get($output, 'summary.student_number') }}</p>
-                    <p class="font-medium">{{ data_get($output, 'summary.program') }}</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">{{ data_get($output, 'summary.term') }}</p>
                 </div>
                 <dl class="cor-facts">
                     <div><dt>Subjects</dt><dd>{{ $subjects->count() }}</dd></div>
@@ -30,11 +33,11 @@
                     <div><dt>Issued</dt><dd>{{ $issuedAt?->format('M j, Y') ?? 'Not recorded' }}</dd></div>
                 </dl>
             </x-filament::section>
-            <x-filament::section heading="Subjects" description="Recorded on this issued copy. Later changes are shown on a new copy.">
+            <x-filament::section heading="Subjects" icon="heroicon-o-book-open" description="Recorded on this issued copy. Later changes are shown on a new copy.">
                 <div class="divide-y divide-gray-200 dark:divide-white/10">
                     @foreach ($subjects as $meetings)
                         @php($subject = $meetings->first())
-                        <div wire:key="cor-subject-{{ $loop->index }}" class="grid gap-2 py-3 text-sm md:grid-cols-2">
+                        <div wire:key="cor-subject-{{ $loop->index }}" class="cor-subject-row">
                             <div><strong>{{ $subject['subject_description'] }}</strong><p class="text-gray-600 dark:text-gray-300">{{ $subject['subject_code'] }} · {{ $subject['units'] }} units · {{ $subject['section'] }}</p></div>
                             <div class="cor-subject-meetings">
                                 @foreach ($meetings as $meeting)<p>{{ $meeting['day'] }} · {{ $meeting['time'] }} · {{ $meeting['room'] }}@if ($meeting['instructor'] !== 'Not recorded') · {{ $meeting['instructor'] }}@endif</p>@endforeach

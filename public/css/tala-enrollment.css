@@ -61,10 +61,6 @@
 .student-academics{display:grid;grid-template-columns:minmax(0,1fr);gap:1.75rem;color:var(--tala-text);}
 .student-academics h2{font-size:1.25rem;line-height:1.4;font-weight:600;letter-spacing:-.015em;}
 .student-academic-reading{padding-block:.25rem 1rem;}
-.student-academic-identity{padding-block:0 1.75rem;border-block-end:1px solid var(--tala-edge-strong);}
-.student-academic-identity h2{font-size:clamp(1.375rem,2.1vw,2rem);line-height:1.25;letter-spacing:-.025em;text-wrap:balance;max-inline-size:40ch;}
-.student-academic-identity dl{display:flex;flex-wrap:wrap;gap:1.25rem 2rem;margin-block-start:1.25rem;}
-.student-academic-identity dt{color:var(--tala-muted);font-size:.8125rem;margin-block-end:.25rem;}.student-academic-identity dd{font-size:1.0625rem;line-height:1.5;font-weight:500;margin:0;}
 .student-academic-reading-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(12rem,1fr);gap:2rem;align-items:start;}
 .student-academic-reading-grid>*,.student-academic-reading section{min-inline-size:0;}
 .student-academic-heading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.75rem;margin-block-end:1.25rem;}.student-academic-heading>p{font-size:.875rem;color:var(--tala-muted);font-variant-numeric:tabular-nums;}
@@ -102,7 +98,7 @@
 .student-academic-empty{padding-block:1.5rem;color:var(--tala-muted);font-size:.9375rem;line-height:1.6;max-inline-size:65ch;}
 .student-academics :is(summary,[tabindex]):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
 @media(max-width:50rem){.student-study-context{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}.student-study-program{grid-column:1/-1;}.student-academic-reading-grid{grid-template-columns:minmax(0,1fr);}.student-academic-rail{padding-inline-start:0;border-inline-start:0;border-block-start:1px solid var(--tala-edge);padding-block-start:1.5rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));}.student-academic-rail section+section{border:0;padding:0;}}
-@media(max-width:40rem){.student-study-context{padding:1.25rem;gap:1.25rem;}.student-study-program h2{font-size:1.25rem;}.student-study-value{font-size:1.25rem;}.student-study-term dd{font-size:.9375rem;}.student-academic-identity dl{gap:1rem 1.5rem;}.student-academic-identity dd{font-size:.9375rem;}.student-academic-reading-grid{gap:1.5rem;}.student-academic-table{font-size:.875rem;}.student-academic-table :is(th,td){padding:1rem .375rem;}.student-plan-year{grid-template-columns:minmax(0,1fr);gap:1rem;}.student-plan-subjects li{grid-template-columns:minmax(0,1fr) auto;gap:.5rem .75rem;}.student-plan-subjects li>div{grid-column:1/-1;}.student-plan-subjects h4{font-size:.9375rem;}.student-plan-status{justify-self:end;}.student-academic-rail{gap:1rem;}.student-academic-rail .fi-btn{font-size:.8125rem;}.student-academic-total strong{font-size:2rem;}}
+@media(max-width:40rem){.student-study-context{padding:1.25rem;gap:1.25rem;}.student-study-program h2{font-size:1.25rem;}.student-study-value{font-size:1.25rem;}.student-study-term dd{font-size:.9375rem;}.student-academic-reading-grid{gap:1.5rem;}.student-academic-table{font-size:.875rem;}.student-academic-table :is(th,td){padding:1rem .375rem;}.student-plan-year{grid-template-columns:minmax(0,1fr);gap:1rem;}.student-plan-subjects li{grid-template-columns:minmax(0,1fr) auto;gap:.5rem .75rem;}.student-plan-subjects li>div{grid-column:1/-1;}.student-plan-subjects h4{font-size:.9375rem;}.student-plan-status{justify-self:end;}.student-academic-rail{gap:1rem;}.student-academic-rail .fi-btn{font-size:.8125rem;}.student-academic-total strong{font-size:2rem;}}
 @media(max-width:40rem){.student-home-payment{padding:1rem;gap:1rem;}.student-home-payment .fi-btn{inline-size:100%;margin:0;}.student-home-schedule-heading{align-items:start;}.student-home-schedule-heading h2{font-size:1.25rem;}}
 
 .registrar-ready-list{list-style:none;padding:0;margin:0;}
@@ -251,12 +247,23 @@
 @media(max-width:48rem){.registrar-case-closed{grid-template-columns:minmax(0,1fr);gap:1.5rem;}.registrar-case-closed .registrar-case-reopen{padding:1.25rem;}}
 .registrar-case-identity>p:first-child{font-size:.875rem;color:var(--tala-muted);}
 .registrar-case-identity>p:last-child{color:var(--tala-muted);}
-.registrar-case-waiting{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(12rem,1.2fr) minmax(9rem,1fr);align-items:center;gap:1.5rem;padding:1.5rem;background:color-mix(in srgb,var(--tala-brand) 7%,var(--tala-surface));border:1px solid var(--tala-selected-edge);border-radius:.75rem;}
+.registrar-case-waiting{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;}
+.registrar-case-waiting-heading{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:1rem 2rem;}
+.registrar-case-waiting-heading>div{flex:1 1 20rem;}
 .registrar-case-waiting h2+p{margin-block-start:.5rem;}
-.registrar-case-confirm>p,.registrar-case-deadline{font-size:.875rem;line-height:1.5;}
-.registrar-case-confirm>p{margin-block-start:.5rem;max-inline-size:32ch;}
+.registrar-case-confirm{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:1rem 1.5rem;margin-block-start:1.5rem;padding-block-start:1.25rem;border-block-start:1px solid var(--tala-edge);}
+.registrar-case-confirm>div{flex:1 1 20rem;}
+.registrar-case-confirm h3{font-size:1rem;line-height:1.5;font-weight:600;}
+.registrar-case-confirm p,.registrar-case-deadline{font-size:.875rem;line-height:1.5;color:var(--tala-muted);}
+.registrar-case-confirm p{margin-block-start:.25rem;max-inline-size:55ch;}
 .registrar-case-confirm .fi-btn{min-block-size:2.75rem;font-size:1rem;}
-.registrar-case-deadline strong{display:block;font-weight:500;margin-block-start:.25rem;}
+.registrar-case-deadline strong{display:block;font-weight:600;margin-block-start:.25rem;color:var(--tala-text);}
+.registrar-subject-change-heading{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:1rem;}
+.registrar-subject-change-note{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.75rem;max-inline-size:65ch;}
+.registrar-waiting-cancellation{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem 1.5rem;padding-block-start:1.25rem;border-block-start:1px solid var(--tala-edge);}
+.registrar-waiting-cancellation>div{flex:1 1 28rem;}
+.registrar-waiting-cancellation h2{font-size:1rem;font-weight:600;line-height:1.5;}
+.registrar-waiting-cancellation p{max-inline-size:65ch;font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.25rem;}
 .registrar-case-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(15rem,1fr);gap:1.5rem;align-items:start;}
 .registrar-case-grid>section,.registrar-case-schedule{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;min-inline-size:0;}
 .registrar-case-meta{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.5rem;}
@@ -311,8 +318,8 @@
 .registrar-source-charges dd{font-variant-numeric:tabular-nums;white-space:nowrap;}
 .registrar-confirmation-context{font-size:1rem;line-height:1.5;}
 .registrar-confirmation-context>p+p{font-size:.875rem;color:var(--tala-muted);margin-block-start:.375rem;}
-@media(max-width:64rem){.registrar-case-waiting{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}.registrar-case-waiting>div:first-child{grid-column:1/-1;}.registrar-case-grid,.registrar-history-grid{grid-template-columns:minmax(0,1fr);}.registrar-case-sources{padding-inline-start:0;padding-block-start:1.5rem;border-inline-start:0;border-block-start:1px solid var(--tala-edge-strong);}}
-@media(max-width:40rem){.registrar-enrollment-detail .fi-header-heading{font-size:1.75rem;}.registrar-case-waiting{grid-template-columns:minmax(0,1fr);padding:1.25rem;}.registrar-case-grid>section,.registrar-case-schedule{padding:1.25rem;}.registrar-subject-table{font-size:.875rem;}.registrar-subject-table :is(th,td){padding-inline:.375rem;}.registrar-subject-table th span{font-size:.8125rem;}.registrar-case-events>li{grid-template-columns:minmax(0,1fr);gap:.5rem;}.registrar-case-history-link{padding:1.25rem;}}
+@media(max-width:64rem){.registrar-case-grid,.registrar-history-grid{grid-template-columns:minmax(0,1fr);}.registrar-case-sources{padding-inline-start:0;padding-block-start:1.5rem;border-inline-start:0;border-block-start:1px solid var(--tala-edge-strong);}}
+@media(max-width:40rem){.registrar-enrollment-detail .fi-header-heading{font-size:1.75rem;}.registrar-case-waiting{padding:1.25rem;}.registrar-case-confirm .fi-btn{inline-size:100%;}.registrar-case-grid>section,.registrar-case-schedule{padding:1.25rem;}.registrar-subject-table{font-size:.875rem;}.registrar-subject-table :is(th,td){padding-inline:.375rem;}.registrar-subject-table th span{font-size:.8125rem;}.registrar-case-events>li{grid-template-columns:minmax(0,1fr);gap:.5rem;}.registrar-case-history-link{padding:1.25rem;}}
 @media(max-width:40rem){.registrar-case-current-subjects .registrar-subject-table{display:block;}.registrar-case-current-subjects .registrar-subject-table thead{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}.registrar-case-current-subjects .registrar-subject-table tbody{display:block;}.registrar-case-current-subjects .registrar-subject-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"subject subject" "section units" "actions actions";gap:.5rem 1rem;padding-block:1rem;border-block-end:1px solid var(--tala-edge);}.registrar-case-current-subjects .registrar-subject-table tbody tr>:first-child{grid-area:subject;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(2){grid-area:section;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(3){grid-area:units;text-align:end;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(4){grid-area:actions;}.registrar-case-current-subjects .registrar-subject-table :is(th,td){min-inline-size:0;padding:0;border:0;}.registrar-case-current-subjects .registrar-subject-table tr>*:last-child{padding:0;}.registrar-case-current-subjects .registrar-subject-mobile-label{display:block;font-size:.75rem;color:var(--tala-muted);font-weight:400;}.registrar-case-current-subjects .registrar-subject-actions{justify-content:stretch;flex-wrap:wrap;white-space:normal;padding-block-start:.25rem!important;}.registrar-case-current-subjects .registrar-subject-actions .fi-btn{flex:1 1 8rem;min-inline-size:0;white-space:normal;overflow-wrap:anywhere;}}
 @media(max-width:64rem){.registrar-workbench-grid{grid-template-columns:minmax(0,1fr);}.registrar-start-actions{grid-template-columns:repeat(2,minmax(0,1fr));}.registrar-start-panel{padding:1.25rem;}}
 @media(max-width:40rem){.registrar-enrollment-workbench .fi-header-heading{font-size:1.75rem;}.registrar-work-panel,.registrar-progress-panel,.registrar-records-entry{padding:1.25rem;}.registrar-work-row{gap:.75rem;grid-template-columns:1.5rem minmax(0,1fr) auto 1rem;}.registrar-start-actions{grid-template-columns:minmax(0,1fr);}.registrar-records-entry{flex-direction:column;align-items:flex-start;}.registrar-enrollment-record{grid-template-columns:minmax(0,1fr);gap:1rem;}.registrar-enrollment-status{gap:.5rem;}.registrar-enrollment-program{overflow-wrap:anywhere;}}
@@ -549,33 +556,58 @@
 @media(max-width:40rem){.faculty-membership-context{gap:.75rem;}.faculty-membership-list thead{display:none;}.faculty-membership-list :is(table,tbody,tr,th,td){display:block;}.faculty-membership-list tr{padding-block:1rem;border-block-end:1px solid var(--tala-edge);}.faculty-membership-list :is(th,td){padding:.25rem 0;border:0;}.faculty-membership-list :is(th,td)::before{content:attr(data-label);display:block;color:var(--tala-muted);font-size:.8125rem;font-weight:400;}.faculty-membership-source dl{grid-template-columns:minmax(0,1fr);}}
 @media(max-width:40rem){.tala-faculty-membership-page .fi-header-heading{font-size:1.75rem;}.faculty-membership-list{padding:1.25rem;}}
 .accounting-fee-plan-detail{color:var(--tala-text);}
-.accounting-fee-plan-intro{display:flex;align-items:start;gap:1rem;margin-block-end:2rem;}
-.accounting-fee-plan-intro p{max-inline-size:75ch;color:var(--tala-muted);font-size:1rem;line-height:1.6;}
-.accounting-fee-plan-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2rem;}
+.accounting-fee-plan-intro{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem 1rem;margin-block-end:1.5rem;}
+.accounting-fee-plan-intro>.fi-badge{flex:none;max-inline-size:100%;}
+.accounting-fee-plan-intro p{flex:1 1 28rem;min-inline-size:0;max-inline-size:75ch;color:var(--tala-muted);font-size:.9375rem;line-height:1.6;}
+.accounting-fee-plan-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1.5rem;align-items:stretch;}
+.accounting-fee-plan-panel{min-inline-size:0;padding:1.5rem;}
 .accounting-fee-plan-detail h2{font-size:1.375rem;font-weight:600;margin-block-end:1rem;line-height:1.35;}
+.accounting-fee-plan-section-heading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.5rem 1rem;}
+.accounting-fee-plan-section-heading h2{margin-block-end:0;}
+.accounting-fee-plan-meta{font-size:.875rem;color:var(--tala-muted);line-height:1.5;}
+.accounting-fee-plan-total{display:grid;gap:.25rem;margin-block-end:1.25rem;padding-block-end:1.25rem;border-block-end:1px solid var(--tala-edge);}
+.accounting-fee-plan-total span{font-size:.9375rem;line-height:1.5;color:var(--tala-muted);}
+.accounting-fee-plan-total strong{font-size:clamp(1.75rem,2.5vw,2.25rem);line-height:1.2;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.accounting-fee-plan-table-wrap{max-inline-size:100%;overflow-x:auto;}
 .accounting-fee-plan-detail table{inline-size:100%;border-collapse:collapse;text-align:start;}
-.accounting-fee-plan-detail :is(th,td){padding:1rem;line-height:1.5;border-block-end:1px solid var(--tala-edge);overflow-wrap:anywhere;}
+.accounting-fee-plan-detail :is(th,td){padding:.875rem .75rem;line-height:1.5;border-block-end:1px solid var(--tala-edge);overflow-wrap:anywhere;}
 .accounting-fee-plan-detail thead th{background:var(--tala-surface-sunken);font-size:.875rem;color:var(--tala-muted);font-weight:500;text-align:start;}
 .accounting-fee-plan-detail tbody th{font-weight:500;text-align:start;}
 .accounting-fee-plan-detail :is(th,td):last-child{text-align:end;white-space:nowrap;font-variant-numeric:tabular-nums;}
-.accounting-fee-plan-detail tfoot{font-weight:600;background:var(--tala-surface-sunken);}
-.accounting-fee-plan-detail tfoot th{text-align:start;}
-.accounting-fee-plan-payments>div{display:flex;justify-content:space-between;align-items:start;gap:1rem;padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);}
-.accounting-fee-plan-payments h3{font-weight:600;}
-.accounting-fee-plan-payments p{color:var(--tala-muted);font-size:.875rem;line-height:1.6;margin-block-start:.375rem;}
-.accounting-fee-plan-payments strong{white-space:nowrap;font-variant-numeric:tabular-nums;}
-.accounting-fee-plan-approval{margin-block-start:2.5rem;padding-block:1.5rem;border-block-start:1px solid var(--tala-edge);}
-.accounting-fee-plan-approval dl{display:grid;grid-template-columns:1.2fr .7fr 1fr;gap:1.5rem;}
+.accounting-fee-plan-payments{display:grid;gap:.75rem;margin-block-start:1rem;padding:0;list-style:none;}
+.accounting-fee-plan-payments>li{display:grid;grid-template-columns:3.5rem minmax(0,1fr) auto;align-items:center;gap:.75rem 1rem;padding-block:1rem;border-block-start:1px solid var(--tala-edge);min-inline-size:0;}
+.accounting-fee-plan-payments>li.is-enrollment-required{padding-inline:1rem;border:1px solid var(--tala-selected-edge);border-radius:.625rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));}
+.accounting-fee-plan-date{display:grid;place-items:center;inline-size:3.5rem;min-block-size:4rem;overflow:hidden;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface-sunken);text-align:center;}
+.accounting-fee-plan-date time{display:grid;justify-items:center;inline-size:100%;font-variant-numeric:tabular-nums;line-height:1.15;}
+.accounting-fee-plan-date time span{font-size:.6875rem;color:var(--tala-muted);}
+.accounting-fee-plan-date time strong{font-size:1.375rem;line-height:1.15;font-weight:700;}
+.accounting-fee-plan-date-missing{padding:.375rem;font-size:.6875rem;line-height:1.3;color:var(--tala-muted);}
+.accounting-fee-plan-payment-description{min-inline-size:0;}
+.accounting-fee-plan-payment-description h3{font-size:1rem;font-weight:600;line-height:1.4;overflow-wrap:anywhere;}
+.accounting-fee-plan-payment-description p{color:var(--tala-muted);font-size:.8125rem;line-height:1.5;margin-block-start:.375rem;overflow-wrap:anywhere;}
+.accounting-fee-plan-required{display:inline-flex;align-items:center;margin-block-start:.375rem;padding:.125rem .5rem;border-radius:999px;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));color:var(--tala-text);font-size:.75rem;font-weight:600;line-height:1.5;}
+.accounting-fee-plan-payment-amount{justify-self:end;white-space:nowrap;font-size:1rem;line-height:1.35;font-weight:700;font-variant-numeric:tabular-nums;}
+.accounting-fee-plan-empty{grid-column:1/-1;color:var(--tala-muted);font-size:.9375rem;line-height:1.6;}
+.accounting-fee-plan-support{margin-block-start:1.5rem;min-inline-size:0;}
+.accounting-fee-plan-approval{padding:1.5rem;}
+.accounting-fee-plan-approval h2{display:flex;align-items:center;gap:.625rem;margin-block-end:1.25rem;font-size:1.125rem;}
+.accounting-fee-plan-approval h2 svg{inline-size:1.375rem;block-size:1.375rem;color:var(--tala-brand);flex:none;}
+.accounting-fee-plan-approval dl{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.7fr) minmax(0,1fr);gap:1rem 1.5rem;}
 .accounting-fee-plan-approval dt,.accounting-fee-plan-source dt,.accounting-fee-plan-form-totals dt{color:var(--tala-muted);font-size:.875rem;}
-.accounting-fee-plan-approval dd{margin-block-start:.5rem;overflow-wrap:anywhere;line-height:1.6;}
-.accounting-fee-plan-source{margin-block-start:2rem;border-block-start:1px solid var(--tala-edge);}
-.accounting-fee-plan-source summary{cursor:pointer;min-block-size:2.75rem;padding-block:1rem;font-weight:600;}
-.accounting-fee-plan-source h3{font-weight:600;margin-block:1.5rem .75rem;}
+.accounting-fee-plan-approval dd{margin-block-start:.375rem;overflow-wrap:anywhere;line-height:1.6;font-size:.9375rem;}
+.accounting-fee-plan-source{border-block-start:1px solid var(--tala-edge);}
+.accounting-fee-plan-source:first-child{border-block-start:0;}
+.accounting-fee-plan-source summary{cursor:pointer;min-block-size:2.75rem;padding:1rem 1.5rem;font-weight:600;border-radius:0 0 .75rem .75rem;}
+.accounting-fee-plan-source summary:hover{background:var(--tala-surface-sunken);}
+.accounting-fee-plan-source[open] summary{border-block-end:1px solid var(--tala-edge);border-radius:0;}
+.accounting-fee-plan-source-content{padding:0 1.5rem 1rem;}
+.accounting-fee-plan-source h3{font-size:.9375rem;font-weight:600;margin-block:1.5rem .5rem;}
 .accounting-fee-plan-source dl>div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem;padding-block:.75rem;border-block-end:1px solid var(--tala-edge);}
 .accounting-fee-plan-source dd{overflow-wrap:anywhere;}
 .accounting-fee-plan-source li{padding-block:.5rem;}
 .accounting-fee-plan-source a{text-decoration:underline;text-underline-offset:.2em;}
 .accounting-fee-plan-source :is(a,summary):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+@media(forced-colors:active){.accounting-fee-plan-payments>li.is-enrollment-required{background:Canvas;border-color:Highlight;}.accounting-fee-plan-required{background:Canvas;color:CanvasText;border:1px solid Highlight;}.accounting-fee-plan-date{background:Canvas;color:CanvasText;border-color:CanvasText;}}
 .accounting-fee-plan-form-totals{padding:1.25rem 1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface-sunken);}
 .accounting-fee-plan-form-totals dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 2rem;}
 .accounting-fee-plan-form-totals dl>div{min-inline-size:0;}
@@ -595,8 +627,8 @@
 .accounting-fee-plan-edit-context dt{font-size:.875rem;color:var(--tala-muted);}
 .accounting-fee-plan-edit-context dd{line-height:1.6;margin-block-start:.5rem;overflow-wrap:anywhere;}
 @media(max-width:40rem){.accounting-fee-plan-edit-context{grid-template-columns:minmax(0,1fr);gap:1rem;}}
-@media(max-width:60rem){.accounting-fee-plan-layout{grid-template-columns:minmax(0,1fr);}.accounting-fee-plan-approval dl{grid-template-columns:minmax(0,1fr);}}
-@media(max-width:40rem){.accounting-fee-plan-intro{flex-wrap:wrap;}.accounting-fee-plan-detail :is(th,td){padding:.75rem .5rem;}.accounting-fee-plan-payments>div{flex-wrap:wrap;}.accounting-fee-plan-payments>div>div{flex:1 1 12rem;}}
+@media(max-width:75rem){.accounting-fee-plan-layout{grid-template-columns:minmax(0,1fr);}.accounting-fee-plan-approval dl{grid-template-columns:minmax(0,1fr);}}
+@media(max-width:40rem){.accounting-fee-plan-intro{flex-wrap:wrap;}.accounting-fee-plan-panel{padding:1rem;}.accounting-fee-plan-detail :is(th,td){padding:.75rem .5rem;}.accounting-fee-plan-total strong{font-size:1.75rem;}.accounting-fee-plan-payments>li{grid-template-columns:3.25rem minmax(0,1fr);gap:.5rem .75rem;padding-block:.875rem;}.accounting-fee-plan-payments>li.is-enrollment-required{padding-inline:.75rem;}.accounting-fee-plan-date{inline-size:3.25rem;min-block-size:3.75rem;}.accounting-fee-plan-payment-amount{grid-column:2;justify-self:start;font-size:1rem;}.accounting-fee-plan-approval dl{grid-template-columns:minmax(0,1fr);gap:1rem;}.accounting-fee-plan-approval dl>div+div{padding:0;border:0;}}
 @media(max-width:75rem){.accounting-fee-plan-record{grid-template-columns:minmax(0,1fr) auto;}.accounting-fee-plan-record>.fi-btn{min-inline-size:11rem;}}
 @media(max-width:64rem){.accounting-work-queues{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;}.accounting-queue--lead{grid-row:auto;min-block-size:17rem;}.accounting-fee-plan-record{grid-template-columns:minmax(0,1fr);}.accounting-fee-plan-record>.fi-btn{grid-column:1;grid-row:auto;inline-size:100%;}}
 @media(max-width:40rem){.accounting-work-queues{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;}.accounting-queue--lead{grid-row:auto;min-block-size:0;}.accounting-queue{min-block-size:12rem;padding:1.25rem;}.accounting-queue--lead{min-block-size:19rem;padding:1.25rem;}.accounting-workbench-note{align-items:flex-start;flex-direction:column;}.accounting-search-panel{padding:1.25rem;}.accounting-search-panel h2{font-size:1.25rem;}.accounting-record-search{grid-template-columns:minmax(0,1fr);}.accounting-record-search .fi-btn{inline-size:100%;min-block-size:2.75rem;}.accounting-fee-plan-record{grid-template-columns:minmax(0,1fr);gap:1rem;padding:1.25rem;}.accounting-fee-plan-record>.fi-btn{grid-column:1;grid-row:auto;inline-size:100%;min-inline-size:0;}.accounting-fee-plan-amounts{grid-template-columns:minmax(0,1fr);gap:.75rem;max-inline-size:none;}.accounting-fee-plan-amounts>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:1rem;padding:0;border:0;}.accounting-fee-plan-amounts dd{margin:0;font-size:1.125rem;}}
@@ -645,9 +677,9 @@
 
 /* Student Finance task and account composition. */
 .student-finance-workspace{display:grid;gap:1.5rem;min-inline-size:0;color:var(--tala-text);}
-.student-finance-board{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(16rem,1fr);gap:1.25rem;}
+.student-finance-board{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:1.5rem;align-items:start;}
 .student-finance-task,.student-finance-position{padding:1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);min-inline-size:0;}
-.student-finance-task{background:var(--tala-surface-sunken);}.student-finance-task-review{border-color:#b99b63;}
+.student-finance-task{background:var(--tala-surface);}.student-finance-task-review{border-color:#b99b63;}
 .student-finance-workspace h2{font-size:1.25rem;line-height:1.35;font-weight:600;letter-spacing:-.015em;}
 .student-finance-task>p{font-size:.9375rem;line-height:1.65;max-inline-size:65ch;margin-block:1rem;overflow-wrap:anywhere;}
 .student-finance-actions{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem 1.25rem;margin-block-start:1.25rem;}
@@ -711,16 +743,31 @@
 .accounting-review-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;margin-block:1.25rem}
 .accounting-review-facts dt{font-size:.875rem;color:var(--gray-600,#52525c)}
 .accounting-review-facts dd{margin:.25rem 0 0;font-size:1.125rem;font-weight:600;font-variant-numeric:tabular-nums}
-.dark .accounting-review-task{background:var(--tala-dark-surface,#242429);border-color:var(--gray-700,#71717b)}
+.dark .accounting-review-task{background:var(--tala-surface);border-color:var(--gray-700,#71717b)}
 .dark .accounting-review-facts dt{color:var(--gray-300,#d4d4d8)}
 @media(max-width:40rem){.accounting-review-task{padding:1.25rem}.accounting-review-facts{grid-template-columns:1fr;gap:1rem}.accounting-review-task .accounting-context-actions{align-items:stretch}.accounting-review-task .accounting-context-actions .fi-btn{max-width:100%;white-space:normal}}
 
 /* Student identity, task summaries and readable supporting records. */
-.student-profile-identity{display:flex;align-items:center;gap:1.5rem;padding:1.75rem 2rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));margin-block-end:2rem;color:var(--tala-ink);}
+.student-profile-identity{display:flex;align-items:center;gap:1.5rem;padding:1.75rem 2rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));margin-block-end:2rem;color:var(--tala-text);}
 .student-profile-identity h2{font-size:1.75rem;font-weight:600;line-height:1.25;letter-spacing:-.02em;margin-block-end:.4rem;text-wrap:balance;}
 .student-profile-identity p{line-height:1.6;overflow-wrap:anywhere;}
 .student-profile-avatar{display:grid;place-items:center;flex-shrink:0;inline-size:5.5rem;block-size:5.5rem;border-radius:50%;background:color-mix(in srgb,var(--tala-brand) 17%,var(--tala-surface));font-size:1.75rem;font-weight:600;overflow:hidden;}
 .student-profile-avatar img{inline-size:100%;block-size:100%;object-fit:cover;}
+.student-identity-panel{position:relative;isolation:isolate;overflow:hidden;gap:1.75rem;min-block-size:12rem;border-color:var(--tala-selected-edge);background:linear-gradient(110deg,var(--tala-surface) 15%,var(--tala-surface) 40%,color-mix(in srgb,var(--tala-brand) 9%,var(--tala-surface)) 100%);}
+.student-identity-panel>.student-profile-avatar,.student-identity-content{position:relative;z-index:1;}
+.student-identity-panel>.student-profile-avatar{inline-size:6rem;block-size:6rem;border:.375rem solid var(--tala-surface);box-shadow:0 0 0 1px var(--tala-selected-edge),var(--tala-shadow-surface);}
+.student-identity-content{min-inline-size:0;max-inline-size:calc(100% - 10rem);}
+.student-identity-panel .student-identity-content>h2{font-size:clamp(1.5rem,2.5vw,2rem);font-weight:700;line-height:1.25;margin-block-end:.5rem;}
+.student-identity-program{font-size:1rem;max-inline-size:55ch;}
+.student-identity-facts{display:flex;flex-wrap:wrap;gap:.875rem 1.5rem;margin-block-start:1.25rem;}
+.student-identity-facts>div{min-inline-size:0;}
+.student-identity-facts>div+div{padding-inline-start:1.5rem;border-inline-start:1px solid var(--tala-edge);}
+.student-identity-facts dt{font-size:.8125rem;color:var(--tala-muted);line-height:1.5;}
+.student-identity-facts dd{font-size:.9375rem;line-height:1.5;margin-block-start:.25rem;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+.student-identity-art{inline-size:min(40%,23rem);}
+@media(max-width:75rem){.student-identity-content{max-inline-size:100%;}.student-identity-art{opacity:.25;}}
+@media(max-width:40rem){.student-identity-panel{display:grid;grid-template-columns:4rem minmax(0,1fr);gap:.5rem 1rem;align-items:start;}.student-identity-panel>.student-profile-avatar{inline-size:4rem;block-size:4rem;border-width:.25rem;grid-row:1/3;}.student-identity-content{display:contents;}.student-identity-panel .student-identity-content h2{font-size:1.5rem;grid-column:2;margin:0;}.student-identity-program{font-size:.9375rem;grid-column:2;}.student-identity-facts{position:relative;z-index:1;grid-column:1/-1;display:grid;gap:.75rem;margin-block-start:.75rem;}.student-identity-facts>div+div{padding-inline-start:0;border:0;}.student-identity-art{inline-size:55%;block-size:7rem;inset-block-start:auto;opacity:.25;}}
+@media(forced-colors:active){.student-identity-panel{background:Canvas;border-color:CanvasText;}.student-identity-art{display:none;}.student-identity-panel>.student-profile-avatar{box-shadow:none;border-color:CanvasText;}}
 .student-profile-meta,.student-proof-privacy{font-size:.875rem;color:var(--tala-muted);line-height:1.6;}
 .student-overview-board{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:1.25rem;margin-block-end:1.25rem;}
 .student-overview-board>section{padding:1.75rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);min-inline-size:0;}
@@ -736,17 +783,24 @@
 .student-overview-links{display:flex;flex-wrap:wrap;gap:.75rem 2.5rem;padding-block:1.5rem 0;border-block-start:1px solid var(--tala-edge);margin-block-start:1.5rem;}
 .student-overview-links .fi-link{text-decoration:underline;text-underline-offset:.3em;min-block-size:2.75rem;}
 .student-review-home .student-home-schedule{padding:0;border:0;}
-.student-profile-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2.5rem;}
-.student-profile-section{min-inline-size:0;}
+.student-profile-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:1.5rem;align-items:start;}
+.student-profile-section{min-inline-size:0;padding:1.5rem;}
 .student-profile-page h2{font-size:1.25rem;line-height:1.4;margin-block-end:1rem;}
-.student-profile-page .student-profile-identity h2{font-size:1.75rem;margin-block-end:.4rem;}
+.student-profile-page .student-profile-section-heading{display:flex;align-items:center;gap:.75rem;font-weight:700;margin-block-end:1.25rem;}
+.student-profile-section-heading>.fi-icon{inline-size:1.5rem;block-size:1.5rem;flex:none;color:var(--tala-brand-strong);}
+.dark .student-profile-section-heading>.fi-icon{color:var(--primary-200);}
+.student-profile-section .student-profile-study-note{padding:0;border-radius:0;background:transparent;color:var(--tala-text);margin-block-end:1.25rem;max-inline-size:55ch;}
+.student-profile-section dl{margin-block-start:0;}
+.student-profile-section:has(.student-profile-study-note) dl{grid-template-columns:repeat(2,minmax(0,1fr));}
+.student-profile-section .student-information-guidance{color:var(--tala-muted);padding-block-start:1.25rem;}
+
 .student-profile-page dl>div{display:block;}
 .student-profile-page dl{gap:1.25rem;}
 .student-profile-page dt{font-size:.875rem;margin-block-end:.25rem;}
 .student-profile-page dd{font-size:1rem;line-height:1.6;}
 .student-profile-photo-action{margin-block-start:1rem;}
 .student-profile-study-note,.student-plan-start{padding:1.25rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));font-size:.9375rem;line-height:1.6;}
-.student-profile-school{padding-block:1.75rem;border-block-start:1px solid var(--tala-edge);margin-block-start:2rem;}
+.student-profile-school{padding:1.5rem;margin-block-start:1.5rem;}
 .student-profile-school dl{grid-template-columns:repeat(2,minmax(0,1fr));}
 .student-profile-corrections{margin-block-start:1.5rem;}
 .student-profile-corrections summary{min-block-size:2.75rem;cursor:pointer;}
@@ -769,7 +823,7 @@
 .student-registration-help-panel h2{font-size:1.25rem;font-weight:600;margin-block-end:.5rem;}
 .student-registration-help-panel p{font-size:.9375rem;line-height:1.6;max-inline-size:65ch;color:var(--tala-muted);}
 .student-registration-help-panel .student-finance-actions{margin-block-start:1rem;}
-@media(max-width:48rem){.student-overview-board,.student-profile-columns{grid-template-columns:1fr;}.student-profile-identity{padding:1.25rem;gap:1rem;align-items:flex-start;}.student-profile-avatar{inline-size:4rem;block-size:4rem;font-size:1.25rem;}.student-profile-identity h2,.student-profile-page .student-profile-identity h2{font-size:1.375rem;}.student-profile-columns{gap:2rem;}.student-overview-board>section,.student-registration-help-panel{padding:1.25rem;}.student-receipt-row{align-items:flex-start;flex-direction:column;gap:.75rem;}.student-profile-school dl{grid-template-columns:1fr;}.payment-proof-preview iframe{min-block-size:18rem;}.student-overview-links{gap:1rem;}}
+@media(max-width:48rem){.student-overview-board,.student-profile-columns{grid-template-columns:1fr;}.student-profile-identity{padding:1.25rem;gap:1rem;align-items:flex-start;}.student-profile-avatar{inline-size:4rem;block-size:4rem;font-size:1.25rem;}.student-profile-identity h2{font-size:1.375rem;}.student-profile-columns{gap:2rem;}.student-overview-board>section,.student-registration-help-panel{padding:1.25rem;}.student-receipt-row{align-items:flex-start;flex-direction:column;gap:.75rem;}.student-profile-school dl{grid-template-columns:1fr;}.payment-proof-preview iframe{min-block-size:18rem;}.student-overview-links{gap:1rem;}}
 
 .payment-proof-preview{padding:1rem;max-block-size:65vh;min-block-size:18rem;overflow:auto;overscroll-behavior:contain;}
 .payment-proof-pages{display:grid;gap:1rem;justify-items:center;inline-size:100%;min-inline-size:0;}
@@ -834,7 +888,7 @@
 .student-enrollment-task .student-enrollment-payment-help{font-size:.875rem;color:var(--tala-muted);margin-block-start:1rem;}
 .student-academic-next{padding:1.5rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));border-radius:.75rem;}
 .student-academic-next p{font-size:1rem;line-height:1.6;max-inline-size:65ch;margin-block-end:1.25rem;}
-.student-academic-identity+.student-academic-notice{border-block-start:0;padding-block-start:0;}
+.student-study-summary+.student-academic-notice{border-block-start:0;padding-block-start:0;}
 .student-graduation-records{display:grid;gap:2rem;}
 .student-graduation-records>.student-record-section{border:0;padding:0;}
 .student-degree-summary{padding:1.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));border-radius:.75rem;}
@@ -872,3 +926,84 @@
 .faculty-result-progress dt{color:var(--tala-muted);font-size:.875rem;}
 .faculty-result-progress dd{font-size:1.75rem;line-height:1.3;font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;}
 @media(max-width:40rem){.faculty-class-search{grid-template-columns:minmax(0,1fr);}.faculty-class-row{grid-template-columns:minmax(0,1fr) auto;gap:1rem;}.faculty-class-row>div:first-child{grid-column:1/-1;}.faculty-class-row>.fi-btn{grid-column:1/-1;inline-size:100%;}}
+.accounting-awaiting-summary{padding:1.75rem;color:var(--tala-text)}
+.accounting-awaiting-summary h2{margin:0;font-size:1.5rem;line-height:1.25;font-weight:700}
+.accounting-awaiting-context{margin-block-end:1.75rem;line-height:1.6;overflow-wrap:anywhere}
+.accounting-awaiting-context>p:first-child{font-size:1.0625rem;font-weight:600}
+.accounting-awaiting-context>p+p{font-size:.9375rem;color:var(--tala-muted);margin-block-start:.25rem}
+.accounting-awaiting-message{display:flex;align-items:flex-start;gap:1rem;padding:1.25rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface))}
+.accounting-awaiting-message p{margin-block-start:.5rem;max-inline-size:65ch;line-height:1.6}
+.accounting-awaiting-icon{inline-size:3rem;block-size:3rem;padding:.625rem;border-radius:50%;background:color-mix(in srgb,var(--tala-brand) 12%,var(--tala-surface));flex:none;color:var(--tala-brand-strong)}
+.accounting-awaiting-details{margin-block-start:1.5rem;padding-block-start:1rem;border-block-start:1px solid var(--tala-edge)}
+.accounting-awaiting-details>summary{padding-block:.5rem;font-weight:600}
+.accounting-awaiting-details dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.25rem 2rem;margin-block-start:1rem}
+.accounting-awaiting-details dl>div{min-inline-size:0}
+.accounting-awaiting-details dt{color:var(--tala-muted);font-size:.875rem;line-height:1.5;margin-block-end:.25rem}
+.accounting-awaiting-details dd{margin:0;overflow-wrap:anywhere;font-size:1rem;line-height:1.5;font-weight:600}
+.accounting-awaiting-details .accounting-awaiting-reference{grid-column:1/-1;padding-block-start:1rem;border-block-start:1px solid var(--tala-edge)}
+.accounting-awaiting-reference dd{font-weight:400;font-size:.9375rem;user-select:all}
+.tala-workflow-handoff{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2.5rem;list-style:none;padding:0;margin:1.5rem 0 0;color:var(--tala-text)}
+.tala-workflow-handoff>li{position:relative;display:flex;align-items:center;gap:1rem;min-inline-size:0;padding:1rem;border-radius:.75rem}
+.tala-workflow-handoff .tala-handoff-current{background:color-mix(in srgb,var(--tala-brand) 8%,var(--tala-surface))}
+.tala-workflow-handoff .tala-handoff-next{border:1px solid var(--tala-edge);background:var(--tala-surface)}
+.tala-workflow-handoff li>div{min-inline-size:0;overflow-wrap:anywhere}
+.tala-workflow-handoff .tala-handoff-icon{flex:none;inline-size:2.5rem;block-size:2.5rem;padding:.5rem;border-radius:50%;background:var(--tala-surface);color:var(--tala-brand-strong)}
+.tala-workflow-handoff .tala-handoff-phase{display:block;font-size:.8125rem;line-height:1.5;color:var(--tala-muted);margin-block-end:.25rem}
+.tala-workflow-handoff strong{display:block;font-size:1.0625rem;font-weight:700;line-height:1.4}
+.tala-workflow-handoff li p{font-size:.9375rem;line-height:1.5;margin:.25rem 0 0;color:var(--tala-muted)}
+.tala-workflow-handoff .tala-handoff-arrow{position:absolute;inset-inline-start:-2rem;inline-size:1.5rem;block-size:1.5rem;color:var(--tala-muted)}
+.registrar-case-waiting>.tala-workflow-handoff{margin-block-start:1.5rem}
+.registrar-case-waiting .tala-handoff-current{border:1px solid var(--tala-selected-edge)}
+.student-finance-task .tala-workflow-handoff{grid-template-columns:minmax(0,1fr);gap:2rem}
+.student-finance-task .tala-handoff-arrow{inset-inline-start:50%;inset-block-start:-1.75rem;transform:translateX(-50%) rotate(90deg)}
+.dark .accounting-awaiting-icon,.dark .tala-workflow-handoff .tala-handoff-icon{color:var(--primary-200)}
+@media(max-width:40rem){.accounting-awaiting-summary{padding:1.25rem}.accounting-awaiting-message{padding:0;background:transparent;gap:.75rem}.accounting-awaiting-icon{inline-size:2.5rem;block-size:2.5rem;padding:.5rem}.accounting-awaiting-context{margin-block-end:1.5rem}.accounting-awaiting-details dl{grid-template-columns:1fr}.tala-workflow-handoff{grid-template-columns:minmax(0,1fr);gap:2rem}.tala-workflow-handoff .tala-handoff-arrow{inset-inline-start:50%;inset-block-start:-1.75rem;transform:translateX(-50%) rotate(90deg)}}
+@media(forced-colors:active){.accounting-awaiting-summary{box-shadow:none;border:1px solid CanvasText}.accounting-awaiting-message,.tala-workflow-handoff .tala-handoff-current{background:Canvas}.accounting-awaiting-icon,.tala-workflow-handoff .tala-handoff-icon,.tala-workflow-handoff .tala-handoff-arrow{color:CanvasText}.tala-workflow-handoff .tala-handoff-current{outline:1px solid CanvasText}.accounting-awaiting-details{border-color:CanvasText}}
+
+.student-home,.student-information{color:var(--tala-text);}
+.student-identity-content>.student-profile-photo-action{position:relative;z-index:1;grid-column:1/-1;}
+
+/* Shared Student study context and read-only record hierarchy. */
+@media (forced-colors: none) {
+    .dark .student-identity-panel{background:linear-gradient(110deg,var(--tala-surface) 15%,var(--tala-surface) 40%,var(--tala-brand-tint) 100%);}
+    .dark .student-overview-board .student-overview-enrollment,.dark .tala-workflow-handoff .tala-handoff-current{background:var(--tala-brand-tint);color:var(--tala-on-brand-tint);}
+    .dark .student-overview-enrollment h2,.dark .student-overview-enrollment>p,.dark .tala-handoff-current :is(.tala-handoff-phase,p){color:var(--tala-on-brand-tint);}
+    .dark .student-overview-task-icon,.dark .student-context-icon,.dark .student-profile-section-heading>.fi-icon,.dark .student-record-heading>.fi-icon,.dark .accounting-awaiting-icon,.dark .accounting-fee-plan-approval h2>.fi-icon,.dark .tala-workflow-handoff .tala-handoff-icon{color:var(--tala-brand-foreground);}
+}
+.student-study-summary{display:flex;flex-wrap:wrap;align-items:flex-start;gap:1.25rem;padding:1.5rem;color:var(--tala-text);min-inline-size:0;}
+.student-context-icon{flex:none;inline-size:3rem;block-size:3rem;padding:.625rem;border-radius:50%;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));color:var(--tala-brand-strong);}
+.dark .student-context-icon,.dark .student-record-heading>.fi-icon{color:var(--tala-brand-foreground);}
+.dark .student-academic-source>summary{color:var(--primary-200);}
+.student-context-body{flex:1 1 19rem;min-inline-size:0;}
+.student-study-summary .student-context-body h2{font-size:1.375rem;font-weight:700;line-height:1.35;letter-spacing:-.015em;overflow-wrap:anywhere;}
+.student-context-facts{display:flex;flex-wrap:wrap;gap:1rem 1.5rem;margin-block-start:1.25rem;}
+.student-context-facts dt{font-size:.8125rem;color:var(--tala-muted);line-height:1.5;margin-block-end:.25rem;}
+.student-context-facts dd{margin:0;font-size:1rem;font-weight:600;line-height:1.5;font-variant-numeric:tabular-nums;}
+.student-context-body .student-academic-note{margin-block-start:.5rem;}
+.student-record-heading{display:flex;align-items:center;gap:.75rem;}
+.student-record-heading>.fi-icon{flex:none;inline-size:1.5rem;block-size:1.5rem;color:var(--tala-brand-strong);}
+.student-registration,.student-cor-record{color:var(--tala-text);}
+.student-registration-official h2,.student-academic-current h2,.student-cor-record h2,.student-finance-workspace h2{font-weight:700;}
+.student-registration-official .student-registration-links{gap:.75rem;}
+.student-registration-official .student-academic-table thead th,.student-academic-current .student-academic-table thead th{background:var(--tala-surface-sunken);padding:.75rem .5rem;font-weight:600;}
+.student-academic-current .student-academic-reading-grid{grid-template-columns:minmax(0,1fr);gap:1.5rem;}
+.student-record-panel{padding:1.5rem;}
+.student-academic-current .student-academic-rail{padding:0;border:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;}
+.student-academic-current .student-academic-rail>section{padding:1.5rem;}
+.student-academic-current .student-academic-rail section+section{border-block-start:1px solid var(--tala-edge);}
+.student-academic-current .student-academic-rail h2{font-size:1.25rem;}
+.student-academic-current .student-academic-rail .fi-btn{margin-block-start:1rem;white-space:normal;}
+.student-cor-record .cor-identity{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:1.25rem;}
+.cor-identity-content{min-inline-size:0;overflow-wrap:anywhere;}
+.student-cor-record .cor-identity h2{font-size:1.5rem;line-height:1.3;}
+.cor-program{font-size:1rem;font-weight:600;margin-block-start:.5rem;}
+.student-cor-record .cor-facts{padding-block-start:1.25rem;margin-block-start:1.5rem;}
+.student-cor-record .cor-facts dd{font-size:1.5rem;font-weight:700;line-height:1.3;}
+.student-cor-record .cor-facts>div:last-child dd{font-size:1.125rem;}
+.cor-subject-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:1.5rem;padding-block:1rem;font-size:.9375rem;line-height:1.6;}
+.student-finance-workspace .student-finance-section,.student-finance-workspace .student-finance-records{padding:1.5rem;}
+.student-finance-workspace .student-finance-task .student-finance-next-label{margin-block:1.5rem .25rem;font-size:.875rem;color:var(--tala-muted);}
+.student-finance-workspace .student-finance-task .student-finance-next-amount{font-size:1.75rem;line-height:1.25;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-block:.25rem .5rem;}
+.student-finance-workspace .student-finance-task>.fi-btn{margin-block-start:1rem;}
+.student-finance-workspace .student-finance-records>.student-receipt-row:last-child,.student-payment-schedule>li:last-child{border-block-end:0;}
+@media(max-width:40rem){.student-study-summary{padding:1.25rem;gap:1rem;}.student-context-body{flex-basis:calc(100% - 4rem);}.student-study-summary .student-context-body h2{font-size:1.25rem;}.student-study-summary>.fi-btn{inline-size:100%;}.student-record-panel,.student-academic-current .student-academic-rail>section,.student-finance-workspace .student-finance-section,.student-finance-workspace .student-finance-records{padding:1.25rem;}.student-academic-current .student-academic-rail{grid-template-columns:minmax(0,1fr);}.student-cor-record .cor-identity{grid-template-columns:3rem minmax(0,1fr);gap:1rem;}.student-cor-record .cor-identity>.fi-badge{grid-column:2;white-space:normal;}.cor-subject-row{grid-template-columns:minmax(0,1fr);gap:.5rem;}.student-cor-record .cor-facts dd{font-size:1.25rem;}}

@@ -113,6 +113,9 @@ class ViewEnrollment extends ViewRecord
     #[Url(as: 'view')]
     public string $enrollmentView = 'overview';
 
+    #[Url(as: 'queue')]
+    public ?string $returnQueue = null;
+
     #[Url(as: 'proof')]
     public ?int $paymentProofId = null;
 
@@ -267,7 +270,7 @@ class ViewEnrollment extends ViewRecord
             return 'accounting-unassessed';
         }
 
-        return $context['account'] !== null ? 'accounting-account' : null;
+        return $context['account'] !== null ? 'accounting-account' : 'accounting-awaiting-source';
     }
 
     /** @return array<string, mixed> */
@@ -453,6 +456,28 @@ class ViewEnrollment extends ViewRecord
         return $this->enrollmentHeaderActions();
     }
 
+    private function registrarReturnQueue(): ?string
+    {
+        if ($this->returnQueue === null || ! $this->actor()->hasRole(User::StaffRoleRegistrar)
+            || $this->actor()->hasRole(User::StaffRoleAccounting)) {
+            return null;
+        }
+
+        return array_key_exists($this->returnQueue, app(ListEnrollments::class)->getTabs()) ? $this->returnQueue : null;
+    }
+
+    /** @param array<string, mixed> $parameters */
+    public function enrollmentUrl(array $parameters = []): string
+    {
+        $queue = $this->registrarReturnQueue();
+
+        return EnrollmentResource::getUrl('view', [
+            ...$parameters,
+            'record' => $this->getRecord(),
+            ...($queue === null ? [] : ['queue' => $queue]),
+        ]);
+    }
+
     protected function enrollmentHeaderActions(): array
     {
         if ($this->isHeadReader()) {
@@ -475,16 +500,16 @@ class ViewEnrollment extends ViewRecord
         $focusedView = $this->focusedRegistrarView();
         if ($focusedView !== null && $this->enrollmentView === 'history') {
             return [Action::make('backToEnrollment')->label('Back to enrollment')->icon('heroicon-o-arrow-left')->color('gray')
-                ->url(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]))];
+                ->url($this->enrollmentUrl())];
         }
-        if (in_array($focusedView, ['closed', 'preparing', 'payment-waiting', 'assessment-recovery', 'placement-recovery', 'requirements', 'adjustment', 'missing-cor', 'review'], true)) {
+        if (in_array($focusedView, ['closed', 'preparing', 'waiting', 'payment-waiting', 'assessment-recovery', 'placement-recovery', 'requirements', 'adjustment', 'missing-cor', 'review'], true)) {
             return [Action::make('backToEnrollment')->label('Enrollment')->icon('heroicon-o-arrow-left')->color('gray')
-                ->url(EnrollmentResource::getUrl('index'))];
+                ->url(EnrollmentResource::getUrl('index', array_filter(['tab' => $this->registrarReturnQueue()])))];
         }
 
         return [
             ...($focusedView !== null ? [Action::make('backToEnrollment')->label('Enrollment')->tooltip('Back to Enrollment')->icon('heroicon-o-arrow-left')->color('gray')
-                ->url(EnrollmentResource::getUrl('index'))] : [$this->nextTaskAction()]),
+                ->url(EnrollmentResource::getUrl('index', array_filter(['tab' => $this->registrarReturnQueue()])))] : [$this->nextTaskAction()]),
             Action::make('resendOfficialEnrollmentEmail')
                 ->label('Resend enrollment email')
                 ->icon('heroicon-o-arrow-path')
@@ -536,7 +561,7 @@ class ViewEnrollment extends ViewRecord
                     ->label('Certificate copies')
                     ->icon('heroicon-o-document-duplicate')
                     ->visible(fn (): bool => $focusedView !== 'official' && $this->getRecord()->corVersions()->exists())
-                    ->url(fn (): string => EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'history']).'#certificate-copies'),
+                    ->url(fn (): string => $this->enrollmentUrl(['view' => 'history']).'#certificate-copies'),
             ])
                 ->label($this->actor()->hasRole(User::StaffRoleAccounting) ? 'Account actions and history' : ($focusedView !== null ? 'Enrollment options' : 'Case actions and recovery'))
                 ->icon('heroicon-o-ellipsis-horizontal')
@@ -805,7 +830,7 @@ class ViewEnrollment extends ViewRecord
                         ->body('The subjects are official and the Certificate of Registration is ready.')
                         ->success()
                         ->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Official enrollment was not finalized', $exception);
                 }
@@ -920,7 +945,9 @@ class ViewEnrollment extends ViewRecord
             ->color($this->getRecord()->currentProposalVersion === null ? 'primary' : 'gray')
             ->icon('heroicon-o-document-plus')
             ->modalHeading('Choose subjects')
-            ->modalDescription(fn (): string => ($this->getRecord()->credentialUser?->getFilamentName() ?? 'Learner').' · '.$this->getRecord()->term?->label.'. Saving prepares a draft. Seats and assessment are checked next.')
+            ->modalDescription(fn (): string => ($this->getRecord()->credentialUser?->getFilamentName() ?? 'Learner').' · '.$this->getRecord()->term?->label.'. '.($this->getRecord()->currentProposalVersion === null
+                ? 'Saving prepares a draft. Seats and assessment are checked next.'
+                : 'Saving a changed selection replaces these subjects and releases their temporary class places. Charges must be checked and the student must confirm again.'))
             ->modalSubmitActionLabel('Save subjects')
             ->modalWidth(Width::FourExtraLarge)
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal registrar-subject-selection-modal'])
@@ -962,7 +989,7 @@ class ViewEnrollment extends ViewRecord
                     );
                     $this->record = $this->getRecord()->refresh();
                     Notification::make()->title('Subjects saved for review')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Subjects were not saved', $exception);
                 }
@@ -1041,7 +1068,7 @@ class ViewEnrollment extends ViewRecord
                     app(IssueRegistrationProposal::class)->execute($proposal, $this->actor());
                     $this->record = $this->getRecord()->refresh();
                     Notification::make()->title('Subjects sent for confirmation')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Subjects were not sent', $exception);
                 }
@@ -1105,7 +1132,7 @@ class ViewEnrollment extends ViewRecord
                     );
                     $this->record = $this->getRecord()->refresh();
                     Notification::make()->title('Seats reserved')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Seats were not reserved', $exception);
                 }
@@ -1149,7 +1176,7 @@ class ViewEnrollment extends ViewRecord
                     $this->record = $this->getRecord()->refresh();
                     $this->reservedInitialContext = null;
                     Notification::make()->title('Assessment recorded')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Assessment was not recorded', $exception);
                 }
@@ -1264,7 +1291,7 @@ class ViewEnrollment extends ViewRecord
                     $this->record = $this->getRecord()->refresh();
                     $this->individualAssessmentContext = null;
                     Notification::make()->title('Assessment recorded')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Assessment was not recorded', $exception);
                 }
@@ -1358,7 +1385,7 @@ class ViewEnrollment extends ViewRecord
                         $this->actor(),
                     );
                     Notification::make()->title('Approved coverage recorded')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Coverage was not recorded', $exception);
                 }
@@ -1397,7 +1424,7 @@ class ViewEnrollment extends ViewRecord
                         $data['external_check_reference'],
                     );
                     Notification::make()->title('Payment evidence verified')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'history']));
+                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Evidence was not verified', $exception);
                 }
@@ -1460,7 +1487,7 @@ class ViewEnrollment extends ViewRecord
                 try {
                     $this->decideRecoveredOnlinePayment($data, confirm: true);
                     Notification::make()->title('Recovered PayMongo payment posted')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'history']));
+                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Recovered PayMongo payment was not posted', $exception);
                 }
@@ -1493,7 +1520,7 @@ class ViewEnrollment extends ViewRecord
                 try {
                     $this->decideRecoveredOnlinePayment($data, confirm: false);
                     Notification::make()->title('Recovered evidence rejected')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'history']));
+                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Recovered evidence was not rejected', $exception);
                 }
@@ -1517,7 +1544,7 @@ class ViewEnrollment extends ViewRecord
                         'reason' => 'Accounting requested retry of the retained delivery.',
                     ], 'retry');
                     Notification::make()->title('Original payment delivery queued again')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'history']));
+                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Payment processing was not queued', $exception);
                 }
@@ -1541,7 +1568,7 @@ class ViewEnrollment extends ViewRecord
                 try {
                     $this->decideWebhook($data, 'link');
                     Notification::make()->title('Payment result linked and queued')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'history']));
+                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Payment result was not linked', $exception);
                 }
@@ -1565,7 +1592,7 @@ class ViewEnrollment extends ViewRecord
                 try {
                     $this->decideWebhook($data, 'confirm');
                     Notification::make()->title('Payment exception confirmed')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'history']));
+                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Payment exception was not confirmed', $exception);
                 }
@@ -1589,7 +1616,7 @@ class ViewEnrollment extends ViewRecord
                 try {
                     $this->decideWebhook($data, 'reject');
                     Notification::make()->title('Payment result rejected')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'history']));
+                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Payment result was not rejected', $exception);
                 }
@@ -1986,7 +2013,7 @@ class ViewEnrollment extends ViewRecord
                         $data['safe_reason'],
                     );
                     Notification::make()->title('Payment evidence rejected')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'history']));
+                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Evidence was not rejected', $exception);
                 }
@@ -2153,7 +2180,7 @@ class ViewEnrollment extends ViewRecord
                             $kind === 'confirmation' ? RegistrationAdjustmentFinanceConfirmation::findOrFail($id) : null);
                     });
                     Notification::make()->title('Official registration adjusted')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Registration was not adjusted', $exception);
                 }
@@ -2620,7 +2647,7 @@ class ViewEnrollment extends ViewRecord
                     );
                     $this->record = $this->getRecord()->refresh();
                     Notification::make()->title('Proposed change prepared')->body('Send this selection for learner confirmation before applying the change.')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Adjustment proposal was not prepared', $exception);
                 }
@@ -2838,7 +2865,7 @@ class ViewEnrollment extends ViewRecord
                         app(RecordCourseDrop::class)->execute($case, $course, $this->actor(), $data['reason'], $late?->authority_reference ?? '', $late);
                     });
                     Notification::make()->title('Course Drop recorded')->body('Accounting review is now required; earlier registration and certificate versions remain in history.')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Course Drop was not recorded', $exception);
                 }
@@ -2876,7 +2903,7 @@ class ViewEnrollment extends ViewRecord
             ->modalAlignment(Alignment::Start)
             ->modalWidth(Width::Large)
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
-            ->modalDescription('Release temporary seats and stop this enrollment. Existing payments and history remain recorded. Cancellation does not issue a refund.')
+            ->modalDescription('Release the temporary class places and stop this enrollment. Existing payments and history remain recorded. Cancellation does not issue a refund.')
             ->modalContent(fn () => view('filament.admin.enrollments.recovery-context', ['case' => $this->getRecord()]))
             ->modalSubmitActionLabel('Cancel enrollment')
             ->modalCancelActionLabel('Keep enrollment')
@@ -2898,7 +2925,7 @@ class ViewEnrollment extends ViewRecord
                         null,
                     );
                     Notification::make()->title('Registration cancelled')->body('Reserved seats were released. Payments and history remain recorded.')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Registration Case was not cancelled', $exception);
                 }
@@ -3100,7 +3127,7 @@ class ViewEnrollment extends ViewRecord
                         $lateAuthority,
                     );
                     Notification::make()->title('Registration reopened')->body('Prepare current subjects and recheck enrollment requirements.')->success()->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord()]));
+                    $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Registration Case was not reopened', $exception);
                 }

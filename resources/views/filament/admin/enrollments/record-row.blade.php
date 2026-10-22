@@ -52,7 +52,7 @@
                 <p>{{ $subjectCount }} confirmed {{ $subjectCount === 1 ? 'subject' : 'subjects' }} · {{ (float) $case->currentProposalVersion->items->sum('units_snapshot') }} units</p>
             @endif
         @endif
-        <x-filament::link :href="\App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $case])" icon="heroicon-m-arrow-right" icon-position="after">
+        <x-filament::link :href="\App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $case, 'queue' => $getLivewire()->activeTab])" icon="heroicon-m-arrow-right" icon-position="after">
             {{ $action }}<span class="sr-only"> for {{ $case->credentialUser?->getFilamentName() }}</span>
         </x-filament::link>
     </div>

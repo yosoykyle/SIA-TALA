@@ -12,16 +12,26 @@
         <p>{{ $case->term?->label }}</p>
     </div>
     <section class="registrar-case-waiting" aria-labelledby="waiting-heading">
-        <div><h2 id="waiting-heading">Waiting for confirmation</h2><p>The student can review these subjects in Enrollment.</p></div>
-        <div class="registrar-case-confirm">{{ $this->getAction('recordAssistedConfirmation', isMounting: false) }}<p>Use this when the student confirms with your office.</p></div>
-        @if ($deadline)
-            <p class="registrar-case-deadline">Seats held until <strong>{{ \Carbon\CarbonImmutable::parse($deadline)->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}</strong></p>
-        @endif
+        <div class="registrar-case-waiting-heading">
+            <div><h2 id="waiting-heading">Waiting for confirmation</h2><p>The student can review these subjects in Enrollment.</p></div>
+            @if ($deadline)
+                <p class="registrar-case-deadline">Class places held until <strong>{{ \Carbon\CarbonImmutable::parse($deadline)->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}</strong></p>
+            @endif
+        </div>
+        <x-workflow-handoff current-owner="Student" current-task="Confirm subjects" next-owner="Registrar" next-task="Review enrollment" current-icon="heroicon-o-user" next-icon="heroicon-o-clipboard-document-check" />
+        <div class="registrar-case-confirm">
+            <div><h3>Confirmation at your office</h3><p>Use this when the student confirms with your office.</p></div>
+            {{ $this->getAction('recordAssistedConfirmation', isMounting: false) }}
+        </div>
     </section>
     <div class="registrar-case-grid">
         <section class="registrar-case-subjects" aria-labelledby="subjects-heading">
-            <h2 id="subjects-heading">Subjects</h2>
+            <div class="registrar-subject-change-heading">
+                <h2 id="subjects-heading">Subjects</h2>
+                {{ $this->getAction('prepareProposal', isMounting: false)->label('Change subjects')->color('gray') }}
+            </div>
             <p class="registrar-case-meta">{{ $proposal->items->count() }} subjects · {{ (float) $proposal->items->sum('units_snapshot') }} units</p>
+            <p class="registrar-subject-change-note">Saving subject changes releases current class places. Charges need checking, and the student must confirm again.</p>
             @include('filament.admin.enrollments.subjects', ['sourceKey' => 'waiting'])
             @foreach ($proposal->items->where('scheduling_treatment_snapshot', \App\Models\CourseSpecification::SchedulingExternallyArranged) as $item)
                 <p class="registrar-case-meta">{{ $item->course_code_snapshot }} is externally arranged and has no recurring meeting.</p>
@@ -53,9 +63,13 @@
             <p class="registrar-case-meta">No recurring meetings are recorded for these subjects.</p>
         @endif
     </section>
-    <a class="registrar-case-history-link" href="{{ \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $case, 'view' => 'history']) }}">
+    <a class="registrar-case-history-link" href="{{ $this->enrollmentUrl(['view' => 'history']) }}">
         <x-filament::icon icon="heroicon-o-clock" />
         <span><strong>Enrollment history</strong><span>Activity and supporting records</span></span>
         <x-filament::icon icon="heroicon-m-chevron-right" />
     </a>
+    <section class="registrar-waiting-cancellation" aria-labelledby="waiting-cancellation-heading">
+        <div><h2 id="waiting-cancellation-heading">Cancel this enrollment</h2><p>Release its class places and stop enrollment. Existing payments and history stay recorded; this does not issue a refund.</p></div>
+        {{ $this->getAction('cancelCase', isMounting: false) }}
+    </section>
 </div>

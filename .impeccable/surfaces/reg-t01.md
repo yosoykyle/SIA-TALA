@@ -73,7 +73,7 @@ Make one exact Term and its next meaningful task unmistakable. Core-calendar rea
 
 ### OWN-WORLD
 
-Inherit DESIGN.md's accepted school-first shell, native light/dark surfaces, green-led actions, supporting blue, Inter, Heroicons and shared action material. Keep crest/school identity, workspace/Term and Powered by TALA attribution distinct. Extend the established world; do not replace PRODUCT.md or DESIGN.md.
+Inherit DESIGN.md's accepted school-first shell, native light/dark surfaces, green-led actions, supporting blue, Inter, Heroicons and shared action material. Keep crest/school identity and workspace/Term context distinct; authenticated pages omit Powered by TALA. Extend the established world; do not replace PRODUCT.md or DESIGN.md.
 
 ### STORY
 

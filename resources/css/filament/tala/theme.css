@@ -718,8 +718,8 @@
     }
     .fi-body:has(.fi-layout) .fi-sidebar-item.fi-active .fi-sidebar-item-label { font-weight: var(--tala-weight-emphasis); }
     .dark .fi-body:has(.fi-layout) .fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
-        background-color: color-mix(in srgb, var(--primary-400) 16%, var(--tala-chrome));
-        color: var(--primary-200);
+        background-color: var(--tala-brand-tint);
+        color: var(--tala-on-brand-tint);
     }
     .fi-body:has(.fi-layout) .fi-btn.fi-color-primary:not(.fi-outlined) {
         background-color: var(--tala-brand-strong);
@@ -737,6 +737,33 @@
     .dark .fi-body:has(.fi-layout) .fi-btn.fi-color-primary:not(.fi-outlined):hover { background-color: var(--primary-300); }
 }
 /* Shared material roles preserve native rings, component states and positioning. */
+@media (forced-colors: none) {
+    .dark .fi-body :is(.fi-modal-description, .fi-section-header-description, .fi-header-subheading, .fi-ta-empty-state-description),
+    .dark .fi-body .fi-sc-text:not(.fi-badge, .fi-color) {
+        color: var(--tala-muted);
+    }
+    .dark .fi-body :is(input, textarea):not(:disabled)::placeholder {
+        color: var(--tala-muted);
+        opacity: 1;
+    }
+    .dark .fi-body .fi-input-wrp:not(.fi-disabled) .fi-input-wrp-prefix .fi-icon {
+        color: var(--tala-control-icon);
+    }
+    .dark .fi-body:has(.fi-layout) .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > :is(.fi-icon, .fi-sidebar-item-label) {
+        color: inherit;
+    }
+    .dark .fi-body :is(.fi-btn:not(.fi-color), .fi-btn.fi-color-gray):not(.fi-outlined, :disabled, .fi-disabled, [aria-disabled='true']) {
+        background-color: var(--tala-overlay);
+        color: var(--tala-text);
+    }
+    .dark .fi-body :is(.fi-btn:not(.fi-color), .fi-btn.fi-color-gray):not(:disabled, .fi-disabled, [aria-disabled='true']) > .fi-icon,
+    .dark .fi-body :is(.fi-icon-btn:not(.fi-color), .fi-icon-btn.fi-color-gray):not(:disabled, .fi-disabled, [aria-disabled='true']) {
+        color: var(--tala-control-icon);
+    }
+    .dark .fi-body :is(.fi-btn:not(.fi-color), .fi-btn.fi-color-gray):not(.fi-outlined, :disabled, .fi-disabled, [aria-disabled='true']):hover {
+        background-color: color-mix(in srgb, var(--tala-overlay) 92%, white);
+    }
+}
 .fi-body :is(.fi-ta-filters-dropdown, .fi-ta-col-manager-dropdown) > .fi-dropdown-panel {
     max-height: calc(100dvh - 2rem);
     overflow-y: auto;
@@ -1008,7 +1035,7 @@
 }
 /* Applicant top bar: signed-in Applicant name at the start, current Asia/Manila date and time at the end; no account or notification controls. */
 .tala-applicant-topbar { position: sticky; inset-block-start: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 4rem; padding-inline: 2rem; border-bottom: 1px solid var(--gray-200); background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04); }
-.dark .tala-applicant-topbar { border-color: var(--gray-800); background: #1b1b20; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04), 0 2px 6px rgba(0, 0, 0, 0.45); }
+.dark .tala-applicant-topbar { border-color: var(--gray-800); background: var(--tala-chrome); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04), 0 2px 6px rgba(0, 0, 0, 0.45); }
 .tala-applicant-topbar__identity { display: none; min-width: 0; }
 .tala-applicant-topbar__identity .tala-brand__name { font-size: 0.875rem; }
 .tala-applicant-topbar__person { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--gray-900); }
@@ -1020,7 +1047,7 @@
 .tala-clock { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; font-size: 0.875rem; font-weight: 600; color: var(--gray-800); font-variant-numeric: tabular-nums; }
 .dark .tala-clock { color: var(--gray-200); }
 .tala-clock__part { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.25rem; padding-inline: 0.75rem; border: 1px solid var(--gray-200); border-radius: 0.625rem; background: var(--gray-50); white-space: nowrap; }
-.dark .tala-clock__part { border-color: var(--gray-700); background: #242429; }
+.dark .tala-clock__part { border-color: var(--gray-700); background: var(--tala-surface); }
 .tala-clock__icon { width: 1.125rem; height: 1.125rem; color: var(--primary-700); }
 .dark .tala-clock__icon { color: var(--primary-400); }
 .tala-clock__zone { font-size: 0.75rem; font-weight: 500; color: var(--tala-muted); }
@@ -1038,7 +1065,7 @@
 }
 /* Applicant Home greeting card (#61 F77): tinted card with a quiet paper-plane illustration. */
 .tala-home-greeting { position: relative; overflow: hidden; isolation: isolate; padding: 1.75rem 2rem; border: 1px solid var(--primary-100); border-radius: 0.875rem; background: linear-gradient(115deg, #ffffff 0%, #ffffff 38%, var(--primary-50) 100%); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 4px 12px -6px rgba(15, 23, 42, 0.08); }
-.dark .tala-home-greeting { border-color: var(--gray-800); background: linear-gradient(115deg, #242429 0%, #242429 40%, color-mix(in oklab, var(--primary-950) 70%, #242429) 100%); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 4px 14px -6px rgba(0, 0, 0, 0.5); }
+.dark .tala-home-greeting { border-color: var(--gray-800); background: linear-gradient(115deg, var(--tala-surface) 0%, var(--tala-surface) 40%, var(--tala-brand-tint) 100%); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 4px 14px -6px rgba(0, 0, 0, 0.5); }
 .tala-home-greeting .fi-header { position: relative; z-index: 1; }
 .tala-home-greeting .fi-header-heading { font-size: 1.75rem; letter-spacing: -0.02em; }
 .tala-home-greeting .fi-header-subheading { max-width: 46ch; }

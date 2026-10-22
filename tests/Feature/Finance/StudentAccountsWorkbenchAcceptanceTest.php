@@ -279,7 +279,68 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $component = Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id]);
 
         $this->assertSame('Unavailable', $component->instance()->accountingViewData()['requirement']['state']);
-        $this->assertNull($component->instance()->focusedAccountingView());
+        $this->assertSame('unavailable', $component->instance()->accountingViewData()['reviewState']);
+        $component->assertSee('Account balance unavailable')
+            ->assertSee('this is not a zero or cleared balance')
+            ->assertSee('Recorded charges')
+            ->assertDontSee('No payment due now')
+            ->assertDontSee('Enrollment payment satisfied')
+            ->assertDontSee('Enrollment payment pending');
+    }
+
+    public function test_accounting_missing_source_view_distinguishes_waiting_ended_and_official_enrollments_without_financial_actions(): void
+    {
+        $accounting = $this->accounting();
+        $program = Program::factory()->create();
+        $term = Term::factory()->create();
+        $createEnrollment = function (string $suffix, array $attributes = []) use ($program, $term): Enrollment {
+            $learner = User::factory()->create(['email' => 'missing-source-'.$suffix.'@example.test']);
+            $profile = StudentProfile::factory()->create([
+                'user_id' => $learner->id,
+                'program_id' => $program->id,
+                'student_number' => 'SYN-MISSING-'.$suffix,
+            ]);
+
+            return Enrollment::factory()->create([
+                'credential_user_id' => $learner->id,
+                'student_profile_id' => $profile->id,
+                'term_id' => $term->id,
+                ...$attributes,
+            ]);
+        };
+        $waiting = $createEnrollment('WAITING', ['case_reference' => 'REG-WAITING-SOURCE']);
+        $ended = $createEnrollment('ENDED', [
+            'case_reference' => 'REG-ENDED-SOURCE',
+            'canonical_outcome' => Enrollment::OutcomeCancelledByRegistrar,
+        ]);
+        $official = $createEnrollment('OFFICIAL', [
+            'case_reference' => 'REG-OFFICIAL-SOURCE',
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+        ]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $waitingView = Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $waiting->id])
+            ->assertSee('Waiting for the Registrar')
+            ->assertSee('subjects and reserved classes need a Registrar update')
+            ->assertSee('Registrar')->assertSee('Prepare subjects')->assertSee('Accounting')->assertSee('Prepare charges')
+            ->assertSee($program->name)->assertSee($term->label)->assertSee('REG-WAITING-SOURCE')
+            ->assertSee('Enrollment details')->assertActionHidden('createAssessment')->assertActionHidden('recordIndividualAssessment');
+        $this->assertSame('accounting-awaiting-source', $waitingView->instance()->focusedAccountingView());
+
+        $endedView = Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $ended->id])
+            ->assertSee('Enrollment ended')->assertSee('Cancelled by Registrar')
+            ->assertDontSee('Waiting for the Registrar')->assertDontSee('Prepare subjects')->assertDontSee('Prepare charges')
+            ->assertActionHidden('createAssessment')->assertActionHidden('recordIndividualAssessment');
+        $this->assertSame('accounting-awaiting-source', $endedView->instance()->focusedAccountingView());
+
+        $officialView = Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $official->id])
+            ->assertSee('Account review needed')->assertSee('enrollment is official')
+            ->assertDontSee('Waiting for the Registrar')->assertDontSee('Prepare subjects')->assertDontSee('Prepare charges')
+            ->assertActionHidden('createAssessment')->assertActionHidden('recordIndividualAssessment');
+        $this->assertSame('accounting-awaiting-source', $officialView->instance()->focusedAccountingView());
+        $this->assertSame(0, TermAccount::query()->whereIn('enrollment_id', [$waiting->id, $ended->id, $official->id])->count());
+        $this->assertSame(0, Assessment::query()->whereIn('enrollment_id', [$waiting->id, $ended->id, $official->id])->count());
+        $this->assertSame(0, Payment::query()->whereIn('term_id', [$term->id])->count());
     }
 
     public function test_coverage_form_excludes_committed_fees_from_new_coverage_but_preserves_same_fee_replacement(): void

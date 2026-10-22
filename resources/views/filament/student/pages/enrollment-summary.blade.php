@@ -17,10 +17,12 @@
     $student = auth()->user()->studentProfile;
 @endphp
 <div class="learner-enrollment student-home student-review-home">
-    <section class="student-profile-identity" aria-label="Student identity">
-        <div class="student-profile-avatar" aria-hidden="true">@if (auth()->user()->avatar_path ?? null)<img src="{{ auth()->user()->getFilamentAvatarUrl() }}" alt="">@else{{ str($student?->first_name)->substr(0, 1) }}{{ str($student?->last_name)->substr(0, 1) }}@endif</div>
-        <div><h2>{{ $student?->first_name }} {{ $student?->last_name }}</h2><p>{{ $studyContext['program_name'] ?? 'Your program is being recorded' }}</p><p class="student-profile-meta">Student {{ $student?->student_number }}</p>@if ($studyContext['is_official'])<p class="student-profile-meta">{{ $studyContext['study_level_label'] }} · {{ $studyContext['semester'] }} · {{ $studyContext['academic_year'] }}</p>@endif</div>
-    </section>
+    @include('filament.components.student-identity', [
+        'identityName' => trim($student?->first_name.' '.$student?->last_name),
+        'identityProgram' => $studyContext['program_name'] ?? 'Your program is being recorded',
+        'identityNumber' => $student?->student_number,
+        'identityStudies' => $studyContext['is_official'] ? $studyContext['study_level_label'].' · '.$studyContext['semester'].' · '.$studyContext['academic_year'] : null,
+    ])
     @if ($notice && (! $proofPending || $notice['tier'] !== 'Payment Pending or Rejected'))
         <section class="student-home-notice" aria-label="Needs your attention"><h2>{{ $notice['tier'] }}</h2><p>{{ $notice['student_reason'] }}</p>@if ($notice['required_action'])<p>{{ $notice['required_action'] }}</p>@endif @if ($notice['office_to_contact'])<p>Contact {{ $notice['office_to_contact'] }}.</p>@endif</section>
     @endif

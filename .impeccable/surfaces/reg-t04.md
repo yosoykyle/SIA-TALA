@@ -58,7 +58,7 @@ This supersedes rejected Registrar and Faculty D123 composition while retaining 
 The Registrar understands the candidate timetable, its hard validity and quality, the effects of a proposed correction and the authority needed for publication. Weekly relationships and the accessible meeting view remain clear across review and published history.
 
 ### OWN-WORLD
-Inherit the October 2 direction from DESIGN.md: green-led primary actions, supporting TALA blue, neutral light/dark native surfaces, Inter typography, native Heroicons, and the school-first crest with secondary Powered by TALA. The weekly grid and meeting table need clear hierarchy, readable selection, and text-backed semantic states. The owning Issue and current canonical authority govern workflow-specific decisions.
+Inherit the October 2 direction from DESIGN.md: green-led primary actions, supporting TALA blue, neutral light/dark native surfaces, Inter typography, native Heroicons, and the school-first crest. Authenticated pages omit Powered by TALA, following DESIGN.md. The weekly grid and meeting table need clear hierarchy, readable selection, and text-backed semantic states. The owning Issue and current canonical authority govern workflow-specific decisions.
 
 ### STORY
 The Registrar initiates a CP-SAT solve, inspects room and faculty allocations across a dense weekly matrix in `REG-T04`, verifies zero collisions and constraint satisfaction, and executes immutable publication into `REG-T06` with instant version incrementing and print readiness.

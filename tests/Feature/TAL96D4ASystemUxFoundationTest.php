@@ -46,10 +46,9 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
     #[DataProvider('brandedBrowserErrors')]
     public function test_browser_errors_are_branded_safe_and_actionable(int $status, string $heading): void
     {
-        $this->get("/_tal96d4a/errors/{$status}")
+        $response = $this->get("/_tal96d4a/errors/{$status}")
             ->assertStatus($status)
             ->assertSee('Servitech Institute Asia')
-            ->assertSee('Powered by TALA')
             ->assertSee((string) $status)
             ->assertSee($heading)
             ->assertSee('Return to Servitech Institute Asia home')
@@ -58,6 +57,12 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
             ->assertSee(url('/'), false)
             ->assertSee(asset('css/tala-error.css'), false)
             ->assertDontSee('TAL96D4A internal diagnostic');
+
+        if ($status >= 500) {
+            $response->assertDontSee('Powered by TALA');
+        } else {
+            $response->assertSee('Powered by TALA');
+        }
     }
 
     public function test_an_unmatched_browser_route_uses_the_branded_not_found_page(): void
@@ -96,6 +101,7 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
             ->assertSee('Return to your application')
             ->assertSee('Stay in your application')
             ->assertDontSee('Applicant Workspace')
+            ->assertDontSee('Powered by TALA')
             ->assertSee('/applicant', false)
             ->assertSee('Use another account')
             ->assertSee($applicant->fresh()->name)
@@ -128,7 +134,8 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
                 ->assertSee('Return to Servitech Institute Asia home')
                 ->assertDontSee('Return to TALA home')
                 ->assertDontSee('Use another account')
-                ->assertDontSee('data-account-switch-dialog', false);
+                ->assertDontSee('data-account-switch-dialog', false)
+                ->assertDontSee('Powered by TALA');
         }
 
         $this->assertAuthenticatedAs($applicant);
