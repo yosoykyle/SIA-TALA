@@ -12,10 +12,10 @@
                 <h3>Institution-wide records</h3>
                 <nav aria-label="Institution-wide academic records">
                     @if (\App\Filament\Pages\CatalogCurriculaWorkbench::canAccess())
-                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\CatalogCurriculaWorkbench::getUrl()">Catalog &amp; Curricula</x-filament::button>
+                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\CatalogCurriculaWorkbench::getUrl()">Catalog & Curricula</x-filament::button>
                     @endif
-                    @foreach (collect($this->approvalAreas())->where('title', 'Lifecycle & Completion') as $area)
-                        <x-filament::button tag="a" color="gray" :href="$area['url']">Recorded decisions</x-filament::button>
+                    @foreach (collect($this->approvalAreas())->whereIn('title', ['Grades & Progress', 'Lifecycle & Completion']) as $area)
+                        <x-filament::button tag="a" color="gray" :href="$area['url']">{{ $area['action'] }}</x-filament::button>
                     @endforeach
                     @if (\App\Filament\Resources\StudentProfiles\StudentProfileResource::canAccess())
                         <x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\StudentProfiles\StudentProfileResource::getUrl('index')">Student academic records</x-filament::button>
@@ -140,7 +140,7 @@
         </section>
 
         <section class="oversight-panel oversight-authority" aria-labelledby="oversight-authority-title">
-            <div class="oversight-panel-heading"><div class="oversight-heading-scope"><h2 id="oversight-authority-title">Academic Authority</h2><span class="oversight-scope oversight-scope-institution">Institution-wide</span></div><a href="{{ \App\Filament\Pages\CatalogCurriculaWorkbench::getUrl(['oversightTermId' => $termId]) }}">Catalog &amp; Curricula <span aria-hidden="true">→</span></a></div>
+            <div class="oversight-panel-heading"><div class="oversight-heading-scope"><h2 id="oversight-authority-title">Academic Authority</h2><span class="oversight-scope oversight-scope-institution">Institution-wide</span></div><a href="{{ \App\Filament\Pages\CatalogCurriculaWorkbench::getUrl(['oversightTermId' => $termId]) }}">Catalog & Curricula <span aria-hidden="true">→</span></a></div>
             @if ($curriculumSummary['total'] > 0)
                 <div class="oversight-program-summary"><p><strong>{{ $curriculumSummary['ready'] }}</strong> of {{ $curriculumSummary['total'] }} {{ str('program')->plural($curriculumSummary['total']) }} ready for offerings</p><div class="oversight-distribution oversight-program-distribution" aria-hidden="true">@if ($curriculumSummary['ready'] > 0)<span class="oversight-segment-official" style="flex-grow:{{ $curriculumSummary['ready'] }}"></span>@endif @if ($curriculumSummary['total'] > $curriculumSummary['ready'])<span class="oversight-segment-closed" style="flex-grow:{{ $curriculumSummary['total'] - $curriculumSummary['ready'] }}"></span>@endif</div></div>
                 <ul class="oversight-programs">
@@ -152,7 +152,7 @@
         <section class="oversight-panel oversight-lifecycle" aria-labelledby="oversight-lifecycle-title">
             <div><h2 id="oversight-lifecycle-title">Lifecycle &amp; Completion</h2><p>Read-only records · these views use their own filters.</p></div>
             <nav aria-label="Lifecycle and academic record sources">
-                @foreach (collect($this->approvalAreas())->where('title', 'Lifecycle & Completion') as $area)<x-filament::button tag="a" color="gray" :href="$area['url']" icon="heroicon-o-document-text">Recorded decisions</x-filament::button>@endforeach
+                @foreach (collect($this->approvalAreas())->where('title', 'Lifecycle & Completion') as $area)<x-filament::button tag="a" color="gray" :href="$area['url']" icon="heroicon-o-document-text">{{ $area['action'] }}</x-filament::button>@endforeach
                 @if (\App\Filament\Resources\StudentProfiles\StudentProfileResource::canAccess())<x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\StudentProfiles\StudentProfileResource::getUrl('index', ['oversightTermId' => $termId])" icon="heroicon-o-user-group">Student academic records</x-filament::button>@endif
             </nav>
         </section>

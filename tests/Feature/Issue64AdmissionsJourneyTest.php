@@ -555,7 +555,7 @@ class Issue64AdmissionsJourneyTest extends TestCase
             'credential_basis' => AdmissionApplication::CredentialSeniorHighSchool, 'first_name' => 'Synthetic', 'last_name' => 'Applicant',
             'birth_date' => now()->subYears(22)->toDateString(), 'citizenship_country_code' => 'PH', 'phone' => '09477379208',
             'current_city_municipality' => 'Calamba', 'current_province' => 'Laguna', 'prior_school_name' => 'Synthetic school',
-            'prior_school_country_code' => 'PH', 'prior_school_completion_year' => now()->year - 1, 'lrn_availability' => 'NotIssued',
+            'prior_school_country_code' => 'PH', 'prior_school_completion_year' => now()->year - 1, 'lrn_availability' => 'Provided', 'lrn' => '123456789012',
             'privacy_acknowledged' => true, 'accuracy_declared' => true];
     }
 

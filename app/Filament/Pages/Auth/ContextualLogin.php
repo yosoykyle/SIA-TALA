@@ -16,6 +16,7 @@ use Filament\Forms\Components\TextInput;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
@@ -178,6 +179,8 @@ class ContextualLogin extends Login
         $this->clearRateLimiter(method: 'authenticate');
 
         try {
+            $this->rejectDisabledAccountWithCorrectPassword($user);
+
             $response = parent::authenticate();
         } catch (ValidationException $exception) {
             RateLimiter::hit($rateLimitingKey, 60);
@@ -205,6 +208,26 @@ class ContextualLogin extends Login
         }
 
         return $response;
+    }
+
+    /**
+     * A disabled account is named only after its password is proven correct, so the message does not disclose account status to someone who does not hold the credentials.
+     *
+     * @throws ValidationException
+     */
+    private function rejectDisabledAccountWithCorrectPassword(?User $user): void
+    {
+        if (! $user instanceof User || $user->status !== User::StatusDisabled) {
+            return;
+        }
+
+        if (! Hash::check((string) ($this->data['password'] ?? ''), $user->password)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'data.email' => 'Access to this account is disabled. Contact official support for help.',
+        ]);
     }
 
     protected function isMultiFactorChallengeRateLimited(Authenticatable $user): bool

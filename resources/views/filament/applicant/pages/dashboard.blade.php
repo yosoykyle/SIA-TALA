@@ -1,84 +1,187 @@
 <x-filament-panels::page>
     @include('filament-actions::components.modals')
     @php($application = $this->currentApplication())
-
-    @if (! $application)
-        <x-filament::section>
-            <x-slot name="heading">No application yet</x-slot>
-            <x-slot name="description">
-                Start an application for an open admission cycle.
-            </x-slot>
-
-            @if ($this->admissionsAreOpen())
-                <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application?->id])" tag="a" icon="heroicon-m-document-text">
-                    Start application
-                </x-filament::button>
-            @else
-                <x-filament::callout color="info" icon="heroicon-m-clock">
-                    <x-slot name="heading">Applications are currently closed</x-slot>
-                    <x-slot name="description">Check the school home page for the next admission cycle.</x-slot>
-                </x-filament::callout>
-            @endif
-        </x-filament::section>
-    @else
+    @php($stages = $this->journeyStages($application))
+    @php($stepNumber = $this->journeyStepNumber($stages))
+    @php($statusWords = ['completed' => 'Completed', 'current' => 'In progress', 'pending' => 'Pending', 'unavailable' => 'Not available'])
+    @if ($application)
         @php($projection = $this->readinessProjection($application))
-
         @php($activeCorrection = $application->correctionRequests->where('state', \App\Models\ApplicationCorrectionRequest::StateActive)->sortByDesc('sequence')->first())
         @php($currentDecision = $application->decisions->firstWhere('id', $projection['decision_id']))
-        @php($clearance = $application->enrollmentClearances->firstWhere('id', $projection['clearance_id']))
-        <div class="space-y-6">
-            <x-filament::section icon="heroicon-o-document-text" icon-color="info">
-                <x-slot name="heading">{{ match ($application->application_state) {
-                    \App\Models\AdmissionApplication::StateDraft => 'Your application draft',
-                    \App\Models\AdmissionApplication::StateSubmitted => $application->reviewHasStarted() ? 'Your application is under review' : 'Awaiting Registrar review',
-                    \App\Models\AdmissionApplication::StateActionNeeded => 'Corrections requested',
-                    \App\Models\AdmissionApplication::StateAdmitted => $projection['ready'] ? 'Ready for enrollment' : 'Complete Registrar clearance',
-                    \App\Models\AdmissionApplication::StateNotAdmitted => 'Admission decision recorded',
-                    \App\Models\AdmissionApplication::StateWithdrawn => 'Application withdrawn',
-                    default => 'Current application',
-                } }}</x-slot>
-                <div class="tala-application-summary">
-                    <div class="tala-application-task-grid">
-                    <div class="tala-application-task">
-                        <x-filament::badge :color="$this->statusColor($application->application_state)">{{ $this->statusLabel($application->application_state) }}</x-filament::badge>
-                    <p class="tala-application-next-action">{{ $this->nextAction($application) }}</p>
-                    @if ($activeCorrection)
-                        <p><strong>{{ $activeCorrection->isOverdue() ? 'Correction overdue:' : 'Correction due:' }}</strong> {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }} (Asia/Manila)<br>{{ $activeCorrection->applicant_instruction }}</p>
-                    @elseif (($projection['clearance_result'] ?? null) === 'ActionNeeded')
-                        <p>{{ collect($projection['blockers'])->firstWhere('source', 'Registrar enrollment clearance')['recovery'] ?? '' }}</p>
-                    @endif
-                    @if ($currentDecision?->applicant_explanation)
-                        <p><strong>Admission decision remarks:</strong> {{ $currentDecision->applicant_explanation }}</p>
-                    @endif
-                    <div>
-                        @if (in_array($application->application_state, [\App\Models\AdmissionApplication::StateDraft, \App\Models\AdmissionApplication::StateActionNeeded], true))
-                            <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])" tag="a" icon="heroicon-m-pencil-square">
-                                {{ $application->application_state === \App\Models\AdmissionApplication::StateDraft
-                                    ? (app(\App\Queries\Admissions\ReadyApplicantProjectionQuery::class)->draftCycleIsOpen($application) ? 'Continue application' : 'Inspect saved draft')
-                                    : 'Respond to correction' }}
-                            </x-filament::button>
-                        @else
-                            <x-filament::button :href="\App\Filament\Applicant\Pages\Requirements::getUrl(['application' => $application->id])" tag="a" color="gray" icon="heroicon-m-clipboard-document-check">Review requirements</x-filament::button>
-                        @endif
-                    </div>
-                    </div>
-                    <dl class="tala-application-context-facts">
-                        <div><dt>Responsible party</dt><dd>{{ $this->responsibleParty($application) }}</dd></div>
-                        @if ($application->application_state === \App\Models\AdmissionApplication::StateDraft)
-                            <div><dt>Applications close</dt><dd>{{ $application->admissionCycle?->closes_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') ?? 'Unavailable' }} (Asia/Manila)</dd></div>
-                        @endif
-                        <div><dt>Program and student type</dt><dd>{{ $application->program?->name ?? 'Program not selected' }}<small>{{ \App\Models\AdmissionCycle::studentTypeLabel($application->application_path) }}</small></dd></div>
-                        <div><dt>Reference</dt><dd><x-application-reference :value="$application->application_reference" /></dd></div>
-                    </dl>
-                    </div>
-                    <dl class="tala-journey-facts" aria-label="Application progress">
-                        <div><dt><x-filament::icon icon="heroicon-o-document-check" class="size-5" />Preliminary copies</dt><dd>{{ ! $application->currentSubmissionVersion ? 'Not submitted' : (app(\App\Queries\Admissions\ReadyApplicantProjectionQuery::class)->preliminaryReviewIsComplete($application) ? 'Required copies accepted' : ($application->reviewHasStarted() ? 'Review in progress' : 'Awaiting review')) }}</dd></div>
-                        <div><dt><x-filament::icon icon="heroicon-o-academic-cap" class="size-5" />Admission decision</dt><dd>{{ $currentDecision ? str($currentDecision->decision)->headline() : 'Pending' }}@if ($currentDecision)<small>{{ $currentDecision->decided_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }} (Asia/Manila)</small>@endif</dd></div>
-                        <div><dt><x-filament::icon icon="heroicon-o-clipboard-document-check" class="size-5" />Registrar clearance</dt><dd>{{ $projection['clearance_result'] ? str($projection['clearance_result'])->headline() : 'Pending' }}@if ($clearance)<small>{{ $clearance->recorded_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }} (Asia/Manila)</small>@endif</dd></div>
-                    </dl>
-                </div>
-            </x-filament::section>
+    @endif
 
+        @php($deadline = $this->applicationDeadline($application))
+        @php($checklist = $this->requirementChecklist($application))
+        @php($announcements = $this->schoolAnnouncements())
+        @php($support = $this->supportContact($application))
+        <div class="space-y-6">
+            <div class="tala-home">
+                <div class="tala-home__summary">
+                    <x-filament::section class="tala-home-summary" icon="heroicon-o-document-text" icon-color="primary">
+                        <x-slot name="heading">Application status</x-slot>
+                        @if ($application)
+                            <div class="tala-home-status">
+                                <x-filament::badge :color="$this->statusColor($application->application_state)">{{ $this->statusLabel($application->application_state) }}</x-filament::badge>
+                                <p>{{ $this->statusExplanation($application) }}</p>
+                            </div>
+                            <dl class="tala-home-facts">
+                                <div><dt>Application number</dt><dd><x-application-reference :value="$application->application_reference" /></dd></div>
+                                <div><dt>Program</dt><dd>{{ $application->program ? \App\Models\Program::applicantName($application->program->name) : 'Program not selected' }}</dd></div>
+                                <div><dt>Student type</dt><dd>{{ \App\Models\AdmissionCycle::studentTypeLabel($application->application_path) }}</dd></div>
+                            </dl>
+                        @else
+                            <div class="tala-home-status">
+                                <x-filament::badge color="gray">Not started</x-filament::badge>
+                                <p>You haven't started an application yet.</p>
+                            </div>
+                        @endif
+                    </x-filament::section>
+
+                    <x-filament::section class="tala-home-summary" icon="heroicon-o-calendar-days" icon-color="primary">
+                        <x-slot name="heading">Application deadline</x-slot>
+                        <div class="tala-home-deadline">
+                            <p class="tala-home-deadline__label">{{ $deadline['label'] }}</p>
+                            <p class="tala-home-deadline__value">{{ $deadline['value'] ?? 'No deadline' }}</p>
+                            <p class="tala-home-deadline__note">{{ $deadline['note'] }}</p>
+                        </div>
+                    </x-filament::section>
+                </div>
+
+                <x-filament::section class="tala-journey-card tala-home__journey">
+                    <x-slot name="heading">Your application journey</x-slot>
+
+                    <ol class="tala-journey" aria-label="Application journey">
+                        @foreach ($stages as $index => $stage)
+                            <li class="tala-journey__stage tala-journey__stage--{{ $stage['status'] }}" data-journey-stage="{{ $stage['status'] }}" @if ($stage['status'] === 'current') aria-current="step" @endif>
+                                <span class="tala-journey__marker" aria-hidden="true">
+                                    @if ($stage['status'] === 'completed')
+                                        <x-filament::icon icon="heroicon-m-check" class="size-4" />
+                                    @else
+                                        {{ $index + 1 }}
+                                    @endif
+                                </span>
+                                <span class="tala-journey__text">
+                                    <span class="tala-journey__label">{{ $stage['label'] }}</span>
+                                    @php($statusText = $stage['statusText'] ?? $statusWords[$stage['status']])
+                                    <span class="tala-journey__status">{{ $statusText }}<span class="fi-sr-only">.</span></span>
+                                    @if ($stage['detail'] !== $statusText && $stage['detail'] !== 'Pending')
+                                        <span class="tala-journey__detail">{{ $stage['detail'] }}</span>
+                                    @endif
+                                </span>
+                            </li>
+                        @endforeach
+                    </ol>
+
+                    <div class="tala-journey-next">
+                        <div class="tala-journey-next__copy">
+                            <p class="tala-journey-next__step">Step {{ $stepNumber }} of {{ count($stages) }} · {{ $stages[$stepNumber - 1]['label'] }}</p>
+                            @if (! $application)
+                                <p class="tala-application-next-action">
+                                    {{ $this->admissionsAreOpen() ? 'Start an application for an open admission cycle.' : 'Applications are currently closed. Check the school home page for the next admission cycle.' }}
+                                </p>
+                            @else
+                                <p class="tala-application-next-action">{{ $this->nextAction($application) }}</p>
+                                @if ($activeCorrection)
+                                    <p><strong>{{ $activeCorrection->isOverdue() ? 'Correction overdue:' : 'Correction due:' }}</strong> {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }} (Asia/Manila)<br>{{ $activeCorrection->applicant_instruction }}</p>
+                                @elseif (($projection['clearance_result'] ?? null) === 'ActionNeeded')
+                                    <p>{{ collect($projection['blockers'])->firstWhere('source', 'Registrar enrollment clearance')['recovery'] ?? '' }}</p>
+                                @endif
+                                @if ($currentDecision?->applicant_explanation)
+                                    <p><strong>Admission decision remarks:</strong> {{ $currentDecision->applicant_explanation }}</p>
+                                @endif
+                            @endif
+                        </div>
+                        <div class="tala-journey-next__action">
+                            @if (! $application)
+                                @if ($this->admissionsAreOpen())
+                                    <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl()" tag="a" icon="heroicon-m-arrow-right" icon-position="after">
+                                        Start application
+                                    </x-filament::button>
+                                @endif
+                            @elseif ($application->application_state === \App\Models\AdmissionApplication::StateDraft && ! app(\App\Queries\Admissions\ReadyApplicantProjectionQuery::class)->draftCycleIsOpen($application))
+                                {{-- Closed cycle: no primary action (F71); a quiet link keeps the read-only draft reachable (#57). --}}
+                                <a class="tala-home-link" href="{{ \App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id]) }}">Inspect saved draft</a>
+                            @elseif (in_array($application->application_state, [\App\Models\AdmissionApplication::StateDraft, \App\Models\AdmissionApplication::StateActionNeeded], true))
+                                <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])" tag="a" icon="heroicon-m-arrow-right" icon-position="after">
+                                    {{ $application->application_state === \App\Models\AdmissionApplication::StateDraft ? 'Continue application' : 'Respond to correction' }}
+                                </x-filament::button>
+                            @elseif ($application->allowsSubmittedEdit())
+                                <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])" tag="a" icon="heroicon-m-arrow-right" icon-position="after">
+                                    Update application
+                                </x-filament::button>
+                            @endif
+                        </div>
+                    </div>
+                </x-filament::section>
+
+                <div class="tala-home__rail">
+                    <x-filament::section class="tala-home-checklist" icon="heroicon-o-clipboard-document-list" icon-color="primary">
+                        <x-slot name="heading">Requirements checklist</x-slot>
+                        @if (! $application)
+                            <p class="tala-home-muted">Your required documents appear here once you start an application.</p>
+                        @elseif ($checklist['items'] === [])
+                            <p class="tala-home-muted">No document uploads are required for this application.</p>
+                        @else
+                            <ul class="tala-checklist" aria-label="Required documents">
+                                @foreach ($checklist['items'] as $item)
+                                    <li class="tala-checklist__item">
+                                        <span class="tala-checklist__mark tala-checklist__mark--{{ $item['color'] }}" aria-hidden="true">
+                                            @if (in_array($item['color'], ['success', 'info'], true))
+                                                <x-filament::icon icon="heroicon-m-check" class="size-3.5" />
+                                            @elseif ($item['color'] === 'warning')
+                                                <x-filament::icon icon="heroicon-m-exclamation-triangle" class="size-3" />
+                                            @endif
+                                        </span>
+                                        <span class="tala-checklist__label">{{ $item['label'] }}</span>
+                                        <x-filament::badge size="sm" :color="$item['color']">{{ $item['state'] }}</x-filament::badge>
+                                    </li>
+                                @endforeach
+                            </ul>
+                            <p class="tala-checklist__summary">{{ count($checklist['items']) }} {{ str('document')->plural(count($checklist['items'])) }} required · <a class="tala-home-link" href="{{ $checklist['url'] }}">{{ $checklist['linkLabel'] }}</a></p>
+                        @endif
+                    </x-filament::section>
+
+                    <x-filament::section class="tala-home-dates" icon="heroicon-o-megaphone" icon-color="primary">
+                        <x-slot name="heading">Important dates</x-slot>
+                        @if ($application)
+                            <dl class="tala-home-facts">
+                                @foreach ($this->importantDates($application) as $date)
+                                    <div><dt>{{ $date['label'] }}</dt><dd>{{ $date['value'] }}</dd></div>
+                                @endforeach
+                            </dl>
+                        @endif
+                        <div class="tala-announcements">
+                            <h3 class="tala-announcements__heading">Announcements</h3>
+                            @forelse ($announcements as $notice)
+                                <article class="tala-announcement">
+                                    <h4 class="tala-announcement__title">{{ $notice->title }}</h4>
+                                    @if ($notice->published_at)
+                                        <p class="tala-announcement__date">Published {{ $notice->published_at->timezone(config('app.display_timezone'))->format('M j, Y') }}</p>
+                                    @endif
+                                    <p class="tala-announcement__message">{{ str($notice->message)->limit(180) }}</p>
+                                    @if ($notice->link_url && $notice->link_label)
+                                        <a class="tala-home-link" href="{{ $notice->link_url }}">{{ $notice->link_label }}</a>
+                                    @endif
+                                </article>
+                            @empty
+                                <p class="tala-home-muted">No announcements yet.</p>
+                            @endforelse
+                        </div>
+                    </x-filament::section>
+                </div>
+
+                @if ($support)
+                    <section class="tala-home-help" aria-labelledby="tala-home-help-title">
+                        <span class="tala-home-help__icon" aria-hidden="true"><x-filament::icon icon="heroicon-o-lifebuoy" class="size-6" /></span>
+                        <div class="tala-home-help__copy">
+                            <h2 id="tala-home-help-title">Need help?</h2>
+                            <p>Questions about your application? Contact admissions support.</p>
+                            <p class="tala-home-help__contact"><a class="tala-home-link" href="{{ $support['href'] }}">{{ $support['text'] }}</a></p>
+                        </div>
+                        <x-filament::button :href="route('home', ['modal' => 'support'])" tag="a" color="gray" icon="heroicon-m-chat-bubble-left-right">Contact support</x-filament::button>
+                    </section>
+                @endif
+            </div>
 
             @php($registrationCase = $this->registrationCase())
             @if ($registrationCase)
@@ -89,76 +192,5 @@
             @endif
 
         </div>
-    @endif
 
-    <x-filament::section collapsible collapsed icon="heroicon-o-folder-open" icon-color="info">
-        <x-slot name="heading">Application details and history</x-slot>
-        <div class="tala-record-groups">
-            @if ($application)
-            <div class="tala-record-group">
-                <h3>Application details and earlier decisions</h3>
-                <dl class="tala-status-grid">
-                    <div class="tala-status-grid__item"><dt>Admission cycle</dt><dd>{{ $application->admissionCycle?->label ?? 'Unavailable' }}</dd></div>
-                    <div class="tala-status-grid__item"><dt>Applications close</dt><dd>{{ $application->admissionCycle?->closes_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') ?? 'Unavailable' }} (Asia/Manila)</dd></div>
-                    <div class="tala-status-grid__item"><dt>Submitted version</dt><dd>{{ $application->currentSubmissionVersion?->version ?? 'Not submitted' }}</dd></div>
-                    <div class="tala-status-grid__item"><dt>Private evidence history</dt><dd>{{ $application->evidenceVersions->count() }} retained versions</dd></div>
-                </dl>
-                @foreach ($application->decisions->where('id', '!=', $currentDecision?->id)->sortByDesc('decided_at') as $decision)
-                    <p class="mt-4"><strong>Superseded {{ str($decision->decision)->headline() }}</strong> · {{ $decision->decided_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }} (Asia/Manila)<br>{{ $decision->applicant_explanation }}</p>
-                @endforeach
-            </div>
-            @if ($application->submissionVersions->isNotEmpty())
-                <div class="tala-record-group">
-                    <h3>Application acknowledgment history</h3>
-                    <p class="tala-record-description">View the receipt or print the acknowledgment for each submitted version.</p>
-
-                    <div class="space-y-3">
-                        @foreach ($application->submissionVersions->sortByDesc('version') as $submissionVersion)
-                            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 p-3 dark:border-white/10">
-                                <p>
-                                    <strong>Application version {{ $submissionVersion->version }}</strong> ·
-                                    Requirement Set version {{ $submissionVersion->requirementSet?->version }} ·
-                                    {{ $application->current_submission_version_id === $submissionVersion->id ? 'Current' : 'Historical and superseded' }}
-                                </p>
-                                <div class="flex flex-wrap gap-3">
-                                    <x-filament::button
-                                        :href="\App\Filament\Applicant\Pages\SubmissionReceipt::getUrl(['application' => $application->id, 'version' => $submissionVersion->id])"
-                                        tag="a"
-                                        size="sm"
-                                        color="gray"
-                                        icon="heroicon-m-document-text"
-                                    >
-                                        View receipt
-                                    </x-filament::button>
-                                    <x-filament::button
-                                        :href="route('admissions.application.acknowledgment', ['application' => $application, 'version' => $submissionVersion])"
-                                        tag="a"
-                                        target="_blank"
-                                        size="sm"
-                                        icon="heroicon-m-printer"
-                                    >
-                                        Open version {{ $submissionVersion->version }}
-                                    </x-filament::button>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
-
-            <div class="tala-record-group">
-                <h3>Application history</h3>
-                @forelse ($application->events->sortByDesc('occurred_at') as $event)
-                    <p><strong>{{ str($event->event_type)->headline() }}</strong> — {{ $event->occurred_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }} (Asia/Manila)</p>
-                @empty
-                    <p>No authoritative lifecycle event has been recorded yet.</p>
-                @endforelse
-            </div>
-            @endif
-            <div class="tala-record-group">
-                <h3>Current and earlier applications</h3>
-                {{ $this->table }}
-            </div>
-        </div>
-    </x-filament::section>
 </x-filament-panels::page>

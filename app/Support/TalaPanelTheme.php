@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Applicant\Pages\Application as ApplicantApplication;
+use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Components\AccessibleSidebar;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Models\User;
@@ -91,8 +92,16 @@ class TalaPanelTheme
             ->renderHook(PanelsRenderHook::BODY_START, fn (): View => view('filament.components.skip-link'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.content-anchor'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.form-accessibility'))
+            ->renderHook(PanelsRenderHook::CONTENT_BEFORE, fn (): HtmlString => new HtmlString(
+                self::isApplicantPanel($panel)
+                    ? view('filament.components.applicant-topbar', [
+                        'brand' => new HtmlString(self::brand($panel)->render()),
+                        'person' => self::applicantName($panel),
+                    ])->render()
+                    : '',
+            ))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): HtmlString => new HtmlString(
-                '<div class="tala-mobile-workspace-identity">'.self::brand($panel)->render().'</div>',
+                self::isApplicantPanel($panel) ? '' : '<div class="tala-mobile-workspace-identity">'.self::brand($panel)->render().'</div>',
             ))
             ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_START, fn (array $scopes): View => view('filament.components.auth-main-start', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
             ->renderHook(PanelsRenderHook::SIDEBAR_NAV_START, fn (): HtmlString => new HtmlString(
@@ -103,18 +112,20 @@ class TalaPanelTheme
             ->renderHook(PanelsRenderHook::CONTENT_END, fn (): HtmlString => self::attribution($panel, '<footer class="tala-mobile-attribution">%s</footer>'))
             ->renderHook(PanelsRenderHook::SIMPLE_PAGE_END, fn (): HtmlString => self::attribution($panel, '<footer class="tala-auth-attribution">%s</footer>'))
             ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_END, fn (array $scopes): View => view('filament.components.auth-main-end', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
-            ->renderHook(PanelsRenderHook::SIMPLE_PAGE_END, fn (array $scopes): View => view('filament.components.auth-recovery-links', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
+            ->renderHook(PanelsRenderHook::SIMPLE_PAGE_END, fn (array $scopes): View => view('filament.components.auth-recovery-links', [
+                'usesAuthDesigner' => self::usesAuthDesigner($scopes),
+                'showRecoveryLinks' => ! in_array(ApplicantEmailVerification::class, $scopes, true),
+            ]))
             ->renderHook(PanelsRenderHook::SIDEBAR_LOGO_AFTER, fn (): HtmlString => new HtmlString(
                 view('filament.components.drawer-close', ['inline' => true])->render(),
             ));
     }
 
-    /** School-first identity; the Applicant panel pairs it with the signed-in Applicant's name (UI Blueprint, #59 F65). */
+    /** School-first identity; the Applicant top bar carries the signed-in Applicant's name instead (#59 F65, #61). */
     private static function brand(Panel $panel): View
     {
         return view('components.tala-panel-brand', [
             'workspace' => $panel->getBrandName(),
-            'person' => self::isApplicantPanel($panel) ? self::applicantName($panel) : null,
         ]);
     }
 

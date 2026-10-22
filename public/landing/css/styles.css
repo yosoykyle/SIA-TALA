@@ -420,6 +420,24 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 
 .school-identity-copy { min-width: 0; }
 
+.hero-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+}
+
+.hero-fact {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 1rem;
+    background: rgb(255 255 255 / 6%);
+}
+
+.hero-fact dt { color: var(--landing-hero-muted); font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
+.hero-fact dd { margin: 0.25rem 0 0; color: #ffffff; font-size: 1.0625rem; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+
 .display-headline {
     font-size: clamp(2.5rem, 5vw, 4.25rem);
     font-weight: 700;
@@ -457,6 +475,8 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 }
 
 .update-card {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
     padding: 1.5rem;
     border: 1px solid rgb(255 255 255 / 16%);
@@ -474,7 +494,7 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
     flex-wrap: wrap;
     align-items: center;
     gap: 0.25rem 0.5rem;
-    margin: 0 0 1rem;
+    margin: 0 0 0.875rem;
     font-size: 0.8125rem;
     font-weight: 650;
 }
@@ -498,8 +518,11 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 
 .admission-grid {
     display: grid;
+    flex: 1 1 auto;
     grid-template-columns: minmax(0, 1fr);
-    gap: 1.25rem 2rem;
+    /* Slides share the tallest slide's height; spare height sits between the message and its links, never under them. */
+    align-content: space-between;
+    gap: 1rem 2rem;
 }
 
 /* Enhanced stack: every card shares one grid cell so the stack keeps the tallest card's height. */
@@ -604,6 +627,8 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
     display: flex;
     flex-wrap: wrap;
     gap: 0 1.25rem;
+    /* Keep 44px touch targets while letting the link text, not the target box, set the card's optical edge. */
+    margin-block: -0.625rem;
 }
 
 .hero-inline-link {
@@ -636,9 +661,11 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
     margin-inline-start: auto;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.4rem;
+    width: 2.75rem;
     min-height: 2.75rem;
-    padding: 0 0.875rem;
+    padding: 0;
     border: 1px solid rgb(255 255 255 / 30%);
     border-radius: 999px;
     background-color: rgb(255 255 255 / 6%);
@@ -656,6 +683,7 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 /* Sections */
 .section-block { padding-block: clamp(3.5rem, 7vw, 6rem); }
 .programs-section { background: var(--landing-programs-canvas); }
+.about-section { background: var(--tala-surface); }
 
 .faq-section { background: var(--tala-surface); }
 .institution-section { background: var(--landing-visit-canvas); }
@@ -776,9 +804,9 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 body .btn:focus-visible,
 body .navbar-toggler:focus-visible { outline: 0.2rem solid var(--tala-focus); outline-offset: 0.2rem; }
 .program-read-more { grid-column: 2; padding-block: 0.5rem; justify-self: start; }
-.program-detail { max-width: 65ch; padding-block: 1rem; }
-.program-detail h3 { margin-block: 1.5rem 0.75rem; font-size: 1.5rem; }
-.program-detail .program-facts { gap: 0.75rem 1.5rem; margin-block-end: 1rem; }
+.program-detail-modal .program-facts { display: grid; gap: 0.75rem; margin-block-end: 1rem; }
+.program-detail-modal .program-fact { display: flex; flex-wrap: wrap; gap: 0 0.5rem; }
+.program-detail-modal .modal-body > p { color: var(--tala-muted); line-height: 1.6; }
 
 .program-empty {
     grid-column: 1 / -1;
@@ -804,8 +832,6 @@ body .navbar-toggler:focus-visible { outline: 0.2rem solid var(--tala-focus); ou
 .discovery-intro,
 .discovery-content { min-width: 0; }
 .discovery-intro > .btn { margin-block-start: 1.5rem; }
-
-.faq-section--compact { padding-block: clamp(2rem, 4vw, 3rem); }
 
 .faq-help {
     display: grid;
@@ -894,9 +920,12 @@ body .navbar-toggler:focus-visible { outline: 0.2rem solid var(--tala-focus); ou
     margin: 1.75rem 0 0;
 }
 
-.visit-fact dt { display: flex; align-items: center; gap: 0.4rem; color: var(--tala-muted); font-size: 0.8125rem; font-weight: 600; }
-.visit-fact dt .tala-public-icon { color: var(--landing-accent); }
-.visit-fact dd { margin: 0.125rem 0 0; font-size: 1.125rem; font-variant-numeric: tabular-nums; }
+/* Visit fact headings ("Address", "Nearby landmarks") share one size, a step above the facts they introduce. */
+.visit-fact dt,
+.visit-subtitle { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.5rem; color: var(--tala-ink); font-size: 1.125rem; font-weight: 650; line-height: 1.4; }
+.visit-fact dt .tala-public-icon,
+.visit-subtitle .tala-public-icon { width: 1.25rem; height: 1.25rem; flex: 0 0 auto; color: var(--landing-accent); }
+.visit-fact dd { margin: 0; font-size: 1rem; line-height: 1.55; font-variant-numeric: tabular-nums; }
 .visit-fact .text-link { display: inline-flex; align-items: center; min-height: 2.75rem; }
 .institution-address { font-style: normal; color: var(--tala-ink); }
 
@@ -906,6 +935,87 @@ body .navbar-toggler:focus-visible { outline: 0.2rem solid var(--tala-focus); ou
     gap: 0.75rem;
     margin-top: 1.5rem;
 }
+
+
+.visit-landmarks { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--tala-border); }
+.visit-landmarks__list { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.visit-landmarks__list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 1rem; color: var(--tala-ink); font-size: 1rem; line-height: 1.55; }
+.visit-landmarks__time { color: var(--tala-muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* About SIA (#61 F100): copy column beside a campus-photo frame; placeholder text until approved school copy arrives. */
+.about-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2.5rem; align-items: center; }
+.about-copy { min-width: 0; }
+.about-lead { max-width: 60ch; margin: 1rem 0 0; color: var(--tala-muted); font-size: 1.125rem; line-height: 1.65; }
+.about-objectives { margin-top: 1.75rem; padding: 1.375rem 1.5rem 1.5rem; border: 1px solid var(--tala-border); border-radius: var(--tala-radius-lg); background: var(--tala-surface-muted); color: var(--tala-muted); }
+.about-objectives__title { margin: 0; color: var(--landing-accent); font-size: 1.0625rem; font-weight: 650; line-height: 1.4; }
+.about-objectives__intro { margin: 0.375rem 0 0; line-height: 1.6; }
+.about-objectives__list { display: grid; gap: 0.625rem; margin: 0.875rem 0 0; padding-inline-start: 1.25rem; color: var(--tala-ink); line-height: 1.55; }
+.about-objectives__list li::marker { color: var(--landing-accent); }
+.about-aside { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+/* Three equal columns span the photo's width so the facts read as its caption row. */
+.about-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 1rem 1.5rem; margin: 0; padding-top: 1.25rem; border-top: 1px solid var(--tala-border); }
+.about-fact dt { color: var(--tala-muted); font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
+.about-fact dd { margin: 0.25rem 0 0; color: var(--tala-ink); font-size: 1.0625rem; font-weight: 650; line-height: 1.35; }
+.about-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
+.about-media {
+    display: grid;
+    place-items: center;
+    min-height: 14rem;
+    overflow: hidden;
+    border-radius: var(--tala-radius-lg);
+    background:
+        radial-gradient(120% 90% at 20% 0%, rgb(255 255 255 / 10%), transparent 60%),
+        linear-gradient(160deg, #1d4f27 0%, #0f2e18 100%);
+}
+.about-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Visitor guidelines band: campus photo frame beside three fact cards. */
+.visit-guidelines {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    margin-top: 3rem;
+    padding: 1.5rem;
+    border: 1px solid var(--tala-border);
+    border-radius: var(--tala-radius-lg);
+    background: var(--tala-surface-muted);
+}
+
+.visit-guidelines__media {
+    display: grid;
+    place-items: center;
+    min-height: 14rem;
+    overflow: hidden;
+    border-radius: calc(var(--tala-radius-lg) - 0.25rem);
+    background:
+        radial-gradient(120% 90% at 20% 0%, rgb(255 255 255 / 10%), transparent 60%),
+        linear-gradient(160deg, #1d4f27 0%, #0f2e18 100%);
+}
+
+.visit-guidelines__media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.visit-guidelines__title { margin: 0 0 1rem; color: var(--tala-ink); font-size: 1.375rem; font-weight: 700; line-height: 1.3; text-wrap: balance; }
+.visit-guidelines__cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+
+.visit-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.25rem;
+    border: 1px solid var(--tala-border);
+    border-radius: var(--tala-radius-lg);
+    background: var(--tala-surface);
+    box-shadow: var(--tala-rim-inset), var(--tala-shadow-surface);
+    color: var(--tala-muted);
+}
+
+.visit-card__icon { width: 1.5rem; height: 1.5rem; color: var(--landing-accent); }
+.visit-card__title { margin: 0.25rem 0 0; color: var(--tala-ink); font-size: 1.0625rem; font-weight: 650; line-height: 1.4; }
+.visit-card__lead { margin: 0; line-height: 1.55; }
+.visit-card__strong { color: var(--tala-ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+.visit-card__note { margin: 0; font-size: 0.875rem; }
+.visit-card__list { display: grid; gap: 0.375rem; margin: 0; padding-inline-start: 1.125rem; }
+.visit-card__list li::marker { color: var(--landing-accent); }
+.visit-card__action { align-self: flex-start; margin-top: auto; }
 
 .institution-map {
     display: block;
@@ -1189,25 +1299,37 @@ button.btn-scroll-top { transition: opacity 160ms ease, transform 160ms ease, bo
 }
 
 @media (min-width: 48rem) {
+    .visit-guidelines__cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .school-identity {
-        grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr);
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.5fr) minmax(0, 0.9fr);
         align-items: center;
         gap: 3rem;
         padding-block: 1rem 3.5rem;
     }
 
     .school-identity-crest { justify-self: center; }
+    .hero-facts { grid-template-columns: minmax(0, 1fr); }
     .discovery-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 3rem; }
     .faq-help { grid-template-columns: auto minmax(0, 1fr) auto; padding: 1.5rem 1.75rem; }
     .faq-help > .btn { grid-column: auto; }
 }
 
 @media (min-width: 62rem) {
-    .admission-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.2fr); align-items: center; gap: 2rem; }
-    .update-card { padding: 1.5rem 2rem; }
+    .about-layout { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 4rem; }
+    .about-layout { align-items: stretch; }
+    .about-copy { align-self: center; }
+    .about-media { flex: 1 1 auto; min-height: 20rem; }
+    .admission-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.2fr); align-content: center; align-items: center; gap: 2rem; }
+    /* Without a deadline fact the card has two blocks: message at the start, entry links on one line at the end. */
+    .admission-grid:not(:has(.admission-deadline)) { grid-template-columns: minmax(0, 1fr) auto; }
+    .admission-grid:not(:has(.admission-deadline)) .admission-links { flex-wrap: nowrap; gap: 0 1.75rem; }
+    .update-card { padding: 1.75rem 2rem; }
     .admission-entry { align-items: flex-end; text-align: end; }
     .admission-links { justify-content: flex-end; }
     .visit-layout { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3rem; align-items: stretch; }
+    .visit-guidelines { grid-template-columns: minmax(0, 5fr) minmax(0, 12fr); gap: 2rem; padding: 1.75rem; align-items: stretch; }
+    .visit-guidelines__media { min-height: 100%; }
+    .visit-guidelines__cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .institution-map { height: 100%; min-height: 28rem; }
     .footer-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 3rem; }
 }

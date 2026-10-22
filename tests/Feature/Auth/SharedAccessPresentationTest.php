@@ -26,13 +26,13 @@ class SharedAccessPresentationTest extends TestCase
 
         $this->assertStringContainsString('Servitech', $panel->getBrandLogo()->render());
         $this->assertStringNotContainsString('Applicant Workspace', (string) FilamentView::renderHook(PanelsRenderHook::SIDEBAR_NAV_START));
-        $this->assertStringContainsString('servitech-crest.webp', (string) FilamentView::renderHook(PanelsRenderHook::CONTENT_START));
+        $this->assertStringContainsString('servitech-crest.webp', (string) FilamentView::renderHook(PanelsRenderHook::CONTENT_BEFORE));
         foreach ([PanelsRenderHook::SIDEBAR_FOOTER, PanelsRenderHook::CONTENT_END, PanelsRenderHook::SIMPLE_PAGE_END] as $hook) {
             $this->assertStringNotContainsString('Powered by TALA', (string) FilamentView::renderHook($hook));
         }
     }
 
-    public function test_signed_in_applicant_panel_shows_the_escaped_name_once_in_each_identity_context(): void
+    public function test_signed_in_applicant_panel_shows_the_escaped_name_once_in_the_top_bar(): void
     {
         Role::findOrCreate('applicant', 'web');
         $applicant = User::factory()->create(User::staffNamePayload('Ada', null, '<Applicant>'));
@@ -40,8 +40,12 @@ class SharedAccessPresentationTest extends TestCase
         $this->actingAs($applicant);
         $panel = $this->bootPanel('applicant');
 
-        foreach (['sidebar brand' => $panel->getBrandLogo()->render(), PanelsRenderHook::CONTENT_START => (string) FilamentView::renderHook(PanelsRenderHook::CONTENT_START)] as $context => $markup) {
-            $this->assertSame(1, substr_count($markup, 'Ada &lt;Applicant&gt;'), $context.' for '.$applicant->getFilamentName());
+        $sidebarBrand = $panel->getBrandLogo()->render();
+        $topBar = (string) FilamentView::renderHook(PanelsRenderHook::CONTENT_BEFORE);
+
+        $this->assertStringNotContainsString('Ada', $sidebarBrand);
+        $this->assertSame(1, substr_count($topBar, 'Ada &lt;Applicant&gt;'));
+        foreach ([$sidebarBrand, $topBar] as $markup) {
             $this->assertStringNotContainsString('Ada <Applicant>', $markup);
             $this->assertStringNotContainsString('Applicant Workspace', $markup);
         }

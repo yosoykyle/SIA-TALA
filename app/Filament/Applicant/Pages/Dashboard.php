@@ -4,14 +4,18 @@ namespace App\Filament\Applicant\Pages;
 
 use App\Actions\Admissions\AdmissionNotificationLedger;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
-use App\Actions\Admissions\DiscardAdmissionApplication;
+use App\Actions\Admissions\ResolveAdmissionRequirementSet;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Finance\StudentTermAccountPresenter;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
+use App\Models\AdmissionRequirement;
+use App\Models\ApplicationCorrectionRequest;
 use App\Models\Enrollment;
 use App\Models\OperationalEvent;
+use App\Models\PreliminaryEvidenceReview;
 use App\Models\Program;
+use App\Models\PublicNotice;
 use App\Models\RegistrationProposalVersion;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
@@ -24,7 +28,10 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
@@ -65,30 +72,6 @@ class Dashboard extends BaseDashboard implements HasTable
     protected function getHeaderActions(): array
     {
         $actions = [
-            Action::make('discardDraft')
-                ->label('Discard draft')
-                ->icon('heroicon-o-trash')
-                ->color('danger')
-                ->outlined()
-                ->requiresConfirmation()
-                ->modalSubmitActionLabel('Discard draft')
-                ->modalDescription('Only this unsubmitted draft and its temporary uploads will be removed. Submitted history is never deleted.')
-                ->visible(function (): bool {
-                    $application = $this->currentApplication();
-
-                    return $application instanceof AdmissionApplication
-                        && $application->application_state === AdmissionApplication::StateDraft
-                        && $application->current_submission_version_id === null;
-                })
-                ->action(function (): void {
-                    $application = $this->currentApplication();
-                    $applicant = Auth::user();
-                    abort_unless($application instanceof AdmissionApplication && $applicant instanceof User, 404);
-
-                    app(DiscardAdmissionApplication::class)->execute($application, $applicant);
-                    Notification::make()->title('Draft discarded')->success()->send();
-                    $this->redirect(self::getUrl());
-                }),
             Action::make('openEnrollment')
                 ->label('Open enrollment')
                 ->icon('heroicon-o-academic-cap')
@@ -186,7 +169,7 @@ class Dashboard extends BaseDashboard implements HasTable
                     ->description(function (AdmissionApplication $record): string {
                         $program = $record->getRelation('program');
 
-                        return $program instanceof Program ? $program->name : 'Program not selected';
+                        return $program instanceof Program ? Program::applicantName($program->name) : 'Program not selected';
                     })
                     ->wrap(),
                 TextColumn::make('application_path')
@@ -317,6 +300,294 @@ class Dashboard extends BaseDashboard implements HasTable
             AdmissionApplication::StateWithdrawn => 'gray',
             default => 'info',
         };
+    }
+
+    /**
+     * The five factual admission stages shown on Home, derived from existing records without new stored states.
+     *
+     * A stage may carry `statusText` to replace the generic status word, such as "Not started" before any application exists.
+     *
+     * @return list<array{label: string, status: 'completed'|'current'|'pending'|'unavailable', detail: string, statusText?: string}>
+     */
+    public function journeyStages(?AdmissionApplication $application): array
+    {
+        $labels = ['Application', 'Requirements', 'Registrar review', 'Admission decision', 'Enrollment clearance'];
+
+        if (! $application instanceof AdmissionApplication) {
+            return collect($labels)->map(fn (string $label, int $index): array => $index === 0
+                ? ['label' => $label, 'status' => 'current', 'detail' => 'Not started', 'statusText' => 'Not started']
+                : ['label' => $label, 'status' => 'pending', 'detail' => 'Pending'])->all();
+        }
+
+        $projection = $this->readinessProjection($application);
+        $query = app(ReadyApplicantProjectionQuery::class);
+        $isSubmitted = $application->currentSubmissionVersion !== null;
+        $currentDecision = $application->decisions->firstWhere('id', $projection['decision_id']);
+        $isNotAdmitted = $application->application_state === AdmissionApplication::StateNotAdmitted;
+
+        $completed = [
+            $isSubmitted,
+            $isSubmitted && $query->preliminaryReviewIsComplete($application),
+            $currentDecision !== null,
+            $currentDecision !== null,
+            (bool) $projection['ready'],
+        ];
+        $details = [
+            $isSubmitted ? 'Submitted' : 'Not submitted',
+            $completed[1] ? 'Required copies accepted' : ($isSubmitted ? 'Registrar is checking your copies' : 'Upload with your application'),
+            $currentDecision !== null ? 'Review complete' : ($isSubmitted ? ($application->reviewHasStarted() ? 'Registrar is reviewing' : 'Waiting for review') : 'After you submit'),
+            $currentDecision !== null ? str($currentDecision->decision)->headline().' · '.$currentDecision->decided_at?->timezone(config('app.display_timezone'))->format('M j, Y') : 'Pending',
+            $projection['clearance_result'] ? str($projection['clearance_result'])->headline()->toString() : 'Pending',
+        ];
+
+        $currentIndex = collect($completed)->search(false);
+        $stops = in_array($application->application_state, [AdmissionApplication::StateNotAdmitted, AdmissionApplication::StateWithdrawn], true);
+
+        return collect($labels)->map(function (string $label, int $index) use ($completed, $details, $currentIndex, $stops, $isNotAdmitted): array {
+            $status = match (true) {
+                $completed[$index] => 'completed',
+                $stops => 'unavailable',
+                $index === $currentIndex => 'current',
+                default => 'pending',
+            };
+
+            return [
+                'label' => $label,
+                'status' => $status,
+                'detail' => $status === 'unavailable' ? ($isNotAdmitted ? 'Not applicable' : 'Stopped') : $details[$index],
+            ];
+        })->all();
+    }
+
+    /**
+     * The 1-based stage the Applicant is on: the stage in progress, the last completed stage when the journey stopped,
+     * or the last stage when all are done.
+     *
+     * @param  list<array{label: string, status: string, detail: string}>  $stages
+     */
+    public function journeyStepNumber(array $stages): int
+    {
+        $stages = collect($stages);
+        $current = $stages->search(fn (array $stage): bool => $stage['status'] === 'current');
+
+        if ($current !== false) {
+            return $current + 1;
+        }
+
+        $lastCompleted = $stages->keys()->filter(fn (int $index): bool => $stages[$index]['status'] === 'completed')->last();
+
+        return $lastCompleted === null ? 1 : $lastCompleted + 1;
+    }
+
+    /**
+     * One plain-language sentence naming the current situation and the office that acts next.
+     */
+    public function statusExplanation(AdmissionApplication $application): string
+    {
+        $query = app(ReadyApplicantProjectionQuery::class);
+
+        if ($application->application_state === AdmissionApplication::StateAdmitted) {
+            $projection = $this->readinessProjection($application);
+
+            return match (true) {
+                (bool) $projection['ready'] => 'You are admitted and cleared by the Registrar for enrollment.',
+                $projection['clearance_result'] === 'ActionNeeded' => 'You are admitted. The Registrar needs something from you before enrollment clearance.',
+                default => 'You are admitted. The Registrar is completing your enrollment clearance after the school\'s checks.',
+            };
+        }
+
+        return match ($application->application_state) {
+            AdmissionApplication::StateDraft => $query->draftCycleIsOpen($application)
+                ? 'Not yet submitted. Finish and submit your application before applications close.'
+                : 'Not submitted. This admission cycle is closed, so you can only inspect or discard this draft.',
+            AdmissionApplication::StateSubmitted => $application->allowsSubmittedEdit()
+                ? 'Awaiting Registrar review. You can still update your application until the Registrar starts reviewing it.'
+                : 'The Registrar is reviewing your application.',
+            AdmissionApplication::StateActionNeeded => 'The Registrar asked you to correct part of your application.',
+            AdmissionApplication::StateNotAdmitted => 'The Registrar recorded an admission decision. Read the explanation in your journey.',
+            AdmissionApplication::StateWithdrawn => 'This application was withdrawn. Contact the Registrar if it needs to be reopened.',
+            default => 'Contact the Registrar about this application.',
+        };
+    }
+
+    /**
+     * Dates the Applicant can rely on, taken only from the Admission Cycle and an active correction.
+     *
+     * @return list<array{label: string, value: string}>
+     */
+    public function importantDates(AdmissionApplication $application): array
+    {
+        $format = fn ($instant): string => $instant->timezone(config('app.display_timezone'))->format('M j, Y, g:i A').' (Asia/Manila)';
+        $cycle = $application->admissionCycle;
+        $correction = $application->correctionRequests
+            ->where('state', ApplicationCorrectionRequest::StateActive)
+            ->sortByDesc('sequence')
+            ->first();
+
+        return array_values(array_filter([
+            $cycle?->opens_at ? ['label' => 'Applications open', 'value' => $format($cycle->opens_at)] : null,
+            $cycle?->closes_at ? ['label' => 'Applications close', 'value' => $format($cycle->closes_at)] : null,
+            $correction?->due_at ? ['label' => $correction->isOverdue() ? 'Correction overdue since' : 'Correction due', 'value' => $format($correction->due_at)] : null,
+            ['label' => 'Decision', 'value' => 'The Registrar reviews submitted applications. You will get an email when there is an update.'],
+        ]));
+    }
+
+    public function getHeading(): string
+    {
+        $firstName = Auth::user()?->first_name ?: $this->currentApplication()?->first_name;
+
+        return filled($firstName) ? "Hi, {$firstName}!" : 'Hi there!';
+    }
+
+    public function getSubheading(): string
+    {
+        return "Here's what's happening with your application.";
+    }
+
+    /**
+     * Places the greeting and any header actions in a decorated card on Home only.
+     */
+    public function getHeader(): ?View
+    {
+        return view('filament.applicant.components.home-greeting', [
+            'heading' => $this->getHeading(),
+            'subheading' => $this->getSubheading(),
+            'actions' => $this->getCachedHeaderActions(),
+            'actionsAlignment' => $this->getHeaderActionsAlignment(),
+        ]);
+    }
+
+    /**
+     * The nearest deadline that applies to the Applicant now: an active correction, else the open intake's closing time.
+     *
+     * @return array{label: string, value: ?string, note: string}
+     */
+    public function applicationDeadline(?AdmissionApplication $application): array
+    {
+        $format = fn ($instant): string => $instant->timezone(config('app.display_timezone'))->format('M j, Y, g:i A');
+        $correction = $application?->correctionRequests
+            ->where('state', ApplicationCorrectionRequest::StateActive)
+            ->sortByDesc('sequence')
+            ->first();
+
+        if ($correction?->due_at) {
+            return [
+                'label' => $correction->isOverdue() ? 'Correction overdue' : 'Correction due',
+                'value' => $format($correction->due_at),
+                'note' => $correction->isOverdue() ? 'Still accepted. Respond as soon as you can.' : 'Asia/Manila time',
+            ];
+        }
+
+        if (! $application instanceof AdmissionApplication) {
+            $closesAt = AdmissionCycle::query()
+                ->where('state', AdmissionCycle::StatePublished)
+                ->where('opens_at', '<=', now())
+                ->where('closes_at', '>', now())
+                ->orderBy('closes_at')
+                ->value('closes_at');
+
+            return $closesAt
+                ? ['label' => 'Applications close', 'value' => $format(Carbon::parse($closesAt)), 'note' => 'Asia/Manila time']
+                : ['label' => 'Applications close', 'value' => null, 'note' => 'No admission cycle is open right now.'];
+        }
+
+        if ($application->application_state === AdmissionApplication::StateDraft && $application->admissionCycle?->closes_at) {
+            return app(ReadyApplicantProjectionQuery::class)->draftCycleIsOpen($application)
+                ? ['label' => 'Applications close', 'value' => $format($application->admissionCycle->closes_at), 'note' => 'Submit before this time (Asia/Manila).']
+                : ['label' => 'Applications closed', 'value' => $format($application->admissionCycle->closes_at), 'note' => 'This draft can no longer be submitted.'];
+        }
+
+        $closesAt = $application->admissionCycle?->closes_at;
+        if ($application->application_state === AdmissionApplication::StateSubmitted && $closesAt?->isFuture()) {
+            return ['label' => 'Applications close', 'value' => $format($closesAt), 'note' => $application->allowsSubmittedEdit()
+                ? 'You can still update your application until review starts (Asia/Manila).'
+                : 'Asia/Manila time'];
+        }
+
+        return ['label' => 'Next deadline', 'value' => null, 'note' => 'Nothing is due from you right now.'];
+    }
+
+    /**
+     * The preliminary copies the Applicant's requirement set asks for, with their current state.
+     * Submitted applications reuse the Requirements page rows so both pages always agree.
+     *
+     * @return array{items: list<array{label: string, state: string, color: string}>, url: ?string, linkLabel: string}
+     */
+    public function requirementChecklist(?AdmissionApplication $application): array
+    {
+        if (! $application instanceof AdmissionApplication) {
+            return ['items' => [], 'url' => null, 'linkLabel' => ''];
+        }
+
+        if ($application->currentSubmissionVersion !== null) {
+            $items = collect(app(Requirements::class)->preliminaryRows($application))
+                ->map(fn (array $row): array => [
+                    'label' => $row['requirement']->label,
+                    ...match ($row['result']) {
+                        PreliminaryEvidenceReview::ResultAccepted => ['state' => 'Accepted', 'color' => 'success'],
+                        PreliminaryEvidenceReview::ResultActionNeeded => ['state' => 'Needs action', 'color' => 'warning'],
+                        'NotSubmitted' => ['state' => 'Not submitted', 'color' => 'gray'],
+                        default => ['state' => 'Submitted', 'color' => 'info'],
+                    },
+                ])->all();
+
+            return ['items' => $items, 'url' => Requirements::getUrl(['application' => $application->id]), 'linkLabel' => 'View requirements'];
+        }
+
+        try {
+            $requirements = app(ResolveAdmissionRequirementSet::class)->forApplication($application)->requirements
+                ->where('requires_preliminary_evidence', true)
+                ->sortBy('display_order');
+        } catch (ValidationException) {
+            $requirements = collect();
+        }
+
+        $items = $requirements->map(fn (AdmissionRequirement $requirement): array => $application->evidenceVersions->contains('admission_requirement_id', $requirement->id)
+            ? ['label' => $requirement->label, 'state' => 'Uploaded', 'color' => 'info']
+            : ['label' => $requirement->label, 'state' => 'Not uploaded', 'color' => 'gray'])->values()->all();
+
+        return ['items' => $items, 'url' => Application::getUrl(['application' => $application->id]), 'linkLabel' => 'Upload in your application'];
+    }
+
+    /**
+     * Effective school announcements, read from the same source as the public site.
+     *
+     * @return Collection<int, PublicNotice>
+     */
+    public function schoolAnnouncements(): Collection
+    {
+        return PublicNotice::query()->effective()->orderBy('display_order')->orderBy('id')->limit(3)->get();
+    }
+
+    /**
+     * The published support contact for the Applicant's cycle, or the open cycle when no application exists.
+     *
+     * @return array{text: string, href: ?string}|null
+     */
+    public function supportContact(?AdmissionApplication $application): ?array
+    {
+        $contact = trim((string) ($application?->admissionCycle?->support_contact ?? AdmissionCycle::query()
+            ->where('state', AdmissionCycle::StatePublished)
+            ->where('opens_at', '<=', now())
+            ->where('closes_at', '>', now())
+            ->value('support_contact')));
+
+        if ($contact === '') {
+            return null;
+        }
+
+        $dialable = preg_replace('/[\s()-]/', '', $contact);
+
+        // AC10: the published contact is always a link; text that is not an address, phone or HTTPS link opens school support.
+        return [
+            'text' => $contact,
+            'href' => match (true) {
+                filter_var($contact, FILTER_VALIDATE_EMAIL) !== false => 'mailto:'.$contact,
+                filter_var($contact, FILTER_VALIDATE_URL) !== false && str_starts_with($contact, 'https://') => $contact,
+                preg_match('/^\+?\d{7,15}$/', (string) $dialable) === 1 => 'tel:'.$dialable,
+                default => route('home', ['modal' => 'support']),
+            },
+        ];
     }
 
     public function responsibleParty(AdmissionApplication $application): string

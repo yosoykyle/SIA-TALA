@@ -57,8 +57,14 @@ class ApplicantWorkspaceTest extends TestCase
             ->assertSee('Servitech Institute Asia')
             ->assertDontSee('Applicant Workspace')
             ->assertDontSee('Powered by TALA')
-            ->assertSee('No application yet')
-            ->assertSee('Current and earlier applications');
+            ->assertDontSee('Current and earlier applications');
+
+        $this->actingAs($user)
+            ->get('/applicant/history')
+            ->assertOk()
+            ->assertSee("Applicant's History")
+            ->assertSee('Current and earlier applications')
+            ->assertSee('No application yet');
     }
 
     public function test_requirements_empty_state_explains_its_version_boundary_and_links_to_application(): void
@@ -152,8 +158,9 @@ class ApplicantWorkspaceTest extends TestCase
             ->assertOk()
             ->assertSee('APP-2026-TEST-001')
             ->assertSee('Submitted')
-            ->assertSee('Preliminary copies')
-            ->assertSee('Registrar clearance')
+            ->assertSee('Requirements')
+            ->assertSee('Enrollment clearance')
+            ->assertDontSee('Preliminary copies')
             ->assertDontSee('Student Record Created');
 
         $this->actingAs($user)

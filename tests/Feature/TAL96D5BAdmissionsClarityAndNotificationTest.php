@@ -37,8 +37,9 @@ class TAL96D5BAdmissionsClarityAndNotificationTest extends TestCase
 
         Livewire::actingAs($applicant)
             ->test(Dashboard::class)
-            ->assertSee('No application yet')
-            ->assertSee('Start an application for an open admission cycle.')
+            ->assertSee('Not started')
+            ->assertSee('Applications are currently closed. Check the school home page for the next admission cycle.')
+            ->assertDontSee('Start application')
             ->assertDontSee('Approved for handover')
             ->assertDontSee('payment unlock');
     }

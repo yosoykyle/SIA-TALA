@@ -62,8 +62,8 @@ class Issue57AdmissionsExplorationSeederTest extends TestCase
         $this->assertSame('Synthetic Parent', $minor->guardian_full_name);
         $als = $applications->first(fn (AdmissionApplication $candidate): bool => $candidate->user->email === 'applicant.als.demo@example.test');
         $this->assertSame('ALS_AE', $als->credential_basis);
-        $this->assertSame('NotAvailable', $als->lrn_availability);
-        $this->assertNull($als->lrn);
+        $this->assertSame('Provided', $als->lrn_availability);
+        $this->assertMatchesRegularExpression('/^\d{12}$/', (string) $als->lrn);
         $this->assertSame(AdmissionApplication::StateSubmitted, $als->application_state);
         $this->assertSame(AdmissionCycle::StatePublished, $cycle->state);
 

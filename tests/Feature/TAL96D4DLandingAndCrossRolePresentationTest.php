@@ -153,7 +153,7 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
 
         $this->assertIsString($landing);
         $this->assertIsString($styles);
-        $this->assertStringContainsString('Open in Google Maps', $landing);
+        $this->assertStringContainsString('Get directions', $landing);
         $this->assertStringContainsString('loading="lazy"', $landing);
         $this->assertStringContainsString('referrerpolicy="strict-origin-when-cross-origin"', $landing);
         $this->assertStringNotContainsString('.btn { margin-top:', $styles);

@@ -306,10 +306,14 @@ class Application extends Page
                                                 }
                                             }
                                         })->columnSpanFull(),
-                                    TextInput::make('gender')->label('Sex (optional)')->maxLength(40)
+                                    Select::make('gender')->label('Sex (optional)')
+                                        ->options(fn (Get $get): array => $this->optionsKeepingRecordedValue(AdmissionApplication::SexChoices, $get('gender')))
+                                        ->placeholder('Select sex')
                                         ->visible(fn (Get $get): bool => $get('optional_identity_consent') === true)
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('gender')),
-                                    TextInput::make('civil_status')->label('Civil status (optional)')->maxLength(40)
+                                    Select::make('civil_status')->label('Civil status (optional)')
+                                        ->options(fn (Get $get): array => $this->optionsKeepingRecordedValue(AdmissionApplication::CivilStatusChoices, $get('civil_status')))
+                                        ->placeholder('Select civil status')
                                         ->visible(fn (Get $get): bool => $get('optional_identity_consent') === true)
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('civil_status')),
                                 ])
@@ -411,20 +415,17 @@ class Application extends Page
                                         ])
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('prior_school_completion_year'))
                                         ->required(fn (Get $get): bool => ! $this->savingDraft && $get('application_path') !== AdmissionApplication::PathTransferee),
-                                    Radio::make('lrn_availability')->label('LRN availability')
-                                        ->options(['Provided' => 'Provided — I have my LRN', 'NotIssued' => 'Not issued', 'NotAvailable' => 'Not available'])
-                                        ->live()->afterStateUpdated(function (Set $set, ?string $state): void {
-                                            if ($state !== 'Provided') {
-                                                $set('lrn', null);
-                                            }
-                                        })
-                                        ->disabled(fn (): bool => ! $this->fieldIsEditable('lrn_availability'))
-                                        ->required(fn (): bool => ! $this->savingDraft),
-                                    TextInput::make('lrn')->label('LRN')->inputMode('numeric')
+                                    Hidden::make('lrn_availability')
+                                        ->dehydrateStateUsing(fn (Get $get, ?string $state): ?string => filled($get('lrn')) ? 'Provided' : $state)
+                                        ->disabled(fn (): bool => ! $this->fieldIsEditable('lrn_availability')),
+                                    TextInput::make('lrn')->label('Learner Reference Number (LRN)')->inputMode('numeric')
+                                        ->helperText('12 digits, including leading zeroes. It appears on your Form 137/138 or senior high school records.')
                                         ->regex('/^\\d{12}$/')->maxLength(12)
-                                        ->validationMessages(['regex' => 'Enter exactly 12 digits, including leading zeroes.'])
-                                        ->visible(fn (Get $get): bool => $get('lrn_availability') === 'Provided')
-                                        ->required(fn (Get $get): bool => ! $this->savingDraft && $get('lrn_availability') === 'Provided')
+                                        ->validationMessages(['regex' => 'Enter exactly 12 digits, including leading zeroes.', 'required' => 'Enter your 12-digit LRN.'])
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(fn (Set $set, ?string $state) => filled($state) ? $set('lrn_availability', 'Provided') : null)
+                                        ->required(fn (Get $get): bool => ! $this->savingDraft
+                                            && ($this->currentApplication()?->current_submission_version_id === null || $get('lrn_availability') === 'Provided'))
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('lrn')),
                                     TextInput::make('prior_college_identifier')
                                         ->label('Prior-college identifier (when available)')
@@ -463,67 +464,77 @@ class Application extends Page
                         ->icon(Heroicon::OutlinedCheckCircle)
                         ->schema([
                             Section::make($this->preparesDraftForApplicant() ? 'Check the Applicant draft' : 'Check your application before submitting')
+                                ->description(fn (): string => $this->preparesDraftForApplicant()
+                                    ? 'Check the answers and copies, then save the draft. The Applicant reviews the declarations and submits from their own account.'
+                                    : ($this->isStudentTypeCorrection()
+                                    ? 'Check the marked changes and selected files. Resubmit them together; your previous submission stays unchanged until the update succeeds.'
+                                    : ($this->isCorrectionMode()
+                                    ? 'Check the requested changes, then resubmit. Your application reference stays the same; your previous submission stays unchanged until the correction succeeds.'
+                                    : ($this->isSubmittedEdit()
+                                    ? 'Check your answers and files. Submit the complete update before Registrar review starts; your previous submission stays unchanged until it succeeds.'
+                                    : 'Check your answers and files, then confirm that they are accurate. You will receive a reference after submission.'))))
                                 ->extraAttributes(['class' => 'tala-review-summary'])
                                 ->schema([
-                                    TextEntry::make('review_summary')
-                                        ->label($this->preparesDraftForApplicant() ? 'Before saving' : ($this->isCorrectionMode() ? 'Before resubmitting' : 'Before submitting'))
-                                        ->extraAttributes(['class' => 'tala-review-introduction'])
-                                        ->columnSpanFull()
-                                        ->state(fn (): string => $this->preparesDraftForApplicant()
-                                            ? 'Check the answers and copies, then save the draft. The Applicant reviews the declarations and submits from their own account.'
-                                            : ($this->isStudentTypeCorrection()
-                                            ? 'Check the marked changes and selected files. Resubmit them together; your previous submission stays unchanged until the update succeeds.'
-                                            : ($this->isCorrectionMode()
-                                            ? 'Check the requested changes, then resubmit. Your application reference stays the same; your previous submission stays unchanged until the correction succeeds.'
-                                            : ($this->isSubmittedEdit()
-                                            ? 'Check your answers and files. Submit the complete update before Registrar review starts; your previous submission stays unchanged until it succeeds.'
-                                            : 'Check your answers and files, then confirm that they are accurate. You will receive a reference after submission.')))),
-                                    TextEntry::make('review_choice')->label('Application choice')->listWithLineBreaks()
+                                    $this->reviewCard('Application choice', Heroicon::OutlinedAcademicCap, TextEntry::make('review_choice')
                                         ->state(fn (Get $get): array => [
-                                            $this->programOptions((int) $get('admission_cycle_id'), (string) $get('application_path'))[(int) $get('program_id')] ?? 'Program not selected',
-                                            AdmissionCycle::studentTypeLabel((string) $get('application_path')),
-                                        ]),
-                                    TextEntry::make('review_identity')->label('Personal information')->listWithLineBreaks()
+                                            'Program: '.($this->programOptions((int) $get('admission_cycle_id'), (string) $get('application_path'))[(int) $get('program_id')] ?? 'Not selected'),
+                                            'Student type: '.AdmissionCycle::studentTypeLabel((string) $get('application_path')),
+                                        ])),
+                                    $this->reviewCard('Personal information', Heroicon::OutlinedUser, TextEntry::make('review_identity')
                                         ->state(fn (Get $get): array => [
-                                            collect([$get('first_name'), $get('middle_name'), $get('last_name'), $get('extension_name')])->filter()->implode(' '),
+                                            'Full name: '.collect([$get('first_name'), $get('middle_name'), $get('last_name'), $get('extension_name')])->filter()->implode(' '),
                                             'Date of birth: '.$get('birth_date'),
                                             'Citizenship: '.($get('citizenship_country_code') === 'PH' ? 'Philippines' : $get('citizenship_country_code')),
-                                        ]),
-                                    TextEntry::make('review_contact')->label('Contact and address')->listWithLineBreaks()
+                                        ])),
+                                    $this->reviewCard('Contact and address', Heroicon::OutlinedPhone, TextEntry::make('review_contact')
                                         ->state(fn (Get $get): array => array_values(array_filter([
-                                            $get('email'), $get('phone'),
-                                            collect([$get('current_street_address'), $get('current_barangay'), $get('current_city_municipality'), $get('current_province'), $get('current_postal_code')])->filter()->implode(', '),
-                                        ]))),
-                                    TextEntry::make('review_education')->label('Prior education')->listWithLineBreaks()
+                                            filled($get('email')) ? 'Email: '.$get('email') : null,
+                                            filled($get('phone')) ? 'Mobile: '.$get('phone') : null,
+                                            'Current address: '.collect([$get('current_street_address'), $get('current_barangay'), $get('current_city_municipality'), $get('current_province'), $get('current_postal_code')])->filter()->implode(', '),
+                                        ])))),
+                                    $this->reviewCard('Prior education', Heroicon::OutlinedBookOpen, TextEntry::make('review_education')
                                         ->state(fn (Get $get): array => array_values(array_filter([
-                                            $get('prior_school_name'), $get('prior_school_address'),
+                                            filled($get('prior_school_name')) ? 'School: '.$get('prior_school_name') : null,
+                                            filled($get('prior_school_address')) ? 'School address: '.$get('prior_school_address') : null,
                                             'Admission qualification: '.($this->credentialBasisOptions((string) $get('application_path'))[$get('credential_basis')] ?? 'Not selected'),
                                             filled($get('prior_school_completion_year')) ? 'Graduation year: '.$get('prior_school_completion_year') : null,
-                                            'LRN: '.str((string) $get('lrn_availability'))->headline().(filled($get('lrn')) ? ' — '.$get('lrn') : ''),
-                                        ]))),
-                                    TextEntry::make('review_guardian')->label('Parent, guardian or emergency contact')->listWithLineBreaks()
-                                        ->state(fn (Get $get): array => collect([$get('guardian_full_name'), $get('guardian_relationship'), $get('guardian_mobile')])->filter()->values()->all() ?: ['Not provided']),
-                                    TextEntry::make('review_optional_identity')->label('Optional identity details')->listWithLineBreaks()
+                                            'LRN: '.(filled($get('lrn')) ? $get('lrn') : str((string) $get('lrn_availability'))->headline()->whenEmpty(fn () => 'Not entered')),
+                                        ])))),
+                                    $this->reviewCard('Parent, guardian or emergency contact', Heroicon::OutlinedUsers, TextEntry::make('review_guardian')
+                                        ->state(fn (Get $get): array => array_values(array_filter([
+                                            filled($get('guardian_full_name')) ? 'Name: '.$get('guardian_full_name') : null,
+                                            filled($get('guardian_relationship')) ? 'Relationship: '.$get('guardian_relationship') : null,
+                                            filled($get('guardian_mobile')) ? 'Mobile: '.$get('guardian_mobile') : null,
+                                        ])) ?: ['Not provided'])),
+                                    $this->reviewCard('Optional identity details', Heroicon::OutlinedIdentification, TextEntry::make('review_optional_identity')
                                         ->state(fn (Get $get): array => $get('optional_identity_consent') === true
-                                            ? collect([$get('gender'), $get('civil_status')])->filter()->values()->all() ?: ['Consent given; no optional values provided']
-                                            : ['Not provided; consent declined']),
-                                    TextEntry::make('review_copies')->label('Review copies')->listWithLineBreaks()
-                                        ->columnSpanFull()
-                                        ->state(fn (Get $get): array => $this->reviewCopySummary($get)),
-                                    Checkbox::make('accuracy_declared')
+                                            ? (array_values(array_filter([
+                                                filled($get('gender')) ? 'Sex: '.$get('gender') : null,
+                                                filled($get('civil_status')) ? 'Civil status: '.$get('civil_status') : null,
+                                            ])) ?: ['Consent given; no optional values provided'])
+                                            : ['Not provided; consent declined'])),
+                                    $this->reviewCard('Review copies', Heroicon::OutlinedPaperClip, TextEntry::make('review_copies')
+                                        ->state(fn (Get $get): array => $this->reviewCopySummary($get)), fullWidth: true, labelledLines: false),
+                                    Section::make('Declaration')
+                                        ->icon(Heroicon::OutlinedCheckBadge)
+                                        ->compact()
                                         ->visible(fn (): bool => ! $this->preparesDraftForApplicant())
+                                        ->extraAttributes(['class' => 'tala-review-card tala-review-card--declaration'])
                                         ->columnSpanFull()
-                                        ->extraFieldWrapperAttributes(['class' => 'tala-review-declaration'])
-                                        ->label('I declare that the submitted information and preliminary evidence are accurate to the best of my knowledge.')
-                                        ->accepted(fn (): bool => ! $this->savingDraft)
-                                        ->required(fn (): bool => ! $this->savingDraft),
+                                        ->schema([
+                                            Checkbox::make('accuracy_declared')
+                                                ->extraFieldWrapperAttributes(['class' => 'tala-review-declaration'])
+                                                ->label('I declare that the submitted information and preliminary evidence are accurate to the best of my knowledge.')
+                                                ->accepted(fn (): bool => ! $this->savingDraft)
+                                                ->required(fn (): bool => ! $this->savingDraft),
+                                        ]),
                                 ])
                                 ->columns(['default' => 1, 'md' => 2])
                                 ->columnSpanFull(),
                         ]),
                 ])
                     ->visible(fn (): bool => $this->isWizardVisible())
-                    ->nextAction(fn (Action $action): Action => $action->label($this->isReadOnlyDraftInspection() || $this->requiresCompleteSubmission() ? 'Continue' : 'Save and continue')->icon(Heroicon::OutlinedArrowRight)->color('primary'))
+                    ->nextAction(fn (Action $action): Action => $action->label($this->isReadOnlyDraftInspection() || $this->requiresCompleteSubmission() ? 'Continue' : 'Save and continue')->icon($this->isReadOnlyDraftInspection() || $this->requiresCompleteSubmission() ? Heroicon::OutlinedArrowRight : Heroicon::OutlinedDocumentCheck)->color('primary'))
                     ->previousAction(fn (Action $action): Action => $action->label('Previous step')->icon(Heroicon::OutlinedArrowLeft)->button()->color('gray')->outlined())
                     ->skippable(fn (): bool => $this->isReadOnlyDraftInspection())
                     ->startOnStep(fn (): int => $this->resumeStep())
@@ -1021,6 +1032,31 @@ class Application extends Page
         return $this->currentApplication()?->evidenceVersions->where('admission_requirement_id', $requirement->id)->sortByDesc('id')->first();
     }
 
+    /**
+     * One Review-step card per answer category; "Label: value" lines render the label as a term.
+     */
+    protected function reviewCard(string $heading, Heroicon $icon, TextEntry $entry, bool $fullWidth = false, bool $labelledLines = true): Section
+    {
+        return Section::make($heading)
+            ->icon($icon)
+            ->compact()
+            ->extraAttributes(['class' => 'tala-review-card'])
+            ->columnSpan($fullWidth ? 'full' : 1)
+            ->schema([
+                $entry->hiddenLabel()
+                    ->listWithLineBreaks()
+                    ->html()
+                    ->formatStateUsing(function (?string $state) use ($labelledLines): string {
+                        $line = (string) $state;
+                        $separator = $labelledLines ? strpos($line, ': ') : false;
+
+                        return $separator === false
+                            ? e($line)
+                            : '<span class="tala-review-term">'.e(substr($line, 0, $separator)).'</span> '.e(substr($line, $separator + 2));
+                    }),
+            ]);
+    }
+
     /** @return list<string> */
     protected function reviewCopySummary(Get $get): array
     {
@@ -1171,8 +1207,42 @@ class Application extends Page
             ->all() ?? [];
     }
 
-    /** @return array<int, string> */
+    /**
+     * Fixed choices plus any earlier free-text value, so existing records stay selectable.
+     *
+     * @param  list<string>  $choices
+     * @return array<string, string>
+     */
+    protected function optionsKeepingRecordedValue(array $choices, ?string $recorded): array
+    {
+        $options = array_combine($choices, $choices);
+
+        return filled($recorded) && ! isset($options[$recorded]) ? $options + [$recorded => $recorded] : $options;
+    }
+
+    /**
+     * Applicants choose from short program names; Registrar-assisted entry keeps the full official names.
+     *
+     * @return array<int, string>
+     */
     protected function programOptions(int $cycleId, string $path): array
+    {
+        $options = $this->officialProgramOptions($cycleId, $path);
+
+        return $this->showsApplicantProgramNames()
+            ? array_map(fn (string $name): string => Program::applicantName($name), $options)
+            : $options;
+    }
+
+    protected function showsApplicantProgramNames(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function officialProgramOptions(int $cycleId, string $path): array
     {
         if ($cycleId < 1) {
             $flag = $path === AdmissionApplication::PathTransferee ? 'accepts_transferee' : 'accepts_first_year';

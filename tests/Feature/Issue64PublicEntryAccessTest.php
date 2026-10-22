@@ -72,7 +72,7 @@ class Issue64PublicEntryAccessTest extends TestCase
             ->assertSee(route('home', [...$filters, 'program' => $program->id]).'#programs');
 
         $this->get(route('home', [...$filters, 'program' => $program->id]))->assertOk()
-            ->assertSee('id="program-detail-title"', false)
+            ->assertSee('id="program-detail-title-'.$program->id.'"', false)
             ->assertSee(route('home', $filters).'#programs')
             ->assertSee(route('public.apply', ['program' => $program->id]), false)
             ->assertDontSee('Synthetic two-year Program');

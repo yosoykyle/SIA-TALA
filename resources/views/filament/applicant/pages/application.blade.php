@@ -62,14 +62,16 @@
             @include('filament.applicant.components.correction-request', ['correctionSteps' => $this->correctionSteps()])
         @elseif ($this->isSubmittedEdit())
             <x-filament::callout color="info" icon="heroicon-m-pencil-square">
-                <x-slot name="heading">You can update this application</x-slot>
-                <x-slot name="description">Submit the complete update before Registrar review starts. Your last submission stays unchanged until the update succeeds.</x-slot>
+                <x-slot name="description">
+                    <p class="fi-callout-heading">You can update this application</p>
+                    <p>Submit the complete update before Registrar review starts. Your last submission stays unchanged until the update succeeds.</p>
+                </x-slot>
             </x-filament::callout>
         @elseif (! $this->admissionsAreOpen())
             <x-filament::callout color="warning" icon="heroicon-m-lock-closed">
-                <x-slot name="heading">This draft is read-only</x-slot>
                 <x-slot name="description">
-                    This intake is no longer open. You can view or discard your draft. Contact the Registrar if you need intake guidance.
+                    <p class="fi-callout-heading">This draft is read-only</p>
+                    <p>This intake is no longer open. You can view or discard your draft. Contact the Registrar if you need intake guidance.</p>
                 </x-slot>
             </x-filament::callout>
         @endif

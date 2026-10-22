@@ -54,11 +54,10 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         $labels = $this->navigationLabelsForPanel($student, 'student');
 
         $this->assertSame([
-            'Home',
+            'Overview',
             'Enrollment',
             'Academics',
-            'Finance',
-            'Profile',
+            'Fees and payments',
         ], $labels);
         $this->assertSame($labels, array_values(array_unique($labels)));
         $this->assertNoStaffOnlyNavigationLabels($labels);
@@ -89,9 +88,9 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
     {
         $this->seed(DatabaseSeeder::class);
 
-        $applicantDashboard = file_get_contents(resource_path('views/filament/applicant/pages/dashboard.blade.php'));
-        $this->assertStringContainsString('Pages\\Requirements::getUrl([\'application\' => $application->id])', $applicantDashboard);
-        $this->assertStringContainsString('Review requirements', $applicantDashboard);
+        $applicantDashboard = file_get_contents(app_path('Filament/Applicant/Pages/Dashboard.php'));
+        $this->assertStringContainsString('Requirements::getUrl([\'application\' => $application->id])', $applicantDashboard);
+        $this->assertStringContainsString('View requirements', $applicantDashboard);
 
         $registrar = $this->userWithRole(User::StaffRoleRegistrar, User::StatusActive);
         $this->actingAs($registrar)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleRegistrar]);

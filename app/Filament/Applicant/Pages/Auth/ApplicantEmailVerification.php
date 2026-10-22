@@ -7,11 +7,13 @@ use App\Actions\Applicants\DispatchApplicantEmailVerification;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Pages\Auth\EmailVerification;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Placeholder;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Text;
 use Filament\Schemas\Schema;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\HtmlString;
 
@@ -20,9 +22,8 @@ class ApplicantEmailVerification extends EmailVerification
     public function resendNotificationAction(): Action
     {
         return Action::make('resendNotification')
-            ->link()
-            ->label('Resend verification link')
-            ->size('sm')
+            ->button()
+            ->label('Resend Verification Link')
             ->action(function (): void {
                 $applicant = $this->applicant();
                 $rateLimitKey = 'applicant-email-verification-resend:'.$applicant->id;
@@ -60,29 +61,37 @@ class ApplicantEmailVerification extends EmailVerification
 
     public function getTitle(): string|Htmlable
     {
-        return 'Verify your email address';
+        return 'Verify your account';
     }
 
     public function getHeading(): string|Htmlable|null
     {
-        return 'Verify your email address';
+        return 'Verify your account';
     }
 
     public function content(Schema $schema): Schema
     {
         $supportUrl = app(ApplicantEntryReadinessService::class)->officialReferences()['support'];
-        $support = filled($supportUrl)
-            ? new HtmlString('If verification remains unavailable, <a class="underline" href="'.e((string) $supportUrl).'">contact official support</a>.')
-            : 'If verification remains unavailable, try again later.';
+        $supportLink = filled($supportUrl)
+            ? new HtmlString('Need help? <a class="underline" href="'.e((string) $supportUrl).'">Contact School Support &rarr;</a>')
+            : 'Need help? Contact School Support';
 
         return $schema->components([
-            Text::make('A verification link was requested for '.$this->applicant()->email.'.'),
-            Text::make('Only the newest verification link can be used. Links expire after 60 minutes.'),
-            Text::make($support),
+            Placeholder::make('verification_countdown')
+                ->hiddenLabel()
+                ->content(function (): View {
+                    $expiresAt = DispatchApplicantEmailVerification::expiresAt();
+                    $remainingSeconds = $expiresAt === null ? 0 : max(0, $expiresAt->getTimestamp() - now()->getTimestamp());
+
+                    return view('filament.applicant.components.verification-countdown', [
+                        'expiresAtMilliseconds' => $expiresAt?->getTimestampMs(),
+                        'initialClock' => sprintf('%02d:%02d', intdiv($remainingSeconds, 60), $remainingSeconds % 60),
+                    ]);
+                }),
             Actions::make([
                 $this->resendNotificationAction(),
-                $this->logoutAction(),
             ]),
+            Text::make($supportLink),
         ]);
     }
 
