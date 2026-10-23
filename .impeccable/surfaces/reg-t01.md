@@ -1,142 +1,98 @@
 ---
 version: 1
 slug: "reg-t01"
-primary_target: "REG-T01"
-related_targets: ["REG-T03","FAC-001","AHD-001"]
+primary_target: "resources/views/filament/pages/term-overview.blade.php"
+related_targets: ["resources/views/filament/pages/term-calendar.blade.php", "resources/views/filament/pages/term-classes.blade.php", "resources/views/filament/pages/term-class-proposal.blade.php", "resources/views/filament/pages/term-resources.blade.php", "resources/views/filament/pages/academic-approvals.blade.php"]
 ---
 
-# Surface Brief: REG-T01 - Exact-Term Preparation and Calendar Recovery
+# Surface Brief: REG-T01–REG-T03 — Exact-Term Preparation
 
 <!-- impeccable:surface-brief 1 -->
 
-## October 16 selected composition and navigation correction
+## Job, authority and scope
 
-The owner selected the third displayed Product Design concept, Term Preparation Guide, for the complete Issue #66 journey. Impeccable remains the primary design method. This selection supersedes the earlier flat/neutral Registrar composition below: a deep green Term masthead, visible inset navigation, seated amber current location, Inter, labeled green teaching hours and gray breaks, clear button faces, and responsive task pages. Preserve the established school identity, paired dark appearance and supported Filament extension points.
+**Mode: Operate.** Registrar prepares one exact Term's calendar, classes and resources; Academic Head inspects the same evidence read-only. Faculty supplies owned availability and reads official results through [reg-t04](reg-t04.md), which also owns candidate/official timetable composition.
 
-Subsequent hands-on steering requires one consistent five-destination navigation: Term summary, Calendar, Classes & sections, Faculty & rooms, Timetable. Keep exact-Term identity through source/detail links, retain distinct Cancel behavior, and remove repeated global breadcrumbs/returns. Preparation remains parallel. Overview leads with actual unfinished work and its remedy; program/year coverage and association findings remain visible. Course decisions stay visible; only the required preparation fields follow inclusion. Calendar shows actual hours, breaks and each activity's dates without inventing activation gates.
+Canonical inventory: REG-T01, REG-T02, REG-T03 and the planning portion of AHD-001. Reuse the existing [reg-t04](reg-t04.md), [reg-e01](reg-e01.md) and [applicant-registrar](applicant-registrar.md) briefs for their respective surfaces. PRD 03/05 own behavior, Blueprint role coverage, PRODUCT/DESIGN product and visual identity, and Architecture technical boundaries. None of these design choices grants institutional approval or relaxes a safeguard.
 
-Color supports meaning and never substitutes for workflow. Current timetable completeness, conflict checks, result meaning and permitted decisions stay visible; official schedules and work in progress have explicit selection. Earlier attempts and source records remain clearly named and reachable. Preserve all AC1–AC7 safeguards and concern dispositions in [#66](https://github.com/yosoykyle/SIA-TALA/issues/66). Implementation verification and owner usability acceptance remain separate.
-
-### Continuation through every reached surface
-
-The owner rejected a guide-only redesign because deeper record pages, forms and dialogs reverted to the previous experience. Continue the selected direction through the complete reached Term Planning flow. For each unfinished page, show a separate image prototype, implement that page using supported Filament extension points, show its running result, then continue to the next page. Reuse the selected visual direction and shared components; no new direction-selection gate is required. Keep all necessary facts, source evidence, permissions and safeguards findable. The previous dark appearance was rejected and requires a coherent paired design and rendered review. Delegate bounded routine implementation and research to economical helpers; the primary agent owns design judgment, integration and browser verification.
-
-Current scope, assignments, progress and acceptance evidence belong to [#48](https://github.com/yosoykyle/SIA-TALA/issues/48) and [#58](https://github.com/yosoykyle/SIA-TALA/issues/58). October 9–12 decisions and superseded comparisons remain there and in Git history. The [Orchestrator Protocol](../../00_Project_Documents/TALA-Orchestrator-Protocol.md) governs verification, owner review, reporting and publication.
-
-## Current preparation and calendar direction
-
-### October 15 owner refinement
-
-The owner rejected the entire Registrar Term Planning composition after hands-on use. Refine all five destinations and the class proposal as one Operate flow: compact exact-Term context, conspicuous neutral buttons for Create Term and Term details/history, left-aligned navigation, one main action, consistent Inter roles, and neutral supporting facts. Remove repeated explanatory bands. Teaching dates and hours lead Calendar; enrollment/grading/examination windows and source history use named progressive disclosure. Every working table and toolbar must fit its containing grid at 788px and 912px as well as phone and desktop widths. Preserve source ownership, immutable calendar successors, role permissions, parallel preparation and timetable geometry. The owner separately authorized updating the existing private Cloud Run solver; preserve its deployed resource/security envelope and verify the candidate before traffic promotion.
-
-Working lists use native search, sorting and pagination; changing their local view resets search and page state. Fixed weekly grids, complete generation-confirmation scope and official prints retain their task-specific structure. Ordinary related records render eagerly; real loading and disabled feedback remains visible.
-
-Room inspection is a compact native read-only dialog with two columns from medium widths and one on mobile. Authorized maintenance uses one form/save for Room properties and equipment, with readable choices preserving existing feature keys and identities. Equipment is a scheduling constraint; no quantity, catalog or deletion policy is added. Weekly unavailable times names recurring meeting exclusions, with dated exceptions remaining in Calendar. Faculty requests show reply due and awaiting responses together; setting the deadline and sending requests remain separate effects. Activated Term identity is read-only, with its meaningful Faculty teaching-load default reached from Faculty work and per-Faculty overrides preserved. Source pages retain one compact context, useful headings, history and originating-task returns.
-
-This direction supersedes the rejected Registrar/Head preparation and Faculty D123 arrangement. Preserve product rules, capabilities and behavior evidence.
-
-**THESIS:** One exact-Term working frame serves Registrar preparation, Head read-only inspection and Faculty participation. Actual rows/calendar/current answer lead; remove repeated introduction/status/scope/navigation bands.
-
-**Information purpose and recomposition:** Challenge what each fact, field, step and feature contributes to the task, including where it appears. Remove proven redundant presentation and unnecessary routine inputs; seek the owning product decision before retiring required facts or capabilities. Present exact Term/state, current work and its next permitted action first. Keep justified history/source evidence reachable through named details. Existing page arrangements are a foundation for task-led recomposition, not a reason to preserve confusing screens. Equivalent intent uses consistent supported native interactions; bounded inspection/decisions and sustained source work need different working space. A usable breadcrumb replaces only an equivalent duplicate return, preserving distinct cancellation and originating-task context.
-
-**OWN-WORLD:** Preserve Inter, school crest, green, existing skeuomorphic Aqua-like buttons, solid opaque overlays and light/dark/system appearance. No global brand replacement or blur/glass.
-
-**STORY:** Approved calendar → cohorts/classes/requirements → qualified/load/availability/room inputs → reviewed official timetable. Faculty answers/corrects availability and reads own official results. Head inspects the same sources and returns with exact Term. Parallel preparation remains supported.
-
-**FIRST VIEWPORT:** Compact Term identity/change once, content-aligned five-destination native navigation, actual task. Overview leads with Program/year working rows and an actual next remedy. Calendar leads with teaching dates/hours/state; operational dates follow. Classes / Student sections and Faculty / Rooms local switches expose distinct record purposes. Head selected-Term calendar/official/examination facts precede institution-wide curriculum rows. Faculty current answer/action/due precede one history.
-
-**FORM:** Reuse current native tables/forms/actions and queries. Class details order identity, cohorts/counts, delivery groups/requirements, findings, history. Resource details order current owned facts, constraints, history. Contextual creation uses slide-overs; bounded decisions use centered modals; sustained source/history review uses pages. Breadcrumbs emit each URL once, retaining exact Term and role ancestry. Remove duplicate body return after usable ancestry. Calendar wizard and separate activation remain. Shared classes count once globally; no mandatory all-year requirement.
-
-**FINISH:** Meaningful affected regressions and representative rendered Registrar, Head and Faculty preparation checks at applicable desktop/mobile widths; reuse valid evidence and confirm corrections only where needed. Preserve history, concurrent-Term/no-Term/missing/blocked/informational-unavailable distinctions and accessible focus. Agents establish technical correctness and verification; the owner's first-time-user review judges appearance, clarity and understandable use without requiring technical diagnosis. Follow the Protocol's owner-review/report sequence.
-
-## Scope and visitor mode
-
-### October 11 shared standards and unselected comparison
-
-The owner requests system-wide control consistency and concrete layout comparisons across all #58 participants and outputs. Apply DESIGN.md's Same Intent, Control Meaning and Working Record rules. Registrar and Head share Class details inspection; Registrar alone sees the separate Manage class destination. Meeting dialogs are command buttons, without false selection state. Preserve exact Term/version, source history, role authorization, existing grid math and the Issue #59 Applicant identity exception.
-
-The three standalone comparison variants were rejected by the owner. They are historical exploration and supply no current composition or acceptance contract. Refine the actual application under the current direction above; preserve existing role permissions, source history, official-output contracts and publication boundaries.
-
-- Primary target: REG-T01, Term Planning Overview. Visitor mode: Operate.
-- Related targets: REG-T02/03/04/05, Catalog & Curricula and the shared Registrar shell under the October9 owner-authorized holistic extension; FAC-001 for the bounded Faculty-request deadline; AHD-001 for read-only source context. Preserve business rules and official-output contracts.
-- Implementation [#58](https://github.com/yosoykyle/SIA-TALA/issues/58), under coordination #48, covers preparing, correcting and activating one exact Term's core calendar, and the reached calendar-consumer seams. Reuse sufficient reg-t04, reg-e01 and applicant-registrar briefs for their unchanged surfaces.
-
-## Audience, job and proof
-
-Registrar staff record externally approved academic facts; Academic Head sees authorized facts read-only. Success means the Registrar can create or select a Term through ordinary UI, understand the first failed check, correct its source, activate a valid core calendar and continue to Classes without losing context. Activation does not establish enrollment readiness or publish a timetable.
+Current scope, owner, delivery order, progress and evidence live in [#48](https://github.com/yosoykyle/SIA-TALA/issues/48) and its children. [#76](https://github.com/yosoykyle/SIA-TALA/issues/76) owns the bounded experience follow-up to #58/#66, using the shared clarity achieved in #68. Earlier rejected concepts, dated annotations, synthetic-fixture setup and deployment authorizations remain in their owning Issues and Git history; they are not current design or operation permissions.
 
 ## Direction contract
 
-### THESIS
+**THESIS:** One compact exact-Term frame makes current work, actual state and the next useful action clear. Classes and resources can be prepared in parallel.
 
-Make one exact Term and its next meaningful task unmistakable. Core-calendar readiness leads; missing downstream dates explain their own consumer rather than masquerading as activation blockers.
+**OWN-WORLD:** Preserve the accepted school-first crest, Inter 700/600/400 roles, green, supporting blue, shallow skeuomorphic Aqua-like controls, opaque overlays and paired light/dark/system appearance from DESIGN.md. Retain the established Term Preparation Guide identity; refine its hierarchy rather than replace the brand.
 
-### OWN-WORLD
+**STORY:** Select Term → inspect real unfinished work → record calendar and prepare classes/resources → review a whole-Term candidate → publish → inspect the official result.
 
-Inherit DESIGN.md's accepted school-first shell, native light/dark surfaces, green-led actions, supporting blue, Inter, Heroicons and shared action material. Keep crest/school identity and workspace/Term context distinct; authenticated pages omit Powered by TALA. Extend the established world; do not replace PRODUCT.md or DESIGN.md.
+**FIRST VIEWPORT:** Show Term identity/change once, five discoverable task destinations and actual working content. Status, owner and remedy precede secondary evidence. Avoid repeated mastheads, introductions, status matrices and return controls.
 
-### STORY
+**FORM:** Use supported native Filament pages, navigation, forms, tables and actions; bounded inspection/decisions use dialogs, contextual preparation may use slide-overs, sustained source work uses pages. Choose composition by task rather than repeating cards or a compulsory stepper.
 
-Choose or create Term -> record approved calendar -> inspect first failed checkpoint -> correct in context -> review and activate -> continue to Sections & classes. Show operational dates and resource deadlines separately, with their owner and consuming action.
+**FINISH:** Account for affected role surfaces and contextual returns, with proportionate behavioral and rendered checks. Agents own technical verification; the owner's first-time-user review judges appearance, clarity and understandable use.
 
-### FIRST VIEWPORT
+## Shared frame, navigation and information
 
-Lead with the selected Term, current task and state-appropriate next action. With no selected Term, keep the green school masthead, offer one role-appropriate action, and group every available Term by academic year with its type, Term dates, recorded state and exact-Term entry. The Overview groups source-backed Program/year preparation records and unfinished work. Calendar shows approved instruction dates and weekly hours before downstream activity dates. Secondary history must not bury the current task or create a wall of cards.
+Keep Overview, Calendar, Sections & classes, Faculty & rooms and Timetable separately discoverable with one consistent current marker. The selected label may use understandable equivalent wording consistently. These are parallel task destinations; a wizard may divide one recording command, not gate the whole workflow.
 
-### FORM
+Retain exact Term, role, current task, local view and valid criteria through drill-in, cancellation, reload and return. Breadcrumb/sidebar/URL ancestry and contextual links must agree. Remove a body Back control only when it duplicates a usable return; Cancel may discard changes and is a distinct action. Head never gains editing/preparation/approval powers.
 
-Keep the approved identity and solid overlays. Replace the former Plan button/five numbered cards with native persistent Overview, Calendar, Sections & classes, Faculty & rooms and Timetable pages. The Overview is a Program/curriculum-year coverage board with actual student sections/classes/weekly meetings, shared-class attribution and distinct global totals. Curriculum gaps are advisory; reviewed recorded scope and existing readiness govern generation. A cohort's year is not invented from its reference and no new uniform-year restriction is added.
+With no selected Term, offer the role-appropriate create/select action and readable Terms grouped by Academic Year, including type, dates and recorded state. Required Academic Year setup is reachable through ordinary UI. Several current Terms require explicit choice; never silently select an arbitrary one. Switching context safely resets stale pending inputs.
 
-Draft/official versions share one Timetable destination, captured-group-by-day master view, focused section/teacher/room week and native meeting list. Filters affect display only.
+Show a current fact once at its useful location. In particular, active calendar authority, a proposed successor, actual generation outcome, accepted draft and current official version are different facts. Use one consistent projection of existing state; do not invent a new workflow engine or a false all-clear.
 
-Calendar recording uses a focused native wizard, secondary activity-date command and separate activation; its legacy deadline is preserved but editing belongs to Faculty & rooms. Contextual record creation/preparation uses supported slide-overs; commands use centered modals; lifecycle records retain pages. Grading assignment belongs to Grades & Completion. Source ownership, concurrency, approvals, independent validation, immutable publication and official print remain. The hypothetical HR/Education/Math first-through-third-year case and Philippine PRD04 selection/eligibility distinctions are required review inputs.
+Challenge each information item, field, feature and step. Remove proven redundancy and unnecessary routine inputs within product authority; do not remove required facts, capabilities or meaningful history. Current records lead; named source/history detail remains findable without an always-open evidence rail. Equivalent intent uses consistent supported controls.
 
-Prepare the full curriculum-and-demand class scope with coherent Faculty qualifications, teaching load and availability. Class preparation stays available while generation inputs are completed; no requirement makes every curriculum year run in each Term. Curriculum coverage findings remain advisory and existing generation constraints still apply.
+## Overview and Calendar
 
-### FINISH
+Overview shows actual unfinished work, responsible source and direct remedy, plus source-backed Program/curriculum-year coverage. Record real student sections, classes and weekly meetings; count shared classes once globally while retaining each association and distinct totals. Count Programs with classes and retain advisory empty/unprepared rows.
 
-The owning Issue's criterion ledger and bounded rendered journey establish the result. Skill invocation, native components and tests alone do not establish usability. Reuse valid shared design evidence; report remaining gaps honestly. This recording step supplies direction only.
+A curriculum gap does not prove a year is running or cancelled, nor require every year to run. Additional, mixed-year and unassociated demand stays explicit. Counts or deadlines alone do not prove complete readiness. Never infer learner type/year from a group or create missing classes through generation.
 
-## Interaction, navigation and states
+Calendar leads with teaching dates, approved weekdays/hours, breaks, exceptions and current/proposed authority. Enrollment and Grade Entry dates are separate consuming-action windows; Examination Period is informational with a named unavailable state. Each missing activity states its actual consumer effect and an adjacent source-owned remedy.
 
-- Preserve the exact Term and current section through correction, cancellation, source drill-in, return and reload. URL state, breadcrumbs, contextual links or in-place actions may provide this; no particular returnTo implementation is required.
-- Offer understandable ordinary UI for an empty Term list and any required Academic Year setup, with contextual return. Do not rely on fixtures or developer commands to begin.
-- Show first-run/no package, blocked/ready Draft, Active, historical Closed, Special Term, several concurrent Terms, missing/upcoming/open/closed operational dates, loading, validation, stale/concurrent input, unexpected failure and inaccessible states.
-- Each blocker names the failed fact, source, owner and direct remedy. Keep successful checks in concise source detail; make complete core readiness explicit with Calendar ready for class planning.
-- After core activation, operational dates remain recordable through the approved successor/history path; the separate Faculty deadline remains attributable and recordable before requests. Do not mutate the immutable Active core or invent another approval queue.
-- Distinguish closing a superseded package from closing the Term. Do not offer a free state edit that bypasses guarded lifecycle transitions.
-- Examination Period remains informational. Preserve its named unavailable state and scoped Overview facts; broad five-role presentation belongs to later work.
-- Keep a clear canonical calendar entry. Do not remove access to legacy administration while an inspected retained consumer still requires it.
+Preserve focused calendar recording, separate guarded activation and immutable successors/history. Core activation does not require unrelated operational dates or the Faculty reply deadline. Record later operational dates through the approved successor path; do not mutate Active core facts or confuse superseding a package with closing a Term. Keep a canonical calendar entry and any legacy entry still needed by a retained consumer.
 
-## Components, responsiveness and accessibility
+Activated Term identity reads as protected facts rather than ineffective Edit controls. Draft identity guards remain; the ongoing Faculty teaching-load default is reached from Faculty & rooms with per-Faculty precedence preserved.
 
-Inherit DESIGN.md's current skeuomorphic Aqua-like buttons family and shared-component principle. Overview, Calendar, Sections & classes, Faculty & rooms and Timetable use native Filament cluster sub-navigation, with exact-Term links and a current marker. Timetable view selectors reuse the shared native tabs family. The former numbered-task/mobile-disclosure recipe is superseded; these destinations support parallel preparation rather than sequential completion. Calendar/Class/Resource rules retain their source-owned guards.
+## Classes, student sections and proposal
 
-Use documented installed-version Filament Pages, Selects, Tabs, Sections, Infolists, Actions, validation and notifications where they serve the task. Callouts, repeaters and action groups are options, not a mandatory visual recipe. Reuse existing shell, selected-Term URL state, shared action styling and notifications. Supported customization must preserve native semantics and use documented extension points; new dependencies need separate authorization.
+Use human terms: student section (TermCohort), class (Class Offering), weekly meeting requirement (SchedulingDemand), draft timetable (candidate) and official timetable (published version). Technical source identities remain available. Classes and Student sections have distinct local purposes; grading-teacher assignment belongs to Grades & Completion.
 
-At desktop widths, align related facts without scattering the task across competing panels. Tablet/mobile stack in reading order and keep consequential action labels visible. Long names, many Terms/history versions, zero operational windows and varied approved weekday hours must remain understandable. Preserve keyboard access, visible focus, programmatic labels, text-backed status, error association, zoom/reflow and accessible announcements. Failed submissions may focus the first invalid control or a purposeful error summary; ordinary status updates preserve focus.
+Class details lead with course identity, linked student sections/counts, delivery groups and requirements, then findings and meaningful history. Head shares read-only inspection; Registrar's permission-bound Manage class opens sustained editing. Resolve linked classes across the whole exact Term independently of display filters; refuse cross-Term records.
 
-Purposeful transitions should explain refreshed readiness, saved facts and activation, with immediate feedback and a reduced-motion equivalent. Delight comes from clear continuity and precise controls. Preserve accepted shared recovery: finite background motion settling within five seconds, immediate actions, reduced-motion fallback and no visible pause/stop button.
+Make the full proposal manageable through task-fit search/grouping and conditional preparation fields. Course decisions remain discoverable; only intended preparation exposes required details. Preserve hidden/local draft choices when filtering. Applicable curriculum rows start as Skip until Registrar supplies intended classes, real learner counts and approved capacity. No automatic all-year selection, invented counts/capacity or uniform-year restriction follows.
 
-## Acceptance boundaries
+Keep useful single-class and bulk paths where their purposes differ; consolidate only redundant controls. Class preparation remains available while generation resources are incomplete. Preserve complete proposal scope, atomic writes, source/version checks and cancellation guards for published, enrolled or reserved work.
 
-Verify fail -> correct -> activate without unrelated dates -> inspect blocked consumer -> add approved dates through the history-preserving path, plus concurrent-Term switching, stale action rejection, Academic Head read-only and Terms View recovery. The owner-reopened scope also covers actual class/resource preparation and shared candidate/official timetable presentation. Inspect desktop/mobile and both appearances in bounded passes. New print/export artifacts, cloud/provider operation, branding rebuild and enrollment/grading redesign remain outside this local assignment. D103 authorized one isolated local CP-SAT verification, recorded in the existing holistic review; it does not change annotation-fixture provenance or grant timetable approval.
+## Faculty and rooms
 
-## Synthetic review data
-Testing-only SYNTH58-UX fixtures cover a populated timetable, core-only Special Term and blocked Draft. Keep their synthetic provenance visible while reviewing connected Calendar, Classes, Resources and candidate/official timetable views. Fixture identifiers, authorized setup and recorded evidence belong to #58 and its linked holistic review. Fixture presentation is not solver, production or acceptance evidence and changes no business rule or official-output contract.
+Faculty rows distinguish qualifications, load/default exceptions, availability declaration and actual request/delivery evidence. Missing declaration never proves a request was sent. Requests show due time and genuinely awaiting responses together. Request availability and Set/Change deadline remain separate effects; the deadline is generation readiness, not core activation.
 
-Earlier numbered-card, Plan and Choice3 recipes are superseded. Their provenance and D90 onward decisions remain in #48/#58 and Git history.
+Show current official teaching load with its basis labelled; never imply it is candidate allocation. Distinct canonical-course counts and teaching units retain PRD 03 definitions. No institutional preparation cap has been supplied: informational counts add no new required setup or blocker.
 
-### Shared working composition
+Give direct source-bound correction paths for missing qualifications, load or unavailable-time facts. Do not require unrelated Faculty responses or retype facts already owned elsewhere. Weekly unavailable times are recurring exclusions; dated no-class exceptions remain Calendar.
 
-Head inspects selected-Term calendar/timetable/examination sources and separate institution-wide curriculum evidence; Faculty answers availability and sees only own official assignments. Captured calendars use a bounded keyboard-accessible scroll canvas with sticky day/time references and a visible complete recorded range, preserving every hour, meeting, overlap and source geometry. No auto-scroll, range switch or hidden-hour policy is added. Human course titles lead filters, meeting lists, tiles and print; codes remain supporting identifiers. Display uses the12-hour clock in Asia/Manila; immutable source times remain24-hour values. Shallow view switches and gray Print utilities stay distinct from green record-changing commands. Synthetic identification remains factual and compact near scope, rather than an instruction underneath working records. Existing native focused forms, bounded decision/inspection dialogs, sustained source pages, exact-Term return, ownership, validation, historical output and safety contracts remain applicable.
+Rooms distinguish active catalog state, capacity/type/equipment and time availability. Quick inspection is a compact native read-only dialog shared with Head; authorized maintenance uses one form/save. Readable equipment names preserve exact keys/identities and imply no new quantity, catalog, deletion, maintenance or booking policy. No Online room, preferred-time field, travel matrix or availability approval queue is introduced.
 
-## Faculty availability and inspection
+Reached forms/pages keep compact Term context, meaningful task/record headings, source history and originating-task return. Required contextual correction/commitment reasons and authority remain.
 
-Preserve PRD03/05, actor/exact-Term ownership, captured full-hour geometry, breaks/overlaps, normalized interval payloads and 12-hour display. Shared inspection tiles are opaque green Aqua-like (not a validity/official marker). ALL modal X controls use the native/Bootstrap utility Aqua-like adapters under an explicit quiet-close whitelist override. Faculty Term leads stacked status/source; secondary schedule exams remain real/source-backed. Native filters use explicit width/max2/full-span Course/mobile1/searchable owned options/neutral Reset. Search expands deliberately to the meeting-linked specification title and existing codes with identical screen/output scope.
+## Components, states and ranges
 
-Availability is hard constraint input for Registrar planning; own official Schedule is output. Show purpose/current answer/request/due/Submit my availability or Update my availability and complete own immutable View details. Progressive UI-only weekly Yes/No requires an initial answer, seeds one empty row for Yes and validates minimum one; No/whole-Term No submit []; toggles preserve drafts; correction prefills intervals with fresh required 2000-max reason and hidden Term guard. Native Day/From/To/Delete and one timezone keep facts readable. History content re-resolves actor/selected Term and rejects colleague/tampered/cross-Term; current request evidence is separate, with no invented request association. Approved Schedule & Availability navigation retains task aliases/Grade Rosters; no-official Schedule links directly to Availability using existing scope. PRD03's one action-required direct-link email remains; no in-app feed.
+Use installed-version documented Filament APIs and supported extension points; new dependencies require authorization. Native search, sorting and pagination serve working lists; changing a local view resets incompatible search/page state. Fixed grids, complete generation-confirmation scope and official outputs retain their own structure. Ordinary related records render eagerly; real pending/disabled feedback remains visible.
 
-## Connected Registrar recovery
+At desktop, group related facts without competing panels. Tablet/phone stack in reading order, wrap toolbars and retain consequential labels. Check long names, mostly skipped proposals, many Terms/versions, varied approved teaching hours and missing operational windows without imposing every state/viewport permutation.
 
-Calendar states each missing activity's consumer effect, with one adjacent Registrar/setup remedy and informational Examination distinction. Overview recovery follows the actual failed source. Faculty qualification/load sources stay visibly reachable; Rooms distinguishes active catalog state from time availability. Timetable state precedes consequential commands, with explicit assignment/validation and revision/history routes; run/output returns preserve their own Term and draft/official source version. Read-only times use12-hour institutional display. Preserve native controls, all guards and source history.
+Cover first-use/no package, blocked/ready Draft, Active/historical Closed, Special/concurrent Terms, missing/upcoming/open/closed operational dates, filtered-empty, validation, stale/concurrent changes, failure and inaccessible states. Each blocker names the failed fact, owner, source and safe remedy. Missing/unmeasured evidence remains unavailable.
+
+Preserve labels, text-backed status, visible focus, keyboard access, zoom/reflow, error association and accessible announcements. Native dialogs retain Close/Escape/focus return with opaque overlays; keep the shared dialog host outside collapsed or scroll-hidden content, including conditional views with no table. Status updates retain focus; invalid submissions may focus the error summary/first invalid control.
+
+Purposeful feedback explains saved facts, updated readiness and activation with reduced-motion equivalents. Preserve finite shared recovery motion, immediate recovery actions and no visible pause/stop control. No global animation or branding rebuild follows.
+
+## Prototype, implementation and verification
+
+For each changed page, task view or materially changed dialog/role variant: inspect/simplify → image prototype → implementation → rendered check, then continue. One overall image is insufficient. Reuse the selected world/components and valid evidence; account for surfaces deliberately retained unchanged. This brief does not authorize image generation or execution by itself.
+
+Reuse meaningful affected regression coverage and batch representative desktop/phone and paired-appearance checks, fix demonstrated defects, then perform a bounded confirmation. Preserve exact-Term switching, staleness, Head read-only, whole-Term command scope and source/output returns. Do not require new copy-only tests, arbitrary design scores or repeated full-suite/browser matrices.
+
+Synthetic data is identified by a compact factual annotation, not review instructions. Fixture presentation is not live policy, solver/deployment proof or human acceptance. Preserve the owning Issue's review/reporting and publication boundary under the [Orchestrator Protocol](../../00_Project_Documents/TALA-Orchestrator-Protocol.md).

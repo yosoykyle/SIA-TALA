@@ -429,7 +429,7 @@ On mobile, curriculum rows and class/resource tables use responsive stacked layo
 
 Draft Programs, Courses, Course Revisions, Curriculum Versions, Calendar Packages, resources, cohorts, and Class Offerings may be deleted only before activation, confirmation, publication, or any reference. Historically used authority is retired, cancelled, or superseded through effective-dated successors. Accepted candidates and Published Timetable Versions are immutable.
 
-This PRD defines the desired scheduling problem and institutional workflow. It does not approve a replacement formula, internal API, wire schema, table, class, migration, or deployment change. Current `tal94-demand-v2`, `balanced_v1`, Laravel integration, formulation, schema, tests, and fixtures remain implementation evidence to be reconciled together in a future PRD 03 journey-complete vertical slice.
+This PRD defines the scheduling problem and institutional workflow. It does not approve a replacement formula, internal API, wire schema, table, class, migration, or deployment change. The Architecture Specification owns technical solver and integration boundaries; current source, schema, tests and recorded Issue evidence establish implementation conformance to these product requirements. Experience refinement preserves those boundaries rather than introducing a new scheduling formulation.
 ## 17. Acceptance and Defense Scenarios
 
 The future vertical implementation must prove:
