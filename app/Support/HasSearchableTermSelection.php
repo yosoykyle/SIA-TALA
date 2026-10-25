@@ -8,6 +8,11 @@ use Filament\Schemas\Schema;
 
 trait HasSearchableTermSelection
 {
+    public function renderingHasSearchableTermSelection(): void
+    {
+        \Filament\Support\original_request()->attributes->set('tala.selected_term_id', $this->termId);
+    }
+
     public function termSelection(Schema $schema): Schema
     {
         return $schema->components([

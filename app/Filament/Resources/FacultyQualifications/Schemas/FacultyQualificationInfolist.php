@@ -59,6 +59,7 @@ class FacultyQualificationInfolist
                 Actions::make([
                     Action::make('backToQualifications')
                         ->label('Back to qualifications')
+                        ->visible(fn (LivewireComponent $livewire): bool => ! ($livewire instanceof ViewFacultyQualification && $livewire->termId !== null))
                         ->color('gray')
                         ->url(fn (LivewireComponent $livewire): string => $livewire instanceof ViewFacultyQualification
                             ? $livewire->getResourceUrl('index')

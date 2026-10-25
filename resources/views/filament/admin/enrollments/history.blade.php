@@ -10,7 +10,7 @@
         <p>{{ $case->studentProfile?->student_number ?? $case->admissionApplication?->application_reference }} · {{ $case->studentProfile?->program?->name ?? $case->admissionApplication?->program?->name }} · {{ $case->term?->label }}</p>
     </div>
     <div class="registrar-history-grid">
-        <section aria-labelledby="activity-heading">
+        <section class="tala-task-surface" aria-labelledby="activity-heading">
             <h2 id="activity-heading">Activity</h2>
             <p class="registrar-case-meta">Times in {{ config('app.display_timezone') }}</p>
             <ol class="registrar-case-events">
@@ -40,7 +40,7 @@
             </ol>
             <details class="registrar-case-reference"><summary>Enrollment reference</summary><p>{{ $case->case_reference }}</p></details>
         </section>
-        <aside class="registrar-case-sources registrar-history-records" aria-labelledby="sources-heading">
+        <aside class="registrar-case-sources registrar-history-records tala-task-surface" aria-labelledby="sources-heading">
             <h2 id="sources-heading">Supporting records</h2>
             @foreach ($case->corVersions->sortByDesc('version') as $certificate)
                 <section @if ($loop->first) id="certificate-copies" @endif>

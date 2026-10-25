@@ -24,6 +24,7 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\FacultyQualification;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
@@ -40,6 +41,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\TestWith;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -74,22 +76,105 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $this->assertStringStartsWith('ANNOTATION-13', collect($page->instance()->getTableRecords()->items())->first()['name']);
     }
 
-    public function test_room_inspection_opens_exact_term_source_and_preserves_head_read_only_access(): void
+    public function test_room_inspection_opens_native_exact_term_details_and_preserves_head_read_only_access(): void
     {
         $this->staff(User::StaffRoleAcademicHead);
-        $term = Term::factory()->create();
+        $term = Term::factory()->create(['label' => 'Room inspection Term']);
         $room = Room::factory()->create(['code' => 'ANNOTATION-DIALOG', 'is_active' => true]);
         RoomFeature::factory()->for($room)->create(['feature_key' => 'COMPUTER_UNITS']);
         $page = Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'rooms'])->test(TermResources::class)
             ->searchTable('ANNOTATION-DIALOG');
-        $record = $page->instance()->getTableRecords()->items()['room-'.$room->id];
-        $action = $page->instance()->getTable()->getAction('inspectRoom')->record($record);
-        $this->assertSame(RoomResource::getUrl('view', ['record' => $room->id, 'termId' => $term->id, 'returnToResources' => true]), $action->getUrl());
+        $page->mountTableAction('inspectRoom', 'room-'.$room->id)
+            ->assertMountedActionModalSee('ANNOTATION-DIALOG')
+            ->assertMountedActionModalSee('Computers')
+            ->assertMountedActionModalSee('Room inspection Term')
+            ->assertMountedActionModalDontSee('Back to rooms')
+            ->assertMountedActionModalDontSee('Manage room');
+        $action = $page->instance()->getMountedAction();
+        $this->assertNull($action->getUrl());
+        $this->assertFalse($action->getExtraModalFooterActions()['manageRoom']->isVisible());
+        $page->call('unmountAction')->assertSet('resourceView', 'rooms')->assertSet('tableSearch', 'ANNOTATION-DIALOG');
         Livewire::withQueryParams(['termId' => $term->id, 'returnToResources' => true])->test(ViewRoom::class, ['record' => $room->id])
-            ->assertSee('Computers')->assertSee('Back to Faculty & rooms')
+            ->assertSee('Computers')->assertDontSee('Back to Faculty & rooms')
             ->assertSee(TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'resources', 'resourceView' => 'rooms']))
             ->assertActionHidden('edit');
         Livewire::test(EditRoom::class, ['record' => $room->id])->assertForbidden();
+    }
+
+    public function test_registrar_room_inspection_retains_context_and_has_owned_maintenance_destination(): void
+    {
+        $this->staff();
+        $term = Term::factory()->create(['label' => 'Registrar room Term']);
+        $room = Room::factory()->create(['code' => 'ROOM-MAINTENANCE', 'is_active' => true]);
+        $page = Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'rooms'])->test(TermResources::class)
+            ->searchTable('ROOM-MAINTENANCE')->sortTable('name', 'desc');
+
+        $page->mountTableAction('inspectRoom', 'room-'.$room->id)
+            ->assertMountedActionModalSee('ROOM-MAINTENANCE')->assertMountedActionModalSee('Registrar room Term');
+
+        $manage = $page->instance()->getMountedAction()->getExtraModalFooterActions()['manageRoom'];
+        $this->assertTrue($manage->isVisible());
+        $this->assertSame(['cancel', 'manageRoom'], array_keys($page->instance()->getMountedAction()->getModalFooterActions()));
+        $this->assertSame(RoomResource::getUrl('edit', ['record' => $room->id, 'termId' => $term->id, 'returnToResources' => true]), $manage->getUrl());
+        $page->call('unmountAction')->assertSet('tableSearch', 'ROOM-MAINTENANCE')->assertSet('tableSort', 'name:desc')->assertSet('resourceView', 'rooms')->assertSet('termId', $term->id);
+    }
+
+    public function test_faculty_resource_summary_counts_actual_courses_and_keeps_full_sources_optional_and_searchable(): void
+    {
+        $this->staff();
+        Role::findOrCreate(User::StaffRoleFaculty, 'web');
+        $faculty = User::factory()->create([...User::staffNamePayload('Faculty', null, 'source count'), 'status' => User::StatusActive]);
+        $faculty->assignRole(User::StaffRoleFaculty);
+        foreach (['Design, research and analysis', 'Applied methods'] as $title) {
+            $qualification = FacultyQualification::factory()->create(['faculty_user_id' => $faculty->id]);
+            CourseSpecification::factory()->create(['course_id' => $qualification->course_id, 'state' => CourseSpecification::StateActive, 'title' => $title]);
+        }
+        $term = Term::factory()->create();
+
+        $page = Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'faculty'])->test(TermResources::class);
+
+        $record = $page->instance()->getTableRecords()->items()['faculty-'.$faculty->id];
+        $this->assertSame('Faculty source count', $record['name']);
+        $this->assertSame(2, $record['eligible_course_count']);
+        $this->assertStringContainsString('Design, research and analysis', $record['detail']);
+        $this->assertTrue($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
+        $this->assertTrue($page->instance()->getTable()->getColumn('load')->isToggledHidden());
+        $page->assertSee('Faculty source count')->assertSee('2 eligible courses')->assertSee('Not requested');
+        $page->searchTable('Design, research and analysis')->assertSee('Faculty source count');
+    }
+
+    public function test_room_column_preferences_do_not_expand_faculty_courses_and_each_view_keeps_its_choices(): void
+    {
+        $this->staff();
+        $term = Term::factory()->create();
+        $page = Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'rooms'])->test(TermResources::class);
+        $page->call('applyTableColumnManager', $page->get('tableColumns'));
+
+        $page->call('chooseResourceView', 'faculty');
+
+        $this->assertTrue($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
+        $choices = collect($page->get('tableColumns'))->map(function (array $column): array {
+            if (in_array($column['name'], ['eligible_courses', 'load'], true)) {
+                $column['isToggled'] = true;
+            }
+
+            return $column;
+        })->all();
+        $page->call('applyTableColumnManager', $choices)->call('chooseResourceView', 'rooms');
+        $this->assertTrue($page->instance()->getTable()->getColumn('room_capacity')->isVisible());
+        $page->call('chooseResourceView', 'faculty');
+        $this->assertFalse($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
+        $this->assertFalse($page->instance()->getTable()->getColumn('load')->isToggledHidden());
+        $choices = collect($page->get('tableColumns'))->map(function (array $column): array {
+            if ($column['name'] === 'eligible_courses') {
+                $column['isToggled'] = false;
+            }
+
+            return $column;
+        })->all();
+        $page->call('applyTableColumnManager', $choices)->call('chooseResourceView', 'rooms')->call('chooseResourceView', 'faculty');
+        $this->assertTrue($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
+        $this->assertFalse($page->instance()->getTable()->getColumn('load')->isToggledHidden());
     }
 
     public function test_empty_coverage_prepares_complete_term_classes_while_head_keeps_read_only_scope(): void
@@ -249,8 +334,10 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $page->searchTable('ANNOTATION-MEETING-13')->sortTable('room', 'desc');
         $this->assertSame('ANNOTATION-MEETING-13', collect($page->instance()->getTableRecords()->items())->sole()['room']);
         $page->assertViewHas('scopeMeetingCount', 13)
-            ->assertViewHas('timetablePresentation', fn (array $presentation): bool => count($presentation['meetings']) === 13)
+            ->assertViewHas('timetablePresentation', fn (array $presentation): bool => count($presentation['meetings']) === 1)
             ->call('showTimetableView', 'whole')
+            ->assertViewHas('timetablePresentation', fn (array $presentation): bool => count($presentation['meetings']) === 1)
+            ->call('clearViewFilters')
             ->assertViewHas('timetablePresentation', fn (array $presentation): bool => count($presentation['meetings']) === 13);
         $this->get(route('timetable.version.print', ['version' => $version]))
             ->assertOk()->assertSee('ANNOTATION-MEETING-01')->assertSee('ANNOTATION-MEETING-13');
@@ -300,10 +387,14 @@ class Issue58OwnerAnnotationsTest extends TestCase
             $this->assertArrayHasKey('label', $exception->errors());
         }
         $view = Livewire::withQueryParams(['viewTab' => 'resources', 'resourceView' => 'rooms'])->test(ViewTerm::class, ['record' => $term->id])
-            ->assertSee('Monday 8:00 AM–5:00 PM; Breaks: 10:00 AM–10:30 AM, 12:00 PM–1:00 PM')
-            ->assertSee('Thursday 9:00 AM–3:00 PM');
-        $return = collect($view->instance()->getCachedHeaderActions())->first(fn ($action): bool => $action->getName() === 'returnToPlanning');
-        $this->assertSame(TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'resources', 'resourceView' => 'rooms']), $return->getUrl());
+            ->assertSee('Monday')->assertSee('Thursday')
+            ->assertSee('8:00 AM–10:00 AM')->assertSee('10:00 AM–10:30 AM')
+            ->assertSee('10:30 AM–12:00 PM')->assertSee('12:00 PM–1:00 PM')
+            ->assertSee('1:00 PM–5:00 PM')->assertSee('9:00 AM–3:00 PM');
+        $this->assertArrayHasKey(
+            TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'resources', 'resourceView' => 'rooms']),
+            $view->instance()->getBreadcrumbs(),
+        );
     }
 
     public function test_availability_request_names_missing_core_or_deadline_and_recording_is_separate(): void
@@ -314,7 +405,7 @@ class Issue58OwnerAnnotationsTest extends TestCase
             ->assertActionDisabled('requestFacultyAvailability');
         TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'faculty_availability_due_at' => null]);
         $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
-            ->assertSee('Set a reply deadline before sending requests.')->assertActionDisabled('requestFacultyAvailability');
+            ->assertSee('Set a reply deadline')->assertSee('Faculty need this Term’s teaching calendar and a deadline before requests can be sent.')->assertActionDisabled('requestFacultyAvailability');
         Mail::fake();
         $page->callAction('recordFacultyDeadline', ['due_at' => now()->addDays(3)->format('Y-m-d H:i:s'), 'authority_reference' => 'Synthetic approved deadline'])
             ->assertHasNoActionErrors();
@@ -322,6 +413,45 @@ class Issue58OwnerAnnotationsTest extends TestCase
         Mail::assertNothingOutgoing();
         Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)->assertActionEnabled('requestFacultyAvailability')->mountAction('requestFacultyAvailability')
             ->assertMountedActionModalSee('Reply by')->assertMountedActionModalSee('Recipients');
+    }
+
+    #[TestWith([User::StaffRoleRegistrar])]
+    #[TestWith([User::StaffRoleAcademicHead])]
+    public function test_planning_empty_states_distinguish_missing_sources_from_search_and_respect_the_record_owner(string $role): void
+    {
+        $this->staff($role);
+        $term = Term::factory()->create();
+        $readOnly = $role === User::StaffRoleAcademicHead;
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+            ->assertSee('No classes recorded for this Term')
+            ->assertSee($readOnly ? 'The Registrar prepares the classes for this Term.' : 'Add the student sections and prepare the classes for this Term.')
+            ->searchTable('zz-no-matching-course')
+            ->assertSee('No matching classes')
+            ->assertSee('Try another subject or clear the search and filters.')
+            ->assertDontSee('No classes recorded for this Term');
+
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'cohorts'])->test(TermClasses::class)
+            ->assertSee('No student sections recorded for this Term')
+            ->assertSee($readOnly ? 'The Registrar records student sections before linking classes.' : 'Record a student section before linking classes.')
+            ->searchTable('zz-no-matching-section')
+            ->assertSee('No matching student sections');
+
+        foreach (['faculty' => 'No matching faculty', 'rooms' => 'No matching rooms'] as $view => $heading) {
+            Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => $view])->test(TermResources::class)
+                ->searchTable('zz-no-matching-resource')
+                ->assertSee($heading)->assertSee('Try another name or clear the search.')
+                ->assertDontSee('No teaching resources recorded');
+        }
+
+        if ($readOnly) {
+            Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
+                ->assertSee('The Registrar must activate the teaching calendar before availability can be requested.');
+            TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'faculty_availability_due_at' => null]);
+            Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
+                ->assertSee('No reply deadline recorded')
+                ->assertDontSee('Set a reply deadline');
+        }
     }
 
     private function staff(string $name = User::StaffRoleRegistrar): void

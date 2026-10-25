@@ -233,7 +233,8 @@ class ScheduleGenerationRun extends Model
     public function reviewEvidence(): array
     {
         $local = data_get($this->diagnostics, 'candidate_origin') === 'LocalAdjustment';
-        $reportedOutcome = data_get($this->diagnostics, 'solver_result.summary.outcome', data_get($this->diagnostics, 'solver_result.solver_status'));
+        $reportedOutcome = data_get($this->diagnostics, 'solver_result.summary.outcome')
+            ?? data_get($this->diagnostics, 'solver_result.solver_status');
         $outcome = $local ? 'Local adjustment' : match (strtolower((string) $reportedOutcome)) {
             'optimal' => 'Optimal', 'feasible' => 'Feasible', 'infeasible' => 'Infeasible',
             'unknown' => 'Unknown', 'model_invalid', 'modelinvalid' => 'ModelInvalid', 'technical_failure', 'technicalfailure' => 'TechnicalFailure',
@@ -261,7 +262,7 @@ class ScheduleGenerationRun extends Model
         if (! $validated && in_array($outcome, ['Optimal', 'Feasible', 'Local adjustment'], true)) {
             $meaning = 'The recorded outcome does not establish a usable current candidate. Inspect independent validation and source findings before review or publication.';
         }
-        if (in_array($this->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)) {
+        if (! $this->isPublished() && $this->published_at === null && in_array($this->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)) {
             $meaning = match ($this->candidate_state) {
                 'Accepted' => 'Review accepted. Publish after the current complete scope passes revalidation.',
                 'Rejected' => 'Review rejected. Record a successor request or correct the source; this candidate cannot be published.',

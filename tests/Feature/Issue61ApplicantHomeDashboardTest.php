@@ -191,6 +191,11 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertSee('View receipt')
             ->assertSee(SubmissionReceipt::getUrl(['application' => $application->id, 'version' => $application->current_submission_version_id], panel: 'applicant'));
 
+        Livewire::test(ApplicationHistory::class)->searchTable('NO_MATCHING_REFERENCE')
+            ->assertSee('No matching applications')->assertSee('Try another reference or clear the search.')
+            ->assertDontSee('No application yet')
+            ->searchTable('')->assertSee($application->application_reference);
+
         $this->actingAs($applicant)
             ->get(Dashboard::getUrl(panel: 'applicant'))
             ->assertSeeInOrder(['Account security', "Applicant's History", 'Sign out']);

@@ -53,7 +53,7 @@
 
         @endif
 
-        <details class="tala-planning-details"><summary>Other requests, quality and review evidence</summary><div class="mt-4 space-y-4">
+        <details class="tala-planning-details"><summary>Other requests, quality and review evidence</summary><div class="tala-planning-reveal mt-4 space-y-4">
 
             @if ($allRuns->count() > 1)<div><label class="text-sm font-medium" for="planning-run">Timetable request</label><select id="planning-run" wire:change="selectRun($event.target.value)" class="tala-planning-select">@foreach ($allRuns as $option)<option value="{{ $option->id }}" @selected($option->id === $activeRun->id)>{{ $option->created_at->timezone('Asia/Manila')->format('M j, g:i A') }} · {{ \App\Models\ScheduleGenerationRun::statusOptions()[$option->status] ?? $option->status }} · #{{ $option->id }}</option>@endforeach</select></div>@endif
 

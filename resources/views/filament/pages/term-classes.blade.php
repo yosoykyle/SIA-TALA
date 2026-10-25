@@ -2,12 +2,17 @@
     @include('filament.pages.partials.term-workspace-header')
     @if ($term)
         <section class="tala-task-work {{ $classesView === 'cohorts' ? 'tala-term-cohorts' : '' }}" aria-label="Classes and student sections">
-        <div class="tala-work-toolbar"><x-tala-navigation label="Class planning records"><x-filament::tabs.item type="button" wire:click="chooseClassesView('classes')" :active="$classesView === 'classes'" :aria-pressed="$classesView === 'classes'">Classes</x-filament::tabs.item><x-filament::tabs.item type="button" wire:click="chooseClassesView('cohorts')" :active="$classesView === 'cohorts'" :aria-pressed="$classesView === 'cohorts'">Student sections</x-filament::tabs.item></x-tala-navigation>@if ($classesView === 'cohorts' && ! $readOnly){{ $this->recordCohortAction }}@endif</div>
+        <div class="tala-task-heading">
+            <p class="tala-work-summary">{{ $classesView === 'cohorts' ? 'Groups of learners who take classes together.' : 'Review the classes that will run and the meetings they need.' }}</p>
+            <div class="tala-task-commands">
+                @if ($classesView === 'cohorts' && ! $readOnly){{ $this->recordCohortAction }}@endif
+                <x-filament::button tag="a" color="gray" :icon="$classesView === 'classes' ? 'heroicon-o-user-group' : 'heroicon-o-book-open'" :href="\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id, ...($classesView === 'classes' ? ['classesView' => 'cohorts'] : [])])">{{ $classesView === 'classes' ? 'View student sections' : 'View classes' }}</x-filament::button>
+            </div>
+        </div>
         @if ($classesView === 'classes')
-            @if (! $activePackage)<p class="text-sm" role="status">Preparing and confirming classes requires an active teaching calendar. Student sections can be recorded now. <x-filament::link :href="\App\Filament\Pages\TermCalendar::getUrl(['termId' => $term->id])">Calendar</x-filament::link></p>@endif
+            @if (! $activePackage)<p class="text-sm" role="status">Preparing and confirming classes requires an active teaching calendar. Student sections can be recorded now. <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\TermCalendar::getUrl(['termId' => $term->id])">Calendar</x-filament::button></p>@endif
             {{ $this->table }}
         @else
-            <p class="tala-work-footnote">Student sections group learners who take classes together.</p>
             {{ $this->table }}
         @endif
         </section>

@@ -1,4 +1,4 @@
-<section class="accounting-recent-records" aria-labelledby="account-recent-records">
+<section class="accounting-recent-records tala-task-surface" aria-labelledby="account-recent-records">
     <div><h2 id="account-recent-records">Payments and coverage</h2>
         @if ($latestPayment)
             <p>{{ $money($latestPayment->amount) }} verified payment · {{ \App\Support\DisplayDateTime::format($latestPayment->paid_at, 'M j, Y') }}@if ($latestPayment->reversals->isNotEmpty()) · Reversal recorded @endif</p>

@@ -20,7 +20,7 @@ trait HasClassPreparationActions
     public function recordCohortAction(): Action
     {
         return Action::make('recordCohort')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
             ->label('Add student section')
             ->modalHeading('Add student section')->modalSubmitActionLabel('Add student section')
             ->modalCancelActionLabel('Cancel')
@@ -52,7 +52,7 @@ trait HasClassPreparationActions
     public function prepareClassOfferingAction(): Action
     {
         return Action::make('prepareClassOffering')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
             ->label('Prepare class')
             ->modalHeading('Prepare class')->modalSubmitActionLabel('Save class preparation')->modalCancelActionLabel('Cancel')
             ->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar))

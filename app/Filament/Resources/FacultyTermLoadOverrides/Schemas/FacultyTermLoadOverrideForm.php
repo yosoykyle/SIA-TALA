@@ -4,12 +4,14 @@ namespace App\Filament\Resources\FacultyTermLoadOverrides\Schemas;
 
 use App\Filament\Resources\FacultyTermLoadOverrides\Pages\CreateFacultyTermLoadOverride;
 use App\Filament\Resources\FacultyTermLoadOverrides\Pages\EditFacultyTermLoadOverride;
+use App\Models\FacultyTermLoadOverride;
 use App\Models\Term;
 use App\Models\User;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -46,31 +48,28 @@ class FacultyTermLoadOverrideForm
                             Select::make('term_id')
                                 ->label('Term')
                                 ->default(fn (CreateFacultyTermLoadOverride|EditFacultyTermLoadOverride $livewire): ?int => $livewire->termId)
-                                ->disabled(fn (CreateFacultyTermLoadOverride|EditFacultyTermLoadOverride $livewire): bool => $livewire->termId !== null)
+                                ->disabled(fn (CreateFacultyTermLoadOverride|EditFacultyTermLoadOverride $livewire): bool => $livewire instanceof EditFacultyTermLoadOverride || $livewire->termId !== null)
                                 ->dehydrated()
                                 ->relationship(
                                     'term',
                                     'label',
                                     modifyQueryUsing: fn (Builder $query): Builder => $query->orderByDesc('starts_on'),
                                 )
+                                ->live()
                                 ->searchable()
                                 ->preload()
                                 ->required(),
-                            TextInput::make('default_max_units_snapshot')
+                            TextEntry::make('default_max_units_snapshot')
                                 ->label('Base limit (units)')
-                                ->numeric()
-                                ->minValue(0)
-                                ->step('0.25')
-                                ->helperText(function (CreateFacultyTermLoadOverride|EditFacultyTermLoadOverride $livewire): string {
-                                    $termId = $livewire->termId;
+                                ->state(function (Get $get, ?FacultyTermLoadOverride $record): string {
+                                    $state = $record?->default_max_units_snapshot;
 
-                                    if ($termId === null && $livewire instanceof EditFacultyTermLoadOverride) {
-                                        $termId = (int) $livewire->getRecord()->term_id;
+                                    if ($state !== null) {
+                                        return rtrim(rtrim(number_format((float) $state, 2, '.', ''), '0'), '.').' units (recorded snapshot)';
                                     }
 
-                                    return self::termDefaultDescription($termId);
-                                })
-                                ->required(),
+                                    return self::termDefaultDescription(filled($get('term_id')) ? (int) $get('term_id') : null);
+                                }),
                             TextInput::make('approved_overload_units')
                                 ->label('Approved additional units')
                                 ->numeric()

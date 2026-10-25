@@ -142,8 +142,10 @@ class AcademicReadiness extends Page implements HasTable
             ])
             ->stackedOnMobile()
             ->defaultSort('code')
-            ->emptyStateHeading('No programs are configured')
-            ->emptyStateDescription('Create the institution program records before encoding or importing a curriculum.');
+            ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() ? 'No matching programs' : 'No programs are configured')
+            ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount()
+                ? 'Try another program or clear the search and filters.'
+                : 'Institution program records are needed before a curriculum can be recorded or imported.');
     }
 
     /**

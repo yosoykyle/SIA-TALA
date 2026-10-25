@@ -8,14 +8,14 @@
         <p>{{ $case->term?->label }}</p>
     </div>
     @if ($case->admissionApplication?->application_path === \App\Models\AdmissionApplication::PathTransferee && $evaluation === null)
-        <section class="registrar-requirements registrar-evaluation-task" aria-labelledby="evaluation-heading">
+        <section class="registrar-requirements registrar-evaluation-task tala-task-surface" aria-labelledby="evaluation-heading">
             <h2 id="evaluation-heading">Record transfer credit evaluation</h2>
             <p>Use the school’s approved result before selecting subjects. Record a no-credit result when applicable.</p>
             <div class="registrar-case-task-actions">{{ $this->getAction('recordAcademicEvaluation', isMounting: false) }}</div>
             <div class="registrar-preparation-next"><h3>Next: choose subjects</h3><p>Subject selection becomes available after the evaluation is recorded.</p></div>
         </section>
     @else
-    <section class="registrar-case-preparation" aria-labelledby="preparation-heading">
+    <section class="registrar-case-preparation tala-task-surface" aria-labelledby="preparation-heading">
         <div><h2 id="preparation-heading">Prepare subjects</h2><p>{{ $case->selection_basis === \App\Models\Enrollment::SelectionIndividuallyAdvised ? 'This enrollment needs an individually advised subject selection.' : 'Prepare the complete curriculum subjects and classes for this enrollment.' }}</p></div>
         {{ $this->getAction('prepareProposal', isMounting: false) }}
     </section>

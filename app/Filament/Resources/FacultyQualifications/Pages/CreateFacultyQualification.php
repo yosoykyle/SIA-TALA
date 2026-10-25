@@ -3,9 +3,12 @@
 namespace App\Filament\Resources\FacultyQualifications\Pages;
 
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
+use App\Models\User;
 use App\Support\HasTermPlanningContext;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Support\Enums\Alignment;
 
 class CreateFacultyQualification extends CreateRecord
 {
@@ -34,6 +37,32 @@ class CreateFacultyQualification extends CreateRecord
     protected function getCreateFormAction(): Action
     {
         return parent::getCreateFormAction()->label('Add qualification');
+    }
+
+    /** @return array<Action|ActionGroup> */
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getCancelFormAction()->label('Cancel')->color('gray'),
+            ...($this->canCreateAnother() ? [$this->getCreateAnotherFormAction()->label('Save & add another')->color('gray')] : []),
+            $this->getCreateFormAction()->label('Add qualification'),
+        ];
+    }
+
+    public function getFormActionsAlignment(): string|Alignment
+    {
+        return Alignment::End;
+    }
+
+    /** @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $actor = auth()->user();
+        abort_unless($actor instanceof User, 403);
+
+        return [...$data, 'recorded_by' => $actor->id, 'recorded_at' => now()];
     }
 
     protected function getRedirectUrl(): string

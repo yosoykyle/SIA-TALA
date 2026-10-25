@@ -7,7 +7,7 @@
         <p>{{ $case->studentProfile?->program?->name ?? 'Program unavailable' }}</p>
         <p>{{ $case->term?->label }}</p>
     </div>
-<section class="accounting-proof-task"><div><h2>Registration certificate source unavailable</h2><p>Official enrollment is recorded; current certificate source is missing.</p></div></section><section class="registrar-case-reference"><h2>Investigate the recorded source</h2><p>Registrar and the system administrator must investigate the missing current certificate source. Live subjects will not be substituted into a new certificate.</p><p>Existing official subjects and retained certificate versions remain recorded.</p>@foreach ($case->corVersions()->orderByDesc('version')->get() as $version)<p><x-filament::link :href="route('cor.print', ['enrollment'=>$case,'version'=>$version->version])" target="_blank" rel="noopener">View retained certificate &middot; version {{ $version->version }}</x-filament::link></p>@endforeach</section>    <section class="registrar-case-current-subjects" aria-labelledby="subjects-heading">
+<section class="accounting-proof-task"><div><h2>Registration certificate source unavailable</h2><p>Official enrollment is recorded; current certificate source is missing.</p></div></section><section class="registrar-case-reference"><h2>Investigate the recorded source</h2><p>Registrar and the system administrator must investigate the missing current certificate source. Live subjects will not be substituted into a new certificate.</p><p>Existing official subjects and retained certificate versions remain recorded.</p>@foreach ($case->corVersions()->orderByDesc('version')->get() as $version)<p><x-filament::link :href="route('cor.print', ['enrollment'=>$case,'version'=>$version->version])" target="_blank" rel="noopener">View retained certificate &middot; version {{ $version->version }}</x-filament::link></p>@endforeach</section>    <section class="registrar-case-current-subjects tala-task-surface" aria-labelledby="subjects-heading">
         <h2 id="subjects-heading">Subjects</h2>
         <p class="registrar-case-meta">{{ $subjects->count() }} {{ \Illuminate\Support\Str::plural('subject', $subjects->count()) }} · {{ (float) $subjects->sum('units_snapshot') }} units</p>
         @if ($subjects->isNotEmpty())
@@ -32,7 +32,7 @@
             <p class="registrar-case-meta">{{ $subject->proposalItem?->course_code_snapshot ?? $subject->termOffering?->curriculumEntry?->courseSpecification?->course?->code }} is externally arranged and has no recurring meeting.</p>
         @endforeach
     </section>
-    <section class="registrar-case-schedule" aria-labelledby="schedule-heading">
+    <section class="registrar-case-schedule tala-task-surface" aria-labelledby="schedule-heading">
         <h2 id="schedule-heading">Schedule</h2>
         @if ($schedule && $schedule['meetings'] !== [])
             <x-enrollment-schedule :presentation="$schedule" :source-key="'registrar-official-'.$case->id" />

@@ -1,4 +1,4 @@
-<section class="accounting-review-task" aria-labelledby="account-review-heading">
+<section class="accounting-review-task tala-task-surface" aria-labelledby="account-review-heading">
     @if ($reviewState === 'ended')
         @php($ended = in_array($case->canonical_outcome, \App\Models\Enrollment::reopenableOutcomes(), true))
         <h2 id="account-review-heading">{{ $ended ? 'Registration ended — Accounting review required' : 'Registration outcome unavailable' }}</h2>

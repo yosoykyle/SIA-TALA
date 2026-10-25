@@ -7,7 +7,6 @@ use App\Models\Term;
 use App\Support\ReturnsToTermPlanning;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
-use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Enums\Alignment;
 use Illuminate\Database\Eloquent\Model;
@@ -53,15 +52,15 @@ class EditTerm extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [
-            ViewAction::make()->label('View details')->color('gray')->url(fn (): string => TermResource::getUrl('view', ['record' => $this->record, 'viewTab' => $this->viewTab, 'resourceView' => $this->resourceView])),
-            Action::make('returnToPlanning')->label('Open planning')
-                ->color('gray')->url(fn (): string => $this->getRedirectUrl()),
-        ];
+        return [];
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        if (! $this->record->hasActivatedCalendar() && blank($data['label'] ?? null)) {
+            $data['label'] = Term::typeOptions()[$data['type']];
+        }
+
         return collect($data)->except(['state', 'scheduling_slot_minutes', 'scheduling_days', 'scheduling_day_starts_at', 'scheduling_day_ends_at'])->all();
     }
 

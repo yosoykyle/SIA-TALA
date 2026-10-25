@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\Sections\Pages;
 
 use App\Actions\Scheduling\SectionPlanningService;
+use App\Filament\Pages\TermClasses;
 use App\Filament\Resources\Sections\SectionResource;
+use App\Models\Section;
 use App\Support\HasTermPlanningContext;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -18,6 +20,14 @@ class CreateSection extends CreateRecord
     }
 
     protected static string $resource = SectionResource::class;
+
+    public function mount(): void
+    {
+        parent::mount();
+        if ($this->termId !== null) {
+            $this->redirect(TermClasses::getUrl(['termId' => $this->termId, 'action' => 'addClass']));
+        }
+    }
 
     /** @return array<string> */
     public function getPageClasses(): array
@@ -53,7 +63,7 @@ class CreateSection extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        return app(SectionPlanningService::class)->prepareForSave($this->termPlanningFormData($data));
+        return app(SectionPlanningService::class)->prepareForSave($this->termPlanningFormData([...$data, 'state' => Section::StatePlanned]));
     }
 
     protected function getRedirectUrl(): string

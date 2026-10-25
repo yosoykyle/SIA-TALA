@@ -25,7 +25,7 @@
         </section>
     @else
     <div class="oversight-board">
-        <section class="oversight-panel oversight-calendar" aria-labelledby="oversight-calendar-title">
+        <section class="oversight-panel oversight-calendar tala-task-surface" aria-labelledby="oversight-calendar-title">
             <div class="oversight-panel-heading">
                 <h2 id="oversight-calendar-title">This term</h2>
                 @if ($term)
@@ -61,8 +61,13 @@
                 @else
                     <div class="oversight-calendar-empty"><x-heroicon-o-calendar-days aria-hidden="true" /><h3>Calendar dates unavailable</h3><p>The Registrar records the approved calendar for this term.</p></div>
                 @endif
+                <div class="oversight-planning-entry">
+                    <div><h3>Term preparation</h3><p>Inspect classes, availability and timetable attempts.</p></div>
+                    <x-filament::button tag="a" color="gray" icon="heroicon-o-eye" :href="\App\Filament\Pages\TermOverview::getUrl(['termId' => $termId])">Inspect Term planning</x-filament::button>
+                </div>
                 <details class="oversight-source-details">
                     <summary>Calendar source details</summary>
+<div class="tala-planning-reveal">
                     <dl class="oversight-source-grid">
                         <div><dt>Teaching calendar</dt><dd>{{ $calendar ? 'Active version '.$calendar->version : 'No active calendar' }}</dd></div>
                         <div><dt>Examination Period</dt><dd>{{ $examination['status'] === 'Available' ? $examination['opens_on']->format('M j, Y').' – '.$examination['closes_on']->format('M j, Y') : 'Examination Period unavailable' }} · Informational</dd></div>
@@ -70,20 +75,16 @@
                         <div><dt>Source checked</dt><dd>{{ $examination['as_of']->format('j M Y, g:i A') }} · Asia/Manila</dd></div>
                     </dl>
                     <p>{{ $examination['message'] }}</p>
-                    <nav class="oversight-source-links" aria-label="Term Planning source views">
-                        <a href="{{ $calendarTimeline['url'] }}">Inspect calendar</a>
-                        <a href="{{ \App\Filament\Pages\TermPlanningWorkbench::getUrl(['termId' => $termId]) }}">Term Planning overview</a>
-                        <a href="{{ \App\Filament\Pages\TermClasses::getUrl(['termId' => $termId]) }}">Recorded classes</a>
-                        <a href="{{ \App\Filament\Pages\TermResources::getUrl(['termId' => $termId]) }}">Faculty &amp; room evidence</a>
-                        @if ($draft)<a href="{{ \App\Filament\Pages\TermTimetable::getUrl(['termId' => $termId, 'selectedRunId' => $draft->id]) }}">View draft evidence</a>@endif
-                    </nav>
-                </details>
+                    <x-filament::button tag="a" color="gray" icon="heroicon-o-calendar-days" :href="$calendarTimeline['url']">Inspect calendar</x-filament::button>
+
+</div>
+</details>
             @else
                 <div class="oversight-calendar-empty"><x-heroicon-o-calendar-days aria-hidden="true" /><h3>{{ $terms->isEmpty() ? 'No Terms recorded' : 'No exact Term is selected' }}</h3><p>{{ $terms->isEmpty() ? 'The Registrar records term setup.' : 'Choose a term above to see its calendar, enrollment and class rosters.' }}</p></div>
             @endif
         </section>
 
-        <section class="oversight-panel oversight-enrollment" aria-labelledby="oversight-enrollment-title">
+        <section class="oversight-panel oversight-enrollment tala-task-surface" aria-labelledby="oversight-enrollment-title">
             <h2 id="oversight-enrollment-title">Enrollment</h2>
             @if ($enrollmentSummary['total'] !== null)
                 <p class="oversight-figure"><strong>{{ number_format($enrollmentSummary['total']) }}</strong><span>{{ str('case')->plural($enrollmentSummary['total']) }}</span></p>
@@ -102,7 +103,7 @@
             @else<p class="oversight-unavailable"><strong aria-hidden="true">—</strong><span>Choose a term to see its enrollment cases.</span></p>@endif
         </section>
 
-        <section class="oversight-panel oversight-grades" aria-labelledby="oversight-grades-title">
+        <section class="oversight-panel oversight-grades tala-task-surface" aria-labelledby="oversight-grades-title">
             <h2 id="oversight-grades-title">Grades &amp; Progress</h2>
             @if ($gradeSummary['total'] !== null)
                 <p class="oversight-figure"><strong>{{ number_format($gradeSummary['released']) }}</strong><span>of {{ number_format($gradeSummary['total']) }} {{ str('roster')->plural($gradeSummary['total']) }} released</span></p>
@@ -121,7 +122,7 @@
             @else<p class="oversight-unavailable"><strong aria-hidden="true">—</strong><span>Choose a term to see its class rosters.</span></p>@endif
         </section>
 
-        <section class="oversight-panel oversight-attention" aria-labelledby="oversight-attention-title">
+        <section class="oversight-panel oversight-attention tala-task-surface" aria-labelledby="oversight-attention-title">
             <div class="oversight-panel-heading"><h2 id="oversight-attention-title">Attention</h2><span class="oversight-count">{{ count($attention) }}</span></div>
             @if ($attention)
                 <ul>
@@ -139,7 +140,7 @@
             @endif
         </section>
 
-        <section class="oversight-panel oversight-authority" aria-labelledby="oversight-authority-title">
+        <section class="oversight-panel oversight-authority tala-task-surface" aria-labelledby="oversight-authority-title">
             <div class="oversight-panel-heading"><div class="oversight-heading-scope"><h2 id="oversight-authority-title">Academic Authority</h2><span class="oversight-scope oversight-scope-institution">Institution-wide</span></div><a href="{{ \App\Filament\Pages\CatalogCurriculaWorkbench::getUrl(['oversightTermId' => $termId]) }}">Catalog & Curricula <span aria-hidden="true">→</span></a></div>
             @if ($curriculumSummary['total'] > 0)
                 <div class="oversight-program-summary"><p><strong>{{ $curriculumSummary['ready'] }}</strong> of {{ $curriculumSummary['total'] }} {{ str('program')->plural($curriculumSummary['total']) }} ready for offerings</p><div class="oversight-distribution oversight-program-distribution" aria-hidden="true">@if ($curriculumSummary['ready'] > 0)<span class="oversight-segment-official" style="flex-grow:{{ $curriculumSummary['ready'] }}"></span>@endif @if ($curriculumSummary['total'] > $curriculumSummary['ready'])<span class="oversight-segment-closed" style="flex-grow:{{ $curriculumSummary['total'] - $curriculumSummary['ready'] }}"></span>@endif</div></div>
@@ -149,7 +150,7 @@
             @else<p class="oversight-summary-note">No Programs recorded. Academic authority evidence is unavailable.</p>@endif
         </section>
 
-        <section class="oversight-panel oversight-lifecycle" aria-labelledby="oversight-lifecycle-title">
+        <section class="oversight-panel oversight-lifecycle tala-task-surface" aria-labelledby="oversight-lifecycle-title">
             <div><h2 id="oversight-lifecycle-title">Lifecycle &amp; Completion</h2><p>Read-only records · these views use their own filters.</p></div>
             <nav aria-label="Lifecycle and academic record sources">
                 @foreach (collect($this->approvalAreas())->where('title', 'Lifecycle & Completion') as $area)<x-filament::button tag="a" color="gray" :href="$area['url']" icon="heroicon-o-document-text">{{ $area['action'] }}</x-filament::button>@endforeach

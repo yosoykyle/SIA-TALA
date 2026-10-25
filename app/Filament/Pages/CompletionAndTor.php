@@ -286,8 +286,10 @@ class CompletionAndTor extends Page implements HasTable
             ])
             ->defaultSort('last_name')
             ->stackedOnMobile()
-            ->emptyStateHeading('No completion applications yet')
-            ->emptyStateDescription('Students appear after they deliberately submit a graduation application from Student Academics.')
+            ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() ? 'No matching completion applications' : 'No completion applications yet')
+            ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount()
+                ? 'Try another student or clear the search and filters.'
+                : 'Students appear after they deliberately submit a graduation application from Student Academics.')
             ->emptyStateIcon('heroicon-o-academic-cap');
     }
 

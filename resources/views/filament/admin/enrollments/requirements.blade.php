@@ -6,7 +6,7 @@
         <p>{{ $case->studentProfile?->program?->name ?? $case->admissionApplication?->program?->name }}</p>
         <p>{{ $case->term?->label }}</p>
     </div>
-    <section class="registrar-requirements" aria-labelledby="requirements-heading">
+    <section class="registrar-requirements tala-task-surface" aria-labelledby="requirements-heading">
         <div class="registrar-requirements-heading">
             <x-filament::icon icon="heroicon-o-exclamation-circle" />
             <div><h2 id="requirements-heading">Review enrollment requirements</h2><p>Complete these checks before continuing with the selected subjects.</p></div>
@@ -25,7 +25,7 @@
         </ul>
     </section>
     @if ($proposal !== null)
-        <section class="registrar-requirement-subjects" aria-labelledby="selected-subjects-heading">
+        <section class="registrar-requirement-subjects tala-task-surface" aria-labelledby="selected-subjects-heading">
             <div class="registrar-requirement-subjects-heading"><h2 id="selected-subjects-heading">Selected subjects</h2><p>{{ $proposal->items->count() }} subjects · {{ (float) $proposal->items->sum('units_snapshot') }} units</p></div>
             @include('filament.admin.enrollments.subjects', ['sourceKey' => 'requirements'])
             @if ($schedule && $schedule['meetings'] !== [])

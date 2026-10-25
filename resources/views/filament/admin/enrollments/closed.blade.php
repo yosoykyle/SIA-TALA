@@ -22,7 +22,7 @@
             @endif
         </section>
         @if ($knownOutcome)
-            <section class="registrar-case-reopen" aria-labelledby="reopen-heading">
+            <section class="registrar-case-reopen tala-task-surface" aria-labelledby="reopen-heading">
                 <h2 id="reopen-heading">Resume this enrollment</h2>
                 @if ($cutoff !== null)
                     <p class="registrar-case-meta">Published enrollment cutoff: {{ \App\Support\DisplayDateTime::format($cutoff) }}</p>

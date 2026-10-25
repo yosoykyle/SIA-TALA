@@ -33,7 +33,7 @@
 
     </tbody></table></div>
 
-    <details class="tala-planning-details"><summary>Qualifications, load limits and unavailable times</summary><div class="mt-3 space-y-3">@foreach ($resourceSources as $source)<p><x-filament::link :href="$source['url']">{{ $source['label'] }}</x-filament::link> · {{ $source['description'] }}</p>@endforeach</div></details>
+    <details class="tala-planning-details"><summary>Qualifications, load limits and unavailable times</summary><div class="tala-planning-reveal mt-3 space-y-3">@foreach ($resourceSources as $source)<p><x-filament::link :href="$source['url']">{{ $source['label'] }}</x-filament::link> · {{ $source['description'] }}</p>@endforeach</div></details>
 
 </x-filament::section>
 

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ScheduleGenerationRuns\RelationManagers;
 
 use App\Actions\Scheduling\CandidateScheduleRowReviewService;
 use App\Actions\Scheduling\RequestTimetableRepair;
+use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\CandidateScheduleReviewForm;
 use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
@@ -11,6 +12,7 @@ use App\Models\SectionMeeting;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
@@ -21,6 +23,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -41,6 +44,29 @@ class CandidateRowsRelationManager extends RelationManager
     {
         return $schema
             ->components([
+                Section::make('Assignment comparison')
+                    ->visible(fn (CandidateScheduleRow $record): bool => filled($record->supersedes_candidate_row_id) || in_array($record->change_type, ['RequestedRepair', 'RepairImpact', 'LocalAdjustment', 'Unchanged'], true))
+                    ->description('Compare this successor with its recorded source. Review every changed meeting before accepting the whole candidate.')
+                    ->schema([
+                        TextEntry::make('comparison_change')->label('Change')
+                            ->state(fn (CandidateScheduleRow $record): string => match ($record->change_type) {
+                                'RequestedRepair' => 'Requested repair',
+                                'RepairImpact' => 'Other meeting changed by repair',
+                                'Unchanged' => 'Unchanged meeting',
+                                'LocalAdjustment' => 'Local adjustment',
+                                default => 'Recorded successor',
+                            }),
+                        TextEntry::make('comparison_source')->label('Source attempt')
+                            ->state(fn (CandidateScheduleRow $record): ?string => ($previous = self::previousAssignment($record)) ? 'Attempt #'.$previous->schedule_run_id : null)
+                            ->placeholder('Source assignment unavailable')
+                            ->url(fn (CandidateScheduleRow $record): ?string => ($previous = self::previousAssignment($record)) ? ScheduleGenerationRunResource::getUrl('view', ['record' => $previous->schedule_run_id, 'termId' => $record->scheduleRun->term_id]) : null),
+                        TextEntry::make('comparison_before')->label('Before')
+                            ->state(fn (CandidateScheduleRow $record): array => ($previous = self::previousAssignment($record)) ? self::assignmentFacts($previous) : ['Previous assignment unavailable. Inspect the source evidence before accepting this successor.'])
+                            ->listWithLineBreaks(),
+                        TextEntry::make('comparison_after')->label('After')
+                            ->state(fn (CandidateScheduleRow $record): array => self::assignmentFacts($record))
+                            ->listWithLineBreaks(),
+                    ])->columns(['default' => 1, 'md' => 2]),
                 Section::make('Candidate meeting')
                     ->schema([
                         Group::make([
@@ -49,6 +75,11 @@ class CandidateRowsRelationManager extends RelationManager
                                 ->badge()
                                 ->formatStateUsing(fn (string $state): string => self::statusOptions()[$state] ?? self::headline($state))
                                 ->color(fn (string $state): string => self::statusColor($state)),
+                            TextEntry::make('schedulingDemand.courseComponent.courseSpecification.title')
+                                ->label('Course')
+                                ->weight('semibold')
+                                ->columnSpanFull()
+                                ->placeholder('Course title not recorded'),
                             TextEntry::make('schedulingDemand.courseComponent.courseSpecification.course.code')
                                 ->label('Course code')
                                 ->placeholder('Not recorded'),
@@ -87,6 +118,8 @@ class CandidateRowsRelationManager extends RelationManager
                     ])
                     ->compact(),
                 Section::make('Source and validation details')
+                    ->collapsible()
+                    ->collapsed(fn (CandidateScheduleRow $record): bool => self::payloadCount($record->warnings) === 0 && self::payloadCount($record->violations) === 0)
                     ->schema([
                         TextEntry::make('schedulingDemand.demand_key')
                             ->label('Scheduling demand reference')
@@ -123,65 +156,74 @@ class CandidateRowsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            ->heading(null)
+            ->description(function (): ?string {
+                if (data_get($this->ownerRun()->input_snapshot, 'operation.kind') !== 'repair') {
+                    return null;
+                }
+
+                $counts = $this->ownerRun()->candidateRows()->pluck('change_type')->countBy();
+
+                if ($counts->isEmpty()) {
+                    return null;
+                }
+
+                return 'Requested changes: '.$counts->get('RequestedRepair', 0).' · Other changes: '.$counts->get('RepairImpact', 0).' · Unchanged meetings: '.$counts->get('Unchanged', 0).'. Counts cover the whole candidate.';
+            })
             ->recordTitleAttribute('id')
             ->modifyQueryUsing(fn ($query) => $query->with([
                 'faculty',
                 'room',
+                'supersedes.faculty',
+                'supersedes.room',
+                'supersedes.scheduleRun',
+                'scheduleRun',
                 'schedulingDemand.courseComponent.courseSpecification.course',
                 'schedulingDemand.sectionDeliveryGroup.section',
             ]))
             ->columns([
-                TextColumn::make('status')
-                    ->label('Validation')
-                    ->badge()
-                    ->color(fn (string $state): string => self::statusColor($state))
-                    ->formatStateUsing(fn (string $state): string => self::statusOptions()[$state] ?? str($state)->headline()->toString())
-                    ->sortable(),
-                TextColumn::make('change_type')
-                    ->label('Repair impact')
-                    ->badge()
-                    ->placeholder('Original')
-                    ->color(fn (?string $state): string => in_array($state, ['RequestedRepair', 'RepairImpact'], true) ? 'warning' : 'gray'),
-                TextColumn::make('schedulingDemand.courseComponent.courseSpecification.course.code')
+                TextColumn::make('schedulingDemand.courseComponent.courseSpecification.title')
                     ->label('Class meeting')
                     ->description(fn (CandidateScheduleRow $record): string => collect([
+                        $record->schedulingDemand?->courseComponent?->courseSpecification?->course?->code,
                         $record->schedulingDemand?->sectionDeliveryGroup?->section?->code,
                         self::headline($record->schedulingDemand?->courseComponent?->component_type),
                         self::modalityLabel($record->schedulingDemand?->modality),
                     ])->filter()->implode(' · '))
                     ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $rows): Builder => $rows
-                        ->whereHas('schedulingDemand.courseComponent.courseSpecification.course', fn (Builder $courses): Builder => $courses->where('code', 'like', "%{$search}%"))
+                        ->whereHas('schedulingDemand.courseComponent.courseSpecification', fn (Builder $specifications): Builder => $specifications
+                            ->where('title', 'like', "%{$search}%")
+                            ->orWhereHas('course', fn (Builder $courses): Builder => $courses->where('code', 'like', "%{$search}%")))
                         ->orWhereHas('schedulingDemand.sectionDeliveryGroup.section', fn (Builder $classes): Builder => $classes->where('code', 'like', "%{$search}%"))))
-                    ->wrap()->weight('bold'),
-                TextColumn::make('schedulingDemand.demand_key')
-                    ->label('Demand')->searchable()->wrap()->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('faculty.name')
-                    ->label('Faculty')
-                    ->wrap()
-                    ->placeholder('-')
-                    ->searchable(),
-                TextColumn::make('room.code')
-                    ->label('Room')
-                    ->wrap()
-                    ->placeholder('-')
-                    ->searchable(),
+                    ->wrap()->weight('semibold')->placeholder('Course title not recorded'),
                 TextColumn::make('day_of_week')
-                    ->label('Meeting time')
+                    ->label('Day & time')
                     ->formatStateUsing(fn (?int $state): string => $state === null ? '-' : (SectionMeeting::dayOptions()[$state] ?? '-'))
                     ->description(fn (CandidateScheduleRow $record): string => self::timeRange($record))
                     ->sortable()->wrap(),
-                TextColumn::make('violation_count')
-                    ->label('Violations')
-                    ->state(fn (CandidateScheduleRow $record): int => self::payloadCount($record->violations))
+                TextColumn::make('faculty.name')
+                    ->label('Teacher & room')
+                    ->description(fn (CandidateScheduleRow $record): string => filled($record->room?->code) ? 'Room '.$record->room->code : 'Room not recorded')
+                    ->wrap()
+                    ->placeholder('Teacher not recorded')
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $assignments): Builder => $assignments
+                        ->whereHas('faculty', fn (Builder $faculty): Builder => $faculty->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('room', fn (Builder $rooms): Builder => $rooms->where('code', 'like', "%{$search}%")))),
+                TextColumn::make('status')
+                    ->label('Checks & change')
                     ->badge()
-                    ->color(fn (int $state): string => $state > 0 ? 'danger' : 'success'),
-                TextColumn::make('warning_count')
-                    ->label('Warnings')
-                    ->state(fn (CandidateScheduleRow $record): int => self::payloadCount($record->warnings))
-                    ->badge()
-                    ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
+                    ->color(fn (string $state): string => self::statusColor($state))
+                    ->formatStateUsing(fn (string $state): string => self::statusOptions()[$state] ?? str($state)->headline()->toString())
+                    ->description(fn (CandidateScheduleRow $record): string => implode(' · ', [
+                        filled($record->change_type) ? self::headline($record->change_type) : 'Original',
+                        self::payloadCount($record->violations).' violations',
+                        self::payloadCount($record->warnings).' warnings',
+                    ]))
+                    ->sortable(),
             ])
             ->filters([
+                Filter::make('changed_meetings')->label('Changed meetings only')
+                    ->query(fn (Builder $query): Builder => $query->whereIn('change_type', ['RequestedRepair', 'RepairImpact', 'LocalAdjustment'])),
                 SelectFilter::make('status')
                     ->options(self::statusOptions()),
                 SelectFilter::make('day_of_week')
@@ -202,15 +244,38 @@ class CandidateRowsRelationManager extends RelationManager
             ->defaultSort('day_of_week')
             ->recordActions([
                 ViewAction::make()
-                    ->label('View meeting details')->button()->color('gray')
+                    ->label('Meeting details')->button()->color('gray')
                     ->modalHeading('Candidate meeting details'),
-                $this->correctAssignmentAction(),
-                $this->findValidRepairAction(),
+                ActionGroup::make([
+                    $this->correctAssignmentAction(),
+                    $this->findValidRepairAction(),
+                ])->label('Changes')->button()->color('gray'),
             ])
             ->toolbarActions([])
             ->stackedOnMobile()
-            ->emptyStateHeading('No candidate assignments are available')
-            ->emptyStateDescription('The timetable request has not returned any assignments to review.');
+            ->emptyStateHeading(fn (): string => $this->ownerRun()->candidateRows()->exists() ? 'No meetings match this view' : 'No candidate assignments are available')
+            ->emptyStateDescription(fn (): string => $this->ownerRun()->candidateRows()->exists() ? 'Clear the search or filters to see all candidate meetings.' : 'The timetable request has not returned any assignments to review.');
+    }
+
+    private static function previousAssignment(CandidateScheduleRow $record): ?CandidateScheduleRow
+    {
+        $previous = $record->supersedes;
+
+        return $previous instanceof CandidateScheduleRow
+            && (int) $previous->scheduling_demand_id === (int) $record->scheduling_demand_id
+            && (int) $previous->meeting_sequence === (int) $record->meeting_sequence
+            && (int) $previous->scheduleRun?->term_id === (int) $record->scheduleRun?->term_id
+                ? $previous : null;
+    }
+
+    /** @return list<string> */
+    private static function assignmentFacts(CandidateScheduleRow $record): array
+    {
+        return [
+            (SectionMeeting::dayOptions()[$record->day_of_week] ?? 'Day not recorded').' · '.(filled($record->starts_at) && filled($record->ends_at) ? self::timeRange($record) : 'Time not recorded').' · Asia/Manila',
+            'Teacher: '.($record->faculty?->name ?? 'Not recorded'),
+            'Room: '.($record->room?->code ?? 'No room assigned'),
+        ];
     }
 
     private function correctAssignmentAction(): Action
@@ -219,8 +284,15 @@ class CandidateRowsRelationManager extends RelationManager
             ->label('Correct assignment')
             ->icon(Heroicon::OutlinedPencilSquare)
             ->modalHeading('Correct candidate assignment')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
-            ->modalDescription('TALA revalidates the complete candidate schedule before saving this correction.')
+
+            ->modalDescription(fn (CandidateScheduleRow $record): string => implode(' · ', [
+                $record->schedulingDemand?->courseComponent?->courseSpecification?->title ?? 'Course not recorded',
+                filled($record->schedulingDemand?->sectionDeliveryGroup?->section?->code)
+                    ? 'Class '.$record->schedulingDemand->sectionDeliveryGroup->section->code
+                    : 'Class not recorded',
+                $record->day_of_week === null ? 'Day not recorded' : (SectionMeeting::dayOptions()[$record->day_of_week] ?? 'Day not recorded'),
+                filled($record->starts_at) && filled($record->ends_at) ? self::timeRange($record) : 'Time not recorded',
+            ]).'. TALA revalidates the complete candidate schedule before saving this correction.')
             ->modalSubmitActionLabel('Validate and save')
             ->modalWidth(Width::FiveExtraLarge)
             ->fillForm(fn (CandidateScheduleRow $record): array => [
@@ -243,13 +315,18 @@ class CandidateRowsRelationManager extends RelationManager
                 }
 
                 try {
-                    app(CandidateScheduleRowReviewService::class)->revise($record, $data, $actor);
+                    $successor = app(CandidateScheduleRowReviewService::class)->revise($record, $data, $actor);
 
                     Notification::make()
                         ->title('Candidate assignment corrected')
                         ->body('The complete candidate schedule passed current hard-constraint validation.')
                         ->success()
                         ->send();
+
+                    $this->redirect(ScheduleGenerationRunResource::getUrl('view', [
+                        'record' => $successor,
+                        'termId' => $successor->term_id,
+                    ]));
                 } catch (ValidationException $exception) {
                     Notification::make()
                         ->title('Candidate correction blocked')
@@ -272,8 +349,15 @@ class CandidateRowsRelationManager extends RelationManager
             ->icon(Heroicon::OutlinedArrowPath)
             ->color('warning')
             ->modalHeading('Find a whole-Term repair')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
-            ->modalDescription('The requested meeting is fixed as a hard requirement. Other meetings may move only in a previewable immutable candidate; nothing official changes until the whole repair is accepted and published.')
+
+            ->modalDescription(fn (CandidateScheduleRow $record): string => implode(' · ', [
+                $record->schedulingDemand?->courseComponent?->courseSpecification?->title ?? 'Course not recorded',
+                filled($record->schedulingDemand?->sectionDeliveryGroup?->section?->code)
+                    ? 'Class '.$record->schedulingDemand->sectionDeliveryGroup->section->code
+                    : 'Class not recorded',
+                $record->day_of_week === null ? 'Day not recorded' : (SectionMeeting::dayOptions()[$record->day_of_week] ?? 'Day not recorded'),
+                filled($record->starts_at) && filled($record->ends_at) ? self::timeRange($record) : 'Time not recorded',
+            ]).'. The requested meeting is fixed as a hard requirement. Other meetings may move only in a previewable immutable candidate; nothing official changes until the whole repair is accepted and published.')
             ->modalSubmitActionLabel('Queue repair preview')
             ->modalWidth(Width::FiveExtraLarge)
             ->fillForm(fn (CandidateScheduleRow $record): array => [
@@ -295,7 +379,7 @@ class CandidateRowsRelationManager extends RelationManager
                     abort(403);
                 }
 
-                app(RequestTimetableRepair::class)->execute(
+                $repairRun = app(RequestTimetableRepair::class)->execute(
                     requestedRow: $record,
                     actor: $actor,
                     assignment: [
@@ -315,6 +399,10 @@ class CandidateRowsRelationManager extends RelationManager
                     ->success()
                     ->send();
                 $this->dispatch('schedule-run-updated');
+                $this->redirect(ScheduleGenerationRunResource::getUrl('view', [
+                    'record' => $repairRun,
+                    'termId' => $repairRun->term_id,
+                ]));
             });
     }
 

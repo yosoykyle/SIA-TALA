@@ -1,6 +1,6 @@
 <span id="tala-main-content" tabindex="-1"></span>
 <x-tala-context-entry-notice />
-<x-filament::modal
+<x-filament::modal footer-actions-alignment="end"
     id="tala-sign-out"
     width="md"
     heading="Sign out?"
@@ -11,11 +11,11 @@
     <x-slot name="footer">
         <form method="POST" action="{{ filament()->getLogoutUrl() }}" class="fi-modal-footer-actions">
             @csrf
-            <x-filament::button color="gray" outlined type="button" x-on:click="$dispatch('close-modal', { id: 'tala-sign-out' })" autofocus>
-                Stay signed in
-            </x-filament::button>
             <x-filament::button color="warning" type="submit">
                 Sign out
+            </x-filament::button>
+            <x-filament::button color="gray" outlined type="button" x-on:click="$dispatch('close-modal', { id: 'tala-sign-out' })" autofocus>
+                Stay signed in
             </x-filament::button>
         </form>
     </x-slot>

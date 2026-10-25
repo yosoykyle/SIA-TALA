@@ -10,6 +10,7 @@ use App\Models\SectionMeeting;
 use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section as InfolistSection;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
@@ -20,34 +21,39 @@ final class ScheduleRevisionEventInfolist
     {
         return $schema
             ->components([
-                InfolistSection::make('Revision')
+                InfolistSection::make('Meeting revision')
                     ->schema([
-                        TextEntry::make('change_type')
-                            ->label('Change Type')
-                            ->badge()
-                            ->formatStateUsing(fn (string $state): string => ScheduleRevisionEvent::changeTypeOptions()[$state] ?? Str::headline($state)),
-                        TextEntry::make('section_label')
-                            ->label('Section')
-                            ->state(fn (ScheduleRevisionEvent $record): string => self::sectionLabel($record)),
-                        TextEntry::make('course_label')
-                            ->label('Course')
-                            ->state(fn (ScheduleRevisionEvent $record): string => self::courseLabel($record)),
-                        TextEntry::make('meeting_label')
-                            ->label('Meeting')
-                            ->state(fn (ScheduleRevisionEvent $record): string => self::meetingLabel($record)),
-                        TextEntry::make('effective_date')
-                            ->label('Effective Date')
-                            ->date(),
-                        TextEntry::make('actor_label')
-                            ->label('Changed By')
-                            ->state(fn (ScheduleRevisionEvent $record): string => self::actorLabel($record)),
-                        TextEntry::make('created_at')
-                            ->label('Recorded At')
-                            ->dateTime('M j, Y, g:i A')->timezone('Asia/Manila'),
-                        TextEntry::make('reason')
-                            ->columnSpanFull(),
+                        Grid::make(['default' => 1, 'lg' => 2])
+                            ->schema([
+                                TextEntry::make('change_type')
+                                    ->label('Change type')
+                                    ->badge()
+                                    ->formatStateUsing(fn (string $state): string => ScheduleRevisionEvent::changeTypeOptions()[$state] ?? Str::headline($state)),
+                                TextEntry::make('course_label')
+                                    ->label('Course')
+                                    ->state(fn (ScheduleRevisionEvent $record): string => self::courseLabel($record)),
+                                TextEntry::make('section_label')
+                                    ->label('Class')
+                                    ->state(fn (ScheduleRevisionEvent $record): string => self::sectionLabel($record)),
+                                TextEntry::make('meeting_label')
+                                    ->label('Meeting')
+                                    ->state(fn (ScheduleRevisionEvent $record): string => self::meetingLabel($record)),
+                                TextEntry::make('effective_date')
+                                    ->label('Effective date')
+                                    ->date(),
+                                TextEntry::make('actor_label')
+                                    ->label('Changed by')
+                                    ->state(fn (ScheduleRevisionEvent $record): string => self::actorLabel($record)),
+                                TextEntry::make('created_at')
+                                    ->label('Recorded at')
+                                    ->dateTime('M j, Y, g:i A')->timezone('Asia/Manila'),
+                                TextEntry::make('reason')
+                                    ->label('Approved reason')
+                                    ->wrap()
+                                    ->columnSpanFull(),
+                            ]),
                     ])
-                    ->columns(2),
+                    ->compact(),
                 InfolistSection::make('Impact')
                     ->schema([
                         TextEntry::make('affected_student_count')
@@ -58,12 +64,17 @@ final class ScheduleRevisionEventInfolist
                             ->numeric(),
                     ])
                     ->columns(2),
-                InfolistSection::make('Before')
-                    ->schema(self::snapshotEntries('old_snapshot_json', 'before'))
-                    ->columns(2),
-                InfolistSection::make('After')
-                    ->schema(self::snapshotEntries('new_snapshot_json', 'after'))
-                    ->columns(2),
+                Grid::make(['default' => 1, 'lg' => 2])
+                    ->schema([
+                        InfolistSection::make('Before')
+                            ->schema(self::snapshotEntries('old_snapshot_json', 'before'))
+                            ->columns(2)
+                            ->compact(),
+                        InfolistSection::make('After')
+                            ->schema(self::snapshotEntries('new_snapshot_json', 'after'))
+                            ->columns(2)
+                            ->compact(),
+                    ]),
             ]);
     }
 
@@ -111,9 +122,14 @@ final class ScheduleRevisionEventInfolist
 
     private static function courseLabel(ScheduleRevisionEvent $record): string
     {
-        $course = self::meeting($record)?->schedulingDemand?->termOffering?->course();
+        $specification = self::meeting($record)?->schedulingDemand?->courseComponent?->courseSpecification;
+        $course = $specification?->course;
+        $parts = array_filter([
+            $course instanceof Course ? $course->code : null,
+            $specification?->title,
+        ]);
 
-        return $course instanceof Course ? $course->code : 'Course unavailable';
+        return $parts === [] ? 'Course unavailable' : implode(' · ', $parts);
     }
 
     private static function meetingLabel(ScheduleRevisionEvent $record): string

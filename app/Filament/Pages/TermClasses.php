@@ -4,8 +4,10 @@ namespace App\Filament\Pages;
 
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\PrepareClassOffering;
+use App\Actions\Scheduling\SectionPlanningService;
 use App\Actions\Scheduling\TermCoverageProjection;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
+use App\Filament\Resources\Sections\Schemas\SectionForm;
 use App\Filament\Resources\Sections\Schemas\SectionInfolist;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Models\CourseSpecification;
@@ -20,6 +22,7 @@ use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
+use Filament\Actions\CreateAction;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -122,14 +125,14 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     TextColumn::make('reference')->label('Student section')->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $identity): Builder => $identity
                         ->where('reference', 'like', '%'.$search.'%')
                         ->orWhereHas('program', fn (Builder $program): Builder => $program->where('name', 'like', '%'.$search.'%'))))->sortable()->weight('semibold')->wrap()
-                        ->description(fn (TermCohort $record): string => $record->program->name.' · '.($record->curriculumVersion?->version_code ?? 'Curriculum not associated').' · '.(filled($record->year_level) ? $record->year_level : 'Year level not recorded')),
+                        ->description(fn (TermCohort $record): string => collect([$record->program->name, $record->curriculumVersion?->version_code ?? 'Curriculum not associated', $record->year_level])->filter()->implode(' · ')),
                     TextColumn::make('expected_learners')->label('Learners')->state(fn (TermCohort $record): string => match (true) {
                         $record->confirmed_count !== null => $record->confirmed_count.' confirmed',
                         $record->forecast_count !== null => $record->forecast_count.' forecast',
                         default => 'No count recorded',
                     }),
                     TextColumn::make('classOfferings.code')->label('Linked classes')->listWithLineBreaks()->placeholder('No classes linked')
-                        ->description(fn (TermCohort $record): string => $record->classOfferings->isEmpty() ? 'Prepare classes to link this student section' : $record->classOfferings->count().' '.Str::plural('linked class', $record->classOfferings->count())),
+                        ->description(fn (TermCohort $record): string => $record->classOfferings->isEmpty() ? 'The Registrar links this student section when preparing classes.' : $record->classOfferings->count().' '.Str::plural('linked class', $record->classOfferings->count())),
                 ])->paginationPageOptions([10, 25, 50])->defaultPaginationPageOption(10)->defaultSort('reference')
                 ->recordActionsColumnLabel('Actions')->recordActions([Action::make('linkedClasses')->label(fn (TermCohort $record): string => $record->classOfferings->isEmpty() ? 'Prepare classes' : 'View classes')->button()->color('gray')
                 ->unsavedChangesAlert(false)
@@ -141,24 +144,28 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     TextEntry::make('title')->label('Course')->state(fn (Section $record): string => $record->courseRevision?->title ?? $record->termOffering?->curriculumEntry?->courseSpecification?->title ?? $record->code),
                 ])->columns(2)])
                 ->modalSubmitAction(false)->modalCancelActionLabel('Close')])
-                ->emptyStateHeading('No student sections recorded for this Term')->emptyStateDescription('Record a student section before linking classes.')->stackedOnMobile();
+                ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) ? 'No matching student sections' : 'No student sections recorded for this Term')
+                ->emptyStateDescription(fn (): string => filled($this->getTableSearch())
+                    ? 'Try another name or clear the search.'
+                    : (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? 'The Registrar records student sections before linking classes.' : 'Record a student section before linking classes.'))->stackedOnMobile();
         }
 
         return $table->query($this->classesQuery())
             ->columns([
-                TextColumn::make('code')->label('Class')->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $identity): Builder => $identity
+                TextColumn::make('code')->label('Subject')->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $identity): Builder => $identity
                     ->where('code', 'like', '%'.$search.'%')
                     ->orWhereHas('courseRevision', fn (Builder $course): Builder => $course->where('title', 'like', '%'.$search.'%'))
                     ->orWhereHas('termOffering.curriculumEntry.courseSpecification', fn (Builder $course): Builder => $course->where('title', 'like', '%'.$search.'%'))))->sortable()->weight('bold')
                     ->formatStateUsing(fn (string $state, Section $record): string => ($record->courseRevision?->title ?? $record->termOffering?->curriculumEntry?->courseSpecification?->title) ?: $state)
-                    ->description(fn (Section $record): string => $record->code)->wrap(),
+                    ->wrap(),
+                TextColumn::make('source_code')->label('Class code')->state(fn (Section $record): string => $record->code)->wrap()->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('termOffering.curriculumEntry.curriculumVersion.program.code')->label('Curriculum origin')
                     ->description(fn (Section $record): string => (string) $record->termOffering?->curriculumEntry?->year_level)->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('cohorts.reference')->label('Student sections')->listWithLineBreaks()->placeholder('No sections linked')
-                    ->description(fn (Section $record): string => $record->cohorts->count().' section(s) · '.$record->cohorts->sum(fn ($cohort): int => (int) $cohort->pivot->expected_count).' linked learners')->wrap(),
+                    ->description(fn (Section $record): string => collect([$record->termOffering?->curriculumEntry?->year_level, $record->cohorts->isEmpty() ? null : $record->cohorts->sum(fn ($cohort): int => (int) $cohort->pivot->expected_count).' learners'])->filter()->implode(' · '))->wrap(),
                 TextColumn::make('weekly_meetings')->label('Weekly meetings')
                     ->state(fn (Section $record): int => (int) $this->demands($record)->sum('meeting_count'))
-                    ->description(fn (Section $record): string => $this->demands($record)->map(fn (SchedulingDemand $demand): string => $demand->meeting_count.' × '.$demand->required_duration_minutes.' min')->unique()->implode(' · ')),
+                    ->description(fn (Section $record): string => $this->demands($record)->map(fn (SchedulingDemand $demand): string => $demand->meeting_count.' × '.$demand->required_duration_minutes.' min')->unique()->implode(' · '))->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('teacher_options')->label('Teacher options')
                     ->state(function (Section $record): string {
                         $course = $record->courseRevision?->course?->code ?? $record->termOffering?->curriculumEntry?->courseSpecification?->course?->code;
@@ -168,11 +175,22 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         $count = $this->getViewData()['facultyRecords']->filter(fn (array $faculty): bool => in_array($course, $faculty['courses'], true))->count();
 
                         return $count ? $count.' qualified' : 'No qualified teacher';
-                    })->tooltip('Generation chooses among eligible teachers using availability and load checks. Grading assignment is separate.')->wrap(),
+                    })->tooltip('Generation chooses among eligible teachers using availability and load checks. Grading assignment is separate.')->toggleable(isToggledHiddenByDefault: true)->wrap(),
                 TextColumn::make('state')->label('Class lifecycle')->badge()->formatStateUsing(fn (string $state): string => Section::stateOptions()[$state] ?? $state)->color('gray')->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('preparation')->label('Preparation')->state(fn (Section $record): string => $this->preparation($record))->badge()
-                    ->color(fn (string $state): string => $state === 'Confirmed; requirements recorded' ? 'success' : 'warning')
-                    ->description(fn (Section $record): string => $this->demands($record)->flatMap(fn (SchedulingDemand $demand): array => $demand->readinessFindings())->pluck('message')->unique()->implode(' · '))->wrap(),
+                TextColumn::make('preparation')->label('Status')->state(fn (Section $record): string => $this->preparation($record))
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'Needs active calendar source' => 'Needs preparation',
+                        'Needs confirmation' => 'Confirm learners',
+                        'Confirmed; requirements recorded' => 'Confirmed',
+                        default => $state,
+                    })->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'Confirmed; requirements recorded' => 'success',
+                        'Outside generation' => 'gray',
+                        default => 'warning',
+                    })->tooltip(fn (Section $record): string => collect([$this->preparation($record)])
+                    ->merge($this->demands($record)->flatMap(fn (SchedulingDemand $demand): array => $demand->readinessFindings())->pluck('message'))
+                    ->unique()->implode(' · '))->wrap(),
             ])
             ->filters([
                 SelectFilter::make('program')->label('Program')->searchable()->options(fn (): array => Program::query()->orderBy('name')->get()->mapWithKeys(fn (Program $program): array => [$program->id => $program->name.' ('.$program->code.')'])->all())
@@ -187,9 +205,10 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         ->orWhereDoesntHave('cohorts')->orWhereDoesntHave('deliveryGroups.schedulingDemands')
                         ->orWhereHas('deliveryGroups.schedulingDemands', fn (Builder $demands) => $demands->where('validation_state', SchedulingDemand::ValidationActionRequired)))),
             ])
+            ->filtersTriggerAction(fn (Action $action): Action => $action->label('Filter classes')->button()->color('gray'))
             ->toolbarActions([
                 BulkAction::make('confirmSelectedClasses')
-                    ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
                     ->modalSubmitActionLabel('Confirm selected classes')
                     ->label('Confirm selected classes')
                     ->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar))
@@ -271,18 +290,41 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->deselectRecordsAfterCompletion(),
             ])
             ->headerActions([
-                Action::make('setUpYear')->label('Prepare Term classes')->url(fn (): string => TermClassProposal::getUrl(['termId' => $this->termId]))->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->can('create', TermOffering::class)),
-                Action::make('addClass')->label('Add a class')->color('gray')->url(fn (): string => SectionResource::getUrl('index', ['termId' => $this->termId, 'action' => 'create']))->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->can('create', Section::class)),
+                Action::make('setUpYear')->label('Prepare classes')->icon('heroicon-o-plus')->url(fn (): string => TermClassProposal::getUrl(['termId' => $this->termId]))->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->can('create', TermOffering::class)),
+                $this->addClassAction(),
             ])
             ->recordActions([
-                $this->confirmClassAction()
-                    ->visible(fn (Section $record): bool => $record->confirmed_at === null && ! in_array($record->state, [Section::StateClosed, Section::StateCancelled], true) && (bool) auth()->user()?->can('update', $record)),
-                $this->classDetailsAction('viewClass'),
-                Action::make('manageClass')->label('Manage class')
-                    ->url(fn (Section $record): string => SectionResource::getUrl('view', ['record' => $record, 'termId' => $this->termId]))
-                    ->visible(fn (Section $record): bool => (bool) auth()->user()?->can('update', $record)),
-                $this->prepareClassOfferingAction()->visible(fn (Section $record): bool => $record->confirmed_at === null && ! in_array($record->state, [Section::StateClosed, Section::StateCancelled], true) && (bool) auth()->user()?->can('update', $record)),
-            ])->defaultSort('code')->emptyStateHeading('No classes in this scope')->emptyStateDescription('Add the student sections and set up the offered courses for this Term.')->stackedOnMobile();
+                $this->prepareClassOfferingAction()->label('Prepare')->icon('heroicon-o-pencil-square')->button()
+                    ->visible(fn (Section $record): bool => $this->canPrepareClass($record) && $this->preparation($record) === 'Needs active calendar source'),
+                $this->confirmClassAction()->label('Confirm learners')->icon('heroicon-o-check')->button()
+                    ->visible(fn (Section $record): bool => $this->canPrepareClass($record) && $this->preparation($record) !== 'Needs active calendar source'),
+                $this->classDetailsAction('viewClass')->label('Details')->icon('heroicon-o-eye')->button()->color('gray'),
+            ])->recordActionsColumnLabel('Actions')->defaultSort('code')
+            ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() ? 'No matching classes' : 'No classes recorded for this Term')
+            ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount()
+                ? 'Try another subject or clear the search and filters.'
+                : (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? 'The Registrar prepares the classes for this Term.' : 'Add the student sections and prepare the classes for this Term.'))->stackedOnMobile();
+    }
+
+    public function addClassAction(): CreateAction
+    {
+        return CreateAction::make('addClass')->label('Add draft class')->icon('heroicon-o-plus')->color('gray')->model(Section::class)
+            ->authorize(fn (): bool => (bool) auth()->user()?->can('create', Section::class))
+            ->modalHeading('Add draft class')
+            ->modalDescription('Record a class for an existing offered course. Prepare it and confirm its learners before timetable generation.')
+            ->modalSubmitActionLabel('Add draft class')->createAnother(false)
+            ->schema(fn (Schema $schema): Schema => SectionForm::configure($schema))
+            ->mutateDataUsing(function (array $data): array {
+                if (! TermOffering::query()->whereKey($data['term_offering_id'] ?? null)->where('term_id', $this->termId)->exists()) {
+                    throw ValidationException::withMessages(['term_offering_id' => 'Choose an offered course for the selected Term.']);
+                }
+
+                return app(SectionPlanningService::class)->prepareForSave([...$data, 'state' => Section::StatePlanned]);
+            })
+            ->after(function (): void {
+                $this->classViewData = null;
+            })
+            ->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->can('create', Section::class));
     }
 
     public function inspectLinkedClassAction(): Action
@@ -294,10 +336,16 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
     private function classDetailsAction(string $name): Action
     {
         return Action::make($name)->label('Class details')
-            ->modalDescription(fn (): string => $this->selectedTerm()->label)
+            ->modalDescription(fn (): string => collect([$this->selectedTerm()->typeLabel(), $this->selectedTerm()->academicYear?->label])->filter()->unique()->implode(' · '))
             ->modalHeading(fn (Section $record): string => $record->courseRevision?->title ?? $record->termOffering?->curriculumEntry?->courseSpecification?->title ?? $record->code)
             ->schema(fn (Schema $schema): Schema => SectionInfolist::configure($schema, showCourseTitle: false))
             ->unsavedChangesAlert(false)
+            ->extraModalFooterActions(fn (Section $record): array => [
+                Action::make('manageClass')->label('Manage class')->color('gray')->icon('heroicon-o-arrow-right')->iconPosition('after')
+                    ->url(SectionResource::getUrl('view', ['record' => $record, 'termId' => $this->termId]))
+                    ->visible((bool) auth()->user()?->can('update', $record)),
+            ])
+
             ->modalSubmitAction(false)->modalCancelActionLabel('Close');
     }
 
@@ -353,6 +401,14 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
     {
         return $class->deliveryGroups->whereNotIn('state', [SectionDeliveryGroup::StateClosed, SectionDeliveryGroup::StateCancelled])
             ->flatMap(fn (SectionDeliveryGroup $group) => $group->schedulingDemands);
+    }
+
+    private function canPrepareClass(Section $class): bool
+    {
+        return $this->getViewData()['activePackage'] !== null
+            && $class->confirmed_at === null
+            && ! in_array($class->state, [Section::StateClosed, Section::StateCancelled], true)
+            && (bool) auth()->user()?->can('update', $class);
     }
 
     private function preparation(Section $class): string

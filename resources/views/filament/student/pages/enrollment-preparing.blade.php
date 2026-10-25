@@ -3,7 +3,7 @@
         <div><h2>{{ $proposal->curriculumVersion?->program?->name ?? 'Program unavailable' }}</h2><p>{{ \App\Models\Term::typeOptions()[$enrollment->term?->type] ?? $enrollment->term?->label ?? 'Term unavailable' }} · School year {{ $enrollment->term?->academicYear?->label ?? 'unavailable' }}</p></div>
     </div>
     <div class="student-enrollment-task-layout">
-    <section class="student-enrollment-task" aria-label="Enrollment preparation">
+    <section class="student-enrollment-task tala-task-surface" aria-label="Enrollment preparation">
         <h2>{{ $assessment && (int) $assessment->source_proposal_version_id === (int) $proposal->id ? 'Waiting for Registrar review' : 'Waiting for Registrar and Accounting' }}</h2>
         <p>The Registrar is arranging your classes.@if (! $assessment || (int) $assessment->source_proposal_version_id !== (int) $proposal->id) Accounting will prepare your fees.@endif</p>
         <p>No action is needed from you yet. You can confirm when your classes and fees are ready.</p>

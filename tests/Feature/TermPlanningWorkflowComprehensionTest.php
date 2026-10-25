@@ -4,12 +4,13 @@ namespace Tests\Feature;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Pages\FacultySchedule;
+use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermResources;
 use App\Filament\Pages\TermTimetable;
-use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Models\AcademicYear;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\Room;
@@ -66,14 +67,31 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
 
         $overviewResponse = $this->get(TermOverview::getUrl())->assertSee('Choose a Term to plan');
         if ($role === User::StaffRoleRegistrar) {
-            $overviewResponse->assertSee('Create Term')->assertDontSee('Term options');
+            $overviewResponse->assertSee('Add Term')->assertDontSee('Term options');
         } else {
-            $overviewResponse->assertSee('Academic Oversight')->assertDontSee('Create Term');
+            $overviewResponse->assertSee('Academic Oversight')->assertDontSee('Add Term');
         }
         Livewire::test(TermOverview::class)->assertSet('termId', null)
             ->assertSee('Choose a Term')->call('selectTerm', $term->id)
             ->assertRedirect(TermOverview::getUrl(['termId' => $term->id]));
         $this->get(TermOverview::getUrl(['termId' => $term->id]))->assertSee('Exact selected Term');
+    }
+
+    #[TestWith([User::StaffRoleFaculty, MyAvailability::class])]
+    #[TestWith([User::StaffRoleFaculty, FacultySchedule::class])]
+    #[TestWith([User::StaffRoleAcademicHead, AcademicApprovals::class])]
+    public function test_invalid_term_links_never_open_another_terms_role_journey(string $role, string $page): void
+    {
+        Role::findOrCreate($role, 'web');
+        $actor = User::factory()->create();
+        $actor->assignRole($role);
+        $this->actingAs($actor)->withSession([WorkspaceContextResolver::SessionKey => $role]);
+        TermCalendarPackage::query()->where('state', TermCalendarPackage::StateActive)
+            ->update(['state' => TermCalendarPackage::StateClosed]);
+        TermCalendarPackage::factory()->create(['state' => TermCalendarPackage::StateActive]);
+        $invalidTermId = (int) Term::query()->max('id') + 1;
+
+        Livewire::withQueryParams(['termId' => $invalidTermId])->test($page)->assertNotFound();
     }
 
     public function test_term_chooser_groups_and_exposes_every_term_when_there_are_more_than_six(): void
@@ -101,14 +119,14 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
 
         $chooser = Livewire::test(TermOverview::class);
 
-        $chooser->assertSee('Academic year 2026-2027')
+        $chooser->assertSee($recentYear->label)
             ->assertSee('4 Terms')
-            ->assertSee('Academic year 2025-2026')
+            ->assertSee($priorYear->label)
             ->assertSee('3 Terms')
             ->assertSee('Search by academic year or Term.')
             ->assertSee('First Semester')
             ->assertSee('Active')
-            ->assertSee('Term dates:')
+            ->assertSeeHtml('<time datetime="2026-06-01">')
             ->assertSee('Jun 1, 2026')
             ->assertSee('Dec 31, 2026');
         foreach ($terms as $term) {
@@ -130,7 +148,8 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         Livewire::test(TermOverview::class)
             ->assertSee('No Terms recorded')
             ->assertSee('Ask the Registrar to create a Term before planning begins.')
-            ->assertSee('Academic Oversight')
+            ->assertSee('Academic oversight')
+            ->assertSee(AcademicApprovals::getUrl(), false)
             ->assertDontSee('Create Term');
     }
 
@@ -150,23 +169,77 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
             ->assertSet('termId', $terms->last()->id);
     }
 
+    #[TestWith([FacultySchedule::class, MyAvailability::class])]
+    #[TestWith([MyAvailability::class, FacultySchedule::class])]
+    public function test_faculty_sidebar_switch_keeps_the_selected_term(string $from, string $to): void
+    {
+        Role::findOrCreate(User::StaffRoleFaculty, 'web');
+        $faculty = User::factory()->create(['status' => User::StatusActive]);
+        $faculty->assignRole(User::StaffRoleFaculty);
+        $faculty->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $faculty->forceFill(['two_factor_recovery_codes_acknowledged_at' => now()])->save();
+        $term = Term::factory()->create();
+        $this->actingAs($faculty)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleFaculty]);
+
+        $this->get($from::getUrl(['termId' => $term->id]))
+            ->assertSeeHtml('href="'.e($to::getUrl(['termId' => $term->id])).'"');
+    }
+
+    #[TestWith([FacultySchedule::class, MyAvailability::class])]
+    #[TestWith([MyAvailability::class, FacultySchedule::class])]
+    public function test_faculty_sidebar_keeps_an_automatically_selected_term(string $from, string $to): void
+    {
+        Role::findOrCreate(User::StaffRoleFaculty, 'web');
+        $faculty = User::factory()->create(['status' => User::StatusActive]);
+        $faculty->assignRole(User::StaffRoleFaculty);
+        $faculty->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $faculty->forceFill(['two_factor_recovery_codes_acknowledged_at' => now()])->save();
+        $term = Term::factory()->create();
+        TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
+        $this->actingAs($faculty)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleFaculty]);
+
+        $this->get($from::getUrl())
+            ->assertOk()
+            ->assertSeeHtml('href="'.e($to::getUrl(['termId' => $term->id])).'"');
+    }
+
     public function test_plan_exposes_actual_work_and_keeps_candidate_and_official_views_consistent(): void
     {
         [$registrar, $term, $prefix] = $this->scenario();
         $this->actingAs($registrar);
         $overview = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
-            ->assertSee('Program & year-level coverage', false);
+            ->assertSee('Programs and year levels')->assertSee('School-wide planning');
         $this->assertSame(3, $overview->instance()->coverage()['summary']['class_count']);
         $this->assertSame(3, $overview->viewData('sourceClasses')->whereNotNull('confirmed_at')->count());
         Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
-            ->assertSee($prefix.'-MAIN-CLASS1')->assertSee('24 linked learners');
+            ->assertSee('24 learners')->toggleAllTableColumns()->assertSee($prefix.'-MAIN-CLASS1');
         Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
-            ->assertSee('Declaration v')->assertSee('Synthetic Faculty Alex');
+            ->assertSee('Synthetic Faculty Alex')
+            ->toggleAllTableColumns()
+            ->assertSee('Declaration v');
         Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
-            ->assertSee('Whole Term')->assertSee('Meeting list')->assertSee('Not measured')
+            ->assertSet('timetableFormat', 'week')
+            ->assertSee('Whole Term')->assertSee('View weekly timetable')->assertSee('Not measured')
             ->assertDontSee('0 Collisions')->assertDontSee('F A C E T O F A C E');
         Livewire::withQueryParams(['termId' => $term->id, 'timetableState' => 'official'])->test(TermTimetable::class)
-            ->assertSee('Whole Term')->assertSee('Meeting list')->assertSee('Print official timetable');
+            ->assertSet('timetableFormat', 'week')
+            ->assertSee('Whole Term')->assertSee('View weekly timetable')->assertSee('Print whole Term')
+            ->call('showTimetableFormat', 'week')->assertSet('timetableFormat', 'week')->assertSee('View meeting list');
+    }
+
+    public function test_overview_groups_all_outstanding_work_with_each_planning_area(): void
+    {
+        [$registrar, $term] = $this->scenario();
+        $this->actingAs($registrar);
+        TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)
+            ->update(['state' => TermCalendarPackage::StateClosed]);
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
+            ->assertSeeInOrder(['Teaching calendar', 'Set teaching calendar', 'Classes & student sections', 'Review and confirm classes', 'Faculty & rooms', 'Timetable'])
+            ->assertSee('Candidate under review')
+            ->assertSee('Official v1 stays in use')
+            ->assertDontSee('Next task:')
+            ->assertDontSee('Other work and replies');
     }
 
     public function test_teaching_week_uses_recorded_hours_and_multiple_breaks_without_inventing_days(): void
@@ -212,7 +285,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         $this->assertSame('overview', $overview->viewData('nextTask')['tab']);
         $this->assertSame('resources', $overview->instance()->generationReadiness()['tab']);
         $overview->assertSee(TermResources::getUrl(['termId' => $term->id]), false)
-            ->assertSee('Review Faculty and rooms');
+            ->assertSee('Review teaching resources');
     }
 
     public function test_activity_amendment_copies_core_and_history_even_if_client_supplies_changed_core(): void
@@ -297,13 +370,13 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         ]);
         $this->actingAs($registrar);
         $component = Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
-            ->assertSee('Generating this Term')->assertSeeHtml('wire:poll.5s.visible')
+            ->assertSee('Waiting for the timetable worker')->assertSeeHtml('wire:poll.5s.visible')
             ->assertDontSee('No meetings are available from this draft')
             ->assertActionHidden('retrySolverRun')->assertActionHidden('acceptCandidate')
             ->assertActionHidden('publishOfficialTimetable');
 
         $run->update(['status' => ScheduleGenerationRun::StatusDispatching]);
-        $component->call('$refresh')->assertSee('Generating this Term')
+        $component->call('$refresh')->assertSee('Scheduling request in progress')
             ->assertSeeHtml('wire:poll.5s.visible')
             ->assertDontSee('No meetings are available from this draft')
             ->assertActionHidden('retrySolverRun');
@@ -324,7 +397,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
             ->assertSee('Synthetic transport failure; no solver was dispatched.')
             ->assertSee('No meetings are available from this draft')
             ->assertSee('Inspect generation diagnostics and validation findings');
-        $component->assertSeeHtml('href="'.e(ScheduleGenerationRunResource::getUrl('view', ['record' => $run->id, 'termId' => $term->id])).'"');
+        $component->assertSeeHtml('href="'.e($component->instance()->timetableReviewUrl($run->id)).'"');
         $this->assertSame(ScheduleGenerationRun::StatusFailed, $run->fresh()->status);
         $this->assertSame(0, $run->candidateRows()->count());
     }

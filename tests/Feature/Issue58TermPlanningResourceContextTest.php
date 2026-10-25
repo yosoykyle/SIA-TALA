@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Pages\MyAvailability;
+use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\CalendarEvents\Pages\CreateCalendarEvent;
@@ -64,6 +65,12 @@ class Issue58TermPlanningResourceContextTest extends TestCase
     {
         $this->registrar();
         $term = Term::factory()->create();
+
+        if ($pageClass === ListSections::class) {
+            Livewire::withQueryParams(['termId' => $term->id])->test($pageClass)->assertRedirect(TermClasses::getUrl(['termId' => $term->id]));
+
+            return;
+        }
 
         $page = Livewire::withQueryParams(['termId' => $term->id])->test($pageClass)
             ->assertSuccessful()->assertSee($term->label)->instance();
@@ -130,7 +137,7 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             ->assertSee('Qualification details')
             ->assertSee('Recorded evidence')
             ->assertSee('Edit qualification')
-            ->assertSee('Back to qualifications');
+            ->assertDontSee('Back to qualifications');
 
         $page = $test->instance();
         $returnUrl = FacultyQualificationResource::getUrl('index', ['termId' => $term->id]);
@@ -209,7 +216,7 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             ->assertSee('Last updated (Asia/Manila)')
             ->assertSee('Oct 1, 2026')
             ->assertSee('Oct 2, 2026')
-            ->assertSee('Back to rooms')
+            ->assertDontSee('Back to rooms')
             ->assertSee(RoomResource::getUrl('index', ['termId' => $term->id]));
     }
 
@@ -317,7 +324,7 @@ class Issue58TermPlanningResourceContextTest extends TestCase
 
         foreach ([
             [ListTermOfferings::class, $offering, $otherOffering],
-            [ListSections::class, $section, $otherSection],
+            [TermClasses::class, $section, $otherSection],
             [ListFacultyTermLoadOverrides::class, $load, $otherLoad],
             [ListScheduleGenerationRuns::class, $run, $otherRun],
             [ListCalendarEvents::class, $block, $otherBlock],
@@ -328,7 +335,7 @@ class Issue58TermPlanningResourceContextTest extends TestCase
                 ->resetTableFilters()->assertCanSeeTableRecords([$visible])->assertCanNotSeeTableRecords([$excluded]);
         }
 
-        Livewire::withQueryParams(['termId' => $selected->id])->test(ListSections::class)->assertCanSeeTableRecords([$confirmed]);
+        Livewire::withQueryParams(['termId' => $selected->id])->test(TermClasses::class)->assertCanSeeTableRecords([$confirmed]);
     }
 
     public function test_load_exception_list_shows_term_default_and_keeps_term_on_actions(): void
@@ -404,7 +411,7 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             ->assertSee('This inactive exception does not replace the Term’s default for this teacher.')
             ->assertSee('Approval reference for detail test')
             ->assertSee('Recorded reason for detail test')
-            ->assertSee('Back to load exceptions')
+            ->assertDontSee('Back to load exceptions')
             ->assertSee(FacultyTermLoadOverrideResource::getUrl('index', ['termId' => $term->id]));
     }
 
@@ -426,9 +433,9 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             ->assertSee('Edit class')
             ->assertSee('Class · DETAIL-CLASS-1')
             ->assertSee('Course code')
-            ->assertSee('Class code')
+            ->assertSee('Class reference')
             ->assertSee('Capacity')
-            ->assertSee('Linked student sections')
+            ->assertSee('Student sections served')
             ->assertSee('Meeting requirements')
             ->assertSee('Delivery groups')
             ->assertSee('Groups of learners that meet together.')
@@ -477,8 +484,9 @@ class Issue58TermPlanningResourceContextTest extends TestCase
                 ->assertFormSet(['term_id' => $term->id]);
         }
 
-        $section = Livewire::withQueryParams(['termId' => $term->id])->test(CreateSection::class)->instance();
-        $options = $section->form->getFlatFields()['term_offering_id']->getOptions();
+        Livewire::withQueryParams(['termId' => $term->id])->test(CreateSection::class)->assertRedirect(TermClasses::getUrl(['termId' => $term->id, 'action' => 'addClass']));
+        $section = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)->mountAction('addClass')->instance();
+        $options = $section->getSchema($section->getMountedActionSchemaName())->getFlatFields()['term_offering_id']->getOptions();
         $this->assertArrayHasKey($offering->id, $options);
         $this->assertArrayNotHasKey($otherOffering->id, $options);
     }
@@ -583,9 +591,9 @@ class Issue58TermPlanningResourceContextTest extends TestCase
     public static function planningLists(): array
     {
         return [
-            'Offerings' => [ListTermOfferings::class, 'classes', 'Classes & sections'],
-            'Sections' => [ListSections::class, 'classes', 'Classes & sections'],
-            'Requirements' => [ListSchedulingDemands::class, 'classes', 'Classes & sections'],
+            'Offerings' => [ListTermOfferings::class, 'classes', 'Sections & classes'],
+            'Sections' => [ListSections::class, 'classes', 'Sections & classes'],
+            'Requirements' => [ListSchedulingDemands::class, 'classes', 'Sections & classes'],
             'Rooms' => [ListRooms::class, 'resources', 'Faculty & rooms'],
             'Qualifications' => [ListFacultyQualifications::class, 'resources', 'Faculty & rooms'],
             'Loads' => [ListFacultyTermLoadOverrides::class, 'resources', 'Faculty & rooms'],

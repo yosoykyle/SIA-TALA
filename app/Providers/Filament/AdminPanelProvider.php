@@ -54,10 +54,18 @@ use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
+use App\Filament\Resources\Sections\Pages\CreateSection;
+use App\Filament\Resources\Sections\Pages\EditSection;
+use App\Filament\Resources\Sections\Pages\ListSections;
+use App\Filament\Resources\Sections\Pages\ViewSection;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
+use App\Filament\Resources\Terms\Pages\CreateTerm;
+use App\Filament\Resources\Terms\Pages\EditTerm;
+use App\Filament\Resources\Terms\Pages\ListTerms;
+use App\Filament\Resources\Terms\Pages\ViewTerm;
 use App\Filament\Resources\Terms\TermResource;
 use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Filament\Resources\Users\UserResource;
@@ -67,6 +75,7 @@ use App\Http\Middleware\EnsureStaffMfaIsEnabled;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\FaqEntry;
+use App\Models\Term;
 use App\Models\User;
 use App\Queries\Admissions\AdmissionQueueCounts;
 use App\Support\TalaPanelTheme;
@@ -81,6 +90,7 @@ use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -321,6 +331,7 @@ class AdminPanelProvider extends PanelProvider
             $selectedContext = count($available) === 1 ? array_key_first($available) : null;
         }
 
+        $termPlanningContext = $this->focusedTermPlanningContext();
         if ($selectedContext === User::StaffRoleRegistrar) {
             return $builder->group('Learner work', [
                 ...$this->admissionsWithQueues($this->labeledNavigationItems(['Admissions' => Admissions::class])),
@@ -328,10 +339,10 @@ class AdminPanelProvider extends PanelProvider
                     'Students & Enrollment' => EnrollmentResource::class,
                     'Grades & Completion' => GradesAndCompletion::class,
                 ]),
-            ])->group('Academic setup', $this->labeledNavigationItems([
+            ])->group('Academic setup', $this->planningWithChildren($this->labeledNavigationItems([
                 'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
                 'Term Planning' => TermPlanningCluster::class,
-            ]));
+            ]), $termPlanningContext));
         }
 
         $components = match ($selectedContext) {
@@ -356,7 +367,142 @@ class AdminPanelProvider extends PanelProvider
             default => [],
         };
 
-        return $builder->items($this->labeledNavigationItems($components));
+        $items = $this->labeledNavigationItems($components);
+
+        return $builder->items($selectedContext === User::StaffRoleAcademicHead ? $this->planningWithChildren($items, $termPlanningContext) : $items);
+    }
+
+    /**
+     * @param  list<NavigationItem>  $items
+     * @param  array{termId: ?int, active: string}|null  $context
+     * @return list<NavigationItem>
+     */
+    private function planningWithChildren(array $items, ?array $context): array
+    {
+        if ($context === null) {
+            return $items;
+        }
+
+        return array_map(function (NavigationItem $item) use ($context): NavigationItem {
+            if (! in_array($item->getLabel(), ['Term Planning', 'Academic Oversight'], true)) {
+                return $item;
+            }
+
+            if ($item->getLabel() === 'Academic Oversight') {
+                $item->url(AcademicApprovals::getUrl(['termId' => $context['termId']]))
+                    ->isActiveWhen(fn (): bool => true);
+            }
+
+            if ($context['termId'] === null) {
+                return $item->isActiveWhen(fn (): bool => true);
+            }
+
+            return $item->childItems($this->focusedTermPlanningNavigation($context));
+        }, $items);
+    }
+
+    /** @return array{termId: ?int, active: string}|null */
+    private function focusedTermPlanningContext(): ?array
+    {
+        $request = \Filament\Support\original_request();
+        $routeName = $request->route()?->getName();
+        $component = app('livewire')->current();
+        $termIdResolvedFromComponent = false;
+
+        $planningPages = [TermOverview::class, TermCalendar::class, TermClasses::class, TermClassProposal::class, TermResources::class, TermTimetable::class];
+        $isPlanningPage = collect($planningPages)->contains(fn (string $page): bool => $routeName === $page::getRouteName());
+
+        $termSourcePages = [ListTerms::class, CreateTerm::class, ViewTerm::class, EditTerm::class];
+        $sectionSourcePages = [ListSections::class, CreateSection::class, ViewSection::class, EditSection::class];
+        $isTermSource = collect($termSourcePages)->contains(fn (string $page): bool => $routeName === $page::getRouteName());
+        $isSectionSource = collect($sectionSourcePages)->contains(fn (string $page): bool => $routeName === $page::getRouteName());
+        $isPlanningSource = is_string($routeName) && str_starts_with($routeName, 'filament.admin.term-planning.resources.');
+
+        if ($component instanceof TermPlanningWorkbench) {
+            $isPlanningPage = true;
+        } elseif ($component instanceof ViewTerm || $component instanceof EditTerm || $component instanceof ListTerms || $component instanceof CreateTerm) {
+            $isTermSource = true;
+        } elseif ($component instanceof ListSections || $component instanceof CreateSection || $component instanceof ViewSection || $component instanceof EditSection) {
+            $isSectionSource = true;
+        }
+
+        if (! $isPlanningPage && ! $isTermSource && ! $isSectionSource && ! $isPlanningSource) {
+            return null;
+        }
+
+        $termId = null;
+        if ($component instanceof TermPlanningWorkbench) {
+            $termId = $component->chooseTerm ? null : $component->termId;
+            $termIdResolvedFromComponent = $termId !== null;
+        } elseif ($component instanceof ViewTerm || $component instanceof EditTerm) {
+            $termId = (int) $component->getRecord()->getKey();
+            $termIdResolvedFromComponent = true;
+        } elseif ($component instanceof ViewSection || $component instanceof EditSection) {
+            $termId = (int) $component->getRecord()->term_id;
+            $termIdResolvedFromComponent = true;
+        } elseif ($component instanceof ListSections || $component instanceof CreateSection) {
+            $termId = $component->termId;
+            $termIdResolvedFromComponent = $termId !== null;
+        } elseif (! $request->boolean('chooseTerm')) {
+            $requestedTermId = $request->integer('termId');
+            $termId = $requestedTermId > 0 ? $requestedTermId : null;
+            if ($termId === null && ($routeName === ViewTerm::getRouteName() || $routeName === EditTerm::getRouteName())) {
+                $recordId = $request->route('record');
+                $termId = is_numeric($recordId) && (int) $recordId > 0 ? (int) $recordId : null;
+            }
+        }
+
+        if (! $termIdResolvedFromComponent && $termId !== null && ! Term::query()->whereKey($termId)->exists()) {
+            $termId = null;
+        }
+
+        $active = match (true) {
+            $isSectionSource || str_contains((string) $routeName, '.resources.term-offerings.') => 'classes',
+            str_contains((string) $routeName, '.resources.faculty-qualifications.'), str_contains((string) $routeName, '.resources.faculty-term-load-overrides.') => 'resources',
+            str_contains((string) $routeName, '.resources.calendar-events.') => in_array($request->query('resourceView'), ['faculty', 'rooms'], true) ? 'resources' : 'overview',
+            str_contains((string) $routeName, '.resources.schedule-generation-runs.'), str_contains((string) $routeName, '.resources.section-meetings.') => 'generate',
+            $routeName === TermCalendar::getRouteName() => 'overview',
+            $routeName === TermClasses::getRouteName() => 'classes',
+            $routeName === TermResources::getRouteName() => 'resources',
+            $routeName === TermTimetable::getRouteName() => 'generate',
+            default => match ($request->query('viewTab')) {
+                'overview' => 'overview',
+                'classes' => 'classes',
+                'resources' => 'resources',
+                'generate', 'published' => 'generate',
+                default => 'plan',
+            },
+        };
+
+        return ['termId' => $termId, 'active' => $active];
+    }
+
+    /** @param array{termId: ?int, active: string} $context
+     * @return list<NavigationItem>
+     */
+    private function focusedTermPlanningNavigation(array $context): array
+    {
+        $items = TermPlanningCluster::workspaceNavigation($context['termId'], $context['active']);
+
+        foreach ($items as $item) {
+            $item->icon(match ($item->getLabel()) {
+                'Term overview' => Heroicon::OutlinedHome,
+                'Calendar' => Heroicon::OutlinedCalendarDays,
+                'Sections & classes' => Heroicon::OutlinedBookOpen,
+                'Faculty & rooms' => Heroicon::OutlinedUserGroup,
+                'Timetable' => Heroicon::OutlinedTableCells,
+                default => null,
+            });
+
+            if ($item->getLabel() === 'Calendar') {
+                $item->label('Teaching calendar');
+            } elseif ($item->getLabel() === 'Sections & classes') {
+                $item->label('Classes & student sections');
+            }
+
+        }
+
+        return $items;
     }
 
     private function labeledNavigationItems(array $components): array
@@ -367,7 +513,15 @@ class AdminPanelProvider extends PanelProvider
             }
 
             return collect($component::getNavigationItems())
-                ->map(fn (NavigationItem $item): NavigationItem => $item->label($label))->all();
+                ->map(function (NavigationItem $item) use ($component, $label): NavigationItem {
+                    $request = \Filament\Support\original_request();
+                    $termId = $request->attributes->get('tala.selected_term_id', $request->integer('termId'));
+                    if ($termId > 0 && in_array($component, [FacultySchedule::class, MyAvailability::class], true)) {
+                        $item->url($component::getUrl(['termId' => $termId]));
+                    }
+
+                    return $item->label($label);
+                })->all();
         })->values()->all();
     }
 
@@ -389,6 +543,14 @@ class AdminPanelProvider extends PanelProvider
         $onList = fn (): bool => request()->routeIs(ListAdmissionApplications::getRouteName());
 
         $children = $counts->map(fn (int $count, string $queue): NavigationItem => NavigationItem::make(AdmissionQueueCounts::labels()[$queue])
+            ->icon(match ($queue) {
+                AdmissionQueueCounts::NeedsReview => Heroicon::OutlinedDocumentMagnifyingGlass,
+                AdmissionQueueCounts::WaitingForApplicant => Heroicon::OutlinedClock,
+                AdmissionQueueCounts::RegistrarClearance => Heroicon::OutlinedClipboardDocumentCheck,
+                AdmissionQueueCounts::ReadyForEnrollment => Heroicon::OutlinedCheckCircle,
+                AdmissionQueueCounts::Closed => Heroicon::OutlinedArchiveBox,
+                default => Heroicon::OutlinedQueueList,
+            })
             ->url(ListAdmissionApplications::getUrl(['tab' => $queue]))
             ->badge($count ?: null, in_array($queue, AdmissionQueueCounts::registrarActionQueues(), true) ? 'warning' : 'gray')
             ->isActiveWhen(fn (): bool => $onList() && (request()->query('tab') ?? AdmissionQueueCounts::NeedsReview) === $queue))

@@ -208,8 +208,8 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'viewTab' => 'generate',
             ])
             ->assertViewHas('activeRun', fn ($activeRun): bool => $activeRun->id === $run->id)
-            ->assertSee('Under Review')->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'FEASIBLE')
-            ->assertSee('Hard validity not established')->assertDontSee('0 recorded clashes')->assertSee('Whole Term')->assertSee('Meeting list')
+            ->assertSee('Candidate under review')->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'FEASIBLE')
+            ->assertSee('Hard validity not established')->assertDontSee('0 recorded clashes')->assertSee('Whole Term')->assertSee('View meeting list')
             ->assertSee('TEST-RM-101')
             ->assertActionVisible('acceptCandidate')
             ->assertActionVisible('rejectCandidate')

@@ -23,7 +23,7 @@
     @if ($account->paymentAttempts->whereIn('status', \App\Models\PaymentAttempt::ActiveStatuses)->isNotEmpty())
         <div class="accounting-context-actions"><x-filament::button tag="a" :href="\App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $case, 'view' => 'online'])">Review online payment</x-filament::button></div>
     @endif
-    @if ($ordinary)<section class="accounting-account-summary" aria-labelledby="account-current-status">
+    @if ($ordinary)<section class="accounting-account-summary tala-task-surface" aria-labelledby="account-current-status">
         <h2 id="account-current-status">{{ $due ? $money($position['current_due']).' due now' : 'No payment due now' }}</h2>
         <p>{{ $requirement['state'] === 'Cleared' ? 'Enrollment payment satisfied' : 'Enrollment payment pending' }}@if ($later > 0) · Later fees {{ $money($later) }}@endif</p>
     </section>@endif

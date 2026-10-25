@@ -7,7 +7,7 @@
         <p>{{ $proposal->curriculumVersion?->program?->name }}</p>
         <p>{{ $case->term?->label }}</p>
     </div>
-    <section class="registrar-case-preparation" aria-labelledby="ready-heading">
+    <section class="registrar-case-preparation tala-task-surface" aria-labelledby="ready-heading">
         <div><h2 id="ready-heading">Ready to enroll</h2><p>Subjects confirmed. Seats reserved. Enrollment payment cleared.</p></div>
         {{ $this->getAction('finalizeOfficialEnrollment', isMounting: false) }}
     </section>
@@ -17,7 +17,7 @@
             <p class="registrar-case-meta">{{ $proposal->items->count() }} subjects · {{ (float) $proposal->items->sum('units_snapshot') }} units</p>
             @include('filament.admin.enrollments.subjects', ['sourceKey' => 'ready'])
         </section>
-        <section class="registrar-case-payment" aria-labelledby="ready-payment-heading">
+        <section class="registrar-case-payment tala-task-surface" aria-labelledby="ready-payment-heading">
             <h2 id="ready-payment-heading">Enrollment payment</h2>
             <p class="registrar-case-amount">Cleared</p>
             <p>The enrollment requirement is satisfied. Other term fees may remain.</p>
@@ -29,7 +29,7 @@
             </dl>
         </section>
     </div>
-    <section class="registrar-case-schedule" aria-labelledby="ready-schedule-heading">
+    <section class="registrar-case-schedule tala-task-surface" aria-labelledby="ready-schedule-heading">
         <h2 id="ready-schedule-heading">Schedule</h2>
         @if ($schedule && $schedule['meetings'] !== [])
             <x-enrollment-schedule :presentation="$schedule" :source-key="'registrar-ready-'.$proposal->id" />

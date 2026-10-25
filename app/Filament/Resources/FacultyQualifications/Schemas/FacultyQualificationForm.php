@@ -4,11 +4,12 @@ namespace App\Filament\Resources\FacultyQualifications\Schemas;
 
 use App\Models\Course;
 use App\Models\CourseSpecification;
+use App\Models\FacultyQualification;
 use App\Models\User;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -64,27 +65,19 @@ class FacultyQualificationForm
                                 ->default(true)
                                 ->columnSpanFull(),
                         ])->columns(2),
-                        Section::make('Recorded evidence')
+                        Section::make('Notes and recording details')
                             ->contained(false)
                             ->schema([
-                                Select::make('recorded_by')
+                                TextEntry::make('recorder.name')
                                     ->label('Recorded by')
-                                    ->relationship(
-                                        'recorder',
-                                        'name',
-                                        modifyQueryUsing: fn (Builder $query): Builder => $query
-                                            ->where('status', User::StatusActive)
-                                            ->orderBy('name'),
-                                    )
-                                    ->searchable()
-                                    ->preload()
-                                    ->default(fn (): ?int => auth()->id()),
-                                DateTimePicker::make('recorded_at')
+                                    ->placeholder('Unavailable')
+                                    ->visible(fn (?FacultyQualification $record): bool => $record !== null),
+                                TextEntry::make('recorded_at')
                                     ->label('Recorded at (Asia/Manila)')
+                                    ->dateTime('M j, Y, g:i A')
                                     ->timezone('Asia/Manila')
-                                    ->seconds(false)
-                                    ->default(now())
-                                    ->required(),
+                                    ->placeholder('Unavailable')
+                                    ->visible(fn (?FacultyQualification $record): bool => $record !== null),
                                 Textarea::make('notes')
                                     ->rows(3)
                                     ->maxLength(2000)

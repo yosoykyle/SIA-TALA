@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Terms\Pages;
 
 use App\Filament\Resources\Terms\TermResource;
 use App\Support\ReturnsToTermPlanning;
-use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
 
@@ -27,14 +26,12 @@ class ViewTerm extends ViewRecord
 
     public function getTitle(): string
     {
-        return $this->record->label;
+        return 'Term settings';
     }
 
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('returnToPlanning')->label('Open planning')
-                ->color('gray')->url(fn (): string => $this->termPlanningReturnUrl($this->record->id)),
             EditAction::make()->label('Edit settings')->color('gray')->url(fn (): string => TermResource::getUrl('edit', ['record' => $this->record, 'viewTab' => $this->viewTab, 'resourceView' => $this->resourceView])),
         ];
     }

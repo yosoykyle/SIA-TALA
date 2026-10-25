@@ -23,6 +23,8 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
@@ -35,8 +37,13 @@ final class CandidateScheduleReviewForm
         return [
             Hidden::make('scheduling_demand_id')
                 ->dehydrated(false),
-            ...self::assignmentFields($run),
-            ...self::evidenceFields(),
+            Section::make('Requested assignment')
+                ->description('Choose the teacher, room and time for this meeting. TALA checks the complete candidate before recording a successor.')
+                ->schema(self::assignmentFields($run))
+                ->columns(['default' => 1, 'md' => 2]),
+            Section::make('Reason and authority')
+                ->schema(self::evidenceFields())
+                ->columns(1),
         ];
     }
 
@@ -133,41 +140,45 @@ final class CandidateScheduleReviewForm
         $slotMinutes = (int) data_get($run->input_snapshot, 'term.scheduling_slot_minutes', $term instanceof Term ? app(TermTeachingGrid::class)->slotMinutes($term) : 30);
 
         return [
-            Select::make('faculty_user_id')
-                ->label('Faculty')
-                ->options(fn (Get $get): array => self::facultyOptions(
-                    is_numeric($get('scheduling_demand_id')) ? (int) $get('scheduling_demand_id') : null,
-                    is_numeric($get('faculty_user_id')) ? (int) $get('faculty_user_id') : null,
-                ))
-                ->searchable()
-                ->preload()
-                ->required(),
-            Select::make('room_id')
-                ->label('Room')
-                ->options(fn (Get $get): array => self::roomOptions(
-                    is_numeric($get('room_id')) ? (int) $get('room_id') : null,
-                ))
-                ->searchable()
-                ->preload()
-                ->placeholder('No room (online only)')
-                ->nullable(),
-            Select::make('day_of_week')
-                ->label('Day')
-                ->options(self::dayOptions($run))
-                ->required(),
-            TimePicker::make('starts_at')
-                ->label('Start time')
-                ->timezone((string) config('app.timezone'))
-                ->seconds(false)
-                ->minutesStep($slotMinutes)
-                ->required(),
-            TimePicker::make('ends_at')
-                ->label('End time')
-                ->timezone((string) config('app.timezone'))
-                ->seconds(false)
-                ->minutesStep($slotMinutes)
-                ->after('starts_at')
-                ->required(),
+            Grid::make(['default' => 1, 'md' => 2])->schema([
+                Select::make('faculty_user_id')
+                    ->label('Faculty')
+                    ->options(fn (Get $get): array => self::facultyOptions(
+                        is_numeric($get('scheduling_demand_id')) ? (int) $get('scheduling_demand_id') : null,
+                        is_numeric($get('faculty_user_id')) ? (int) $get('faculty_user_id') : null,
+                    ))
+                    ->searchable()
+                    ->preload()
+                    ->required(),
+                Select::make('room_id')
+                    ->label('Room')
+                    ->options(fn (Get $get): array => self::roomOptions(
+                        is_numeric($get('room_id')) ? (int) $get('room_id') : null,
+                    ))
+                    ->searchable()
+                    ->preload()
+                    ->placeholder('No room (online only)')
+                    ->nullable(),
+            ])->columnSpanFull(),
+            Grid::make(['default' => 1, 'md' => 3])->schema([
+                Select::make('day_of_week')
+                    ->label('Day')
+                    ->options(self::dayOptions($run))
+                    ->required(),
+                TimePicker::make('starts_at')
+                    ->label('Start time')
+                    ->timezone((string) config('app.timezone'))
+                    ->seconds(false)
+                    ->minutesStep($slotMinutes)
+                    ->required(),
+                TimePicker::make('ends_at')
+                    ->label('End time')
+                    ->timezone((string) config('app.timezone'))
+                    ->seconds(false)
+                    ->minutesStep($slotMinutes)
+                    ->after('starts_at')
+                    ->required(),
+            ])->columnSpanFull(),
         ];
     }
 

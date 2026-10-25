@@ -80,8 +80,9 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $this->assertSame(Term::StateActive, $package->term->fresh()->state);
         Livewire::actingAs($actor)->test(TermCalendar::class, ['termId' => $package->term_id])
             ->assertSet('termId', $package->term_id)
-            ->assertSee('Calendar ready for class planning.')->assertSee('Not set')
-            ->assertSee('Grade Entry')->assertSee('Only affects grade entry')->assertSee('Classes & sections')
+            ->assertSee('Calendar ready for class planning.')->assertSee('Dates not configured')
+            ->assertSee('Grade Entry')->assertSee('Ordinary grade entry and submission are unavailable.')
+            ->assertSee('These dates do not block class planning.')
             ->assertViewHas('operationalDates', fn ($dates): bool => $dates->every(fn (array $date): bool => $date['window'] === null))
             ->assertViewHas('coreReadiness', fn (array $readiness): bool => $readiness['ready']);
     }
@@ -147,7 +148,9 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $faculty = $this->staff(User::StaffRoleFaculty);
         $package = app(ActivateTermCalendarPackage::class)->execute($this->core(), $actor);
         $core = $package->concurrencyToken();
-        $deadline = app(RecordFacultyAvailabilityDeadline::class)->execute($package->term, $actor, '2026-10-12 09:00:00', 'DEADLINE-58', null, 0);
+        $deadline = app(RecordFacultyAvailabilityDeadline::class)->execute($package->term, $actor, '2026-10-12 09:00:00', null, null, 0);
+        $this->assertNull($deadline->authority_reference);
+        $this->assertSame($actor->id, $deadline->recorded_by);
         $events = app(FacultyAvailabilityRequestService::class)->request($package, [$faculty->id], $actor);
         $this->assertSame($deadline->due_at->toIso8601String(), $events->first()->payload['due_at']);
         $this->assertSame($deadline->id, $events->first()->payload['deadline_source_id']);
@@ -160,7 +163,8 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $actor = $this->staff();
         $package = app(ActivateTermCalendarPackage::class)->execute($this->core(), $actor);
         $action = app(RecordFacultyAvailabilityDeadline::class);
-        $first = $action->execute($package->term, $actor, '2026-10-12 09:00:00', 'D1', null, 0);
+        $first = $action->execute($package->term, $actor, '2026-10-12 09:00:00', '  ', null, 0);
+        $this->assertNull($first->authority_reference);
         try {
             $action->execute($package->term, $actor, '2026-10-13 09:00:00', 'D2', null, $first->id);
             $this->fail('Correction needs a reason.');
@@ -196,8 +200,8 @@ final class Issue58ExactTermPreparationTest extends TestCase
     {
         $actor = $this->staff();
         $term = Term::factory()->create(['scheduling_days' => [1, 3]]);
-        Livewire::actingAs($actor)->test(ViewTerm::class, ['record' => $term->id])->assertSee('Mon, Wed')->assertSee('Open planning')
-            ->assertActionHasUrl('returnToPlanning', TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'plan']));
+        $view = Livewire::actingAs($actor)->test(ViewTerm::class, ['record' => $term->id])->assertSee('Mon, Wed')->assertDontSee('Open planning');
+        $this->assertArrayHasKey(TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'plan']), $view->instance()->getBreadcrumbs());
         $term->update(['scheduling_days' => null]);
         Livewire::actingAs($actor)->test(ViewTerm::class, ['record' => $term->id])->assertSee('Approved grid is recorded in Term Planning');
     }
@@ -207,11 +211,14 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $actor = $this->staff();
         $term = Term::factory()->create();
         $returnUrl = TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'resources', 'resourceView' => 'faculty']);
-        Livewire::actingAs($actor)->test(ViewTerm::class, ['record' => $term->id, 'viewTab' => 'resources'])
-            ->assertActionHasUrl('returnToPlanning', $returnUrl)
+        $view = Livewire::actingAs($actor)->test(ViewTerm::class, ['record' => $term->id, 'viewTab' => 'resources'])
+            ->assertDontSee('Open planning')
             ->assertActionHasUrl('edit', TermResource::getUrl('edit', ['record' => $term, 'viewTab' => 'resources', 'resourceView' => 'faculty']));
         $edit = Livewire::actingAs($actor)->test(EditTerm::class, ['record' => $term->id, 'viewTab' => 'resources'])
-            ->assertActionHasUrl('returnToPlanning', $returnUrl);
+            ->assertDontSee('Open planning');
+        foreach ([$view, $edit] as $page) {
+            $this->assertArrayHasKey($returnUrl, $page->instance()->getBreadcrumbs());
+        }
         $create = Livewire::actingAs($actor)->test(CreateTerm::class, ['termId' => $term->id, 'viewTab' => 'resources']);
         foreach ([$edit, $create] as $page) {
             $document = new \DOMDocument;
@@ -267,7 +274,7 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $package = $this->core();
         Livewire::actingAs($head)->test(TermCalendar::class, ['termId' => $package->term_id])
             ->assertSet('termId', $package->term_id)
-            ->assertSee('Read-only · Registrar owns these records.')->assertActionHidden('recordCalendarPackage')->assertActionHidden('activateCalendarPackage');
+            ->assertSee('Read-only · Registrar maintains these records.')->assertActionHidden('recordCalendarPackage')->assertActionHidden('activateCalendarPackage');
         $this->expectException(AuthorizationException::class);
         app(ActivateTermCalendarPackage::class)->execute($package, $head);
     }
@@ -347,8 +354,25 @@ final class Issue58ExactTermPreparationTest extends TestCase
         }
         Livewire::actingAs($head)->test(TermOverview::class, ['termId' => $package->term_id])
             ->assertSet('termId', $package->term_id)
-            ->assertSee($returnUrl)->assertSee('Inspect this Term')->assertDontSee('Plan this Term')
+            ->assertSee($returnUrl)->assertSee('Term planning')->assertDontSee('Plan this Term')
             ->assertViewHas('readOnly', true);
+    }
+
+    public function test_academic_head_can_open_exact_term_planning_without_expanding_calendar_sources(): void
+    {
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $package = $this->core();
+
+        $page = Livewire::actingAs($head)->test(AcademicApprovals::class, ['termId' => $package->term_id]);
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($page->html());
+        $xpath = new \DOMXPath($document);
+        $links = $xpath->query('//a[normalize-space(.)="Inspect Term planning"]');
+        $this->assertCount(1, $links);
+        $link = $links->item(0);
+        $this->assertSame(TermOverview::getUrl(['termId' => $package->term_id]), $link->getAttribute('href'));
+        $this->assertSame(0, $xpath->query('ancestor::details', $link)->length);
     }
 
     public function test_overview_distinguishes_upcoming_closed_open_and_missing_windows_for_its_exact_term(): void

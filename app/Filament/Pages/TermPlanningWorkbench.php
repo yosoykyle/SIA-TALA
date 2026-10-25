@@ -75,6 +75,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 use Throwable;
 use UnitEnum;
@@ -97,7 +98,13 @@ class TermPlanningWorkbench extends Page
     protected array $extraBodyAttributes = ['class' => 'tala-term-planning-page'];
 
     #[Url]
+    #[Locked]
     public ?int $termId = null;
+
+    #[Url]
+    public bool $chooseTerm = false;
+
+    public bool $termAutoSelected = false;
 
     #[Url]
     public string $viewTab = 'plan';
@@ -122,16 +129,6 @@ class TermPlanningWorkbench extends Page
 
     #[Url]
     public ?int $selectedVersionId = null;
-
-    #[Url]
-    public bool $isControlDeckCollapsed = false;
-
-    public function toggleControlDeck(): void
-    {
-
-        $this->isControlDeckCollapsed = ! $this->isControlDeckCollapsed;
-
-    }
 
     /** @var list<string> */
     protected static bool $shouldRegisterNavigation = false;
@@ -193,13 +190,13 @@ class TermPlanningWorkbench extends Page
     public function mount(): void
     {
 
-        if ($this->termId !== null && ! Term::query()->whereKey($this->termId)->exists()) {
-
+        if ($this->chooseTerm) {
             $this->termId = null;
-
+        } elseif ($this->termId !== null) {
+            abort_unless(Term::query()->whereKey($this->termId)->exists(), 404);
         }
 
-        if ($this->termId === null) {
+        if ($this->termId === null && ! $this->chooseTerm) {
 
             $activeTermIds = TermCalendarPackage::query()
 
@@ -212,6 +209,8 @@ class TermPlanningWorkbench extends Page
             if ($activeTermIds->count() === 1) {
 
                 $this->termId = (int) $activeTermIds->sole();
+
+                $this->termAutoSelected = true;
 
             }
 
@@ -237,10 +236,16 @@ class TermPlanningWorkbench extends Page
 
         if (static::class === self::class) {
 
-            $this->redirect(self::getUrl(['termId' => $this->termId, 'viewTab' => $this->viewTab, 'selectedRunId' => $this->selectedRunId, 'selectedVersionId' => $this->selectedVersionId]));
+            $this->redirect(self::getUrl(['termId' => $this->termId, 'chooseTerm' => $this->chooseTerm ?: null, 'viewTab' => $this->viewTab, 'selectedRunId' => $this->selectedRunId, 'selectedVersionId' => $this->selectedVersionId]));
 
             return;
 
+        }
+
+        if ($this->termId === null && static::class !== TermOverview::class) {
+            $this->redirect(TermOverview::getUrl(['chooseTerm' => true]));
+
+            return;
         }
 
         $this->viewTab = static::class === self::class ? (in_array($this->viewTab, self::Tabs, true) ? $this->viewTab : 'plan') : static::$planningTab;
@@ -299,7 +304,6 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make($datesOnly ? 'addOperationalDates' : 'recordCalendarPackage')
-            ->when($datesOnly, fn (Action $action): Action => $action->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()])))
 
             ->label(fn (): string => $datesOnly ? 'Update activity dates' : ($this->activeCalendarPackage() ? 'Change teaching calendar' : 'Record teaching calendar'))
 
@@ -414,7 +418,6 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make('correctDraftCalendarPackage')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->label('Correct Draft Package')
 
@@ -784,7 +787,6 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make('activateCalendarPackage')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->label('Activate teaching calendar')
 
@@ -1257,7 +1259,6 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make('recordFacultyDeadline')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->label(fn (): string => $this->activeCalendarPackage()?->facultyAvailabilityDueAt() ? 'Change reply deadline' : 'Set reply deadline')
 
@@ -1281,7 +1282,7 @@ class TermPlanningWorkbench extends Page
 
                 DateTimePicker::make('due_at')->label('Reply by (Asia/Manila)')->timezone('Asia/Manila')->seconds(false)->required(),
 
-                TextInput::make('authority_reference')->label('Approved deadline source')->required()->maxLength(255),
+                TextInput::make('authority_reference')->label('Approval reference (optional)')->helperText('Add a reference if one was provided. TALA records who set this deadline and when.')->maxLength(255),
 
                 Textarea::make('correction_reason')->label('Reason for correction')->helperText('Required when a deadline is already recorded.')->maxLength(2000),
 
@@ -1295,7 +1296,7 @@ class TermPlanningWorkbench extends Page
 
                 try {
 
-                    app(RecordFacultyAvailabilityDeadline::class)->execute($this->selectedTerm(), $actor, $data['due_at'], $data['authority_reference'], $data['correction_reason'] ?? null, (int) $data['expected_id']);
+                    app(RecordFacultyAvailabilityDeadline::class)->execute($this->selectedTerm(), $actor, $data['due_at'], $data['authority_reference'] ?? null, $data['correction_reason'] ?? null, (int) $data['expected_id']);
 
                 } catch (ValidationException $exception) {
 
@@ -1360,7 +1361,6 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make('requestFacultyAvailability')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->label('Request availability')
 
@@ -1482,7 +1482,7 @@ class TermPlanningWorkbench extends Page
     public function confirmClassAction(): Action
     {
         return Action::make('confirmClassOffering')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
             ->label('Confirm class')
             ->modalHeading('Confirm class and student sections')
             ->modalDescription('Link the confirmed student sections to this class. Shared and mixed-year sections remain separate; their total must fit the approved class capacity.')
@@ -1572,7 +1572,6 @@ class TermPlanningWorkbench extends Page
     {
 
         return Action::make('generateTimetable')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->label('Generate whole-Term timetable')
 
@@ -1693,7 +1692,7 @@ class TermPlanningWorkbench extends Page
             ->requiresConfirmation()
 
             ->modalHeading('Accept timetable')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
             ->modalSubmitActionLabel('Accept timetable')
             ->modalIcon(Heroicon::OutlinedCheck)
 
@@ -1753,7 +1752,7 @@ class TermPlanningWorkbench extends Page
             ->requiresConfirmation()
 
             ->modalHeading('Reject result')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
             ->modalSubmitActionLabel('Reject result')
             ->modalIcon(Heroicon::OutlinedXMark)
 
@@ -1813,7 +1812,6 @@ class TermPlanningWorkbench extends Page
             ->requiresConfirmation()
 
             ->modalHeading(fn (): string => $this->canRecoverActiveRun() ? 'Try again after a service fix' : 'Retry generation')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->modalDescription(fn (): string => $this->selectedTerm()->label.' / Attempt #'.$this->activeScheduleRun()?->id.'. '.($this->canRecoverActiveRun()
                 ? 'After the System Administrator confirms the service fix, queue one new attempt after current planning data passes readiness checks. The failed attempt stays in history. Any original repair change is preserved.'
@@ -1893,7 +1891,6 @@ class TermPlanningWorkbench extends Page
             ->requiresConfirmation()
 
             ->modalHeading('Publish official timetable')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
 
             ->modalDescription(fn (): string => $this->selectedTerm()->label.' / Attempt #'.$this->activeScheduleRun()?->id.'. '.$this->publicationModalDescription())
 
@@ -2220,15 +2217,11 @@ class TermPlanningWorkbench extends Page
 
                 ->options(fn (): array => Term::query()->with('academicYear')->latest('starts_on')->get()
 
-                    ->mapWithKeys(fn (Term $term): array => [$term->id => implode(' · ', [
-
+                    ->mapWithKeys(fn (Term $term): array => [$term->id => implode(' · ', array_unique(array_filter([
                         $term->academicYear?->label,
-
                         Term::typeOptions()[$term->type] ?? $term->type,
-
                         $term->label,
-
-                    ])])->all())
+                    ])))])->all())
 
                 ->searchable()
                 ->live()
@@ -2244,6 +2237,9 @@ class TermPlanningWorkbench extends Page
         abort_unless(Term::query()->whereKey($termId)->exists(), 404);
 
         $this->termId = $termId;
+
+        $this->chooseTerm = false;
+        $this->termAutoSelected = false;
 
         $this->viewTab = static::$planningTab;
 
@@ -2274,7 +2270,7 @@ class TermPlanningWorkbench extends Page
     protected function getViewData(): array
     {
 
-        $terms = Term::query()->with('academicYear')->latest('starts_on')->get();
+        $terms = Term::query()->with('academicYear')->withCount(['termOfferings' => fn ($query) => $query->where('state', '!=', TermOffering::StateCancelled)->whereHas('sections', fn ($sections) => $sections->whereNotIn('state', [Section::StateCancelled, Section::StateClosed]))])->latest('starts_on')->get();
 
         $term = $terms->firstWhere('id', $this->termId);
 

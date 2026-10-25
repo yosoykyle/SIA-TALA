@@ -57,6 +57,7 @@ class FacultyTermLoadOverrideInfolist
                 Actions::make([
                     Action::make('backToLoadExceptions')
                         ->label('Back to load exceptions')
+                        ->visible(fn (LivewireComponent $livewire): bool => ! ($livewire instanceof ViewFacultyTermLoadOverride && $livewire->termId !== null))
                         ->color('gray')
                         ->url(fn (LivewireComponent $livewire): string => $livewire instanceof ViewFacultyTermLoadOverride
                             ? $livewire->getResourceUrl('index')

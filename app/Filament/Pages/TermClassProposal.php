@@ -17,10 +17,12 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 
 class TermClassProposal extends TermPlanningWorkbench
@@ -57,7 +59,7 @@ class TermClassProposal extends TermPlanningWorkbench
         abort_unless($this->termId, 404);
         $preview = $this->currentPreview();
         $this->proposalSource = $preview['token'];
-        $this->form->fill(['classes' => $preview['classes']]);
+        $this->form->fill(['classes' => array_values(array_map(fn (array $row): array => [...$row, 'action' => 'keep'], array_filter($preview['classes'], fn (array $row): bool => filled($row['section_id'] ?? null))))]);
     }
 
     /** @return array<string, mixed> */
@@ -73,8 +75,22 @@ class TermClassProposal extends TermPlanningWorkbench
         $cohorts = $this->currentPreview()['cohorts']->mapWithKeys(fn ($cohort): array => [$cohort->id => $cohort->reference.' · '.$cohort->confirmed_count.' confirmed learners'])->all();
 
         return $schema->statePath('proposal')->components([
-            Repeater::make('classes')->label('Term class decisions')->defaultItems(0)->reorderable(false)->collapsible(false)
-                ->addActionLabel('Add another class')->deletable(false)
+            Repeater::make('classes')->label('Term class decisions')->defaultItems(0)->reorderable(false)->collapsible()->collapsed()
+                ->itemLabel(function (array $state) use ($catalogRows): HtmlString|string {
+                    $course = $catalogRows->get((int) ($state['entry_id'] ?? 0));
+                    $decision = match ($state['action'] ?? 'skip') {
+                        'confirm' => 'Prepare class', 'keep' => ($state['is_confirmed'] ?? false) ? 'Keep confirmed' : 'Keep draft',
+                        'cancel' => 'Cancel class', default => 'No class to add',
+                    };
+
+                    return $course
+                        ? new HtmlString('<span class="tala-proposal-item-title"><strong>'.e($course['course_title'].' · '.$course['course_code']).'</strong><small>'.e($course['program'].' · '.$course['year_level'].' · '.$decision).'</small></span>')
+                        : 'Additional class · '.$decision;
+                })
+                ->extraAttributes(['data-class-proposal' => ''])
+                ->addable(false)->deletable(false)
+                ->collapseAllAction(fn (Action $action): Action => $action->hidden())
+                ->expandAllAction(fn (Action $action): Action => $action->hidden())
                 ->schema([
                     Hidden::make('is_catalog')->default(false),
                     Hidden::make('entry_id')->visible(fn (Get $get): bool => (bool) $get('is_catalog')),
@@ -101,11 +117,24 @@ class TermClassProposal extends TermPlanningWorkbench
                     Select::make('entry_id')->label('Course')->options($catalog)->searchable()
                         ->required(fn (Get $get): bool => $get('action') === 'confirm')->dehydrated()
                         ->visible(fn (Get $get): bool => ! $get('is_catalog')),
-                    Select::make('action')->label('Decision')->options(fn (Get $get): array => $get('section_id')
-                        ? ($get('is_confirmed') ? ['keep' => 'Keep confirmed class', 'cancel' => 'Cancel existing class'] : ['confirm' => 'Prepare and confirm', 'keep' => 'Keep as Draft', 'cancel' => 'Cancel existing class'])
-                        : ['confirm' => 'Prepare class', 'skip' => 'Do not add a class'])->default('skip')->required()->live(),
                     Hidden::make('section_id'),
                     Hidden::make('is_confirmed'),
+                    Hidden::make('requires_timetable_revision')->default(false),
+                    Select::make('action')->label('Decision')->options(function (Get $get): array {
+                        if ($get('section_id')) {
+                            if ($get('requires_timetable_revision')) {
+                                return ['keep' => 'Keep existing class'];
+                            }
+
+                            return $get('is_confirmed')
+                                ? ['keep' => 'Keep confirmed class', 'cancel' => 'Cancel existing class']
+                                : ['confirm' => 'Prepare and confirm', 'keep' => 'Keep as Draft', 'cancel' => 'Cancel existing class'];
+                        }
+
+                        return ['confirm' => 'Prepare class', 'skip' => 'Do not add a class'];
+                    })->helperText(fn (Get $get): ?string => $get('requires_timetable_revision')
+                        ? 'This class has a published timetable. Keep it here; changes require the controlled timetable revision.'
+                        : null)->default('skip')->required()->live(),
                     Fieldset::make('Prepare this course')->columns(2)->columnSpanFull()->visible(fn (Get $get): bool => $get('action') === 'confirm')->schema([
                         TextInput::make('code')->label('Class reference')->maxLength(64)->required(fn (Get $get): bool => $get('action') === 'confirm')->disabled(fn (Get $get): bool => $get('action') !== 'confirm')->dehydrated(),
                         TextInput::make('capacity')->label('Approved capacity')->integer()->minValue(1)->required(fn (Get $get): bool => $get('action') === 'confirm')->disabled(fn (Get $get): bool => $get('action') !== 'confirm' || filled($get('section_id')))->dehydrated(),
@@ -122,10 +151,47 @@ class TermClassProposal extends TermPlanningWorkbench
         ]);
     }
 
+    public function addCoursesAction(): Action
+    {
+        return Action::make('addCourses')->label('Add courses')->icon('heroicon-o-plus')
+            ->modalHeading('Add courses to this proposal')
+            ->modalDescription('Choose the courses that will run. Program and year identify their curriculum source. You can select a course again for another split class.')
+            ->modalSubmitActionLabel('Add selected courses')
+            ->schema([
+                Select::make('program')->label('Program')->searchable()->required()->live()->dehydrated(false)
+                    ->options(fn (): array => collect($this->currentPreview()['catalog'])->pluck('program', 'program')->sort()->all())
+                    ->afterStateUpdated(fn (Set $set) => $set('entries', [])),
+                Select::make('entries')->label('Courses')->multiple()->searchable()->required()
+                    ->disabled(fn (Get $get): bool => blank($get('program')))
+                    ->helperText('Courses are grouped by curriculum year. Other-Term courses need additional-class approval.')
+                    ->options(fn (Get $get): array => collect($this->currentPreview()['catalog'])->where('program', $get('program'))
+                        ->groupBy(fn (array $course): string => $course['year_level'])
+                        ->map(fn ($courses): array => $courses->mapWithKeys(fn (array $course): array => [$course['id'] => $course['course_title'].' · '.$course['course_code'].($course['term_type'] !== $this->selectedTerm()->type ? ' · Additional approval required' : '')])->all())->all()),
+            ])
+            ->action(function (array $data): void {
+                $catalog = collect($this->currentPreview()['catalog'])->keyBy('id');
+                $state = $this->form->getRawState();
+                foreach (array_unique($data['entries']) as $id) {
+                    $course = $catalog->get((int) $id);
+                    if (! $course) {
+                        throw ValidationException::withMessages(['entries' => 'Choose a course from the approved catalog.']);
+                    }
+                    $state['classes'][] = [
+                        'entry_id' => $course['id'], 'section_id' => null, 'is_catalog' => true, 'is_confirmed' => false,
+                        'action' => 'confirm', 'code' => '', 'capacity' => null,
+                        'source' => $course['term_type'] === $this->selectedTerm()->type ? Section::SourceRegular : Section::SourceAdditional,
+                        'modality' => count($course['modes']) === 1 ? $course['modes'][0] : null,
+                        'authority_reference' => null, 'cohorts' => [],
+                    ];
+                }
+                $this->form->fill($state);
+            });
+    }
+
     public function confirmProposalAction(): Action
     {
         return Action::make('confirmProposal')->label('Review class proposal')->requiresConfirmation()
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
             ->disabled(fn (): bool => ! $this->hasProposalChanges())
             ->modalHeading('Confirm this Term’s class proposal')
             ->modalDescription('Prepared classes and cancellations are checked and saved together. Skipped courses and retained classes stay unchanged. Faculty and room readiness are checked before generation.')

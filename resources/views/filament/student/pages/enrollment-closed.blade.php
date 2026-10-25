@@ -14,7 +14,7 @@
             <p>{{ \App\Models\Term::typeOptions()[$enrollment->term?->type] ?? $enrollment->term?->label ?? 'Term unavailable' }} · School year {{ $enrollment->term?->academicYear?->label ?? 'unavailable' }}</p>
         </div>
     </div>
-    <section class="student-academic-notice" aria-labelledby="closed-heading">
+    <section class="student-academic-notice tala-task-surface" aria-labelledby="closed-heading">
         <x-filament::badge color="danger">Enrollment closed</x-filament::badge>
         <h2 id="closed-heading">{{ $outcomeLabel }}</h2>
         <p>{{ $closedOn ? 'This enrollment was closed on '.$closedOn.'.' : 'This enrollment is closed.' }} Its temporary seats were released.</p>

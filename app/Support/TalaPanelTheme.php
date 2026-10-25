@@ -12,6 +12,7 @@ use Filament\Actions\Action;
 use Filament\Enums\GlobalSearchPosition;
 use Filament\Panel;
 use Filament\Support\Colors\Color;
+use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Contracts\View\View;
@@ -32,6 +33,8 @@ class TalaPanelTheme
                 || $action->getRecord() !== null
                 || in_array($action->getName(), ['openFilters', 'openColumnManager'], true))
             ? ['aria-label' => trim(strip_tags((string) $action->getLabel()))] : [], merge: true);
+
+        $action->modalFooterActionsAlignment(Alignment::End);
 
         $action->extraModalWindowAttributes([
             'x-effect' => <<<'JS'

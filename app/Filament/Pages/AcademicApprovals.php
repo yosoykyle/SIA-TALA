@@ -15,7 +15,6 @@ use App\Models\Enrollment;
 use App\Models\GradeRoster;
 use App\Models\Program;
 use App\Models\PublishedTimetableVersion;
-use App\Models\ScheduleGenerationRun;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
@@ -51,8 +50,8 @@ class AcademicApprovals extends Page
 
     public function mount(): void
     {
-        if ($this->termId !== null && ! Term::query()->whereKey($this->termId)->exists()) {
-            $this->termId = null;
+        if ($this->termId !== null) {
+            abort_unless(Term::query()->whereKey($this->termId)->exists(), 404);
         }
         if ($this->termId === null) {
             $activeIds = TermCalendarPackage::query()->where('state', TermCalendarPackage::StateActive)->distinct()->pluck('term_id');
@@ -116,9 +115,7 @@ class AcademicApprovals extends Page
             }
         }
 
-        $draft = $term ? ScheduleGenerationRun::query()->where('term_id', $term->id)->where('status', '!=', 'published')->latest('id')->first() : null;
-
-        return compact('draft', 'term', 'calendar', 'calendarReadiness', 'timetable', 'authorityRows', 'attention', 'examination') + [
+        return compact('term', 'calendar', 'calendarReadiness', 'timetable', 'authorityRows', 'attention', 'examination') + [
             'terms' => Term::query()->with('academicYear')->latest('starts_on')->get(),
             'checkedAt' => now('Asia/Manila'),
             'enrollmentSummary' => $this->enrollmentSummary($term),

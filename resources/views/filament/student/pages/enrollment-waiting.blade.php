@@ -9,7 +9,7 @@
             <p>{{ \App\Models\Term::typeOptions()[$enrollment->term?->type] ?? $enrollment->term?->label ?? 'Term unavailable' }} · School year {{ $enrollment->term?->academicYear?->label ?? 'unavailable' }}</p>
         </div>
     </div>
-    <section class="student-academic-notice" aria-labelledby="waiting-heading" role="status">
+    <section class="student-academic-notice tala-task-surface" aria-labelledby="waiting-heading" role="status">
         <x-filament::badge color="warning">Not official yet</x-filament::badge>
         <h2 id="waiting-heading">Your part is complete</h2>
         <p>The <strong>Registrar</strong> checks your records and finalizes enrollment. Your Certificate of Registration appears here after that.</p>

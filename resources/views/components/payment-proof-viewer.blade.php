@@ -2,7 +2,7 @@
 @assets
     @vite('resources/js/payment-proof-preview.js')
 @endassets
-<x-filament::modal :id="'payment-proof-'.$proof->id" width="5xl">
+<x-filament::modal footer-actions-alignment="end" :id="'payment-proof-'.$proof->id" width="5xl">
     <x-slot name="trigger">
         <x-filament::button :color="$primary ? 'primary' : 'gray'" icon="heroicon-o-document-magnifying-glass">{{ $label }}</x-filament::button>
     </x-slot>

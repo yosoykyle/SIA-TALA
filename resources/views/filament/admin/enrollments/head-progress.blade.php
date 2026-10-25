@@ -5,7 +5,7 @@
         <div><x-filament::badge color="gray">In progress</x-filament::badge><p>Read-only · Registrar manages enrollment</p></div>
     </div>
     <div class="head-enrollment-board">
-        <section class="head-enrollment-panel head-enrollment-subjects" aria-labelledby="head-proposed-subjects">
+        <section class="head-enrollment-panel head-enrollment-subjects tala-task-surface" aria-labelledby="head-proposed-subjects">
             @if ($proposal && $proposal->items->isNotEmpty())
                 <div class="head-enrollment-panel-heading"><h2 id="head-proposed-subjects">{{ match ($proposal->state) { \App\Models\RegistrationProposalVersion::StateDraft => 'Draft subjects', \App\Models\RegistrationProposalVersion::StateConfirmed => 'Confirmed proposed subjects', default => 'Proposed subjects' } }}</h2><dl class="head-enrollment-figures"><div><dt>Subjects</dt><dd>{{ $proposal->items->count() }}</dd></div><div><dt>Units</dt><dd>{{ (float) $proposal->items->sum('units_snapshot') }}</dd></div></dl></div>
                 <p class="head-enrollment-note">{{ $proposal->state === \App\Models\RegistrationProposalVersion::StateDraft ? 'Draft subjects recorded by Registrar.' : 'These subjects are proposed and are not official registrations.' }}</p>
@@ -17,7 +17,7 @@
                 <div class="head-enrollment-empty"><x-heroicon-o-document-text aria-hidden="true" /><h2 id="head-proposed-subjects">Subjects being prepared</h2><p>Registrar has not recorded a subject proposal for this enrollment.</p></div>
             @endif
         </section>
-        <section class="head-enrollment-panel head-enrollment-record" aria-labelledby="head-enrollment-progress">
+        <section class="head-enrollment-panel head-enrollment-record tala-task-surface" aria-labelledby="head-enrollment-progress">
             <h2 id="head-enrollment-progress">{{ $proposal ? $progress : 'Enrollment progress' }}</h2>
             <dl>
                 <div><dt>Responsible</dt><dd>{{ $owner }}</dd></div>
@@ -28,13 +28,13 @@
             </dl>
         </section>
         @if ($proposal && $schedule && $schedule['meetings'] !== [])
-            <section class="head-enrollment-panel head-enrollment-schedule" aria-labelledby="head-proposed-meetings">
+            <section class="head-enrollment-panel head-enrollment-schedule tala-task-surface" aria-labelledby="head-proposed-meetings">
                 <h2 id="head-proposed-meetings">{{ $proposal->state === \App\Models\RegistrationProposalVersion::StateDraft ? 'Draft class schedule' : 'Proposed class schedule' }}</h2><p class="head-enrollment-note">{{ $schedule['source'] }} · {{ $placementCurrent ? 'Current placement source' : 'Placement needs Registrar review' }} · Asia/Manila</p>
                 <ul class="head-enrollment-meetings">@foreach ($schedule['meetings'] as $meeting)<li><div class="head-enrollment-meeting-time"><strong>{{ $meeting['dayLabel'] ?: 'Day unavailable' }}</strong><span>{{ $meeting['time'] ?: 'Time unavailable' }}</span></div><div><h3>{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</h3><p>{{ $meeting['class'] }} · {{ $meeting['room'] }} · {{ $meeting['faculty'] }}</p>@if (! $meeting['plottable'] || $meeting['offGrid'])<p>Meeting time needs Registrar review.</p>@endif</div></li>@endforeach</ul>
             </section>
         @endif
     </div>
-    <details class="head-enrollment-evidence"><summary>Enrollment history and source details</summary>
+    <details class="head-enrollment-evidence tala-task-surface"><summary>Enrollment history and source details</summary>
         <dl class="head-enrollment-source-grid">
             <div><dt>Registration reference</dt><dd>{{ $case->case_reference }}</dd></div>
             <div><dt>Academic selection basis</dt><dd>{{ filled($case->selection_basis) ? \Illuminate\Support\Str::headline($case->selection_basis) : 'Not recorded' }}</dd></div>

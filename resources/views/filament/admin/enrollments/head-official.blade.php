@@ -5,7 +5,7 @@
         <div><x-filament::badge color="success">Officially enrolled</x-filament::badge><p>Read-only · Registrar manages enrollment</p></div>
     </div>
     <div class="head-enrollment-board">
-        <section class="head-enrollment-panel head-enrollment-subjects" aria-labelledby="head-official-subjects">
+        <section class="head-enrollment-panel head-enrollment-subjects tala-task-surface" aria-labelledby="head-official-subjects">
             <div class="head-enrollment-panel-heading">
                 <h2 id="head-official-subjects">Official class registrations</h2>
                 <dl class="head-enrollment-figures"><div><dt>Subjects</dt><dd>{{ $subjects->count() }}</dd></div><div><dt>Units</dt><dd>{{ (float) $subjects->sum('units_snapshot') }}</dd></div></dl>
@@ -21,7 +21,7 @@
             @else<p class="head-enrollment-note">No active subjects remain. Recorded changes are available in Enrollment history and source details.</p>@endif
             @foreach ($subjects->filter(fn ($subject) => ($subject->proposalItem?->scheduling_treatment_snapshot ?? $subject->termOffering?->curriculumEntry?->courseSpecification?->scheduling_treatment) === \App\Models\CourseSpecification::SchedulingExternallyArranged) as $subject)<p class="head-enrollment-note">{{ $subject->proposalItem?->course_title_snapshot ?? $subject->termOffering?->curriculumEntry?->courseSpecification?->title ?? 'This subject' }} is externally arranged and has no recurring meeting.</p>@endforeach
         </section>
-        <section class="head-enrollment-panel head-enrollment-record" aria-labelledby="head-recorded-enrollment">
+        <section class="head-enrollment-panel head-enrollment-record tala-task-surface" aria-labelledby="head-recorded-enrollment">
             <h2 id="head-recorded-enrollment">Recorded enrollment</h2>
             <dl>
                 <div><dt>Made official</dt><dd>{{ $case->officially_enrolled_at?->timezone('Asia/Manila')->format('j M Y, g:i A') ?? 'Date unavailable' }}<small>Asia/Manila</small></dd></div>
@@ -30,7 +30,7 @@
             </dl>
             @if ($pendingProposal)<p class="head-enrollment-note">A subject change is being reviewed. The official registrations shown here remain current until the change is applied.</p>@endif
         </section>
-        <section class="head-enrollment-panel head-enrollment-schedule" aria-labelledby="head-enrollment-schedule">
+        <section class="head-enrollment-panel head-enrollment-schedule tala-task-surface" aria-labelledby="head-enrollment-schedule">
             <h2 id="head-enrollment-schedule">Published class schedule</h2>
             @if ($schedule && $schedule['meetings'] !== [])
                 <p class="head-enrollment-note">Current published meetings for these official subjects · Asia/Manila</p>
@@ -40,7 +40,7 @@
             @else<p class="head-enrollment-note">{{ $schedule === null ? 'No published timetable is available for this term.' : 'No recurring meetings are recorded for these subjects. Externally arranged subjects use their recorded teaching arrangements.' }}</p>@endif
         </section>
     </div>
-    <details class="head-enrollment-evidence">
+    <details class="head-enrollment-evidence tala-task-surface">
         <summary>Enrollment history and source details</summary>
         <dl class="head-enrollment-source-grid">
             <div><dt>Registration reference</dt><dd>{{ $case->case_reference }}</dd></div>

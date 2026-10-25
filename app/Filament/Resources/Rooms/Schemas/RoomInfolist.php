@@ -19,7 +19,7 @@ use Livewire\Component as LivewireComponent;
 
 class RoomInfolist
 {
-    public static function configure(Schema $schema): Schema
+    public static function configure(Schema $schema, bool $compact = false): Schema
     {
         return $schema->components([
             Section::make('Room details')
@@ -54,6 +54,7 @@ class RoomInfolist
                             TextEntry::make('notes')->hiddenLabel()->placeholder('No notes recorded'),
                         ]),
                     Section::make('Record details')
+                        ->visible(! $compact)
                         ->contained(false)
                         ->schema([
                             TextEntry::make('created_at')
@@ -72,6 +73,7 @@ class RoomInfolist
                 ->columnSpanFull(),
             Actions::make([
                 Action::make('backToRooms')
+                    ->visible(fn (LivewireComponent $livewire): bool => ! ($livewire instanceof ViewRoom && $livewire->termId !== null))
                     ->label(fn (LivewireComponent $livewire): string => $livewire instanceof ViewRoom && $livewire->returnToResources ? 'Back to Faculty & rooms' : 'Back to rooms')
                     ->icon('heroicon-o-arrow-left')
                     ->color('gray')
@@ -88,7 +90,7 @@ class RoomInfolist
                     ]))
                     ->visible(fn (): bool => CalendarEventResource::canViewAny()
                         && (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)),
-            ])->columnSpanFull(),
+            ])->visible(! $compact)->columnSpanFull(),
         ]);
     }
 }

@@ -96,7 +96,7 @@
             {{ $this->form }}
         </form>
     @endif
-    <x-filament::modal
+    <x-filament::modal footer-actions-alignment="end"
         id="tala-leave-application"
         width="md"
         :heading="$this->requiresCompleteSubmission() ? 'Leave without submitting?' : 'Save your progress before leaving?'"
@@ -106,17 +106,17 @@
     >
         <x-slot name="footer">
             <div class="fi-modal-footer-actions">
-                @if ($this->requiresCompleteSubmission())
-                    <x-filament::button color="gray" outlined type="button" x-on:click="$dispatch('close-modal', { id: 'tala-leave-application' })" autofocus>
-                        Keep editing
+                @if (! $this->requiresCompleteSubmission())
+                    <x-filament::button type="button" wire:click="mountAction('saveAndExit')" wire:loading.attr="disabled" x-on:click="$dispatch('close-modal', { id: 'tala-leave-application' })" autofocus>
+                        Save and exit
                     </x-filament::button>
                 @endif
                 <x-filament::button tag="a" color="gray" outlined :href="$exitUrl" data-application-leave-confirmed x-on:click="changed = false; failed = false">
                     {{ $this->requiresCompleteSubmission() ? 'Leave without submitting' : 'Leave without saving' }}
                 </x-filament::button>
-                @if (! $this->requiresCompleteSubmission())
-                    <x-filament::button type="button" wire:click="mountAction('saveAndExit')" wire:loading.attr="disabled" x-on:click="$dispatch('close-modal', { id: 'tala-leave-application' })" autofocus>
-                        Save and exit
+                @if ($this->requiresCompleteSubmission())
+                    <x-filament::button color="gray" outlined type="button" x-on:click="$dispatch('close-modal', { id: 'tala-leave-application' })" autofocus>
+                        Keep editing
                     </x-filament::button>
                 @endif
             </div>

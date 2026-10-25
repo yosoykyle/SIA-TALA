@@ -33,9 +33,10 @@ class BuildOfficialScheduleOutput
     {
         abort_unless($faculty->hasRole(User::StaffRoleFaculty), 403);
 
-        $request->validate(['scope' => ['sometimes', 'in:full,filtered'], 'view' => ['sometimes', 'in:week,list']]);
+        $request->validate(['scope' => ['sometimes', 'in:full,filtered'], 'view' => ['sometimes', 'in:week,list'], 'return_filters' => ['sometimes', 'array']]);
         $filtered = $request->query('scope') === 'filtered';
         $criteria = $filtered ? FacultyScheduleFilters::normalize($request->query()) : [];
+        $returnCriteria = $filtered ? $criteria : FacultyScheduleFilters::normalize($request->query('return_filters', []));
 
         $requestedVersionId = $request->integer('timetable_version');
         $availableVersions = PublishedTimetableVersion::query()
@@ -73,7 +74,7 @@ class BuildOfficialScheduleOutput
         $meetings = FacultyScheduleFilters::apply($meetings, $criteria)->get();
         $criteriaDescription = FacultyScheduleFilters::describe($criteria, $ownedMeetings);
         $returnContext = ['termId' => $version?->term_id, 'scheduleView' => $request->query('view', 'week')];
-        foreach ($criteria as $field => $value) {
+        foreach ($returnCriteria as $field => $value) {
             if ($field === 'search') {
                 $returnContext['tableSearch'] = $value;
             } else {

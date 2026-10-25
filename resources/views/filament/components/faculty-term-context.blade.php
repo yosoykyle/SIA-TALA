@@ -22,7 +22,10 @@
     </div>
 @if ($showExaminationContext ?? false)<div class="tala-faculty-examination-context text-sm">
     <p><strong>Examination period: {{ $examinationPeriod ? $examinationPeriod->opens_on->format('M j').'–'.$examinationPeriod->closes_on->format('M j, Y') : 'Dates not configured' }}</strong>@unless ($examinationPeriod) · Contact the Registrar for approved dates.@endunless</p>
-    @if ($examinationPeriod)<details><summary>Examination source details</summary><p>{{ $examinationSource->authority_reference }} · Calendar v{{ $examinationSource->version }} · Registrar · As of {{ $asOf }} (Asia/Manila)</p><p>Arrange exact class examinations with your students.</p></details>@endif
+    @if ($examinationPeriod)<details><summary>Examination source details</summary>
+<div class="tala-planning-reveal"><p>{{ $examinationSource->authority_reference }} · Calendar v{{ $examinationSource->version }} · Registrar · As of {{ $asOf }} (Asia/Manila)</p><p>Arrange exact class examinations with your students.</p>
+</div>
+</details>@endif
 </div>@endif
 </header>
 @endif

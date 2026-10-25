@@ -65,7 +65,7 @@
         <p x-cloak x-show="visibleCount === 0" class="tala-timetable-empty">No meetings match these filters. Clear the filters to see the full timetable.</p>
 
         @if (! $nativeDetails)
-            <x-filament::modal :id="$meetingId" width="xl" sticky-header sticky-footer teleport="body" class="tala-meeting-dialog">
+            <x-filament::modal footer-actions-alignment="end" :id="$meetingId" width="xl" sticky-header sticky-footer teleport="body" class="tala-meeting-dialog">
                 <x-slot name="heading"><span x-text="selectedMeeting?.courseTitle || selectedMeeting?.courseCode || 'Meeting details'"></span></x-slot>
                 <x-slot name="description"><span x-text="selectedMeeting?.courseCode"></span> · <span x-text="selectedMeeting?.class"></span></x-slot>
                 <dl class="tala-meeting-facts">
@@ -102,7 +102,10 @@
                             @endforeach
                             @foreach ($presentation['blockedPeriods'] as $period)
                                 @if ($period['day'] === $day['number'])
-                                    <span class="tala-timetable-break" style="top: {{ $period['top'] }}%; height: {{ $period['height'] }}%;" title="{{ $period['label'] }} · {{ $period['time'] }}">{{ $period['label'] }}<br>{{ $period['time'] }}</span>
+                                    <span @class(['tala-timetable-break', 'tala-timetable-compact-break' => isset($period['start'], $period['end']) && $period['end'] - $period['start'] < 30]) style="top: {{ $period['top'] }}%; height: {{ $period['height'] }}%;" title="{{ $period['label'] }} · {{ $period['time'] }}">
+                                        <span class="tala-timetable-break-heading"><x-filament::icon icon="heroicon-o-clock" /><strong>{{ $period['label'] }}</strong></span>
+                                        <span class="tala-timetable-break-time">{{ $period['time'] }}</span>
+                                    </span>
                                 @endif
                             @endforeach
                             @foreach ($presentation['meetings'] as $meeting)
@@ -119,11 +122,25 @@
                                         @if (! $nativeDetails) aria-controls="{{ $meetingId }}" @endif
                                         aria-label="{{ $meeting['courseCode'] }}, {{ $meeting['courseTitle'] }}, {{ $meeting['class'] }}, {{ $day['label'] }} {{ $meeting['time'] }}, {{ $meeting['faculty'] }}, {{ $meeting['room'] }}, {{ $meeting['component'] }}, {{ $meeting['modality'] }}{{ $meeting['offGrid'] ? ', outside recorded teaching grid' : '' }}"
                                     >
-                                        <strong class="tala-timetable-course-title">{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong>
-                                        <span class="tala-timetable-meeting-time">{{ $meeting['time'] }}</span>
-                                        <span class="tala-timetable-meeting-room">{{ $meeting['room'] }}</span>
-                                        @if (! $nativeDetails)<span class="tala-timetable-meeting-class">{{ $meeting['class'] }} · {{ $meeting['modality'] }}</span>@endif
-                                        @if ($meeting['offGrid'])<span class="tala-timetable-attention">Outside teaching grid</span>@endif
+                                        @php
+                                            [$startsAt, $endsAt] = explode('–', $meeting['time'], 2);
+                                            $roomLabel = \Illuminate\Support\Str::length($meeting['room']) > 24
+                                                ? '…'.\Illuminate\Support\Str::substr($meeting['room'], -16)
+                                                : $meeting['room'];
+                                        @endphp
+                                        <span class="tala-timetable-tile-body">
+                                            <span class="tala-timetable-tile-clock">
+                                                <span class="tala-timetable-tile-start">{{ \Illuminate\Support\Str::beforeLast($startsAt, ' ') }}</span>
+                                                <span class="tala-timetable-tile-meridiem">{{ \Illuminate\Support\Str::afterLast($startsAt, ' ') }}</span>
+                                                <span class="tala-timetable-tile-end">to {{ $endsAt }}</span>
+                                            </span>
+                                            <strong class="tala-timetable-course-title">{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong>
+                                        </span>
+                                        <span class="tala-timetable-tile-location" title="{{ $meeting['room'] }}">
+                                            <x-filament::icon icon="heroicon-o-map-pin" />
+                                            <span>{{ $roomLabel }}</span>
+                                        </span>
+                                        @if ($meeting['offGrid'])<span class="tala-timetable-attention" title="Outside recorded teaching grid">Outside grid</span>@endif
                                     </button>
                                 @endif
                             @endforeach
@@ -136,7 +153,7 @@
         <div class="tala-timetable-list" :class="{'tala-timetable-list-active': mode === 'list'}">
             @foreach ($presentation['meetings'] as $meeting)
                 @if ($nativeDetails)
-                    <div class="tala-timetable-list-meeting" x-show="matches(meetings.find(meeting => meeting.id === {{ \Illuminate\Support\Js::from($meeting['id']) }}))">
+                    <div class="tala-timetable-list-meeting {{ ! $meeting['plottable'] ? 'tala-timetable-unplaced' : '' }}" x-show="matches(meetings.find(meeting => meeting.id === {{ \Illuminate\Support\Js::from($meeting['id']) }}))">
                         <button type="button" class="tala-timetable-mobile-meeting" data-course-color="{{ $presentation['courseColors'][$meeting['courseCode']] ?? (crc32($meeting['courseCode']) % 4) + 1 }}" wire:click="mountAction('viewMeeting', {}, { table: true, recordKey: '{{ $meeting['id'] }}' })">
                             <span class="tala-timetable-list-time">{{ $meeting['dayLabel'] }}<br>{{ $meeting['time'] }}</span>
                             <span><strong>{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong></span>
@@ -161,7 +178,7 @@
 </section>
 
 @if (! $focused)
-    <x-filament::modal :id="$overviewId" width="screen" sticky-header heading="Whole timetable">
+    <x-filament::modal footer-actions-alignment="end" :id="$overviewId" width="screen" sticky-header heading="Whole timetable">
         <x-tala-timetable :presentation="$presentation" :focused="true" />
     </x-filament::modal>
 @endif

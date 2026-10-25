@@ -549,14 +549,27 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             ->test(TermTimetable::class, ['termId' => $term->id])
             ->assertSet('termId', $term->id)
             ->assertSee('Timetable')
-            ->assertSee('Term summary')
-            ->assertSee('Calendar')
-            ->assertSee('Classes & sections')
-            ->assertSee('Faculty & rooms');
+            ->assertSeeHtml(e(TermOverview::getUrl(['termId' => $term->id])));
+
+        $overview = Livewire::actingAs($registrar)
+            ->test(TermOverview::class, ['termId' => $term->id]);
+        foreach ([TermCalendar::class, TermClasses::class, TermResources::class, TermTimetable::class] as $destination) {
+            $overview->assertSeeHtml(e($destination::getUrl(['termId' => $term->id])));
+        }
+        Livewire::actingAs($registrar)
+            ->test(TermClasses::class, ['termId' => $term->id])
+            ->assertSeeHtml(e(TermClasses::getUrl(['termId' => $term->id, 'classesView' => 'cohorts'])));
 
         foreach ([TermOverview::class, TermCalendar::class, TermClasses::class, TermResources::class, TermTimetable::class] as $destination) {
-            $termPlanning->assertSeeHtml(e($destination::getUrl(['termId' => $term->id])));
+            Livewire::actingAs($academicHead)
+                ->test($destination, ['termId' => $term->id])
+                ->assertSet('termId', $term->id)
+                ->assertViewHas('readOnly', true);
         }
+        Livewire::actingAs($academicHead)
+            ->test(TermCalendar::class, ['termId' => $term->id])
+            ->assertActionHidden('recordCalendarPackage')
+            ->assertActionHidden('activateCalendarPackage');
 
         $this->assertSame(
             ['class' => 'tala-term-planning-page'],
@@ -695,8 +708,7 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         Livewire::withQueryParams(['termId' => 999999])
             ->actingAs($registrar)
             ->test(TermOverview::class)
-            ->assertSet('termId', null)
-            ->assertSee('Choose a Term');
+            ->assertStatus(404);
     }
 
     public function test_candidate_acceptance_and_rejection_are_attributable_non_official_decisions(): void

@@ -8,7 +8,7 @@
             <p>{{ \App\Models\Term::typeOptions()[$enrollment->term?->type] ?? $enrollment->term?->label ?? 'Term unavailable' }} · School year {{ $enrollment->term?->academicYear?->label ?? 'unavailable' }}</p>
         </div>
     </div>
-    <section class="student-academic-notice" aria-labelledby="recovery-heading" role="status">
+    <section class="student-academic-notice tala-task-surface" aria-labelledby="recovery-heading" role="status">
         <x-filament::badge color="warning">Not official yet</x-filament::badge>
         <h2 id="recovery-heading">The Registrar needs to review your classes</h2>
         <p class="student-registration-help">{{ $expiredReservation ? 'This enrollment is not official yet. Your temporary seat reservation expired.' : 'This enrollment is not official yet. The Registrar needs to confirm an available class placement.' }}</p>

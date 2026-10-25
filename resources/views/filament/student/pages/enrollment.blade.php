@@ -36,14 +36,14 @@
         @else
             <p class="student-enrollment-context">{{ $enrollment?->term?->label ?? $entryContext['term']?->label ?? 'Enrollment term unavailable' }}@if ($enrollment?->admissionApplication?->program) · {{ $enrollment->admissionApplication->program->name }}@endif</p>
             @if (! $enrollment)
-                <section class="student-enrollment-task" aria-labelledby="enrollment-entry-heading">
+                <section class="student-enrollment-task tala-task-surface" aria-labelledby="enrollment-entry-heading">
                     <h2 id="enrollment-entry-heading">{{ $this->startRegistrationAction->isDisabled() ? 'Enrollment is unavailable' : 'Start your enrollment' }}</h2>
                     <p>{{ $entryContext['reason'] ?? 'Open enrollment to review the subjects and fees prepared for this term. The Registrar reviews your classes before you confirm.' }}</p>
                     <div class="student-finance-actions">{{ $this->startRegistrationAction }}</div>
                 </section>
             @else
                 <div class="student-enrollment-task-layout">
-                    <section class="student-enrollment-task" aria-labelledby="enrollment-task-heading">
+                    <section class="student-enrollment-task tala-task-surface" aria-labelledby="enrollment-task-heading">
                         @if (! $confirmed)
                             <h2 id="enrollment-task-heading">Your classes are being prepared</h2>
                             <p>The Registrar is preparing your subjects and schedule. You can confirm when your classes and fees are ready.</p>

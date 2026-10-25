@@ -15,7 +15,10 @@ use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\FacultyQualifications\Pages\CreateFacultyQualification;
+use App\Filament\Resources\FacultyQualifications\Pages\EditFacultyQualification;
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
+use App\Filament\Resources\FacultyTermLoadOverrides\Pages\CreateFacultyTermLoadOverride;
+use App\Filament\Resources\FacultyTermLoadOverrides\Pages\EditFacultyTermLoadOverride;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
@@ -33,6 +36,8 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\FacultyQualification;
+use App\Models\FacultyTermLoadOverride;
 use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
@@ -41,6 +46,7 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermCohort;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -79,10 +85,9 @@ final class TermPlanningRedesignTest extends TestCase
     {
         $this->staff();
         $term = Term::factory()->create(['label' => 'Redesign exact Term']);
-        foreach ([TermOverview::class, TermCalendar::class, TermClasses::class, TermResources::class, TermTimetable::class] as $page) {
+        foreach ([TermOverview::class => 'Term planning', TermCalendar::class => 'Set the teaching week', TermClasses::class => 'Classes', TermResources::class => 'Faculty availability', TermTimetable::class => 'Timetable'] as $page => $heading) {
             $component = Livewire::withQueryParams(['termId' => $term->id])->test($page)->assertSuccessful()
-                ->assertSee('Redesign exact Term')->assertSee('Term summary')->assertSee('Calendar')
-                ->assertSee('Classes & sections')->assertSee('Faculty & rooms')->assertSee('Timetable');
+                ->assertSee('Redesign exact Term')->assertSee($heading);
             $this->assertSame(1, substr_count($component->html(), 'wire:partial="action-modals"'));
         }
         Mail::assertNothingOutgoing();
@@ -147,7 +152,8 @@ final class TermPlanningRedesignTest extends TestCase
         $this->assertCount(1, $rows);
         $this->assertStringContainsString($revision->title, collect($rows)->first()['inherited_facts']);
         $this->assertFalse($builder->instance()->getMountedAction()->isModalSlideOver());
-        $create = Livewire::withQueryParams(['termId' => $term->id, 'action' => 'create'])->test(ListSections::class)->assertSet('defaultAction', 'create')->mountAction('create')->assertActionMounted('create');
+        Livewire::withQueryParams(['termId' => $term->id, 'action' => 'create'])->test(ListSections::class)->assertRedirect(TermClasses::getUrl(['termId' => $term->id, 'action' => 'addClass']));
+        $create = Livewire::withQueryParams(['termId' => $term->id, 'action' => 'addClass'])->test(TermClasses::class)->mountAction('addClass')->assertActionMounted('addClass');
         $this->assertFalse($create->instance()->getMountedAction()->isModalSlideOver());
         $this->assertSame(0, TermOffering::query()->where('term_id', $term->id)->count());
     }
@@ -224,10 +230,58 @@ final class TermPlanningRedesignTest extends TestCase
         $page->mountAction('expandTimetable')->assertMountedActionModalSee($mathCohort->reference)
             ->assertMountedActionModalDontSee($prefix.'-HR-2A')->unmountAction();
         $page->call('showTimetableView', 'list')->assertCanSeeTableRecords($expected);
+        $page->assertSet('timetableView', 'whole')->assertSet('timetableFormat', 'list');
         $this->assertSame(1, substr_count($page->html(), 'wire:partial="action-modals"'));
         $page->call('showTimetableView', 'section')->set('viewFilter', (string) $mathCohort->id)
             ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $sharedIds);
+        $page->call('showTimetableFormat', 'week')->call('showTimetableFormat', 'list')
+            ->assertSet('timetableView', 'section')->assertSet('viewFilter', (string) $mathCohort->id)
+            ->assertSet('programFilter', $mathCohort->program->name)->assertSet('yearFilter', 'Third Year')
+            ->assertSet('selectedRunId', $run->id)->assertCanSeeTableRecords($sharedIds)->assertCanNotSeeTableRecords($thirdIds);
+        $page->call('showTimetableFormat', 'week')
+            ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $sharedIds);
         $this->assertSame(1, substr_count($page->html(), 'wire:partial="action-modals"'));
+
+        foreach ([['selectedRunId' => $run->id], ['selectedVersionId' => $fixture['published_version_id']]] as $source) {
+            $focused = Livewire::withQueryParams(['termId' => $fixture['term_id'], ...$source])->test(TermTimetable::class);
+            $allMeetings = collect($focused->viewData('timetablePresentation')['meetings']);
+            $search = $allMeetings->first()['courseTitle'];
+            $matchingIds = $allMeetings->filter(fn (array $meeting): bool => str_contains($meeting['courseTitle'], $search))->pluck('id')->sort()->values()->all();
+            $focused->set('tableSearch', $search)->call('showTimetableFormat', 'week')
+                ->assertViewHas('scopeMeetingCount', $allMeetings->count())
+                ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $matchingIds)
+                ->call('showTimetableFormat', 'list')->assertSet('tableSearch', $search)
+                ->assertCanSeeTableRecords($matchingIds)->assertCanNotSeeTableRecords($allMeetings->whereNotIn('id', $matchingIds)->pluck('id')->all())
+                ->set('tableSearch', 'NO-MEETING-MATCH')->assertSee('No meetings match this view.')
+                ->call('clearViewFilters')->assertSet('tableSearch', '');
+            foreach (['section', 'faculty', 'room'] as $blankCriterion) {
+                $focused->call('showTimetableView', $blankCriterion)->call('showTimetableFormat', 'list')
+                    ->assertSet('viewFilter', null)
+                    ->assertSee(match ($blankCriterion) {
+                        'section' => 'Choose a student section to see its weekly meetings.',
+                        'faculty' => 'Choose a teacher to see their weekly meetings.',
+                        default => 'Choose a room to see its weekly meetings.',
+                    })->assertDontSeeHtml('class="fi-ta-table');
+            }
+            foreach (['faculty', 'room'] as $criterion) {
+                $value = $allMeetings->first()[$criterion];
+                $ids = $allMeetings->where($criterion, $value)->pluck('id')->sort()->values()->all();
+                $focused->call('showTimetableView', $criterion)->set('viewFilter', $value)
+                    ->call('showTimetableFormat', 'list')->assertSet('timetableView', $criterion)->assertSet('viewFilter', $value)
+                    ->assertViewHas('scopeMeetingCount', $allMeetings->count())->assertCanSeeTableRecords($ids)
+                    ->assertCanNotSeeTableRecords($allMeetings->where($criterion, '!=', $value)->pluck('id')->all());
+                foreach ($source as $property => $id) {
+                    $focused->assertSet($property, $id);
+                }
+                $focused->call('showTimetableFormat', 'week')
+                    ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $ids);
+            }
+        }
+
+        Livewire::withQueryParams(['termId' => $fixture['term_id'], 'selectedRunId' => $run->id, 'timetableView' => 'list', 'programFilter' => $mathCohort->program->name, 'yearFilter' => 'Third Year'])
+            ->test(TermTimetable::class)->assertSet('timetableView', 'whole')->assertSet('timetableFormat', 'list')
+            ->assertSet('programFilter', $mathCohort->program->name)->assertSet('yearFilter', 'Third Year')->assertCanSeeTableRecords($expected);
+        $page->call('showTimetableFormat', 'invalid')->assertNotFound();
     }
 
     public function test_generation_from_official_view_selects_the_new_queued_draft_without_replacing_publication(): void
@@ -286,9 +340,9 @@ final class TermPlanningRedesignTest extends TestCase
             $this->staff($role);
             $term = Term::factory()->create();
             $areas = [
-                'Term summary' => TermOverview::class,
+                'Term overview' => TermOverview::class,
                 'Calendar' => TermCalendar::class,
-                'Classes & sections' => TermClasses::class,
+                'Sections & classes' => TermClasses::class,
                 'Faculty & rooms' => TermResources::class,
                 'Timetable' => TermTimetable::class,
             ];
@@ -316,14 +370,18 @@ final class TermPlanningRedesignTest extends TestCase
         foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead] as $role) {
             $this->staff($role);
             $version = PublishedTimetableVersion::factory()->create();
-            PublishedTimetableMeeting::factory()->create(['published_timetable_version_id' => $version->id]);
-            $returnUrl = TermTimetable::getUrl(['termId' => $version->term_id, 'selectedVersionId' => $version->id]);
+            $meeting = PublishedTimetableMeeting::factory()->create(['published_timetable_version_id' => $version->id]);
+            PublishedTimetableMeeting::factory()->create(['published_timetable_version_id' => $version->id, 'section_id' => $meeting->section_id, 'meeting_sequence' => 2]);
+            $criteria = ['timetableView' => 'room', 'timetableFormat' => 'list', 'viewFilter' => 'RETURN-ROOM', 'programFilter' => 'RETURN-PROGRAM', 'yearFilter' => 'Third Year', 'tableSearch' => 'RETURN-SEARCH'];
+            $returnUrl = TermTimetable::getUrl(['termId' => $version->term_id, 'selectedVersionId' => $version->id, ...$criteria]);
 
-            $this->get(route('timetable.version.print', $version))
+            $response = $this->get(route('timetable.version.print', ['version' => $version, ...$criteria]))
                 ->assertSee('Return to official timetable')
                 ->assertSee($returnUrl)
                 ->assertSee('Use Term Planning to confirm')
                 ->assertDontSee('Use the Student Hub or Faculty Workspace');
+            $this->assertCount(2, $response->viewData('schedule')['rows']);
+            $this->getJson(route('timetable.version.print', ['version' => $version, 'timetableFormat' => 'invalid']))->assertUnprocessable();
         }
         $this->staff(User::StaffRoleFaculty);
         $this->get(route('timetable.version.print', $version))->assertForbidden();
@@ -371,14 +429,18 @@ final class TermPlanningRedesignTest extends TestCase
         $group = SectionDeliveryGroup::factory()->for($class, 'section')->create(['name' => 'Shared lecture group']);
         SchedulingDemand::factory()->for($group, 'sectionDeliveryGroup')->create(['meeting_count' => 2, 'required_duration_minutes' => 60]);
 
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
             ->assertCanSeeTableRecords([$class])->assertCanNotSeeTableRecords([$otherClass])
-            ->assertTableActionHidden('manageClass', $class)
+            ->assertTableActionHidden('prepareClassOffering', $class)
+            ->assertTableActionHidden('confirmClassOffering', $class)
             ->mountTableAction('viewClass', $class)
             ->assertMountedActionModalSee('HEAD-READ-CLASS')
-            ->assertMountedActionModalSee('Read-only class Term')
+            ->assertMountedActionModalSee($term->typeLabel())
             ->assertMountedActionModalSee('Shared lecture group')
             ->assertMountedActionModalSee('2 × 60 minutes');
+
+        $manage = $page->instance()->getMountedAction()->getExtraModalFooterActions()['manageClass'];
+        $this->assertFalse($manage->isVisible());
 
         $this->assertFalse($head->can('manage-schedules'));
         $this->assertFalse($head->can('update', $class));
@@ -443,6 +505,90 @@ final class TermPlanningRedesignTest extends TestCase
             });
     }
 
+    public function test_qualification_creation_records_the_authenticated_actor_and_current_time(): void
+    {
+        $actor = $this->staff();
+        $faculty = User::factory()->create(['status' => User::StatusActive]);
+        $faculty->assignRole(User::StaffRoleFaculty);
+        $course = Course::factory()->create();
+        $this->travelTo('2026-10-24 08:30:00');
+
+        Livewire::test(CreateFacultyQualification::class)
+            ->fillForm(['faculty_user_id' => $faculty->id, 'course_id' => $course->id, 'is_active' => true])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $qualification = FacultyQualification::query()->where('faculty_user_id', $faculty->id)->where('course_id', $course->id)->firstOrFail();
+        $this->assertSame($actor->id, $qualification->recorded_by);
+        $this->assertTrue($qualification->recorded_at->equalTo(now()));
+    }
+
+    public function test_qualification_edits_preserve_original_recording_attribution(): void
+    {
+        $this->staff();
+        $recorder = User::factory()->create();
+        $qualification = FacultyQualification::factory()->create([
+            'recorded_by' => $recorder->id,
+            'recorded_at' => '2024-04-05 06:07:00',
+            'notes' => 'Original note',
+        ]);
+        $qualification->faculty->assignRole(User::StaffRoleFaculty);
+
+        Livewire::test(EditFacultyQualification::class, ['record' => $qualification->id])
+            ->fillForm(['notes' => 'Corrected note'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $qualification->refresh();
+        $this->assertSame($recorder->id, $qualification->recorded_by);
+        $this->assertSame('2024-04-05 06:07:00', $qualification->recorded_at->toDateTimeString());
+        $this->assertSame('Corrected note', $qualification->notes);
+    }
+
+    public function test_load_exception_creation_uses_the_exact_terms_default_and_rejects_missing_defaults(): void
+    {
+        $this->staff();
+        $faculty = User::factory()->create(['status' => User::StatusActive]);
+        $faculty->assignRole(User::StaffRoleFaculty);
+        $term = Term::factory()->create(['default_max_units' => 13.5]);
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(CreateFacultyTermLoadOverride::class)
+            ->fillForm(['faculty_user_id' => $faculty->id, 'approved_overload_units' => 2, 'authority' => 'Approved memo 14', 'reason' => 'Additional assigned units'])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $override = FacultyTermLoadOverride::query()->where('term_id', $term->id)->firstOrFail();
+        $this->assertSame('13.50', $override->default_max_units_snapshot);
+
+        $termWithoutDefault = Term::factory()->create(['default_max_units' => null]);
+        Livewire::withQueryParams(['termId' => $termWithoutDefault->id])->test(CreateFacultyTermLoadOverride::class)
+            ->fillForm(['faculty_user_id' => $faculty->id, 'approved_overload_units' => 1, 'authority' => 'Approved memo 15', 'reason' => 'Additional assigned units'])
+            ->call('create')
+            ->assertSee('Record this Term’s default teaching load before adding a Faculty load exception.');
+        $this->assertSame(0, FacultyTermLoadOverride::query()->where('term_id', $termWithoutDefault->id)->count());
+    }
+
+    public function test_load_exception_edits_preserve_the_recorded_base_limit_snapshot(): void
+    {
+        $this->staff();
+        $override = FacultyTermLoadOverride::factory()->create(['default_max_units_snapshot' => 18.5]);
+        $override->faculty->assignRole(User::StaffRoleFaculty);
+        $originalTermId = $override->term_id;
+        $override->term->update(['default_max_units' => 25]);
+        $differentTerm = Term::factory()->create(['default_max_units' => 30]);
+
+        Livewire::test(EditFacultyTermLoadOverride::class, ['record' => $override->id])
+            ->assertFormFieldDisabled('term_id')
+            ->fillForm(['term_id' => $differentTerm->id, 'approved_overload_units' => 3, 'default_max_units_snapshot' => 21])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $override->refresh();
+        $this->assertSame($originalTermId, $override->term_id);
+        $this->assertSame('18.50', $override->default_max_units_snapshot);
+        $this->assertSame('3.00', $override->approved_overload_units);
+    }
+
     public function test_native_meeting_details_are_commands_without_a_false_toggle_state(): void
     {
         $row = new CandidateScheduleRow(['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '09:00']);
@@ -500,9 +646,35 @@ final class TermPlanningRedesignTest extends TestCase
         $this->staff();
         $term = Term::factory()->create();
         $class = Section::factory()->for(TermOffering::factory()->for($term), 'termOffering')->create(['code' => 'REG-CLASS-DETAIL']);
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
-            ->assertTableActionVisible('manageClass', $class)
+        $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
             ->mountTableAction('viewClass', $class)->assertMountedActionModalSee('REG-CLASS-DETAIL');
+
+        $manage = $page->instance()->getMountedAction()->getExtraModalFooterActions()['manageClass'];
+        $this->assertTrue($manage->isVisible());
+        $this->assertSame(SectionResource::getUrl('view', ['record' => $class, 'termId' => $term->id]), $manage->getUrl());
+    }
+
+    public function test_class_row_preparation_actions_follow_current_source_confirmation_and_lifecycle(): void
+    {
+        $this->staff();
+        $term = Term::factory()->create();
+        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
+        $offering = TermOffering::factory()->for($term)->create();
+        $legacy = Section::factory()->for($offering)->create();
+        $current = Section::factory()->for($offering)->create(['term_calendar_package_id' => $package->id]);
+        $closed = Section::factory()->for($offering)->create(['term_calendar_package_id' => $package->id, 'state' => Section::StateClosed]);
+        $confirmed = Section::factory()->for($offering)->create(['term_calendar_package_id' => $package->id, 'confirmed_at' => now()]);
+
+        $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class);
+
+        $page->assertTableActionVisible('prepareClassOffering', $legacy)
+            ->assertTableActionHidden('confirmClassOffering', $legacy)
+            ->assertTableActionHidden('prepareClassOffering', $current)
+            ->assertTableActionVisible('confirmClassOffering', $current);
+        foreach ([$closed, $confirmed] as $record) {
+            $page->assertTableActionHidden('prepareClassOffering', $record)
+                ->assertTableActionHidden('confirmClassOffering', $record);
+        }
     }
 
     private function staff(string $roleName = User::StaffRoleRegistrar): User

@@ -13,6 +13,7 @@ use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\Sections\Pages\EditSection;
 use App\Filament\Resources\Sections\RelationManagers\DeliveryGroupsRelationManager;
+use App\Filament\Resources\Sections\SectionResource;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
@@ -245,6 +246,15 @@ class Issue58ClassPreparationTest extends TestCase
             ->assertFormFieldIsDisabled('state')
             ->assertActionDoesNotExist('save');
         $this->assertSame(30, $section->refresh()->capacity);
+    }
+
+    public function test_section_details_link_from_edit_keeps_the_exact_term_context(): void
+    {
+        $this->registrar();
+        [$term, , , , $section] = $this->sources();
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(EditSection::class, ['record' => $section->id])
+            ->assertSee(SectionResource::getUrl('view', ['record' => $section, 'termId' => $term->id]), false);
     }
 
     public function test_published_class_settings_are_read_only_and_delivery_groups_keep_view_only(): void

@@ -8,7 +8,7 @@
         <p>{{ $proposal->curriculumVersion?->program?->name }}</p>
         <p>{{ $case->term?->label }}</p>
     </div>
-    <section class="registrar-case-preparation" aria-labelledby="assessment-needed-heading">
+    <section class="registrar-case-preparation tala-task-surface" aria-labelledby="assessment-needed-heading">
         <div><h2 id="assessment-needed-heading">Assessment needed</h2><p>Review the subjects, then use the applicable approved charges.</p></div>
     </section>
     <div class="registrar-case-grid">
