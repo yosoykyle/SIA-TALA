@@ -129,25 +129,33 @@ class Issue58ClassPreparationTest extends TestCase
     }
 
     #[DataProvider('externalSourceErrors')]
-    public function test_source_errors_without_form_fields_remain_visible_in_the_modal(string $case, string $error, string $notification): void
+    public function test_source_changes_prevent_writes_and_explain_recovery(string $case, string $error, string $notification): void
     {
         $this->registrar();
         [$term, $package, $curriculum, $specification, $section] = $this->sources();
+        $action = $case === 'term' ? 'recordCohort' : 'prepareClassOffering';
+        $page = Livewire::withQueryParams(['termId' => $term->id, 'viewTab' => 'classes'])->test(TermClasses::class);
+        if ($action === 'prepareClassOffering') {
+            $page->mountTableAction($action, $section);
+        } else {
+            $page->mountAction($action);
+        }
         match ($case) {
             'calendar' => $package->update(['state' => TermCalendarPackage::StateDraft]),
             'course' => $specification->update(['state' => CourseSpecification::StateDraft]),
             'term' => $term->update(['state' => Term::StateClosed]),
         };
-        $action = $case === 'term' ? 'recordCohort' : 'prepareClassOffering';
         $data = $case === 'term' ? ['curriculum_version_id' => $curriculum->id, 'reference' => 'CLOSED-COHORT', 'confirmed_count' => 20]
             : ['section_id' => $section->id, ...$this->classFacts()];
-        $page = Livewire::withQueryParams(['termId' => $term->id, 'viewTab' => 'classes'])->test(TermClasses::class);
-        if ($action === 'prepareClassOffering') {
-            $page->callTableAction('prepareClassOffering', $section, $data);
+        $page->setActionData($data)->callMountedAction();
+        if ($case === 'calendar') {
+            $page->call('unmountAction')->assertTableActionHidden('prepareClassOffering', $section)
+                ->assertSee('Preparing and confirming classes requires an active teaching calendar.');
         } else {
-            $page->callAction($action, $data);
+            $page->assertHasActionErrors([$error])->assertNotified($notification);
         }
-        $page->assertHasActionErrors([$error])->assertNotified($notification);
+        $this->assertNull($section->fresh()->term_calendar_package_id);
+        $this->assertDatabaseMissing('term_cohorts', ['term_id' => $term->id, 'reference' => 'CLOSED-COHORT']);
     }
 
     /** @return array<string, array{string, string, string}> */

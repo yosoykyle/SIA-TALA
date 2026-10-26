@@ -85,7 +85,7 @@ final class TermPlanningRedesignTest extends TestCase
     {
         $this->staff();
         $term = Term::factory()->create(['label' => 'Redesign exact Term']);
-        foreach ([TermOverview::class => 'Term planning', TermCalendar::class => 'Set the teaching week', TermClasses::class => 'Classes', TermResources::class => 'Faculty availability', TermTimetable::class => 'Timetable'] as $page => $heading) {
+        foreach ([TermOverview::class => 'Term planning', TermCalendar::class => 'Set the teaching week', TermClasses::class => 'Classes', TermResources::class => 'Faculty & rooms', TermTimetable::class => 'Timetable'] as $page => $heading) {
             $component = Livewire::withQueryParams(['termId' => $term->id])->test($page)->assertSuccessful()
                 ->assertSee('Redesign exact Term')->assertSee($heading);
             $this->assertSame(1, substr_count($component->html(), 'wire:partial="action-modals"'));
@@ -294,7 +294,10 @@ final class TermPlanningRedesignTest extends TestCase
             $registrar,
             'Reject the retained synthetic candidate before testing a new generation request.',
         );
-        $queued = ScheduleGenerationRun::factory()->make(['term_id' => $term->id, 'requested_by' => $registrar->id, 'status' => ScheduleGenerationRun::StatusQueued]);
+        $queued = ScheduleGenerationRun::factory()->make([
+            'term_id' => $term->id, 'requested_by' => $registrar->id, 'status' => ScheduleGenerationRun::StatusQueued,
+            'candidate_state' => null, 'published_by' => null, 'published_at' => null, 'publication_version' => null,
+        ]);
         $this->mock(ScheduleGenerationService::class)->shouldReceive('generate')->once()
             ->withArgs(fn (Term $selected, User $actor): bool => $selected->id === $term->id && $actor->id === $registrar->id)
             ->andReturnUsing(function () use ($queued): ScheduleGenerationRun {
@@ -308,7 +311,7 @@ final class TermPlanningRedesignTest extends TestCase
             ->assertActionEnabled('generateTimetable')->callAction('generateTimetable')->assertHasNoActionErrors()
             ->assertSet('timetableState', 'draft')->assertSet('selectedRunId', $queued->id)
             ->assertSet('programFilter', null)->assertSet('yearFilter', null)->assertSet('viewFilter', null)
-            ->assertViewHas('showOfficial', false)->assertSee('Generating this Term’s timetable')
+            ->assertViewHas('showOfficial', false)->assertSee('Timetable generation in progress')->assertSee('Waiting for the timetable worker')
             ->assertSee('wire:poll.5s.visible', false);
         $this->assertSame(PublishedTimetableVersion::StatePublished, PublishedTimetableVersion::findOrFail($fixture['published_version_id'])->state);
         Mail::assertNothingOutgoing();

@@ -146,7 +146,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
 
     public function table(Table $table): Table
     {
-        return $table->records(function (?string $search, ?string $sortColumn, ?string $sortDirection, int $page, int $recordsPerPage, array $filters): LengthAwarePaginator {
+        return $table->records(function (?string $search, ?string $sortColumn, ?string $sortDirection, int $page, int $recordsPerPage, ?array $filters): LengthAwarePaginator {
             $data = $this->getViewData();
             $records = [];
             foreach ($data['facultyPlanningRows'] as $row) {

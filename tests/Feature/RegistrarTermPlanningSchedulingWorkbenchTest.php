@@ -118,8 +118,13 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ListSections::class, ['termId' => $term->id])
-            ->assertTableActionHasUrl('view', SectionResource::getUrl('view', ['record' => $section, 'termId' => $term->id]), $section)
-            ->assertTableActionHasUrl('edit', SectionResource::getUrl('edit', ['record' => $section, 'termId' => $term->id]), $section);
+            ->assertRedirect(TermClasses::getUrl(['termId' => $term->id]));
+        $classes = Livewire::actingAs($registrar)
+            ->test(TermClasses::class, ['termId' => $term->id])
+            ->mountTableAction('viewClass', $section)
+            ->assertMountedActionModalSee($section->code);
+        $this->assertSame(SectionResource::getUrl('view', ['record' => $section, 'termId' => $term->id]), $classes->instance()->getMountedAction()->getExtraModalFooterActions()['manageClass']->getUrl());
+        $classes->call('unmountAction')->assertSet('termId', $term->id);
 
         Livewire::actingAs($registrar)
             ->test(ListFacultyQualifications::class, ['termId' => $term->id])
@@ -263,8 +268,8 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
 
         $diagnostics = Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $run->id])
-            ->assertSee('What happens next')
-            ->assertSee('Classes & sections')
+            ->assertSee('Review the failure in Technical diagnostics.')
+            ->assertSee('Classes & student sections')
             ->assertSee('Faculty & rooms');
         $sourceUrls = array_map(fn ($item): string => $item->getUrl(), $diagnostics->instance()->getWorkspaceNavigation());
         $this->assertContains(TermClasses::getUrl(['termId' => $term->id]), $sourceUrls);
@@ -374,10 +379,10 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->assertHasNoActionErrors()
             ->assertNotified('Official Timetable Published')
             ->assertSet('viewTab', 'published')
-            ->assertSee('Official v1')
+            ->assertSee('Official timetable · v1')
             ->assertSee('v1')
             ->assertSee('REG-AUTH-2026-TEST-01')
-            ->assertSee('Print official timetable');
+            ->assertSee('Print whole Term');
 
         $this->assertDatabaseHas('published_timetable_versions', [
             'term_id' => $term->id,
@@ -408,7 +413,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'termId' => $term->id,
                 'viewTab' => 'generate',
             ])
-            ->assertSee('Read-only · Registrar owns these records')
+            ->assertSee('Read-only · Registrar maintains these records.')
             ->assertActionHidden('generateTimetable')
             ->assertActionHidden('acceptCandidate')
             ->assertActionHidden('rejectCandidate')
@@ -447,7 +452,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'selectedVersionId' => 999999,
             ])
             ->assertSet('selectedVersionId', null)
-            ->assertSee('Official v1')
+            ->assertSee('Official timetable · v1')
             ->assertSee('REG-TEST-FALLBACK-01')
             ->assertSee('v1')
             ->call('selectPublishedVersion', 888888)

@@ -152,8 +152,8 @@ final class TAL85BResourceReadinessSurfacesTest extends TestCase
             ->assertFormFieldExists('faculty_user_id')
             ->assertFormFieldExists('course_id')
             ->assertFormFieldExists('is_active')
-            ->assertFormFieldExists('recorded_by')
-            ->assertFormFieldExists('recorded_at')
+            ->assertFormFieldDoesNotExist('recorded_by')
+            ->assertFormFieldDoesNotExist('recorded_at')
             ->assertFormFieldExists('notes')
             ->assertFormFieldDoesNotExist('subject_id')
             ->assertFormFieldDoesNotExist('term_id')
@@ -199,7 +199,7 @@ final class TAL85BResourceReadinessSurfacesTest extends TestCase
             ->test(CreateFacultyTermLoadOverride::class)
             ->assertFormFieldExists('faculty_user_id')
             ->assertFormFieldExists('term_id')
-            ->assertFormFieldExists('default_max_units_snapshot')
+            ->assertFormFieldDoesNotExist('default_max_units_snapshot')
             ->assertFormFieldExists('approved_overload_units')
             ->assertFormFieldExists('authority')
             ->assertFormFieldExists('reason')
@@ -228,7 +228,6 @@ final class TAL85BResourceReadinessSurfacesTest extends TestCase
         Livewire::actingAs($registrar)->test(CreateFacultyQualification::class)
             ->fillForm([
                 'faculty_user_id' => $faculty->id, 'course_id' => $course->id,
-                'recorded_by' => $registrar->id, 'recorded_at' => now()->format('Y-m-d H:i'),
                 'is_active' => true, 'notes' => 'Duplicate mapping',
             ])->call('create')->assertHasFormErrors(['faculty_user_id' => 'unique'])->assertNotNotified()->assertNoRedirect();
         $this->assertSame($count, FacultyQualification::query()->count());
@@ -264,7 +263,7 @@ final class TAL85BResourceReadinessSurfacesTest extends TestCase
         Livewire::actingAs($registrar)->withQueryParams(['termId' => $term->id])->test(CreateFacultyTermLoadOverride::class)
             ->fillForm([
                 'faculty_user_id' => $faculty->id, 'term_id' => $term->id,
-                'default_max_units_snapshot' => 21, 'approved_overload_units' => 3,
+                'approved_overload_units' => 3,
                 'authority' => 'Approved source', 'reason' => 'Duplicate override', 'is_active' => true,
             ])->call('create')->assertHasFormErrors(['faculty_user_id' => 'unique'])->assertNotNotified()->assertNoRedirect();
         $this->assertSame($count, FacultyTermLoadOverride::query()->count());

@@ -372,16 +372,16 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             ->assertSee('Teachers use the Term default unless an approved exception is recorded.');
     }
 
-    public function test_load_exception_edit_form_keeps_term_and_displays_its_recorded_default(): void
+    public function test_load_exception_edit_form_keeps_term_and_displays_its_recorded_snapshot(): void
     {
         $this->registrar();
         $term = Term::factory()->create(['default_max_units' => 16]);
-        $load = FacultyTermLoadOverride::factory()->for($term)->create();
+        $load = FacultyTermLoadOverride::factory()->for($term)->create(['default_max_units_snapshot' => 14]);
 
         Livewire::withQueryParams(['termId' => $term->id])->test(EditFacultyTermLoadOverride::class, ['record' => $load->id])
             ->assertSuccessful()
             ->assertSee('Edit load exception')
-            ->assertSee('Term default: 16 units per teacher.')
+            ->assertSee('14 units (recorded snapshot)')
             ->assertSee('Approval reference')
             ->assertSee('Active exception')
             ->assertSee(FacultyTermLoadOverrideResource::getUrl('view', ['record' => $load, 'termId' => $term->id]));

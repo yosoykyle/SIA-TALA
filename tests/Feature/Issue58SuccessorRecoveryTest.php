@@ -168,6 +168,7 @@ class Issue58SuccessorRecoveryTest extends TestCase
 
     public function test_deadline_modal_displays_manila_time_and_round_trips_the_stored_instant(): void
     {
+        Role::findOrCreate(User::StaffRoleFaculty, 'web');
         $registrar = $this->staff();
         foreach ([false, true] as $hasSeparateSource) {
             $package = $this->activePackage($registrar);
@@ -180,7 +181,7 @@ class Issue58SuccessorRecoveryTest extends TestCase
             $packageBefore = $package->fresh()->getAttributes();
 
             $component = Livewire::actingAs($registrar)->test(TermResources::class, ['termId' => $package->term_id])
-                ->assertSee('Nov 1, 2026 1:00 AM (Asia/Manila)')
+                ->assertSee('Nov 1, 2026 · 1:00 AM')->assertSee('Asia/Manila')
                 ->mountAction('recordFacultyDeadline');
             $component->setActionData(['authority_reference' => 'Deadline reviewed without time change', 'correction_reason' => 'Confirm the existing approved deadline']);
             $schema = $component->instance()->getSchema($component->instance()->getMountedActionSchemaName());

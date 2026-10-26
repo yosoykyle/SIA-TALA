@@ -199,7 +199,9 @@ final class Issue66TermPreparationTest extends TestCase
         Role::query()->firstOrCreate(['name' => User::StaffRoleFaculty, 'guard_name' => 'web']);
         $faculty->assignRole(User::StaffRoleFaculty);
         FacultyQualification::factory()->create(['faculty_user_id' => $faculty->id, 'course_id' => $entry->courseSpecification->course_id]);
-        Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])->assertSee($faculty->name)->assertSee('Not requested')->assertDontSee('Awaiting response');
+        Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])
+            ->assertDontSee($faculty->name)->filterTable('faculty_scope', 'all')
+            ->assertSee($faculty->name)->assertSee('Not requested')->assertDontSee('Awaiting response');
         OperationalEvent::factory()->create(['event_type' => OperationalEvent::TypeFacultyAvailabilityRequestedEmail, 'related_record_type' => TermCalendarPackage::class,
             'related_record_id' => $term->calendarPackages()->where('state', 'Active')->value('id'), 'user_id' => $faculty->id,
             'status' => OperationalEvent::StatusProcessed, 'sent_at' => now()]);

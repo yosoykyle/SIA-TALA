@@ -16,7 +16,6 @@ use App\Filament\Resources\Rooms\Pages\CreateRoom;
 use App\Filament\Resources\Rooms\Pages\EditRoom;
 use App\Filament\Resources\Rooms\Pages\ViewRoom;
 use App\Filament\Resources\Rooms\RoomResource;
-use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Terms\Pages\EditTerm;
 use App\Filament\Resources\Terms\Pages\ViewTerm;
 use App\Models\CalendarEvent;
@@ -59,7 +58,7 @@ class Issue58OwnerAnnotationsTest extends TestCase
             Room::factory()->create(['code' => sprintf('ANNOTATION-%02d', $number), 'is_active' => true]);
         }
         $page = Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'rooms'])->test(TermResources::class)
-            ->searchTable('ANNOTATION-')->sortTable('name')->set('tableRecordsPerPage', 10);
+            ->set('tableFilters', null)->searchTable('ANNOTATION-')->sortTable('name')->set('tableRecordsPerPage', 10);
         $records = $page->instance()->getTableRecords();
         $this->assertSame(13, $records->total());
         $this->assertCount(10, $records->items());
@@ -114,7 +113,7 @@ class Issue58OwnerAnnotationsTest extends TestCase
 
         $manage = $page->instance()->getMountedAction()->getExtraModalFooterActions()['manageRoom'];
         $this->assertTrue($manage->isVisible());
-        $this->assertSame(['cancel', 'manageRoom'], array_keys($page->instance()->getMountedAction()->getModalFooterActions()));
+        $this->assertSame(['manageRoom', 'cancel'], array_keys($page->instance()->getMountedAction()->getModalFooterActions()));
         $this->assertSame(RoomResource::getUrl('edit', ['record' => $room->id, 'termId' => $term->id, 'returnToResources' => true]), $manage->getUrl());
         $page->call('unmountAction')->assertSet('tableSearch', 'ROOM-MAINTENANCE')->assertSet('tableSort', 'name:desc')->assertSet('resourceView', 'rooms')->assertSet('termId', $term->id);
     }
@@ -131,7 +130,8 @@ class Issue58OwnerAnnotationsTest extends TestCase
         }
         $term = Term::factory()->create();
 
-        $page = Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'faculty'])->test(TermResources::class);
+        $page = Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'faculty'])->test(TermResources::class)
+            ->assertDontSee('Faculty source count')->filterTable('faculty_scope', 'all');
 
         $record = $page->instance()->getTableRecords()->items()['faculty-'.$faculty->id];
         $this->assertSame('Faculty source count', $record['name']);
@@ -183,18 +183,19 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $term = Term::factory()->create();
         $curriculum = CurriculumVersion::factory()->create(['state' => CurriculumVersion::StateActive]);
         CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->create(['term_type' => $term->type]);
-        $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)->assertSee('Prepare Term classes');
-        $record = collect($page->instance()->getTableRecords()->items())->firstWhere('curriculum_version_id', $curriculum->id);
-        $this->assertNotNull($record);
-        $action = $page->instance()->getTable()->getAction('setup')->record($record);
-        $this->assertSame(TermClassProposal::getUrl(['termId' => $term->id]), $action->getUrl());
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
+            ->assertSee('Other curriculum programs')->assertSee('No classes or student sections recorded for this Term')
+            ->assertSee(TermClasses::getUrl(['termId' => $term->id]));
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+            ->assertActionVisible(TestAction::make('setUpYear')->table())
+            ->assertActionHasUrl(TestAction::make('setUpYear')->table(), TermClassProposal::getUrl(['termId' => $term->id]));
 
         $this->staff(User::StaffRoleAcademicHead);
-        $head = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)->assertDontSee('Prepare Term classes');
-        $action = $head->instance()->getTable()->getAction('setup')->record($record);
-        $this->assertSame(TermOfferingResource::getUrl('index', [
-            'termId' => $term->id, 'programId' => $record['program_id'], 'curriculumVersionId' => $curriculum->id, 'yearLevel' => $record['year_level'],
-        ]), $action->getUrl());
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
+            ->assertSee('Other curriculum programs')->assertSee('The Registrar maintains these records.')
+            ->assertSee(TermClasses::getUrl(['termId' => $term->id]));
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+            ->assertActionHidden(TestAction::make('setUpYear')->table());
     }
 
     public function test_unified_room_save_preserves_feature_ids_and_unknown_keys_and_cancel_writes_nothing(): void
