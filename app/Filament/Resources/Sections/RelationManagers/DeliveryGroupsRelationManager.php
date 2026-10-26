@@ -99,7 +99,7 @@ class DeliveryGroupsRelationManager extends RelationManager
             ])
             ->headerActions([
                 CreateAction::make()->label('Add delivery group')
-                    ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
                     ->modalSubmitActionLabel('Add delivery group')->modalCancelActionLabel('Cancel')
                     ->visible(fn (): bool => ! $this->isPublished())
                     ->using(fn (array $data): Model => $this->saveDeliveryGroup($data)),
@@ -107,7 +107,7 @@ class DeliveryGroupsRelationManager extends RelationManager
             ->recordActions([
                 ViewAction::make()->label('View details')->button()->color('gray'),
                 EditAction::make()->button()->color('gray')
-                    ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
                     ->modalSubmitActionLabel('Save changes')->modalCancelActionLabel('Cancel')
                     ->visible(fn (): bool => ! $this->isPublished())
                     ->using(function (Model $record, array $data): Model {

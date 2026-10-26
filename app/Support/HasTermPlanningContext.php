@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
+use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
@@ -15,6 +17,7 @@ use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Models\Term;
 use App\Models\TermOffering;
+use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Navigation\NavigationItem;
 use Filament\Resources\Pages\CreateRecord;
@@ -83,8 +86,11 @@ trait HasTermPlanningContext
         }
 
         return [
-            $this->termPlanningReturnUrl() => $this->termPlanningTaskLabel(),
-            ...($this instanceof ListRecords ? [] : [$this->getResourceUrl('index') => $this->termPlanningResourceLabel()]),
+            ...(auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? [AcademicApprovals::getUrl(['termId' => $this->termPlanningContextTermId()]) => 'Academic oversight'] : []),
+            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl(['termId' => $this->termPlanningContextTermId()]) => Term::query()->find($this->termPlanningContextTermId())?->typeLabel() ?? 'Overview',
+            ...($this instanceof ListRecords && $this->termPlanningResourceLabel() === $this->termPlanningTaskLabel() ? [] : [$this->termPlanningReturnUrl() => $this->termPlanningTaskLabel()]),
+            ...($this instanceof ListRecords || $this->termPlanningResourceLabel() === $this->termPlanningTaskLabel() ? [] : [$this->getResourceUrl('index') => $this->termPlanningResourceLabel()]),
             $this instanceof ListRecords ? $this->termPlanningResourceLabel() : $this->getBreadcrumb(),
         ];
     }
@@ -130,7 +136,7 @@ trait HasTermPlanningContext
             $this instanceof CreateRecord => 'Add a class',
             $this instanceof EditRecord => 'Edit class',
             $this instanceof ViewRecord => ($this->getRecord()->courseRevision?->title ?? $this->getRecord()->termOffering?->curriculumEntry?->courseSpecification?->title) ?: 'Class '.$this->getRecord()->code,
-            default => 'Classes & sections',
+            default => 'Classes',
         };
     }
 
@@ -235,7 +241,7 @@ trait HasTermPlanningContext
             'resources' => 'Faculty & rooms',
             'generate' => 'Timetable',
             'published' => 'Timetable',
-            default => 'Classes & sections',
+            default => 'Classes',
         };
     }
 

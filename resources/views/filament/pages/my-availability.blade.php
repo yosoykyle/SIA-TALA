@@ -4,7 +4,7 @@
         @if (! $term)
             @include('filament.components.faculty-term-context', ['emptyHeading' => 'Choose a Term to view your availability', 'emptyDescription' => 'Select an Academic Year and Term to see its request and your response.'])
         @else
-        <div class="tala-faculty-work-header">@include('filament.components.faculty-term-context', ['contextStatus' => $availabilityRequested && ! $currentDeclaration ? 'Availability requested — submit your response' : null])
+        <div class="tala-faculty-work-header">@include('filament.components.faculty-term-context')
         </div>
         <section class="tala-availability-answer tala-task-work" aria-label="Current availability">
             <div class="tala-task-heading"><div>
@@ -16,7 +16,7 @@
                     <p>Tell the Registrar whether you can teach and add any weekly times you cannot teach.</p>
                 @else
                     <h2>No availability request for this Term</h2>
-                    <p>Contact the Registrar to request availability for this exact Term before submitting your first response.</p>
+                    <p>Ask the Registrar to send an availability request.</p>
                 @endif
                 @if ($availabilityRequested || $currentDeclaration)
                     <p class="tala-availability-due"><strong>Response due:</strong> {{ $availabilityDueAt?->timezone(config('app.display_timezone'))->format('M j, Y g:i A') ?? 'Unavailable — contact the Registrar' }} · Asia/Manila</p>
@@ -42,11 +42,17 @@
             @endif
             @if ($hasPublishedImpact)<p role="status" class="mt-3 text-sm"><strong>Official timetable review required.</strong> Your latest answer conflicts with a current assignment. Registrar must publish a validated successor; current meetings remain official. <x-filament::link :href="\App\Filament\Pages\FacultySchedule::getUrl(['termId' => $term->id])">View official schedule</x-filament::link></p>@endif
             @if ($availabilityRequested || $currentDeclaration)
-                <details class="mt-3 text-sm"><summary>Request and response source</summary><p>{{ $availabilityDeadlineSource ?: 'Deadline source unavailable' }} · Registrar</p>@if ($currentDeclaration)<p>Response v{{ $currentDeclaration->version }} · {{ \App\Support\DisplayDateTime::format($currentDeclaration->declared_at) }}</p>@endif<p>Availability updates help the Registrar plan; current official meetings remain unchanged.</p></details>
+                <details class="mt-3 text-sm"><summary>Request details</summary>
+<div class="tala-planning-reveal"><p>{{ $availabilityDeadlineSource ?: 'Deadline source unavailable' }} · Registrar</p><p>Availability updates help the Registrar plan; current official meetings remain unchanged.</p>
+</div>
+</details>
             @endif
         </section>
         @if ($hasDeclaration)
-            <details class="tala-availability-history"><summary>Availability history</summary>{{ $this->table }}@if ($hasHistoricalBlocks)<p class="mt-3 text-sm"><x-filament::link :href="$historicalBlocksUrl">Older unavailable-time records</x-filament::link></p>@endif</details>
+            <details class="tala-availability-history"><summary>Availability history</summary>
+<div class="tala-planning-reveal">{{ $this->table }}@if ($hasHistoricalBlocks)<p class="mt-3 text-sm"><x-filament::link :href="$historicalBlocksUrl">Older unavailable-time records</x-filament::link></p>@endif
+</div>
+</details>
         @elseif ($hasHistoricalBlocks)
             <p><x-filament::link :href="$historicalBlocksUrl">Older unavailable-time records</x-filament::link></p>
         @endif

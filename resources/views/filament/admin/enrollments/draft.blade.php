@@ -7,7 +7,7 @@
         <p>{{ $proposal->curriculumVersion?->program?->name }}</p>
         <p>{{ $case->term?->label }}</p>
     </div>
-    <section class="registrar-case-preparation" aria-labelledby="draft-heading">
+    <section class="registrar-case-preparation tala-task-surface" aria-labelledby="draft-heading">
         <div>
             <h2 id="draft-heading">Review subjects</h2>
             <p>{{ ! $placementCurrent ? 'Reserve seats before sending these subjects to the student.' : ($requirement['state'] === 'Unavailable' ? 'Seats are reserved. Accounting must record the assessment before the student can confirm.' : 'Seats and assessment are ready. Send these subjects to the student for confirmation.') }}</p>
@@ -27,7 +27,7 @@
             <p class="registrar-case-meta">{{ $proposal->items->count() }} subjects · {{ (float) $proposal->items->sum('units_snapshot') }} units</p>
             @include('filament.admin.enrollments.subjects', ['sourceKey' => 'draft'])
         </section>
-        <section class="registrar-case-payment" aria-labelledby="draft-accounting-heading">
+        <section class="registrar-case-payment tala-task-surface" aria-labelledby="draft-accounting-heading">
             <h2 id="draft-accounting-heading">{{ $assessment === null ? 'Accounting status' : 'Enrollment payment' }}</h2>
             @if ($requirement['state'] === 'Unavailable')
                 <h3 class="registrar-case-status">Assessment needed</h3>
@@ -39,7 +39,7 @@
             @endif
         </section>
     </div>
-    <section class="registrar-case-schedule" aria-labelledby="draft-schedule-heading">
+    <section class="registrar-case-schedule tala-task-surface" aria-labelledby="draft-schedule-heading">
         <h2 id="draft-schedule-heading">Schedule</h2>
         @if ($schedule && $schedule['meetings'] !== [])
             <x-enrollment-schedule :presentation="$schedule" :source-key="'registrar-draft-'.$proposal->id" />

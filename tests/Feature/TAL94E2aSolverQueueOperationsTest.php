@@ -187,10 +187,11 @@ final class TAL94E2aSolverQueueOperationsTest extends TestCase
         $component = Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $run->getRouteKey()])
             ->assertOk()
-            ->assertActionExists('retrySolverRun');
+            ->assertActionExists('retrySolverRun')
+            ->assertActionVisible('retrySolverRun');
 
         $html = $component->html();
-        $this->assertStringContainsString('Operations', $html);
+        $this->assertStringContainsString('Technical diagnostics', $html);
         $this->assertStringContainsString('Retryable', $html);
 
         $component

@@ -4,7 +4,7 @@
 @php($kind = $review['kind'])
 <div class="registrar-case">
     <div class="registrar-case-identity"><p>{{ $review['case']->case_reference }}</p><p>{{ $review['proposal']?->curriculumVersion?->program?->name }}</p><p>{{ $review['case']->term?->label }}</p></div>
-    <section class="registrar-case-preparation">
+    <section class="registrar-case-preparation tala-task-surface">
         <div><h2>{{ match ($kind) { 'overload' => 'Record the approved overload', 'timetable' => 'Review the proposed schedule change', default => 'Review the academic source change' } }}</h2>
         <p>{{ $kind === 'overload' ? 'This Draft exceeds its exact curriculum-term load. Record the existing graduating approval before reserving or sending these subjects.' : 'Review what the changed source means for this registration before sending or confirming the current proposal.' }}</p></div>
         <div class="registrar-case-task-actions">{{ $this->getAction($kind === 'overload' ? 'recordGraduatingOverloadAuthority' : 'resolveImpactReview', isMounting: false) }}</div>

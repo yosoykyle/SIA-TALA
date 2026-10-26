@@ -16,6 +16,11 @@
         "purpose": "Extracted shared light material depth."
       },
       {
+        "name": "shadow-detail-light",
+        "value": "0 1px 2px rgb(9 9 11 / 3%)",
+        "purpose": "Shared shallow depth for nested groups and explanations."
+      },
+      {
         "name": "shadow-overlay-light",
         "value": "0 2px 4px rgb(9 9 11 / 6%), 0 12px 28px -6px rgb(9 9 11 / 16%), 0 24px 56px -16px rgb(9 9 11 / 18%)",
         "purpose": "Extracted shared light material depth."
@@ -37,8 +42,13 @@
       },
       {
         "name": "shadow-surface-dark",
-        "value": "0 1px 2px rgb(0 0 0 / 45%), 0 8px 20px -10px rgb(0 0 0 / 55%)",
+        "value": "0 1px 2px rgb(0 0 0 / 25%), 0 8px 20px -10px rgb(0 0 0 / 30%)",
         "purpose": "Extracted shared dark material depth."
+      },
+      {
+        "name": "shadow-detail-dark",
+        "value": "0 1px 2px rgb(0 0 0 / 15%)",
+        "purpose": "Shared shallow depth for nested groups and explanations."
       },
       {
         "name": "shadow-overlay-dark",

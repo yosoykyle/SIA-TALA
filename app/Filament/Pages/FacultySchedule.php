@@ -65,8 +65,8 @@ class FacultySchedule extends Page implements HasTable
         if (! in_array($this->scheduleView, ['week', 'list'], true)) {
             $this->scheduleView = 'week';
         }
-        if ($this->termId !== null && ! Term::query()->whereKey($this->termId)->exists()) {
-            $this->termId = null;
+        if ($this->termId !== null) {
+            abort_unless(Term::query()->whereKey($this->termId)->exists(), 404);
         }
 
         if ($this->termId !== null) {
@@ -113,7 +113,7 @@ class FacultySchedule extends Page implements HasTable
             ->label('Print all official meetings')
             ->icon(Heroicon::OutlinedPrinter)
             ->visible(fn (): bool => $this->currentVersion() instanceof PublishedTimetableVersion)
-            ->url(fn (): ?string => ($version = $this->currentVersion()) ? route('faculty.schedule.print', ['timetable_version' => $version->id, 'view' => $this->scheduleView]) : null)
+            ->url(fn (): ?string => ($version = $this->currentVersion()) ? route('faculty.schedule.print', ['timetable_version' => $version->id, 'view' => $this->scheduleView, 'return_filters' => $this->scheduleCriteria()]) : null)
             ->openUrlInNewTab();
     }
 

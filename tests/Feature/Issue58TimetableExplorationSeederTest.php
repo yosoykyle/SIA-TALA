@@ -75,7 +75,7 @@ class Issue58TimetableExplorationSeederTest extends TestCase
             ->assertSuccessful()
             ->assertSee('Programming fundamentals')
             ->call('showTimetableView', 'list')
-            ->assertSee($prefix.'-C1')
+            ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect($presentation['meetings'])->contains('courseCode', $prefix.'-C1'))
             ->assertSee('Synthetic Faculty Alex')
             ->call('selectRun', $runs[1]->id)
             ->assertViewHas('solverFailure', fn (array $failure): bool => $failure['code'] === 'SYNTHETIC_VALIDATION_BLOCKED')
@@ -83,7 +83,7 @@ class Issue58TimetableExplorationSeederTest extends TestCase
         Livewire::withQueryParams(['termId' => $populated->id, 'timetableState' => 'official'])
             ->test(TermTimetable::class)
             ->assertSuccessful()
-            ->assertSee('Print official timetable')
+            ->assertSee('Print whole Term')
             ->assertSee($prefix.'-SYNTHETIC-SIGNOFF');
     }
 

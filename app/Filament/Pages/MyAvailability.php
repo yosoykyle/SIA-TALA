@@ -68,8 +68,8 @@ class MyAvailability extends Page implements HasTable
 
     public function mount(): void
     {
-        if ($this->termId !== null && ! Term::query()->whereKey($this->termId)->exists()) {
-            $this->termId = null;
+        if ($this->termId !== null) {
+            abort_unless(Term::query()->whereKey($this->termId)->exists(), 404);
         }
 
         if ($this->termId === null) {

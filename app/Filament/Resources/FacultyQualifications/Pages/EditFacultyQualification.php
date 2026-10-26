@@ -4,6 +4,7 @@ namespace App\Filament\Resources\FacultyQualifications\Pages;
 
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Models\CourseSpecification;
+use App\Models\FacultyQualification;
 use App\Support\HasTermPlanningContext;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -70,5 +71,16 @@ class EditFacultyQualification extends EditRecord
     protected function getRedirectUrl(): ?string
     {
         return $this->termId === null ? parent::getRedirectUrl() : $this->getResourceUrl('index');
+    }
+
+    /** @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        $record = $this->getRecord();
+        abort_unless($record instanceof FacultyQualification, 404);
+
+        return [...$data, 'recorded_by' => $record->recorded_by, 'recorded_at' => $record->recorded_at];
     }
 }

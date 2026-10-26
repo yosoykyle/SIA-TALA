@@ -24,7 +24,7 @@ class ListTerms extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make()->label('Create Term')->icon('heroicon-o-plus'),
+            CreateAction::make()->label('Add Term')->icon('heroicon-o-plus'),
         ];
     }
 }

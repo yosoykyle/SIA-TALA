@@ -44,7 +44,7 @@ final class PublishedScheduleRevisionService
         $this->assertPasses($preview);
         $currentVersion = $this->canonicalVersionForRun($run, $actor, CarbonImmutable::now(config('app.timezone')));
         $canonicalChanges = $this->canonicalChanges($currentVersion, $preview);
-        $authority = $this->authorityReference($run, $authorityReference);
+        $authority = $this->authorityReference($authorityReference);
         $preparedRevision = $this->impactGuard->prepare($currentVersion, $actor, $canonicalChanges, $authority, $reason);
         DB::transaction(fn (): TimetableRevision => $this->impactGuard->assertReady($preparedRevision, $currentVersion, $canonicalChanges));
 
@@ -86,7 +86,7 @@ final class PublishedScheduleRevisionService
         $this->assertHardRulesPass($preview);
         $currentVersion = $this->canonicalVersionForRun($run, $actor, CarbonImmutable::now(config('app.timezone')));
         $canonicalChanges = $this->canonicalChanges($currentVersion, $preview);
-        $authority = $this->authorityReference($run, $authorityReference);
+        $authority = $this->authorityReference($authorityReference);
         $preparedRevision = $this->impactGuard->prepare($currentVersion, $actor, $canonicalChanges, $authority, $reason, true);
         DB::transaction(fn (): TimetableRevision => $this->impactGuard->assertReady($preparedRevision, $currentVersion, $canonicalChanges));
 
@@ -203,7 +203,7 @@ final class PublishedScheduleRevisionService
     ): EloquentCollection {
         $currentVersion = $this->canonicalVersionForRun($run, $actor, $timestamp);
         $canonicalChanges = $this->canonicalChanges($currentVersion, $impact);
-        $authority = $this->authorityReference($run, $authorityReference);
+        $authority = $this->authorityReference($authorityReference);
 
         $successor = $this->reviseTimetable->execute(
             $currentVersion,
@@ -273,21 +273,9 @@ final class PublishedScheduleRevisionService
         return $canonicalChanges;
     }
 
-    private function authorityReference(ScheduleGenerationRun $run, ?string $authorityReference): string
+    private function authorityReference(?string $authorityReference): ?string
     {
-        $authority = trim((string) $authorityReference);
-
-        if ($authority !== '') {
-            return $authority;
-        }
-
-        if ($run->contract_version === ScheduleGenerationRun::ContractVersion) {
-            throw ValidationException::withMessages([
-                'authority_reference' => 'Recorded external revision sign-off is required.',
-            ]);
-        }
-
-        return "Legacy revision authority for run {$run->id}";
+        return filled($authorityReference) ? trim($authorityReference) : null;
     }
 
     private function canonicalVersionForRun(

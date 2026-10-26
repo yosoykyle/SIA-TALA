@@ -1,51 +1,47 @@
 @php
-    $confirmedClasses = $contextClasses->whereNotNull('confirmed_at')->count();
-    $classesUrl = \App\Filament\Pages\TermClasses::getUrl(['termId' => $term?->id]);
-    $stages = [
-        ['key' => 'plan', 'label' => 'Term summary', 'icon' => 'heroicon-o-home', 'url' => \App\Filament\Pages\TermOverview::getUrl(['termId' => $term?->id]), 'state' => 'Preparation & next work', 'ready' => false],
-        ['key' => 'overview', 'label' => 'Calendar', 'icon' => 'heroicon-o-calendar-days', 'url' => \App\Filament\Pages\TermCalendar::getUrl(['termId' => $term?->id]), 'state' => $draftPackages->isNotEmpty() ? 'Draft to review' : ($activePackage ? 'Ready' : 'Not recorded'), 'ready' => $activePackage && $draftPackages->isEmpty()],
-        ['key' => 'classes', 'label' => 'Classes & sections', 'icon' => 'heroicon-o-book-open', 'url' => $classesUrl, 'state' => $contextClasses->isEmpty() ? 'No classes yet' : $confirmedClasses.' of '.$contextClasses->count().' confirmed', 'ready' => false],
-        ['key' => 'resources', 'label' => 'Faculty & rooms', 'icon' => 'heroicon-o-user-group', 'url' => \App\Filament\Pages\TermResources::getUrl(['termId' => $term?->id]), 'state' => $missingQualifications ? 'Teacher needed' : ($facultyDeadline ? 'Review inputs' : 'Deadline not set'), 'ready' => false],
-        ['key' => 'generate', 'label' => 'Timetable', 'icon' => 'heroicon-o-table-cells', 'url' => \App\Filament\Pages\TermTimetable::getUrl(['termId' => $term?->id]), 'state' => $currentVersion ? 'Official v'.$currentVersion->version : ($activeRun ? (\App\Models\ScheduleGenerationRun::statusOptions()[$activeRun->status] ?? 'Draft recorded') : 'No draft'), 'ready' => (bool) $currentVersion],
-    ];
+    $isTermChooser = ! $term;
+    $isProposal = $this instanceof \App\Filament\Pages\TermClassProposal;
     $taskTitle = match ($viewTab) {
         'overview' => $readOnly || $overviewPackage ? 'Teaching calendar' : 'Set the teaching week',
-        'classes' => $this instanceof \App\Filament\Pages\TermClassProposal ? 'Prepare Term classes' : 'Classes & student sections',
-        'resources' => 'Prepare teaching resources',
-        'generate', 'published' => 'Review the timetable',
-        default => 'Get this Term ready',
+        'classes' => $isProposal ? 'Prepare classes' : ($classesView === 'cohorts' ? 'Student sections' : 'Classes & student sections'),
+        'resources' => $resourceView === 'rooms' ? 'Rooms' : 'Faculty & rooms',
+        'generate', 'published' => 'Timetable',
+        default => 'Term planning',
     };
-    $isTermChooser = ! $term && $viewTab === 'plan';
+    $termContext = $term ? collect([$term->typeLabel(), $term->academicYear?->label])->filter()->unique()->implode(' · ') : null;
+    $taskBreadcrumbs = $term ? [
+        \App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+        ...($viewTab !== 'plan' ? [\App\Filament\Pages\TermOverview::getUrl(['termId' => $term->id]) => $term->typeLabel()] : []),
+        ...($isProposal ? [\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id]) => 'Classes'] : []),
+        $viewTab === 'plan' ? 'Term overview' : $taskTitle,
+    ] : [];
+    if ($readOnly) {
+        $taskBreadcrumbs = [\App\Filament\Pages\AcademicApprovals::getUrl(['termId' => $term?->id]) => 'Academic oversight', ...($taskBreadcrumbs ?: ['Term planning'])];
+    }
 @endphp
-<header @class(['tala-guide-masthead', 'is-term-chooser' => $isTermChooser]) aria-label="Term context">
-    <div class="tala-guide-school">
-        <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="" width="40" height="40">
-        <span><strong>Servitech Institute Asia</strong><small>Term planning</small></span>
-    </div>
-    @if ($isTermChooser)
-        @if (! $readOnly)
-            <x-filament::button tag="a" color="gray" icon="heroicon-o-plus" :href="\App\Filament\Resources\Terms\TermResource::getUrl('create', ['viewTab' => $viewTab])">Create Term</x-filament::button>
-        @else
-            <x-filament::button tag="a" color="gray" icon="heroicon-o-eye" :href="\App\Filament\Pages\AcademicApprovals::getUrl()">Academic Oversight</x-filament::button>
-        @endif
-    @else
-        <div class="tala-term-picker">{{ $this->termSelection }}</div>
-        <x-filament::dropdown placement="bottom-end">
-            <x-slot name="trigger"><x-filament::button color="gray" icon="heroicon-o-chevron-down" icon-position="after">Term options</x-filament::button></x-slot>
-            <x-filament::dropdown.list>
-                @if ($term)<x-filament::dropdown.list.item tag="a" icon="heroicon-o-clock" :href="\App\Filament\Resources\Terms\TermResource::getUrl('view', ['record' => $term, 'termId' => $term->id, 'viewTab' => $viewTab])">Term details & history</x-filament::dropdown.list.item>@endif
-                @if (! $readOnly)<x-filament::dropdown.list.item tag="a" icon="heroicon-o-plus" :href="\App\Filament\Resources\Terms\TermResource::getUrl('create', ['termId' => $term?->id, 'viewTab' => $viewTab])">Create Term</x-filament::dropdown.list.item>
-                @else<x-filament::dropdown.list.item tag="a" icon="heroicon-o-eye" :href="\App\Filament\Pages\AcademicApprovals::getUrl(['termId' => $term?->id])">Academic Oversight</x-filament::dropdown.list.item>@endif
-            </x-filament::dropdown.list>
-        </x-filament::dropdown>
+<div class="tala-planning-heading">
+    <x-filament-panels::header
+        :heading="$isTermChooser ? 'Term planning' : ($viewTab === 'plan' ? $term->typeLabel() : $taskTitle)"
+        :subheading="$isTermChooser ? ($terms->isEmpty() ? null : 'Choose a Term to plan.') : ($viewTab === 'plan' ? $term->academicYear?->label : $termContext)"
+        :breadcrumbs="$taskBreadcrumbs"
+        :actions="$term ? [...($isProposal ? [$this->addCoursesAction] : []), \Filament\Actions\Action::make('changeTerm')->label('Change Term')->color('gray')->icon('heroicon-o-arrows-right-left')->url(\App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]))] : ($terms->isNotEmpty() && ! $readOnly ? [\Filament\Actions\Action::make('addTerm')->label('Add Term')->icon('heroicon-o-plus')->url(\App\Filament\Resources\Terms\TermResource::getUrl('create', ['viewTab' => 'plan']))] : [])"
+    />
+    @if ($term)
+        <div class="tala-planning-context-note">
+            <span><x-filament::icon icon="heroicon-o-globe-alt" />School-wide planning · All programs and year levels</span>
+            <details class="tala-planning-identity">
+                <summary>Term details<x-filament::icon icon="heroicon-m-chevron-down" /></summary>
+                <div class="tala-planning-reveal">
+                    <p><strong>Term dates</strong><time datetime="{{ $term->starts_on->toDateString() }}">{{ $term->starts_on->format('M j, Y') }}</time> – <time datetime="{{ $term->ends_on->toDateString() }}">{{ $term->ends_on->format('M j, Y') }}</time></p>
+                    <p><strong>Record status</strong>{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</p>
+                    @if ($term->label !== $term->typeLabel())<p><strong>Recorded name</strong>{{ $term->label }}</p>@endif
+                    <p>A Term is the shared academic period; its recorded classes determine the timetable.</p>
+                </div>
+            </details>
+        </div>
+        @if ($this->termAutoSelected)<p class="tala-work-footnote">Opened automatically: the only Term with an active teaching calendar.</p>@endif
     @endif
-</header>
-@if ($term)
-    <x-tala-term-destinations :navigation="$this->getWorkspaceNavigation()" :states="collect($stages)->keyBy('label')->all()" />
-@endif
-<div class="tala-guide-title">
-    <div><h1>{{ $isTermChooser ? 'Choose a Term to plan' : ($readOnly ? str_replace(['Get this Term ready', 'Prepare teaching resources'], ['Inspect this Term', 'Teaching resources'], $taskTitle) : $taskTitle) }}</h1>
-    @if ($isTermChooser)<p>Open a Term to prepare its calendar, classes, teaching resources and timetable.</p>
-    @elseif ($viewTab === 'plan')<p>You can prepare each area in any order. Check its recorded state, then open the work you need.</p>
-    @elseif ($readOnly)<p>Read-only · Registrar owns these records.</p>@endif</div>
+    @if ($readOnly && $viewTab !== 'plan')
+        <p class="tala-work-footnote">Read-only · Registrar maintains these records.</p>
+    @endif
 </div>

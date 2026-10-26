@@ -1,4 +1,4 @@
-<aside class="student-enrollment-fees" aria-label="Enrollment payment">
+<aside class="student-enrollment-fees tala-task-surface" aria-label="Enrollment payment">
     <h2>Enrollment payment</h2>
     <p class="student-enrollment-amount">{{ $money($paymentRequirement['balance'] ?? null) }}</p>
     <dl class="learner-money">

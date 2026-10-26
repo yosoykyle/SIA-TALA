@@ -3,11 +3,13 @@
 namespace App\Filament\Resources\FacultyTermLoadOverrides\Pages;
 
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
+use App\Models\Term;
 use App\Support\HasTermPlanningContext;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Support\Enums\Alignment;
+use Illuminate\Validation\ValidationException;
 
 class CreateFacultyTermLoadOverride extends CreateRecord
 {
@@ -42,8 +44,8 @@ class CreateFacultyTermLoadOverride extends CreateRecord
     protected function getFormActions(): array
     {
         return [
-            $this->getCancelFormAction()->label('Cancel'),
-            ...($this->canCreateAnother() ? [$this->getCreateAnotherFormAction()->label('Save & add another')] : []),
+            $this->getCancelFormAction()->label('Cancel')->color('gray'),
+            ...($this->canCreateAnother() ? [$this->getCreateAnotherFormAction()->label('Save & add another')->color('gray')] : []),
             $this->getCreateFormAction()->label('Add load exception'),
         ];
     }
@@ -59,7 +61,14 @@ class CreateFacultyTermLoadOverride extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        return $this->termPlanningFormData($data);
+        $data = $this->termPlanningFormData($data);
+        $term = Term::query()->find($data['term_id'] ?? null);
+
+        if ($term === null || $term->default_max_units === null) {
+            throw ValidationException::withMessages(['data.term_id' => 'Record this Term’s default teaching load before adding a Faculty load exception.']);
+        }
+
+        return [...$data, 'default_max_units_snapshot' => $term->default_max_units];
     }
 
     protected function getRedirectUrl(): string

@@ -7,7 +7,7 @@
         <span>{{ $roster->teachingAssignment?->faculty?->getFilamentName() ?? $roster->faculty?->getFilamentName() ?? 'Faculty not recorded' }} · Designated faculty</span>
         <span class="academic-roster-state">{{ match ($roster->state) { \App\Models\GradeRoster::StateDraft => 'Draft', \App\Models\GradeRoster::StateSubmitted => 'Submitted', \App\Models\GradeRoster::StateReturned => 'Returned', \App\Models\GradeRoster::StateReleased => 'Posted and released', default => 'Late / not submitted' } }}</span>
     </div>
-    <section class="faculty-membership-list" aria-labelledby="head-membership-heading">
+    <section class="faculty-membership-list tala-task-surface" aria-labelledby="head-membership-heading">
         <h2 id="head-membership-heading">Current class members</h2>
         @if (! $isCurrent)
             <div role="status"><h3>Class membership needs an update</h3><p>Ask the Registrar to refresh this class roster, then reload. The saved roster no longer matches current official enrollment.</p></div>

@@ -4,7 +4,7 @@
 @php($queueUrl = fn (string $key): string => \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('index', ['tab' => $key]))
 <div class="registrar-workbench">
     <div class="registrar-workbench-grid">
-        <section class="registrar-work-panel" aria-labelledby="registrar-work-heading">
+        <section class="registrar-work-panel tala-task-surface" aria-labelledby="registrar-work-heading">
             <h2 id="registrar-work-heading">Registrar work</h2>
             <nav class="registrar-work-list" aria-label="Registrar enrollment work">
                 @foreach ([
@@ -21,13 +21,13 @@
                 @endforeach
             </nav>
         </section>
-        <section class="registrar-start-panel" aria-labelledby="registrar-start-heading">
+        <section class="registrar-start-panel tala-task-surface" aria-labelledby="registrar-start-heading">
             <h2 id="registrar-start-heading">Start enrollment</h2>
             <p>Choose who is enrolling.</p>
             <div class="registrar-start-actions">{{ $applicantAction }} {{ $continuingAction }} {{ $lateContinuingAction }}</div>
         </section>
     </div>
-    <section class="registrar-progress-panel" aria-labelledby="registrar-progress-heading">
+    <section class="registrar-progress-panel tala-task-surface" aria-labelledby="registrar-progress-heading">
         <h2 id="registrar-progress-heading">In progress</h2>
         <nav class="registrar-work-list" aria-label="Enrollments waiting for the next step">
             <a href="{{ $queueUrl('waiting_for_learner') }}" class="registrar-work-row">
@@ -42,11 +42,11 @@
             </a>
         </nav>
     </section>
-    <section class="registrar-records-entry" aria-labelledby="registrar-records-heading">
+    <section class="registrar-records-entry tala-task-surface" aria-labelledby="registrar-records-heading">
         <div><h2 id="registrar-records-heading">Enrollment records</h2><p>Find an enrollment, registration certificate, or previous change.</p></div>
         <x-filament::button tag="a" :href="$queueUrl('all_cases')" color="gray" icon="heroicon-o-magnifying-glass">Find a record</x-filament::button>
     </section>
-    <section class="registrar-records-entry" aria-labelledby="registrar-period-heading">
+    <section class="registrar-records-entry tala-task-surface" aria-labelledby="registrar-period-heading">
         <div><h2 id="registrar-period-heading">Enrollment period</h2><p>Choose who can enroll during the published dates.</p></div>
         {{ $windowAction->button()->label('Edit enrollment period') }}
     </section>

@@ -25,7 +25,14 @@ class RevisionEventsRelationManager extends RelationManager
 
     protected static string $relationship = 'revisionEvents';
 
-    protected static ?string $title = 'Publication revisions';
+    protected static ?string $title = 'Term revision history';
+
+    public function mount(): void
+    {
+        abort_unless(static::canViewForRecord($this->ownerRecord, $this->pageClass ?? static::class), 403);
+
+        parent::mount();
+    }
 
     public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool
     {
@@ -33,6 +40,7 @@ class RevisionEventsRelationManager extends RelationManager
 
         return $ownerRecord instanceof ScheduleGenerationRun
             && $actor instanceof User
+            && Gate::forUser($actor)->allows('view', $ownerRecord)
             && Gate::forUser($actor)->allows('viewAny', SectionMeeting::class);
     }
 
@@ -57,52 +65,24 @@ class RevisionEventsRelationManager extends RelationManager
             ]))
             ->columns([
                 TextColumn::make('change_type')
-                    ->label('Change Type')
+                    ->label('What changed')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => ScheduleRevisionEvent::changeTypeOptions()[$state] ?? str($state)->headline()->toString())
+                    ->description(fn (ScheduleRevisionEvent $record): string => self::meetingContext($record))
                     ->sortable(),
-                TextColumn::make('section_code')
-                    ->label('Section')
-                    ->state(function (ScheduleRevisionEvent $record): string {
-                        $section = self::meeting($record)?->schedulingDemand?->sectionDeliveryGroup?->section;
-
-                        return $section instanceof Section ? $section->code : '-';
-                    }),
-                TextColumn::make('course_code')
-                    ->label('Course')
-                    ->state(function (ScheduleRevisionEvent $record): string {
-                        $course = self::meeting($record)?->schedulingDemand?->termOffering?->course();
-
-                        return $course instanceof Course ? $course->code : '-';
-                    }),
-                TextColumn::make('meeting_sequence')
-                    ->label('Meeting')
-                    ->state(function (ScheduleRevisionEvent $record): int {
-                        $meeting = self::meeting($record);
-
-                        return $meeting instanceof SectionMeeting ? (int) $meeting->meeting_sequence : 0;
-                    })
-                    ->formatStateUsing(fn (int $state): string => $state > 0 ? 'Meeting '.$state : '-'),
                 TextColumn::make('effective_date')
-                    ->label('Effective Date')
+                    ->label('When & who')
                     ->date()
+                    ->description(fn (ScheduleRevisionEvent $record): string => self::recordedBy($record))
                     ->sortable(),
-                TextColumn::make('actor_name')
-                    ->label('Changed By')
-                    ->state(fn (ScheduleRevisionEvent $record): string => self::actorLabel($record)),
                 TextColumn::make('reason')
+                    ->label('Reason')
                     ->limit(60)
                     ->wrap(),
                 TextColumn::make('affected_student_count')
-                    ->label('Students')
-                    ->numeric(),
-                TextColumn::make('affected_faculty_count')
-                    ->label('Faculty')
-                    ->numeric(),
-                TextColumn::make('created_at')
-                    ->label('Recorded At')
-                    ->dateTime('M j, Y, g:i A')->timezone('Asia/Manila')
-                    ->sortable(),
+                    ->label('Impact')
+                    ->state(fn (ScheduleRevisionEvent $record): string => $record->affected_student_count.' students')
+                    ->description(fn (ScheduleRevisionEvent $record): string => $record->affected_faculty_count.' Faculty'),
             ])
             ->filters([
                 SelectFilter::make('change_type')
@@ -111,11 +91,16 @@ class RevisionEventsRelationManager extends RelationManager
             ])
             ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->defaultSort('created_at', 'desc')
+            ->heading(null)
+            ->extraAttributes(['class' => 'tala-term-revision-history'])
             ->recordActions([
                 ViewAction::make()
                     ->label('View details')->button()->color('gray'),
             ])
-            ->toolbarActions([])->stackedOnMobile();
+            ->toolbarActions([])
+            ->emptyStateHeading('No official meeting changes recorded')
+            ->emptyStateDescription('This is normal until a published timetable meeting is revised. Candidate edits are not recorded in Term revision history.')
+            ->stackedOnMobile();
     }
 
     private static function meeting(ScheduleRevisionEvent $record): ?SectionMeeting
@@ -130,5 +115,34 @@ class RevisionEventsRelationManager extends RelationManager
         $actor = $record->getRelationValue('changedBy');
 
         return $actor instanceof User ? $actor->name : 'User #'.(int) $record->changed_by;
+    }
+
+    private static function meetingContext(ScheduleRevisionEvent $record): string
+    {
+        $meeting = self::meeting($record);
+        $section = $meeting?->schedulingDemand?->sectionDeliveryGroup?->section;
+        $sequence = $meeting instanceof SectionMeeting
+            ? (int) $meeting->meeting_sequence
+            : (int) ($record->new_snapshot_json['meeting_sequence'] ?? 0);
+
+        return collect([
+            self::courseLabel($record),
+            $section instanceof Section ? 'Class '.$section->code : 'Class unavailable',
+            $sequence > 0 ? 'Meeting '.$sequence : null,
+        ])->filter()->implode(' · ');
+    }
+
+    private static function courseLabel(ScheduleRevisionEvent $record): string
+    {
+        $specification = self::meeting($record)?->schedulingDemand?->courseComponent?->courseSpecification;
+        $course = $specification?->course;
+        $parts = array_filter([$course instanceof Course ? $course->code : null, $specification?->title]);
+
+        return $parts === [] ? 'Course unavailable' : implode(' · ', $parts);
+    }
+
+    private static function recordedBy(ScheduleRevisionEvent $record): string
+    {
+        return self::actorLabel($record).' · Recorded '.($record->created_at?->timezone('Asia/Manila')->format('M j, Y, g:i A') ?? 'time unavailable').' (Asia/Manila)';
     }
 }

@@ -27,7 +27,7 @@ final class RevisePublishedTimetable
         PublishedTimetableVersion $current,
         User $actor,
         array $changesByMeetingId,
-        string $authorityReference,
+        ?string $authorityReference,
         string $reason,
         bool $allowSectionCancellation = false,
         ?TimetableRevision $preparedRevision = null,
@@ -53,11 +53,11 @@ final class RevisePublishedTimetable
 
             $preparedRevision = $this->impactGuard->assertReady($preparedRevision, $locked, $changesByMeetingId);
 
-            $authorityReference = trim($authorityReference);
+            $authorityReference = filled($authorityReference) ? trim($authorityReference) : null;
             $reason = trim($reason);
 
-            if ($changesByMeetingId === [] || $authorityReference === '' || $reason === '') {
-                throw ValidationException::withMessages(['revision' => 'A changed meeting, external authority reference, and reason are required.']);
+            if ($changesByMeetingId === [] || $reason === '') {
+                throw ValidationException::withMessages(['revision' => 'A changed meeting and reason are required.']);
             }
 
             $meetings = PublishedTimetableMeeting::query()

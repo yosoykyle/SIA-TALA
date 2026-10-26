@@ -20,6 +20,11 @@ class CreateTerm extends CreateRecord
 
     protected static string $resource = TermResource::class;
 
+    public function getTitle(): string
+    {
+        return 'Add Term';
+    }
+
     /** @var array<string, string> */
     protected array $extraBodyAttributes = ['class' => 'tala-term-record-page'];
 
@@ -38,7 +43,7 @@ class CreateTerm extends CreateRecord
         return [
             $this->getCancelFormAction()->label('Cancel')->color('gray'),
             ...($this->canCreateAnother() ? [$this->getCreateAnotherFormAction()->label('Save & add another')->color('gray')] : []),
-            $this->getCreateFormAction()->label('Create Term'),
+            $this->getCreateFormAction()->label('Add Term'),
         ];
     }
 
@@ -55,7 +60,7 @@ class CreateTerm extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        return [...$data, 'state' => Term::StateDraft, 'scheduling_slot_minutes' => 30, 'scheduling_days' => null];
+        return [...$data, 'label' => filled($data['label'] ?? null) ? $data['label'] : Term::typeOptions()[$data['type']], 'state' => Term::StateDraft, 'scheduling_slot_minutes' => 30, 'scheduling_days' => null];
     }
 
     protected function getRedirectUrl(): string

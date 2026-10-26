@@ -74,7 +74,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertSee('Teaching calendar')
-            ->assertSee('Not set')
+            ->assertSee('Dates not configured')
             ->assertSee('These dates do not block class planning.')
             ->assertSee('No approved teaching day is recorded')
             ->assertViewHas('coreReadiness', fn (array $readiness): bool => ! $readiness['ready']);
@@ -84,7 +84,8 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertSee('Draft · Version 1')
+            ->assertSee('Draft')
+            ->assertSee('Version 1')
             ->assertSee('Review and activate this draft when ready.')
             ->assertViewHas('overviewPackage', fn (TermCalendarPackage $package): bool => $package->is($invalidDraft))
             ->assertViewHas('coreReadiness', fn (array $readiness): bool => $readiness['ready']);
@@ -1070,7 +1071,8 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // Workbench visibly displays Active state
         $testable->assertSee('Calendar ready for class planning.')
-            ->assertSee('Active · Version 1')
+            ->assertSee('Active')
+            ->assertSee('Version 1')
             ->assertActionHidden('activateCalendarPackage');
 
         $this->assertContains(

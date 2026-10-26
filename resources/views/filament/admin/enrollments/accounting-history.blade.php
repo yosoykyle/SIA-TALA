@@ -46,10 +46,10 @@
                 </section>
             @endif
             @if ($account->paymentAttempts->isNotEmpty())
-                <section aria-labelledby="account-history-online"><h2 id="account-history-online">Online payments</h2>@foreach ($account->paymentAttempts->sortByDesc('created_at') as $attempt)<article class="accounting-history-record"><h3>{{ $money($attempt->amount) }} · {{ str($attempt->status)->headline() }}</h3><p>{{ $date($attempt->created_at) }} · {{ $attempt->internal_reference }}</p></article>@endforeach</section>
+                <section class="tala-task-surface" aria-labelledby="account-history-online"><h2 id="account-history-online">Online payments</h2>@foreach ($account->paymentAttempts->sortByDesc('created_at') as $attempt)<article class="accounting-history-record"><h3>{{ $money($attempt->amount) }} · {{ str($attempt->status)->headline() }}</h3><p>{{ $date($attempt->created_at) }} · {{ $attempt->internal_reference }}</p></article>@endforeach</section>
             @endif
         </div>
-        <aside class="registrar-case-sources">
+        <aside class="registrar-case-sources tala-task-surface">
             @if (isset($onlineHistory) && $onlineHistory->isNotEmpty())
                 <section aria-labelledby="account-history-online-reviews"><h2 id="account-history-online-reviews">Online payment reviews</h2>
                     @foreach ($onlineHistory as $review)

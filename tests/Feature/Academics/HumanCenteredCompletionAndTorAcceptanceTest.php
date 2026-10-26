@@ -58,7 +58,7 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     {
         parent::setUp();
 
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
         foreach (['student', User::StaffRoleRegistrar, User::StaffRoleAccounting, User::StaffRoleAcademicHead, User::StaffRoleFaculty, User::StaffRoleSystemSuperAdmin, 'admin'] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
@@ -156,6 +156,8 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             ->assertCanSeeTableRecords([$student])
             ->searchTable('QUERY_NO_MATCH_TALA_9999')
             ->assertCanNotSeeTableRecords([$student])
+            ->assertSee('No matching completion applications')
+            ->assertSee('Try another student or clear the search and filters.')
             ->searchTable('')
             ->assertCanSeeTableRecords([$student]);
     }

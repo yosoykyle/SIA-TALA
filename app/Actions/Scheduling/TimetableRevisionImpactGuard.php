@@ -32,7 +32,7 @@ class TimetableRevisionImpactGuard
         PublishedTimetableVersion $current,
         User $actor,
         array $changesByMeetingId,
-        string $authorityReference,
+        ?string $authorityReference,
         string $reason,
         bool $allowSectionCancellation = false,
     ): TimetableRevision {
@@ -41,13 +41,13 @@ class TimetableRevisionImpactGuard
         return DB::transaction(function () use ($current, $actor, $changesByMeetingId, $authorityReference, $reason, $allowSectionCancellation): TimetableRevision {
             Term::query()->whereKey($current->term_id)->lockForUpdate()->firstOrFail();
             $locked = PublishedTimetableVersion::query()->whereKey($current->id)->lockForUpdate()->firstOrFail();
-            $authorityReference = trim($authorityReference);
+            $authorityReference = filled($authorityReference) ? trim($authorityReference) : null;
             $reason = trim($reason);
             $normalized = $this->normalizedChanges($changesByMeetingId);
 
             if ($locked->state !== PublishedTimetableVersion::StatePublished
-                || $normalized === [] || $authorityReference === '' || $reason === '') {
-                throw ValidationException::withMessages(['revision' => 'A current Published Timetable, changed meeting, authority reference, and reason are required.']);
+                || $normalized === [] || $reason === '') {
+                throw ValidationException::withMessages(['revision' => 'A current Published Timetable, changed meeting, and reason are required.']);
             }
             if (! $allowSectionCancellation && collect($normalized)->contains(fn (array $change): bool => ($change['remove'] ?? false) === true)) {
                 throw ValidationException::withMessages(['revision' => 'Meeting removal requires the authorized whole-Section cancellation path.']);

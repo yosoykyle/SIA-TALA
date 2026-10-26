@@ -6,6 +6,7 @@ use App\Actions\Scheduling\CandidateScheduleRowReviewService;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\CandidateRowsRelationManager;
+use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Models\CandidateScheduleRow;
 use App\Models\Course;
 use App\Models\CourseComponent;
@@ -40,6 +41,26 @@ final class TAL94CCandidateReviewUxTest extends TestCase
 
     private int $contextCounter = 0;
 
+    public function test_completed_generation_reveals_its_meetings_when_the_open_run_refreshes(): void
+    {
+        $context = $this->context(runStatus: ScheduleGenerationRun::StatusQueued);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $specification = $context['demands'][0]->courseComponent->courseSpecification;
+        $specification->update(['title' => 'Meeting available after generation']);
+
+        $page = Livewire::actingAs($registrar)->test(ViewScheduleGenerationRun::class, [
+            'record' => $context['run']->id,
+        ])->assertSee('Waiting for the timetable worker')
+            ->assertDontSee('Meeting available after generation');
+
+        $context['run']->update(['status' => ScheduleGenerationRun::StatusUnderReview]);
+        $this->candidate($context);
+
+        $page->call('refreshScheduleRun')
+            ->assertDontSee('Waiting for the timetable worker')
+            ->assertSee('Meeting available after generation');
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -73,6 +94,9 @@ final class TAL94CCandidateReviewUxTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
+            ->assertDontSee('role="tablist"', escape: false)
+            ->assertSee('Meetings to review')
+            ->assertSee('Term revision history')
             ->assertActionDoesNotExist('manualScheduleOverride');
 
         Livewire::actingAs($registrar)
@@ -84,11 +108,26 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->assertSee($context['demands'][0]->sectionDeliveryGroup->section->code)
             ->assertSee('Lecture')->assertSee('Face-to-Face')
             ->assertSee('Monday')->assertSee('8:00 AM - 11:00 AM')
-            ->assertTableActionVisible('correctAssignment', $candidate);
+            ->assertTableActionVisible('correctAssignment', $candidate)
+            ->searchTable($candidate->schedulingDemand->courseComponent->courseSpecification->title)
+            ->assertCanSeeTableRecords([$candidate])
+            ->searchTable($candidate->schedulingDemand->courseComponent->courseSpecification->course->code)
+            ->assertCanSeeTableRecords([$candidate])
+            ->searchTable($candidate->schedulingDemand->sectionDeliveryGroup->section->code)
+            ->assertCanSeeTableRecords([$candidate])
+            ->searchTable($candidate->faculty->name)
+            ->assertCanSeeTableRecords([$candidate])
+            ->searchTable($candidate->room->code)
+            ->assertCanSeeTableRecords([$candidate])
+            ->searchTable('no-matching-candidate-in-this-run')
+            ->assertCanNotSeeTableRecords([$candidate]);
 
         Livewire::actingAs($academicHead)
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
+            ->assertDontSee('role="tablist"', escape: false)
+            ->assertSee('Meetings to review')
+            ->assertSee('Term revision history')
             ->assertActionDoesNotExist('manualScheduleOverride');
 
         Livewire::actingAs($academicHead)
@@ -141,13 +180,96 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->assertSee('Online');
     }
 
+    public function test_repair_review_compares_recorded_assignments_and_filters_changes_without_granting_head_mutations(): void
+    {
+        $context = $this->context(demandCount: 3);
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $replacementTeacher = $this->staff(User::StaffRoleFaculty);
+        $replacementRoom = Room::factory()->create(['code' => 'REPAIR-NEXT']);
+        $successor = $context['run']->replicate();
+        $successor->input_snapshot = ['operation' => ['kind' => 'repair']];
+        $successor->input_hash = hash('sha256', 'repair-preview-test');
+        $successor->save();
+        $rows = [];
+
+        foreach (['RequestedRepair', 'RepairImpact', 'Unchanged'] as $index => $change) {
+            $before = CandidateScheduleRow::query()->create([
+                'schedule_run_id' => $context['run']->id,
+                ...$this->assignment($context, $index),
+                'status' => CandidateScheduleRow::StatusOk,
+            ]);
+            $rows[] = CandidateScheduleRow::query()->create([
+                ...$before->getAttributes(),
+                'id' => null,
+                'schedule_run_id' => $successor->id,
+                'supersedes_candidate_row_id' => $before->id,
+                'change_type' => $change,
+                'faculty_user_id' => $change === 'Unchanged' ? $context['faculty']->id : $replacementTeacher->id,
+                'room_id' => $change === 'Unchanged' ? $context['room']->id : $replacementRoom->id,
+                'day_of_week' => $change === 'Unchanged' ? 1 : 2,
+                'starts_at' => $change === 'Unchanged' ? '08:00:00' : '09:00:00',
+                'ends_at' => $change === 'Unchanged' ? '11:00:00' : '12:00:00',
+            ]);
+        }
+
+        Livewire::actingAs($head)
+            ->test(CandidateRowsRelationManager::class, ['ownerRecord' => $successor, 'pageClass' => ViewScheduleGenerationRun::class])
+            ->assertSee('Requested changes: 1 · Other changes: 1 · Unchanged meetings: 1.')
+            ->assertCanSeeTableRecords($rows)
+            ->filterTable('changed_meetings')
+            ->assertSee('Requested changes: 1 · Other changes: 1 · Unchanged meetings: 1.')
+            ->assertCanSeeTableRecords([$rows[0], $rows[1]])
+            ->assertCanNotSeeTableRecords([$rows[2]])
+            ->assertTableActionHidden('correctAssignment', $rows[0])
+            ->assertTableActionHidden('findValidRepair', $rows[0])
+            ->mountTableAction('view', $rows[0])
+            ->assertMountedActionModalSee('Assignment comparison')
+            ->assertMountedActionModalSee('Requested repair')
+            ->assertMountedActionModalSee('Before')->assertMountedActionModalSee('After')
+            ->assertMountedActionModalSee('Monday · 8:00 AM - 11:00 AM · Asia/Manila')
+            ->assertMountedActionModalSee('Tuesday · 9:00 AM - 12:00 PM · Asia/Manila')
+            ->assertMountedActionModalSee('Teacher: '.$context['faculty']->name)
+            ->assertMountedActionModalSee('Teacher: '.$replacementTeacher->name)
+            ->assertMountedActionModalSee('Room: '.$context['room']->code)
+            ->assertMountedActionModalSee('Room: REPAIR-NEXT')
+            ->assertMountedActionModalSeeHtml(ScheduleGenerationRunResource::getUrl('view', ['record' => $context['run']->id, 'termId' => $context['term']->id]));
+
+        $this->assertSame('08:00:00', $rows[0]->supersedes->fresh()->starts_at);
+        $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $successor->fresh()->status);
+    }
+
+    public function test_repair_comparison_reports_unavailable_or_mismatched_baselines_without_inventing_previous_facts(): void
+    {
+        $context = $this->context(demandCount: 2);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $unrelated = $this->candidate($context);
+        $candidate = CandidateScheduleRow::query()->create([
+            'schedule_run_id' => $context['run']->id,
+            ...$this->assignment($context, 1, 2),
+            'status' => CandidateScheduleRow::StatusOk,
+            'change_type' => 'RepairImpact',
+        ]);
+
+        foreach ([null, $unrelated->id] as $baselineId) {
+            $candidate->update(['supersedes_candidate_row_id' => $baselineId]);
+
+            Livewire::actingAs($registrar)
+                ->test(CandidateRowsRelationManager::class, ['ownerRecord' => $context['run']->fresh(), 'pageClass' => ViewScheduleGenerationRun::class])
+                ->mountTableAction('view', $candidate)
+                ->assertMountedActionModalSee('Source assignment unavailable')
+                ->assertMountedActionModalSee('Previous assignment unavailable. Inspect the source evidence before accepting this successor.')
+                ->assertMountedActionModalSee('Tuesday · 8:00 AM - 11:00 AM · Asia/Manila')
+                ->assertMountedActionModalDontSee('Monday · 8:00 AM - 11:00 AM · Asia/Manila');
+        }
+    }
+
     public function test_registrar_can_submit_a_valid_candidate_correction_through_the_relation_action(): void
     {
         $context = $this->context();
         $candidate = $this->candidate($context);
         $registrar = $this->staff(User::StaffRoleRegistrar);
 
-        Livewire::actingAs($registrar)
+        $component = Livewire::actingAs($registrar)
             ->test(CandidateRowsRelationManager::class, [
                 'ownerRecord' => $context['run'],
                 'pageClass' => ViewScheduleGenerationRun::class,
@@ -171,6 +293,11 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->firstOrFail();
         $corrected = $successor->candidateRows()->sole();
         $diagnostics = $successor->diagnostics;
+
+        $component->assertRedirect(ScheduleGenerationRunResource::getUrl('view', [
+            'record' => $successor,
+            'termId' => $context['term']->id,
+        ]));
 
         $this->assertSame('09:00:00', $corrected->starts_at);
         $this->assertSame('Registrar scheduling memorandum', $corrected->override_authority);

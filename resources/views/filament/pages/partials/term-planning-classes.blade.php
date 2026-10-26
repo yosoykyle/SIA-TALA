@@ -48,7 +48,7 @@
 
     @endif
 
-    <details class="tala-planning-details"><summary>Meeting requirements and class setup</summary><div class="space-y-3 mt-3">
+    <details class="tala-planning-details"><summary>Meeting requirements and class setup</summary><div class="tala-planning-reveal space-y-3 mt-3">
 
         @foreach ($classSources as $source)<p><x-filament::link :href="$source['url']">{{ $source['label'] }}</x-filament::link> · {{ $source['description'] }}</p>@endforeach
 

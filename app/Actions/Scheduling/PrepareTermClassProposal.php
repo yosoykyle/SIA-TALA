@@ -40,6 +40,11 @@ final class PrepareTermClassProposal
             ->orderBy('curriculum_version_id')->orderBy('year_level')->orderBy('sequence')->get();
         $classes = Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
             ->with(['termOffering', 'cohorts', 'deliveryGroups'])->orderBy('id')->get();
+        $hasPublishedVersion = PublishedTimetableVersion::query()->where('term_id', $term->id)
+            ->where('state', PublishedTimetableVersion::StatePublished)->exists();
+        $publishedSectionIds = PublishedTimetableMeeting::query()->whereIn('section_id', $classes->modelKeys())
+            ->distinct()->orderBy('section_id')->pluck('section_id')
+            ->mapWithKeys(fn ($sectionId): array => [(int) $sectionId => true])->all();
         $cohorts = TermCohort::query()->where('term_id', $term->id)->orderBy('id')->get();
         $package = TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)->first();
         $catalog = $entries->map(fn (CurriculumEntry $entry): array => [
@@ -66,6 +71,7 @@ final class PrepareTermClassProposal
             'capacity' => $class->capacity, 'source' => $class->source,
             'modality' => $class->delivery_mode ?: $class->termOffering->modality,
             'authority_reference' => $class->authority_reference,
+            'requires_timetable_revision' => $hasPublishedVersion || isset($publishedSectionIds[$class->id]),
             'cohorts' => $class->cohorts->map(fn (TermCohort $cohort): array => ['id' => $cohort->id, 'count' => $cohort->pivot->expected_count])->all(),
         ])->values()->all();
         foreach ($entries as $entry) {
@@ -83,7 +89,7 @@ final class PrepareTermClassProposal
         return ['catalog' => $catalog, 'classes' => $rows, 'cohorts' => $cohorts, 'demand_evidence' => $demandEvidence,
             'token' => hash('sha256', json_encode([
                 $term->fresh()->only(['id', 'type', 'state', 'academic_year_id']), $package?->concurrencyToken(),
-                $entries->toArray(), $classes->toArray(), $cohorts->toArray(),
+                $entries->toArray(), $classes->toArray(), $cohorts->toArray(), $hasPublishedVersion, $publishedSectionIds,
                 $demandEvidence['ready_applicants'], $demandEvidence['unmet'],
                 ProgramAuthority::query()->whereIn('program_id', $entries->pluck('curriculumVersion.program_id'))->orderBy('id')->get()->toArray(),
             ], JSON_THROW_ON_ERROR))];

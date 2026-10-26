@@ -157,9 +157,10 @@ class HumanCenteredSharedThemeTest extends TestCase
         $theme = file_get_contents(resource_path('css/filament/tala/theme.css'));
         $foundation = file_get_contents(public_path('css/tala-foundation.css'));
 
-        $this->assertStringContainsString(".fi-body :is(.fi-input-wrp, input[type='checkbox'], input[type='radio'])", $theme);
-        $this->assertMatchesRegularExpression('/\.fi-body :is\(\.fi-input-wrp, input\[type=\'checkbox\'\], input\[type=\'radio\'\]\)\s*\{\s*border: 1px solid [^;]*var\(--gray-500\)[^;]*;/s', $theme);
-        $this->assertStringContainsString('border-color: var(--gray-400);', $theme);
+        $this->assertStringContainsString(".fi-body :is(input[type='checkbox'], input[type='radio'])", $theme);
+        $this->assertStringContainsString('border: 1px solid var(--tala-control-border);', $theme);
+        $this->assertStringContainsString('.fi-body .fi-input-wrp:not(.fi-disabled, .fi-invalid):not(:focus-within)', $theme);
+        $this->assertStringContainsString('--tw-ring-color: var(--tala-control-border);', $theme);
         $this->assertStringContainsString('--tala-control-border: #71717b;', $foundation);
         $this->assertStringContainsString('--tala-control-border: #a2acb9;', $foundation);
     }

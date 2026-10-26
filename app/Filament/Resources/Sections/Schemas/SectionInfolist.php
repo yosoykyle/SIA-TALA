@@ -17,7 +17,7 @@ class SectionInfolist
     {
         return $schema
             ->components([
-                InfolistSection::make('Class identity')
+                InfolistSection::make('Class details')->contained($showCourseTitle)
                     ->schema([
                         TextEntry::make('course_title')->label('Course title')
                             ->state(fn (Section $record): ?string => $record->courseRevision?->title ?? $record->termOffering?->curriculumEntry?->courseSpecification?->title)
@@ -26,21 +26,25 @@ class SectionInfolist
                         TextEntry::make('term_label')->label('Term')
                             ->state(fn (Section $record): ?string => $record->calendarPackage?->term?->label ?? $record->termOffering?->term?->label)
                             ->placeholder('Term unavailable')
-                            ->visible(fn (LivewireComponent $livewire): bool => ! ($livewire instanceof ViewSection && $livewire->termId !== null)),
+                            ->visible(fn (LivewireComponent $livewire): bool => $showCourseTitle && ! ($livewire instanceof ViewSection && $livewire->termId !== null)),
+                        TextEntry::make('curriculum_origin')->label('Curriculum source')
+                            ->state(fn (Section $record): string => collect([$record->termOffering?->curriculumEntry?->curriculumVersion?->program?->name, $record->termOffering?->curriculumEntry?->year_level])->filter()->implode(' · ') ?: 'Not recorded')
+                            ->columnSpanFull(),
                         TextEntry::make('course_code')
-                            ->label('Course code')
+                            ->label('Course code')->visible($showCourseTitle)
                             ->state(fn (Section $record): ?string => $record->courseRevision?->course?->code ?? $record->termOffering?->curriculumEntry?->courseSpecification?->course?->code)
                             ->placeholder('Course code unavailable'),
                         TextEntry::make('code')
-                            ->label('Class code'),
+                            ->label('Class reference'),
                         TextEntry::make('capacity')
                             ->label('Capacity')
                             ->numeric()
                             ->suffix(' seats'),
-                        TextEntry::make('state')
-                            ->badge()
+                        TextEntry::make('state')->label('Class status')
+                            ->badge()->color('gray')
                             ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Section::stateOptions()[$state] ?? str($state)->headline()->toString())),
-                        TextEntry::make('cohorts.reference')->label('Linked student sections')->listWithLineBreaks()->placeholder('No sections linked'),
+                        TextEntry::make('cohorts.reference')->label('Student sections served')->listWithLineBreaks()->placeholder('No student sections linked')
+                            ->helperText(fn (Section $record): string => $record->cohorts->sum(fn ($cohort): int => (int) $cohort->pivot->expected_count).' learners linked to this class')->columnSpanFull(),
                         TextEntry::make('confirmed_at')->label('Class confirmed (Asia/Manila)')->state(fn (Section $record): string => DisplayDateTime::format($record->confirmed_at, fallback: 'Not confirmed')),
                         TextEntry::make('scheduling_requirements')->label('Meeting requirements')
                             ->state(fn (Section $record): array => $record->deliveryGroups->map(fn (SectionDeliveryGroup $group): string => $group->name.' · '.$group->expected_count.' learners · '.(SectionDeliveryGroup::modalityOptions()[$group->modality] ?? $group->modality).' · '.$group->schedulingDemands->map(fn ($demand): string => $demand->meeting_count.' × '.$demand->required_duration_minutes.' minutes')->implode('; '))->all())

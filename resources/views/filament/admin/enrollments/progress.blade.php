@@ -45,7 +45,7 @@
             <p class="registrar-case-meta">{{ $proposal->items->count() }} subjects · {{ (float) $proposal->items->sum('units_snapshot') }} units</p>
             @include('filament.admin.enrollments.subjects', ['sourceKey' => 'progress'])
         </section>
-        <section class="registrar-case-payment registrar-case-progress-payment" aria-labelledby="progress-payment-heading">
+        <section class="registrar-case-payment registrar-case-progress-payment tala-task-surface" aria-labelledby="progress-payment-heading">
             <h2 id="progress-payment-heading">Enrollment payment</h2>
             @if ($requirement['state'] === 'Unavailable')
                 <h3>Current assessment unavailable</h3>

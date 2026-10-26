@@ -117,6 +117,11 @@ class Term extends Model
         ];
     }
 
+    public function typeLabel(): string
+    {
+        return self::typeOptions()[$this->type] ?? $this->label;
+    }
+
     /**
      * @return array<string, string>
      */

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sections\Schemas;
 
+use App\Filament\Pages\TermClasses;
 use App\Filament\Resources\Sections\Pages\CreateSection;
 use App\Filament\Resources\Sections\Pages\EditSection;
 use App\Filament\Resources\Sections\Pages\ListSections;
@@ -19,34 +20,34 @@ class SectionForm
     {
         return $schema
             ->components([
-                FormSection::make(fn (CreateSection|EditSection|ListSections $livewire): string => $livewire instanceof EditSection && $livewire->isSourceProtected() ? 'Class settings' : 'Class')
-                    ->extraAttributes(fn (CreateSection|EditSection|ListSections $livewire): array => $livewire instanceof EditSection && $livewire->isPublished() ? ['class' => 'tala-class-published-banner'] : [])
-                    ->description(fn (CreateSection|EditSection|ListSections $livewire): string => $livewire instanceof EditSection && $livewire->isPublished()
+                FormSection::make(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): string => $livewire instanceof EditSection && $livewire->isSourceProtected() ? 'Class settings' : 'Class')
+                    ->extraAttributes(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): array => $livewire instanceof EditSection && $livewire->isPublished() ? ['class' => 'tala-class-published-banner'] : [])
+                    ->description(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): string => $livewire instanceof EditSection && $livewire->isPublished()
                         ? 'This class is in the official timetable. The course, class code, capacity and state are protected; make changes through a validated timetable revision.'
                         : ($livewire instanceof EditSection && $livewire->isSourceProtected()
                             ? 'This confirmed class identity, capacity and state are protected.'
                             : 'One course taught to one or more linked student sections.'))
-                    ->icon(fn (CreateSection|EditSection|ListSections $livewire): ?string => $livewire instanceof EditSection && $livewire->isPublished() ? 'heroicon-o-lock-closed' : null)
+                    ->icon(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): ?string => $livewire instanceof EditSection && $livewire->isPublished() ? 'heroicon-o-lock-closed' : null)
                     ->headerActions([
                         Action::make('openOfficialTimetable')
                             ->label('Open timetable')
-                            ->visible(fn (CreateSection|EditSection|ListSections $livewire): bool => $livewire instanceof EditSection && $livewire->isPublished())
+                            ->visible(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): bool => $livewire instanceof EditSection && $livewire->isPublished())
                             ->url(fn (EditSection $livewire): string => $livewire->publishedTimetableUrl()),
                     ])
                     ->schema([
                         Select::make('term_offering_id')
                             ->label('Offered course')
-                            ->options(fn (CreateSection|EditSection|ListSections $livewire): array => self::termOfferingOptions(
+                            ->options(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): array => self::termOfferingOptions(
                                 $livewire->termId,
-                                $livewire instanceof EditSection && $livewire->termId !== null,
+                                $livewire->termId !== null,
                             ))
                             ->searchable()
                             ->preload()
-                            ->disabled(fn (CreateSection|EditSection|ListSections $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected())
+                            ->disabled(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected())
                             ->required(),
                         TextInput::make('code')
                             ->label('Class code')
-                            ->disabled(fn (CreateSection|EditSection|ListSections $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected())
+                            ->disabled(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected())
                             ->required()
                             ->maxLength(255),
                         TextInput::make('capacity')
@@ -55,13 +56,15 @@ class SectionForm
                             ->integer()
                             ->minValue(1)
                             ->helperText('Maximum learners in this class.')
-                            ->disabled(fn (CreateSection|EditSection|ListSections $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected()),
+                            ->disabled(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected()),
                         Select::make('state')
+                            ->visible(fn ($livewire): bool => $livewire instanceof EditSection)
                             ->options(Section::stateOptions())
                             ->default(Section::StatePlanned)
-                            ->disabled(fn (CreateSection|EditSection|ListSections $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected())
+                            ->disabled(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): bool => $livewire instanceof EditSection && $livewire->isSourceProtected())
                             ->required(),
                     ])
+                    ->contained(fn ($livewire): bool => ! ($livewire instanceof TermClasses))
                     ->columns(2)
                     ->columnSpanFull(),
             ]);

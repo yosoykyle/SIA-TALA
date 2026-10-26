@@ -1,6 +1,6 @@
 @props(['context'])
 
-<section class="student-study-context" aria-label="Current studies">
+<section class="student-study-context tala-task-surface" aria-label="Current studies">
     <div class="student-study-program">
         <p class="student-study-label">Program</p>
         <h2>{{ $context['program_name'] ?? 'Program unavailable' }}</h2>

@@ -9,8 +9,11 @@ use App\Actions\Scheduling\SchedulePublishService;
 use App\Actions\Scheduling\ScheduleSolverRetryService;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Pages\TermTimetable;
+use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\CandidateRowsRelationManager;
+use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\RevisionEventsRelationManager;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\PublishedScheduleRevisionForm;
+use App\Filament\Resources\ScheduleGenerationRuns\Schemas\ScheduleGenerationRunInfolist;
 use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
 use App\Models\SectionMeeting;
@@ -23,13 +26,16 @@ use Filament\Forms\Components\TextInput;
 use Filament\Navigation\NavigationItem;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 
 class ViewScheduleGenerationRun extends ViewRecord
 {
@@ -39,20 +45,46 @@ class ViewScheduleGenerationRun extends ViewRecord
 
     protected static string $resource = ScheduleGenerationRunResource::class;
 
+    public function getBreadcrumb(): string
+    {
+        return $this->getTitle();
+    }
+
     /** @return array<string> */
     public function getPageClasses(): array
     {
         return [...$this->getTermPlanningPageClasses(), 'tala-planning-source-detail'];
     }
 
+    /** @var array<string, mixed> */
+    #[Url]
+    public array $timetableContext = [];
+
     public function termPlanningReturnUrl(): string
     {
         $run = $this->run();
         $versionId = $run->timetableVersions()->where('term_id', $run->term_id)->latest('version')->value('id');
 
-        return TermTimetable::getUrl($versionId
-            ? ['termId' => $run->term_id, 'selectedVersionId' => $versionId]
-            : ['termId' => $run->term_id, 'selectedRunId' => $run->id]);
+        $validator = validator($this->timetableContext, [
+            'timetableView' => ['sometimes', 'in:whole,section,faculty,room'],
+            'timetableFormat' => ['sometimes', 'in:week,list'],
+            'viewFilter' => ['nullable', 'string', 'max:255'],
+            'programFilter' => ['nullable', 'string', 'max:255'],
+            'yearFilter' => ['nullable', 'string', 'max:255'],
+            'tableSearch' => ['nullable', 'string', 'max:255'],
+            'selectedVersionId' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $context = $validator->passes() ? $validator->validated() : [];
+        $requestedVersionId = $context['selectedVersionId'] ?? null;
+        unset($context['selectedVersionId']);
+        if ($requestedVersionId !== null) {
+            $versionId = $run->timetableVersions()->where('term_id', $run->term_id)->whereKey($requestedVersionId)->value('id') ?? $versionId;
+        }
+
+        return TermTimetable::getUrl([
+            ...$context, 'termId' => $run->term_id,
+            ...($versionId ? ['selectedVersionId' => $versionId] : ['selectedRunId' => $run->id]),
+        ]);
     }
 
     /** @return array<NavigationItem> */
@@ -79,13 +111,15 @@ class ViewScheduleGenerationRun extends ViewRecord
             $this->rejectCandidateAction(),
             $this->retrySolverRunAction(),
             $this->revisePublishedScheduleAction(),
+            $this->cancelPublishedClassAction(),
         ];
     }
 
     public function getTitle(): string
     {
         return match ($this->run()->status) {
-            ScheduleGenerationRun::StatusPublished => 'Published timetable',
+            ScheduleGenerationRun::StatusPublished => 'Official timetable record',
+            ScheduleGenerationRun::StatusSuperseded => $this->run()->published_at !== null ? 'Historical timetable record' : 'Superseded candidate',
             ScheduleGenerationRun::StatusQueued, ScheduleGenerationRun::StatusDispatching => 'Timetable in progress',
             ScheduleGenerationRun::StatusUnderReview => 'Review timetable candidate',
             default => 'Timetable generation result',
@@ -99,13 +133,42 @@ class ViewScheduleGenerationRun extends ViewRecord
 
     public function content(Schema $schema): Schema
     {
+        $run = $this->run();
+        $published = $run->isPublished() || $run->published_at !== null;
+        $componentData = ['ownerRecord' => $run, 'pageClass' => static::class];
+        $meetings = Section::make($published ? 'Original candidate meetings' : 'Meetings to review')
+            ->key('run-meetings-'.$run->id)
+            ->description($published
+                ? 'These assignments belong to the original generation record. Open the official timetable to see the issued version.'
+                : 'Inspect a meeting, or use Changes to adjust it. Review the complete candidate before accepting it.')
+            ->schema(Schema::make()->components([
+                LivewireComponent::make(CandidateRowsRelationManager::class, $componentData)
+                    ->key('candidate-meetings-'.$run->id.'-'.$run->status),
+            ])->deferLoading($published))
+            ->contained($published)
+            ->collapsible($published)
+            ->collapsed($published)
+            ->extraAttributes(['class' => 'tala-guide-review-assignments', 'id' => 'timetable-run-meetings'])
+            ->columnSpanFull();
+        $history = Section::make('Term revision history')
+            ->description('Official meeting changes across this Term, including changes recorded from other attempts. This history is separate from candidate adjustments.')
+            ->schema([
+                $run->revisionEvents()->exists()
+                    ? LivewireComponent::make(RevisionEventsRelationManager::class, $componentData)
+                        ->key('term-revisions-'.$run->term_id)
+                    : View::make('filament.pages.partials.timetable-revision-empty'),
+            ])
+            ->visible(fn (): bool => RevisionEventsRelationManager::canViewForRecord($run, static::class))
+            ->collapsible()
+            ->collapsed(! $published)
+            ->extraAttributes(['class' => 'tala-run-history', 'id' => 'timetable-term-history'])
+            ->columnSpanFull();
+
         return $schema->components([
+            ScheduleGenerationRunInfolist::reviewSummary($run),
+            ...($published ? [$history, $meetings] : [$meetings]),
             $this->getInfolistContentComponent(),
-            Section::make('Assignment review')
-                ->description('Review each assigned meeting. Correct an assignment or find a valid whole-term repair when the available actions allow it.')
-                ->schema([$this->getRelationManagersContentComponent()])
-                ->extraAttributes(['class' => 'tala-guide-review-assignments'])
-                ->columnSpanFull(),
+            ...($published ? [] : [$history]),
         ]);
     }
 
@@ -117,7 +180,7 @@ class ViewScheduleGenerationRun extends ViewRecord
             ->color('warning')
             ->requiresConfirmation()
             ->modalHeading(fn (): string => $this->canRecoverSolver() ? 'Try again after a service fix' : 'Retry generation')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
             ->modalDescription(fn (): string => $this->run()->term->label.' · Attempt #'.$this->run()->id.'. '.($this->canRecoverSolver()
                 ? 'After the System Administrator confirms the service fix, queue one new attempt after current planning data passes readiness checks. The failed attempt stays in history. Any original repair change is preserved.'
                 : 'Retry this request using the same recorded inputs. Earlier attempts remain in the history.'))
@@ -174,19 +237,38 @@ class ViewScheduleGenerationRun extends ViewRecord
 
     public function revisePublishedScheduleAction(): Action
     {
-        return Action::make('revisePublishedSchedule')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
-            ->label('Revise official timetable')
-            ->icon(Heroicon::OutlinedPencilSquare)
-            ->color('warning')
-            ->modalHeading('Revise official timetable')
-            ->modalDescription('Record the approved change and its reason. A draft revision records any affected registrations. Publication requires every affected registration outcome to be resolved and the complete timetable to pass validation; if those checks pass, this action publishes the revision.')
-            ->modalSubmitActionLabel('Validate and publish revision')
+        return $this->publishedRevisionAction(false);
+    }
+
+    public function cancelPublishedClassAction(): Action
+    {
+        return $this->publishedRevisionAction(true);
+    }
+
+    private function publishedRevisionAction(bool $cancelClass): Action
+    {
+        return Action::make($cancelClass ? 'cancelPublishedClass' : 'revisePublishedSchedule')
+
+            ->label($cancelClass ? 'Cancel a class' : 'Change meetings')
+            ->icon($cancelClass ? Heroicon::OutlinedXCircle : Heroicon::OutlinedPencilSquare)
+            ->color($cancelClass ? 'danger' : 'gray')
+            ->modalHeading($cancelClass ? 'Cancel a class' : 'Change meetings')
+            ->modalDescription($cancelClass
+                ? 'This cancels the whole class and all its official meetings. Affected registration outcomes must be resolved before publication; earlier versions stay in history.'
+                : 'Change the selected meetings, review the impact, then publish a new version. The current timetable stays in use until publication succeeds.')
+            ->modalSubmitActionLabel($cancelClass ? 'Validate and cancel class' : 'Validate and publish revision')
+            ->modalSubmitAction(fn (Action $action): Action => $action
+                ->color($cancelClass ? 'danger' : 'primary')
+                ->disabled(function () use ($cancelClass): bool {
+                    $data = $this->getMountedAction()?->getRawData() ?? [];
+
+                    return blank($data['change_type'] ?? null)
+                        || blank($data[$cancelClass ? 'section_id' : 'section_meeting_ids'] ?? null);
+                }))
             ->modalWidth(Width::SevenExtraLarge)
-            ->fillForm(fn (): array => [
-                'change_type' => null,
-                'section_meeting_ids' => [],
-                'section_id' => null,
+            ->fillForm(fn (array $arguments): array => [
+                ...$this->revisionTarget($arguments, $cancelClass),
+                'change_type' => $cancelClass ? ScheduleRevisionEvent::ChangeSectionCancellation : null,
                 'replacement_room_id' => null,
                 'replacement_faculty_user_id' => null,
                 'day_of_week' => null,
@@ -195,9 +277,9 @@ class ViewScheduleGenerationRun extends ViewRecord
                 'reason' => null,
                 'authority_reference' => null,
             ])
-            ->schema(fn (): array => PublishedScheduleRevisionForm::schema($this->run()))
+            ->schema(fn (): array => PublishedScheduleRevisionForm::schema($this->run(), $cancelClass))
             ->visible(fn (): bool => $this->canRevisePublishedSchedule())
-            ->action(function (array $data): void {
+            ->action(function (array $data) use ($cancelClass): void {
                 $actor = auth()->user();
 
                 if (! $actor instanceof User) {
@@ -205,8 +287,12 @@ class ViewScheduleGenerationRun extends ViewRecord
                 }
 
                 $run = $this->run();
-                $changeType = (string) ($data['change_type'] ?? '');
+                $changeType = $cancelClass ? ScheduleRevisionEvent::ChangeSectionCancellation : (string) ($data['change_type'] ?? '');
                 $reason = (string) ($data['reason'] ?? '');
+
+                if (! $cancelClass && $changeType === ScheduleRevisionEvent::ChangeSectionCancellation) {
+                    throw ValidationException::withMessages(['change_type' => 'Use Cancel a class to cancel the whole class and its meetings.']);
+                }
 
                 try {
                     $events = $changeType === ScheduleRevisionEvent::ChangeSectionCancellation
@@ -231,6 +317,10 @@ class ViewScheduleGenerationRun extends ViewRecord
                         ->body($events->count().' immutable revision '.str('event')->plural($events->count()).' recorded.')
                         ->success()
                         ->send();
+                    $this->redirect(TermTimetable::getUrl([
+                        'termId' => $run->term_id,
+                        'timetableState' => 'official',
+                    ]));
                 } catch (ValidationException $exception) {
                     Notification::make()
                         ->title('Published schedule revision blocked')
@@ -252,6 +342,29 @@ class ViewScheduleGenerationRun extends ViewRecord
             });
     }
 
+    /** @param array<string, mixed> $arguments
+     * @return array{section_meeting_ids: list<int>, section_id: int|null}
+     */
+    private function revisionTarget(array $arguments, bool $cancelClass): array
+    {
+        if (! array_key_exists('meeting', $arguments)) {
+            return ['section_meeting_ids' => [], 'section_id' => null];
+        }
+
+        abort_unless($this->canRevisePublishedSchedule(), 403);
+        $meetingId = filter_var($arguments['meeting'], FILTER_VALIDATE_INT);
+        abort_unless($meetingId !== false && $meetingId > 0, 404);
+        $meeting = SectionMeeting::query()->where('schedule_run_id', $this->run()->id)
+            ->where('state', SectionMeeting::StateActive)
+            ->with('schedulingDemand.sectionDeliveryGroup')
+            ->findOrFail($meetingId);
+
+        return [
+            'section_meeting_ids' => $cancelClass ? [] : [(int) $meeting->id],
+            'section_id' => $cancelClass ? (int) $meeting->schedulingDemand->sectionDeliveryGroup->section_id : null,
+        ];
+    }
+
     public function publishScheduleAction(): Action
     {
         return Action::make('publishSchedule')
@@ -260,7 +373,7 @@ class ViewScheduleGenerationRun extends ViewRecord
             ->color('primary')
             ->requiresConfirmation()
             ->modalHeading('Publish official timetable')
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
             ->modalDescription(fn (): string => $this->run()->term->label.' / Attempt #'.$this->run()->id.'. '.$this->publicationConfirmationDescription())
             ->modalSubmitActionLabel('Publish official timetable')
             ->schema([
@@ -328,7 +441,7 @@ class ViewScheduleGenerationRun extends ViewRecord
 
     private function rejectCandidateAction(): Action
     {
-        return $this->candidateReviewAction('rejectCandidate', 'Reject result', 'Rejected', 'danger');
+        return $this->candidateReviewAction('rejectCandidate', 'Reject candidate', 'Rejected', 'danger');
     }
 
     private function candidateReviewAction(string $name, string $label, string $decision, string $color): Action
@@ -338,10 +451,12 @@ class ViewScheduleGenerationRun extends ViewRecord
             ->color($color)
             ->requiresConfirmation()
             ->modalHeading($label)
-            ->modalFooterActions(fn (Action $action): array => array_filter([$action->getModalCancelAction(), $action->getModalSubmitAction()]))
+
             ->modalSubmitActionLabel($label)
             ->modalIcon($decision === 'Accepted' ? Heroicon::OutlinedCheck : Heroicon::OutlinedXMark)
-            ->modalDescription(fn (): string => $this->run()->term->label.' · Attempt #'.$this->run()->id.'. Record the reason for this decision. An accepted timetable becomes official only after publication.')
+            ->modalDescription(fn (): string => $this->run()->term->label.' · Attempt #'.$this->run()->id.'. '.($decision === 'Accepted'
+                ? 'Record why this candidate is accepted. It becomes official only after publication.'
+                : 'Record why this candidate is rejected. A rejected candidate cannot be published; the current official timetable stays in use.'))
             ->schema([
                 Textarea::make('candidate_review_reason')
                     ->label('Review reason')

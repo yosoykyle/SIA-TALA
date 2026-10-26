@@ -336,6 +336,18 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $page->callTableAction('weekView')->assertSet('scheduleView', 'week');
         $this->assertSame([$tuesday->id], $page->instance()->getFilteredTableQuery()->pluck('id')->all());
         $this->assertStringContainsString('day_of_week=2', $page->instance()->printFilteredScheduleAction()->getUrl());
+        parse_str(parse_url($page->instance()->printScheduleAction()->getUrl(), PHP_URL_QUERY), $fullPrintContext);
+        $this->assertSame('2', $fullPrintContext['return_filters']['day_of_week']);
+        $this->assertSame($criteria['search'], $fullPrintContext['return_filters']['search']);
+        $fullFromFilteredView = app(BuildOfficialScheduleOutput::class)->forFaculty($fixture['faculty'], Request::create('/', 'GET', $fullPrintContext));
+        $this->assertCount(2, $fullFromFilteredView['rows']);
+        $this->assertNull($fullFromFilteredView['filter_description']);
+        parse_str(parse_url($fullFromFilteredView['back_url'], PHP_URL_QUERY), $fullReturnContext);
+        $this->assertSame('2', $fullReturnContext['tableFilters']['day_of_week']['value']);
+        $this->assertSame($criteria['search'], $fullReturnContext['tableSearch']);
+        $this->assertSame('week', $fullReturnContext['scheduleView']);
+        $restoredFull = Livewire::withQueryParams($fullReturnContext)->actingAs($fixture['faculty'])->test(FacultySchedule::class);
+        $this->assertSame([$tuesday->id], $restoredFull->instance()->getFilteredTableQuery()->pluck('id')->all());
         $page->call('mountAction', 'viewMeeting', [], ['table' => true, 'recordKey' => (string) $tuesday->id])->assertSet('mountedActions.0.name', 'viewMeeting');
         $this->assertSame('Class meeting', $page->instance()->getMountedAction()->getModalHeading());
         $this->assertStringContainsString('Location', $page->instance()->getMountedAction()->getModalContent()->render());
@@ -366,6 +378,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $tampered = app(BuildOfficialScheduleOutput::class)->forFaculty($fixture['faculty'], Request::create('/', 'GET', ['timetable_version' => $other['timetable']->id, 'scope' => 'filtered', 'faculty_user_id' => $other['faculty']->id, 'meeting_ids' => [$other['meeting']->id]]));
         $this->assertSame([], $tampered['rows']);
         $this->actingAs($fixture['faculty'])->getJson(route('faculty.schedule.print', ['scope' => 'filtered', 'day_of_week' => 8]))->assertUnprocessable();
+        $this->actingAs($fixture['faculty'])->getJson(route('faculty.schedule.print', ['timetable_version' => $fixture['timetable']->id, 'return_filters' => ['day_of_week' => 8]]))->assertUnprocessable();
     }
 
     #[Test]

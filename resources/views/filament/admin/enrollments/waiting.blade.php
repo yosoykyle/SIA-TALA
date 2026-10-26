@@ -11,7 +11,7 @@
         <p>{{ $proposal->curriculumVersion?->program?->name ?? $case->studentProfile?->program?->name ?? $case->admissionApplication?->program?->name ?? 'Program unavailable' }}</p>
         <p>{{ $case->term?->label }}</p>
     </div>
-    <section class="registrar-case-waiting" aria-labelledby="waiting-heading">
+    <section class="registrar-case-waiting tala-task-surface" aria-labelledby="waiting-heading">
         <div class="registrar-case-waiting-heading">
             <div><h2 id="waiting-heading">Waiting for confirmation</h2><p>The student can review these subjects in Enrollment.</p></div>
             @if ($deadline)
@@ -25,7 +25,7 @@
         </div>
     </section>
     <div class="registrar-case-grid">
-        <section class="registrar-case-subjects" aria-labelledby="subjects-heading">
+        <section class="registrar-case-subjects tala-task-surface" aria-labelledby="subjects-heading">
             <div class="registrar-subject-change-heading">
                 <h2 id="subjects-heading">Subjects</h2>
                 {{ $this->getAction('prepareProposal', isMounting: false)->label('Change subjects')->color('gray') }}
@@ -37,7 +37,7 @@
                 <p class="registrar-case-meta">{{ $item->course_code_snapshot }} is externally arranged and has no recurring meeting.</p>
             @endforeach
         </section>
-        <section class="registrar-case-payment" aria-labelledby="payment-heading">
+        <section class="registrar-case-payment tala-task-surface" aria-labelledby="payment-heading">
             <h2 id="payment-heading">Enrollment payment</h2>
             @if ($requirement['state'] === 'Cleared')
                 <p class="registrar-case-amount">Cleared</p><p>The enrollment payment requirement is satisfied.</p>
@@ -55,7 +55,7 @@
             @endif
         </section>
     </div>
-    <section class="registrar-case-schedule" aria-labelledby="schedule-heading">
+    <section class="registrar-case-schedule tala-task-surface" aria-labelledby="schedule-heading">
         <h2 id="schedule-heading">Schedule</h2>
         @if ($schedule && $schedule['meetings'] !== [])
             <x-enrollment-schedule :presentation="$schedule" :source-key="'registrar-waiting-'.$proposal->id" />

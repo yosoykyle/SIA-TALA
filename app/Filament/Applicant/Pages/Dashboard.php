@@ -206,8 +206,8 @@ class Dashboard extends BaseDashboard implements HasTable
                     ->visible(fn (AdmissionApplication $record): bool => $record->currentSubmissionVersion !== null),
             ])
             ->defaultSort('updated_at', 'desc')
-            ->emptyStateHeading('No application yet')
-            ->emptyStateDescription('Start one application while a published Admission Cycle is open.');
+            ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) ? 'No matching applications' : 'No application yet')
+            ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) ? 'Try another reference or clear the search.' : 'Start one application while a published Admission Cycle is open.');
     }
 
     public function currentApplication(): ?AdmissionApplication

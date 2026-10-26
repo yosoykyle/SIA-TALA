@@ -7,7 +7,7 @@
         <p>{{ $case->studentProfile?->program?->name ?? 'Program unavailable' }}</p>
         <p>{{ $case->term?->label }}</p>
     </div>
-    <section class="registrar-case-official" aria-labelledby="official-heading">
+    <section class="registrar-case-official tala-task-surface" aria-labelledby="official-heading">
         <div>
             <h2 id="official-heading"><x-filament::icon icon="heroicon-o-check-badge" />Officially enrolled</h2>
             <p>{{ $case->officially_enrolled_at ? 'Enrolled on '.$case->officially_enrolled_at->timezone(config('app.display_timezone'))->format('M j, Y').'.' : 'Enrollment date not recorded.' }}</p>
@@ -17,7 +17,7 @@
             <p>Issued {{ $case->currentCorVersion->created_at?->timezone(config('app.display_timezone'))->format('M j, Y') ?? 'date unavailable' }}</p>
         </div>
     </section>
-    <section class="registrar-case-current-subjects" aria-labelledby="subjects-heading">
+    <section class="registrar-case-current-subjects tala-task-surface" aria-labelledby="subjects-heading">
         <div class="registrar-subject-heading">
             <h2 id="subjects-heading">Subjects</h2>
             {{ ($this->getAction('prepareAdjustmentProposal', isMounting: false)->label('Add a subject')->color('primary'))(['change_type' => 'Add']) }}
@@ -49,7 +49,7 @@
             <p class="registrar-case-meta">{{ $subject->proposalItem?->course_code_snapshot ?? $subject->termOffering?->curriculumEntry?->courseSpecification?->course?->code }} is externally arranged and has no recurring meeting.</p>
         @endforeach
     </section>
-    <section class="registrar-case-schedule" aria-labelledby="schedule-heading">
+    <section class="registrar-case-schedule tala-task-surface" aria-labelledby="schedule-heading">
         <h2 id="schedule-heading">Schedule</h2>
         @if ($schedule && $schedule['meetings'] !== [])
             <x-enrollment-schedule :presentation="$schedule" :source-key="'registrar-official-'.$case->id" />

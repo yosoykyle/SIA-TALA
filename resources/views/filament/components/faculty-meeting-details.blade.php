@@ -1,11 +1,31 @@
-<div class="space-y-4">
-    <div><h3 class="text-base font-semibold text-gray-950 dark:text-white">{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</h3><p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ $meeting['courseCode'] }} · {{ $meeting['class'] }}</p></div>
-    <dl class="space-y-3 text-base">
-        @foreach (['When' => $meeting['dayLabel'].' · '.$meeting['time'], 'Location' => $meeting['room']] as $label => $value)
-            <div><dt class="font-medium text-gray-500 dark:text-gray-400">{{ $label }}</dt><dd class="mt-1 text-gray-950 dark:text-white">{{ $value }}</dd></div>
-        @endforeach
+<div class="tala-meeting-inspector">
+    <h3>{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</h3>
+    <div class="tala-meeting-when">
+        <x-filament::icon icon="heroicon-o-calendar-days" />
+        <div><p>{{ $meeting['dayLabel'] }}</p><strong>{{ $meeting['time'] }}</strong><span>{{ $meeting['duration'] }} duration</span></div>
+    </div>
+    <dl class="tala-meeting-essentials">
+        <div>
+            <x-filament::icon icon="heroicon-o-map-pin" />
+            <div><dt>Location</dt><dd>{{ $meeting['room'] }}</dd></div>
+        </div>
+        @if ($showFaculty ?? false)
+            <div>
+                <x-filament::icon icon="heroicon-o-user" />
+                <div><dt>Teacher</dt><dd>{{ $meeting['faculty'] }}</dd></div>
+            </div>
+        @endif
     </dl>
-    @if ($showFaculty ?? false)<p class="text-sm">Teacher: {{ $meeting['faculty'] }}</p>@endif
-    <p class="border-t border-gray-200 pt-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">{{ $meeting['component'] }} · {{ $meeting['modality'] }} · {{ $meeting['duration'] }} · {{ $meeting['status'] }}</p>
-    @if ($meeting['offGrid'])<p class="text-sm">This meeting is outside the recorded teaching grid.</p>@endif
+    <div class="tala-meeting-delivery">
+        <x-filament::icon icon="heroicon-o-academic-cap" />
+        <div><p>{{ $meeting['component'] }} · {{ $meeting['modality'] }}</p><span>{{ $meeting['status'] }}</span></div>
+    </div>
+    @if ($meeting['offGrid'])<p class="tala-meeting-notice"><x-filament::icon icon="heroicon-o-exclamation-triangle" />This meeting is outside the recorded teaching grid.</p>@endif
+    <details class="tala-meeting-identifiers">
+        <summary>Record identifiers</summary>
+        <dl>
+            <div><dt>Course code</dt><dd>{{ $meeting['courseCode'] }}</dd></div>
+            <div><dt>Class code</dt><dd>{{ $meeting['class'] }}</dd></div>
+        </dl>
+    </details>
 </div>

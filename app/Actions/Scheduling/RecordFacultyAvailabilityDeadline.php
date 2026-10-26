@@ -13,12 +13,12 @@ use Illuminate\Validation\ValidationException;
 
 class RecordFacultyAvailabilityDeadline
 {
-    public function execute(Term $term, User $actor, string $dueAt, string $authority, ?string $reason, int $expectedId): FacultyAvailabilityDeadline
+    public function execute(Term $term, User $actor, string $dueAt, ?string $authority, ?string $reason, int $expectedId): FacultyAvailabilityDeadline
     {
         Gate::forUser($actor)->authorize('update', $term);
         Validator::make(['due_at' => $dueAt, 'authority_reference' => $authority], [
             'due_at' => ['required', 'date'],
-            'authority_reference' => ['required', 'string', 'max:255'],
+            'authority_reference' => ['nullable', 'string', 'max:255'],
         ])->validate();
 
         return DB::transaction(function () use ($term, $actor, $dueAt, $authority, $reason, $expectedId): FacultyAvailabilityDeadline {
@@ -38,7 +38,7 @@ class RecordFacultyAvailabilityDeadline
             return FacultyAvailabilityDeadline::query()->create([
                 'term_id' => $term->id,
                 'due_at' => $dueAt,
-                'authority_reference' => $authority,
+                'authority_reference' => filled($authority) ? trim($authority) : null,
                 'correction_reason' => $reason,
                 'recorded_by' => $actor->id,
             ]);

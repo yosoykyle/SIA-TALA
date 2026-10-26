@@ -16,6 +16,8 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\FacultyQualification;
 use App\Models\OperationalEvent;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
@@ -140,6 +142,39 @@ final class Issue66TermPreparationTest extends TestCase
         $this->assertDatabaseHas('activity_log', ['description' => 'class_cancelled', 'subject_id' => $class->id, 'causer_id' => $actor->id]);
     }
 
+    public function test_published_class_is_keep_only_in_proposal_and_server_rejects_tampered_cancel(): void
+    {
+        [$term, $entry, $cohort, $actor] = $this->source();
+        $service = app(PrepareTermClassProposal::class);
+        $service->confirm($term, $actor, [$this->row($entry, $cohort, 'SYNTH66-PUBLISHED')], $service->preview($term)['token']);
+        $class = Section::query()->where('code', 'SYNTH66-PUBLISHED')->sole();
+        $version = PublishedTimetableVersion::factory()->create(['term_id' => $term->id]);
+        PublishedTimetableMeeting::factory()->for($version, 'timetableVersion')->create(['section_id' => $class->id]);
+
+        $page = Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id])
+            ->assertSee('controlled timetable revision');
+        $rows = $page->get('proposal.classes');
+        $publishedKey = array_key_first(array_filter($rows, fn (array $row): bool => (int) ($row['section_id'] ?? 0) === $class->id));
+        $this->assertNotNull($publishedKey);
+        $this->assertTrue($rows[$publishedKey]['requires_timetable_revision']);
+
+        $repeater = $page->instance()->form->getComponent('classes');
+        $action = $repeater->getChildSchema($publishedKey)->getComponent('action');
+        $this->assertSame(['keep' => 'Keep existing class'], $action->getOptions());
+
+        $tamperedCancel = [...$rows[$publishedKey], 'action' => 'cancel', 'requires_timetable_revision' => false,
+            'cancellation_reason' => 'Attempted ordinary cancellation.'];
+        try {
+            $service->confirm($term, $actor, [$tamperedCancel], $service->preview($term)['token']);
+            $this->fail('A client-tampered published class must remain protected by the service guard.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('classes', $exception->errors());
+        }
+
+        $this->assertNotNull($class->fresh()->confirmed_at);
+        $this->assertDatabaseMissing('activity_log', ['description' => 'class_cancelled', 'subject_id' => $class->id]);
+    }
+
     public function test_split_counts_cannot_duplicate_the_same_learners_and_externally_arranged_course_needs_no_meetings(): void
     {
         [$term, $entry, $cohort, $actor] = $this->source();
@@ -164,12 +199,14 @@ final class Issue66TermPreparationTest extends TestCase
         Role::query()->firstOrCreate(['name' => User::StaffRoleFaculty, 'guard_name' => 'web']);
         $faculty->assignRole(User::StaffRoleFaculty);
         FacultyQualification::factory()->create(['faculty_user_id' => $faculty->id, 'course_id' => $entry->courseSpecification->course_id]);
-        Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])->assertSee($faculty->name)->assertSee('Not requested')->assertDontSee('Awaiting response');
+        Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])
+            ->assertDontSee($faculty->name)->filterTable('faculty_scope', 'all')
+            ->assertSee($faculty->name)->assertSee('Not requested')->assertDontSee('Awaiting response');
         OperationalEvent::factory()->create(['event_type' => OperationalEvent::TypeFacultyAvailabilityRequestedEmail, 'related_record_type' => TermCalendarPackage::class,
             'related_record_id' => $term->calendarPackages()->where('state', 'Active')->value('id'), 'user_id' => $faculty->id,
             'status' => OperationalEvent::StatusProcessed, 'sent_at' => now()]);
         Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])->assertSee('Awaiting response');
-        Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id])->assertSee('Term class decisions')->assertSee($entry->courseSpecification->title);
+        Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id])->assertSee('Term class decisions')->assertSee('Add courses');
     }
 
     public function test_course_decision_keeps_class_fields_closed_until_the_course_is_included(): void
@@ -177,17 +214,44 @@ final class Issue66TermPreparationTest extends TestCase
         [$term, $entry, , $actor] = $this->source();
 
         $proposal = Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id])
-            ->assertSee($entry->courseSpecification->title)
-            ->assertSee('Do not add a class')
-            ->assertDontSee('Approved capacity')
-            ->set('proposal.classes.0.action', 'confirm')
-            ->assertSee('Approved capacity')
-            ->assertSee('Student sections served')
-            ->assertSee('Link a student section')
+            ->assertSee('Add courses')->assertDontSee('Approved capacity');
+        $this->assertCount(0, $proposal->get('proposal.classes'));
+
+        $proposal->callAction('addCourses', ['program' => $entry->curriculumVersion->program->name, 'entries' => [$entry->id]])->assertHasNoActionErrors();
+        $rows = $proposal->get('proposal.classes');
+        $this->assertCount(1, $rows);
+        $row = reset($rows);
+        $this->assertSame($entry->id, (int) $row['entry_id']);
+        $this->assertSame('confirm', $row['action']);
+        $this->assertNull($row['capacity']);
+        $this->assertSame([], $row['cohorts']);
+        $proposal->assertSee($entry->courseSpecification->title)
+            ->assertSee('Approved capacity')->assertSee('Student sections served')
             ->assertSee('Review class proposal');
 
-        $this->assertSame('confirm', $proposal->get('proposal.classes.0.action'));
         $this->assertSame(0, Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))->count());
+    }
+
+    public function test_existing_drafts_are_retained_without_queuing_confirmation_and_picker_cancel_preserves_inputs(): void
+    {
+        [$term, $entry, , $actor] = $this->source();
+        $offering = TermOffering::factory()->for($term)->create(['curriculum_entry_id' => $entry->id]);
+        $class = Section::factory()->for($offering, 'termOffering')->create(['confirmed_at' => null]);
+
+        $page = Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id]);
+        $rows = $page->get('proposal.classes');
+        $this->assertCount(1, $rows);
+        $key = array_key_first($rows);
+        $this->assertSame($class->id, (int) $rows[$key]['section_id']);
+        $this->assertSame('keep', $rows[$key]['action']);
+        $draftAction = $page->instance()->form->getComponent('classes')->getChildSchema($key)->getComponent('action');
+        $this->assertSame(['confirm' => 'Prepare and confirm', 'keep' => 'Keep as Draft', 'cancel' => 'Cancel existing class'], $draftAction->getOptions());
+        $page->assertActionDisabled('confirmProposal')
+            ->set('proposal.classes.'.$key.'.code', 'UNSAVED-CLASS-REFERENCE')
+            ->mountAction('addCourses')->call('unmountAction');
+        $this->assertSame('UNSAVED-CLASS-REFERENCE', $page->get('proposal.classes.'.$key.'.code'));
+        $this->assertSame($class->code, $class->fresh()->code);
+        $this->assertNull($class->fresh()->confirmed_at);
     }
 
     public function test_approved_curriculum_dialog_groups_all_entries_with_meeting_and_existing_class_facts(): void
@@ -222,14 +286,16 @@ final class Issue66TermPreparationTest extends TestCase
         Livewire::actingAs($actor)->test(TermClasses::class, ['termId' => $term->id, 'classesView' => 'cohorts'])
             ->searchTable($cohort->program->name)->assertCanSeeTableRecords([$cohort])
             ->searchTable('')
-            ->assertSee('Prepare classes')->assertDontSee('View classes');
+            ->assertTableActionHasLabel('linkedClasses', 'Prepare classes', $cohort)
+            ->assertTableActionHasUrl('linkedClasses', TermClassProposal::getUrl(['termId' => $term->id]), $cohort);
 
         $proposal = app(PrepareTermClassProposal::class);
         $preview = $proposal->preview($term);
         $proposal->confirm($term, $actor, [$this->row($entry, $cohort, 'SYNTH66-LINKED')], $preview['token']);
 
         Livewire::actingAs($actor)->test(TermClasses::class, ['termId' => $term->id, 'classesView' => 'cohorts'])
-            ->assertSee('View classes')->assertDontSee('Prepare classes');
+            ->assertTableActionHasLabel('linkedClasses', 'View classes', $cohort)
+            ->assertTableActionDoesNotHaveUrl('linkedClasses', TermClassProposal::getUrl(['termId' => $term->id]), $cohort);
 
         $class = Section::query()->where('code', 'SYNTH66-LINKED')->sole();
         Livewire::actingAs($actor)->test(TermClasses::class, ['termId' => $term->id, 'classesView' => 'cohorts'])
@@ -266,6 +332,15 @@ final class Issue66TermPreparationTest extends TestCase
         $run->quality_measures = ['faculty_load_imbalance' => 600, 'faculty_idle_time' => null];
         $this->assertSame('6.00 load units', $run->qualityPresentation()[2]['value']);
         $this->assertSame('Not measured', $run->qualityPresentation()[3]['value']);
+        $run->diagnostics = ['solver_result' => ['solver_status' => 'feasible', 'summary' => ['outcome' => null]]];
+        $this->assertSame('Feasible', $run->reviewEvidence()['outcome']);
+        $this->assertFalse($run->reviewEvidence()['validated']);
+        $run->diagnostics = ['solver_result' => ['summary' => ['outcome' => 'unknown'], 'solver_status' => 'feasible']];
+        $this->assertSame('Unknown', $run->reviewEvidence()['outcome']);
+        $run->forceFill(['status' => ScheduleGenerationRun::StatusPublished, 'candidate_state' => 'Accepted']);
+        $this->assertStringNotContainsString('Publish after', $run->reviewEvidence()['meaning']);
+        $run->forceFill(['status' => ScheduleGenerationRun::StatusSuperseded, 'published_at' => now()]);
+        $this->assertStringNotContainsString('Publish after', $run->reviewEvidence()['meaning']);
         $run->forceFill(['status' => ScheduleGenerationRun::StatusFailed, 'candidate_key' => null, 'published_at' => null,
             'diagnostics' => ['solver_dispatch' => ['failure' => ['code' => 'INFEASIBLE', 'retryable' => true, 'final' => true]]]]);
         $this->assertFalse($run->canRetrySolver());

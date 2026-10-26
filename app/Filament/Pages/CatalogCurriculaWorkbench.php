@@ -160,8 +160,10 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
                     ->label('Active Program'),
             ])
             ->recordUrl(fn (Program $record): string => ProgramResource::getUrl('view', ['record' => $record]))
-            ->emptyStateHeading('No Program authority records')
-            ->emptyStateDescription('Create the Program identity first, then record and separately activate its external authority.')
+            ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() ? 'No matching program records' : 'No Program authority records')
+            ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount()
+                ? 'Try another program or clear the search and filters.'
+                : 'A Program identity is needed before its external authority can be recorded and separately activated.')
             ->emptyStateIcon(Heroicon::OutlinedBookOpen);
     }
 

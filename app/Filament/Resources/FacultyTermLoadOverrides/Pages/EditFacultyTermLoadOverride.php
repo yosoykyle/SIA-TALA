@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\FacultyTermLoadOverrides\Pages;
 
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
+use App\Models\FacultyTermLoadOverride;
 use App\Support\HasTermPlanningContext;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -59,7 +60,10 @@ class EditFacultyTermLoadOverride extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        return $this->termPlanningFormData($data);
+        $record = $this->getRecord();
+        abort_unless($record instanceof FacultyTermLoadOverride, 404);
+
+        return [...$this->termPlanningFormData($data), 'term_id' => $record->term_id, 'default_max_units_snapshot' => $record->default_max_units_snapshot];
     }
 
     protected function getHeaderActions(): array

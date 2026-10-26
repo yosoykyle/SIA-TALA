@@ -23,11 +23,16 @@
     --tala-rim: rgb(255 255 255 / 85%);
     --tala-selected-edge: color-mix(in srgb, var(--primary-600, #2f7d3b) 28%, transparent);
     --tala-shadow-surface: 0 1px 2px rgb(9 9 11 / 5%), 0 2px 6px -2px rgb(9 9 11 / 6%), 0 10px 24px -12px rgb(9 9 11 / 10%);
+    --tala-shadow-detail: 0 1px 2px rgb(9 9 11 / 3%);
     --tala-shadow-overlay: 0 2px 4px rgb(9 9 11 / 6%), 0 12px 28px -6px rgb(9 9 11 / 16%), 0 24px 56px -16px rgb(9 9 11 / 18%);
     --tala-shadow-seated: 0 0 #0000;
     --tala-inset-well: inset 0 1px 2px rgb(9 9 11 / 7%);
     --tala-rim-inset: inset 0 1px 0 var(--tala-rim);
+
     --tala-focus: #a16207;
+    --tala-material-raised: var(--tala-rim-inset), var(--tala-shadow-surface);
+    --tala-material-detail: var(--tala-rim-inset), var(--tala-shadow-detail);
+    --tala-material-overlay: var(--tala-rim-inset), var(--tala-shadow-overlay);
     --tala-font-body: 'Inter Variable', Inter, system-ui, sans-serif;
     --tala-font-heading: 'Inter Variable', Inter, system-ui, sans-serif;
     --tala-weight-emphasis: 600;
@@ -50,11 +55,13 @@
     --tala-edge-strong: rgb(255 255 255 / 22%);
     --tala-rim: rgb(255 255 255 / 13%);
     --tala-selected-edge: color-mix(in srgb, var(--primary-400, #6acb7c) 35%, transparent);
-    --tala-shadow-surface: 0 1px 2px rgb(0 0 0 / 45%), 0 8px 20px -10px rgb(0 0 0 / 55%);
+    --tala-shadow-surface: 0 1px 2px rgb(0 0 0 / 25%), 0 8px 20px -10px rgb(0 0 0 / 30%);
+    --tala-shadow-detail: 0 1px 2px rgb(0 0 0 / 15%);
     --tala-shadow-overlay: 0 2px 6px rgb(0 0 0 / 40%), 0 20px 48px -12px rgb(0 0 0 / 70%);
     --tala-shadow-seated: 0 0 #0000;
     --tala-inset-well: inset 0 1px 2px rgb(0 0 0 / 35%);
     --tala-rim-inset: inset 0 1px 0 var(--tala-rim);
+
     --tala-focus: #facc15;
     --tala-link: #93c5fd;
     --tala-brand-tint: #244b38;
@@ -237,11 +244,13 @@
         --tala-edge-strong: rgb(255 255 255 / 22%);
         --tala-rim: rgb(255 255 255 / 13%);
         --tala-selected-edge: color-mix(in srgb, var(--primary-400, #6acb7c) 35%, transparent);
-        --tala-shadow-surface: 0 1px 2px rgb(0 0 0 / 45%), 0 8px 20px -10px rgb(0 0 0 / 55%);
+        --tala-shadow-surface: 0 1px 2px rgb(0 0 0 / 25%), 0 8px 20px -10px rgb(0 0 0 / 30%);
+        --tala-shadow-detail: 0 1px 2px rgb(0 0 0 / 15%);
         --tala-shadow-overlay: 0 2px 6px rgb(0 0 0 / 40%), 0 20px 48px -12px rgb(0 0 0 / 70%);
         --tala-shadow-seated: 0 0 #0000;
         --tala-inset-well: inset 0 1px 2px rgb(0 0 0 / 35%);
         --tala-rim-inset: inset 0 1px 0 var(--tala-rim);
+
         --tala-focus: #facc15;
         --tala-link: #93c5fd;
         --tala-brand-tint: #244b38;
@@ -288,6 +297,7 @@
     --tala-control-gloss: linear-gradient(180deg, rgb(255 255 255 / 16%), rgb(255 255 255 / 2%) 50%, rgb(0 0 0 / 2%));
     --tala-control-depth: inset 0 1px 0 rgb(255 255 255 / 55%), inset 0 -1px 0 rgb(0 0 0 / 7%), 0 1px 1px rgb(0 0 0 / 4.5%);
     --tala-control-pressed: inset 0 1px 2px rgb(0 0 0 / 14%);
+    --tala-material-selected: inset 0 0 0 1px var(--tala-selected-edge), var(--tala-control-pressed);
     --tala-navigation-depth: inset 0 1px 0 rgb(255 255 255 / 28%), inset 0 -1px 0 rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 6%);
 }
 :root.dark, :root[data-bs-theme='dark'] {
@@ -304,11 +314,15 @@
 }
 @media (forced-colors: none) {
     .tala-task-surface {
-        box-shadow: var(--tala-rim-inset), var(--tala-shadow-surface);
+        box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tala-material-raised);
     }
 
     .tala-access-card {
-        box-shadow: var(--tala-rim-inset), var(--tala-shadow-surface);
+        box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tala-material-raised);
+    }
+
+    .tala-task-surface .tala-task-surface {
+        box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tala-material-detail);
     }
 
     :is(.fi-btn, .fi-icon-btn:not(.fi-section-collapse-btn, .fi-ta-reorder-handle, .fi-sidebar-group-collapse-btn, .fi-sidebar-open-collapse-sidebar-btn, .fi-sidebar-close-collapse-sidebar-btn, .fi-layout-sidebar-toggle-btn, .fi-ta-record-collapse-btn, .fi-input-wrp .fi-icon-btn, .fi-modal-close-btn, .fi-no-notification-close-btn), .fi-user-menu-trigger,
@@ -331,6 +345,12 @@
         .error-actions .primary-action):is(:disabled, .fi-disabled, [aria-disabled='true']) {
         background-image: none;
         box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    }
+}
+@media (forced-colors: none) {
+    /* A white lens lowers danger-label contrast; the shared edge supplies its highlight. */
+    :is(.fi-btn.fi-color-danger:not(.fi-outlined), .btn-danger) {
+        background-image: none;
     }
 }
 @media screen and (forced-colors: none) {
@@ -422,7 +442,7 @@
     --bs-dropdown-link-hover-color: var(--tala-text);
     --bs-dropdown-link-hover-bg: var(--tala-surface-sunken);
     --bs-dropdown-border-color: var(--tala-edge-strong);
-    box-shadow: var(--tala-shadow-overlay);
+    box-shadow: var(--tala-material-overlay);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
@@ -431,5 +451,5 @@
 }
 
 @media print {
-    .tala-access-card, .tala-task-surface { box-shadow: none; }
+    .tala-access-card, .tala-task-surface { box-shadow: none !important; }
 }

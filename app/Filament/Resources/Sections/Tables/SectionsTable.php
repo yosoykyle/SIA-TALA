@@ -57,11 +57,11 @@ class SectionsTable
             ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([
-                ViewAction::make()->color('gray')->url(fn (Section $record, Component $livewire): string => SectionResource::getUrl('view', [
+                ViewAction::make()->label('Details')->button()->color('gray')->url(fn (Section $record, Component $livewire): string => SectionResource::getUrl('view', [
                     'record' => $record,
                     ...($livewire instanceof ListSections && $livewire->termId !== null ? ['termId' => $livewire->termId] : []),
                 ])),
-                EditAction::make()->color('gray')->url(fn (Section $record, Component $livewire): string => SectionResource::getUrl('edit', [
+                EditAction::make()->button()->color('gray')->url(fn (Section $record, Component $livewire): string => SectionResource::getUrl('edit', [
                     'record' => $record,
                     ...($livewire instanceof ListSections && $livewire->termId !== null ? ['termId' => $livewire->termId] : []),
                 ])),
