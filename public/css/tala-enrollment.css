@@ -974,7 +974,7 @@
     .dark .student-overview-enrollment h2,.dark .student-overview-enrollment>p,.dark .tala-handoff-current :is(.tala-handoff-phase,p){color:var(--tala-on-brand-tint);}
     .dark .student-overview-task-icon,.dark .student-context-icon,.dark .student-profile-section-heading>.fi-icon,.dark .student-record-heading>.fi-icon,.dark .accounting-awaiting-icon,.dark .accounting-fee-plan-approval h2>.fi-icon,.dark .tala-workflow-handoff .tala-handoff-icon{color:var(--tala-brand-foreground);}
 }
-.student-study-summary{display:flex;flex-wrap:wrap;align-items:flex-start;gap:1.25rem;padding:1.5rem;color:var(--tala-text);min-inline-size:0;}
+.student-study-summary{display:flex;flex-wrap:wrap;align-items:center;gap:1.25rem;padding:1.5rem;color:var(--tala-text);min-inline-size:0;}
 .student-context-icon{flex:none;inline-size:3rem;block-size:3rem;padding:.625rem;border-radius:50%;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));color:var(--tala-brand-strong);}
 .dark .student-context-icon,.dark .student-record-heading>.fi-icon{color:var(--tala-brand-foreground);}
 .dark .student-academic-source>summary{color:var(--primary-200);}
@@ -995,6 +995,14 @@
 .student-academic-current .student-academic-rail{padding:0;border:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;}
 .student-academic-current .student-academic-rail>section{padding:1.5rem;}
 .student-academic-current .student-academic-rail section+section{border-block-start:1px solid var(--tala-edge);}
+.student-record-term{border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);overflow:hidden;min-inline-size:0;}
+.student-record-term>h2{margin:0;padding:1rem 1.25rem;background:var(--tala-surface-sunken);border-block-end:1px solid var(--tala-edge);font-size:1.0625rem;}
+.student-record-term>.student-academic-note{margin:0;padding:.875rem 1.25rem 0;}
+.student-record-term .student-academic-table-wrap{padding:0 1.25rem 1rem;}
+.student-record-term .student-academic-table thead th{background:transparent;padding:.75rem .5rem;font-weight:600;}
+.student-record-term .student-academic-table :is(th,td){padding:.875rem .5rem;}
+.student-record-term .student-academic-table tr>*:first-child{padding-inline-start:0;}
+.student-record-term .student-academic-table tr>*:last-child{padding-inline-end:0;}
 .student-academic-current .student-academic-rail h2{font-size:1.25rem;}
 .student-academic-current .student-academic-rail .fi-btn{margin-block-start:1rem;white-space:normal;}
 .student-cor-record .cor-identity{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:1.25rem;}
