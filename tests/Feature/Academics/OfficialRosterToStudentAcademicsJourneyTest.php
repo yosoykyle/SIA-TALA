@@ -1231,7 +1231,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->releaseResult($secondYear, '2.00');
 
         Filament::setCurrentPanel(Filament::getPanel('student'));
-        Livewire::actingAs($firstYear['student']->user)->test(StudentAcademics::class, ['academicView' => 'record'])
+        Livewire::actingAs($firstYear['student']->user)->withQueryParams(['view' => 'record'])->test(StudentAcademics::class)
             ->assertSee('Second Year · Second Semester')
             ->assertSee('First Year · First Semester');
     }
