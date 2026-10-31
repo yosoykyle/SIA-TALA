@@ -2796,6 +2796,23 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame(0, RegistrationAdjustmentFinanceConfirmation::query()->where('enrollment_id', $official->id)->count());
     }
 
+    public function test_enrollment_payment_shows_not_yet_posted_until_accounting_posts_an_amount(): void
+    {
+        $student = StudentProfile::factory()->create();
+        $student->user?->assignRole('student');
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        Enrollment::factory()->create([
+            'student_profile_id' => $student->id,
+            'term_id' => $term->id,
+            'credential_user_id' => $student->user_id,
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+        Livewire::actingAs($student->user)->test(StudentEnrollmentPage::class)
+            ->assertSee('Enrollment payment')
+            ->assertSee('Not yet posted');
+    }
+
     /** @return array{Enrollment, CourseEnrollment, Section, RegistrationProposalVersion, User} */
     private function noCostReviewFixture(): array
     {

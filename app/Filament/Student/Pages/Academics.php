@@ -103,6 +103,24 @@ class Academics extends Page
             });
     }
 
+    protected function yearLevelLabel(?string $yearLevel): ?string
+    {
+        if ($yearLevel === null || $yearLevel === '') {
+            return null;
+        }
+
+        if (! ctype_digit($yearLevel)) {
+            return $yearLevel;
+        }
+
+        return match ($yearLevel) {
+            '1' => 'First Year',
+            '2' => 'Second Year',
+            '3' => 'Third Year',
+            default => 'Year '.$yearLevel,
+        };
+    }
+
     /** @return array<string, mixed> */
     protected function getViewData(): array
     {
@@ -126,6 +144,12 @@ class Academics extends Page
         $termAverages = $terms->mapWithKeys(fn ($term): array => [
             $term->id => app(TermWeightedAverageProjection::class)->forStudentAndTerm($student, $term),
         ]);
+        $termYearLevels = $terms->mapWithKeys(fn ($term): array => [
+            $term->id => $this->yearLevelLabel($results->where('term.id', $term->id)
+                ->map(fn (array $result): ?string => $result['course_enrollment']->termOffering?->curriculumEntry?->year_level)
+                ->filter()
+                ->first()),
+        ]);
 
         $completion = app(CompletionReadinessProjection::class)->forStudent($student);
         $curriculum = app(CurriculumEvaluation::class)->forStudent($student);
@@ -140,6 +164,7 @@ class Academics extends Page
             'currentAverage' => $currentEnrollment !== null ? $termAverages->get($currentEnrollment->term_id) : null,
             'historicalResults' => $historicalResults,
             'termAverages' => $termAverages,
+            'termYearLevels' => $termYearLevels,
             'examinationPeriod' => app(ExaminationPeriodProjection::class)->forTerm($examinationTerm),
             'cumulative' => app(CumulativeGwaProjection::class)->forStudent($student),
             'curriculum' => $curriculum,

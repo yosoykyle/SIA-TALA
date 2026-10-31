@@ -1207,6 +1207,35 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertSame('1.25', $roster->rows()->sole()->final_result);
     }
 
+    #[Test]
+    public function academic_record_headings_show_the_year_level_each_semester_was_taken_in(): void
+    {
+        $firstTerm = Term::factory()->create([
+            'label' => 'First Semester',
+            'starts_on' => '2026-06-01',
+            'ends_on' => '2026-10-31',
+            'state' => Term::StateActive,
+        ]);
+        $firstYear = $this->fixture(term: $firstTerm);
+        $firstYear['student']->user?->assignRole('student');
+        $this->releaseResult($firstYear, '2.25');
+
+        $secondTerm = Term::factory()->create([
+            'label' => 'Second Semester',
+            'starts_on' => '2027-01-04',
+            'ends_on' => '2027-05-31',
+            'state' => Term::StateActive,
+        ]);
+        $secondYear = $this->fixture(term: $secondTerm, student: $firstYear['student']);
+        $secondYear['course_enrollment']->termOffering->curriculumEntry->update(['year_level' => 'Second Year']);
+        $this->releaseResult($secondYear, '2.00');
+
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+        Livewire::actingAs($firstYear['student']->user)->withQueryParams(['view' => 'record'])->test(StudentAcademics::class)
+            ->assertSee('Second Year · Second Semester')
+            ->assertSee('First Year · First Semester');
+    }
+
     /** @return array{registrar: User, faculty: User, student: StudentProfile, term: Term, section: Section, course_enrollment: CourseEnrollment} */
     private function fixture(
         ?Term $term = null,
