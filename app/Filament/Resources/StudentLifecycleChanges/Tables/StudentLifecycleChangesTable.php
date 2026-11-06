@@ -2,14 +2,17 @@
 
 namespace App\Filament\Resources\StudentLifecycleChanges\Tables;
 
+use App\Actions\StudentLifecycle\Exceptions\StudentLifecycleRuleViolation;
 use App\Actions\StudentLifecycle\StudentLifecycleService;
+use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
+use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
+use App\Models\Term;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
-use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Notifications\Notification;
+use Filament\Support\Exceptions\Halt;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -22,9 +25,13 @@ class StudentLifecycleChangesTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
-                'studentProfile.program',
-                'term',
+                'studentProfile.program', 'studentProfile.user',
+                'applicationAudit.causer',
+                'term.academicYear', 'targetProgram', 'targetCurriculumVersion', 'expectedReturnTerm.academicYear',
             ]))
+            ->view('filament.admin.student-lifecycle.workspace')
+            ->deferFilters(false)
+            ->paginationPageOptions([10, 25, 50])
             ->columns([
                 TextColumn::make('studentProfile.student_number')
                     ->label('Student')
@@ -65,43 +72,44 @@ class StudentLifecycleChangesTable
                     )
                     ->sortable(),
                 TextColumn::make('type')
-                    ->label('Recorded Change')
+                    ->label('Change')
                     ->badge()
+                    ->description(fn (StudentLifecycleChange $record): ?string => $record->term?->label)
                     ->formatStateUsing(fn (string $state): string => StudentLifecycleChange::typeOptions()[$state] ?? str($state)->headline()->toString()),
-                TextColumn::make('term.label')->label('Term')->sortable(),
-                TextColumn::make('effective_on')->date()->sortable(),
+                TextColumn::make('effective_on')->label('Effective date')->date()->sortable(),
                 TextColumn::make('state')
-                    ->label('Recorded Result')
+                    ->label('Status')
                     ->badge()
                     ->sortable()
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        StudentLifecycleChange::StateRecordedApproved => 'Approved — pending application',
-                        StudentLifecycleChange::StateApplied => 'Applied to official record',
-                        StudentLifecycleChange::StateCancelled => 'Cancelled before application',
-                        default => str($state)->headline()->toString(),
-                    }),
-                TextColumn::make('next_step')
-                    ->label('Next Step')
-                    ->state(fn (StudentLifecycleChange $record): string => match ($record->state) {
-                        StudentLifecycleChange::StateRecordedApproved => 'Registrar must apply or cancel the approved action.',
-                        StudentLifecycleChange::StateApplied => 'Recorded result is complete. No Registrar action is required.',
-                        StudentLifecycleChange::StateCancelled => 'No action is pending because this decision was cancelled.',
-                        default => 'Review this lifecycle record.',
+                    ->formatStateUsing(fn (StudentLifecycleChange $record): string => $record->statusLabel())
+                    ->description(fn (StudentLifecycleChange $record): string => match ($record->state) {
+                        StudentLifecycleChange::StateRecordedApproved => 'Registrar · Apply when due or cancel',
+                        StudentLifecycleChange::StateApplied => 'Registrar · Recorded; see effective date',
+                        StudentLifecycleChange::StateCancelled => 'Registrar · No application pending',
+                        default => 'Registrar · Review record',
                     })
-                    ->description('Responsible office: Registrar Office')
-                    ->wrap(),
-                TextColumn::make('authority')
-                    ->label('Decision Authority')
-                    ->searchable()
                     ->wrap(),
             ])
-            ->defaultSort('effective_on', 'desc')
+            ->searchable(['authority'])
+            ->searchPlaceholder('Student name or number')
+            ->emptyStateHeading(fn (ListStudentLifecycleChanges $livewire): string => $livewire->hasTableSearch() || $livewire->getTable()->isFiltered()
+                ? 'No matching student changes'
+                : 'No student changes recorded')
+            ->emptyStateDescription(fn (ListStudentLifecycleChanges $livewire): string => $livewire->hasTableSearch() || $livewire->getTable()->isFiltered()
+                ? 'Clear the search or adjust the filters to find a recorded change.'
+                : 'The Registrar records approved student changes here. Recorded changes remain available for review.')
+            ->recordUrl(fn (StudentLifecycleChange $record, ListStudentLifecycleChanges $livewire): string => StudentLifecycleChangeResource::getUrl('index', ['change' => $record->id, 'oversightTermId' => $livewire->oversightTermId]))
+            ->defaultSort(fn (Builder $query): Builder => $query->orderByDesc('effective_on')->orderByDesc('id'))
             ->filters([
-                SelectFilter::make('type')->options(StudentLifecycleChange::typeOptions()),
-                SelectFilter::make('term')->relationship('term', 'label')->searchable()->preload(),
-                SelectFilter::make('state')->options([
-                    StudentLifecycleChange::StateRecordedApproved => 'Recorded Approved',
-                    StudentLifecycleChange::StateApplied => 'Applied',
+                SelectFilter::make('type')->label('Change')->placeholder('All changes')->options(StudentLifecycleChange::typeOptions()),
+                SelectFilter::make('term')->label('Term')->placeholder('All terms')
+                    ->options(fn (): array => Term::query()->with('academicYear')->orderByDesc('starts_on')->get()
+                        ->mapWithKeys(fn ($term): array => [$term->id => collect([$term->label, $term->academicYear?->label])->filter()->implode(' · ')])->all())
+                    ->searchable()->preload()
+                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null, fn (Builder $query, mixed $term): Builder => $query->where('term_id', $term))),
+                SelectFilter::make('state')->label('Status')->options([
+                    StudentLifecycleChange::StateRecordedApproved => 'Approval awaiting application',
+                    StudentLifecycleChange::StateApplied => 'Recorded',
                     StudentLifecycleChange::StateCancelled => 'Cancelled',
                 ]),
                 Filter::make('effective_date')->schema([
@@ -111,28 +119,38 @@ class StudentLifecycleChangesTable
                     ->when($data['until'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('effective_on', '<=', $date))),
             ])
             ->recordActions([
-                ActionGroup::make([
-                    ViewAction::make(),
-                    Action::make('apply')
-                        ->label('Apply Program Shift')
-                        ->authorize('apply')
-                        ->requiresConfirmation()
-                        ->visible(fn (StudentLifecycleChange $record): bool => $record->type === StudentLifecycleChange::TypeProgramShift && $record->state === StudentLifecycleChange::StateRecordedApproved)
-                        ->action(function (StudentLifecycleChange $record): void {
-                            app(StudentLifecycleService::class)->applyProgramShift($record, auth()->user());
-                            Notification::make()->title('Program Shift applied')->success()->send();
-                        }),
-                    Action::make('cancel')
-                        ->label('Cancel Program Shift')
-                        ->authorize('cancel')
-                        ->color('danger')
-                        ->requiresConfirmation()
-                        ->visible(fn (StudentLifecycleChange $record): bool => $record->type === StudentLifecycleChange::TypeProgramShift && $record->state === StudentLifecycleChange::StateRecordedApproved)
-                        ->action(function (StudentLifecycleChange $record): void {
-                            app(StudentLifecycleService::class)->cancelProgramShift($record, auth()->user());
-                            Notification::make()->title('Program Shift cancelled')->success()->send();
-                        }),
-                ])->tooltip('Lifecycle actions'),
+                Action::make('apply')
+                    ->label(fn (StudentLifecycleChange $record): string => $record->type === StudentLifecycleChange::TypeProgramShift ? 'Apply program shift' : 'Apply change')
+                    ->authorize('apply')
+                    ->requiresConfirmation()
+                    ->disabled(fn (StudentLifecycleChange $record): bool => $record->isFutureDated() || ($record->type === StudentLifecycleChange::TypeProgramShift && (! $record->targetProgram || ! $record->targetCurriculumVersion)))
+                    ->modalDescription(fn (StudentLifecycleChange $record): string => 'Apply '.(StudentLifecycleChange::typeOptions()[$record->type] ?? 'this change').' effective '.$record->effective_on->format('M j, Y').'. Current sources are rechecked. Released grades and earlier records remain. No automatic refund, enrollment or class placement is created.')
+                    ->visible(fn (StudentLifecycleChange $record): bool => $record->isPendingChange())
+                    ->action(function (StudentLifecycleChange $record): void {
+                        try {
+                            app(StudentLifecycleService::class)->apply($record, auth()->user());
+                        } catch (StudentLifecycleRuleViolation $exception) {
+                            Notification::make()->title('Change was not applied')->body($exception->getMessage())->danger()->send();
+                            throw new Halt;
+                        }
+                        Notification::make()->title('Change applied')->success()->send();
+                    }),
+                Action::make('cancel')
+                    ->label(fn (StudentLifecycleChange $record): string => $record->type === StudentLifecycleChange::TypeProgramShift ? 'Cancel program shift' : 'Cancel approval')
+                    ->authorize('cancel')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalDescription('Cancel this recorded approval before application. Current student facts and earlier records stay unchanged.')
+                    ->visible(fn (StudentLifecycleChange $record): bool => $record->isPendingChange())
+                    ->action(function (StudentLifecycleChange $record): void {
+                        try {
+                            app(StudentLifecycleService::class)->cancel($record, auth()->user());
+                        } catch (StudentLifecycleRuleViolation $exception) {
+                            Notification::make()->title('Change was not cancelled')->body($exception->getMessage())->danger()->send();
+                            throw new Halt;
+                        }
+                        Notification::make()->title('Approval cancelled')->success()->send();
+                    }),
             ])
             ->stackedOnMobile();
     }

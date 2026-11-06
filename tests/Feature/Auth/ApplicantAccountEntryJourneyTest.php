@@ -37,12 +37,15 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('Create Applicant account')
-            ->assertSee(route('filament.admin.auth.login'), false)
+            ->assertSee(route('public.sign-in'), false)
             ->assertDontSee('Staff Workspace')
             ->assertDontSee('Student Hub')
             ->assertSee(route('public.apply'), false)
             ->assertSee('id="privacyModal"', false)
             ->assertSee('id="accessibilityModal"', false);
+
+        $this->get(route('public.sign-in'))->assertOk()
+            ->assertSee('New applicant? Apply for admission');
     }
 
     public function test_open_entry_exposes_project_approved_support_and_single_page_public_information(): void
@@ -68,10 +71,13 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             ->assertViewHas('admissionState', 'Missing')
             ->assertSee('Ask Admissions about applying')
             ->assertSee('Existing accounts can still sign in.')
-            ->assertSee(route('filament.admin.auth.login'), false)
+            ->assertSee(route('public.sign-in'), false)
             ->assertDontSee('Staff Workspace')
             ->assertDontSee('Student Hub')
             ->assertDontSee(route('filament.applicant.auth.register'), false);
+
+        $this->get(route('public.sign-in'))->assertOk()
+            ->assertDontSee('New applicant? Apply for admission');
     }
 
     public function test_ready_entry_creates_only_one_minimal_unverified_applicant_account(): void

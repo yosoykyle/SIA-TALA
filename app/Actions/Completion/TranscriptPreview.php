@@ -5,7 +5,6 @@ namespace App\Actions\Completion;
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Models\CourseSpecification;
 use App\Models\DegreeConferral;
-use App\Models\OfficialOutputPaymentClearance;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
@@ -22,29 +21,33 @@ class TranscriptPreview
     {
         $request->loadMissing(['studentProfile.program', 'studentProfile.curriculumVersion', 'studentProfile.applicantIntake', 'conferral']);
         $student = $request->studentProfile;
-        $conferral = $request->conferral;
-        if (! $student instanceof StudentProfile || ! $conferral instanceof DegreeConferral) {
-            throw ValidationException::withMessages(['transcript' => 'TOR preview requires a valid Student and conferral source.']);
+        $signatory = app(TranscriptSignatory::class)->forRequest($request);
+        if (! $student instanceof StudentProfile) {
+            throw ValidationException::withMessages(['transcript' => 'Registrar must verify the Student record before preparing this TOR.']);
+        }
+        $conferral = DegreeConferral::query()->where('student_profile_id', $student->id)->whereNotNull('active_scope_key')->first();
+        $restrictions = app(OfficialOutputRestrictionService::class)->activeFor($student);
+        if ($restrictions->isNotEmpty()) {
+            throw ValidationException::withMessages(['transcript' => 'Accounting must resolve the official TOR restriction: '.$restrictions->pluck('reason')->implode('; ')]);
         }
 
         $missing = collect([
             'Student legal identity' => filled($student->first_name) && filled($student->last_name),
             'Student number' => filled($student->student_number),
-            'Program' => filled($student->program->name),
-            'Curriculum Version' => filled($student->curriculumVersion->version_code),
+            'Program' => filled($student->program?->name),
+            'Curriculum Version' => filled($student->curriculumVersion?->version_code),
             'External request' => filled($request->external_request_reference),
-            'Accounting clearance' => in_array($request->clearanceState(), [OfficialOutputPaymentClearance::StateCleared, OfficialOutputPaymentClearance::StateNotRequired], true),
-            'TALA Standard TOR version' => $request->template_version === TranscriptRequest::TemplateServitechV1,
-            'Registrar signatory' => filled($request->signatory_name) && filled($request->signatory_title),
-            'Institution identity' => filled(config('institution.name')),
-            'Institution address/contact' => filled(config('institution.address')) && (filled(config('institution.public.support_phone')) || filled(config('institution.public.support_facebook_url'))),
-            'Seal input' => ($request->seal_input_type === TranscriptRequest::SealImage && filled($request->seal_path) && filled($request->seal_checksum))
+            'TALA Standard TOR version' => in_array($request->template_version, [TranscriptRequest::TemplateServitechV1, TranscriptRequest::TemplateServitechV2], true),
+            'name and title printed on the TOR' => filled($signatory['name']) && filled($signatory['title']),
+            'System administrator · school identity' => filled(config('institution.name')),
+            'System administrator · school address/contact' => filled(config('institution.address')) && (filled(config('institution.public.support_phone')) || filled(config('institution.public.support_facebook_url'))),
+            'Seal input' => $request->template_version === TranscriptRequest::TemplateServitechV2 || ($request->seal_input_type === TranscriptRequest::SealImage && filled($request->seal_path) && filled($request->seal_checksum))
                 || ($request->seal_input_type === TranscriptRequest::SealPlacementInstruction && filled($request->seal_placement_instruction)),
         ])->filter(fn (bool $ready): bool => ! $ready)->keys()->values();
 
         if ($missing->isNotEmpty()) {
             throw ValidationException::withMessages([
-                'transcript' => 'TOR preview is unavailable. Registrar must resolve: '.$missing->implode(', ').'.',
+                'transcript' => 'TOR preview is unavailable. Resolve these sources: '.$missing->implode(', ').'.',
             ]);
         }
 
@@ -151,6 +154,10 @@ class TranscriptPreview
             ->map(fn ($rows): array => $rows->values()->all())
             ->all();
 
+        if ($academicYears === []) {
+            throw ValidationException::withMessages(['transcript' => 'Registrar must verify released official academic history before preparing this TOR.']);
+        }
+
         $content = [
             'request' => $request,
             'student' => [
@@ -159,8 +166,8 @@ class TranscriptPreview
                 'program' => $student->program->name,
                 'curriculum_version' => $student->curriculumVersion->version_code,
                 'admission_basis' => $student->applicant_intake_id ? 'Servitech admission record' : 'Prior institutional record',
-                'admission_date' => $student->applicantIntake?->created_at?->toDateString(),
-                'prior_school_or_credit' => $student->prior_identifier,
+                'admission_date' => $request->template_version === TranscriptRequest::TemplateServitechV2 ? null : $student->applicantIntake?->created_at?->toDateString(),
+                'prior_school_or_credit' => $request->template_version === TranscriptRequest::TemplateServitechV2 ? null : $student->prior_identifier,
             ],
             'institution' => [
                 'name' => config('institution.name'),
@@ -169,15 +176,17 @@ class TranscriptPreview
                 'facebook_url' => config('institution.public.support_facebook_url'),
             ],
             'academic_years' => $academicYears,
-            'conferral' => [
+            'conferral' => $conferral instanceof DegreeConferral ? [
+                'id' => $conferral->id,
                 'degree' => $conferral->degree_name,
-                'conferred_on' => $conferral->conferred_on->toDateString(),
+                'conferred_on' => $conferral->conferred_on?->toDateString(),
                 'honor' => $conferral->honor_text,
-            ],
+            ] : [],
             'certification' => [
                 'statement' => 'This transcript reproduces the released academic record held by Servitech Institute Asia.',
-                'signatory_name' => $request->signatory_name,
-                'signatory_title' => $request->signatory_title,
+                'signatory_name' => $signatory['name'],
+                'signatory_title' => $signatory['title'],
+                'signatory_source_version' => $signatory['source_version'],
                 'seal_input_type' => $request->seal_input_type,
                 'seal_placement_instruction' => $request->seal_placement_instruction,
             ],
@@ -185,7 +194,7 @@ class TranscriptPreview
         ];
         $fingerprintSource = [
             'request_source_fingerprint' => $request->source_fingerprint,
-            'clearance_id' => $request->currentClearance()?->id,
+            'output_restriction_source' => app(OfficialOutputRestrictionService::class)->fingerprintFor($student),
             'academic_event_ids' => collect($academicYears)->flatten(1)->pluck('attempt_event_id')->filter()->values()->all(),
             'content' => collect($content)->except(['request', 'status'])->all(),
         ];

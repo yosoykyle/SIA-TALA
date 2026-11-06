@@ -22,6 +22,14 @@ class SystemSetting extends Model
     public const ValueTypeText = 'text';
 
     public const SettingDefinitions = [
+        'transcript_signatory' => [
+            'label' => 'Printed TOR signatory', 'category' => 'Official outputs',
+            'description' => 'School-confirmed name and title printed on new TOR documents.',
+            'value_type' => self::ValueTypeJson, 'editable' => false, 'default' => null,
+            'helper' => 'Set by the Registrar inside Completion & TOR. Issued versions retain their original certification.',
+            'operational_status' => self::OperationalStatusOperational, 'owner' => 'Registrar',
+            'runtime_consumer' => 'TranscriptSignatory supplies versioned certification inputs to new TOR previews and issuance.',
+        ],
         'maintenance_mode' => [
             'label' => 'Maintenance Mode',
             'category' => 'Maintenance',

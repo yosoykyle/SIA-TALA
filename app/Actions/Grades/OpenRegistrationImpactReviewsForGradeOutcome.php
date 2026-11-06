@@ -31,8 +31,7 @@ class OpenRegistrationImpactReviewsForGradeOutcome
         Enrollment::query()
             ->where('credential_user_id', $credentialUserId)
             ->whereIn('canonical_outcome', [Enrollment::OutcomeInProgress, Enrollment::OutcomeOfficiallyEnrolled])
-            ->whereHas('term', fn ($query) => $query->where('starts_on', '>', $sourceTermStart))
-            ->whereKeyNot($sourceEnrollment->id)
+            ->whereHas('term', fn ($query) => $query->where('ends_on', '>=', $sourceTermStart))
             ->get()
             ->filter(fn (Enrollment $registrationCase): bool => $this->impactQuery->affects($registrationCase, $row))
             ->each(fn (Enrollment $registrationCase): RegistrationCaseEvent => $this->impactReviews->open(

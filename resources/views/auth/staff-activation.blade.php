@@ -1,5 +1,5 @@
 <x-tala-access-layout title="Activate Staff access" heading-id="activation-heading">
-            <h1 id="activation-heading" class="text-2xl font-semibold">Activate Staff access</h1>
+            <h1 id="activation-heading">Activate Staff access</h1>
 
             @if (! $isUsable)
                 <div class="tala-access-alert mt-5" role="alert">
@@ -20,7 +20,7 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('staff-invitations.accept', $invitation) }}" class="mt-6 space-y-5">
+                <form method="POST" action="{{ route('staff-invitations.accept', $invitation) }}" class="tala-access-form">
                     @csrf
                     <input type="hidden" name="token" value="{{ $token }}">
                     <div>

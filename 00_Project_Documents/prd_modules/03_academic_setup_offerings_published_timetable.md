@@ -12,6 +12,8 @@ The successful outcome is one immutable published timetable version that every a
 
 Clinic 3 does not own admissions, student-level study planning, enrollment, seat reservation, finance, COR, grades, internship operations, or Student activation.
 
+Term Cohorts supply planning groups and class associations. Optional individual student-section membership belongs to PRD 04's term Enrollment; it is explicitly recorded and must not be inferred from the classes serving a planning group. Existing forecast/confirmed counts retain their planning meaning. Membership administration alone never changes solver groups, class assignments or the published timetable.
+
 ## 2. Evidence and Institutional Boundary
 
 This contract is governed by:

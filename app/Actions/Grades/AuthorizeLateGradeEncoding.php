@@ -35,7 +35,6 @@ class AuthorizeLateGradeEncoding
         }
 
         $reason = trim($reason);
-
         if ($reason === '') {
             throw new RuntimeException('Late grade authorization reason is required.');
         }
@@ -45,6 +44,12 @@ class AuthorizeLateGradeEncoding
         }
 
         return DB::transaction(function () use ($roster, $period, $opensAt, $closesAt, $reason, $approver): LateGradeAuthorization {
+            $roster = GradeRoster::query()->lockForUpdate()->findOrFail($roster->id);
+
+            if (! in_array($roster->state, [GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted], true)) {
+                throw new RuntimeException('The roster has changed. Reload it before recording late Grade Entry authority.');
+            }
+
             $activeOverlap = LateGradeAuthorization::query()
                 ->where('grade_roster_id', $roster->id)
                 ->where('term_offering_id', $roster->term_offering_id)

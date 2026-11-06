@@ -256,7 +256,7 @@ class AcademicApprovals extends Page
                 'title' => 'Grades & Progress',
                 'description' => 'Recorded grade rosters and released results.',
                 'action' => 'Grade Review',
-                'url' => GradeRosterResource::getUrl('index', ['oversightTermId' => $this->termId]),
+                'url' => GradeRosterResource::getUrl('index', ['oversightTermId' => $this->termId, ...($this->termId !== null ? ['filters' => ['term' => ['value' => $this->termId]]] : [])]),
                 'icon' => 'heroicon-o-document-check',
                 'available' => GradeRosterResource::canAccess(),
             ],

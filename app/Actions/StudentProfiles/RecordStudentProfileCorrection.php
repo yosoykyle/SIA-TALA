@@ -19,7 +19,6 @@ class RecordStudentProfileCorrection
         StudentProfile $studentProfile,
         array $facts,
         User $actor,
-        string $authorityReference,
         string $reason,
         ?CarbonImmutable $effectiveAt = null,
     ): StudentProfileEvent {
@@ -47,13 +46,13 @@ class RecordStudentProfileCorrection
             'entry_term_id' => ['sometimes', 'nullable', 'integer', 'exists:terms,id'],
         ])->validate();
 
-        if ($validated === [] || blank($authorityReference) || blank($reason)) {
+        if ($validated === [] || blank($reason)) {
             throw ValidationException::withMessages([
-                'correction' => 'A factual change, authority reference, and reason are required.',
+                'correction' => 'A factual change and reason are required.',
             ]);
         }
 
-        return DB::transaction(function () use ($studentProfile, $validated, $actor, $authorityReference, $reason, $effectiveAt, $allowed): StudentProfileEvent {
+        return DB::transaction(function () use ($studentProfile, $validated, $actor, $reason, $effectiveAt, $allowed): StudentProfileEvent {
             $locked = StudentProfile::query()->whereKey($studentProfile->id)->lockForUpdate()->firstOrFail();
             $before = Arr::only($locked->getAttributes(), $allowed);
             $locked->fill($validated);
@@ -70,7 +69,6 @@ class RecordStudentProfileCorrection
                 'student_profile_id' => $locked->id,
                 'event_type' => StudentProfileEvent::TypeCorrection,
                 'source' => 'RegistrarCorrection',
-                'authority_reference' => $authorityReference,
                 'reason' => $reason,
                 'before_snapshot' => $before,
                 'after_snapshot' => $after,

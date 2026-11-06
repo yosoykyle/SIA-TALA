@@ -72,11 +72,11 @@ class Issue59ApplicantClientFeedbackTest extends TestCase
             ->assertDontSee('js/tala-wizard.js', false);
     }
 
-    public function test_staff_account_entry_keeps_tala_attribution(): void
+    public function test_staff_account_entry_omits_tala_attribution(): void
     {
         $this->get('/admin/login')
             ->assertOk()
-            ->assertSee('Powered by TALA')
+            ->assertDontSee('Powered by TALA')
             ->assertDontSee('js/tala-wizard.js', false);
     }
 

@@ -28,7 +28,7 @@ final class HoldEvaluationServiceTest extends TestCase
     {
         parent::setUp();
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
         foreach ([User::StaffRoleRegistrar, User::StaffRoleAccounting, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
@@ -133,7 +133,8 @@ final class HoldEvaluationServiceTest extends TestCase
         $this->assertTrue($accounting->can('waive', $financial));
         $this->assertFalse($accounting->can('waive', $documentary));
         $this->assertTrue($registrar->can('waive', $documentary));
-        $this->assertTrue($academicHead->can('waive', $prerequisite));
+        $this->assertFalse($academicHead->can('waive', $prerequisite));
+        $this->assertFalse($academicHead->can('resolve', $prerequisite));
 
         try {
             app(WaiveHold::class)->execute($documentary, $accounting, 'Accounting Director', 'Attempted unrelated waiver.');
@@ -142,9 +143,15 @@ final class HoldEvaluationServiceTest extends TestCase
             $this->assertSame(Hold::StatusActive, $documentary->fresh()->status);
         }
 
-        app(WaiveHold::class)->execute($prerequisite, $academicHead, 'Academic Head', 'Approved prerequisite exception.');
+        try {
+            app(WaiveHold::class)->execute($prerequisite, $academicHead, 'Academic Head', 'Attempted exception.');
+            $this->fail('Academic Head must remain read-only.');
+        } catch (AuthorizationException) {
+            $this->assertSame(Hold::StatusActive, $prerequisite->fresh()->status);
+        }
+        app(WaiveHold::class)->execute($prerequisite, $registrar, 'Registrar', 'Approved prerequisite exception.');
         $this->assertSame(Hold::StatusWaived, $prerequisite->fresh()->status);
-        $this->assertSame($academicHead->id, $prerequisite->fresh()->waived_by);
+        $this->assertSame($registrar->id, $prerequisite->fresh()->waived_by);
     }
 
     #[Test]

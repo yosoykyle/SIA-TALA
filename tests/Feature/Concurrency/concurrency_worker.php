@@ -143,7 +143,6 @@ try {
             $event = app(ReleaseIncCompletion::class)->execute(
                 $submission,
                 $registrar,
-                $payload['authority_reference'] ?? 'AUTH-CONC-INC'
             );
 
             return [
@@ -192,8 +191,6 @@ try {
             $amendment = app(AmendIncDeadline::class)->execute(
                 $incomplete,
                 $newDeadline,
-                $payload['authority_reference'] ?? 'AUTH-AMEND-CONC',
-                Carbon::parse($payload['authority_date'] ?? '2026-06-01'),
                 $payload['reason'] ?? 'Intervening deadline amendment during concurrency test',
                 $registrar,
             );

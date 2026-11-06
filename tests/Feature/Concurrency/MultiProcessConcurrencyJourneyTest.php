@@ -8,16 +8,13 @@ use App\Actions\Completion\CompletionReadinessProjection;
 use App\Actions\Completion\IssueTranscript;
 use App\Actions\Completion\RecordDegreeConferral;
 use App\Actions\Completion\RecordTranscriptRequest;
-use App\Actions\Completion\SubmitGraduationApplication;
 use App\Actions\Completion\TranscriptLifecycleProjection;
 use App\Actions\Completion\VoidTranscript;
 use App\Actions\Enrollment\PrepareRegistrationProposal;
 use App\Actions\Enrollment\StartRegistrationCase;
-use App\Actions\Finance\RecordOfficialOutputPaymentClearance;
 use App\Actions\Grades\AmendIncDeadline;
 use App\Actions\Grades\ManageTeachingAssignment;
 use App\Actions\Grades\PostAndReleaseGradeRoster;
-use App\Actions\Grades\SaveFinalGradeResult;
 use App\Actions\Grades\SubmitGradeRoster;
 use App\Actions\Grades\SubmitIncCompletion;
 use App\Actions\Grades\SynchronizeOfficialGradeRoster;
@@ -68,10 +65,13 @@ use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\Process\Process;
+use Tests\InteractsWithGradeRosterDrafts;
 use Tests\TestCase;
 
 class MultiProcessConcurrencyJourneyTest extends TestCase
 {
+    use InteractsWithGradeRosterDrafts;
+
     /**
      * @var array<callable>
      */
@@ -426,7 +426,9 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $this->registerCleanup(fn () => $roster->forceDelete());
         $row = $roster->rows->sole();
 
-        app(SaveFinalGradeResult::class)->execute($row, 'INC', 'Complete project portfolio', $faculty);
+        $this->saveGradeRosterDraft($row->roster, $faculty, [
+            $row->id => ['final_result' => 'INC', 'inc_completion_note' => 'Complete project portfolio'],
+        ]);
         $submitted = app(SubmitGradeRoster::class)->execute($roster, $faculty);
         $released = app(PostAndReleaseGradeRoster::class)->execute($submitted, $registrar, 'RELEASE-CONC-INC-001');
 
@@ -597,7 +599,9 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $this->registerCleanup(fn () => $roster->forceDelete());
         $row = $roster->rows->sole();
 
-        app(SaveFinalGradeResult::class)->execute($row, 'INC', 'Complete project portfolio', $faculty);
+        $this->saveGradeRosterDraft($row->roster, $faculty, [
+            $row->id => ['final_result' => 'INC', 'inc_completion_note' => 'Complete project portfolio'],
+        ]);
         $submitted = app(SubmitGradeRoster::class)->execute($roster, $faculty);
         $released = app(PostAndReleaseGradeRoster::class)->execute($submitted, $registrar, 'RELEASE-CONC-INC-STALE-001');
 
@@ -617,8 +621,6 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $amendment = app(AmendIncDeadline::class)->execute(
             $incompleteEvent,
             $amendedDeadline,
-            'REG-AMEND-INTERVENING-001',
-            now(),
             'Board-authorized extension granted before completion release',
             $registrar,
         );
@@ -724,9 +726,7 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         ]);
 
         $projection = app(CompletionReadinessProjection::class)->forStudent($student);
-        $this->assertSame(CompletionReadinessProjection::EligibleToApply, $projection['state']);
-
-        $application = app(SubmitGraduationApplication::class)->execute($student, $student->user);
+        $this->assertSame(CompletionReadinessProjection::ReadyForConferral, $projection['state']);
 
         $this->registerCleanup(function () use ($student, $authority, $entry, $specification) {
             $user = $student->user;
@@ -816,7 +816,7 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $registrar = $this->createStaffUser(User::StaffRoleRegistrar);
         $accounting = $this->createStaffUser(User::StaffRoleAccounting);
 
-        [$student, $conferral, $request] = $this->createClearedTranscriptRequest($registrar, $accounting);
+        [$student, $conferral, $request] = $this->createPreparedTranscriptRequest($registrar, $accounting);
 
         // Run competing concurrent processes attempting to issue the same TOR request
         $results = $this->runConcurrentWorkers(
@@ -884,7 +884,7 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $registrar = $this->createStaffUser(User::StaffRoleRegistrar);
         $accounting = $this->createStaffUser(User::StaffRoleAccounting);
 
-        [$student, $conferral, $request] = $this->createClearedTranscriptRequest($registrar, $accounting);
+        [$student, $conferral, $request] = $this->createPreparedTranscriptRequest($registrar, $accounting);
         $snapshot = $this->issueTranscriptSnapshot($request, $registrar);
 
         $this->assertSame(TranscriptSnapshot::StatusIssued, $snapshot->status);
@@ -951,7 +951,7 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $registrar = $this->createStaffUser(User::StaffRoleRegistrar);
         $accounting = $this->createStaffUser(User::StaffRoleAccounting);
 
-        [$student, $conferral, $request] = $this->createClearedTranscriptRequest($registrar, $accounting);
+        [$student, $conferral, $request] = $this->createPreparedTranscriptRequest($registrar, $accounting);
         $snapshotV1 = $this->issueTranscriptSnapshot($request, $registrar);
         $voidEvent = $this->voidTranscriptSnapshot($snapshotV1, $registrar);
 
@@ -1023,7 +1023,7 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $registrar = $this->createStaffUser(User::StaffRoleRegistrar);
         $accounting = $this->createStaffUser(User::StaffRoleAccounting);
 
-        [$student, $conferral, $request] = $this->createClearedTranscriptRequest($registrar, $accounting);
+        [$student, $conferral, $request] = $this->createPreparedTranscriptRequest($registrar, $accounting);
         $snapshot = $this->issueTranscriptSnapshot($request, $registrar);
 
         // Run competing concurrent processes attempting to supersede the issued snapshot for the student
@@ -1082,7 +1082,7 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         $registrar = $this->createStaffUser(User::StaffRoleRegistrar);
         $accounting = $this->createStaffUser(User::StaffRoleAccounting);
 
-        [$student, $conferral, $request] = $this->createClearedTranscriptRequest($registrar, $accounting);
+        [$student, $conferral, $request] = $this->createPreparedTranscriptRequest($registrar, $accounting);
         $snapshotV1 = $this->issueTranscriptSnapshot($request, $registrar);
 
         // Snapshot V1 is currently ISSUED (not yet voided).
@@ -1276,7 +1276,7 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         ];
     }
 
-    private function createClearedTranscriptRequest(User $registrar, User $accounting): array
+    private function createPreparedTranscriptRequest(User $registrar, User $accounting): array
     {
         $student = StudentProfile::factory()->create([
             'student_number' => 'SIA-CONC-'.uniqid(),
@@ -1310,8 +1310,6 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
             'numeric_grade' => '2.00',
         ]);
 
-        $application = app(SubmitGraduationApplication::class)->execute($student, $student->user);
-
         $conferral = app(RecordDegreeConferral::class)->execute(
             $student,
             $registrar,
@@ -1331,13 +1329,7 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
             sealPlacementInstruction: 'Affix dry seal.',
         );
 
-        $clearance = app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $request,
-            $accounting,
-            OfficialOutputPaymentClearance::StateNotRequired,
-            'AUTH-CLR-CONC-'.uniqid(),
-            'Clearance exempt',
-        );
+        $this->assertSame(0, $request->clearances()->count(), 'Ordinary TOR issuance does not require a request-specific Accounting clearance.');
 
         $this->registerCleanup(function () use ($request, $student, $authority, $entry, $specification) {
             $user = $student->user;

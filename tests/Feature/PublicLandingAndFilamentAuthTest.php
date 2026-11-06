@@ -38,7 +38,7 @@ class PublicLandingAndFilamentAuthTest extends TestCase
             ->assertSee('class="tala-skip-link__icon"', false)
             ->assertSee('<main id="main-content" tabindex="-1">', false)
             ->assertSee(route('public.apply'), false)
-            ->assertSee(route('filament.admin.auth.login'), false)
+            ->assertSee(route('public.sign-in'), false)
             ->assertSee(asset('landing/vendor/bootstrap/css/bootstrap.min.css'), false)
             ->assertSee(asset('landing/css/styles.css'), false)
             ->assertSee('tala-public-icon', false)

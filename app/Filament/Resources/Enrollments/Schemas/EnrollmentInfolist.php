@@ -356,7 +356,7 @@ class EnrollmentInfolist
     /** @return array<string, mixed> */
     private static function official(Enrollment $case): array
     {
-        $case->loadMissing(['credentialUser', 'term', 'studentProfile.program', 'currentCorVersion']);
+        $case->loadMissing(['credentialUser', 'term.academicYear', 'studentProfile.program', 'studentProfile.user', 'currentCorVersion', 'corVersions']);
         $subjects = $case->courseEnrollments()->where('is_current', true)->where('status', CourseEnrollment::StatusActive)
             ->with(['proposalItem', 'termOffering.curriculumEntry.courseSpecification.course', 'section'])->get();
 
@@ -467,7 +467,7 @@ class EnrollmentInfolist
     /** @return array<string, mixed> */
     private static function history(Enrollment $case): array
     {
-        $case->loadMissing(['credentialUser', 'term', 'admissionApplication.program', 'studentProfile.program',
+        $case->loadMissing(['credentialUser', 'term.academicYear', 'admissionApplication.program', 'studentProfile.program', 'studentProfile.user',
             'proposalVersions.timetableVersion', 'proposalVersions.curriculumVersion', 'proposalVersions.confirmation', 'proposalVersions.items.section',
             'termAccount.assessments.lines', 'registrationEvents.actor', 'corVersions']);
 

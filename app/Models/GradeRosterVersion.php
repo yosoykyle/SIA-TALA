@@ -42,6 +42,24 @@ class GradeRosterVersion extends Model
         return $this->belongsTo(ClassOfferingTeachingAssignment::class, 'teaching_assignment_id');
     }
 
+    /** @return BelongsTo<User, $this> */
+    public function submitter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function releaser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'released_by');
+    }
+
     /** @return HasMany<GradeRosterVersionRow, $this> */
     public function rows(): HasMany
     {

@@ -14,14 +14,16 @@ class VoidTranscript
 {
     public function __construct(private readonly TranscriptLifecycleProjection $lifecycle) {}
 
-    public function execute(TranscriptSnapshot $snapshot, User $actor, string $authorityReference, string $reason): TranscriptIssuanceEvent
+    public function execute(TranscriptSnapshot $snapshot, User $actor, ?string $authorityReference, string $reason): TranscriptIssuanceEvent
     {
-        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
+        if (! $actor->canAuthenticate() || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff may void an issued TOR.');
         }
-        if (blank(trim($authorityReference)) || blank(trim($reason))) {
-            throw ValidationException::withMessages(['void' => 'Void authority and reason are required.']);
+        if (blank(trim($reason))) {
+            throw ValidationException::withMessages(['void' => 'Void reason is required.']);
         }
+
+        $authorityReference = filled($authorityReference) ? trim($authorityReference) : null;
 
         return DB::transaction(function () use ($snapshot, $actor, $authorityReference, $reason): TranscriptIssuanceEvent {
             $request = TranscriptRequest::query()
@@ -34,7 +36,7 @@ class VoidTranscript
                 ->where('type', TranscriptIssuanceEvent::TypeVoided)
                 ->first();
             if ($existing instanceof TranscriptIssuanceEvent) {
-                if ($existing->authority_reference === trim($authorityReference)
+                if ($existing->authority_reference === $authorityReference
                     && $existing->reason === trim($reason)) {
                     return $existing;
                 }
@@ -55,7 +57,7 @@ class VoidTranscript
                 'type' => TranscriptIssuanceEvent::TypeVoided,
                 'reference' => "{$locked->reference}-VOID",
                 'reason' => trim($reason),
-                'authority_reference' => trim($authorityReference),
+                'authority_reference' => $authorityReference,
                 'recorded_by' => $actor->id,
                 'recorded_at' => now(),
             ]);

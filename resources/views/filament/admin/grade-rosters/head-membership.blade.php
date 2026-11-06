@@ -7,8 +7,7 @@
         <span>{{ $roster->teachingAssignment?->faculty?->getFilamentName() ?? $roster->faculty?->getFilamentName() ?? 'Faculty not recorded' }} · Designated faculty</span>
         <span class="academic-roster-state">{{ match ($roster->state) { \App\Models\GradeRoster::StateDraft => 'Draft', \App\Models\GradeRoster::StateSubmitted => 'Submitted', \App\Models\GradeRoster::StateReturned => 'Returned', \App\Models\GradeRoster::StateReleased => 'Posted and released', default => 'Late / not submitted' } }}</span>
     </div>
-    <section class="faculty-membership-list tala-task-surface" aria-labelledby="head-membership-heading">
-        <h2 id="head-membership-heading">Current class members</h2>
+    <x-supporting-details summary="Current class members" inset :open="$roster->state !== \App\Models\GradeRoster::StateReleased || ! $isCurrent">
         @if (! $isCurrent)
             <div role="status"><h3>Class membership needs an update</h3><p>Ask the Registrar to refresh this class roster, then reload. The saved roster no longer matches current official enrollment.</p></div>
         @elseif ($count === 0)
@@ -29,16 +28,7 @@
             </table>
             <p class="faculty-membership-note">Current official class membership. @if ($roster->state === \App\Models\GradeRoster::StateReleased)Released results are available below.@else Draft grades are not shown here.@endif</p>
         @endif
-    </section>
-    <details class="faculty-membership-source">
-        <summary>Roster source details</summary>
-        <dl>
-            <div><dt>Assignment approval</dt><dd>{{ $roster->teachingAssignment?->authority_reference ?? 'Not recorded' }}</dd></div>
-            <div><dt>Roster version</dt><dd>{{ $roster->current_version_number }}</dd></div>
-            <div><dt>Membership reference</dt><dd>{{ $roster->membership_signature ?? 'Not recorded' }}</dd></div>
-            @if ($roster->submitted_at)<div><dt>Submitted</dt><dd>{{ \App\Support\DisplayDateTime::format($roster->submitted_at) }}</dd></div>@endif
-            @if ($roster->released_at)<div><dt>Released</dt><dd>{{ \App\Support\DisplayDateTime::format($roster->released_at) }}</dd></div>@endif
-            @if (filled($roster->return_reason))<div><dt>Return reason</dt><dd>{{ $roster->return_reason }}</dd></div>@endif
-        </dl>
-    </details>
+        @if (filled($roster->return_reason))<p>{{ $roster->return_reason }}</p>@endif
+    </x-supporting-details>
+
 </div>

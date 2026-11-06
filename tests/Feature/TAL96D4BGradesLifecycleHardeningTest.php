@@ -4,11 +4,10 @@ namespace Tests\Feature;
 
 use App\Actions\Graduation\GraduationEligibilitySnapshotService;
 use App\Filament\Pages\FacultyGradeRoster;
-use App\Filament\Resources\GradeRosters\Pages\ListGradeRosters;
+use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\GraduationReviewBatches\Pages\ViewGraduationReviewBatch;
 use App\Filament\Resources\GraduationReviewBatches\RelationManagers\MembersRelationManager;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
-use App\Filament\Resources\StudentLifecycleChanges\Pages\ViewStudentLifecycleChange;
 use App\Filament\Student\Pages\GradesView;
 use App\Filament\Student\Pages\LifecycleView;
 use App\Models\GradeRoster;
@@ -24,6 +23,7 @@ use App\Models\TermOffering;
 use App\Models\User;
 use Database\Seeders\TAL96D4BAcceptanceStateSeeder;
 use Filament\Actions\ActionGroup;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -56,21 +56,18 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $this->actingAs($faculty);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(FacultyGradeRoster::class)->assertSee('No assigned roster');
-        $facultySource = file_get_contents((new \ReflectionClass(FacultyGradeRoster::class))->getFileName());
-        $this->assertStringContainsString("Repeater::make('rows')", $facultySource);
-        $this->assertStringContainsString("->columns(['default' => 1, 'md' => 3])", $facultySource);
-        $this->assertStringContainsString('SaveGradeRosterDraft', $facultySource);
+        Livewire::test(FacultyGradeRoster::class)->assertSee('No assigned classes yet')
+            ->assertActionHidden('submit')->assertDontSee('Save draft');
 
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $this->actingAs($registrar);
-        $registrarPage = Livewire::test(ListGradeRosters::class)->instance();
-        $this->assertInstanceOf(ListGradeRosters::class, $registrarPage);
+        $registrarPage = Livewire::withQueryParams(['viewTab' => 'grade-review'])->test(GradesAndCompletion::class)->instance();
+        $this->assertInstanceOf(GradesAndCompletion::class, $registrarPage);
         $registrarTable = $registrarPage->getTable();
 
-        $this->assertTrue($registrarTable->isStackedOnMobile());
         $this->assertCount(1, $registrarTable->getRecordActions());
-        $this->assertInstanceOf(ActionGroup::class, $registrarTable->getRecordActions()[0]);
+        $this->assertSame('reviewRoster', $registrarTable->getRecordActions()[0]->getName());
+        $this->assertSame([], array_intersect(['return', 'postAndRelease', 'authorizeLateGradeEncoding'], array_keys($registrarTable->getFlatRecordActions())));
     }
 
     #[Test]
@@ -78,6 +75,7 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $change = StudentLifecycleChange::factory()->create([
+            'state' => StudentLifecycleChange::StateApplied,
             'impact_snapshot' => [
                 'course_enrollment_ids' => [11, 12],
                 'binding_ids' => [21],
@@ -91,18 +89,20 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $lifecyclePage = Livewire::test(ListStudentLifecycleChanges::class)->instance();
-        $this->assertInstanceOf(ListStudentLifecycleChanges::class, $lifecyclePage);
-        $table = $lifecyclePage->getTable();
+        $page = Livewire::withQueryParams(['change' => $change->id])->test(ListStudentLifecycleChanges::class)
+            ->assertCanSeeTableRecords([$change])
+            ->assertActionHidden(TestAction::make('apply')->table($change))
+            ->assertActionHidden(TestAction::make('cancel')->table($change));
+        $table = $page->instance()->getTable();
         $this->assertTrue($table->isStackedOnMobile());
-        $this->assertCount(1, $table->getRecordActions());
-        $this->assertInstanceOf(ActionGroup::class, $table->getRecordActions()[0]);
 
-        Livewire::test(ViewStudentLifecycleChange::class, ['record' => $change->getRouteKey()])
+        $page
+            ->assertSet('selectedChangeId', $change->id)
             ->assertSee('Affected subjects')
-            ->assertSee('Student status after action')
-            ->assertSee('COR availability after action')
+            ->assertSee('Student status after this change')
+            ->assertSee('Registration certificate after recording')
             ->assertDontSee('"course_enrollment_ids"', false);
+        Livewire::withQueryParams([]);
     }
 
     #[Test]

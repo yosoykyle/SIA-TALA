@@ -2191,7 +2191,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $registrar->assignRole(User::StaffRoleRegistrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->assertSee('Registration certificate source unavailable')->assertSee('Registrar and the system administrator must investigate')
+            ->assertSee('Registration certificate source unavailable')->assertSee('Registrar and the system administrator must review the recorded source.')
             ->assertDontSee('PRIVATE-BANK-REFERENCE')->assertDontSee('Inspect private evidence')->assertDontSee('Payment evidence and review targets');
     }
 

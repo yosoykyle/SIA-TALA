@@ -20,20 +20,23 @@ class PostAndReleaseGradeRoster
         private readonly OpenRegistrationImpactReviewsForGradeOutcome $impactReviews,
         private readonly AcademicRecordNotificationService $notifications,
         private readonly CompletionReadinessProjection $completionReadiness,
+        private readonly GradeRosterSourceGuard $sources,
     ) {}
 
-    public function execute(GradeRoster $roster, User $actor, string $authority = 'Registrar Post & Release'): GradeRoster
+    public function execute(GradeRoster $roster, User $actor, string $authority = 'Registrar Post & Release', ?int $expectedVersion = null): GradeRoster
     {
         if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff can post and release grade rosters.');
         }
 
-        return DB::transaction(function () use ($roster, $actor, $authority): GradeRoster {
+        return DB::transaction(function () use ($roster, $actor, $authority, $expectedVersion): GradeRoster {
             $locked = GradeRoster::query()->with([
                 'rows' => fn ($query) => $query->where('is_current_membership', true)->with('courseEnrollment.enrollment'),
                 'teachingAssignment',
                 'termOffering.term',
             ])->lockForUpdate()->findOrFail($roster->id);
+
+            $this->sources->assertExpectedVersion($locked, $expectedVersion);
 
             if ($locked->state === GradeRoster::StateReleased) {
                 return $locked->fresh(['rows.outcomeEvents']);
@@ -42,6 +45,8 @@ class PostAndReleaseGradeRoster
             if ($locked->state !== GradeRoster::StateSubmitted) {
                 throw new RuntimeException('Only submitted rosters can be posted and released.');
             }
+
+            $this->sources->assertCurrent($locked, $actor);
 
             $version = GradeRosterVersion::query()->with('rows')->where('grade_roster_id', $locked->id)
                 ->where('version_number', $locked->current_version_number)->lockForUpdate()->firstOrFail();

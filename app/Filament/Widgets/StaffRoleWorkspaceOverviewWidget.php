@@ -92,7 +92,7 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
 
         return [
             $this->stat('1. Fee Plans', 'Publish fixed charges', 'Review the exact Program-and-Term plan before assessment.', FeePlanResource::getUrl('index')),
-            $this->stat('2. Student Accounts', "{$activeAssessments} active", 'Work Accounts, Payment Exceptions, and TOR Clearance in one contextual destination.', EnrollmentResource::getUrl('index')),
+            $this->stat('2. Student Accounts', "{$activeAssessments} active", 'Review student accounts and payment exceptions. Use TOR restrictions only when an official-output restriction exists.', EnrollmentResource::getUrl('index')),
         ];
     }
 

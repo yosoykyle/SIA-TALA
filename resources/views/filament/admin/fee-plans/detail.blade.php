@@ -109,7 +109,7 @@
                     @if ($version->id === $plan->id)
                         <span>Version {{ $version->version }} · {{ $version->state }} · This version</span>
                     @else
-                        <a href="{{ \App\Filament\Resources\FeePlans\FeePlanResource::getUrl('view', ['record' => $version]) }}">Version {{ $version->version }} · {{ $version->state }}</a>
+                        <a {{ \Filament\Support\generate_href_html(\App\Filament\Resources\FeePlans\FeePlanResource::getUrl('view', ['record' => $version])) }}>Version {{ $version->version }} · {{ $version->state }}</a>
                     @endif
                 </li>
             @endforeach

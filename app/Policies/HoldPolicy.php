@@ -31,7 +31,7 @@ class HoldPolicy
      */
     public function create(User $user): bool
     {
-        return $this->viewAny($user);
+        return false;
     }
 
     /**

@@ -7,11 +7,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Support\Carbon;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * @property Carbon $effective_on
- * @property Carbon $decided_on
+ * @property ?Carbon $decided_on
+ * @property ?string $authority
  * @property-read Term $term
  */
 class StudentLifecycleChange extends Model
@@ -67,6 +70,66 @@ class StudentLifecycleChange extends Model
             self::TypeProgramShift => 'Program Shift',
             self::TypeCompletion => 'Completion',
         ];
+    }
+
+    public function applicationAvailableOn(): Carbon
+    {
+        $effective = $this->effective_on->copy();
+
+        return $this->term?->starts_on?->greaterThan($effective)
+            ? $this->term->starts_on->copy()
+            : $effective;
+    }
+
+    public function isPendingProgramShift(): bool
+    {
+        return $this->type === self::TypeProgramShift && $this->state === self::StateRecordedApproved;
+    }
+
+    public function isPendingChange(): bool
+    {
+        return $this->state === self::StateRecordedApproved
+            && in_array($this->type, [self::TypeWithdrawal, self::TypeLeaveOfAbsence, self::TypeTransferOut, self::TypeReactivation, self::TypeInactivation, self::TypeProgramShift], true);
+    }
+
+    public function isFutureDated(): bool
+    {
+        return $this->applicationAvailableOn()->toDateString() > today('Asia/Manila')->toDateString();
+    }
+
+    public function applicationAudit(): MorphOne
+    {
+        return $this->morphOne(Activity::class, 'subject')
+            ->where('log_name', 'student_lifecycle')->where('event', 'student_lifecycle_change_applied');
+    }
+
+    public function statusLabel(): string
+    {
+        if ($this->isPendingChange()) {
+            if ($this->type === self::TypeProgramShift && (! $this->targetProgram || ! $this->targetCurriculumVersion)) {
+                return 'Needs source review';
+            }
+
+            return $this->isFutureDated() ? 'Waiting for effective date' : 'Ready to apply';
+        }
+
+        return match ($this->state) {
+            self::StateCancelled => 'Cancelled',
+            self::StateApplied => $this->type === self::TypeLeaveOfAbsence && $this->effective_on->isFuture() ? 'Future leave recorded' : 'Recorded',
+            self::StateRecordedApproved => 'Approval recorded',
+            default => str($this->state)->headline()->toString(),
+        };
+    }
+
+    public function statusColor(): string
+    {
+        return match (true) {
+            $this->state === self::StateCancelled => 'gray',
+            $this->isPendingProgramShift() && (! $this->targetProgram || ! $this->targetCurriculumVersion) => 'warning',
+            $this->isPendingChange() && $this->isFutureDated() => 'warning',
+            $this->isPendingChange(), $this->state === self::StateApplied => 'success',
+            default => 'gray',
+        };
     }
 
     /** @return BelongsTo<StudentProfile, $this> */

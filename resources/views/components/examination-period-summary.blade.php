@@ -1,7 +1,7 @@
-@props(['projection'])
+@props(['projection', 'collapsible' => false])
 
-<x-filament::section icon="heroicon-o-calendar-days">
-    <x-slot name="heading">Examination Period</x-slot>
+<x-filament::section icon="heroicon-o-calendar-days" :collapsible="$collapsible" :collapsed="$collapsible">
+    <x-slot name="heading">Examination dates · information only</x-slot>
     <x-slot name="description">
         {{ $projection['term'] ?? 'Exact Term unavailable' }} · Source: Term Calendar Package{{ $projection['package_version'] ? ' v'.$projection['package_version'] : '' }}
     </x-slot>

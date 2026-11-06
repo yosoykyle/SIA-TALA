@@ -166,6 +166,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         FilamentTimezone::set((string) config('app.display_timezone', 'Asia/Manila'));
+        config(['livewire.navigate.progress_bar_color' => 'var(--tala-brand-foreground)']);
         Action::configureUsing(TalaPanelTheme::configureActionModal(...));
         FilamentView::registerRenderHook(
             TablesRenderHook::CONTENT_BEFORE,

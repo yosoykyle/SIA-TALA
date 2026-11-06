@@ -7,9 +7,7 @@ use App\Actions\Academics\RecordAcademicDecision;
 use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Actions\Enrollment\RegistrationSelectionBasisResolver;
 use App\Actions\StudentLifecycle\StudentLifecycleService;
-use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
-use App\Filament\Resources\StudentLifecycleChanges\Pages\ViewStudentLifecycleChange;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Student\Pages\LifecycleView;
@@ -109,7 +107,7 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(GradesAndCompletion::class)->assertActionVisible('recordAcademicDecision');
+        Livewire::test(ViewStudentProfile::class, ['record' => $profile->id])->assertActionVisible('recordAcademicDecision');
         app(RecordAcademicDecision::class)->execute(
             $profile, null, AcademicDecision::EffectAdvisingRequired, 'ACADEMIC-BOARD-D6B', today(),
             'Released results require an individually advised proposal.', today(), null, $registrar,
@@ -152,20 +150,22 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ListStudentLifecycleChanges::class)
-            ->assertSee('Santos, Maya')
+        Livewire::withQueryParams(['change' => $change->id])->test(ListStudentLifecycleChanges::class)
+            ->assertSee('Maya Santos')
             ->assertSee('TAL-D6B-001')
             ->assertSee('Diploma in Test Operations')
-            ->assertSee('Applied to official record')
-            ->assertSee('Responsible office: Registrar Office');
-
-        Livewire::test(ViewStudentLifecycleChange::class, ['record' => $change->getRouteKey()])
-            ->assertSee('Recorded Result')
-            ->assertSee('Decision Date')
-            ->assertSee('Recorded By')
+            ->assertSee('Recorded')
+            ->assertCanSeeTableRecords([$change])
+            ->assertActionHidden(TestAction::make('apply')->table($change))
+            ->assertActionHidden(TestAction::make('cancel')->table($change))
+            ->assertSet('selectedChangeId', $change->id)
+            ->assertSee('Original change record')
+            ->assertSee('Approval date')
+            ->assertSee('Recorded by')
             ->assertSee($registrar->name)
-            ->assertSee('Registrar Office')
+            ->assertSee('Registrar-approved withdrawal')
             ->assertSee('PRIVATE-D6B-REF');
+        Livewire::withQueryParams([]);
     }
 
     #[Test]

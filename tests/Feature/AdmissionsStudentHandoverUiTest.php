@@ -76,36 +76,23 @@ class AdmissionsStudentHandoverUiTest extends TestCase
     }
 
     #[Test]
-    public function accounting_can_record_financial_holds_on_student_profile(): void
+    public function generic_hold_creation_is_unavailable_and_existing_financial_holds_remain_resolvable(): void
     {
         $accounting = User::factory()->create(['status' => User::StatusActive]);
         $accounting->assignRole(User::StaffRoleAccounting);
-
-        $student = User::factory()->create(['status' => User::StatusActive]);
-        $studentProfile = StudentProfile::factory()->create(['user_id' => $student->id]);
-
+        $studentProfile = StudentProfile::factory()->create();
+        $hold = Hold::factory()->create(['student_profile_id' => $studentProfile->id,
+            'hold_type' => Hold::TypeFinancial, 'status' => Hold::StatusActive]);
         $this->actingAs($accounting);
-
+        $this->assertFalse($accounting->can('create', Hold::class));
         Livewire::test(HoldsRelationManager::class, [
-            'ownerRecord' => $studentProfile,
-            'pageClass' => ViewStudentProfile::class,
-        ])
-            ->callTableAction('createHold', data: [
-                'hold_type' => Hold::TypeFinancial,
-                'blocking_level' => Hold::BlockingEnrollment,
-                'reason' => 'Unpaid tuition balance',
-                'effective_at' => now()->toDateTimeString(),
-                'resolution_requirement' => 'Coordinate with Accounting to clear the verified balance.',
-            ])
+            'ownerRecord' => $studentProfile, 'pageClass' => ViewStudentProfile::class,
+        ])->assertTableActionDoesNotExist('createHold')->assertTableActionDoesNotExist('waive')
+            ->assertCanSeeTableRecords([$hold])
+            ->callTableAction('resolve', $hold, data: ['evidence' => 'Accounting confirmed the balance was settled.'])
             ->assertHasNoTableActionErrors();
-
-        $this->assertDatabaseHas('holds', [
-            'student_profile_id' => $studentProfile->id,
-            'hold_type' => Hold::TypeFinancial,
-            'status' => Hold::StatusActive,
-            'reason' => 'Unpaid tuition balance',
-            'resolution_requirement' => 'Coordinate with Accounting to clear the verified balance.',
-        ]);
+        $this->assertSame(Hold::StatusResolved, $hold->fresh()->status);
+        $this->assertSame($accounting->id, $hold->fresh()->resolved_by);
     }
 
     #[Test]

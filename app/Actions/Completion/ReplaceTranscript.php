@@ -3,6 +3,7 @@
 namespace App\Actions\Completion;
 
 use App\Models\OutputAccessLog;
+use App\Models\StudentProfile;
 use App\Models\TranscriptIssuanceEvent;
 use App\Models\TranscriptRequest;
 use App\Models\TranscriptSnapshot;
@@ -22,23 +23,26 @@ class ReplaceTranscript
     public function execute(
         TranscriptSnapshot $predecessor,
         User $actor,
-        string $authorityReference,
+        ?string $authorityReference,
         string $reason,
         ?string $previewConfirmation = null,
     ): TranscriptSnapshot {
-        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
+        if (! $actor->canAuthenticate() || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff may replace an issued TOR.');
         }
-        if (blank(trim($authorityReference)) || blank(trim($reason))) {
-            throw ValidationException::withMessages(['replacement' => 'Replacement authority and reason are required.']);
+        if (blank(trim($reason))) {
+            throw ValidationException::withMessages(['replacement' => 'Replacement reason is required.']);
         }
+
+        $authorityReference = filled($authorityReference) ? trim($authorityReference) : null;
 
         return DB::transaction(function () use ($predecessor, $actor, $authorityReference, $reason, $previewConfirmation): TranscriptSnapshot {
             $request = TranscriptRequest::query()
-                ->with(['snapshots.events', 'events', 'clearances'])
+                ->with(['snapshots.events', 'events'])
                 ->lockForUpdate()
                 ->findOrFail($predecessor->transcript_request_id);
             $locked = TranscriptSnapshot::query()->with('request')->lockForUpdate()->findOrFail($predecessor->id);
+            StudentProfile::query()->lockForUpdate()->findOrFail($request->student_profile_id);
             $confirmation = $previewConfirmation
                 ?? $this->confirmations->latestFor($actor, $request, TranscriptPreviewConfirmation::OperationReplacement);
             if (! is_string($confirmation)) {
@@ -52,7 +56,7 @@ class ReplaceTranscript
             );
             if ($completed instanceof TranscriptSnapshot) {
                 $replacementEvent = $completed->events()->where('type', TranscriptIssuanceEvent::TypeReplacement)->sole();
-                if ($replacementEvent->authority_reference === trim($authorityReference)
+                if ($replacementEvent->authority_reference === $authorityReference
                     && $replacementEvent->reason === trim($reason)) {
                     return $completed;
                 }
@@ -71,7 +75,7 @@ class ReplaceTranscript
                 ->where('predecessor_event_id', $voidEvent->id)
                 ->where('type', TranscriptIssuanceEvent::TypeReplacement)->first();
             if ($existingEvent?->transcript_snapshot_id) {
-                if ($existingEvent->authority_reference === trim($authorityReference)
+                if ($existingEvent->authority_reference === $authorityReference
                     && $existingEvent->reason === trim($reason)) {
                     return TranscriptSnapshot::query()->findOrFail($existingEvent->transcript_snapshot_id);
                 }
@@ -103,10 +107,10 @@ class ReplaceTranscript
                 'generated_at' => $issuedAt->copy()->timezone('Asia/Manila')->format('F j, Y g:i A').' Asia/Manila',
                 'generation_reference' => 'TALA-GEN-'.strtoupper(substr($content['source_fingerprint'], 0, 16)),
             ];
-            view('outputs.tala-standard-tor', $content)->render();
+            view(TranscriptRequest::outputViewFor($content['request']->template_version), $content)->render();
             $replacement = TranscriptSnapshot::query()->create([
                 'transcript_request_id' => $locked->transcript_request_id,
-                'degree_conferral_id' => $locked->degree_conferral_id,
+                'degree_conferral_id' => data_get($content, 'conferral.id'),
                 'version' => $version,
                 'supersedes_snapshot_id' => $locked->id,
                 'reference' => $reference,
@@ -124,7 +128,7 @@ class ReplaceTranscript
                 'type' => TranscriptIssuanceEvent::TypeReplacement,
                 'reference' => "{$reference}-REPLACEMENT",
                 'reason' => trim($reason),
-                'authority_reference' => trim($authorityReference),
+                'authority_reference' => $authorityReference,
                 'recorded_by' => $actor->id,
                 'recorded_at' => now(),
             ]);

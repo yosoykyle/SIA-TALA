@@ -58,6 +58,7 @@ class SaveGradeRosterDraft
                 throw new RuntimeException('The official roster membership changed. Refresh before saving.');
             }
 
+            $hasChanges = false;
             foreach ($locked->rows as $row) {
                 $submitted = $submittedRows->get($row->id);
                 $result = filled($submitted['final_result'] ?? null)
@@ -67,10 +68,6 @@ class SaveGradeRosterDraft
                     ? trim((string) $submitted['inc_completion_note'])
                     : null;
 
-                if ($result === 'INC' && blank($note)) {
-                    throw new RuntimeException('Each INC result requires a safe completion note.');
-                }
-
                 $note = $result === 'INC' ? $note : null;
                 $changed = $row->final_result !== $result || $row->inc_completion_note !== $note;
 
@@ -79,18 +76,18 @@ class SaveGradeRosterDraft
                 }
 
                 if ($changed) {
+                    $hasChanges = true;
                     $row->update([
                         'final_result' => $result,
                         'inc_completion_note' => $note,
                         'row_revision' => $row->row_revision + 1,
-                        'returned_at' => null,
-                        'returned_by' => null,
-                        'return_reason' => null,
                     ]);
                 }
             }
 
-            $locked->update(['lock_version' => $locked->lock_version + 1]);
+            if ($hasChanges) {
+                $locked->update(['lock_version' => $locked->lock_version + 1]);
+            }
 
             return $locked->fresh(['rows.courseEnrollment.enrollment.studentProfile', 'teachingAssignment']);
         }, attempts: 3);

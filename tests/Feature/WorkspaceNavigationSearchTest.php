@@ -117,7 +117,7 @@ class WorkspaceNavigationSearchTest extends TestCase
     public static function otherStaffWorkspaces(): array
     {
         return [
-            'Accounting' => [User::StaffRoleAccounting, ['Student Accounts', 'Fee Plans'], []],
+            'Accounting' => [User::StaffRoleAccounting, ['Student Accounts', 'Fee Plans', 'TOR restrictions'], []],
             'Faculty' => [User::StaffRoleFaculty, ['My schedule', 'My availability', 'Grade rosters'], []],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight'], []],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit'], ['manage-faqs', 'manage-public-notices']],

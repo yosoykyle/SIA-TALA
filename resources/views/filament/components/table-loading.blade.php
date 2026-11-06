@@ -1,4 +1,1 @@
-<div style="display: none" wire:loading.delay.flex wire:target="{{ implode(',', \Filament\Tables\Table::LOADING_TARGETS) }}" class="tala-table-loading" role="status">
-    <x-filament::loading-indicator class="size-4" />
-    <span>Updating results…</span>
-</div>
+<x-content-progress label="Updating results" wire:loading.delay.short.block wire:target="{{ implode(',', \Filament\Tables\Table::LOADING_TARGETS) }}" />
