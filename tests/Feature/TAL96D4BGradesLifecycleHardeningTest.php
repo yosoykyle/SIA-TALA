@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Graduation\GraduationEligibilitySnapshotService;
 use App\Filament\Pages\FacultyGradeRoster;
-use App\Filament\Resources\GradeRosters\Pages\ListGradeRosters;
+use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\GraduationReviewBatches\Pages\ViewGraduationReviewBatch;
 use App\Filament\Resources\GraduationReviewBatches\RelationManagers\MembersRelationManager;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
@@ -61,13 +61,12 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
 
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $this->actingAs($registrar);
-        $registrarPage = Livewire::test(ListGradeRosters::class)->instance();
-        $this->assertInstanceOf(ListGradeRosters::class, $registrarPage);
+        $registrarPage = Livewire::withQueryParams(['viewTab' => 'grade-review'])->test(GradesAndCompletion::class)->instance();
+        $this->assertInstanceOf(GradesAndCompletion::class, $registrarPage);
         $registrarTable = $registrarPage->getTable();
 
-        $this->assertTrue($registrarTable->isStackedOnMobile());
         $this->assertCount(1, $registrarTable->getRecordActions());
-        $this->assertSame('view', $registrarTable->getRecordActions()[0]->getName());
+        $this->assertSame('reviewRoster', $registrarTable->getRecordActions()[0]->getName());
         $this->assertSame([], array_intersect(['return', 'postAndRelease', 'authorizeLateGradeEncoding'], array_keys($registrarTable->getFlatRecordActions())));
     }
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Filament\Pages\FacultyGradeRoster;
+use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GradeRosters\Pages\ListGradeRosters;
 use App\Models\GradeRoster;
@@ -57,7 +58,7 @@ class TAL72GradesFilamentTest extends TestCase
     public function grade_roster_list_page_renders_for_registrar(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        GradeRoster::factory()->create([
+        $roster = GradeRoster::factory()->create([
             'term_offering_id' => TermOffering::factory(),
             'section_id' => Section::factory(),
             'faculty_user_id' => $this->staff(User::StaffRoleFaculty)->id,
@@ -67,7 +68,10 @@ class TAL72GradesFilamentTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(ListGradeRosters::class)
-            ->assertOk();
+            ->assertRedirect(GradesAndCompletion::getUrl(['viewTab' => 'grade-review']));
+
+        Livewire::withQueryParams(['viewTab' => 'grade-review'])->test(GradesAndCompletion::class)
+            ->assertCanSeeTableRecords([$roster]);
     }
 
     private function staff(string $role): User

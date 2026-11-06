@@ -451,7 +451,7 @@ class TAL89AGradesAcceptanceTest extends TestCase
         $page->filterTable('result_scope', 'all')
             ->assertSee('Record a correction only when')
             ->filterTable('result_scope', 'inc')
-            ->assertSee('No released course results match')
+            ->assertSee('No INC results in this scope')
             ->assertDontSee('Record a correction only when');
     }
 

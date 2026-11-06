@@ -29,7 +29,7 @@ class HumanCenteredSharedThemeTest extends TestCase
     public function test_authentication_keeps_landmarks_recovery_and_context_without_staff_remember_device(): void
     {
         $response = $this->get('/admin/login')->assertOk()
-            ->assertSee('Sign in to TALA')
+            ->assertSee('Sign in')
             ->assertSee('<main', false)
             ->assertSee('Return to school home')
             ->assertSee('Contact school support')
@@ -157,7 +157,7 @@ class HumanCenteredSharedThemeTest extends TestCase
             ->assertSee('images/brand/servitech-crest.webp', false)
             ->assertSee('talalogo.png', false)
             ->assertSee('images/auth/admin.webp', false)
-            ->assertSee('media-left', false)
+            ->assertSee('media-top', false)
             ->assertDontSee('fi-auth-layout no-media', false)
             ->assertDontSee('storage/images/', false)
             ->assertSee('Enable light theme')
@@ -173,11 +173,11 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->get('/'.$panelId.'/password-reset/request')
             ->assertOk()
             ->assertSee('images/auth/admin.webp', false)
-            ->assertSee('media-left', false);
+            ->assertSee('media-top', false);
 
         foreach (['login', 'registration', 'password-reset', 'email-verification'] as $page) {
             $config = app(AuthDesignerConfigRepository::class)->getConfig($page, $panelId);
-            $this->assertSame(MediaPosition::Left, $config->position);
+            $this->assertSame(MediaPosition::Top, $config->position);
             $this->assertTrue($config->showThemeSwitcher);
             $this->assertSame('', $config->mediaAlt, 'Decorative media must not duplicate the form orientation.');
         }

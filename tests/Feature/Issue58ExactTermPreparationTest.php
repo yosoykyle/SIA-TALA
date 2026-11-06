@@ -8,6 +8,7 @@ use App\Actions\Scheduling\FacultyAvailabilityRequestService;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeadline;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
+use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermOverview;
@@ -561,7 +562,8 @@ final class Issue58ExactTermPreparationTest extends TestCase
             ->assertActionHasUrl('returnToOversight', AcademicApprovals::getUrl(['termId' => $term->id]));
         Livewire::withQueryParams([])->actingAs($head)->test(ListGradeRosters::class)
             ->assertCanSeeTableRecords([$matching, $other]);
-        Livewire::actingAs($this->staff())->test(ListGradeRosters::class, ['oversightTermId' => $term->id])
+        Livewire::withQueryParams(['viewTab' => 'grade-review', 'oversightTermId' => $term->id])
+            ->actingAs($this->staff())->test(GradesAndCompletion::class)
             ->assertCanSeeTableRecords([$matching, $other]);
     }
 

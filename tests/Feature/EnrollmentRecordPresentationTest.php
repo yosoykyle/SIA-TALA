@@ -25,7 +25,7 @@ final class EnrollmentRecordPresentationTest extends TestCase
     {
         parent::setUp();
         $this->assertSame('testing', app()->environment());
-        $this->assertSame('test_tala_db_issue78_tests_20261026', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         Role::findOrCreate(User::StaffRoleRegistrar, 'web');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
     }

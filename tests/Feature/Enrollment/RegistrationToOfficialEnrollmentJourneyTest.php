@@ -70,6 +70,7 @@ use App\Models\EnrollmentException;
 use App\Models\EnrollmentGateResult;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\FeePlan;
+use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\OperationalEvent;
@@ -160,7 +161,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
         Livewire::withQueryParams(['queue' => 'official_history', 'view' => 'history'])->actingAs($registrar)
             ->test(RegistrarEnrollment::class, ['record' => $case->id])
-            ->assertActionHasUrl('backToEnrollment', $caseUrl);
+            ->assertSeeHtml('href="'.e($caseUrl).'"')->assertSee('Current enrollment');
 
         foreach (['https://example.invalid', 'payment_proof'] as $invalidQueue) {
             Livewire::withQueryParams(['queue' => $invalidQueue])->actingAs($registrar)
@@ -401,13 +402,13 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $registrarPage = Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $official->id])
             ->assertSee('Officially enrolled')->assertSee('View registration certificate')
-            ->assertSee('1 subject ·')
+            ->assertSee('1 registered subject ·')
             ->assertSee('2:00 PM')->assertDontSee('8:00 AM')
             ->assertSee('CHANGED-AFTER-FINALIZATION')
             ->assertDontSee('Subjects and reserved schedule')->assertDontSee('Five finalization checkpoints');
         $this->assertSame('official', $registrarPage->instance()->focusedRegistrarView());
         Livewire::actingAs($registrar)->withQueryParams(['view' => 'history'])->test(RegistrarEnrollment::class, ['record' => $official->id])
-            ->assertSee('Current certificate')->assertSee('Issued ')->assertSee('Open certificate');
+            ->assertSee('Current certificate')->assertSee('Issued ')->assertSee('View certificate');
     }
 
     public function test_head_official_inspection_separates_pending_sources_and_preserves_current_memberships_and_return_context(): void
@@ -689,8 +690,8 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         } else {
             $page->assertSee('Revise subjects');
         }
-        $page->set('enrollmentView', 'history')->assertSee('Activity')->assertSee('Supporting records')
-            ->assertSee('Subject selections')->assertSee('Current selection')->assertDontSee('Subjects version');
+        $page->set('enrollmentView', 'history')->assertSee('Recorded changes')
+            ->assertSee('Saved subject selections')->assertSee('Current selection')->assertDontSee('Subjects version');
         try {
             app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
             $this->fail('A simpler recovery view must preserve the finalization refusal.');
@@ -849,7 +850,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->assertActionHidden('recordLateReopenAuthority')
             ->set('enrollmentView', 'history')
             ->assertSee('Recorded closure &lt;reason&gt;.', escape: false)
-            ->assertSee('Supporting records')
+            ->assertSee('Recorded changes')
             ->set('enrollmentView', 'overview')
             ->mountAction('reopenCase')->assertActionMounted('reopenCase')
             ->assertMountedActionModalSee(['Reopen enrollment', 'previous seats are not restored.'])
@@ -1213,7 +1214,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         if ($state === 'shortage') {
             $component->assertSee('No available seats.');
         }
-        $component->set('enrollmentView', 'history')->assertSee('Supporting records');
+        $component->set('enrollmentView', 'history')->assertSee('Saved subject selections')->assertSee('Fee assessment history');
         $this->assertSame($assessmentBefore, $assessment->fresh()->getAttributes());
         $this->assertSame($reservationBefore, $case->seatReservations()->orderBy('id')->get()->map->getAttributes()->all());
         $this->assertSame(Enrollment::OutcomeInProgress, $case->fresh()->canonical_outcome);
@@ -1719,17 +1720,51 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
                 $targetProgram = Program::factory()->create();
                 $targetCurriculum = CurriculumVersion::factory()->for($targetProgram)->create(['state' => CurriculumVersion::StateActive]);
                 $creditedEntry = CurriculumEntry::factory()->for($targetCurriculum)->create();
+                $priorTerm = Term::factory()->create([
+                    'state' => Term::StateClosed,
+                    'starts_on' => today()->subMonths(5),
+                    'ends_on' => today()->subMonth(),
+                ]);
+                $sourceEntry = CurriculumEntry::factory()->for($profile->curriculumVersion)->create([
+                    'course_specification_id' => $creditedEntry->course_specification_id,
+                ]);
+                $offering = TermOffering::factory()->for($priorTerm)->for($sourceEntry)->create();
+                $sourceSection = Section::factory()->for($offering, 'termOffering')->create();
+                $priorEnrollment = Enrollment::factory()->for($profile)->for($priorTerm)->create([
+                    'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+                    'status' => 'officially_enrolled',
+                    'officially_enrolled_at' => $priorTerm->starts_on,
+                ]);
+                $sourceCourse = CourseEnrollment::factory()->for($priorEnrollment)->for($offering)->for($sourceSection)->create([
+                    'published_timetable_version_id' => PublishedTimetableVersion::factory()->for($priorTerm),
+                ]);
+                $sourceRoster = GradeRoster::factory()->for($offering)->for($sourceSection)->create([
+                    'state' => GradeRoster::StateReleased,
+                    'released_at' => now(),
+                ]);
+                $sourceRow = GradeRosterRow::factory()->for($sourceCourse)->create([
+                    'grade_roster_id' => $sourceRoster->id,
+                    'current_outcome_code' => '2.00',
+                    'current_outcome_category' => 'Passing',
+                    'released_at' => now(),
+                ]);
+                $sourceResult = GradeOutcomeEvent::factory()->create([
+                    'grade_roster_row_id' => $sourceRow->id,
+                    'result_code' => '2.00',
+                    'new_value' => '2.00',
+                    'released_at' => now(),
+                ]);
                 $data += [
                     'target_program_id' => $targetProgram->id, 'target_curriculum_version_id' => $targetCurriculum->id,
                     'credit_entries' => [[
                         'curriculum_entry_id' => $creditedEntry->id,
-                        'source_course_id' => $creditedEntry->courseSpecification->course_id,
-                        'treatment' => ProgramShiftCreditEntry::TreatmentAccepted, 'numeric_grade' => '2.00',
+                        'source_grade_outcome_event_id' => $sourceResult->id,
+                        'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
                     ]],
                 ];
             }
             $change = app(StudentLifecycleService::class)->record($data, $registrar);
-            $this->assertSame(0, Enrollment::query()->where('student_profile_id', $profile->id)->count());
+            $this->assertSame(0, Enrollment::query()->where('student_profile_id', $profile->id)->where('term_id', $term->id)->count());
             if ($circumstance === 'shift') {
                 $this->assertSame($originalProgramId, $profile->fresh()->program_id);
                 $this->assertSame($originalCurriculumId, $profile->fresh()->curriculum_version_id);
@@ -1803,7 +1838,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->assertSee('1 subject');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $official->id])
-            ->set('enrollmentView', 'history')->assertSee('Confirmation reference: SYN-ASSISTED-CONFIRMATION-001');
+            ->set('enrollmentView', 'history')->assertSeeHtml('<dt>Confirmation reference</dt><dd>SYN-ASSISTED-CONFIRMATION-001</dd>');
     }
 
     public function test_continuing_proposal_uses_the_recorded_curriculum_and_released_result_rules(): void
@@ -1986,7 +2021,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->assertDontSee('Five finalization checkpoints')
             ->set('enrollmentView', 'history')
             ->assertSee('Enrollment started')
-            ->assertSee('Supporting records')
+            ->assertSee('Saved subject selections')
             ->assertDontSee('Five finalization checkpoints')
             ->set('enrollmentView', 'overview')
             ->mountAction('recordAssistedConfirmation')
@@ -2507,8 +2542,8 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertTrue($dropOutput['summary']['accounting_review_pending']);
         $this->actingAs($registrar)->get(route('cor.print', $official))->assertSee('Accounting review pending');
         $updatedPage = Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $official->id])
-            ->assertSee('1 subject ·')->assertSee('View registration certificate')
-            ->assertActionHasUrl('printCorHistory', EnrollmentResource::getUrl('view', ['record' => $official, 'view' => 'history']).'#certificate-copies');
+            ->assertSee('1 registered subject ·')->assertSee('View registration certificate')
+            ->assertSeeHtml('href="'.e(EnrollmentResource::getUrl('view', ['record' => $official, 'view' => 'history'])).'"');
         $this->assertSame('official', $updatedPage->instance()->focusedRegistrarView());
         $officialRowActions = $updatedPage->html();
         $currentCourseId = (string) $official->courseEnrollments()->where('is_current', true)->value('id');
@@ -2517,9 +2552,8 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertStringContainsString('current_course_enrollment_id', $officialRowActions);
         $this->assertStringContainsString($currentCourseId, $officialRowActions);
         $this->assertStringContainsString('course_enrollment_id', $officialRowActions);
-        $this->assertFalse($updatedPage->instance()->getAction('printCorHistory')->shouldOpenModal());
         $updatedPage->set('enrollmentView', 'history')->assertSeeHtml('id="certificate-copies"')
-            ->assertSee('Current certificate')->assertSee('Earlier certificate')->assertSee('Open certificate');
+            ->assertSee('Current certificate')->assertSee('Earlier certificate')->assertSee('View certificate');
         foreach ([1, 2, 3] as $version) {
             $updatedPage->assertSee(route('cor.print', ['enrollment' => $official, 'version' => $version]), escape: false);
         }
@@ -2850,8 +2884,11 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $official->update(['current_cor_version_id' => null]);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $official->id])
-            ->assertSee('Registration certificate source unavailable')->assertSee('View retained certificate')->assertSee('Current official subjects')
-            ->assertActionHidden('finalizeOfficialEnrollment')->assertActionHidden('adjustRegistration')->assertActionHidden('placeProposal');
+            ->assertSee('Registration certificate source unavailable')->assertSee('Current official subjects')
+            ->assertSeeHtml('href="'.e(EnrollmentResource::getUrl('view', ['record' => $official, 'view' => 'history'])).'"')
+            ->assertActionHidden('finalizeOfficialEnrollment')->assertActionHidden('adjustRegistration')->assertActionHidden('placeProposal')
+            ->set('enrollmentView', 'history')->assertSee('Earlier certificate')
+            ->assertSeeHtml('href="'.e(route('cor.print', ['enrollment' => $official, 'version' => $cor->version])).'"');
         $unavailable = app(BuildCorOutput::class)->forEnrollment($official->fresh(), $registrar, BuildCorOutput::CopyRegistrar);
         $this->assertFalse($unavailable['available']);
         $retained = app(BuildCorOutput::class)->forEnrollment($official->fresh(), $registrar, BuildCorOutput::CopyRegistrar, requestedVersion: $cor);
