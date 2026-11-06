@@ -33,7 +33,7 @@
             <h2 id="catalog-actions" class="text-lg font-semibold text-gray-950 dark:text-white">Catalog & Curricula workbench</h2>
             <div class="grid gap-4 lg:grid-cols-2">
                 @foreach ($destinations as $destination)
-                    <a href="{{ $destination['url'] }}" class="group tala-task-surface p-5 transition hover:border-primary-500 hover:ring-2 hover:ring-primary-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
+                    <a {{ \Filament\Support\generate_href_html($destination['url']) }} class="group tala-task-surface p-5 transition hover:border-primary-500 hover:ring-2 hover:ring-primary-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
                         <span class="font-semibold text-gray-950 group-hover:text-primary-700 dark:text-white dark:group-hover:text-primary-300">{{ $destination['label'] }}</span>
                         <span class="mt-1 block text-sm text-gray-600 dark:text-gray-300">{{ $destination['description'] }}</span>
                     </a>

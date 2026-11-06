@@ -32,21 +32,28 @@ class ChecklistItemsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            ->heading('Document checklist')
+            ->emptyStateHeading('No document checklist recorded')
+            ->emptyStateDescription('Document requirements appear here when they are recorded for this student. This does not confirm document clearance.')
+            ->emptyStateIcon('heroicon-o-clipboard-document-check')
             ->recordTitleAttribute('requirement_type')
             ->columns([
                 TextColumn::make('requirement_type')
-                    ->label('Requirement Type')
+                    ->label('Document')
                     ->formatStateUsing(fn (string $state): string => ChecklistItem::requirementTypeLabel($state))
+                    ->description(fn (ChecklistItem $record): string => ChecklistItem::evidenceMethodLabel($record->evidence_method))
+                    ->wrap()
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('evidence_method')
-                    ->label('How It Is Provided')
+                    ->label('Submission method')
                     ->formatStateUsing(fn (string $state): string => ChecklistItem::evidenceMethodLabel($state))
-                    ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('status')
                     ->formatStateUsing(fn (string $state): string => ChecklistItem::statusLabel($state))
+                    ->description(fn (ChecklistItem $record): string => ChecklistItem::verificationStatusLabel($record->verification_status))
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         ChecklistItem::StatusAccepted => 'success',
@@ -57,9 +64,9 @@ class ChecklistItemsRelationManager extends RelationManager
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('blocking_level')
-                    ->label('Workflow Effect')
+                    ->label('Effect')
                     ->formatStateUsing(fn (string $state): string => ChecklistItem::blockingLevelLabel($state))
-                    ->badge()
+                    ->wrap()
                     ->color(fn (string $state): string => match ($state) {
                         ChecklistItem::BlockingHandover => 'danger',
                         ChecklistItem::BlockingEnrollment => 'warning',
@@ -70,7 +77,7 @@ class ChecklistItemsRelationManager extends RelationManager
                 TextColumn::make('verification_status')
                     ->label('Verification')
                     ->formatStateUsing(fn (string $state): string => ChecklistItem::verificationStatusLabel($state))
-                    ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->color(fn (string $state): string => match ($state) {
                         ChecklistItem::VerificationVerified => 'success',
                         ChecklistItem::VerificationRejected => 'danger',
@@ -111,14 +118,14 @@ class ChecklistItemsRelationManager extends RelationManager
                         ChecklistItem::StatusUndertakingApproved => ChecklistItem::statusLabel(ChecklistItem::StatusUndertakingApproved),
                     ]),
                 SelectFilter::make('evidence_method')
-                    ->label('How It Is Provided')
+                    ->label('Submission method')
                     ->options([
                         ChecklistItem::EvidenceMethodDigitalUpload => ChecklistItem::evidenceMethodLabel(ChecklistItem::EvidenceMethodDigitalUpload),
                         ChecklistItem::EvidenceMethodPhysicalCopy => ChecklistItem::evidenceMethodLabel(ChecklistItem::EvidenceMethodPhysicalCopy),
                         ChecklistItem::EvidenceMethodMetadataOnly => ChecklistItem::evidenceMethodLabel(ChecklistItem::EvidenceMethodMetadataOnly),
                     ]),
                 SelectFilter::make('blocking_level')
-                    ->label('Workflow Effect')
+                    ->label('Effect')
                     ->options([
                         ChecklistItem::BlockingHandover => ChecklistItem::blockingLevelLabel(ChecklistItem::BlockingHandover),
                         ChecklistItem::BlockingEnrollment => ChecklistItem::blockingLevelLabel(ChecklistItem::BlockingEnrollment),

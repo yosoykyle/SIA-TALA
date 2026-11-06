@@ -36,10 +36,12 @@ use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use LogicException;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -52,7 +54,8 @@ final class StudentLifecycleChangeTest extends TestCase
     {
         parent::setUp();
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame('testing', app()->environment());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         foreach ([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
@@ -142,15 +145,16 @@ final class StudentLifecycleChangeTest extends TestCase
 
         $component = Livewire::test(CreateStudentLifecycleChange::class)
             ->fillForm($data)
-            ->assertSee('Review Operational Impact')
-            ->assertSee('2 subject enrollment(s)')
-            ->assertSee('Published master schedule stays unchanged');
+            ->assertSee('Review effects')
+            ->assertSee('2 in this term')
+            ->assertSee('Released grades and published timetable stay unchanged');
 
         if (filled($subjectCode)) {
             $component->assertSee($subjectCode);
         }
 
         $this->assertSame($before, StudentLifecycleChange::query()->count());
+        $this->assertTrue($component->instance()->recordingActions()[1]->isDisabled());
 
         $component
             ->call('create')
@@ -159,13 +163,16 @@ final class StudentLifecycleChangeTest extends TestCase
 
         $component
             ->fillForm(['impact_confirmed' => true])
-            ->fillForm(['reason' => 'Updated approved withdrawal reason'])
+            ->fillForm(['reason' => 'Updated approved withdrawal reason']);
+        $this->assertTrue($component->instance()->recordingActions()[1]->isDisabled());
+        $component
             ->call('create')
             ->assertHasFormErrors(['impact_confirmed' => 'accepted']);
         $this->assertSame($before, StudentLifecycleChange::query()->count());
 
+        $component->fillForm(['impact_confirmed' => true]);
+        $this->assertFalse($component->instance()->recordingActions()[1]->isDisabled());
         $component
-            ->fillForm(['impact_confirmed' => true])
             ->call('create')
             ->assertHasNoFormErrors()
             ->assertRedirect();
@@ -188,7 +195,7 @@ final class StudentLifecycleChangeTest extends TestCase
 
         Livewire::test(CreateStudentLifecycleChange::class)
             ->fillForm($this->baseData($fixture, StudentLifecycleChange::TypeWithdrawal))
-            ->assertSee('Impact preview unavailable')
+            ->assertSee('Complete the details to review')
             ->fillForm(['impact_confirmed' => true])
             ->call('create')
             ->assertHasFormErrors(['impact_confirmed']);
@@ -309,12 +316,13 @@ final class StudentLifecycleChangeTest extends TestCase
             ...$this->baseData($fixture, StudentLifecycleChange::TypeProgramShift),
             'term_id' => $futureTerm->id,
             'enrollment_id' => null,
-            'effective_on' => $futureTerm->starts_on->toDateString(),
+            'effective_on' => $futureTerm->starts_on->copy()->addWeek()->toDateString(),
             'finance_adjustment' => 1500,
             'target_program_id' => $targetProgram->id,
             'target_curriculum_version_id' => $targetCurriculum->id,
             'credit_entries' => [[
                 'curriculum_entry_id' => $targetEntry->id,
+                'source_grade_outcome_event_id' => $this->releasedShiftSource($fixture, '2.00')->id,
                 'source_course_id' => $targetEntry->courseSpecification->course_id,
                 'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
                 'numeric_grade' => '2.00',
@@ -343,6 +351,16 @@ final class StudentLifecycleChangeTest extends TestCase
         }
 
         $this->travelTo($futureTerm->starts_on->copy()->addDay());
+        try {
+            app(StudentLifecycleService::class)->applyProgramShift($change, $registrar);
+            $this->fail('Expected application before the recorded effective date to be rejected.');
+        } catch (StudentLifecycleRuleViolation $exception) {
+            $this->assertStringContainsString('effective date', $exception->getMessage());
+            $this->assertSame(StudentLifecycleChange::StateRecordedApproved, $change->fresh()->state);
+            $this->assertSame($fixture['profile']->program_id, $fixture['profile']->fresh()->program_id);
+        }
+
+        $this->travelTo($change->effective_on->copy()->addDay());
         $applied = app(StudentLifecycleService::class)->applyProgramShift($change, $registrar);
         $this->assertSame(StudentLifecycleChange::StateApplied, $applied->state);
         $this->assertSame($targetProgram->id, $fixture['profile']->fresh()->program_id);
@@ -375,6 +393,7 @@ final class StudentLifecycleChangeTest extends TestCase
             'target_curriculum_version_id' => $targetCurriculum->id,
             'credit_entries' => [[
                 'curriculum_entry_id' => $targetEntry->id,
+                'source_grade_outcome_event_id' => $this->releasedShiftSource($fixture, '2.25')->id,
                 'source_course_id' => $targetEntry->courseSpecification->course_id,
                 'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
                 'numeric_grade' => '2.25',
@@ -398,12 +417,13 @@ final class StudentLifecycleChangeTest extends TestCase
                     'treatment' => ProgramShiftCreditEntry::TreatmentRejected,
                 ],
             ]],
-            'accepted missing source grade' => [...$validData, 'credit_entries' => [[
+            'accepted missing released result' => [...$validData, 'credit_entries' => [[
                 'curriculum_entry_id' => $targetEntry->id,
                 'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
             ]]],
-            'accepted invalid grade scale' => [...$validData, 'credit_entries' => [[
+            'accepted invalid source result' => [...$validData, 'credit_entries' => [[
                 'curriculum_entry_id' => $targetEntry->id,
+                'source_grade_outcome_event_id' => PHP_INT_MAX,
                 'source_course_id' => $targetEntry->courseSpecification->course_id,
                 'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
                 'numeric_grade' => '6.00',
@@ -474,16 +494,23 @@ final class StudentLifecycleChangeTest extends TestCase
         $futureLeaveData = [
             ...$this->baseData($futureLeave, StudentLifecycleChange::TypeLeaveOfAbsence),
             'term_id' => $futureTerm->id,
+            'enrollment_id' => null,
             'effective_on' => $futureTerm->starts_on->toDateString(),
             'expected_return_term_id' => $returnTerm->id,
         ];
 
-        $this->assertTrue(app(StudentLifecycleService::class)->preview($futureLeaveData)['cor_available_after']);
+        $futureLeavePreview = app(StudentLifecycleService::class)->preview($futureLeaveData);
+        $this->assertFalse($futureLeavePreview['cor_available_after']);
+        $this->assertSame(StudentProfile::LifecycleActive, $futureLeavePreview['profile_status_after']);
+        $this->assertTrue($futureLeavePreview['pending_application']);
+        $this->assertSame($futureTerm->starts_on->toDateString(), $futureLeavePreview['application_available_on']);
 
-        app(StudentLifecycleService::class)->record($futureLeaveData, $registrar);
+        $recordedFutureLeave = app(StudentLifecycleService::class)->record($futureLeaveData, $registrar);
+        $this->assertSame('Waiting for effective date', $recordedFutureLeave->statusLabel());
         $this->assertSame(StudentProfile::LifecycleActive, $futureLeave['profile']->fresh()->lifecycle_status);
+        $this->assertSame(StudentProfile::LifecycleActive, $recordedFutureLeave->impact_snapshot['profile_status_after']);
         $this->assertSame($activeBindings, StudentScheduleBinding::query()->whereIn('course_enrollment_id', collect($futureLeave['courses'])->pluck('id'))->where('is_active', true)->count());
-        $this->assertDatabaseHas('holds', ['student_profile_id' => $futureLeave['profile']->id, 'term_id' => $futureTerm->id, 'blocking_level' => 'blocks_enrollment']);
+        $this->assertDatabaseMissing('holds', ['student_profile_id' => $futureLeave['profile']->id, 'source_type' => StudentLifecycleChange::class, 'source_id' => $recordedFutureLeave->id]);
 
         $transfer = $this->enrollmentFixture(2);
         $this->window($transfer['term'], 'transfer_out');
@@ -506,6 +533,191 @@ final class StudentLifecycleChangeTest extends TestCase
     }
 
     #[Test]
+    public function future_leave_preview_preserves_subjects_and_schedule_already_recorded_for_that_term(): void
+    {
+        $fixture = $this->enrollmentFixture(2);
+        $fixture['term']->update(['starts_on' => today()->addMonth(), 'ends_on' => today()->addMonths(4)]);
+        $returnTerm = Term::factory()->create(['starts_on' => today()->addMonths(5), 'ends_on' => today()->addMonths(8)]);
+        $this->window($fixture['term'], 'leave_of_absence');
+        $data = [
+            ...$this->baseData($fixture, StudentLifecycleChange::TypeLeaveOfAbsence),
+            'effective_on' => $fixture['term']->starts_on->toDateString(),
+            'expected_return_term_id' => $returnTerm->id,
+        ];
+        $service = app(StudentLifecycleService::class);
+
+        $preview = $service->preview($data);
+        $this->assertSame([], $preview['course_enrollment_ids']);
+        $this->assertSame([], $preview['binding_ids']);
+        $this->assertSame([], $preview['reservation_ids']);
+
+        $service->record($data, $this->registrar());
+        foreach ($fixture['courses'] as $course) {
+            $this->assertSame(CourseEnrollment::StatusActive, $course->fresh()->status);
+            $this->assertTrue($course->scheduleBindings()->firstOrFail()->is_active);
+        }
+    }
+
+    #[Test]
+    #[TestWith([StudentLifecycleChange::TypeLeaveOfAbsence, 'leave_of_absence', StudentProfile::LifecycleLeaveOfAbsence])]
+    #[TestWith([StudentLifecycleChange::TypeWithdrawal, 'withdrawal', StudentProfile::LifecycleWithdrawn])]
+    #[TestWith([StudentLifecycleChange::TypeTransferOut, 'transfer_out', StudentProfile::LifecycleTransferredOut])]
+    #[TestWith([StudentLifecycleChange::TypeReactivation, 'reactivation', StudentProfile::LifecycleActive])]
+    #[TestWith([StudentLifecycleChange::TypeInactivation, 'inactivation', StudentProfile::LifecycleInactive])]
+    public function future_approvals_wait_and_apply_once_on_the_effective_date(string $type, string $window, string $expectedStatus): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-02 09:00:00', 'Asia/Manila'));
+        $fixture = $this->enrollmentFixture(2);
+        if ($type === StudentLifecycleChange::TypeReactivation) {
+            $fixture['profile']->update(['lifecycle_status' => StudentProfile::LifecycleLeaveOfAbsence]);
+        }
+        $before = $fixture['profile']->lifecycle_status;
+        $this->window($fixture['term'], $window);
+        $returnTerm = Term::factory()->create(['starts_on' => '2027-06-01', 'ends_on' => '2027-10-31']);
+        $service = app(StudentLifecycleService::class);
+        $registrar = $this->registrar();
+        $change = $service->record([
+            ...$this->baseData($fixture, $type),
+            'effective_on' => '2026-11-10',
+            'expected_return_term_id' => $type === StudentLifecycleChange::TypeLeaveOfAbsence ? $returnTerm->id : null,
+        ], $registrar);
+        $original = $change->impact_snapshot;
+
+        $this->assertSame(StudentLifecycleChange::StateRecordedApproved, $change->state);
+        $this->assertSame($before, $fixture['profile']->fresh()->lifecycle_status);
+        $this->assertDatabaseMissing('operational_events', ['external_id' => "lifecycle-accounting-review:{$change->id}"]);
+        $this->assertDatabaseMissing('holds', ['source_type' => StudentLifecycleChange::class, 'source_id' => $change->id]);
+        try {
+            $service->apply($change, $registrar);
+            $this->fail('A future approval must not apply early.');
+        } catch (StudentLifecycleRuleViolation $exception) {
+            $this->assertStringContainsString('before its effective date', $exception->getMessage());
+        }
+
+        $this->travelTo(Carbon::parse('2026-11-10 00:00:00', 'Asia/Manila'));
+        $applied = $service->apply($change, $registrar);
+        $this->assertSame(StudentLifecycleChange::StateApplied, $applied->state);
+        $this->assertSame($expectedStatus, $fixture['profile']->fresh()->lifecycle_status);
+        $this->assertSame($original, $applied->impact_snapshot);
+        $this->assertSame($expectedStatus, $applied->applicationAudit->properties->get('application_effects')['profile_status_after']);
+        $service->apply($change, $registrar);
+        $this->assertSame(1, DB::table('activity_log')->where('subject_type', StudentLifecycleChange::class)->where('subject_id', $change->id)->where('event', 'student_lifecycle_change_applied')->count());
+        $this->assertSame(1, OperationalEvent::query()->where('external_id', "lifecycle-accounting-review:{$change->id}")->count());
+    }
+
+    #[Test]
+    public function a_cancelled_future_approval_creates_no_effects_and_cannot_be_applied(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $this->window($fixture['term'], 'withdrawal');
+        $registrar = $this->registrar();
+        $service = app(StudentLifecycleService::class);
+        $change = $service->record([...$this->baseData($fixture, StudentLifecycleChange::TypeWithdrawal), 'effective_on' => today()->addDays(5)->toDateString()], $registrar);
+        $service->cancel($change, $registrar);
+        $service->cancel($change, $registrar);
+        $this->assertSame(StudentLifecycleChange::StateCancelled, $change->fresh()->state);
+        $this->assertSame(StudentProfile::LifecycleActive, $fixture['profile']->fresh()->lifecycle_status);
+        $this->assertSame(CourseEnrollment::StatusActive, $fixture['courses'][0]->fresh()->status);
+        $this->assertDatabaseMissing('operational_events', ['external_id' => "lifecycle-accounting-review:{$change->id}"]);
+        $this->expectException(StudentLifecycleRuleViolation::class);
+        $service->apply($change, $registrar);
+    }
+
+    #[Test]
+    public function expected_return_cannot_be_the_same_or_an_earlier_term(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $this->window($fixture['term'], 'leave_of_absence');
+        $this->expectException(StudentLifecycleRuleViolation::class);
+        $this->expectExceptionMessage('Expected return term must start after');
+        app(StudentLifecycleService::class)->record([
+            ...$this->baseData($fixture, StudentLifecycleChange::TypeLeaveOfAbsence),
+            'expected_return_term_id' => $fixture['term']->id,
+        ], $this->registrar());
+    }
+
+    #[Test]
+    public function application_rejects_changed_sources_and_preserves_newer_student_status(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $this->window($fixture['term'], 'withdrawal');
+        $service = app(StudentLifecycleService::class);
+        $registrar = $this->registrar();
+        $change = $service->record([...$this->baseData($fixture, StudentLifecycleChange::TypeWithdrawal), 'effective_on' => today()->addDays(5)->toDateString()], $registrar);
+        $fixture['profile']->update(['lifecycle_status' => StudentProfile::LifecycleTransferredOut]);
+        $this->travel(6)->days();
+        try {
+            $service->apply($change, $registrar);
+            $this->fail('An approval with changed sources must not apply.');
+        } catch (StudentLifecycleRuleViolation $exception) {
+            $this->assertStringContainsString('student record changed', $exception->getMessage());
+        }
+        $this->assertSame(StudentProfile::LifecycleTransferredOut, $fixture['profile']->fresh()->lifecycle_status);
+        $this->assertSame(StudentLifecycleChange::StateRecordedApproved, $change->fresh()->state);
+        $this->assertDatabaseMissing('activity_log', ['subject_type' => StudentLifecycleChange::class, 'subject_id' => $change->id, 'event' => 'student_lifecycle_change_applied']);
+    }
+
+    #[Test]
+    public function applying_a_future_approval_rechecks_grades_released_since_recording(): void
+    {
+        $fixture = $this->enrollmentFixture(2);
+        $this->window($fixture['term'], 'withdrawal');
+        $service = app(StudentLifecycleService::class);
+        $registrar = $this->registrar();
+        $change = $service->record([...$this->baseData($fixture, StudentLifecycleChange::TypeWithdrawal), 'effective_on' => today()->addDays(5)->toDateString()], $registrar);
+        $row = $this->gradeRow($fixture['courses'][0], $fixture, '2.00', GradeRosterRow::CategoryPassing, released: true);
+        $this->travel(6)->days();
+
+        $applied = $service->apply($change, $registrar);
+
+        $this->assertSame('2.00', $row->fresh()->current_outcome_code);
+        $this->assertSame(CourseEnrollment::StatusActive, $fixture['courses'][0]->fresh()->status);
+        $this->assertSame(CourseEnrollment::StatusWithdrawn, $fixture['courses'][1]->fresh()->status);
+        $this->assertSame([$fixture['courses'][1]->id], $applied->applicationAudit->properties->get('application_effects')['course_enrollment_ids']);
+        $this->assertSame([], $applied->impact_snapshot['course_enrollment_ids']);
+    }
+
+    #[Test]
+    public function an_older_effective_change_cannot_replace_a_later_applied_event(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $this->window($fixture['term'], 'withdrawal');
+        StudentLifecycleChange::factory()->create([
+            'student_profile_id' => $fixture['profile']->id,
+            'term_id' => $fixture['term']->id,
+            'state' => StudentLifecycleChange::StateApplied,
+            'effective_on' => today(),
+        ]);
+        $this->expectException(StudentLifecycleRuleViolation::class);
+        $this->expectExceptionMessage('later lifecycle change is already applied');
+        app(StudentLifecycleService::class)->record([
+            ...$this->baseData($fixture, StudentLifecycleChange::TypeWithdrawal),
+            'effective_on' => today()->subDay()->toDateString(),
+        ], $this->registrar());
+    }
+
+    #[Test]
+    public function a_later_same_date_event_stales_an_approval_even_when_the_profile_values_match(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $this->window($fixture['term'], 'withdrawal');
+        $service = app(StudentLifecycleService::class);
+        $registrar = $this->registrar();
+        $change = $service->record([...$this->baseData($fixture, StudentLifecycleChange::TypeWithdrawal), 'effective_on' => today()->addDays(5)->toDateString()], $registrar);
+        StudentLifecycleChange::factory()->create([
+            'student_profile_id' => $fixture['profile']->id,
+            'term_id' => $fixture['term']->id,
+            'type' => StudentLifecycleChange::TypeReactivation,
+            'state' => StudentLifecycleChange::StateApplied,
+            'effective_on' => $change->effective_on,
+        ]);
+        $this->travel(6)->days();
+        $this->expectException(StudentLifecycleRuleViolation::class);
+        $this->expectExceptionMessage('newer lifecycle change is already applied');
+        $service->apply($change, $registrar);
+    }
+
+    #[Test]
     public function subject_drop_rejects_a_final_released_grade_and_rolls_back_all_effects(): void
     {
         $fixture = $this->enrollmentFixture(2);
@@ -523,6 +735,61 @@ final class StudentLifecycleChangeTest extends TestCase
             $this->assertSame(CourseEnrollment::StatusActive, $target->fresh()->status);
             $this->assertTrue((bool) $binding->fresh()->is_active);
             $this->assertSame(0, StudentLifecycleChange::query()->where('student_profile_id', $fixture['profile']->id)->count());
+        }
+    }
+
+    #[Test]
+    #[TestWith([StudentLifecycleChange::TypeWithdrawal, 'withdrawal'])]
+    #[TestWith([StudentLifecycleChange::TypeLeaveOfAbsence, 'leave_of_absence'])]
+    #[TestWith([StudentLifecycleChange::TypeTransferOut, 'transfer_out'])]
+    public function full_lifecycle_changes_preserve_released_courses_and_only_withdraw_unreleased_courses(string $type, string $window): void
+    {
+        $fixture = $this->enrollmentFixture(2);
+        $this->window($fixture['term'], $window);
+        $releasedCourse = $fixture['courses'][0];
+        $unreleasedCourse = $fixture['courses'][1];
+        $releasedRow = $this->gradeRow($releasedCourse, $fixture, '2.00', GradeRosterRow::CategoryPassing, released: true);
+        $unreleasedRow = $this->gradeRow($unreleasedCourse, $fixture, '1.75', GradeRosterRow::CategoryPassing, released: false);
+        $returnTerm = Term::factory()->create(['starts_on' => today()->addMonths(5), 'ends_on' => today()->addMonths(8)]);
+        $data = $this->baseData($fixture, $type) + ['expected_return_term_id' => $returnTerm->id];
+        $service = app(StudentLifecycleService::class);
+
+        $this->assertSame([$unreleasedCourse->id], $service->preview($data)['course_enrollment_ids']);
+        $change = $service->record($data, $this->registrar());
+
+        $this->assertSame(CourseEnrollment::StatusActive, $releasedCourse->fresh()->status);
+        $this->assertSame('2.00', $releasedRow->fresh()->current_outcome_code);
+        $this->assertSame(CourseEnrollment::StatusWithdrawn, $unreleasedCourse->fresh()->status);
+        $this->assertSame('W', $unreleasedRow->fresh()->current_outcome_code);
+        $this->assertSame([$unreleasedCourse->id], $change->impact_snapshot['course_enrollment_ids']);
+        $this->assertDatabaseMissing('grade_outcome_events', ['grade_roster_row_id' => $releasedRow->id, 'event_type' => GradeOutcomeEvent::TypeLifecycleOutcome]);
+        $this->assertDatabaseHas('grade_outcome_events', ['grade_roster_row_id' => $unreleasedRow->id, 'event_type' => GradeOutcomeEvent::TypeLifecycleOutcome]);
+    }
+
+    #[Test]
+    #[TestWith(['preview'])]
+    #[TestWith(['record'])]
+    public function lifecycle_rejects_an_enrollment_from_another_term_before_effects(string $operation): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $otherTerm = Term::factory()->create();
+        $this->window($otherTerm, 'withdrawal');
+        $data = [...$this->baseData($fixture, StudentLifecycleChange::TypeWithdrawal), 'term_id' => $otherTerm->id];
+        $service = app(StudentLifecycleService::class);
+        $registrar = $this->registrar();
+        $this->expectException(StudentLifecycleRuleViolation::class);
+        $this->expectExceptionMessage('Choose an enrollment from the selected term.');
+
+        try {
+            if ($operation === 'preview') {
+                $service->preview($data);
+            } else {
+                $service->record($data, $registrar);
+            }
+        } finally {
+            $this->assertSame(CourseEnrollment::StatusActive, $fixture['courses'][0]->fresh()->status);
+            $this->assertSame(StudentProfile::LifecycleActive, $fixture['profile']->fresh()->lifecycle_status);
+            $this->assertDatabaseMissing('student_lifecycle_changes', ['student_profile_id' => $fixture['profile']->id]);
         }
     }
 
@@ -581,6 +848,65 @@ final class StudentLifecycleChangeTest extends TestCase
             'related_record_id' => $change->id,
             'status' => OperationalEvent::StatusReviewRequired,
         ]);
+    }
+
+    #[Test]
+    public function changing_student_discards_the_previous_context_and_confirmation(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $this->actingAs($this->registrar());
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $before = StudentLifecycleChange::query()->count();
+
+        Livewire::test(CreateStudentLifecycleChange::class)
+            ->fillForm($this->baseData($fixture, StudentLifecycleChange::TypeWithdrawal))
+            ->fillForm(['impact_confirmed' => true])
+            ->call('changeStudent')
+            ->assertFormSet(['student_profile_id' => null, 'term_id' => null, 'type' => null, 'reason' => null, 'impact_confirmed' => false])
+            ->assertSee('Choose a student')
+            ->assertDontSee('Review effects');
+
+        $this->assertSame($before, StudentLifecycleChange::query()->count());
+    }
+
+    #[Test]
+    public function routine_change_derives_enrollment_and_records_without_external_approval_metadata(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $this->window($fixture['term'], 'withdrawal');
+        $actor = $this->registrar();
+        $data = $this->baseData($fixture, StudentLifecycleChange::TypeWithdrawal);
+        unset($data['enrollment_id'], $data['authority'], $data['decided_on']);
+        $data['private_source_reference'] = 'Actual optional office reference';
+
+        $change = app(StudentLifecycleService::class)->record($data, $actor);
+
+        $this->assertSame($fixture['enrollment']->id, $change->enrollment_id);
+        $this->assertNull($change->authority);
+        $this->assertNull($change->decided_on);
+        $this->assertSame('Actual optional office reference', $change->private_source_reference);
+        $this->assertSame($actor->id, $change->recorded_by);
+        $this->assertNotNull($change->created_at);
+        $this->assertSame(CourseEnrollment::StatusWithdrawn, $fixture['courses'][0]->fresh()->status);
+    }
+
+    #[Test]
+    public function explicit_enrollment_from_another_student_is_rejected_before_effects(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $other = $this->enrollmentFixture(0);
+        $this->window($fixture['term'], 'withdrawal');
+        $data = $this->baseData($fixture, StudentLifecycleChange::TypeWithdrawal);
+        $data['enrollment_id'] = $other['enrollment']->id;
+        $before = StudentLifecycleChange::query()->count();
+        try {
+            app(StudentLifecycleService::class)->record($data, $this->registrar());
+            $this->fail('The other student enrollment must be rejected.');
+        } catch (StudentLifecycleRuleViolation $exception) {
+            $this->assertStringContainsString('selected student', $exception->getMessage());
+        }
+        $this->assertSame($before, StudentLifecycleChange::query()->count());
+        $this->assertSame(CourseEnrollment::StatusActive, $fixture['courses'][0]->fresh()->status);
     }
 
     /** @return array{profile:StudentProfile,term:Term,enrollment:Enrollment,courses:list<CourseEnrollment>} */
@@ -649,6 +975,128 @@ final class StudentLifecycleChangeTest extends TestCase
         }
 
         return compact('profile', 'term', 'enrollment', 'courses');
+    }
+
+    #[Test]
+    public function accepted_shift_credits_are_bound_to_the_students_current_released_result(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $source = $this->releasedShiftSource($fixture, '2.00');
+        $foreign = $this->releasedShiftSource($this->enrollmentFixture(1), '1.25');
+        $unreleased = GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $source->grade_roster_row_id,
+            'result_code' => '1.50', 'released_at' => null,
+        ]);
+        $incomplete = GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $source->grade_roster_row_id,
+            'result_code' => 'INC', 'released_at' => now(),
+        ]);
+        $data = $this->shiftData($fixture);
+        $targetEntry = CurriculumEntry::factory()->create(['curriculum_version_id' => $data['target_curriculum_version_id']]);
+        $actor = $this->registrar();
+        $before = StudentLifecycleChange::query()->count();
+
+        foreach ([$foreign, $unreleased, $source, $incomplete] as $invalid) {
+            try {
+                app(StudentLifecycleService::class)->record([...$data, 'credit_entries' => [[
+                    'curriculum_entry_id' => $targetEntry->id,
+                    'source_grade_outcome_event_id' => $invalid->id,
+                    'source_course_id' => $targetEntry->courseSpecification->course_id,
+                    'numeric_grade' => '1.00',
+                    'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
+                ]]], $actor);
+                $this->fail('Expected an unavailable released source to be rejected.');
+            } catch (StudentLifecycleRuleViolation $exception) {
+                $this->assertStringContainsString('released passing result', $exception->getMessage());
+                $this->assertSame($before, StudentLifecycleChange::query()->count());
+            }
+        }
+
+        $current = GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $source->grade_roster_row_id,
+            'result_code' => '2.25', 'released_at' => now(),
+        ]);
+        $change = app(StudentLifecycleService::class)->record([...$data, 'credit_entries' => [[
+            'curriculum_entry_id' => $targetEntry->id,
+            'source_grade_outcome_event_id' => $current->id,
+            'source_course_id' => $targetEntry->courseSpecification->course_id,
+            'numeric_grade' => '1.00',
+            'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
+        ]]], $actor);
+        $credit = $change->programShiftCredits()->sole();
+        $this->assertSame($current->id, $credit->source_grade_outcome_event_id);
+        $this->assertSame($fixture['courses'][0]->termOffering->curriculumEntry->courseSpecification->course_id, $credit->source_course_id);
+        $this->assertSame('2.2500', $credit->numeric_grade);
+    }
+
+    #[Test]
+    public function reviewed_program_shift_can_record_and_apply_without_credit_rows(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $data = $this->shiftData($fixture);
+        $actor = $this->registrar();
+        $change = app(StudentLifecycleService::class)->record([...$data, 'credit_entries' => []], $actor);
+        $this->assertSame(0, $change->programShiftCredits()->count());
+        $this->travelTo(Carbon::parse($data['effective_on'])->addDay());
+        app(StudentLifecycleService::class)->applyProgramShift($change, $actor);
+        $this->assertSame($data['target_program_id'], $fixture['profile']->fresh()->program_id);
+        $this->assertSame(StudentLifecycleChange::StateApplied, $change->fresh()->state);
+        $this->assertSame(0, $change->programShiftCredits()->count());
+    }
+
+    #[Test]
+    public function program_shift_application_rejects_a_credit_source_corrected_after_approval(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $source = $this->releasedShiftSource($fixture, '2.00');
+        $data = $this->shiftData($fixture);
+        $targetEntry = CurriculumEntry::factory()->create(['curriculum_version_id' => $data['target_curriculum_version_id']]);
+        $actor = $this->registrar();
+        $change = app(StudentLifecycleService::class)->record([...$data, 'credit_entries' => [[
+            'curriculum_entry_id' => $targetEntry->id,
+            'source_grade_outcome_event_id' => $source->id,
+            'source_course_id' => $fixture['courses'][0]->termOffering->curriculumEntry->courseSpecification->course_id,
+            'numeric_grade' => '2.00',
+            'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
+        ]]], $actor);
+        GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $source->grade_roster_row_id,
+            'event_type' => GradeOutcomeEvent::TypePostedCorrection,
+            'result_code' => '3.00', 'released_at' => now(),
+        ]);
+        $this->travelTo(Carbon::parse($data['effective_on'])->addDay());
+        try {
+            app(StudentLifecycleService::class)->applyProgramShift($change, $actor);
+            $this->fail('Expected the superseded approval source to block application.');
+        } catch (StudentLifecycleRuleViolation $exception) {
+            $this->assertStringContainsString('released passing result', $exception->getMessage());
+            $this->assertSame($fixture['profile']->program_id, $fixture['profile']->fresh()->program_id);
+            $this->assertSame(StudentLifecycleChange::StateRecordedApproved, $change->fresh()->state);
+            $this->assertSame('2.0000', $change->programShiftCredits()->sole()->numeric_grade);
+        }
+    }
+
+    private function releasedShiftSource(array $fixture, string $grade): GradeOutcomeEvent
+    {
+        $row = $this->gradeRow($fixture['courses'][0], $fixture, $grade, 'Passing', true);
+
+        return GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $row->id,
+            'result_code' => $grade, 'new_value' => $grade, 'released_at' => now(),
+        ]);
+    }
+
+    private function shiftData(array $fixture): array
+    {
+        $term = Term::factory()->create(['starts_on' => today()->addMonth(), 'ends_on' => today()->addMonths(5)]);
+        $this->window($term, 'program_shift');
+        $curriculum = CurriculumVersion::factory()->create();
+
+        return [...$this->baseData($fixture, StudentLifecycleChange::TypeProgramShift),
+            'term_id' => $term->id, 'enrollment_id' => null,
+            'effective_on' => $term->starts_on->toDateString(),
+            'target_program_id' => $curriculum->program_id, 'target_curriculum_version_id' => $curriculum->id,
+        ];
     }
 
     private function gradeRow(CourseEnrollment $course, array $fixture, ?string $code, string $category, bool $released): GradeRosterRow

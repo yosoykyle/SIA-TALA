@@ -1,5 +1,6 @@
 <span id="tala-main-content" tabindex="-1"></span>
 <x-tala-context-entry-notice />
+@include('filament.components.unsaved-changes-confirmation')
 <x-filament::modal footer-actions-alignment="end"
     id="tala-sign-out"
     width="md"
@@ -112,5 +113,5 @@
 </div>
 
 @once
-    <script src="{{ asset('js/tala-reference.js') }}" defer></script>
+    <script src="{{ asset('js/tala-reference.js') }}" defer data-navigate-once></script>
 @endonce

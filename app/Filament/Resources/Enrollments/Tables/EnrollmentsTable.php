@@ -43,7 +43,7 @@ class EnrollmentsTable
                 'credentialUser',
                 'admissionApplication.program',
                 'studentProfile.program',
-                'term',
+                'term.academicYear',
                 'currentProposalVersion.curriculumVersion.program',
                 'currentProposalVersion.confirmation',
                 'currentProposalVersion.items.reservation',
@@ -330,7 +330,16 @@ class EnrollmentsTable
         return $query->where(function (Builder $query) use ($search): void {
             $query->where('case_reference', 'like', "%{$search}%")
                 ->orWhereHas('credentialUser', fn (Builder $query): Builder => $query->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"))
-                ->orWhereHas('studentProfile', fn (Builder $query): Builder => $query->where('student_number', 'like', "%{$search}%"))
+                ->orWhereHas('studentProfile', fn (Builder $query): Builder => $query
+                    ->where('student_number', 'like', "%{$search}%")
+                    ->orWhere(function (Builder $query) use ($search): void {
+                        foreach (preg_split('/\s+/', trim($search), -1, PREG_SPLIT_NO_EMPTY) as $part) {
+                            $query->where(fn (Builder $query): Builder => $query
+                                ->where('first_name', 'like', "%{$part}%")
+                                ->orWhere('middle_name', 'like', "%{$part}%")
+                                ->orWhere('last_name', 'like', "%{$part}%"));
+                        }
+                    }))
                 ->orWhereHas('admissionApplication', fn (Builder $query): Builder => $query->where('application_reference', 'like', "%{$search}%"));
         });
     }

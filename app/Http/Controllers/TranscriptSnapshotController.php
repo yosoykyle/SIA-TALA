@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\OutputAccessLog;
 use App\Models\TranscriptIssuanceEvent;
+use App\Models\TranscriptRequest;
 use App\Models\TranscriptSnapshot;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -56,7 +57,12 @@ class TranscriptSnapshotController extends Controller
                 ),
             ],
         ];
-        $response = response()->view('outputs.tala-standard-tor', $content);
+        $documentView = TranscriptRequest::outputViewFor($snapshot->template_version);
+        $content['embedded'] = true;
+        $response = response()->view('outputs.transcript-review', [
+            'documentHtml' => view($documentView, $content)->render(), 'transcriptRequest' => $snapshot->request,
+            'status' => $content['status'], 'documentReference' => $snapshot->reference, 'confirmationAction' => null,
+        ]);
         OutputAccessLog::query()->create([
             'output_type' => 'TALA_STANDARD_TOR',
             'source_record_type' => TranscriptSnapshot::class,

@@ -2,40 +2,64 @@
 
 namespace App\Actions\Academics;
 
-use App\Models\CourseSpecification;
 use App\Models\StudentProfile;
+use App\Models\Term;
 
 class CumulativeGwaProjection
 {
-    public function __construct(private readonly OfficialCourseResultProjection $results) {}
+    public function __construct(
+        private readonly OfficialCourseResultProjection $results,
+        private readonly AcademicAverageReadiness $readiness,
+    ) {}
 
-    /** @return array{value: ?string, through: ?string, included_attempts: int} */
-    public function forStudent(StudentProfile $student): array
+    /** @return array{value: ?string, through: ?string, included_attempts: int, state: string, label: string, reason: ?string, as_of: string, exclusions: list<string>} */
+    public function forStudent(StudentProfile $student, ?Term $throughTerm = null): array
     {
-        $included = $this->results->forStudent($student)
-            ->filter(function (array $result): bool {
-                $courseSpecification = $result['course_specification'];
+        $results = $this->results->forStudent($student)
+            ->when($throughTerm, fn ($attempts) => $attempts->filter(
+                fn (array $result): bool => $this->termOrder($result['term']) <= $this->termOrder($throughTerm),
+            ));
+        $terms = $results->groupBy(fn (array $result): int => (int) $result['term']?->id)
+            ->sortBy(fn ($termResults): string => $this->termOrder($termResults->first()['term']));
+        $completeResults = collect();
+        $through = null;
+        $blockedState = null;
+        $blockedTerm = null;
 
-                return is_numeric($result['result'])
-                    && $courseSpecification instanceof CourseSpecification
-                    && ! in_array($courseSpecification->academic_classification, [
-                        CourseSpecification::AcademicClassificationPe,
-                        CourseSpecification::AcademicClassificationNstp,
-                    ], true);
-            });
+        foreach ($terms as $termResults) {
+            $term = $termResults->first()['term'];
+            $state = $this->readiness->forResults($termResults);
+            if (in_array($state, [AcademicAverageReadiness::GradesNotComplete, AcademicAverageReadiness::IncompleteResultPending], true)) {
+                $blockedState = $state;
+                $blockedTerm = $term?->label;
 
-        if ($included->isEmpty()) {
-            return ['value' => null, 'through' => null, 'included_attempts' => 0];
+                break;
+            }
+
+            $completeResults = $completeResults->concat($termResults);
+            $through = $term?->label;
         }
 
-        $units = $included->sum(fn (array $result): float => (float) $result['units']);
-        $weighted = $included->sum(fn (array $result): float => (float) $result['result'] * (float) $result['units']);
-        $through = $included->sortBy(fn (array $result): string => (string) $result['term']?->ends_on)->last()['term']?->label;
+        $value = $this->readiness->average($completeResults);
 
         return [
-            'value' => number_format(round($weighted / $units, 2, PHP_ROUND_HALF_UP), 2, '.', ''),
-            'through' => $through,
-            'included_attempts' => $included->count(),
+            'value' => $value,
+            'through' => $value === null ? null : $through,
+            'included_attempts' => $this->readiness->includedResults($completeResults)->count(),
+            'state' => $blockedState ?? ($value === null ? AcademicAverageReadiness::NotApplicable : AcademicAverageReadiness::Available),
+            'label' => 'Cumulative GWA',
+            'reason' => match ($blockedState) {
+                AcademicAverageReadiness::GradesNotComplete => 'Grades not complete for '.$blockedTerm.'.',
+                AcademicAverageReadiness::IncompleteResultPending => 'Current academic average pending — incomplete grade unresolved in '.$blockedTerm.'.',
+                default => $value === null ? 'Not applicable — no included academic units.' : null,
+            },
+            'as_of' => now('Asia/Manila')->toIso8601String(),
+            'exclusions' => $completeResults->pluck('average_exclusion')->filter()->unique()->values()->all(),
         ];
+    }
+
+    private function termOrder(?Term $term): string
+    {
+        return ($term?->ends_on?->toDateString() ?? '').'|'.($term?->starts_on?->toDateString() ?? '').'|'.sprintf('%010d', $term?->id ?? 0);
     }
 }

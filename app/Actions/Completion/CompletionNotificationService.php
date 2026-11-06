@@ -17,14 +17,14 @@ use Throwable;
 class CompletionNotificationService
 {
     /**
-     * Reserve the single completion-action notification only when an active
-     * application gains a blocker or an existing blocker materially changes.
+     * Reserve a completion-action notification when current requirements gain
+     * a blocker or an existing blocker materially changes.
      */
     public function reserveReadinessAfterCommit(
         CompletionReadinessVersion $readiness,
         ?CompletionReadinessVersion $previous,
     ): ?OperationalEvent {
-        if ($readiness->state !== CompletionReadinessProjection::AwaitingResultsOrClearance) {
+        if (! in_array($readiness->state, [CompletionReadinessProjection::NotEligible, CompletionReadinessProjection::AwaitingResultsOrClearance], true)) {
             return null;
         }
 

@@ -41,7 +41,6 @@ class EditStudentProfile extends EditRecord
                         ->options(fn (): array => Term::query()->orderByDesc('starts_on')->pluck('label', 'id')->all())
                         ->default(fn (): ?int => $this->studentProfile()->entry_term_id)
                         ->searchable(),
-                    TextInput::make('authority_reference')->required()->maxLength(255),
                     Textarea::make('reason')->required()->maxLength(2000),
                 ])
                 ->action(function (array $data): void {
@@ -51,9 +50,8 @@ class EditStudentProfile extends EditRecord
 
                     app(RecordStudentProfileCorrection::class)->execute(
                         $record,
-                        collect($data)->except(['authority_reference', 'reason'])->all(),
+                        collect($data)->except(['reason'])->all(),
                         $actor,
-                        (string) $data['authority_reference'],
                         (string) $data['reason'],
                     );
                     Notification::make()

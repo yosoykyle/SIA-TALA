@@ -6,19 +6,17 @@ use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Actions\Completion\CompletionReadinessProjection;
 use App\Actions\Completion\CorrectDegreeConferral;
 use App\Actions\Completion\IssueTranscript;
+use App\Actions\Completion\OfficialOutputRestrictionService;
 use App\Actions\Completion\RecordDegreeConferral;
 use App\Actions\Completion\RecordTranscriptRequest;
 use App\Actions\Completion\ReplaceTranscript;
-use App\Actions\Completion\SubmitGraduationApplication;
 use App\Actions\Completion\TranscriptLifecycleProjection;
 use App\Actions\Completion\VoidTranscript;
-use App\Actions\Finance\RecordOfficialOutputPaymentClearance;
 use App\Actions\StudentLifecycle\CreateHold;
 use App\Actions\StudentLifecycle\ResolveHold;
 use App\Filament\Pages\CompletionAndTor;
 use App\Filament\Resources\TranscriptRequests\Pages\ViewTranscriptRequest;
 use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
-use App\Models\CompletionReadinessVersion;
 use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
@@ -26,7 +24,6 @@ use App\Models\DegreeConferral;
 use App\Models\Enrollment;
 use App\Models\GraduationApplication;
 use App\Models\Hold;
-use App\Models\OfficialOutputPaymentClearance;
 use App\Models\OperationalEvent;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\Section;
@@ -40,6 +37,7 @@ use App\Models\TranscriptSnapshot;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
@@ -57,6 +55,7 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->travelTo(Carbon::parse('2028-07-15 10:00:00', 'Asia/Manila'));
 
         $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
         foreach (['student', User::StaffRoleRegistrar, User::StaffRoleAccounting, User::StaffRoleAcademicHead, User::StaffRoleFaculty, User::StaffRoleSystemSuperAdmin, 'admin'] as $role) {
@@ -75,16 +74,10 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
         $fixture = $this->creditedFixture();
         $projection = app(CompletionReadinessProjection::class)->forStudent($fixture['student']);
 
-        $this->assertSame(CompletionReadinessProjection::EligibleToApply, $projection['state']);
+        $this->assertSame(CompletionReadinessProjection::ReadyForConferral, $projection['state']);
         $this->assertSame([], $projection['blockers']);
 
-        $application = app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
-        $this->assertNull($application->term_id);
-        $this->assertDatabaseMissing('operational_events', [
-            'related_record_type' => GraduationApplication::class,
-            'related_record_id' => $application->id,
-        ]);
-
+        $this->assertNull($projection['application']);
         $conferral = app(RecordDegreeConferral::class)->execute(
             $fixture['student'], $fixture['registrar'], 'Bachelor of Science in Information Technology',
             '2028-06-30', 'SYNTH-CONFERRAL-AUTHORITY',
@@ -152,12 +145,12 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
         GraduationApplication::factory()->create(['student_profile_id' => $student->id]);
 
         Livewire::actingAs($registrar)
-            ->test(CompletionAndTor::class)
+            ->test(CompletionAndTor::class, ['completionView' => 'graduation'])
             ->assertCanSeeTableRecords([$student])
             ->searchTable('QUERY_NO_MATCH_TALA_9999')
             ->assertCanNotSeeTableRecords([$student])
-            ->assertSee('No matching completion applications')
-            ->assertSee('Try another student or clear the search and filters.')
+            ->assertSee('No matching students')
+            ->assertSee('Clear the search or adjust the filters to find a student.')
             ->searchTable('')
             ->assertCanSeeTableRecords([$student]);
     }
@@ -166,15 +159,15 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     public function completion_notification_ledger_records_only_actionable_blocker_deltas(): void
     {
         $fixture = $this->inProgressFixture();
-        $application = app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
+        app(CompletionReadinessProjection::class)->persist($fixture['student'], $fixture['registrar']);
         $projection = app(CompletionReadinessProjection::class)->forStudent($fixture['student']);
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeCompletionRequiresActionEmail)->count());
         $this->assertSame(CompletionReadinessProjection::AwaitingResultsOrClearance, $projection['state']);
         $this->assertArrayHasKey('source_ref', $projection['blockers'][0]);
         $this->assertArrayHasKey('source_as_of', $projection['blockers'][0]);
         $this->assertArrayHasKey('consequence', $projection['blockers'][0]);
         $this->assertDatabaseMissing('operational_events', [
             'related_record_type' => GraduationApplication::class,
-            'related_record_id' => $application->id,
         ]);
 
         $hold = app(CreateHold::class)->execute($fixture['student'], [
@@ -186,14 +179,14 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
         ], $fixture['registrar']);
 
         $events = OperationalEvent::query()->where('event_type', OperationalEvent::TypeCompletionRequiresActionEmail)->get();
-        $this->assertCount(1, $events);
+        $this->assertCount(2, $events);
         app(CompletionReadinessProjection::class)->persist($fixture['student'], $fixture['registrar']);
-        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeCompletionRequiresActionEmail)->count());
+        $this->assertSame(2, OperationalEvent::query()->where('event_type', OperationalEvent::TypeCompletionRequiresActionEmail)->count());
 
         app(ResolveHold::class)->execute($hold, $fixture['registrar'], 'SYNTH-RESOLUTION-EVIDENCE');
-        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeCompletionRequiresActionEmail)->count());
+        $this->assertSame(2, OperationalEvent::query()->where('event_type', OperationalEvent::TypeCompletionRequiresActionEmail)->count());
 
-        $event = $events->sole();
+        $event = $events->last();
         $externalId = $event->external_id;
         $event->update(['status' => OperationalEvent::StatusFailed]);
         $resent = app(AcademicRecordNotificationService::class)->resend($event, $fixture['student']->user);
@@ -206,7 +199,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     public function issuance_and_replacement_require_current_attributable_preview_bindings(): void
     {
         $fixture = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
         $conferral = app(RecordDegreeConferral::class)->execute(
             $fixture['student'], $fixture['registrar'], 'Bachelor of Science in Information Technology',
             '2028-06-30', 'SYNTH-CONFERRAL-AUTHORITY',
@@ -215,10 +207,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             $conferral, $fixture['registrar'], 'EXT-TOR-HUMAN-CENTERED', '2028-07-01',
             'Synthetic Registrar', 'College Registrar', TranscriptRequest::SealPlacementInstruction,
             sealPlacementInstruction: 'Apply the controlled seal in the marked certification area.',
-        );
-        app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $request, $fixture['accounting'], OfficialOutputPaymentClearance::StateNotRequired,
-            'SYNTH-CLEARANCE-AUTHORITY', 'No collectible transcript fee applies to this synthetic request.',
         );
 
         $preview = $this->actingAs($fixture['registrar'])->get(route('transcripts.preview', $request));
@@ -281,7 +269,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     public function duplicate_and_stale_conferral_attempts_are_prevented(): void
     {
         $fixture = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
 
         // 1. Initial conferral succeeds
         $conferral1 = app(RecordDegreeConferral::class)->execute(
@@ -312,7 +299,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
 
         // 4. Stale/ineligible student cannot be conferred
         $unreadyFixture = $this->inProgressFixture();
-        app(SubmitGraduationApplication::class)->execute($unreadyFixture['student'], $unreadyFixture['student']->user);
         try {
             app(RecordDegreeConferral::class)->execute(
                 $unreadyFixture['student'], $fixture['registrar'], 'Bachelor of Science in Information Technology',
@@ -328,7 +314,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     public function academic_and_financial_source_changes_after_preview_block_issuance(): void
     {
         $fixture = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
         $conferral = app(RecordDegreeConferral::class)->execute(
             $fixture['student'], $fixture['registrar'], 'Bachelor of Science in Information Technology',
             '2028-06-30', 'SYNTH-CONFERRAL-017',
@@ -338,32 +323,27 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             'College Registrar', 'Registrar', TranscriptRequest::SealPlacementInstruction,
             sealPlacementInstruction: 'Affix dry seal bottom center.',
         );
-        app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $request, $fixture['accounting'], OfficialOutputPaymentClearance::StateNotRequired,
-            'AUTH-CLR-017', 'Clearance exempt.',
-        );
 
         // Preview confirmation obtained
         $preview = $this->actingAs($fixture['registrar'])->get(route('transcripts.preview', $request));
         $preview->assertOk();
         $confirmation = (string) $preview->headers->get('X-TALA-Preview-Confirmation');
 
-        // Financial change: Payment clearance is changed after preview
-        app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $request, $fixture['accounting'], OfficialOutputPaymentClearance::StateCleared,
-            'AUTH-CLR-017B', 'Fee collected after preview.',
-        );
+        $restriction = app(OfficialOutputRestrictionService::class)->record($fixture['student'], $fixture['accounting'], 'A newly recorded TOR restriction');
+        app(OfficialOutputRestrictionService::class)->resolve($restriction, $fixture['accounting'], 'Accounting resolved the restriction.');
 
-        // Confirmation is now invalidated by financial clearance change
+        // A changed Accounting source requires a fresh preview.
+
+        // Confirmation is invalidated by the Accounting restriction source change
         try {
             app(IssueTranscript::class)->execute($request, $fixture['registrar'], 'AUTH-ISSUE-017', $confirmation);
-            $this->fail('Issuance must fail when financial clearance changed after preview.');
+            $this->fail('Issuance must fail when Accounting restriction sources changed after preview.');
         } catch (ValidationException $e) {
             $this->assertArrayHasKey('preview', $e->errors());
             $this->assertDatabaseCount('transcript_snapshots', 0);
         }
 
-        // Academic change: Refresh preview for new clearance, then change student academic profile
+        // Academic change: Refresh preview for the current Accounting source, then change student academic profile
         $preview2 = $this->actingAs($fixture['registrar'])->get(route('transcripts.preview', $request->fresh()));
         $confirmation2 = (string) $preview2->headers->get('X-TALA-Preview-Confirmation');
 
@@ -381,7 +361,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     public function conferral_correction_a_to_b_to_a_preserves_every_version(): void
     {
         $fixture = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
 
         // Initial conferral A (v1)
         $conferralA1 = app(RecordDegreeConferral::class)->execute(
@@ -396,10 +375,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             $conferralA1, $fixture['registrar'], 'EXT-TOR-025', '2028-07-01',
             'College Registrar', 'Registrar', TranscriptRequest::SealPlacementInstruction,
             sealPlacementInstruction: 'Affix dry seal.',
-        );
-        app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $request, $fixture['accounting'], OfficialOutputPaymentClearance::StateNotRequired,
-            'AUTH-CLR-025', 'Fee exempt.',
         );
         $preview1 = $this->actingAs($fixture['registrar'])->get(route('transcripts.preview', $request));
         $confirmation1 = (string) $preview1->headers->get('X-TALA-Preview-Confirmation');
@@ -461,7 +436,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     public function serialized_transcript_operations_prevent_conflicting_active_states(): void
     {
         $fixture = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
         $conferral = app(RecordDegreeConferral::class)->execute(
             $fixture['student'], $fixture['registrar'], 'Bachelor of Science in Information Technology',
             '2028-06-30', 'AUTH-CONF-026',
@@ -470,10 +444,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             $conferral, $fixture['registrar'], 'EXT-TOR-026', '2028-07-01',
             'College Registrar', 'Registrar', TranscriptRequest::SealPlacementInstruction,
             sealPlacementInstruction: 'Affix dry seal.',
-        );
-        app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $request, $fixture['accounting'], OfficialOutputPaymentClearance::StateNotRequired,
-            'AUTH-CLR-026', 'Fee exempt.',
         );
 
         // 1. Issue initial TOR
@@ -524,7 +494,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     public function failed_tor_generation_validation_storage_or_rendering_creates_no_issuance_event(): void
     {
         $fixture = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
         $conferral = app(RecordDegreeConferral::class)->execute(
             $fixture['student'], $fixture['registrar'], 'Bachelor of Science in Information Technology',
             '2028-06-30', 'AUTH-CONF-027',
@@ -533,10 +502,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             $conferral, $fixture['registrar'], 'EXT-TOR-027', '2028-07-01',
             'College Registrar', 'Registrar', TranscriptRequest::SealPlacementInstruction,
             sealPlacementInstruction: 'Affix dry seal.',
-        );
-        app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $request, $fixture['accounting'], OfficialOutputPaymentClearance::StateNotRequired,
-            'AUTH-CLR-027', 'Fee exempt.',
         );
 
         // 1. Preview confirmation with invalid token fails validation
@@ -547,12 +512,12 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             $this->assertArrayHasKey('preview', $e->errors());
         }
 
-        // 2. Blank issuance authority fails validation
+        // 2. Omitting the reviewed preview fails even though external issuance authority is optional.
         try {
-            app(IssueTranscript::class)->execute($request, $fixture['registrar'], '   ', 'SOME-TOKEN');
-            $this->fail('Blank issuance authority must fail.');
+            app(IssueTranscript::class)->execute($request, $fixture['registrar']);
+            $this->fail('Issuance still requires an attributable reviewed preview.');
         } catch (ValidationException $e) {
-            $this->assertArrayHasKey('issuance', $e->errors());
+            $this->assertArrayHasKey('preview', $e->errors());
         }
 
         // 3. Template rendering exception fails closed
@@ -627,13 +592,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
 
         // Validation failures on replacement
         try {
-            app(ReplaceTranscript::class)->execute($issuedSnapshot, $fixture['registrar'], '   ', 'Valid reason', $validConfirmationRepl);
-            $this->fail('Blank replacement authority must fail validation.');
-        } catch (ValidationException $e) {
-            $this->assertArrayHasKey('replacement', $e->errors());
-        }
-
-        try {
             app(ReplaceTranscript::class)->execute($issuedSnapshot, $fixture['registrar'], 'AUTH-REPL-027', '   ', $validConfirmationRepl);
             $this->fail('Blank replacement reason must fail validation.');
         } catch (ValidationException $e) {
@@ -673,7 +631,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     public function registrar_is_the_only_actor_authorized_for_tor_routes(): void
     {
         $fixture = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
         $conferral = app(RecordDegreeConferral::class)->execute(
             $fixture['student'], $fixture['registrar'], 'Bachelor of Science in Information Technology',
             '2028-06-30', 'AUTH-CONF-033',
@@ -682,10 +639,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             $conferral, $fixture['registrar'], 'EXT-TOR-033', '2028-07-01',
             'College Registrar', 'Registrar', TranscriptRequest::SealPlacementInstruction,
             sealPlacementInstruction: 'Affix dry seal.',
-        );
-        app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $request, $fixture['accounting'], OfficialOutputPaymentClearance::StateNotRequired,
-            'AUTH-CLR-033', 'Fee exempt.',
         );
 
         $previewResponse = $this->actingAs($fixture['registrar'])->get(route('transcripts.preview', $request));
@@ -788,7 +741,7 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             }
         }
 
-        // 4. Consequential Livewire actions on ViewTranscriptRequest: Accounting can access page for clearance, but all TOR output/lifecycle actions are denied
+        // 4. Consequential Livewire actions on ViewTranscriptRequest: Accounting can access its restriction actions, while TOR output/lifecycle actions remain denied
         $this->actingAs($fixture['accounting']);
         $this->assertTrue(TranscriptRequestResource::canAccess());
         Livewire::actingAs($fixture['accounting'])
@@ -798,37 +751,36 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             ->assertActionHidden('issue')
             ->assertActionHidden('voidLatest')
             ->assertActionHidden('replaceLatest')
-            ->assertActionVisible('recordClearance');
+            ->assertActionVisible('recordRestriction');
 
-        // Registrar has TOR actions but not Accounting clearance
+        // Registrar has TOR actions but cannot record Accounting restrictions
         $this->actingAs($fixture['registrar']);
         $this->assertTrue(TranscriptRequestResource::canAccess());
         Livewire::actingAs($fixture['registrar'])
-            ->test(ViewTranscriptRequest::class, ['record' => $request->id])
-            ->assertActionHidden('recordClearance');
+            ->test(CompletionAndTor::class, ['torRequestId' => $request->id])
+            ->assertActionHidden('recordRestriction');
     }
 
     #[Test]
     public function registrar_completion_and_tor_table_filters_ordering_and_actions(): void
     {
         $fixture = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
 
         // Registrar has full access and header actions
         $this->actingAs($fixture['registrar']);
         $livewire = Livewire::actingAs($fixture['registrar'])
-            ->test(CompletionAndTor::class)
+            ->test(CompletionAndTor::class, ['completionView' => 'graduation'])
             ->assertCanSeeTableRecords([$fixture['student']])
-            ->assertActionExists('recordConferral')
-            ->assertActionExists('recordTorRequest')
-            ->assertActionExists('correctConferral')
-            ->assertActionExists('correctApplication')
-            ->assertActionExists('torHistory');
+            ->assertTableActionVisible('selectGraduation', $fixture['student'])
+            ->call('selectGraduationStudent', $fixture['student']->id)
+            ->assertActionVisible('recordGraduation')
+            ->assertActionHidden('recordTorRequest')
+            ->assertSee('Graduation review');
 
         // Test filtering by readiness
-        $livewire->filterTable('readiness', CompletionReadinessProjection::EligibleToApply)
+        $livewire->filterTable('graduation', 'recorded')
             ->assertCanNotSeeTableRecords([$fixture['student']])
-            ->filterTable('readiness', null)
+            ->filterTable('graduation', null)
             ->assertCanSeeTableRecords([$fixture['student']]);
 
         // Academic Head can access table but does not have mutating actions
@@ -837,7 +789,8 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
         $this->assertTrue(CompletionAndTor::canAccess());
         Livewire::actingAs($academicHead)
             ->test(CompletionAndTor::class)
-            ->assertActionDoesNotExist('recordConferral')
+            ->assertTableActionVisible('selectGraduation', $fixture['student'])
+            ->assertActionHidden('recordGraduation')
             ->assertActionDoesNotExist('recordTorRequest')
             ->assertActionDoesNotExist('correctConferral')
             ->assertActionDoesNotExist('correctApplication');
@@ -853,131 +806,47 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
     public function completion_and_tor_queries_are_bounded_and_paginated(): void
     {
         $fixture = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
-
-        // Page query only loads students with graduation applications, eager-loading related models
-        $testable = Livewire::actingAs($fixture['registrar'])->test(CompletionAndTor::class);
-        $testable->assertSuccessful();
-
-        $table = $testable->instance()->getTable();
-        $records = $table->getRecords();
-        $this->assertNotEmpty($records);
-
-        // Unapplied students do not appear in the table query
         $unappliedStudent = StudentProfile::factory()->create();
-        $testable->assertCanNotSeeTableRecords([$unappliedStudent]);
-
-        // Eager-loading is verified on query
-        $query = $table->getQuery();
-        $eagerLoads = array_keys($query->getEagerLoads());
-        $this->assertContains('program', $eagerLoads);
-        $this->assertContains('graduationApplications', $eagerLoads);
-        $this->assertContains('completionReadinessVersions', $eagerLoads);
-        $this->assertContains('degreeConferrals', $eagerLoads);
-
-        // Assert bounded query count without N+1 when rendering records
+        $testable = Livewire::actingAs($fixture['registrar'])->test(CompletionAndTor::class, ['completionView' => 'graduation', 'graduationStudentId' => $fixture['student']->id])
+            ->assertSuccessful()->assertCanSeeTableRecords([$fixture['student'], $unappliedStudent]);
+        $table = $testable->instance()->getTable();
+        $this->assertTrue($table->isPaginated());
+        $this->assertContains('program', array_keys($table->getQuery()->getEagerLoads()));
+        $this->assertContains('curriculumVersion', array_keys($table->getQuery()->getEagerLoads()));
         DB::flushQueryLog();
         DB::enableQueryLog();
-
-        Livewire::actingAs($fixture['registrar'])->test(CompletionAndTor::class);
-        $queryCount1 = count(DB::getQueryLog());
-
-        // Create a second student with graduation application
-        $fixture2 = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture2['student'], $fixture2['student']->user);
-
+        Livewire::actingAs($fixture['registrar'])->test(CompletionAndTor::class, ['completionView' => 'graduation', 'graduationStudentId' => $fixture['student']->id]);
+        $queriesBefore = count(DB::getQueryLog());
+        $this->creditedFixture();
         DB::flushQueryLog();
-        Livewire::actingAs($fixture['registrar'])->test(CompletionAndTor::class);
-        $queryCount2 = count(DB::getQueryLog());
-
-        // Query count does not scale linearly with records (no N+1)
-        $this->assertSame($queryCount1, $queryCount2, "Query count must remain bounded without N+1 queries ({$queryCount1} vs {$queryCount2}).");
+        Livewire::actingAs($fixture['registrar'])->test(CompletionAndTor::class, ['completionView' => 'graduation', 'graduationStudentId' => $fixture['student']->id]);
+        $queriesAfter = count(DB::getQueryLog());
         DB::disableQueryLog();
-
-        // Table is paginated and does not load unbounded datasets into memory
-        $this->assertTrue($table->isPaginated(), 'Completion workbench table must be paginated.');
-
-        // Verify readyStudentOptions bounds results to <= 50 and server-side search bounds queries
+        $this->assertSame($queriesBefore, $queriesAfter, 'Showing another Student must not repeat the complete readiness evaluation per row.');
+        StudentProfile::factory()->count(55)->sequence(fn ($sequence): array => [
+            'program_id' => $fixture['student']->program_id,
+            'curriculum_version_id' => $fixture['student']->curriculum_version_id,
+            'email' => sprintf('scaled.student.%04d@example.test', $sequence->index),
+            'student_number' => sprintf('SCALED-%04d', $sequence->index),
+            'last_name' => sprintf('StudentScaled%04d', $sequence->index),
+        ])->create();
         $page = new CompletionAndTor;
-        $this->assertLessThanOrEqual(50, count($page->readyStudentOptions()));
-
-        // Scale ready student dataset beyond 50 records
-        for ($i = 0; $i < 55; $i++) {
-            $extraStudent = StudentProfile::factory()->create([
-                'program_id' => $fixture['student']->program_id,
-                'curriculum_version_id' => $fixture['student']->curriculum_version_id,
-                'email' => sprintf('scaled.student.%04d@example.test', $i),
-                'student_number' => sprintf('SCALED-%04d', $i),
-                'last_name' => sprintf('StudentScaled%04d', $i),
-                'first_name' => 'Test',
-            ]);
-            GraduationApplication::factory()->create([
-                'student_profile_id' => $extraStudent->id,
-                'curriculum_version_id' => $fixture['student']->curriculum_version_id,
-                'term_id' => null,
-                'applied_by' => $extraStudent->user_id,
-                'state' => GraduationApplication::StateActive,
-                'version' => 1,
-            ]);
-            CompletionReadinessVersion::factory()->create([
-                'student_profile_id' => $extraStudent->id,
-                'version' => 1,
-                'state' => CompletionReadinessProjection::ReadyForConferral,
-            ]);
-        }
-
-        $boundedOptions = $page->readyStudentOptions();
-        $this->assertCount(50, $boundedOptions, 'readyStudentOptions must be strictly bounded to at most 50 records.');
-
-        $searchedOptions = $page->readyStudentOptions('SCALED-0025');
-        $this->assertCount(1, $searchedOptions);
-        $this->assertStringContainsString('SCALED-0025', reset($searchedOptions));
-
-        // Scaled workbench table remains paginated and bounded with 57 student records
-        $scaledTestable = Livewire::actingAs($fixture['registrar'])->test(CompletionAndTor::class);
-        $scaledTestable->assertSuccessful();
-        $scaledTable = $scaledTestable->instance()->getTable();
-        $tableRecords = $scaledTable->getRecords();
-        $this->assertLessThan(57, $tableRecords->count(), 'Table must not load all 57 records into memory.');
-        $this->assertSame($scaledTable->getDefaultPaginationPageOption(), $tableRecords->count(), 'Table records must match configured page pagination option.');
-
-        // Verify activeApplicationOptions is bounded to 50 records with scaled dataset
-        $boundedAppOptions = $page->activeApplicationOptions();
-        $this->assertCount(50, $boundedAppOptions, 'activeApplicationOptions must be strictly bounded to at most 50 records.');
-        $searchedAppOptions = $page->activeApplicationOptions('SCALED-0025');
-        $this->assertCount(1, $searchedAppOptions);
-
-        // Verify conferralOptions is bounded to 50 records with scaled dataset
-        $app = GraduationApplication::query()->where('student_profile_id', $fixture['student']->id)->firstOrFail();
-        $readinessVersion = CompletionReadinessVersion::query()->firstOrCreate(
-            ['student_profile_id' => $fixture['student']->id, 'version' => 1],
-            ['state' => CompletionReadinessProjection::ReadyForConferral],
-        );
-        for ($i = 0; $i < 55; $i++) {
-            DegreeConferral::factory()->create([
-                'student_profile_id' => $fixture['student']->id,
-                'graduation_application_id' => $app->id,
-                'completion_readiness_version_id' => $readinessVersion->id,
-                'curriculum_version_id' => $fixture['student']->curriculum_version_id,
-                'recorded_by' => $fixture['registrar']->id,
-                'degree_name' => 'Bachelor of Science in Information Technology',
-                'conferred_on' => '2028-06-30',
-                'authority_reference' => sprintf('AUTH-CONF-SCALED-%04d', $i),
-                'active_scope_key' => sprintf('scope-key-%04d', $i),
-                'version' => $i + 1,
-            ]);
-        }
-        $boundedConferralOptions = $page->conferralOptions();
-        $this->assertCount(50, $boundedConferralOptions, 'conferralOptions must be strictly bounded to at most 50 records.');
-        $searchedConferralOptions = $page->conferralOptions('AUTH-CONF-SCALED-0025');
-        $this->assertCount(1, $searchedConferralOptions);
+        $this->assertCount(50, $page->studentOptions());
+        $searched = $page->studentOptions('SCALED-0025');
+        $this->assertCount(1, $searched);
+        $this->assertStringContainsString('SCALED-0025', reset($searched));
+        $scaled = Livewire::actingAs($fixture['registrar'])->test(CompletionAndTor::class, ['completionView' => 'graduation', 'graduationStudentId' => $fixture['student']->id])->assertSuccessful();
+        $records = $scaled->instance()->getTable()->getRecords();
+        $this->assertCount(10, $records);
+        $this->assertGreaterThanOrEqual(57, $records->total());
+        $scaled->call('gotoGraduationPage', 2)->assertSet('graduationStudentId', null)->assertSee('Page 2 of');
+        $this->assertSame(2, $scaled->instance()->getTableRecords()->currentPage());
     }
 
     #[Test]
     public function replacement_owned_cleanup_preserves_historical_snapshots_and_reproducibility(): void
     {
         $fixture = $this->creditedFixture();
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
         $conferral = app(RecordDegreeConferral::class)->execute(
             $fixture['student'], $fixture['registrar'], 'Bachelor of Science in Information Technology',
             '2028-06-30', 'AUTH-CONF-047',
@@ -986,10 +855,6 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
             $conferral, $fixture['registrar'], 'EXT-TOR-047', '2028-07-01',
             'College Registrar', 'Registrar', TranscriptRequest::SealPlacementInstruction,
             sealPlacementInstruction: 'Affix dry seal.',
-        );
-        app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $request, $fixture['accounting'], OfficialOutputPaymentClearance::StateNotRequired,
-            'AUTH-CLR-047', 'Fee exempt.',
         );
 
         $preview1 = $this->actingAs($fixture['registrar'])->get(route('transcripts.preview', $request));

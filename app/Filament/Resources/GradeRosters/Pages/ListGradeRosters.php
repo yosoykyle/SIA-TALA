@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\GradeRosters\Pages;
 
 use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -16,14 +17,46 @@ class ListGradeRosters extends ListRecords
     #[Url]
     public ?int $oversightTermId = null;
 
+    #[Url]
+    public string $viewTab = 'grade-review';
+
+    public function mount(): void
+    {
+        parent::mount();
+
+        if (auth()->user()?->hasRole(User::StaffRoleRegistrar)) {
+            $this->redirect(GradesAndCompletion::getUrl([
+                'viewTab' => 'grade-review',
+                ...GradesAndCompletion::classQueueParameters(request()->query()),
+            ]));
+        }
+    }
+
     public function getTitle(): string
     {
-        return $this->isHeadReader() ? 'Class rosters' : parent::getTitle();
+        if ($this->isHeadReader()) {
+            return 'Class rosters';
+        }
+
+        return 'Class grades';
     }
 
     public function getSubheading(): ?string
     {
-        return $this->isHeadReader() ? 'Find a class, check official membership and inspect released results. Use the filters to select a term.' : parent::getSubheading();
+        if ($this->isHeadReader()) {
+            return 'Find a class, check official membership and inspect released results. Use the filters to select a term.';
+        }
+
+        return parent::getSubheading();
+    }
+
+    public function getBreadcrumbs(): array
+    {
+        if (! $this->isHeadReader()) {
+            return [GradesAndCompletion::getUrl() => 'Grades & Completion', 'Class grades'];
+        }
+
+        return parent::getBreadcrumbs();
     }
 
     private function isHeadReader(): bool

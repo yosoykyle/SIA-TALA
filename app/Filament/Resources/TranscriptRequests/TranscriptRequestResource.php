@@ -48,8 +48,10 @@ class TranscriptRequestResource extends Resource
         return parent::getEloquentQuery()->with([
             'studentProfile',
             'clearances',
-            'events',
+            'events.recorder',
             'snapshots.events',
+            'officialOutputRestrictions.recorder',
+            'officialOutputRestrictions.resolver',
         ]);
     }
 

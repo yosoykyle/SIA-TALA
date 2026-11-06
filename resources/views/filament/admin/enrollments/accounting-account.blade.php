@@ -17,6 +17,27 @@
         <p>{{ $case->term?->label }}</p>
     </div>
     @if (! $ordinary)@include('filament.admin.enrollments.accounting-account-review')@endif
+    @if ($lifecycleSources->isNotEmpty())
+        <section class="accounting-review-task tala-task-surface" aria-labelledby="account-lifecycle-heading">
+            <h2 id="account-lifecycle-heading">Recent student changes</h2>
+            <p>Academic changes do not adjust this account automatically. Review their source before recording a financial adjustment.</p>
+            <div class="accounting-obligations">
+                @foreach ($lifecycleSources as $source)
+                    <div wire:key="account-lifecycle-source-{{ $source->id }}">
+                        <div>
+                            <h3>{{ \App\Models\StudentLifecycleChange::typeOptions()[$source->type] ?? str($source->type)->headline() }}</h3>
+                            <p>Effective {{ $source->effective_on->format('M j, Y') }}</p>
+                            <x-filament::badge :color="$source->statusColor()">{{ $source->statusLabel() }}</x-filament::badge>
+                        </div>
+                        @can('view', $source)
+                            <x-filament::button tag="a" :href="\App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource::getUrl('index', ['change' => $source->id])" color="gray">View change</x-filament::button>
+                        @endcan
+                    </div>
+                @endforeach
+            </div>
+            @if ($lifecycleSources->count() === 5)<p>Showing the five most recently recorded changes sent to Accounting for this enrollment.</p>@endif
+        </section>
+    @endif
     @if ($account->paymentEvidenceVersions->contains('state', \App\Models\PaymentEvidenceVersion::StateSubmitted))
         <div class="accounting-context-actions"><x-filament::button tag="a" :href="\App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $case, 'view' => 'proof'])">Review submitted payment proof</x-filament::button></div>
     @endif

@@ -68,6 +68,7 @@ use App\Models\RegistrationLateAuthority;
 use App\Models\RegistrationProposalItem;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
+use App\Models\StudentLifecycleChange;
 use App\Models\TermOffering;
 use App\Models\TimetableRevision;
 use App\Models\User;
@@ -305,6 +306,16 @@ class ViewEnrollment extends ViewRecord
         return $this->accountingContext = [
             'case' => $case, 'proposal' => $case->currentProposalVersion, 'account' => $account, 'assessment' => $assessment,
             'position' => $position, 'requirement' => $requirement, 'reviewState' => $reviewState, 'sources' => $sources,
+            'lifecycleSources' => $case->lifecycleChanges()
+                ->where('student_profile_id', $case->student_profile_id)
+                ->where('term_id', $case->term_id)
+                ->whereIn('id', OperationalEvent::query()
+                    ->select('related_record_id')
+                    ->where('event_domain', OperationalEvent::DomainOperations)
+                    ->where('event_type', OperationalEvent::TypeLifecycleAccountingReview)
+                    ->where('related_record_type', StudentLifecycleChange::class))
+                ->latest('id')->limit(5)
+                ->get(['id', 'enrollment_id', 'student_profile_id', 'term_id', 'type', 'state', 'effective_on', 'created_at']),
             'recordedAssessment' => $assessment ?? $account?->assessments->sortByDesc('version')->first(),
             'pendingAdjustment' => $pending, 'change' => $pending !== null ? $this->adjustmentChange() : null,
             'adjustmentFinanceReady' => $pending !== null && $pending->state === RegistrationProposalVersion::StateConfirmed && $this->adjustmentFinanceBases() !== [],
@@ -416,6 +427,10 @@ class ViewEnrollment extends ViewRecord
             return 'Account history';
         }
 
+        if ($this->usesEnrollmentRecordLayout()) {
+            return $this->enrollmentView === 'history' ? 'Enrollment history' : 'Enrollment record';
+        }
+
         return $this->focusedRegistrarView() !== null || $this->focusedAccountingView() !== null
             ? ($this->enrollmentView === 'history' ? 'Enrollment history' : ($this->getRecord()->credentialUser?->getFilamentName() ?? 'Enrollment'))
             : parent::getTitle();
@@ -425,6 +440,13 @@ class ViewEnrollment extends ViewRecord
     {
         if ($this->isHeadReader()) {
             return [];
+        }
+
+        if ($this->usesEnrollmentRecordLayout()) {
+            return [
+                EnrollmentResource::getUrl('index', array_filter(['tab' => $this->registrarReturnQueue()])) => 'Students & Enrollment',
+                $this->enrollmentUrl() => $this->getRecord()->studentProfile?->student_number ?? $this->getRecord()->case_reference,
+            ];
         }
 
         return $this->focusedRegistrarView() !== null || $this->focusedAccountingView() !== null ? [] : parent::getBreadcrumbs();
@@ -453,7 +475,18 @@ class ViewEnrollment extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        return $this->enrollmentHeaderActions();
+        $actions = $this->enrollmentHeaderActions();
+
+        return $this->usesEnrollmentRecordLayout()
+            ? array_values(array_filter($actions, fn ($action): bool => ! ($action instanceof Action && $action->getName() === 'backToEnrollment')))
+            : $actions;
+    }
+
+    private function usesEnrollmentRecordLayout(): bool
+    {
+        return $this->actor()->hasRole(User::StaffRoleRegistrar)
+            && $this->focusedAccountingView() === null
+            && ($this->enrollmentView === 'history' || in_array($this->focusedRegistrarView(), ['official', 'missing-cor'], true));
     }
 
     private function registrarReturnQueue(): ?string

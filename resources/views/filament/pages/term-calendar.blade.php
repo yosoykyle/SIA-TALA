@@ -42,16 +42,13 @@
                 </div>
             @endif
             @if ($overviewPackage)
-                <details class="tala-calendar-source">
-                    <summary>Teaching hours, source and calendar history</summary>
-                    <div class="tala-planning-reveal">
+                <x-supporting-details summary="Teaching hours, source and calendar history" inset>
                         <p>Meetings use 30-minute slots within the recorded teaching hours.</p>
                         {{ $this->table }}
                         @if ($overviewPackage->authority_reference || $overviewPackage->authority_date)<p>@if ($overviewPackage->authority_reference)Approval reference: {{ $overviewPackage->authority_reference }}@endif @if ($overviewPackage->authority_date)Approved {{ $overviewPackage->authority_date->format('M j, Y') }}@endif</p>@endif
                         @if ($term->type === \App\Models\Term::TypeSpecialTerm)<p>Special Term basis: {{ $overviewPackage->special_term_schedule_basis ?: 'Not recorded' }}</p>@endif
                         <p>Changes create a new draft and preserve the active calendar’s history.</p>
-                    </div>
-                </details>
+                </x-supporting-details>
             @endif
         </section>
         <section class="tala-task-surface tala-calendar-activities" aria-labelledby="activity-dates-heading">
@@ -86,9 +83,7 @@
                     </div>
                 @endforeach
             </dl>
-            <details class="tala-calendar-source">
-                <summary>What these dates control</summary>
-                <div class="tala-planning-reveal">
+            <x-supporting-details summary="What these dates control" inset>
                     <p>Each date applies only to its named activity. These dates do not block class planning.</p>
                     @foreach ($operationalDates as $item)
                         @if (! $item['window'])
@@ -103,8 +98,7 @@
                         @endif
                     @endforeach
                     <p>Times use Asia/Manila. Without a cutoff time, the whole closing day is included. Approved exceptions follow their own authorization.</p>
-                </div>
-            </details>
+            </x-supporting-details>
         </section>
     @else
         <p>Choose a Term above to view its teaching calendar.</p>

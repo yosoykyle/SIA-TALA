@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 /** @property Pivot $pivot */
@@ -51,5 +52,11 @@ class TermCohort extends Model
     public function classOfferings(): BelongsToMany
     {
         return $this->belongsToMany(Section::class)->withPivot('expected_count')->withTimestamps();
+    }
+
+    /** @return HasMany<Enrollment, $this> */
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(Enrollment::class, 'student_section_id');
     }
 }

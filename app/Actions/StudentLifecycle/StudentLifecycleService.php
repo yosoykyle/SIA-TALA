@@ -3,9 +3,9 @@
 namespace App\Actions\StudentLifecycle;
 
 use App\Actions\Academics\AcademicRecordNotificationService;
+use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\StudentLifecycle\Exceptions\StudentLifecycleRuleViolation;
 use App\Models\CalendarEvent;
-use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
@@ -23,6 +23,7 @@ use App\Models\Term;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class StudentLifecycleService
@@ -31,19 +32,30 @@ class StudentLifecycleService
         private readonly HoldEvaluationService $holds,
         private readonly LifecycleFinanceAction $finance,
         private readonly AcademicRecordNotificationService $notifications,
+        private readonly OfficialCourseResultProjection $results,
     ) {}
 
     /** @param array<string,mixed> $data @return array<string,mixed> */
-    public function preview(array $data): array
+    public function preview(array $data, bool $checkWindow = true): array
     {
         $student = StudentProfile::query()->findOrFail((int) ($data['student_profile_id'] ?? 0));
         $term = Term::query()->findOrFail((int) ($data['term_id'] ?? 0));
         $type = (string) ($data['type'] ?? '');
-        $this->validateCommon($data, $student, $term, $type);
-        $enrollment = filled($data['enrollment_id'] ?? null)
-            ? Enrollment::query()->where('student_profile_id', $student->id)->findOrFail((int) $data['enrollment_id'])
-            : null;
+        $shiftCredits = $this->validateCommon($data, $student, $term, $type, $checkWindow);
+        $effectiveOn = Carbon::parse($data['effective_on'])->startOfDay();
+        $availableOn = $effectiveOn->greaterThan($term->starts_on) ? $effectiveOn : $term->starts_on;
+        $pending = $type === StudentLifecycleChange::TypeProgramShift || $availableOn->toDateString() > today('Asia/Manila')->toDateString();
+        $enrollment = $this->resolveEnrollment($student, $term, $data['enrollment_id'] ?? null, lock: false);
+        $this->validateEnrollmentTerm($enrollment, $term);
         $courseEnrollments = $this->affectedCourseEnrollments($type, $enrollment, $data);
+        if ($pending) {
+            $courseEnrollments = $courseEnrollments->take(0);
+        }
+        if ($type !== StudentLifecycleChange::TypeSubjectDrop) {
+            $protectedCourseIds = GradeRosterRow::query()->whereIn('course_enrollment_id', $courseEnrollments->modelKeys())
+                ->whereNotNull('released_at')->pluck('course_enrollment_id');
+            $courseEnrollments = $courseEnrollments->reject(fn (CourseEnrollment $course): bool => $protectedCourseIds->contains($course->id));
+        }
         $courseEnrollments->loadMissing('termOffering.curriculumEntry.courseSpecification.course');
         $targetProgram = filled($data['target_program_id'] ?? null)
             ? Program::query()->findOrFail((int) $data['target_program_id'])
@@ -66,6 +78,7 @@ class StudentLifecycleService
 
         return [
             'student_profile_id' => (int) $student->id,
+            'program_shift_credits' => $shiftCredits,
             'term_id' => (int) $term->id,
             'type' => $type,
             'enrollment_id' => $enrollment?->id,
@@ -82,15 +95,27 @@ class StudentLifecycleService
             'binding_ids' => StudentScheduleBinding::query()->whereIn('course_enrollment_id', $courseEnrollments->modelKeys())->where('is_active', true)->pluck('id')->all(),
             'reservation_ids' => EnrollmentSeatReservation::query()->whereIn('course_enrollment_id', $courseEnrollments->modelKeys())->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->pluck('id')->all(),
             'master_schedule_changes' => 0,
-            'profile_status_after' => $this->profileStatusAfter($type, $student),
+            'profile_status_before' => $student->lifecycle_status,
+            'profile_status_after' => $pending ? $student->lifecycle_status : $this->profileStatusAfter($type, $student),
+            'profile_status_on_application' => $this->profileStatusAfter($type, $student),
+            'pending_application' => $pending,
+            'application_available_on' => $availableOn->toDateString(),
             'program_before' => ['id' => $student->program_id, 'name' => $student->program->name],
             'program_after' => ['id' => $targetProgram->id, 'name' => $targetProgram->name],
             'curriculum_version_before' => ['id' => $student->curriculum_version_id, 'name' => $student->curriculumVersion->name],
             'curriculum_version_after' => ['id' => $targetCurriculum->id, 'name' => $targetCurriculum->name],
             'active_holds' => $activeHolds,
             'active_hold_count' => count($activeHolds),
-            'finance_effect' => $this->financeEffect($enrollment, $type),
-            'cor_available_after' => $this->corAvailableAfter($type, $data),
+            'released_subject_count' => $enrollment instanceof Enrollment
+                ? CourseEnrollment::query()
+                    ->where('enrollment_id', $enrollment->id)
+                    ->where('status', CourseEnrollment::StatusActive)
+                    ->whereHas('gradeRosterRow', fn ($row) => $row->whereNotNull('released_at'))
+                    ->count()
+                : 0,
+            'finance_effect' => $this->financeEffect($pending ? null : $enrollment, $type),
+            'cor_available_after' => $pending ? $enrollment?->current_cor_version_id !== null : $this->corAvailableAfter($type),
+            'cor_available_before' => $enrollment?->current_cor_version_id !== null,
         ];
     }
 
@@ -103,9 +128,9 @@ class StudentLifecycleService
             $student = StudentProfile::query()->lockForUpdate()->findOrFail((int) ($data['student_profile_id'] ?? 0));
             $term = Term::query()->lockForUpdate()->findOrFail((int) ($data['term_id'] ?? 0));
             $type = (string) ($data['type'] ?? '');
-            $enrollment = filled($data['enrollment_id'] ?? null)
-                ? Enrollment::query()->lockForUpdate()->where('student_profile_id', $student->id)->findOrFail((int) $data['enrollment_id'])
-                : null;
+            $enrollment = $this->resolveEnrollment($student, $term, $data['enrollment_id'] ?? null, lock: true);
+            $this->validateEnrollmentTerm($enrollment, $term);
+            $this->assertNotSuperseded($student, Carbon::parse($data['effective_on'])->startOfDay());
             $existing = StudentLifecycleChange::query()
                 ->where('student_profile_id', $student->id)
                 ->where('type', $type)
@@ -116,9 +141,16 @@ class StudentLifecycleService
                 ->first();
 
             if ($existing instanceof StudentLifecycleChange) {
+                if ($existing->effective_on->toDateString() !== Carbon::parse($data['effective_on'])->toDateString() || trim($existing->reason) !== trim((string) ($data['reason'] ?? ''))) {
+                    throw new StudentLifecycleRuleViolation('A different approved change already exists for this student and term. Open it, or cancel a pending approval before recording its replacement.');
+                }
+
                 return $existing;
             }
 
+            if ($type === StudentLifecycleChange::TypeProgramShift) {
+                $this->lockShiftSourceRows($student, $data['credit_entries'] ?? []);
+            }
             $preview = $this->preview($data);
 
             $change = StudentLifecycleChange::query()->create([
@@ -132,22 +164,22 @@ class StudentLifecycleService
                 'course_enrollment_id' => $data['course_enrollment_id'] ?? null,
                 'requested_on' => $data['requested_on'] ?? null,
                 'effective_on' => $data['effective_on'],
-                'decided_on' => $data['decided_on'],
-                'authority' => $data['authority'],
+                'decided_on' => filled($data['decided_on'] ?? null) ? $data['decided_on'] : null,
+                'authority' => filled($data['authority'] ?? null) ? trim((string) $data['authority']) : null,
                 'late_exception_authority' => $data['late_exception_authority'] ?? null,
                 'late_exception_reason' => $data['late_exception_reason'] ?? null,
                 'private_source_reference' => $data['private_source_reference'] ?? null,
                 'reason' => $data['reason'],
                 'impact_snapshot' => $preview,
                 'recorded_by' => $actor->id,
-                'state' => $type === StudentLifecycleChange::TypeProgramShift
+                'state' => $preview['pending_application']
                     ? StudentLifecycleChange::StateRecordedApproved
                     : StudentLifecycleChange::StateApplied,
             ]);
 
             if ($type === StudentLifecycleChange::TypeProgramShift) {
-                $this->recordShiftCredits($change, $data['credit_entries'] ?? []);
-            } else {
+                $this->recordShiftCredits($change, $preview['program_shift_credits']);
+            } elseif (! $preview['pending_application']) {
                 $this->applyImmediateEffects($change, $student, $enrollment, $actor);
                 $this->finance->execute($change, $actor);
             }
@@ -173,8 +205,11 @@ class StudentLifecycleService
             }
 
             $term = Term::query()->lockForUpdate()->findOrFail($locked->term_id);
-            if ($term->starts_on->isFuture()) {
+            if ($term->starts_on->toDateString() > today('Asia/Manila')->toDateString()) {
                 throw new StudentLifecycleRuleViolation('Program Shift cannot be applied before its effective term.');
+            }
+            if ($locked->effective_on->toDateString() > today('Asia/Manila')->toDateString()) {
+                throw new StudentLifecycleRuleViolation('Program Shift cannot be applied before its recorded effective date.');
             }
             if ($locked->target_program_id === null || $locked->target_curriculum_version_id === null) {
                 throw new StudentLifecycleRuleViolation('Program Shift target program and curriculum are required.');
@@ -184,23 +219,29 @@ class StudentLifecycleService
                 throw new StudentLifecycleRuleViolation('Program Shift target curriculum must belong to the target program.');
             }
             $credits = $locked->programShiftCredits()->get();
-            if ($credits->isEmpty()) {
-                throw new StudentLifecycleRuleViolation('Program Shift credit checklist is required.');
-            }
             $creditRows = [];
             foreach ($credits as $credit) {
                 if ($credit instanceof ProgramShiftCreditEntry) {
                     $creditRows[] = [
                         'curriculum_entry_id' => $credit->curriculum_entry_id,
                         'source_course_id' => $credit->source_course_id,
+                        'source_grade_outcome_event_id' => $credit->source_grade_outcome_event_id,
                         'treatment' => $credit->treatment,
                         'numeric_grade' => $credit->numeric_grade,
                     ];
                 }
             }
-            $this->validateProgramShiftCreditEntries($targetCurriculum, $creditRows);
-
             $student = StudentProfile::query()->lockForUpdate()->findOrFail($locked->student_profile_id);
+            $this->lockShiftSourceRows($student, $creditRows);
+            $validatedCredits = $this->validateProgramShiftCreditEntries($student, $targetCurriculum, $creditRows);
+            foreach ($validatedCredits as $index => $entry) {
+                if ($entry['treatment'] === ProgramShiftCreditEntry::TreatmentAccepted
+                    && ((int) $entry['source_course_id'] !== (int) $creditRows[$index]['source_course_id']
+                        || (float) $entry['numeric_grade'] !== (float) $creditRows[$index]['numeric_grade'])) {
+                    throw new StudentLifecycleRuleViolation('The released passing result no longer matches the recorded credit evaluation. Review the approval before applying it.');
+                }
+            }
+            $this->assertCurrentApprovalSource($locked, $student);
             $student->update([
                 'program_id' => $locked->target_program_id,
                 'curriculum_version_id' => $locked->target_curriculum_version_id,
@@ -233,30 +274,132 @@ class StudentLifecycleService
         }, attempts: 3);
     }
 
-    /** @param array<string,mixed> $data */
-    private function validateCommon(array $data, StudentProfile $student, Term $term, string $type): void
+    public function apply(StudentLifecycleChange $change, User $actor): StudentLifecycleChange
+    {
+        if ($change->type === StudentLifecycleChange::TypeProgramShift) {
+            return $this->applyProgramShift($change, $actor);
+        }
+        $this->authorizeRegistrar($actor);
+
+        return DB::transaction(function () use ($change, $actor): StudentLifecycleChange {
+            $locked = StudentLifecycleChange::query()->lockForUpdate()->findOrFail($change->id);
+            if ($locked->state === StudentLifecycleChange::StateApplied) {
+                return $locked;
+            }
+            if (! $locked->isPendingChange()) {
+                throw new StudentLifecycleRuleViolation('Only an approval awaiting application may be applied.');
+            }
+            $student = StudentProfile::query()->lockForUpdate()->findOrFail($locked->student_profile_id);
+            if ($locked->isFutureDated()) {
+                throw new StudentLifecycleRuleViolation('This change cannot be applied before its effective date and term.');
+            }
+            $this->assertCurrentApprovalSource($locked, $student);
+            $enrollment = $this->resolveEnrollment($student, $locked->term, $locked->enrollment_id, lock: true);
+            if ($enrollment?->id !== $locked->enrollment_id) {
+                throw new StudentLifecycleRuleViolation('The enrollment source changed. Cancel this approval and record the corrected change.');
+            }
+            $effects = $this->preview([...$locked->attributesToArray(), 'effective_on' => $locked->effective_on->toDateString()], checkWindow: false);
+            $this->applyImmediateEffects($locked, $student, $enrollment, $actor);
+            $locked->update(['state' => StudentLifecycleChange::StateApplied]);
+            $this->finance->execute($locked, $actor);
+            $this->recordAudit($locked, $actor, 'student_lifecycle_change_applied', $effects);
+            $this->notifications->recordLifecycleAfterCommit($locked);
+
+            return $locked->refresh();
+        }, attempts: 3);
+    }
+
+    public function cancel(StudentLifecycleChange $change, User $actor): StudentLifecycleChange
+    {
+        if ($change->type === StudentLifecycleChange::TypeProgramShift) {
+            return $this->cancelProgramShift($change, $actor);
+        }
+        $this->authorizeRegistrar($actor);
+
+        return DB::transaction(function () use ($change, $actor): StudentLifecycleChange {
+            $locked = StudentLifecycleChange::query()->lockForUpdate()->findOrFail($change->id);
+            if ($locked->state === StudentLifecycleChange::StateCancelled) {
+                return $locked;
+            }
+            if (! $locked->isPendingChange()) {
+                throw new StudentLifecycleRuleViolation('Only an approval awaiting application may be cancelled.');
+            }
+            $locked->update(['state' => StudentLifecycleChange::StateCancelled]);
+            $this->recordAudit($locked, $actor, 'student_lifecycle_change_cancelled');
+
+            return $locked->refresh();
+        }, attempts: 3);
+    }
+
+    private function assertCurrentApprovalSource(StudentLifecycleChange $change, StudentProfile $student): void
+    {
+        foreach (['profile_status_before' => 'lifecycle_status', 'program_before.id' => 'program_id', 'curriculum_version_before.id' => 'curriculum_version_id'] as $source => $attribute) {
+            $original = data_get($change->impact_snapshot, $source);
+            if ($original !== null && (string) $original !== (string) $student->{$attribute}) {
+                throw new StudentLifecycleRuleViolation('The student record changed after this approval. Cancel it and record the corrected change.');
+            }
+        }
+        $this->assertNotSuperseded($student, $change->effective_on);
+        if (StudentLifecycleChange::query()->where('student_profile_id', $student->id)
+            ->where('state', StudentLifecycleChange::StateApplied)->where('id', '>', $change->id)
+            ->whereDate('effective_on', '>=', $change->effective_on)->exists()) {
+            throw new StudentLifecycleRuleViolation('A newer lifecycle change is already applied. Cancel this stale approval and record the corrected change.');
+        }
+    }
+
+    private function assertNotSuperseded(StudentProfile $student, Carbon $effectiveOn): void
+    {
+        if (StudentLifecycleChange::query()->where('student_profile_id', $student->id)
+            ->where('state', StudentLifecycleChange::StateApplied)->whereDate('effective_on', '>', $effectiveOn)->exists()) {
+            throw new StudentLifecycleRuleViolation('A later lifecycle change is already applied. Record a current authorized correction instead of replacing its effects.');
+        }
+    }
+
+    /**
+     * @param  array<string,mixed>  $data
+     * @return list<array<string,mixed>>
+     */
+    private function validateCommon(array $data, StudentProfile $student, Term $term, string $type, bool $checkWindow = true): array
     {
         if (! array_key_exists($type, StudentLifecycleChange::typeOptions())) {
             throw new StudentLifecycleRuleViolation('Unsupported lifecycle change type.');
         }
-        foreach (['effective_on', 'decided_on', 'authority', 'reason'] as $required) {
+        foreach (['effective_on', 'reason'] as $required) {
             if (blank($data[$required] ?? null)) {
-                throw new StudentLifecycleRuleViolation("Lifecycle field [$required] is required.");
+                throw new StudentLifecycleRuleViolation($required === 'reason'
+                    ? 'Enter the reason for this approved change.'
+                    : 'Choose when this change takes effect.');
             }
         }
-        $this->validateWindow($type, $term, $data);
+        if ($checkWindow) {
+            $this->validateWindow($type, $term, $data);
+        }
+        $effectiveOn = Carbon::parse($data['effective_on'])->startOfDay();
+        $this->assertNotSuperseded($student, $effectiveOn);
 
-        if ($type === StudentLifecycleChange::TypeSubjectDrop && blank($data['course_enrollment_id'] ?? null)) {
-            throw new StudentLifecycleRuleViolation('Subject Drop requires one course enrollment.');
+        if ($type === StudentLifecycleChange::TypeSubjectDrop) {
+            if (blank($data['course_enrollment_id'] ?? null)) {
+                throw new StudentLifecycleRuleViolation('Subject Drop requires one course enrollment.');
+            }
+            $course = CourseEnrollment::query()->find((int) $data['course_enrollment_id']);
+            if ($course instanceof CourseEnrollment) {
+                $this->assertNoFinalReleasedOutcome($course);
+            }
         }
         if ($type === StudentLifecycleChange::TypeLeaveOfAbsence && blank($data['expected_return_term_id'] ?? null)) {
             throw new StudentLifecycleRuleViolation('Leave of Absence requires an expected return term.');
         }
-        if ($type === StudentLifecycleChange::TypeProgramShift) {
-            if (blank($data['target_program_id'] ?? null) || blank($data['target_curriculum_version_id'] ?? null) || empty($data['credit_entries'] ?? [])) {
-                throw new StudentLifecycleRuleViolation('Program Shift requires a future target curriculum and credit checklist.');
+        if ($type === StudentLifecycleChange::TypeLeaveOfAbsence) {
+            $returnTerm = Term::query()->find((int) $data['expected_return_term_id']);
+            if (! $returnTerm || $returnTerm->starts_on->lessThanOrEqualTo($effectiveOn) || $returnTerm->starts_on->lessThanOrEqualTo($term->starts_on)) {
+                throw new StudentLifecycleRuleViolation('Expected return term must start after the leave effective date and selected term start.');
             }
-            if (! $term->starts_on->isFuture()) {
+        }
+        if ($type === StudentLifecycleChange::TypeProgramShift) {
+            if (blank($data['target_program_id'] ?? null) || blank($data['target_curriculum_version_id'] ?? null)) {
+                throw new StudentLifecycleRuleViolation('Program Shift requires a future target program and curriculum.');
+            }
+            if ($term->starts_on->toDateString() <= today('Asia/Manila')->toDateString()) {
                 throw new StudentLifecycleRuleViolation('Program Shift must target a future term.');
             }
             if (Carbon::parse($data['effective_on'])->lt($term->starts_on)) {
@@ -266,7 +409,8 @@ class StudentLifecycleService
             if ((int) $targetCurriculum->program_id !== (int) $data['target_program_id']) {
                 throw new StudentLifecycleRuleViolation('Program Shift target curriculum must belong to the target program.');
             }
-            $this->validateProgramShiftCreditEntries($targetCurriculum, $data['credit_entries']);
+
+            return $this->validateProgramShiftCreditEntries($student, $targetCurriculum, $data['credit_entries'] ?? []);
         }
         if ($type === StudentLifecycleChange::TypeReactivation) {
             if (! in_array($student->lifecycle_status, [StudentProfile::LifecycleArchived, StudentProfile::LifecycleInactive, StudentProfile::LifecycleLeaveOfAbsence, StudentProfile::LifecycleWithdrawn], true)) {
@@ -276,10 +420,11 @@ class StudentLifecycleService
                 throw new StudentLifecycleRuleViolation('An effective reactivation hold remains unresolved.');
             }
         }
+
+        return [];
     }
 
-    /** @param array<string,mixed> $data */
-    private function validateWindow(string $type, Term $term, array $data): void
+    public function isWindowOpen(Term $term, string $type): bool
     {
         $key = match ($type) {
             StudentLifecycleChange::TypeSubjectDrop => 'subject_drop',
@@ -289,9 +434,10 @@ class StudentLifecycleService
             StudentLifecycleChange::TypeTransferOut => 'transfer_out',
             StudentLifecycleChange::TypeReactivation => 'reactivation',
             StudentLifecycleChange::TypeInactivation => 'inactivation',
-            default => throw new StudentLifecycleRuleViolation('Unsupported lifecycle change type.'),
+            default => null,
         };
-        $insideWindow = CalendarEvent::query()
+
+        return $key !== null && CalendarEvent::query()
             ->where('term_id', $term->id)
             ->where('event_type', CalendarEvent::TypeWindow)
             ->where('process_key', $key)
@@ -299,9 +445,40 @@ class StudentLifecycleService
             ->where('start_at', '<=', now())
             ->where('end_at', '>=', now())
             ->exists();
+    }
 
-        if (! $insideWindow && (blank($data['late_exception_authority'] ?? null) || blank($data['late_exception_reason'] ?? null))) {
+    /** @param array<string,mixed> $data */
+    private function validateWindow(string $type, Term $term, array $data): void
+    {
+        if (! $this->isWindowOpen($term, $type) && (blank($data['late_exception_authority'] ?? null) || blank($data['late_exception_reason'] ?? null))) {
             throw new StudentLifecycleRuleViolation('Lifecycle action is outside its configured window and requires a recorded late exception.');
+        }
+    }
+
+    public function resolveEnrollment(StudentProfile $student, Term $term, mixed $enrollmentId = null, bool $lock = false): ?Enrollment
+    {
+        $query = Enrollment::query()->where('student_profile_id', $student->id);
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+        if (filled($enrollmentId)) {
+            $enrollment = $query->find((int) $enrollmentId);
+            if (! $enrollment instanceof Enrollment) {
+                throw new StudentLifecycleRuleViolation('Choose an enrollment belonging to the selected student.');
+            }
+            $this->validateEnrollmentTerm($enrollment, $term);
+
+            return $enrollment;
+        }
+
+        return $query->where('term_id', $term->id)->first();
+
+    }
+
+    private function validateEnrollmentTerm(?Enrollment $enrollment, Term $term): void
+    {
+        if ($enrollment instanceof Enrollment && (int) $enrollment->term_id !== (int) $term->id) {
+            throw new StudentLifecycleRuleViolation('Choose an enrollment from the selected term.');
         }
     }
 
@@ -313,6 +490,8 @@ class StudentLifecycleService
         $query = CourseEnrollment::query()->where('enrollment_id', $enrollment->id)->where('status', CourseEnrollment::StatusActive);
         if ($type === StudentLifecycleChange::TypeSubjectDrop) {
             $query->whereKey((int) $data['course_enrollment_id']);
+        } else {
+            $query->whereDoesntHave('gradeRosterRow', fn ($row) => $row->whereNotNull('released_at'));
         }
 
         return in_array($type, [StudentLifecycleChange::TypeSubjectDrop, StudentLifecycleChange::TypeWithdrawal, StudentLifecycleChange::TypeLeaveOfAbsence, StudentLifecycleChange::TypeTransferOut], true)
@@ -331,17 +510,6 @@ class StudentLifecycleService
 
         if ($type === StudentLifecycleChange::TypeInactivation) {
             $student->update(['lifecycle_status' => StudentProfile::LifecycleInactive]);
-
-            return;
-        }
-
-        if ($type === StudentLifecycleChange::TypeLeaveOfAbsence && $change->effective_on->isFuture()) {
-            Hold::query()->firstOrCreate(
-                ['student_profile_id' => $student->id, 'term_id' => $change->term_id, 'source_type' => StudentLifecycleChange::class, 'source_id' => $change->id],
-                ['hold_type' => Hold::TypeEnrollment, 'blocking_level' => Hold::BlockingEnrollment, 'status' => Hold::StatusActive,
-                    'reason' => 'Approved future Leave of Absence.', 'student_message' => 'Enrollment is unavailable during your approved leave.',
-                    'created_by' => $actor->id, 'effective_at' => $change->term->starts_on, 'resolution_requirement' => 'Reach the approved return term.'],
-            );
 
             return;
         }
@@ -369,6 +537,11 @@ class StudentLifecycleService
 
     private function releaseCourse(CourseEnrollment $course, StudentLifecycleChange $change, User $actor): void
     {
+        $row = GradeRosterRow::query()->where('course_enrollment_id', $course->id)->lockForUpdate()->first();
+        if ($change->type !== StudentLifecycleChange::TypeSubjectDrop && $row?->released_at !== null) {
+            return;
+        }
+
         $status = $change->type === StudentLifecycleChange::TypeSubjectDrop ? CourseEnrollment::StatusDropped : CourseEnrollment::StatusWithdrawn;
         $course->update([
             'status' => $status,
@@ -382,7 +555,6 @@ class StudentLifecycleService
         EnrollmentSeatReservation::query()->where('course_enrollment_id', $course->id)->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->update([
             'status' => EnrollmentSeatReservation::StatusReleased, 'released_at' => now(),
         ]);
-        $row = GradeRosterRow::query()->where('course_enrollment_id', $course->id)->lockForUpdate()->first();
         if ($row instanceof GradeRosterRow) {
             $code = $change->type === StudentLifecycleChange::TypeSubjectDrop ? 'DRP' : 'W';
             $row->update(['current_outcome_code' => $code, 'current_outcome_category' => GradeRosterRow::CategoryWithdrawn, 'released_at' => now()]);
@@ -418,15 +590,10 @@ class StudentLifecycleService
         };
     }
 
-    /** @param array<string,mixed> $data */
-    private function corAvailableAfter(string $type, array $data): bool
+    private function corAvailableAfter(string $type): bool
     {
-        if ($type === StudentLifecycleChange::TypeLeaveOfAbsence) {
-            return filled($data['effective_on'] ?? null)
-                && Carbon::parse($data['effective_on'])->isFuture();
-        }
-
         return ! in_array($type, [
+            StudentLifecycleChange::TypeLeaveOfAbsence,
             StudentLifecycleChange::TypeWithdrawal,
             StudentLifecycleChange::TypeTransferOut,
             StudentLifecycleChange::TypeInactivation,
@@ -465,14 +632,43 @@ class StudentLifecycleService
         }
     }
 
-    /** @param list<array<string,mixed>> $entries */
-    private function validateProgramShiftCreditEntries(CurriculumVersion $targetCurriculum, array $entries): void
+    /** @return Collection<int, array<string, mixed>> */
+    public function programShiftSources(StudentProfile $student): Collection
     {
-        if ($entries === []) {
-            throw new StudentLifecycleRuleViolation('Program Shift credit checklist is required.');
+        return $this->results->forStudent($student)
+            ->filter(fn (array $result): bool => $result['event'] instanceof GradeOutcomeEvent
+                && is_numeric($result['result'])
+                && (float) $result['result'] >= 1.00
+                && (float) $result['result'] <= 4.00)
+            ->values();
+    }
+
+    /** @param list<array<string,mixed>> $entries */
+    private function lockShiftSourceRows(StudentProfile $student, array $entries): void
+    {
+        $eventIds = collect($entries)->where('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
+            ->pluck('source_grade_outcome_event_id')->filter();
+        if ($eventIds->isEmpty()) {
+            return;
         }
+        GradeRosterRow::query()
+            ->whereHas('courseEnrollment.enrollment', fn ($query) => $query->where('student_profile_id', $student->id))
+            ->whereHas('outcomeEvents', fn ($query) => $query->whereIn('id', $eventIds))
+            ->orderBy('id')->lockForUpdate()->get();
+    }
+
+    /**
+     * @param  list<array<string,mixed>>  $entries
+     * @return list<array<string,mixed>>
+     */
+    private function validateProgramShiftCreditEntries(StudentProfile $student, CurriculumVersion $targetCurriculum, array $entries): array
+    {
+        $sources = collect($entries)->contains('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
+            ? $this->programShiftSources($student)->keyBy('event.id')
+            : collect();
 
         $seen = [];
+        $validated = [];
         foreach ($entries as $entry) {
             $curriculumEntryId = (int) ($entry['curriculum_entry_id'] ?? 0);
             if ($curriculumEntryId < 1) {
@@ -500,23 +696,23 @@ class StudentLifecycleService
                 throw new StudentLifecycleRuleViolation('Program Shift credit checklist contains an unsupported treatment.');
             }
 
-            if (filled($entry['source_course_id'] ?? null) && ! Course::query()->whereKey((int) $entry['source_course_id'])->exists()) {
-                throw new StudentLifecycleRuleViolation('Program Shift source course must reference an existing course.');
-            }
-
+            $source = null;
             if ($treatment === ProgramShiftCreditEntry::TreatmentAccepted) {
-                if (blank($entry['source_course_id'] ?? null)) {
-                    throw new StudentLifecycleRuleViolation('Accepted internal shift credit requires a source course.');
-                }
-                if (blank($entry['numeric_grade'] ?? null) || ! is_numeric($entry['numeric_grade'])) {
-                    throw new StudentLifecycleRuleViolation('Accepted internal shift credit requires a numeric grade.');
-                }
-                $numericGrade = (float) $entry['numeric_grade'];
-                if ($numericGrade < 1.00 || $numericGrade > 5.00) {
-                    throw new StudentLifecycleRuleViolation('Accepted internal shift credit numeric grade must be between 1.00 and 5.00.');
+                $source = $sources->get((int) ($entry['source_grade_outcome_event_id'] ?? 0));
+                if ($source === null || $source['course_specification'] === null) {
+                    throw new StudentLifecycleRuleViolation('Accepted credit requires this student’s current released passing result. Choose an available result or review the credit evaluation.');
                 }
             }
+            $validated[] = [
+                'curriculum_entry_id' => $curriculumEntryId,
+                'treatment' => $treatment,
+                'source_grade_outcome_event_id' => $source['event']->id ?? null,
+                'source_course_id' => $source['course_specification']->course_id ?? null,
+                'numeric_grade' => $source['result'] ?? null,
+            ];
         }
+
+        return $validated;
     }
 
     private function authorizeRegistrar(User $actor): void
@@ -526,13 +722,13 @@ class StudentLifecycleService
         }
     }
 
-    private function recordAudit(StudentLifecycleChange $change, User $actor, string $event): void
+    private function recordAudit(StudentLifecycleChange $change, User $actor, string $event, array $applicationEffects = []): void
     {
         DB::table('activity_log')->insert([
             'log_name' => 'student_lifecycle', 'description' => str($event)->headline(),
             'subject_type' => StudentLifecycleChange::class, 'subject_id' => $change->id,
             'event' => $event, 'causer_type' => User::class, 'causer_id' => $actor->id,
-            'properties' => json_encode(['type' => $change->type, 'impact_snapshot' => $change->impact_snapshot]),
+            'properties' => json_encode(['type' => $change->type, 'impact_snapshot' => $change->impact_snapshot, 'application_effects' => $applicationEffects]),
             'created_at' => now(), 'updated_at' => now(),
         ]);
     }

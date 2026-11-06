@@ -66,7 +66,7 @@ class Academics extends Page
             return [
                 Action::make('unofficialRecord')->label('Unofficial record')->icon('heroicon-o-printer')->color('gray')
                     ->url($student ? route('student-academics.unofficial-record', $student) : null)->openUrlInNewTab()
-                    ->visible($student instanceof StudentProfile && app(OfficialCourseResultProjection::class)->forStudent($student)->whereNotNull('event')->isNotEmpty()),
+                    ->visible($student instanceof StudentProfile && app(OfficialCourseResultProjection::class)->forStudent($student)->whereNotNull('outcome_source')->isNotEmpty()),
                 Action::make('graduation')->label('Graduation records')->color('gray')
                     ->url(static::getUrl(['view' => 'graduation'], panel: 'student'))
                     ->visible($this->hasGraduationHistory()),
@@ -124,7 +124,7 @@ class Academics extends Page
         $historicalResults = $results->except($currentResults->keys()->all());
         $examinationTerm = $currentEnrollment?->term ?? $terms->first();
         $termAverages = $terms->mapWithKeys(fn ($term): array => [
-            $term->id => app(TermWeightedAverageProjection::class)->forStudentAndTerm($student, $term),
+            $term->id => app(TermWeightedAverageProjection::class)->forResults($results, $term),
         ]);
 
         $completion = app(CompletionReadinessProjection::class)->forStudent($student);

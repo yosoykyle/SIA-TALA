@@ -6,6 +6,7 @@ use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Completion\CompletionReadinessProjection;
 use App\Actions\StudentHub\StudentStudyContext;
 use App\Filament\Student\Pages\Academics;
+use App\Filament\Student\Pages\Dashboard;
 use App\Models\CompletionReadinessVersion;
 use App\Models\CorVersion;
 use App\Models\CourseEnrollment;
@@ -127,8 +128,28 @@ class StudentStudyContextTest extends TestCase
         ], $context);
 
         $this->signInStudent($profile);
-        Livewire::test(Academics::class)->assertSee('Your current subjects appear after official enrollment.')
+        Livewire::test(Academics::class)->assertSee('Current subjects cannot be shown here. View your enrollment record, or contact the Registrar.')
             ->assertSee('View enrollment')->assertDontSee('Exam dates')->assertDontSee('Year 2');
+    }
+
+    public function test_official_record_without_current_certificate_does_not_claim_readiness_or_unfinished_enrollment(): void
+    {
+        $profile = StudentProfile::factory()->create();
+        $enrollment = $this->officialEnrollment($profile);
+        $enrollment->update(['status' => 'pending_payment', 'current_cor_version_id' => null]);
+        $this->signInStudent($profile);
+
+        Livewire::test(Dashboard::class)
+            ->assertSee('Your enrollment is official')
+            ->assertSee('Open your enrollment record to check subjects and document availability.')
+            ->assertDontSee('Your registered subjects and certificate are ready.');
+        Livewire::test(Academics::class)
+            ->assertSee('Current subjects cannot be shown here. View your enrollment record, or contact the Registrar.')
+            ->assertDontSee('Your current subjects appear after official enrollment.');
+
+        $this->assertFalse(app(StudentStudyContext::class)->forStudent($profile->user)['is_official']);
+        $this->assertNull($enrollment->fresh()->current_cor_version_id);
+        $this->assertSame(Enrollment::OutcomeOfficiallyEnrolled, $enrollment->fresh()->canonical_outcome);
     }
 
     public function test_missing_profile_keeps_current_facts_unavailable(): void

@@ -54,20 +54,19 @@ class CompletionReadinessProjection
             ->first();
 
         $blockers = [];
-        $hasInProgressRequirement = false;
-        if ($application instanceof GraduationApplication
-            && (int) $application->curriculum_version_id !== (int) $student->curriculum_version_id) {
+        if ($student->curriculumVersion === null || count($curriculum['required']) === 0) {
             $blockers[] = [
-                'code' => 'graduation-application:curriculum-changed',
-                'source' => 'GraduationApplication',
-                'source_ref' => (string) $application->id,
-                'source_as_of' => $application->updated_at?->toIso8601String(),
+                'code' => 'curriculum:requirements-missing',
+                'source' => 'CurriculumEvaluation',
+                'source_ref' => $student->curriculum_version_id,
+                'source_as_of' => $student->curriculumVersion?->updated_at?->toIso8601String(),
                 'owner' => 'Registrar',
-                'reason' => 'The active Graduation Application belongs to an earlier Curriculum Version.',
-                'consequence' => 'Conferral cannot proceed from a Graduation Application whose completion scope no longer matches the Student record.',
-                'recovery' => 'Registrar reviews the curriculum change and records the authorized application successor.',
+                'reason' => 'The student’s curriculum requirements are not available for evaluation.',
+                'consequence' => 'Graduation cannot be recorded without a complete curriculum evaluation.',
+                'recovery' => 'Verify the assigned curriculum version and its required courses before recording graduation.',
             ];
         }
+        $hasInProgressRequirement = false;
         foreach ($curriculum['required'] as $row) {
             if (in_array($row['status'], ['Completed', 'Approved credit'], true)) {
                 continue;
@@ -85,7 +84,7 @@ class CompletionReadinessProjection
                 'reason' => "{$code}: {$row['status']}",
                 'consequence' => $row['status'] === 'In progress'
                     ? 'Conferral must wait for the current official result.'
-                    : 'The graduation application cannot proceed while this curriculum requirement is unresolved.',
+                    : 'Graduation cannot be recorded while this curriculum requirement is unresolved.',
                 'recovery' => $row['status'] === 'In progress'
                     ? 'Complete the current official course and wait for Registrar release.'
                     : 'Resolve the named curriculum deficiency through Registrar advising.',
@@ -100,12 +99,12 @@ class CompletionReadinessProjection
                 'source_as_of' => $student->curriculumVersion?->updated_at?->toIso8601String(),
                 'owner' => 'Registrar',
                 'reason' => 'Final-term official enrollment is not recorded.',
-                'consequence' => 'In-progress completion evidence cannot support a graduation application without its exact official enrollment context.',
+                'consequence' => 'In-progress completion evidence requires its exact official enrollment context.',
                 'recovery' => 'Registrar verifies and records the authoritative final-term enrollment source.',
             ];
         }
 
-        $incompleteResult = $results->first(fn (array $result): bool => $result['result'] === 'INC');
+        $incompleteResult = $results->first(fn (array $result): bool => $result['result'] === 'INC' && ! ($result['inc_settled'] ?? false));
         if (is_array($incompleteResult)) {
             $blockers[] = [
                 'code' => 'official-result:inc-unresolved',
@@ -140,7 +139,7 @@ class CompletionReadinessProjection
                     'source_as_of' => $requirement->updated_at?->toIso8601String(),
                     'owner' => 'External assessor and Registrar',
                     'reason' => "Required competency {$requirement->qualification_label} is not yet verified as competent.",
-                    'consequence' => 'The graduation application cannot proceed until the required external competency is verified.',
+                    'consequence' => 'Graduation cannot be recorded until the required external competency is verified.',
                     'recovery' => 'Registrar records the verified external result against the active requirement.',
                 ];
             }
@@ -159,7 +158,7 @@ class CompletionReadinessProjection
                     'source_as_of' => $hold->updated_at?->toIso8601String(),
                     'owner' => $hold->studentFacingOfficeLabel(),
                     'reason' => $hold->studentFacingMessage() ?? 'A named completion clearance is unresolved.',
-                    'consequence' => 'The graduation application cannot proceed while this named completion clearance is unresolved.',
+                    'consequence' => 'Graduation cannot be recorded while this named completion clearance is unresolved.',
                     'recovery' => $hold->resolution_requirement ?: 'Use the authorized hold-resolution path.',
                 ];
             });
@@ -170,10 +169,9 @@ class CompletionReadinessProjection
 
         $state = match (true) {
             $conferral instanceof DegreeConferral => self::Conferred,
-            $application instanceof GraduationApplication && $blockers !== [] => self::AwaitingResultsOrClearance,
-            $application instanceof GraduationApplication => self::ReadyForConferral,
             $hardBlockers->isNotEmpty() => self::NotEligible,
-            default => self::EligibleToApply,
+            $blockers !== [] => self::AwaitingResultsOrClearance,
+            default => self::ReadyForConferral,
         };
 
         $sourceSnapshot = [

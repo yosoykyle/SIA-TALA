@@ -41,4 +41,9 @@ class TranscriptIssuanceEvent extends Model
     {
         return $this->belongsTo(TranscriptSnapshot::class, 'transcript_snapshot_id');
     }
+
+    public function recorder(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recorded_by');
+    }
 }

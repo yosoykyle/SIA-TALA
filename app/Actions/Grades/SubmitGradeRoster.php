@@ -11,17 +11,20 @@ use RuntimeException;
 
 class SubmitGradeRoster
 {
-    public function __construct(private readonly GradeWindowService $windows, private readonly FinalResultPolicy $policy) {}
+    public function __construct(
+        private readonly GradeWindowService $windows,
+        private readonly FinalResultPolicy $policy,
+        private readonly GradeRosterSourceGuard $sources,
+    ) {}
 
-    public function execute(GradeRoster $roster, User $actor): GradeRoster
+    public function execute(GradeRoster $roster, User $actor, ?int $expectedVersion = null): GradeRoster
     {
-        return DB::transaction(function () use ($roster, $actor): GradeRoster {
+        return DB::transaction(function () use ($roster, $actor, $expectedVersion): GradeRoster {
             $locked = GradeRoster::query()->with(['rows' => fn ($query) => $query->where('is_current_membership', true), 'teachingAssignment'])
                 ->lockForUpdate()->findOrFail($roster->id);
 
-            if ((int) $locked->teachingAssignment?->faculty_user_id !== (int) $actor->id) {
-                throw new RuntimeException('Only the designated faculty member can submit this roster.');
-            }
+            $this->sources->assertExpectedVersion($locked, $expectedVersion);
+            $this->sources->assertCurrent($locked, $actor, submitting: true);
 
             if (! in_array($locked->state, [GradeRoster::StateDraft, GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted], true)) {
                 throw new RuntimeException('This roster cannot be submitted from its current state.');
@@ -41,6 +44,10 @@ class SubmitGradeRoster
                 }
 
                 $this->policy->normalize($row->final_result);
+
+                if ($row->final_result === 'INC' && blank($row->inc_completion_note)) {
+                    throw new RuntimeException('Each INC result requires a safe completion note before submission.');
+                }
             }
 
             $versionNumber = $locked->current_version_number + 1;
@@ -63,6 +70,9 @@ class SubmitGradeRoster
                     'inc_completion_note' => $row->inc_completion_note,
                     'row_revision' => $row->row_revision,
                 ]);
+                if ($row->returned_at !== null) {
+                    $row->update(['returned_at' => null, 'returned_by' => null, 'return_reason' => null]);
+                }
             }
 
             $locked->update([

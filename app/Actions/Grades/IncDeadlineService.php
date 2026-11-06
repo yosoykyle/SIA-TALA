@@ -33,6 +33,7 @@ class IncDeadlineService
         $amended = IncDeadlineAmendment::query()
             ->where('grade_outcome_event_id', $incomplete->id)
             ->latest('recorded_at')
+            ->latest('id')
             ->first();
 
         $deadline = $amended instanceof IncDeadlineAmendment
@@ -44,13 +45,16 @@ class IncDeadlineService
 
     public function state(GradeOutcomeEvent $incomplete, ?Carbon $at = null): string
     {
-        $resolved = GradeOutcomeEvent::query()->where('predecessor_event_id', $incomplete->id)->exists();
+        $resolved = GradeOutcomeEvent::query()
+            ->where('predecessor_event_id', $incomplete->id)
+            ->whereNotNull('released_at')
+            ->exists();
 
         if ($resolved) {
             return self::StateResolved;
         }
 
-        $at ??= now('Asia/Manila');
+        $at = ($at ?? now('Asia/Manila'))->copy()->timezone('Asia/Manila');
 
         return $at->toDateString() <= $this->currentDeadline($incomplete)->toDateString()
             ? self::StateCompletionOpen

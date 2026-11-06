@@ -123,6 +123,7 @@ class EnrollmentAcademicContextResolver
     {
         $enrollment->loadMissing([
             'term',
+            'studentSection',
             'studentProfile.program',
             'studentProfile.curriculumVersion',
             'courseEnrollments.termOffering.curriculumEntry',
@@ -167,7 +168,7 @@ class EnrollmentAcademicContextResolver
             'term_id' => (int) $enrollment->term_id,
             'term_label' => $enrollment->term?->label,
             'enrollment_status' => (string) $enrollment->status,
-            'enrollment_status_label' => Str::headline((string) $enrollment->status),
+            'enrollment_status_label' => $enrollment->statusLabel(),
             'enrollment_type' => $enrollment->selection_basis,
             'enrollment_type_label' => filled($enrollment->selection_basis)
                 ? Str::headline((string) $enrollment->selection_basis)
@@ -179,6 +180,8 @@ class EnrollmentAcademicContextResolver
             'curriculum_name' => $curriculum?->name,
             'curriculum_levels' => $curriculumLevels->all(),
             'curriculum_level_label' => $this->curriculumLevelLabel($curriculumLevels),
+            'student_section_id' => $enrollment->student_section_id,
+            'student_section_label' => $enrollment->studentSection?->reference ?? 'Not assigned',
             'section_ids' => $sections->map(fn (Section $section): int => (int) $section->getKey())->all(),
             'section_labels' => $sections->pluck('code')->filter()->values()->all(),
             'cohort_labels' => $sections

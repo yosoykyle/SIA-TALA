@@ -19,9 +19,16 @@ class TranscriptRequest extends Model
 
     public const TemplateServitechV1 = 'TALA Standard TOR — Servitech v1';
 
+    public const TemplateServitechV2 = 'TALA Standard TOR — Servitech v2';
+
     public const SealImage = 'Image';
 
     public const SealPlacementInstruction = 'PlacementInstruction';
+
+    public static function outputViewFor(string $version): string
+    {
+        return $version === self::TemplateServitechV2 ? 'outputs.tala-standard-tor-v2' : 'outputs.tala-standard-tor';
+    }
 
     protected $fillable = [
         'student_profile_id', 'degree_conferral_id', 'version', 'supersedes_request_id',
@@ -65,19 +72,10 @@ class TranscriptRequest extends Model
         return $this->hasMany(TranscriptIssuanceEvent::class);
     }
 
-    public function currentClearance(): ?OfficialOutputPaymentClearance
+    /** @return HasMany<OfficialOutputRestriction, $this> */
+    public function officialOutputRestrictions(): HasMany
     {
-        $clearance = $this->clearances()->latest('version')->first();
-
-        return $clearance instanceof OfficialOutputPaymentClearance ? $clearance : null;
-    }
-
-    public function clearanceState(): string
-    {
-        $state = $this->currentClearance()?->state;
-
-        return in_array($state, [OfficialOutputPaymentClearance::StateCleared, OfficialOutputPaymentClearance::StateNotRequired], true)
-            ? $state
-            : OfficialOutputPaymentClearance::StateActionNeeded;
+        return $this->hasMany(OfficialOutputRestriction::class, 'student_profile_id', 'student_profile_id')
+            ->where('output_type', OfficialOutputRestriction::OutputTor);
     }
 }

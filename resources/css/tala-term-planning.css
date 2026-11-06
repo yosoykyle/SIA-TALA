@@ -77,11 +77,6 @@
 .tala-oversight-workflow { display:grid; gap:1.5rem; }
 .tala-oversight-findings { display:grid; gap:.75rem; margin-block-start:1rem; }
 .tala-faculty-work-header { display:grid; gap:.5rem; }
-.tala-faculty-term-chooser { display:grid; justify-items:center; align-content:center; gap:.75rem; min-block-size:24rem; max-inline-size:42rem; margin-inline:auto; padding:2rem 1rem; text-align:center; }
-.tala-faculty-term-chooser > svg { inline-size:3rem; block-size:3rem; color:var(--tala-muted); }
-.tala-faculty-term-chooser h2 { font-size:1.5rem; font-weight:700; line-height:1.25; letter-spacing:-.02em; color:var(--tala-text); }
-.tala-faculty-term-chooser p { max-inline-size:48ch; color:var(--tala-muted); line-height:1.5; }
-.tala-faculty-term-chooser .tala-term-picker { inline-size:min(100%, 25rem); margin-block-start:.75rem; text-align:start; }
 .tala-availability-answer { padding-block:.5rem 1rem; border-block-end:1px solid var(--tala-edge); }
 .tala-availability-answer > p,.tala-availability-answer > details { margin-block-start:0; }
 .tala-availability-answer .tala-task-heading h2 { font-size:1.5rem; line-height:1.25; font-weight:600; }
@@ -102,8 +97,8 @@
 .tala-schedule-work { min-inline-size:0; }
 .tala-faculty-schedule-figures { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; padding-block:.75rem 1rem; border-block-end:1px solid var(--tala-edge); }
 .tala-faculty-schedule-figures > div { display:grid; gap:.15rem; padding-inline-start:1rem; border-inline-start:2px solid var(--tala-edge); }
-.tala-faculty-schedule-figures dt { color:var(--tala-muted); font-size:.875rem; }
-.tala-faculty-schedule-figures dd { color:var(--tala-text); font-size:1.75rem; font-weight:700; line-height:1.15; font-variant-numeric:tabular-nums; }
+.tala-faculty-schedule-figures dt { color:var(--tala-muted); font-size:var(--tala-type-caption); }
+.tala-faculty-schedule-figures dd { color:var(--tala-text); font-size:var(--tala-type-value); font-weight:700; line-height:1.15; font-variant-numeric:tabular-nums; }
 .tala-faculty-no-meetings { display:grid; justify-items:start; gap:.65rem; padding-block:2.5rem; max-inline-size:42rem; }
 .tala-faculty-no-meetings > svg { inline-size:2.5rem; block-size:2.5rem; color:var(--tala-muted); }
 .tala-faculty-no-meetings h2 { font-size:1.25rem; font-weight:600; color:var(--tala-text); }
@@ -470,9 +465,7 @@ html.dark .fi-body .tala-term-workspace .fi-dropdown-list-item { color:var(--tal
 .tala-load-exception-form :is(.fi-sc,.fi-section,.fi-fo-field-wrp) { min-inline-size:0; }
 .tala-load-exception-form .fi-section-not-contained { max-inline-size:100%; }
 .tala-load-exception-form .fi-sc-actions .fi-ac.fi-align-end { flex-direction:row; justify-content:flex-end; }
-.tala-load-exception-detail .fi-header-heading { font-size:2rem; line-height:1.25; font-weight:650; letter-spacing:-.025em; }
-.tala-class-detail .fi-header-heading { font-size:2rem; line-height:1.25; font-weight:650; letter-spacing:-.025em; }
-.tala-class-form .fi-header-heading,
+.tala-load-exception-detail .fi-header-heading, .tala-class-detail .fi-header-heading, .tala-class-form .fi-header-heading,
 .tala-class-settings .fi-header-heading { font-size:2rem; line-height:1.25; font-weight:650; letter-spacing:-.025em; }
 .tala-class-settings .tala-class-published-banner { border-color:var(--guide-green-edge); background:var(--guide-green-bg); }
 .tala-class-settings .tala-class-published-banner .fi-section-header-heading,
@@ -484,10 +477,7 @@ html.dark .fi-body .tala-term-workspace .fi-dropdown-list-item { color:var(--tal
  .tala-load-exception-form .fi-header-heading { font-size:1.5rem; }
  .tala-load-exception-form .fi-sc-actions .fi-ac.fi-align-end { flex-direction:column; align-items:stretch; inline-size:100%; }
  .tala-load-exception-form .fi-sc-actions .fi-ac.fi-align-end .fi-btn { justify-content:center; inline-size:100%; }
- .tala-load-exception-detail .fi-header-heading { font-size:1.5rem; }
- .tala-class-detail .fi-header-heading { font-size:1.5rem; }
- .tala-class-form .fi-header-heading { font-size:1.5rem; }
- .tala-class-settings .fi-header-heading { font-size:1.5rem; }
+ .tala-load-exception-detail .fi-header-heading, .tala-class-detail .fi-header-heading, .tala-class-form .fi-header-heading, .tala-class-settings .fi-header-heading { font-size:1.5rem; }
  .tala-class-form .fi-sc-actions .fi-ac.fi-align-end { flex-direction:column; align-items:stretch; inline-size:100%; }
  .tala-class-form .fi-sc-actions .fi-ac.fi-align-end .fi-btn { justify-content:center; inline-size:100%; }
  .tala-class-settings .fi-sc-actions .fi-ac.fi-align-end { flex-direction:column; align-items:stretch; inline-size:100%; }

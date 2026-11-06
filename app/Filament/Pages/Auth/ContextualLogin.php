@@ -63,6 +63,10 @@ class ContextualLogin extends Login
 
     public function getSubheading(): string|Htmlable|null
     {
+        if ($this->requestedContext === null && blank($this->userUndertakingMultiFactorAuthentication)) {
+            return 'Access your Servitech account. For students, applicants, and staff.';
+        }
+
         if (! filled($this->userUndertakingMultiFactorAuthentication) && Filament::getCurrentOrDefaultPanel()->getId() === 'applicant') {
             try {
                 $registrationAvailable = app(ApplicantEntryReadinessService::class)->registrationIsAvailable();
@@ -269,10 +273,10 @@ class ContextualLogin extends Login
             User::StaffRoleFaculty => 'Faculty',
             User::StaffRoleAcademicHead => 'Academic Head',
             User::StaffRoleSystemSuperAdmin => 'System Administrator',
-            default => 'TALA',
+            default => null,
         };
 
-        return "Sign in to {$label}";
+        return $label === null ? 'Sign in' : "Sign in to {$label}";
     }
 
     /**

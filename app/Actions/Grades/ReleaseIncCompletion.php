@@ -23,13 +23,13 @@ class ReleaseIncCompletion
         private readonly CompletionReadinessProjection $completionReadiness,
     ) {}
 
-    public function execute(IncCompletionSubmission $submission, User $registrar, string $authorityReference): GradeOutcomeEvent
+    public function execute(IncCompletionSubmission $submission, User $registrar): GradeOutcomeEvent
     {
         if (! $registrar->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff can release an INC completion.');
         }
 
-        return DB::transaction(function () use ($submission, $registrar, $authorityReference): GradeOutcomeEvent {
+        return DB::transaction(function () use ($submission, $registrar): GradeOutcomeEvent {
             $submission = IncCompletionSubmission::query()->with('incompleteEvent.row')->lockForUpdate()->findOrFail($submission->id);
 
             if ($submission->state === IncCompletionSubmission::StateReleased && $submission->released_event_id !== null) {
@@ -74,7 +74,6 @@ class ReleaseIncCompletion
                 'new_value' => $this->policy->numericValue($code),
                 'previous_category' => GradeRosterRow::CategoryIncomplete,
                 'new_category' => $this->policy->category($code),
-                'authority' => trim($authorityReference),
                 'reason' => $submission->completion_note,
                 'recorded_by' => $registrar->id,
                 'released_at' => now(),

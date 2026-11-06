@@ -8,21 +8,54 @@ use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Components\AccessibleSidebar;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Models\User;
+use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
+use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
 use Filament\Actions\Action;
+use Filament\Actions\CreateAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Enums\GlobalSearchPosition;
 use Filament\Panel;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
+use Filament\Support\Icons\Heroicon;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\HtmlString;
 
 class TalaPanelTheme
 {
+    public static function authLayout(AuthPageConfig $config): AuthPageConfig
+    {
+        return $config
+            ->media(is_file(public_path('images/auth/admin.webp')) ? asset('images/auth/admin.webp') : null, alt: '')
+            ->mediaPosition(MediaPosition::Top)
+            ->mediaSize('clamp(8rem, 35svh, 24rem)');
+    }
+
     /** Connect the native dialog label when the vendor heading omits its referenced id. */
     public static function configureActionModal(Action $action): void
     {
+        if (! $action->hasIcon()) {
+            $icon = match (true) {
+                $action instanceof CreateAction => Heroicon::Plus,
+                $action instanceof EditAction => Heroicon::PencilSquare,
+                $action instanceof ViewAction => Heroicon::Eye,
+                $action instanceof DeleteAction => Heroicon::Trash,
+                str_starts_with((string) $action->getName(), 'record') => Heroicon::Plus,
+                in_array($action->getName(), ['create', 'createAnother'], true) => Heroicon::Plus,
+                in_array($action->getName(), ['save', 'apply'], true) => Heroicon::Check,
+                $action->getName() === 'cancel' => Heroicon::XMark,
+                default => null,
+            };
+
+            if ($icon !== null) {
+                $action->icon($icon);
+            }
+        }
+
         $action->labeledFrom(fn (): ?string => $action->getView() === Action::BUTTON_VIEW
             && filled($action->getIcon())
             && in_array($action->getName(), ['openFilters', 'openColumnManager', 'previous', 'next', 'back'], true)
@@ -55,6 +88,23 @@ class TalaPanelTheme
     public static function configure(Panel $panel): Panel
     {
         return $panel
+            ->spa()
+            ->spaUrlExceptions(fn (): array => [
+                url('/'),
+                url('/workspace-chooser*'),
+                url('/outputs/*'),
+                url('/finance/*'),
+                url('/admissions/evidence/*'),
+                ...collect(['admin', 'student', 'applicant'])
+                    ->reject(fn (string $panelId): bool => $panelId === $panel->getId())
+                    ->map(fn (string $panelId): string => url('/'.$panelId.'*'))
+                    ->all(),
+                url('/'.$panel->getPath().'/login*'),
+                url('/'.$panel->getPath().'/logout*'),
+                url('/'.$panel->getPath().'/password-reset*'),
+                url('/'.$panel->getPath().'/email-verification*'),
+                url('/'.$panel->getPath().'/account-security*'),
+            ])
             ->viteTheme('resources/css/filament/tala/theme.css')
             ->brandLogo(fn (): View => self::brand($panel))
             ->brandLogoHeight('auto')
@@ -62,6 +112,9 @@ class TalaPanelTheme
             ->colors(['primary' => Color::generatePalette('#2F7D3B'), 'gray' => Color::Zinc, 'info' => Color::generatePalette('#0C53C1')])
             ->maxContentWidth(Width::Full)
             ->unsavedChangesAlerts()
+            ->renderHook(PanelsRenderHook::SCRIPTS_AFTER, fn (): HtmlString => new HtmlString(
+                '<script src="'.e(asset('js/tala-unsaved-changes.js')).'" data-navigate-once></script>',
+            ))
             ->userMenuItems([
                 'logout' => fn (Action $action): Action => $action
                     ->url(null)
@@ -113,7 +166,6 @@ class TalaPanelTheme
             ->renderHook(PanelsRenderHook::SIDEBAR_NAV_START, fn (): View => view('filament.components.workspace-search'))
             ->renderHook(PanelsRenderHook::SIDEBAR_FOOTER, fn (): HtmlString => self::attribution($panel, '<div class="tala-sidebar-attribution">%s</div>'))
             ->renderHook(PanelsRenderHook::CONTENT_END, fn (): HtmlString => self::attribution($panel, '<footer class="tala-mobile-attribution">%s</footer>'))
-            ->renderHook(PanelsRenderHook::SIMPLE_PAGE_END, fn (): HtmlString => self::attribution($panel, '<footer class="tala-auth-attribution">%s</footer>'))
             ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_END, fn (array $scopes): View => view('filament.components.auth-main-end', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
             ->renderHook(PanelsRenderHook::SIMPLE_PAGE_END, fn (array $scopes): View => view('filament.components.auth-recovery-links', [
                 'usesAuthDesigner' => self::usesAuthDesigner($scopes),

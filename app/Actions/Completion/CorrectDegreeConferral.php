@@ -22,46 +22,51 @@ class CorrectDegreeConferral
         DegreeConferral $conferral,
         User $actor,
         string $degreeName,
-        CarbonInterface|string $conferredOn,
-        string $authorityReference,
+        CarbonInterface|string|null $conferredOn,
+        ?string $authorityReference,
         string $reason,
         ?string $honorText = null,
         ?string $honorAuthorityReference = null,
     ): DegreeConferral {
-        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
+        if (! $actor->canAuthenticate() || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff may correct degree conferral.');
         }
-        if (blank(trim($degreeName)) || blank(trim($authorityReference)) || blank(trim($reason))) {
-            throw ValidationException::withMessages(['conferral' => 'Corrected degree, authority, and reason are required.']);
+        if (blank(trim($degreeName)) || blank(trim($reason))) {
+            throw ValidationException::withMessages(['conferral' => 'Corrected degree and reason are required.']);
         }
         if (filled($honorText) && blank(trim((string) $honorAuthorityReference))) {
             throw ValidationException::withMessages(['honor' => 'Corrected honor text requires its external authority.']);
         }
 
+        if (is_string($conferredOn) && filled($conferredOn)) {
+            validator(['conferred_on' => $conferredOn], ['conferred_on' => ['date']])->validate();
+        }
+        $authorityReference = filled($authorityReference) ? trim($authorityReference) : null;
+
         return DB::transaction(function () use ($conferral, $actor, $degreeName, $conferredOn, $authorityReference, $reason, $honorText, $honorAuthorityReference): DegreeConferral {
             $locked = DegreeConferral::query()->with('application')->lockForUpdate()->findOrFail($conferral->id);
+            $date = $conferredOn instanceof CarbonInterface
+                ? CarbonImmutable::instance($conferredOn)
+                : (filled($conferredOn) ? CarbonImmutable::parse($conferredOn, config('app.timezone')) : null);
+            $source = [
+                'predecessor_conferral_id' => $locked->id,
+                'degree_name' => trim($degreeName),
+                'conferred_on' => $date?->toDateString(),
+                'authority_reference' => $authorityReference,
+                'reason' => trim($reason),
+                'honor_text' => filled($honorText) ? trim((string) $honorText) : null,
+                'honor_authority_reference' => filled($honorAuthorityReference) ? trim((string) $honorAuthorityReference) : null,
+            ];
+
             if ($locked->active_scope_key === null) {
                 $successor = DegreeConferral::query()->where('supersedes_conferral_id', $locked->id)->first();
-                if ($successor instanceof DegreeConferral) {
+                if ($successor instanceof DegreeConferral && hash('sha256', json_encode($source, JSON_THROW_ON_ERROR)) === $successor->source_fingerprint) {
                     return $successor;
                 }
 
                 throw ValidationException::withMessages(['conferral' => 'Only the current conferral may be corrected.']);
             }
             $student = StudentProfile::query()->lockForUpdate()->findOrFail($locked->student_profile_id);
-            $date = $conferredOn instanceof CarbonInterface
-                ? CarbonImmutable::instance($conferredOn)
-                : CarbonImmutable::parse($conferredOn, config('app.timezone'));
-            $source = [
-                'predecessor_conferral_id' => $locked->id,
-                'degree_name' => trim($degreeName),
-                'conferred_on' => $date->toDateString(),
-                'authority_reference' => trim($authorityReference),
-                'reason' => trim($reason),
-                'honor_text' => filled($honorText) ? trim((string) $honorText) : null,
-                'honor_authority_reference' => filled($honorAuthorityReference) ? trim((string) $honorAuthorityReference) : null,
-            ];
-
             $locked->update(['active_scope_key' => null]);
             $successor = DegreeConferral::query()->create([
                 ...$locked->only([
@@ -72,8 +77,8 @@ class CorrectDegreeConferral
                 'supersedes_conferral_id' => $locked->id,
                 'active_scope_key' => (string) $locked->student_profile_id,
                 'degree_name' => trim($degreeName),
-                'conferred_on' => $date->toDateString(),
-                'authority_reference' => trim($authorityReference),
+                'conferred_on' => $date?->toDateString(),
+                'authority_reference' => $authorityReference,
                 'honor_text' => $source['honor_text'],
                 'honor_authority_reference' => $source['honor_authority_reference'],
                 'source_fingerprint' => hash('sha256', json_encode($source, JSON_THROW_ON_ERROR)),
@@ -82,11 +87,11 @@ class CorrectDegreeConferral
             ]);
             StudentLifecycleChange::query()->create([
                 'student_profile_id' => $student->id,
-                'term_id' => $locked->application->term_id,
+                'term_id' => $locked->application?->term_id,
                 'type' => StudentLifecycleChange::TypeCompletion,
-                'effective_on' => $date->toDateString(),
+                'effective_on' => $date?->toDateString() ?? today('Asia/Manila')->toDateString(),
                 'decided_on' => today()->toDateString(),
-                'authority' => trim($authorityReference),
+                'authority' => $authorityReference ?? 'Recorded by authenticated Registrar #'.$actor->id,
                 'private_source_reference' => "degree-conferral-correction:{$successor->id}",
                 'reason' => trim($reason),
                 'impact_snapshot' => [

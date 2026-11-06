@@ -1,5 +1,7 @@
 <span hidden aria-hidden="true"
     x-init="
+        if (window.talaActionGroupFocusInitialized) return;
+        window.talaActionGroupFocusInitialized = true;
         const rememberActionGroup = (actionGroup) => {
             window.talaActionGroupReturnFocus = actionGroup;
             window.talaActionGroupReturnHref = actionGroup.closest('tr')?.querySelector('a[href]')?.href;

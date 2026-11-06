@@ -21,25 +21,33 @@ class AcademicEnrollmentEffect
             ];
         }
 
+        $schoolDate = today('Asia/Manila')->toDateString();
         $decision = AcademicDecision::query()
             ->where('student_profile_id', $student->id)
-            ->where('state', 'ACTIVE')
-            ->whereDate('effective_from', '<=', today())
-            ->where(fn ($query) => $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', today()))
+            ->whereIn('state', ['ACTIVE', 'SUPERSEDED'])
+            ->whereDate('effective_from', '<=', $schoolDate)
             ->where(fn ($query) => $query->whereNull('term_id')->when($term, fn ($termQuery) => $termQuery->orWhere('term_id', $term->id)))
+            ->orderByDesc('term_id')
             ->latest('recorded_at')
             ->latest('id')
-            ->first();
+            ->get()
+            ->unique('term_id')
+            ->first(fn (AcademicDecision $decision): bool => $decision->effective_until === null
+                || $decision->effective_until->toDateString() >= $schoolDate);
 
         if ($decision instanceof AcademicDecision) {
-            return ['effect' => $decision->effect, 'source' => $decision->authority_reference, 'reason' => $decision->reason];
+            return [
+                'effect' => $decision->effect,
+                'source' => $decision->authority_reference ?: 'Recorded academic decision',
+                'reason' => $decision->reason,
+            ];
         }
 
         $results = $this->results->forStudent($student)
             ->filter(fn (array $result): bool => $result['course_specification']?->course_id !== null)
             ->sortBy([['term.starts_on', 'asc'], ['course_enrollment.id', 'asc']])
             ->keyBy('course_specification.course_id');
-        $requiresAdvising = $results->contains(fn (array $result): bool => ($result['event'] === null
+        $requiresAdvising = $results->contains(fn (array $result): bool => (! $result['outcome_complete']
                 && $result['term']?->ends_on !== null && $result['term']->ends_on->isPast())
             || in_array($result['result'], ['INC', 'DRP', 'W'], true)
             || (is_numeric($result['result']) && (float) $result['result'] > 4.00));

@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Actions\Completion\TranscriptPreview;
 use App\Actions\Completion\TranscriptPreviewConfirmation;
+use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Models\OutputAccessLog;
 use App\Models\TranscriptRequest;
 use App\Models\TranscriptSnapshot;
 use App\Models\User;
+use Filament\Notifications\Notification;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class TranscriptPreviewController extends Controller
@@ -22,7 +26,7 @@ class TranscriptPreviewController extends Controller
         private readonly TranscriptPreviewConfirmation $confirmations,
     ) {}
 
-    public function __invoke(Request $request, TranscriptRequest $transcriptRequest): Response
+    public function __invoke(Request $request, TranscriptRequest $transcriptRequest): Response|RedirectResponse
     {
         $actor = $request->user();
         if (! $actor instanceof User || ! $actor->hasRole(User::StaffRoleRegistrar)) {
@@ -32,6 +36,12 @@ class TranscriptPreviewController extends Controller
 
         try {
             return $this->renderPreview($request, $transcriptRequest, $actor);
+        } catch (ValidationException $exception) {
+            $this->recordOutcome($transcriptRequest, $actor, 'preview_failed', 'failed');
+            Notification::make()->title('TOR preview is not ready')
+                ->body(collect($exception->errors())->flatten()->implode(' '))->danger()->send();
+
+            return redirect(TranscriptRequestResource::getUrl('view', ['record' => $transcriptRequest]));
         } catch (Throwable $exception) {
             $this->recordOutcome($transcriptRequest, $actor, 'preview_failed', 'failed');
             throw $exception;
@@ -52,12 +62,13 @@ class TranscriptPreviewController extends Controller
 
         $content = $this->preview->forRequest($transcriptRequest);
         $content['document'] = [
-            'reference' => 'PREVIEW — '.$transcriptRequest->external_request_reference,
+            'reference' => $transcriptRequest->template_version === TranscriptRequest::TemplateServitechV2 ? $this->confirmations->nextReference($transcriptRequest) : 'PREVIEW — '.$transcriptRequest->external_request_reference,
             'template_version' => $transcriptRequest->template_version,
             'generated_at' => now('Asia/Manila')->format('F j, Y g:i A').' Asia/Manila',
             'generation_reference' => 'TALA-GEN-'.strtoupper(substr($content['source_fingerprint'], 0, 16)),
         ];
-        $html = view('outputs.tala-standard-tor', $content)->render();
+        $content['embedded'] = true;
+        $html = view(TranscriptRequest::outputViewFor($transcriptRequest->template_version), $content)->render();
         $accessLog = OutputAccessLog::query()->create([
             'output_type' => 'TALA_STANDARD_TOR',
             'source_record_type' => TranscriptRequest::class,
@@ -88,6 +99,12 @@ class TranscriptPreviewController extends Controller
             $accessLog,
             $predecessor,
         );
+
+        $html = view('outputs.transcript-review', [
+            'documentHtml' => $html, 'transcriptRequest' => $transcriptRequest,
+            'status' => 'Preview — not issued', 'documentReference' => $content['document']['reference'],
+            'confirmationAction' => $operation === TranscriptPreviewConfirmation::OperationReplacement ? 'replaceLatest' : 'issue',
+        ])->render();
 
         return response($html)->header('X-TALA-Preview-Confirmation', $confirmation);
     }

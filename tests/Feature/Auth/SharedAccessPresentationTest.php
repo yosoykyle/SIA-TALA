@@ -87,11 +87,11 @@ class SharedAccessPresentationTest extends TestCase
     }
 
     #[DataProvider('nonApplicantPanels')]
-    public function test_anonymous_non_applicant_panels_retain_account_entry_attribution(string $panelId, string $context): void
+    public function test_anonymous_non_applicant_panels_omit_account_entry_attribution(string $panelId, string $context): void
     {
         $this->bootPanel($panelId);
 
-        $this->assertStringContainsString('Powered by TALA', (string) FilamentView::renderHook(PanelsRenderHook::SIMPLE_PAGE_END));
+        $this->assertStringNotContainsString('Powered by TALA', (string) FilamentView::renderHook(PanelsRenderHook::SIMPLE_PAGE_END));
     }
 
     public function test_signed_in_access_and_error_pages_omit_product_attribution(): void
@@ -147,7 +147,8 @@ class SharedAccessPresentationTest extends TestCase
     {
         $view = $this->blade('<x-tala-access-layout title="Test Access" heading-id="test-heading"><h1 id="test-heading">Test Heading</h1><div>Body Content</div></x-tala-access-layout>');
 
-        $view->assertSee('Test Access — Servitech Institute Asia Inc. · Powered by TALA')
+        $view->assertSee('Test Access — Servitech Institute Asia Inc.')
+            ->assertDontSee('Powered by TALA')
             ->assertSee('Servitech Institute Asia home')
             ->assertSee('alt="" aria-hidden="true" class="tala-brand__crest"', false)
             ->assertSee('Servitech Institute Asia')

@@ -5,8 +5,9 @@ namespace App\Filament\Resources\StudentProfiles;
 use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
+use App\Actions\Academics\OfficialCourseResultProjection;
+use App\Actions\Academics\TermWeightedAverageProjection;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
-use App\Actions\StudentHub\StudentGradeLabelFormatter;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
@@ -18,14 +19,15 @@ use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelati
 use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager;
 use App\Models\Assessment;
 use App\Models\Enrollment;
-use App\Models\GradeRosterRow;
 use App\Models\Hold;
+use App\Models\Program;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationProposalVersion;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
+use App\Models\TermCohort;
 use BackedEnum;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
@@ -33,13 +35,19 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\View as SchemaView;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -81,9 +89,10 @@ class StudentProfileResource extends Resource
 
     public static function infolist(Schema $schema): Schema
     {
-        return $schema->components([
-            Section::make('Current Student Record')
-                ->description('The institution-confirmed identity, program, curriculum, and lifecycle state.')
+        $academicContext = ($schema->getLivewire()->viewTab ?? \Filament\Support\original_request()->query('viewTab')) === 'academic-progress';
+        $sections = [
+            'identity' => Section::make('Current Student Record')->collapsible($academicContext)->collapsed($academicContext)
+                ->description($academicContext ? null : 'The institution-confirmed identity, program, curriculum, and lifecycle state.')
                 ->schema([
                     TextEntry::make('student_number')->label('Student Number'),
                     TextEntry::make('full_name')->label('Student Name')->state(fn (StudentProfile $record): string => collect([$record->first_name, $record->middle_name, $record->last_name])->filter()->implode(' ')),
@@ -96,8 +105,8 @@ class StudentProfileResource extends Resource
                 ])
                 ->columns(2)
                 ->columnSpanFull(),
-            Section::make('Current Enrollment Context')
-                ->description('Current active-term facts are derived from the Enrollment and its active subject records; they are not duplicate Student Profile fields.')
+            'enrollment' => Section::make('Current Enrollment Context')->collapsible($academicContext)->collapsed($academicContext)
+                ->description($academicContext ? null : 'Current active-term facts are derived from the Enrollment and its active subject records; they are not duplicate Student Profile fields.')
                 ->schema([
                     RepeatableEntry::make('current_enrollment_context')
                         ->label('Active-Term Enrollment')
@@ -113,6 +122,7 @@ class StudentProfileResource extends Resource
                                 'status' => $context['enrollment_status_label'],
                                 'type' => $context['enrollment_type_label'],
                                 'curriculum_level' => $context['curriculum_level_label'],
+                                'student_section' => $context['student_section_label'],
                                 'course_delivery_mix' => $context['course_delivery_mix'],
                                 'responsible_office' => $context['responsible_office'],
                             ]];
@@ -122,6 +132,7 @@ class StudentProfileResource extends Resource
                             TextEntry::make('status')->label('Enrollment Status')->badge(),
                             TextEntry::make('type')->label('Enrollment Type')->badge(),
                             TextEntry::make('curriculum_level')->label('Curriculum Level'),
+                            TextEntry::make('student_section')->label('Student section'),
                             TextEntry::make('course_delivery_mix')->label('Course Delivery Mix'),
                             TextEntry::make('responsible_office')->label('Responsible Office'),
                         ])
@@ -129,45 +140,26 @@ class StudentProfileResource extends Resource
                         ->columnSpanFull(),
                 ])
                 ->columnSpanFull(),
-            Section::make('Academic Record Projection')
-                ->description('Released results drive factual curriculum and enrollment guidance. Consequential decisions require separately recorded authority.')
+            'summary' => Section::make('Academic summary')
+                ->description('Released academic results and guidance for the next enrollment.')
                 ->schema([
-                    RepeatableEntry::make('academic_record_summary')
-                        ->label('Current Academic Projection')
-                        ->state(function (StudentProfile $record): array {
-                            $effect = app(AcademicEnrollmentEffect::class)->forStudent($record);
-                            $curriculum = app(CurriculumEvaluation::class)->forStudent($record);
-                            $cumulative = app(CumulativeGwaProjection::class)->forStudent($record);
+                    SchemaView::make('filament.admin.student-profiles.academic-summary')
+                        ->viewData(function (StudentProfile $record): array {
+                            $results = app(OfficialCourseResultProjection::class)->forStudent($record);
+                            $terms = $results->pluck('term')->filter()->unique('id')->sortByDesc('ends_on');
 
-                            return [[
-                                'effect' => str($effect['effect'])->headline()->toString(),
-                                'effect_reason' => $effect['reason'],
-                                'effect_source' => $effect['source'],
-                                'cumulative_gwa' => $cumulative['value'] ?? 'Not available',
-                                'through' => $cumulative['through'] ?? 'No complete released term',
-                                'completed_units' => $curriculum['completed_units'],
-                                'remaining_requirements' => $curriculum['deficiency_count'],
-                            ]];
-                        })
-                        ->schema([
-                            TextEntry::make('effect')
-                                ->label('Enrollment Guidance')
-                                ->badge(),
-                            TextEntry::make('effect_reason')
-                                ->label('Explanation')
-                                ->columnSpanFull(),
-                            TextEntry::make('effect_source')->label('Authority / Source'),
-                            TextEntry::make('cumulative_gwa')->label('Cumulative GWA'),
-                            TextEntry::make('through')->label('Calculated Through'),
-                            TextEntry::make('completed_units')->label('Completed Curriculum Units'),
-                            TextEntry::make('remaining_requirements')->label('Remaining Requirements'),
-                        ])
-                        ->columns(2)
-                        ->columnSpanFull(),
-                ])
-                ->columns(2)
-                ->columnSpanFull(),
-            Section::make('Active Holds and Next Steps')
+                            return [
+                                'effect' => app(AcademicEnrollmentEffect::class)->forStudent($record),
+                                'curriculum' => app(CurriculumEvaluation::class)->forStudent($record),
+                                'cumulative' => app(CumulativeGwaProjection::class)->forStudent($record),
+                                'termAverages' => $terms->map(fn (Term $term): array => [
+                                    'term' => $term,
+                                    'average' => app(TermWeightedAverageProjection::class)->forResults($results, $term),
+                                ]),
+                            ];
+                        })->columnSpanFull(),
+                ])->columnSpanFull(),
+            'holds' => Section::make('Active Holds and Next Steps')->collapsible($academicContext)->collapsed($academicContext)
                 ->description('Only unresolved holds are shown here. The owning office is responsible for clearing each requirement.')
                 ->schema([
                     RepeatableEntry::make('active_hold_rows')
@@ -196,13 +188,15 @@ class StudentProfileResource extends Resource
                         ->columnSpanFull(),
                 ])
                 ->columnSpanFull(),
-            Section::make('Enrollment History')
-                ->description('Term-by-term Registration Case outcome, controlled selection basis, responsible office, and next action.')
+            'enrollment-history' => Section::make($academicContext ? 'Past enrollments' : 'Enrollment History')->collapsible($academicContext)->collapsed($academicContext)
+                ->description($academicContext ? null : 'Term-by-term Registration Case outcome, controlled selection basis, responsible office, and next action.')
                 ->schema([
                     RepeatableEntry::make('enrollment_history_rows')
-                        ->label('Enrollments')
+                        ->label('Enrollments')->hiddenLabel($academicContext)
                         ->state(fn (StudentProfile $record): array => Enrollment::query()
                             ->where('student_profile_id', $record->getKey())
+                            ->when($academicContext && $schema->getLivewire() instanceof ViewStudentProfile && $schema->getLivewire()->academicProfile['enrollment'],
+                                fn ($query) => $query->whereKeyNot($schema->getLivewire()->academicProfile['enrollment']->id))
                             ->with(['term', 'currentProposalVersion.confirmation', 'currentProposalVersion.items.reservation', 'termAccount'])
                             ->latest('id')
                             ->get()
@@ -236,56 +230,72 @@ class StudentProfileResource extends Resource
                         ->columnSpanFull(),
                 ])
                 ->columnSpanFull(),
-            Section::make('Released Academic History')
-                ->description('Only grades released through an official roster appear here. Open the owning roster for its complete audit context.')
+            'results' => Section::make('Released grades')
+                ->description('Released grades and authorized Registrar outcomes appear here. Open the owning roster for its audit context.')
                 ->schema([
                     RepeatableEntry::make('released_grade_rows')
-                        ->label('Released Grades')
-                        ->state(fn (StudentProfile $record): array => GradeRosterRow::query()
-                            ->whereNotNull('released_at')
-                            ->whereHas('courseEnrollment.enrollment', fn ($query) => $query->where('student_profile_id', $record->getKey()))
-                            ->with([
-                                'roster',
-                                'courseEnrollment.enrollment.term',
-                                'courseEnrollment.termOffering.curriculumEntry.courseSpecification.course',
-                            ])
-                            ->latest('released_at')
-                            ->get()
-                            ->map(function (GradeRosterRow $row): array {
-                                $specification = $row->courseEnrollment?->termOffering?->curriculumEntry?->courseSpecification;
+                        ->hiddenLabel()
+                        ->placeholder('No released results are recorded yet.')
+                        ->table([
+                            TableColumn::make('Course'),
+                            TableColumn::make('Term'),
+                            TableColumn::make('Released result'),
+                            TableColumn::make('Source'),
+                        ])
+                        ->state(fn (StudentProfile $record): array => app(OfficialCourseResultProjection::class)->forStudent($record)
+                            ->filter(fn (array $result): bool => $result['outcome_source'] !== null)
+                            ->map(function (array $result): array {
+                                $event = $result['event'];
+                                $row = $result['course_enrollment']->gradeRosterRow;
+                                $specification = $result['course_specification'];
 
                                 return [
-                                    'term' => $row->courseEnrollment?->enrollment?->term?->label,
+                                    'term' => collect([$result['term']?->academicYear?->label, $result['term']?->label])->filter()->implode(' · '),
                                     'course' => collect([$specification?->course?->code, $specification?->title])->filter()->implode(' — '),
-                                    'grade' => app(StudentGradeLabelFormatter::class)->displayGrade($row->current_outcome_code, $row->current_outcome_category),
-                                    'category' => $row->current_outcome_category,
-                                    'released_on' => $row->released_at?->format('M j, Y'),
-                                    'source_url' => $row->roster !== null
-                                        ? GradeRosterResource::getUrl('view', ['record' => $row->roster])
+                                    'grade' => $result['result'],
+                                    'category' => $event?->new_category ?? 'Registrar-recorded outcome',
+                                    'released_on' => $event?->released_at?->format('M j, Y'),
+                                    'inc_deadline' => $result['inc_deadline']?->format('M j, Y'),
+                                    'inc_state' => $result['inc_state'] ? str($result['inc_state'])->headline()->toString() : null,
+                                    'source_url' => $row !== null
+                                        ? GradeRosterResource::getUrl('view', ['record' => $row->grade_roster_id, 'viewTab' => 'academic-progress'])
                                         : null,
                                 ];
-                            })
-                            ->all())
+                            })->values()->all())
                         ->schema([
-                            TextEntry::make('term')->label('Academic Term')->weight('bold'),
-                            TextEntry::make('course')->label('Subject'),
-                            TextEntry::make('grade')->label('Released Grade')->badge(),
-                            TextEntry::make('category')->label('Outcome')->badge(),
-                            TextEntry::make('released_on')->label('Released On'),
-                            TextEntry::make('source_label')
-                                ->label('Source Record')
-                                ->state('Open Grade Roster')
-                                ->url(fn (Get $get): ?string => $get('source_url')),
+                            Group::make([
+                                TextEntry::make('course')->hiddenLabel()->weight('semibold'),
+                                TextEntry::make('category')->hiddenLabel()->color('gray'),
+                            ])->gap(false),
+                            Group::make([
+                                TextEntry::make('term')->hiddenLabel(),
+                                TextEntry::make('released_on')->hiddenLabel()->color('gray')
+                                    ->formatStateUsing(fn (string $state): string => 'Released '.$state)
+                                    ->placeholder('Registrar-recorded outcome'),
+                            ])->gap(false),
+                            Group::make([
+                                TextEntry::make('grade')->hiddenLabel()->badge()->color('gray'),
+                                TextEntry::make('inc_state')->hiddenLabel()->visible(fn (Get $get): bool => filled($get('inc_state'))),
+                                TextEntry::make('inc_deadline')->hiddenLabel()
+                                    ->formatStateUsing(fn (string $state): string => 'Until '.$state.' · Asia/Manila')
+                                    ->visible(fn (Get $get): bool => filled($get('inc_deadline'))),
+                            ])->gap(false),
+                            TextEntry::make('source_url')
+                                ->hiddenLabel()
+                                ->formatStateUsing(fn (): string => 'Open Grade Roster')
+                                ->url(fn (?string $state): ?string => $state)
+                                ->placeholder('Registrar-recorded outcome'),
                         ])
                         ->columns(2)
                         ->columnSpanFull(),
                 ])
                 ->columnSpanFull(),
-            Section::make('Financial History')
-                ->description('Assessment totals are shown by term. Payments and adjustments remain in their owning finance records.')
+            'finance' => Section::make($academicContext ? 'Financial assessments' : 'Financial History')->collapsible($academicContext)->collapsed($academicContext)
+                ->description($academicContext ? null : 'Assessment totals are shown by term. Payments and adjustments remain in their owning finance records.')
                 ->schema([
                     RepeatableEntry::make('assessment_history_rows')
-                        ->label('Assessments')
+                        ->label('Assessments')->hiddenLabel($academicContext)
+                        ->placeholder('No financial assessments recorded.')
                         ->state(fn (StudentProfile $record): array => Assessment::query()
                             ->whereHas('enrollment', fn ($query) => $query->where('student_profile_id', $record->getKey()))
                             ->with('enrollment.term')
@@ -315,11 +325,12 @@ class StudentProfileResource extends Resource
                         ->columnSpanFull(),
                 ])
                 ->columnSpanFull(),
-            Section::make('Lifecycle History')
-                ->description('Approved student-status changes are retained chronologically for audit and explanation.')
+            'lifecycle' => Section::make($academicContext ? 'Student status changes' : 'Lifecycle History')->collapsible($academicContext)->collapsed($academicContext)
+                ->description($academicContext ? null : 'Approved student-status changes are retained chronologically for audit and explanation.')
                 ->schema([
                     RepeatableEntry::make('lifecycle_history_rows')
-                        ->label('Lifecycle Changes')
+                        ->label('Lifecycle Changes')->hiddenLabel($academicContext)
+                        ->placeholder('No lifecycle changes recorded.')
                         ->state(fn (StudentProfile $record): array => StudentLifecycleChange::query()
                             ->where('student_profile_id', $record->getKey())
                             ->with('term')
@@ -332,7 +343,7 @@ class StudentProfileResource extends Resource
                                 'effective_on' => $change->effective_on->format('M j, Y'),
                                 'state' => str((string) $change->state)->headline()->toString(),
                                 'reason' => $change->reason,
-                                'source_url' => StudentLifecycleChangeResource::getUrl('view', ['record' => $change]),
+                                'source_url' => StudentLifecycleChangeResource::getUrl('index', ['change' => $change->id]),
                             ])
                             ->all())
                         ->schema([
@@ -350,7 +361,22 @@ class StudentProfileResource extends Resource
                         ->columnSpanFull(),
                 ])
                 ->columnSpanFull(),
-        ]);
+        ];
+
+        if ($academicContext && $schema->getLivewire() instanceof ViewStudentProfile) {
+            $keys = match ($schema->getLivewire()->activeRecordTab()) {
+                'academic' => ['results'],
+                'enrollment' => $schema->getLivewire()->academicProfile['hasEnrollments'] ? ['enrollment-history'] : [],
+                'history' => array_values(array_filter([
+                    $schema->getLivewire()->academicProfile['hasAssessments'] ? 'finance' : null,
+                    $schema->getLivewire()->academicProfile['hasLifecycleChanges'] ? 'lifecycle' : null,
+                ])),
+                default => [],
+            };
+            $sections = array_map(fn (string $key): Section => $sections[$key]->collapsible(false)->collapsed(false), $keys);
+        }
+
+        return $schema->components(array_values($sections));
     }
 
     public static function table(Table $table): Table
@@ -364,6 +390,7 @@ class StudentProfileResource extends Resource
                         ->whereHas('term', fn (Builder $termQuery): Builder => $termQuery->where('state', Term::StateActive))
                         ->with([
                             'term',
+                            'studentSection',
                             'studentProfile.program',
                             'studentProfile.curriculumVersion',
                             'courseEnrollments.termOffering.curriculumEntry',
@@ -375,7 +402,7 @@ class StudentProfileResource extends Resource
             ->columns([
                 TextColumn::make('student_number')->searchable()->sortable(),
                 TextColumn::make('last_name')->label('Student')->formatStateUsing(fn (StudentProfile $record): string => $record->last_name.', '.$record->first_name)->searchable(['last_name', 'first_name'])->sortable(),
-                TextColumn::make('program.name')->searchable()->sortable(),
+                TextColumn::make('program.name')->label('Current program')->searchable()->sortable(),
                 TextColumn::make('curriculumVersion.name')->label('Curriculum')->sortable(),
                 TextColumn::make('current_term')
                     ->label('Current Term')
@@ -402,10 +429,7 @@ class StudentProfileResource extends Resource
                     ->state(fn (StudentProfile $record): string => str(app(AcademicEnrollmentEffect::class)->forStudent($record)['effect'])->headline()->toString())
                     ->badge(),
             ])->filters([
-                SelectFilter::make('program')
-                    ->relationship('program', 'name')
-                    ->searchable()
-                    ->preload(),
+                ...self::academicBrowsingFilters(),
                 SelectFilter::make('current_enrollment_status')
                     ->label('Current Enrollment Status')
                     ->options([
@@ -433,9 +457,111 @@ class StudentProfileResource extends Resource
                     StudentProfile::LifecycleArchived => 'Archived',
                 ]),
             ])
-            ->recordActions([ViewAction::make(), EditAction::make()])
+            ->recordUrl(fn (StudentProfile $record, HasTable $livewire): string => self::academicRecordUrl($record, $livewire))
+            ->recordActions([ViewAction::make()->url(fn (StudentProfile $record, HasTable $livewire): string => self::academicRecordUrl($record, $livewire)), EditAction::make()])
             ->defaultSort('student_number')
             ->stackedOnMobile();
+    }
+
+    public static function academicRecordUrl(StudentProfile $record, HasTable $livewire): string
+    {
+        return self::getUrl('view', ['record' => $record, ...(
+            ($livewire->viewTab ?? \Filament\Support\original_request()->query('viewTab')) === 'academic-progress'
+                ? ['viewTab' => 'academic-progress', 'queue' => self::academicQueueParameters([
+                    'filters' => $livewire->tableFilters ?? [], 'search' => $livewire->getTableSearch(), 'page' => $livewire->getTablePage(),
+                ])] : []
+        )]);
+    }
+
+    /** @param array<string, mixed> $parameters @return array<string, mixed> */
+    public static function academicQueueParameters(array $parameters): array
+    {
+        $safe = [];
+        foreach (['program' => ['value'], 'entry_year' => ['value'], 'enrollment_scope' => ['term_id', 'student_section_id']] as $filter => $fields) {
+            foreach ($fields as $field) {
+                $value = data_get($parameters, 'filters.'.$filter.'.'.$field);
+                if (is_scalar($value) && ctype_digit((string) $value) && (int) $value > 0) {
+                    $safe['filters'][$filter][$field] = (int) $value;
+                }
+            }
+        }
+        if (is_string($parameters['search'] ?? null) && trim($parameters['search']) !== '') {
+            $safe['search'] = mb_substr(trim($parameters['search']), 0, 200);
+        }
+        if (is_scalar($parameters['page'] ?? null) && ctype_digit((string) $parameters['page']) && (int) $parameters['page'] > 0) {
+            $safe['page'] = (int) $parameters['page'];
+        }
+
+        return $safe;
+    }
+
+    public static function academicProgramLabel(Program $program): string
+    {
+        return collect([$program->code, $program->name])->filter()->implode(' · ');
+    }
+
+    /** @return list<Filter|SelectFilter> */
+    public static function academicBrowsingFilters(): array
+    {
+        return [
+            SelectFilter::make('program')->label('Current program')->relationship('program', 'name')->searchable(['name', 'code'])->preload()
+                ->getOptionLabelFromRecordUsing(fn (Program $record): string => self::academicProgramLabel($record)),
+            Filter::make('enrollment_scope')->label('Enrollment')
+                ->schema([
+                    Select::make('term_id')->label('Enrolled term')->placeholder('All enrolled terms')->searchable()
+                        ->options(fn (): array => Term::query()->with('academicYear')->orderByDesc('starts_on')->get()
+                            ->mapWithKeys(fn (Term $term): array => [$term->id => collect([$term->academicYear?->label, $term->label])->filter()->implode(' · ')])->all())
+                        ->live()->afterStateUpdated(fn (Set $set) => $set('student_section_id', null)),
+                    Select::make('student_section_id')->label('Recorded student section')->placeholder('All recorded sections')->searchable()
+                        ->options(fn (Get $get): array => self::studentSectionFilterOptions($get('term_id')))
+                        ->getSearchResultsUsing(fn (Get $get, string $search): array => self::studentSectionFilterOptions($get('term_id'), $search))
+                        ->getOptionLabelUsing(function (mixed $value): ?string {
+                            $section = TermCohort::query()->with(['term.academicYear', 'program'])->find($value);
+
+                            return $section instanceof TermCohort ? self::studentSectionFilterLabel($section) : null;
+                        }),
+                ])
+                ->query(fn (Builder $query, array $data): Builder => $query->when(
+                    filled($data['term_id'] ?? null) || filled($data['student_section_id'] ?? null),
+                    fn (Builder $profiles): Builder => $profiles->whereHas('enrollments', fn (Builder $enrollments): Builder => $enrollments
+                        ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
+                        ->when($data['term_id'] ?? null, fn (Builder $scope, mixed $termId): Builder => $scope->where('term_id', $termId))
+                        ->when($data['student_section_id'] ?? null, fn (Builder $scope, mixed $sectionId): Builder => $scope->where('student_section_id', $sectionId))),
+                ))
+                ->indicateUsing(function (array $data): array {
+                    $indicators = [];
+                    $term = filled($data['term_id'] ?? null) ? Term::query()->with('academicYear')->find($data['term_id']) : null;
+                    if ($term instanceof Term) {
+                        $indicators[] = 'Enrolled term: '.collect([$term->academicYear?->label, $term->label])->filter()->implode(' · ');
+                    }
+                    $section = filled($data['student_section_id'] ?? null) ? TermCohort::query()->find($data['student_section_id']) : null;
+                    if ($section instanceof TermCohort) {
+                        $indicators[] = 'Student section: '.$section->reference;
+                    }
+
+                    return $indicators;
+                }),
+            SelectFilter::make('entry_year')->label('Entry academic year')
+                ->options(fn (): array => Term::query()->with('academicYear')->whereIn('id', StudentProfile::query()->select('entry_term_id'))->get()
+                    ->filter(fn (Term $term): bool => $term->academicYear !== null)->mapWithKeys(fn (Term $term): array => [$term->academic_year_id => $term->academicYear->label])->all())
+                ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null,
+                    fn (Builder $scope, mixed $yearId): Builder => $scope->whereHas('entryTerm', fn (Builder $terms): Builder => $terms->where('academic_year_id', $yearId)))),
+        ];
+    }
+
+    /** @return array<int, string> */
+    private static function studentSectionFilterOptions(?int $termId, string $search = ''): array
+    {
+        return TermCohort::query()->with(['term.academicYear', 'program'])
+            ->when($termId, fn (Builder $query): Builder => $query->where('term_id', $termId))
+            ->when($search !== '', fn (Builder $query): Builder => $query->where('reference', 'like', '%'.$search.'%'))
+            ->orderBy('reference')->limit(50)->get()
+            ->mapWithKeys(fn (TermCohort $section): array => [$section->id => self::studentSectionFilterLabel($section)])->all();
+    }
+
+    private static function studentSectionFilterLabel(TermCohort $section): string
+    {
+        return collect([$section->reference, $section->program?->name, $section->term?->academicYear?->label, $section->term?->label])->filter()->implode(' · ');
     }
 
     public static function getRelations(): array

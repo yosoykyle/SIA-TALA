@@ -2,139 +2,107 @@
 
 namespace App\Filament\Resources\GradeRosters\Tables;
 
-use App\Actions\Grades\AuthorizeLateGradeEncoding;
-use App\Actions\Grades\PostAndReleaseGradeRoster;
-use App\Actions\Grades\ReturnGradeRoster;
+use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Models\GradeRoster;
-use App\Models\LateGradeAuthorization;
 use App\Models\Term;
 use App\Models\User;
-use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\CheckboxList;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Textarea;
-use Filament\Notifications\Notification;
+use Filament\Tables\Columns\Layout\Split;
+use Filament\Tables\Columns\Layout\Stack;
 use Filament\Tables\Columns\Layout\View as RecordView;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
 
 class GradeRostersTable
 {
-    public static function configure(Table $table): Table
+    public static function configure(Table $table, ?string $defaultState = null): Table
     {
         if (auth()->user()?->hasRole(User::StaffRoleAcademicHead) && ! auth()->user()->hasRole(User::StaffRoleRegistrar)) {
             return self::headTable($table);
         }
 
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                ->with(['termOffering.term.academicYear', 'termOffering.curriculumEntry.courseSpecification.course', 'section', 'faculty'])
+                ->withCount([
+                    'rows as current_members_count' => fn (Builder $rows): Builder => $rows->where('is_current_membership', true),
+                    'rows as incomplete_results_count' => fn (Builder $rows): Builder => $rows->where('is_current_membership', true)->where('final_result', 'INC'),
+                    'rows as recorded_results_count' => fn (Builder $rows): Builder => $rows->where('is_current_membership', true)->whereNotNull('final_result'),
+                ]))
             ->columns([
-                TextColumn::make('termOffering.term.label')->label('Term')->searchable(),
-                TextColumn::make('termOffering.curriculumEntry.courseSpecification.course.code')->label('Course')->searchable(),
-                TextColumn::make('section.code')->label('Section')->searchable(),
-                TextColumn::make('faculty.name')->label('Faculty')->searchable(),
-                TextColumn::make('state')->badge()->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
-                TextColumn::make('rows_count')->counts(['rows' => fn (Builder $query): Builder => $query->where('is_current_membership', true)])->label('Students'),
-                TextColumn::make('completion')
-                    ->label('Final results entered')
-                    ->state(fn (GradeRoster $record): string => sprintf(
-                        '%d of %d',
-                        $record->rows()->where('is_current_membership', true)->whereNotNull('final_result')->count(),
-                        $record->rows()->where('is_current_membership', true)->count(),
-                    )),
-                TextColumn::make('submitted_at')->dateTime()->sortable(),
-                TextColumn::make('released_at')->dateTime()->sortable(),
+                Split::make([
+                    Stack::make([
+                        TextColumn::make('termOffering.curriculumEntry.courseSpecification.title')->label('Course')->weight('semibold')->size('lg')
+                            ->icon('heroicon-o-book-open')->searchable(query: fn (Builder $query, string $search): Builder => $query
+                            ->whereHas('termOffering.curriculumEntry.courseSpecification', fn (Builder $specification): Builder => $specification
+                                ->where('title', 'like', '%'.$search.'%')
+                                ->orWhereHas('course', fn (Builder $course): Builder => $course->where('code', 'like', '%'.$search.'%'))))->wrap()
+                            ->description(fn (GradeRoster $record): string => collect([$record->termOffering?->curriculumEntry?->courseSpecification?->course?->code, $record->section?->code])->filter()->implode(' · ')),
+                        TextColumn::make('section.code')->label('Term and class')->searchable()
+                            ->formatStateUsing(fn (GradeRoster $record): string => collect([$record->termOffering?->term?->label, $record->termOffering?->term?->academicYear?->label])->filter()->implode(' · '))->color('gray')->wrap(),
+                        TextColumn::make('faculty.name')->label('Faculty')->icon('heroicon-o-user')->searchable()->color('gray')->wrap(),
+                    ])->space(2),
+                    Stack::make([
+                        TextColumn::make('completion')->label('Results recorded')
+                            ->state(fn (GradeRoster $record): string => sprintf('%d of %d', $record->recorded_results_count, $record->current_members_count))
+                            ->description('Results recorded'),
+                        TextColumn::make('incomplete_results_count')->label('Incomplete grades')
+                            ->formatStateUsing(fn (int $state): string => $state > 0 ? $state.' INC' : '')->color('gray'),
+                        TextColumn::make('state')->badge()->color(fn (string $state): string => $state === GradeRoster::StateSubmitted ? 'primary' : 'gray')
+                            ->formatStateUsing(fn (string $state): string => $state === GradeRoster::StateReleased ? 'Released' : str($state)->lower()->headline()->toString()),
+                    ])->grow(false)->space(1),
+                ])->from('md'),
             ])
             ->filters([
-                SelectFilter::make('state')->options([
-                    GradeRoster::StateDraft => 'Draft',
-                    GradeRoster::StateSubmitted => 'Submitted',
-                    GradeRoster::StateReturned => 'Returned',
-                    GradeRoster::StateReleased => 'Posted & Released',
-                    GradeRoster::StateLateNotSubmitted => 'Late / Not Submitted',
+                SelectFilter::make('term')->label('Term')->searchable()
+                    ->options(fn (): array => self::termOptions())
+                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null,
+                        fn (Builder $scope, mixed $termId): Builder => $scope->whereHas('termOffering', fn (Builder $offering): Builder => $offering->where('term_id', $termId)))),
+                SelectFilter::make('state')->label('Show')->placeholder('All class states')->default($defaultState)->options([
+                    GradeRoster::StateDraft => 'Drafts', GradeRoster::StateSubmitted => 'Awaiting review',
+                    GradeRoster::StateReturned => 'Returned to Faculty', GradeRoster::StateReleased => 'Released grades',
+                    GradeRoster::StateLateNotSubmitted => 'Awaiting late submission',
                 ]),
             ])
             ->recordActions([
-                ActionGroup::make([
-                    ViewAction::make()->url(fn (GradeRoster $record): string => GradeRosterResource::getUrl('view', ['record' => $record])),
-                    Action::make('return')
-                        ->label('Return')
-                        ->color('warning')
-                        ->schema([
-                            CheckboxList::make('row_ids')
-                                ->label('Rows to return')
-                                ->options(fn (GradeRoster $record): array => $record->rows()
-                                    ->where('is_current_membership', true)
-                                    ->with('courseEnrollment.enrollment.studentProfile')
-                                    ->get()
-                                    ->mapWithKeys(fn ($row): array => [$row->id => collect([
-                                        $row->courseEnrollment?->enrollment?->studentProfile?->student_number,
-                                        $row->courseEnrollment?->enrollment?->studentProfile?->last_name,
-                                        $row->final_result,
-                                    ])->filter()->implode(' · ')])->all())
-                                ->required(),
-                            Textarea::make('reason')->required()->maxLength(2000),
-                        ])
-                        ->visible(fn (GradeRoster $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) && $record->state === GradeRoster::StateSubmitted)
-                        ->action(function (GradeRoster $record, array $data): void {
-                            app(ReturnGradeRoster::class)->execute($record, auth()->user(), (string) $data['reason'], array_map('intval', $data['row_ids']));
-                            Notification::make()->title('Grade roster returned')->warning()->send();
-                        }),
-                    Action::make('postAndRelease')
-                        ->label('Post & Release')
-                        ->color('success')
-                        ->requiresConfirmation()
-                        ->visible(fn (GradeRoster $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) && $record->state === GradeRoster::StateSubmitted)
-                        ->action(function (GradeRoster $record): void {
-                            app(PostAndReleaseGradeRoster::class)->execute($record, auth()->user());
-                            Notification::make()->title('Grade roster posted and released')->success()->send();
-                        }),
-                    Action::make('authorizeLateGradeEncoding')
-                        ->label('Authorize late Grade Entry')
-                        ->color('info')
-                        ->schema([
-                            DateTimePicker::make('opens_at')
-                                ->label('Opens at')
-                                ->seconds(false)
-                                ->required(),
-                            DateTimePicker::make('closes_at')
-                                ->label('Closes at')
-                                ->seconds(false)
-                                ->required(),
-                            Textarea::make('reason')
-                                ->required()
-                                ->maxLength(2000),
-                        ])
-                        ->visible(fn (GradeRoster $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar)
-                            && in_array($record->state, [GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted], true))
-                        ->action(function (GradeRoster $record, array $data): void {
-                            $actor = auth()->user();
-
-                            if (! $actor instanceof User) {
-                                return;
-                            }
-
-                            app(AuthorizeLateGradeEncoding::class)->execute(
-                                $record,
-                                LateGradeAuthorization::PeriodFinal,
-                                Carbon::parse($data['opens_at']),
-                                Carbon::parse($data['closes_at']),
-                                (string) $data['reason'],
-                                $actor,
-                            );
-
-                            Notification::make()->title('Late grade authorization opened')->success()->send();
-                        }),
-                ])
-                    ->tooltip('Grade roster actions'),
+                ViewAction::make()->label(fn (GradeRoster $record, HasTable $livewire): string => $record->state === GradeRoster::StateSubmitted ? 'Review roster' : 'View roster')
+                    ->button()->color(fn (GradeRoster $record, HasTable $livewire): string => $record->state === GradeRoster::StateSubmitted ? 'primary' : 'gray')
+                    ->url(fn (GradeRoster $record, HasTable $livewire): string => self::rosterUrl($record, $livewire)),
             ])
+            ->recordUrl(fn (GradeRoster $record, HasTable $livewire): string => self::rosterUrl($record, $livewire))
+            ->emptyState(view('filament.partials.collection-empty-state'))
+            ->emptyStateHeading(fn (HasTable $livewire): string => filled($livewire->getTableSearch()) || $livewire->getTable()->isFiltered() ? 'No matching class rosters' : 'No class rosters yet')
+            ->emptyStateDescription(fn (HasTable $livewire): string => filled($livewire->getTableSearch()) || $livewire->getTable()->isFiltered()
+                ? 'Clear the search or adjust the term and state filters.'
+                : 'Class records appear after teaching assignments and official enrollment are recorded. Submissions, returns and releases stay in each class history.')
             ->stackedOnMobile()
-            ->defaultSort('id', 'desc');
+            ->searchPlaceholder('Course, class or Faculty')
+            ->defaultSort('submitted_at', 'desc');
+    }
+
+    private static function rosterUrl(GradeRoster $record, HasTable $livewire): string
+    {
+        return GradeRosterResource::getUrl('view', [
+            'record' => $record,
+            'viewTab' => 'grade-review',
+            'queue' => GradesAndCompletion::classQueueParameters([
+                'filters' => $livewire->tableFilters ?? [],
+                'search' => $livewire->getTableSearch(),
+                'sort' => $livewire->tableSort ?? null,
+                'page' => $livewire->getTablePage(),
+            ]),
+        ]);
+    }
+
+    /** @return array<int, string> */
+    public static function termOptions(): array
+    {
+        return Term::query()->with('academicYear')->orderByDesc('starts_on')->get()
+            ->mapWithKeys(fn (Term $term): array => [$term->id => collect([$term->label, $term->academicYear?->label])->filter()->implode(' · ')])->all();
     }
 
     private static function headTable(Table $table): Table
@@ -142,7 +110,7 @@ class GradeRostersTable
         return $table
             ->extraAttributes(['class' => 'accounting-records-table academic-rosters-table'])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                ->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section', 'teachingAssignment.faculty', 'faculty'])
+                ->with(['termOffering.term.academicYear', 'termOffering.curriculumEntry.courseSpecification.course', 'section', 'teachingAssignment.faculty', 'faculty'])
                 ->withCount(['rows as current_members_count' => fn (Builder $rows): Builder => $rows->where('is_current_membership', true)]))
             ->columns([RecordView::make('filament.admin.grade-rosters.head-record-row')])
             ->searchable([fn (Builder $query, string $search): Builder => $query->where(fn (Builder $scope): Builder => $scope
@@ -155,7 +123,8 @@ class GradeRostersTable
             ->searchPlaceholder('Course, class, term or faculty')
             ->filters([
                 SelectFilter::make('term')->label('Term')->searchable()
-                    ->options(fn (): array => Term::query()->orderByDesc('starts_on')->pluck('label', 'id')->all())
+                    ->options(fn (): array => self::termOptions())
+                    ->default(fn (HasTable $livewire): ?int => $livewire->oversightTermId ?? null)
                     ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null,
                         fn (Builder $scope, mixed $termId): Builder => $scope->whereHas('termOffering', fn (Builder $offering): Builder => $offering->where('term_id', $termId)))),
                 SelectFilter::make('state')->options([
@@ -165,8 +134,11 @@ class GradeRostersTable
                 ]),
             ])
             ->recordUrl(null)->recordAction(null)->recordActions([])
-            ->emptyStateHeading('No matching class rosters')
-            ->emptyStateDescription('Change the search or filters. The Registrar maintains official class membership.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
+            ->emptyStateHeading(fn (HasTable $livewire): string => filled($livewire->getTableSearch()) || $livewire->getTable()->isFiltered() ? 'No matching class rosters' : 'No class rosters yet')
+            ->emptyStateDescription(fn (HasTable $livewire): string => filled($livewire->getTableSearch()) || $livewire->getTable()->isFiltered()
+                ? 'Clear the search or adjust the term and state filters.'
+                : 'Class records appear after teaching assignments and official enrollment are recorded. Ask the Registrar to check the class sources if a roster is expected.')
             ->defaultSort('id', 'desc');
     }
 }

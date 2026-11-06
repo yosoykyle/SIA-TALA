@@ -34,20 +34,20 @@
                             <p class="student-academic-note">Results appear after Registrar release.</p>
                             @if ($currentAverage)
                                 @if ($currentAverage['value'] !== null)<p class="student-academic-average">{{ $currentAverage['label'] }} <strong>{{ $currentAverage['value'] }}</strong></p>
-                                @else<details class="student-academic-source"><summary>About your average</summary><p>{{ $currentAverage['reason'] }}</p>@if ($cumulative['value'] === null)<p>No released results currently count toward the cumulative GWA.</p>@endif</details>@endif
+                                @else<x-supporting-details summary="About your average" inset><p>{{ $currentAverage['reason'] }}</p>@if ($cumulative['value'] === null)<p>{{ $cumulative['reason'] }}</p>@endif</x-supporting-details>@endif
                             @endif
                         @else
                             @if ($studyContext['is_official'])<p class="student-academic-empty">No active subjects are recorded in your current registration. Contact the Registrar if this looks incorrect.</p>
-                            @else<div class="student-academic-next"><p>Your current subjects appear after official enrollment.</p><x-filament::button tag="a" :href="$enrollmentUrl">View enrollment</x-filament::button></div>@endif
+                            @else<div class="student-academic-next"><p>Current subjects cannot be shown here. View your enrollment record, or contact the Registrar.</p><x-filament::button tag="a" :href="$enrollmentUrl">View enrollment</x-filament::button></div>@endif
                         @endif
                     </section>
                     <aside class="student-academic-rail" aria-label="Study plan and dates">
                         <section class="student-record-panel tala-task-surface"><h2 class="student-record-heading"><x-filament::icon icon="heroicon-o-map" />Study plan</h2>@if ((float) $curriculum['completed_units'] > 0)<p class="student-academic-total"><strong>{{ (float) $curriculum['completed_units'] }}</strong><span>Units completed</span></p>@else<p class="student-academic-note">Explore the subjects required by your curriculum. Completed results appear after release.</p>@endif<x-filament::button tag="a" color="gray" :href="static::getUrl(['view' => 'plan'], panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">View study plan</x-filament::button></section>
-                        @if ($cumulative['value'] !== null)<section class="student-record-panel tala-task-surface"><h2>Cumulative average</h2><p class="student-academic-total"><strong>{{ $cumulative['value'] }}</strong></p><p class="student-academic-note">Through {{ $cumulative['through'] }}</p></section>@endif
+                        @if ($cumulative['value'] !== null)<section class="student-record-panel tala-task-surface"><h2>Cumulative GWA</h2><p class="student-academic-total"><strong>{{ $cumulative['value'] }}</strong></p><p class="student-academic-note">Through {{ $cumulative['through'] }}</p>@if ($cumulative['reason'])<p class="student-academic-note">{{ $cumulative['reason'] }}</p>@endif</section>@endif
                         @if ($studyContext['is_official'] || $examinationPeriod['status'] === 'Available')
                         <section class="student-record-panel tala-task-surface" aria-labelledby="academic-exams-heading"><h2 class="student-record-heading" id="academic-exams-heading"><x-filament::icon icon="heroicon-o-calendar-days" />Exam dates</h2>
                             @if (! $studyContext['is_official'] && $examinationPeriod['term'])<p class="student-academic-note">Recorded for {{ $examinationPeriod['term'] }}</p>@endif
-                            @if ($examinationPeriod['status'] === 'Available')<p>{{ $examinationPeriod['opens_on']->format('M j, Y') }}–{{ $examinationPeriod['closes_on']->format('M j, Y') }}</p><details class="student-academic-source"><summary>Calendar details</summary><p>{{ $examinationPeriod['authority_reference'] ?: 'Authority not recorded' }} · {{ $examinationPeriod['owner'] }}</p><p>{{ $examinationPeriod['message'] }}</p></details>
+                            @if ($examinationPeriod['status'] === 'Available')<p>{{ $examinationPeriod['opens_on']->format('M j, Y') }}–{{ $examinationPeriod['closes_on']->format('M j, Y') }}</p><x-supporting-details summary="Calendar details" inset><p>{{ $examinationPeriod['authority_reference'] ?: 'Authority not recorded' }} · {{ $examinationPeriod['owner'] }}</p><p>{{ $examinationPeriod['message'] }}</p></x-supporting-details>
                             @else<p class="student-academic-note">Dates unavailable. Check with the Registrar.</p>@endif
                         </section>
                         @endif
@@ -88,11 +88,12 @@
                 @else<p class="student-academic-empty">Your curriculum is unavailable. Contact the Registrar.</p>@endif
             @elseif ($academicView === 'record')
                 <p class="student-academic-program">{{ $studyContext['program_name'] ?? 'Program unavailable' }}</p>
-                @if ($results->whereNotNull('event')->isEmpty() && $historicalResults->isEmpty())
+                @if ($results->whereNotNull('outcome_source')->isEmpty() && $historicalResults->isEmpty())
                     <section class="student-record-empty"><x-filament::icon icon="heroicon-o-document-text" /><h2>Your results will appear here after release.</h2><p>You can check enrolled subjects in Academics.</p><x-filament::button tag="a" color="gray" :href="static::getUrl(panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">View current subjects</x-filament::button></section>
                     <p class="student-academic-note">An unofficial record becomes available after results are released.</p>
                 @else
-                    @if ($cumulative['value'] !== null)<p class="student-record-gwa">Cumulative average <strong>{{ $cumulative['value'] }}</strong><span>Through {{ $cumulative['through'] }}</span></p>@endif
+                    <x-academic-average :average="$cumulative" />
+                    <x-supporting-details summary="Average sources" inset><p>As of {{ \Illuminate\Support\Carbon::parse($cumulative['as_of'])->timezone('Asia/Manila')->format('M j, Y g:i A') }} · Asia/Manila</p>@foreach ($cumulative['exclusions'] as $exclusion)<p>{{ $exclusion }}</p>@endforeach</x-supporting-details>
                     <div class="student-record-terms">@foreach ($recordTerms as $term)
                         @php($average = $termAverages->get($term->id))
                         <section><h2>{{ $term->label }}</h2><p class="student-academic-note">{{ $average['label'] }}: {{ $average['value'] ?? $average['reason'] }}</p>
@@ -108,10 +109,10 @@
                 @php($earlierConferrals = $degreeConferrals->reject(fn (\App\Models\DegreeConferral $conferral): bool => $conferral->is($completion['conferral'])))
                 <div class="student-graduation-records">
                 @if ($completion['conferral'])
-                    <section class="student-degree-summary"><h2>{{ $completion['conferral']->degree_name }}</h2><p>Conferred {{ $completion['conferral']->conferred_on->format('M j, Y') }}</p><p class="student-academic-note">Recorded by the Registrar {{ $completion['conferral']->recorded_at?->format('M j, Y') }}.</p></section>
+                    <section class="student-degree-summary"><h2>{{ $completion['conferral']->degree_name }}</h2><p>{{ $completion['conferral']->conferred_on ? 'Conferred '.$completion['conferral']->conferred_on->format('M j, Y') : 'External graduation date not recorded' }}</p><p class="student-academic-note">Recorded by the Registrar {{ $completion['conferral']->recorded_at?->format('M j, Y') }}.</p></section>
                 @endif
                 @if ($earlierConferrals->isNotEmpty())
-                    <details class="learner-disclosure"><summary>Earlier degree records</summary><div><ol class="student-record-timeline">@foreach ($earlierConferrals as $conferral)<li><strong>{{ $conferral->degree_name }}</strong><time datetime="{{ $conferral->conferred_on->toDateString() }}">{{ $conferral->conferred_on->format('M j, Y') }}</time></li>@endforeach</ol></div></details>
+                    <details class="learner-disclosure"><summary>Earlier degree records</summary><div><ol class="student-record-timeline">@foreach ($earlierConferrals as $conferral)<li><strong>{{ $conferral->degree_name }}</strong>@if($conferral->conferred_on)<time datetime="{{ $conferral->conferred_on->toDateString() }}">{{ $conferral->conferred_on->format('M j, Y') }}</time>@else<span>External graduation date not recorded</span>@endif</li>@endforeach</ol></div></details>
                 @endif
                 @if ($graduationApplications->isNotEmpty())
                     <section class="student-record-section"><h2>Application history</h2><ol class="student-record-timeline">@foreach ($graduationApplications as $application)<li><time datetime="{{ $application->applied_at->toDateString() }}">{{ $application->applied_at->format('M j, Y') }}</time><strong>{{ match ($application->state) { \App\Models\GraduationApplication::StateActive => 'On file', \App\Models\GraduationApplication::StateCorrected => 'Corrected record', default => str($application->state)->replace('_', ' ')->headline() } }}</strong></li>@endforeach</ol></section>

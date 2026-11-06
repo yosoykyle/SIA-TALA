@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 
 class SupersedeTranscriptSnapshots
 {
-    public function execute(StudentProfile $student, User $actor, string $authorityReference, string $reason): int
+    public function execute(StudentProfile $student, User $actor, ?string $authorityReference, string $reason): int
     {
         return DB::transaction(function () use ($student, $actor, $authorityReference, $reason): int {
             $count = 0;
@@ -46,7 +46,7 @@ class SupersedeTranscriptSnapshots
                         'type' => TranscriptIssuanceEvent::TypeSuperseded,
                         'reference' => "{$snapshot->reference}-SUPERSEDED",
                         'reason' => trim($reason),
-                        'authority_reference' => trim($authorityReference),
+                        'authority_reference' => filled($authorityReference) ? trim($authorityReference) : null,
                         'recorded_by' => $actor->id,
                         'recorded_at' => now(),
                     ]);

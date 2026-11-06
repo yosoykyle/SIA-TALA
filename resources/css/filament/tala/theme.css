@@ -29,7 +29,7 @@
 
 .fi-header-heading, .fi-simple-header-heading { font-size: 1.5rem; }
 .fi-body:has(.fi-layout) .fi-header-heading {
-    font-size: clamp(1.5rem, 1.2rem + 1vw, 1.875rem);
+    font-size: var(--tala-type-page);
     font-weight: var(--tala-weight-heading);
     letter-spacing: -.025em;
 }
@@ -40,6 +40,9 @@
     font-weight: var(--tala-weight-emphasis);
 }
 .fi-section-header-heading, .fi-modal-heading { font-size: 1.125rem; }
+.fi-layout .fi-header-subheading { font-size: var(--tala-type-lead); max-inline-size: 65ch; }
+.fi-layout .fi-section-header-heading { font-size: var(--tala-type-section); }
+.fi-layout .fi-section-header-description { font-size: var(--tala-type-caption); max-inline-size: 65ch; line-height: 1.5; }
 
 @media (forced-colors: none) {
 .fi-body .fi-section-header .fi-icon.fi-color-info { color: var(--info-600); }
@@ -156,7 +159,35 @@
 }
 
 .fi-auth-layout { background: var(--tala-surface); min-height: 100dvh; }
-.tala-auth-main { width: 100%; min-height: 100dvh; }
+.tala-auth-main { position: relative; width: 100%; min-height: 100dvh; }
+.tala-auth-school { display: none; }
+.tala-auth-main .fi-simple-header-heading { color: var(--tala-brand-strong); }
+.dark .tala-auth-main .fi-simple-header-heading { color: var(--primary-400); }
+.tala-auth-main .media-top.has-media button[type="submit"].fi-color-primary {
+
+    font-weight: 700;
+}
+
+@media (forced-colors: none) {
+    .tala-auth-main:has(.media-top.has-media) > .tala-auth-school {
+        display: block;
+        position: absolute;
+        z-index: 1;
+        inset-block-start: clamp(0.875rem, 2vw, 1.5rem);
+        inset-inline-start: clamp(0.875rem, 2vw, 1.5rem);
+        color: var(--tala-on-brand);
+    }
+
+    .tala-auth-school .tala-brand__name { color: inherit; font-size: clamp(1rem, 2.35vw, 1.5rem); line-height: 1.15; }
+    .tala-auth-school .tala-brand__crest { width: clamp(3rem, 7vw, 4.5rem); height: clamp(3rem, 7vw, 4.5rem); }
+    .tala-auth-school .tala-brand__school,
+    .tala-auth-school .tala-brand__institution { display: block; }
+    .tala-auth-main .media-top.has-media .fi-auth-media-overlay {
+        background: linear-gradient(155deg, color-mix(in srgb, var(--primary-950) 94%, transparent), transparent 45%),
+            linear-gradient(to top, color-mix(in srgb, var(--gray-950) 32%, transparent), transparent 65%);
+    }
+    .tala-auth-main .media-top.has-media .fi-simple-header > .fi-logo { display: none; }
+}
 .tala-auth-recovery { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.25rem; }
 .tala-auth-recovery a { display: inline-flex; align-items: center; min-height: 2.75rem; }
 .tala-auth-recovery a > .fi-link-label { align-self: center; }
@@ -320,18 +351,17 @@
 .tala-journey-next .tala-application-next-action { max-width: 60ch; font-size: 1.125rem; font-weight: 600; line-height: 1.45; text-wrap: pretty; }
 .tala-journey-next__action { flex: 0 0 auto; }
 /* Applicant Home composition (#61 amended F76, F77-F80): summary cards, journey, side column, help. */
-.tala-home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem); grid-template-areas: "summary rail" "journey rail" "help rail"; gap: 1.5rem; align-items: start; }
-.tala-home__summary { grid-area: summary; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; align-items: stretch; }
+.tala-home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem); grid-template-areas: "summary rail" "journey rail" "help rail"; align-items: start; }
+.tala-home__summary { grid-area: summary; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
 .tala-home__summary > .fi-section { height: 100%; }
 .tala-home__journey { grid-area: journey; container-type: inline-size; }
-.tala-home__rail { grid-area: rail; display: grid; gap: 1.5rem; align-content: start; }
+.tala-home__rail { grid-area: rail; display: grid; align-content: start; }
 .tala-home-help { grid-area: help; }
 .tala-home-status { display: grid; justify-items: start; gap: 0.75rem; margin-block-end: 1.25rem; }
 .tala-home-status p { margin: 0; line-height: 1.6; }
 .tala-home-status:last-child { margin-block-end: 0; }
 .tala-home-summary .tala-home-facts { gap: 0.625rem; }
-.tala-home-summary .tala-home-facts > div { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; }
-.tala-home-dates .tala-home-facts > div { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; }
+.tala-home-summary .tala-home-facts > div, .tala-home-dates .tala-home-facts > div { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; }
 .tala-home-facts { display: grid; gap: 0.875rem; margin: 0; }
 .tala-home-facts > div { display: grid; grid-template-columns: minmax(7rem, 10rem) minmax(0, 1fr); gap: 0.75rem; }
 .tala-home-facts dt { font-size: 0.875rem; color: var(--tala-muted); }
@@ -475,7 +505,7 @@
 .fi-body:has(.fi-layout) .fi-sidebar-header-controls::after { margin-inline: 0; }
 .fi-sidebar .fi-global-search-ctn { display: block; width: 100%; padding: 0; margin: 0; }
 .fi-sidebar .fi-global-search { width: 100%; padding: 0; }
-.tala-collapsed-nav-search { display: flex; margin-inline: auto; inline-size: var(--tala-sidebar-rail-size); block-size: var(--tala-sidebar-rail-size); }
+.tala-collapsed-nav-search { display: flex; flex: none; margin-inline: auto; inline-size: var(--tala-sidebar-rail-size); block-size: var(--tala-sidebar-rail-size); }
 .tala-workspace-search-shortcut { display: contents; }
 .fi-body:has(.fi-layout) .fi-sidebar-nav { padding: 0.75rem 1rem 1rem; gap: 1rem; scrollbar-gutter: auto; }
 .fi-body:has(.fi-layout) .fi-sidebar-nav-groups { margin-inline: 0; }
@@ -645,9 +675,7 @@
     .fi-body:has(.fi-layout) .tala-mobile-attribution { padding-block: 1rem; }
 }
 @media (min-width: 64rem) {
-    .tala-drawer-close-inline { display: none; }
-    .tala-mobile-attribution { display: none; }
-    .fi-sidebar:not(.fi-sidebar-open) :is(.tala-workspace-context, .tala-sidebar-attribution) { display: none; }
+    .tala-drawer-close-inline, .tala-mobile-attribution, .fi-sidebar:not(.fi-sidebar-open) :is(.tala-workspace-context, .tala-sidebar-attribution) { display: none; }
 }
 @media (max-width: 39.999rem) {
     .fi-panel-applicant :is(.fi-callout-description, .fi-section-header-description, .fi-fo-field-wrp-helper-text, .fi-in-text, .fi-sc-text, .tala-draft-status) { font-size: 1rem; }
@@ -664,9 +692,6 @@
     }
 }
 
-.tala-table-loading { padding: 0.5rem 1rem; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--gray-700); }
-.dark .tala-table-loading { color: var(--gray-200); }
-@media (prefers-reduced-motion: reduce) { .tala-table-loading .fi-loading-indicator { animation: none; } }
 .tala-navigation { flex-wrap: wrap; overflow: visible; max-width: 100%; }
 .tala-navigation.tala-navigation-compact { width: fit-content; margin-inline: auto; justify-content: center; }
 .tala-faculty-term-context { padding-block:.5rem; }
@@ -675,8 +700,7 @@
 .tala-faculty-examination-context { margin-block-start:.75rem; padding-inline-start:.75rem; border-inline-start:2px solid var(--tala-edge); }
 .tala-faculty-workflow > .tala-navigation { margin-block-end:.25rem; }
 @media (max-width:40rem) { .tala-faculty-context-heading { flex-direction:column; } .tala-faculty-term-control { flex-basis:auto; width:100%; } }
-.tala-navigation .fi-tabs-item { white-space: normal; }
-.tala-navigation .fi-tabs-item-label { white-space: normal; }
+.tala-navigation .fi-tabs-item, .tala-navigation .fi-tabs-item-label { white-space: normal; }
 .tala-planning-tasks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); width: 100%; }
 .tala-planning-tasks .fi-tabs-item { min-width: 0; align-items: flex-start; text-align: start; }
 .tala-planning-task-heading { display: inline-flex; align-items: baseline; gap: 0.5rem; }
@@ -743,20 +767,20 @@
     }
     .fi-body:has(.fi-layout) .fi-sidebar-item.fi-active .fi-sidebar-item-label { font-weight: var(--tala-weight-emphasis); }
 
-    .fi-body:has(.fi-layout) .fi-btn.fi-color-primary:not(.fi-outlined) {
+    .fi-body:has(:is(.fi-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined) {
         background-color: var(--tala-brand-strong);
-        background-image: linear-gradient(180deg, rgb(255 255 255 / 10%), transparent 55%, rgb(0 0 0 / 4%));
+        background-image: var(--tala-control-gloss);
         color: var(--tala-on-brand);
     }
-    .fi-body:has(.fi-layout) .fi-btn.fi-color-primary:not(.fi-outlined):hover {
+    .fi-body:has(:is(.fi-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined):hover {
         background-color: color-mix(in srgb, var(--tala-brand-strong) 88%, black);
     }
-    .fi-body:has(.fi-layout) .fi-btn.fi-color-primary:not(.fi-outlined) > .fi-icon { color: inherit; }
-    .dark .fi-body:has(.fi-layout) .fi-btn.fi-color-primary:not(.fi-outlined) {
+    .fi-body:has(:is(.fi-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined) > .fi-icon { color: inherit; }
+    .dark .fi-body:has(:is(.fi-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined) {
         background-color: var(--primary-400);
         color: var(--primary-950);
     }
-    .dark .fi-body:has(.fi-layout) .fi-btn.fi-color-primary:not(.fi-outlined):hover { background-color: var(--primary-300); }
+    .dark .fi-body:has(:is(.fi-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined):hover { background-color: var(--primary-300); }
 }
 /* Shared material roles preserve native rings, component states and positioning. */
 @media (forced-colors: none) {
@@ -812,8 +836,9 @@
         .fi-ta-ctn,
         .fi-wi-stats-overview-stat
     ) {
-        background-color: var(--tala-surface);
+        background-color: var(--tala-container-surface, var(--tala-surface));
         --tw-shadow: var(--tala-material-raised);
+        border-radius: var(--tala-card-radius);
     }
 
     .fi-body :is(
@@ -917,7 +942,16 @@
 
 @media (forced-colors: none) and (min-width: 64rem) {
     .fi-sidebar { --tw-shadow: 0 0 #0000; }
+
+    /* Docked sidebar edge reuses the shared highlight for every role. */
+    .fi-sidebar {
+        --tw-inset-shadow: inset -1px 0 0 var(--tala-rim);
+    }
+    .fi-sidebar:dir(rtl) {
+        --tw-inset-shadow: inset 1px 0 0 var(--tala-rim);
+    }
 }
+
 
 @media (forced-colors: none) {
     :root:not(.dark) .fi-body :is(.fi-user-menu, .fi-dropdown:has(> .fi-dropdown-trigger :is(.fi-ac-btn-group, .fi-ac-icon-btn-group, .fi-ac-link-group, .fi-ac-badge-group)))
@@ -1100,7 +1134,7 @@
 .tala-home-greeting { position: relative; overflow: hidden; isolation: isolate; padding: 1.75rem 2rem; border: 1px solid var(--primary-100); border-radius: 0.875rem; background: linear-gradient(115deg, #ffffff 0%, #ffffff 38%, var(--primary-50) 100%); box-shadow: var(--tala-material-raised); }
 .dark .tala-home-greeting { border-color: var(--gray-800); background: linear-gradient(115deg, var(--tala-surface) 0%, var(--tala-surface) 40%, var(--tala-brand-tint) 100%); box-shadow: var(--tala-material-raised); }
 .tala-home-greeting .fi-header { position: relative; z-index: 1; }
-.tala-home-greeting .fi-header-heading { font-size: 1.75rem; letter-spacing: -0.02em; }
+.tala-home-greeting .fi-header-heading { font-size: var(--tala-type-page); letter-spacing: -0.02em; }
 .tala-home-greeting .fi-header-subheading { max-width: 46ch; }
 .tala-home-greeting__art { position: absolute; z-index: 0; inset-block: 0; inset-inline-end: 0; width: min(46%, 22.5rem); height: 100%; pointer-events: none; }
 .tala-home-greeting__hill { fill: var(--primary-100); opacity: 0.7; }
@@ -1120,7 +1154,7 @@
 }
 
 /* Student Hub dashboard: a single-stat widget is the priority notice, so its sentence reads as a heading, not a metric. */
-.fi-panel-student .fi-wi-stats-overview-stat:only-child .fi-wi-stats-overview-stat-value { font-size: 1.375rem; line-height: 1.35; text-wrap: pretty; }
+.fi-panel-student .fi-wi-stats-overview-stat:only-child .fi-wi-stats-overview-stat-value { font-size: var(--tala-type-section); line-height: 1.35; text-wrap: pretty; }
 .fi-panel-student .fi-wi-stats-overview-stat:only-child .fi-wi-stats-overview-stat-description { max-width: 70ch; }
 .fi-panel-student .fi-wi-stats-overview-stat-value { overflow-wrap: normal; word-break: normal; hyphens: manual; }
 

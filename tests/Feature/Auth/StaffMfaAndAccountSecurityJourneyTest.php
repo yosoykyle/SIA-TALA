@@ -14,6 +14,8 @@ use App\Filament\Pages\FacultySchedule;
 use App\Models\AdmissionApplication;
 use App\Models\StudentProfile;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
+use Filament\Auth\MultiFactor\Pages\SetUpRequiredMultiFactorAuthentication;
 use Filament\Auth\Notifications\NoticeOfEmailChangeRequest;
 use Filament\Auth\Notifications\VerifyEmailChange;
 use Filament\Facades\Filament;
@@ -97,6 +99,20 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         } else {
             $this->assertStringStartsWith("\x89PNG\r\n\x1a\n", $image);
         }
+    }
+
+    public function test_staff_can_open_the_two_step_authenticator_setup(): void
+    {
+        $staff = User::factory()->create();
+        $staff->assignRole(User::StaffRoleFaculty);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($staff);
+
+        $action = TestAction::make('setUpAppAuthentication')->schemaComponent('app', 'content');
+
+        Livewire::test(SetUpRequiredMultiFactorAuthentication::class)
+            ->mountAction($action)
+            ->assertActionMounted($action);
     }
 
     public function test_mfa_qr_code_normalization_removes_only_a_duplicate_svg_data_uri_layer(): void
@@ -503,7 +519,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $this->assertNull($login->get('userUndertakingMultiFactorAuthentication'));
         $this->assertNull($login->get('data.email'));
         $this->assertNull($login->get('data.password'));
-        $this->assertSame('Sign in to TALA', $login->instance()->getHeading());
+        $this->assertSame('Sign in', $login->instance()->getHeading());
     }
 
     public function test_restarting_mfa_challenge_allows_second_account_to_authenticate_without_credential_leak(): void

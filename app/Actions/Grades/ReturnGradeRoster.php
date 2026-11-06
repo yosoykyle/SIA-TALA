@@ -13,10 +13,13 @@ use RuntimeException;
 
 class ReturnGradeRoster
 {
-    public function __construct(private readonly AcademicRecordNotificationService $notifications) {}
+    public function __construct(
+        private readonly AcademicRecordNotificationService $notifications,
+        private readonly GradeRosterSourceGuard $sources,
+    ) {}
 
     /** @param list<int> $rowIds */
-    public function execute(GradeRoster $roster, User $actor, string $reason, array $rowIds = []): GradeRoster
+    public function execute(GradeRoster $roster, User $actor, string $reason, array $rowIds = [], ?int $expectedVersion = null): GradeRoster
     {
         if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff can return grade rosters.');
@@ -28,9 +31,11 @@ class ReturnGradeRoster
             throw new RuntimeException('A consolidated return explanation between 10 and 1000 characters is required.');
         }
 
-        return DB::transaction(function () use ($roster, $actor, $reason, $rowIds): GradeRoster {
+        return DB::transaction(function () use ($roster, $actor, $reason, $rowIds, $expectedVersion): GradeRoster {
             $locked = GradeRoster::query()->with(['rows' => fn ($query) => $query->where('is_current_membership', true)])
                 ->lockForUpdate()->findOrFail($roster->id);
+
+            $this->sources->assertExpectedVersion($locked, $expectedVersion);
 
             if ($locked->state !== GradeRoster::StateSubmitted) {
                 throw new RuntimeException('Only submitted rosters can be returned.');

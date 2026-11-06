@@ -35,6 +35,12 @@ class Enrollment extends Model
 
     public const OutcomeOfficiallyEnrolled = 'OfficiallyEnrolled';
 
+    public function statusLabel(): string
+    {
+        return str($this->canonical_outcome === self::OutcomeInProgress ? $this->status : $this->canonical_outcome)
+            ->headline()->toString();
+    }
+
     /** @return list<string> */
     public static function cancelledOutcomes(): array
     {
@@ -59,6 +65,7 @@ class Enrollment extends Model
      */
     protected $fillable = [
         'student_profile_id',
+        'student_section_id',
         'credential_user_id',
         'admission_application_id',
         'case_reference',
@@ -156,6 +163,12 @@ class Enrollment extends Model
     public function studentProfile(): BelongsTo
     {
         return $this->belongsTo(StudentProfile::class);
+    }
+
+    /** @return BelongsTo<TermCohort, $this> */
+    public function studentSection(): BelongsTo
+    {
+        return $this->belongsTo(TermCohort::class, 'student_section_id');
     }
 
     /** @return BelongsTo<User, $this> */

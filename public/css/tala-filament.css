@@ -2,6 +2,165 @@
     border-radius: 22.37%;
 }
 
+/* Student profile composition; identity, handoff and controls use shared materials. */
+.tala-student-profile { display:grid; gap:1rem; min-inline-size:0; container:student-profile / inline-size; color:var(--tala-text); }
+.tala-student-profile .tala-record-identity { margin:0; padding:1.5rem; }
+.tala-student-profile .tala-record-identity h1 { font-size:var(--tala-type-page); font-weight:var(--tala-weight-emphasis); line-height:1.2; }
+.tala-student-profile .tala-record-identity-person { min-inline-size:0; }
+.tala-student-profile .tala-record-identity .student-profile-avatar { inline-size:5rem; block-size:5rem; flex:none; }
+.tala-profile-muted { color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
+.tala-student-profile .tala-profile-tabs { inline-size:100%; max-inline-size:100%; margin-inline:0; }
+.tala-profile-tabs .fi-tabs-item { flex:1 1 0; justify-content:center; }
+.tala-profile-handoff { display:grid; gap:.5rem; }
+.tala-profile-handoff .tala-workflow-handoff { margin:0; }
+.tala-profile-overview { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); align-items:stretch; }
+.tala-profile-overview > * { min-inline-size:0; }
+.tala-profile-overview--without-enrollment > .fi-section { align-self:start; }
+.tala-profile-overview > .fi-section { display:flex; flex-direction:column; }
+.tala-profile-overview > .fi-section > .fi-section-content-ctn { display:flex; flex:1; flex-direction:column; }
+.tala-profile-overview > .fi-section .fi-section-footer { margin-block-start:auto; }
+.tala-profile-aside { display:grid; }
+.tala-profile-inset { display:grid; gap:.5rem; padding:1rem; background:var(--tala-surface-sunken); border:1px solid var(--tala-edge); border-radius:.5rem; }
+.tala-student-profile .fi-section-content { display:flex; flex-direction:column; gap:1rem; }
+.tala-profile-view-intro h2 { font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); margin-block-end:.375rem; }
+.tala-enrollment-context { display:grid; gap:1rem; }
+.tala-enrollment-context__facts { display:grid; gap:1.25rem; padding:1.25rem; background:var(--tala-surface-sunken); border:1px solid var(--tala-edge); border-radius:.5rem; }
+.tala-enrollment-context__facts > div { display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); align-items:start; gap:1rem; }
+.tala-enrollment-context__facts dt { font-size:.875rem; color:var(--tala-muted); }
+.tala-enrollment-context__facts dd { font-weight:var(--tala-weight-heading); overflow-wrap:anywhere; }
+.tala-profile-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr)); gap:1rem; padding:1rem; border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
+.tala-profile-metrics dt { color:var(--tala-muted); font-size:.875rem; }
+.tala-profile-figure { font-size:var(--tala-type-page); line-height:1.3; font-weight:var(--tala-weight-emphasis); font-variant-numeric:tabular-nums; }
+.tala-profile-icon { inline-size:2rem; block-size:2rem; margin-block-end:.25rem; color:var(--tala-muted); }
+.tala-profile-full-action { inline-size:100%; margin-block-start:auto; }
+.tala-profile-facts { display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.2fr); gap:.625rem 1rem; font-size:.875rem; }
+.tala-profile-facts dt { color:var(--tala-muted); }
+.tala-profile-facts dd { min-inline-size:0; overflow-wrap:anywhere; }
+.tala-profile-facts .fi-badge { inline-size:fit-content; }
+.tala-profile-action-row { display:flex; gap:1rem; align-items:center; justify-content:space-between; }
+.tala-profile-action-row > * { min-inline-size:0; }
+.tala-profile-action-row .tala-action-block { margin:0; flex-shrink:0; }
+.tala-profile-context-action { flex-shrink:0; display:grid; gap:.375rem; }
+.tala-profile-context-action { justify-items:start; }
+.tala-profile-callout { display:flex; align-items:start; gap:1rem; }
+.tala-profile-callout .tala-profile-icon { flex:none; color:var(--tala-brand-foreground); }
+.tala-profile-callout h2 { font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); line-height:1.3; margin-block-end:.25rem; }
+.tala-profile-table-wrap { overflow:auto; max-block-size:32rem; }
+.tala-profile-table { inline-size:100%; text-align:start; font-size:.875rem; border-collapse:collapse; }
+.tala-profile-table th,.tala-profile-table td { padding:.75rem; border-block-end:1px solid var(--tala-edge); text-align:start; }
+.tala-profile-table thead { position:sticky; inset-block-start:0; background:var(--tala-surface-sunken); }
+.tala-profile-table tbody th { font-weight:500; }
+.tala-profile-hold + .tala-profile-hold { margin-block-start:1rem; padding-block-start:1rem; border-block-start:1px solid var(--tala-edge); }
+@container student-profile (max-width:48rem) {
+    .tala-profile-overview { grid-template-columns:minmax(0,1fr); }
+    .tala-profile-action-row { align-items:start; flex-direction:column; }
+    .tala-profile-context-action p { text-align:start; }
+    .tala-student-profile .tala-record-identity { padding:1rem; }
+}
+@media(max-width:40rem) {
+    .tala-student-profile .tala-record-identity .student-profile-avatar { inline-size:3.5rem; block-size:3.5rem; }
+    .tala-student-profile .tala-record-identity { display:grid; gap:.75rem; }
+    .tala-student-profile .tala-record-identity > .tala-record-actions { margin-inline-start:4.5rem; }
+    .tala-student-profile .tala-profile-tabs { flex-wrap:wrap; gap:.25rem; overflow:visible; inline-size:100%; }
+    .tala-profile-tabs .fi-tabs-item { flex:1 0 auto; }
+    .tala-enrollment-context__facts { gap:1rem; padding:1rem; }
+    .tala-profile-facts { grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:.625rem; }
+    .tala-profile-action-row .tala-action-block { flex-shrink:1; }
+}
+
+/* Term-scoped record collections share materials, controls and bounded rows. */
+.tala-profile-ledger { min-inline-size:0; border:1px solid var(--tala-border); border-radius:.75rem; background:var(--tala-surface); box-shadow:var(--tala-material-raised); overflow:clip; }
+.tala-profile-ledger h2 { font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); line-height:1.3; }
+.tala-profile-ledger h3 { font-weight:var(--tala-weight-heading); line-height:1.4; }
+.tala-profile-ledger__toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:1rem; padding:1.25rem; border-block-end:1px solid var(--tala-edge); }
+.tala-profile-ledger__toolbar > div:first-child { flex:1 1 15rem; }
+.tala-profile-control { display:grid; gap:.375rem; flex:0 1 16rem; min-inline-size:0; font-size:.875rem; font-weight:var(--tala-weight-heading); }
+.tala-profile-ledger__metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1.25rem; padding:1rem 1.25rem; background:var(--tala-surface-sunken); border-block-end:1px solid var(--tala-edge); font-size:.875rem; }
+.tala-profile-ledger__metrics > * { display:grid; align-content:start; gap:.25rem; }
+.tala-profile-ledger__metrics > * + * { border-inline-start:1px solid var(--tala-edge); padding-inline-start:1.25rem; }
+.tala-profile-ledger__metrics .space-y-2 > * { margin-block:0; }
+.tala-profile-ledger__metrics dd.text-xl { font-size:1.25rem; }
+.tala-profile-number { font-size:1.25rem; font-variant-numeric:tabular-nums; font-weight:var(--tala-weight-emphasis); }
+.tala-profile-ledger__body { display:grid; grid-template-columns:minmax(0,1fr) minmax(17rem,.45fr); align-items:start; }
+.tala-profile-collection { min-inline-size:0; }
+.tala-profile-ledger__context { display:grid; gap:1rem; padding:1.25rem; background:var(--tala-surface-sunken); border-inline-start:1px solid var(--tala-edge); font-size:.875rem; min-inline-size:0; }
+.tala-profile-ledger__context .tala-workflow-handoff { margin:0; grid-template-columns:minmax(0,1fr); gap:.75rem; }
+.tala-profile-ledger__context .tala-workflow-handoff > li { padding:.75rem; gap:.625rem; }
+.tala-profile-ledger__context .tala-handoff-next .tala-handoff-arrow { display:none; }
+.tala-profile-ledger__context .tala-workflow-handoff .tala-handoff-icon { inline-size:2rem; block-size:2rem; padding:.375rem; }
+.tala-profile-eyebrow { color:var(--tala-muted); font-size:.75rem; line-height:1.5; display:block; margin-block-end:.25rem; }
+.tala-profile-context-facts { display:grid; gap:1rem; font-size:.875rem; }
+.tala-profile-context-facts dt { color:var(--tala-muted); margin-block-end:.25rem; }
+.tala-profile-context-facts dd { overflow-wrap:anywhere; }
+.tala-profile-results .tala-profile-row-selected { background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); box-shadow:inset .1875rem 0 var(--tala-brand); }
+.tala-profile-results .tala-profile-row-selected .tala-profile-muted { color:inherit; }
+.tala-profile-row-action { display:flex; flex-direction:column; text-align:start; gap:.25rem; inline-size:100%; cursor:pointer; padding-block:.25rem; border-radius:.25rem; }
+.tala-profile-row-action:focus-visible { outline:2px solid var(--tala-brand); outline-offset:.25rem; }
+.tala-profile-numeric { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.tala-profile-result-value { font-size:1.125rem; font-weight:var(--tala-weight-emphasis); font-variant-numeric:tabular-nums; display:block; }
+.tala-profile-collection-footer { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.5rem; padding:.75rem 1.25rem; background:var(--tala-surface-sunken); border-block-start:1px solid var(--tala-edge); font-size:.75rem; color:var(--tala-muted); }
+.tala-profile-collection-footer nav { display:flex; align-items:center; gap:.5rem; }
+.tala-collection-page-controls { display:flex; align-items:center; flex-wrap:wrap; gap:.75rem; }
+.tala-profile-source-note { display:flex; gap:.5rem; align-items:start; color:var(--tala-muted); font-size:.875rem; padding:.5rem .25rem; }
+.tala-profile-source-note > .fi-icon { flex:none; inline-size:1.25rem; block-size:1.25rem; }
+.tala-profile-enrollment-body { display:grid; grid-template-columns:minmax(0,1fr) minmax(17rem,.45fr); }
+.tala-profile-enrollment-main { display:grid; gap:1rem; padding:1.25rem; align-content:start; }
+.tala-enrollment-context--compact .tala-enrollment-context__facts { grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; padding:1rem; }
+.tala-enrollment-context--compact .tala-enrollment-context__facts > div { display:block; }
+.tala-enrollment-context--compact dt { margin-block-end:.375rem; }
+.tala-profile-ledger__support { padding:1.25rem; border-block-start:1px solid var(--tala-edge); }
+.tala-profile-ledger__support .tala-workflow-handoff { margin:0; }
+.tala-profile-history-list { max-block-size:32rem; overflow:auto; }
+.tala-profile-history-row { display:grid; grid-template-columns:minmax(8rem,.7fr) minmax(10rem,1fr) auto auto; align-items:center; gap:1rem; padding:1rem 1.25rem; border-block-end:1px solid var(--tala-edge); font-size:.875rem; }
+.tala-profile-history-date strong { font-weight:var(--tala-weight-heading); }
+@container student-profile (max-width:55rem) {
+ .tala-profile-ledger__body,.tala-profile-enrollment-body { grid-template-columns:minmax(0,1fr); }
+ .tala-profile-ledger__context { border-inline-start:0; border-block-start:1px solid var(--tala-edge); }
+ .tala-profile-ledger__context .tala-workflow-handoff { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .tala-profile-history-row { grid-template-columns:minmax(7rem,.6fr) minmax(0,1fr); }
+ .tala-profile-history-row > .fi-badge, .tala-profile-history-row > .fi-btn { justify-self:start; }
+}
+@container student-profile (max-width:35rem) {
+ .tala-profile-ledger__toolbar { padding:1rem; gap:.75rem; }
+ .tala-profile-control { flex:1 1 100%; }
+ .tala-profile-ledger__metrics { gap:.75rem; padding:1rem; grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .tala-profile-ledger__metrics > * + * { padding-inline-start:.75rem; }
+ .tala-profile-ledger__metrics > *:last-child { grid-column:1/-1; padding-block-start:.75rem; border-block-start:1px solid var(--tala-edge); border-inline-start:0; padding-inline-start:0; }
+ .tala-profile-results th,.tala-profile-results td { padding:.625rem; }
+ .tala-profile-ledger__context,.tala-profile-enrollment-main { padding:1rem; }
+ .tala-profile-ledger__context .tala-workflow-handoff { grid-template-columns:minmax(0,1fr); }
+ .tala-enrollment-context--compact .tala-enrollment-context__facts { grid-template-columns:minmax(0,1fr); }
+}
+
+.tala-profile-ledger__body--short { grid-template-columns:minmax(0,1fr); }
+.tala-profile-ledger__body--short .tala-profile-ledger__context { border-inline-start:0; border-block-start:1px solid var(--tala-edge); grid-template-columns:minmax(0,1fr) minmax(0,1.4fr); align-items:start; gap:1rem 1.5rem; }
+.tala-profile-ledger__body--short .tala-profile-ledger__context > div:first-child { grid-column:1; }
+.tala-profile-ledger__body--short .tala-profile-context-facts { grid-column:1; }
+.tala-profile-ledger__body--short .tala-inc-follow-up { grid-column:2; grid-row:1/span 2; }
+.tala-profile-ledger__body--short .tala-profile-ledger__context .tala-workflow-handoff { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.tala-profile-average-compact dt { color:var(--tala-muted); font-size:.75rem; }
+.tala-profile-average-compact dd { display:flex; flex-wrap:wrap; align-items:baseline; gap:.25rem .5rem; }
+.tala-profile-average-compact .tala-profile-muted { font-size:.75rem; }
+.tala-profile-ledger__metrics { padding-block:.75rem; }
+.tala-profile-ledger__metrics > div:first-child { display:flex; flex-wrap:wrap; align-content:center; align-items:baseline; gap:.25rem .5rem; }
+.tala-profile-ledger__metrics > div:first-child > span:last-child { inline-size:100%; font-size:.75rem; }
+@container student-profile (max-width:35rem) {
+ .tala-profile-ledger__body--short .tala-profile-ledger__context { grid-template-columns:minmax(0,1fr); }
+ .tala-profile-ledger__body--short .tala-inc-follow-up { grid-column:1; grid-row:auto; }
+ .tala-profile-ledger__body--short .tala-profile-ledger__context .tala-workflow-handoff { grid-template-columns:minmax(0,1fr); }
+}
+
+.tala-profile-scope { font-size:.875rem; min-inline-size:0; }
+
+/* Keep existing content visible; targeted reads share the navigation bar material. */
+.tala-content-region { position:relative; min-inline-size:0; }
+.tala-student-profile > .tala-content-region { display:grid; gap:1rem; }
+.tala-content-progress { position:fixed; inset-block-start:0; inset-inline:0; block-size:2px; z-index:2147483646; pointer-events:none; overflow:hidden; }
+.tala-content-progress::before { content:""; display:block; inline-size:35%; block-size:100%; background:var(--tala-brand-foreground); animation:tala-content-progress 1.2s linear infinite; }
+@keyframes tala-content-progress { from { transform:translateX(-100%); } to { transform:translateX(286%); } }
+@media(prefers-reduced-motion:reduce) { .tala-content-progress::before { inline-size:100%; animation:none; } }
+@media(forced-colors:active) { .tala-content-progress::before { background:Highlight; } }
+
 .tala-empty-state {
     align-items: center;
     display: flex;
@@ -264,4 +423,770 @@
 .dark .tala-empty-state__icon-shell {
     background: color-mix(in srgb, var(--primary-400) 16%, transparent);
     color: var(--primary-400);
+}
+
+.fi-body details.tala-supporting-details {
+    min-inline-size: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: .875rem;
+}
+
+.tala-review-feedback {
+    display: flex;
+    gap: .75rem;
+    padding: 1rem;
+    border: 1px solid var(--tala-border);
+    border-radius: .5rem;
+    background: var(--tala-surface-sunken);
+    color: var(--tala-text);
+    font-size: .875rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+.tala-review-feedback > svg { flex: none; margin-block-start: .125rem; }
+.tala-review-feedback h3 { font-weight: 600; }
+.tala-review-feedback p { margin-block-start: .375rem; max-inline-size: 65ch; }
+
+/* Shared role handoff: used by academic and enrollment workspaces. */
+.tala-workflow-handoff{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2.5rem;list-style:none;padding:0;margin:1.5rem 0 0;color:var(--tala-text)}
+.tala-workflow-handoff>li{position:relative;display:flex;align-items:center;gap:1rem;min-inline-size:0;padding:1rem;border-radius:.75rem}
+.tala-workflow-handoff .tala-handoff-current{background:color-mix(in srgb,var(--tala-brand) 8%,var(--tala-surface))}
+.tala-workflow-handoff .tala-handoff-next{border:1px solid var(--tala-edge);background:var(--tala-surface)}
+.tala-workflow-handoff li>div{min-inline-size:0;overflow-wrap:anywhere}
+.tala-workflow-handoff .tala-handoff-icon{flex:none;inline-size:2.5rem;block-size:2.5rem;padding:.5rem;border-radius:50%;background:var(--tala-surface);color:var(--tala-brand-strong)}
+.tala-workflow-handoff .tala-handoff-phase{display:block;font-size:.8125rem;line-height:1.5;color:var(--tala-muted);margin-block-end:.25rem}
+.tala-workflow-handoff strong{display:block;font-size:1.0625rem;font-weight:700;line-height:1.4}
+.tala-workflow-handoff li p{font-size:.9375rem;line-height:1.5;margin:.25rem 0 0;color:var(--tala-muted)}
+.tala-workflow-handoff .tala-handoff-arrow{position:absolute;inset-inline-start:-2rem;inline-size:1.5rem;block-size:1.5rem;color:var(--tala-muted)}
+.dark .tala-workflow-handoff .tala-handoff-icon{color:var(--primary-200)}
+.dark .tala-workflow-handoff .tala-handoff-current{background:var(--tala-brand-tint);color:var(--tala-on-brand-tint)}
+@media(max-width:40rem){
+    .tala-workflow-handoff{grid-template-columns:minmax(0,1fr);gap:2rem}
+    .tala-workflow-handoff .tala-handoff-arrow{inset-inline-start:50%;inset-block-start:-1.75rem;transform:translateX(-50%) rotate(90deg)}
+}
+@media(forced-colors:active){
+    .tala-workflow-handoff .tala-handoff-current{background:Canvas;outline:1px solid CanvasText}
+    .tala-workflow-handoff .tala-handoff-icon,.tala-workflow-handoff .tala-handoff-arrow{color:CanvasText}
+}
+
+/* Shared list-and-inspector workspace: one collection, one focused record. */
+.tala-record-workspace { display:grid; grid-template-columns:minmax(15rem, .7fr) minmax(0, 1.3fr); min-inline-size:0; color:var(--tala-text); }
+
+.tala-record-browser, .tala-record-inspector { border:1px solid var(--tala-border); border-radius:.75rem; box-shadow:var(--tala-material-raised); overflow:clip; }
+.tala-record-browser { display:flex; flex-direction:column; min-inline-size:0; background:var(--tala-surface); }
+.tala-record-browser-header { display:grid; gap:1rem; padding:1.25rem; }
+.tala-record-browser-header h2 { font-size:var(--tala-type-section); font-weight:var(--tala-weight-emphasis); }
+.tala-record-browser-header h2 span { margin-inline-start:.5rem; color:var(--tala-muted); font-weight:400; font-variant-numeric:tabular-nums; }
+.tala-record-browser-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; }
+.tala-record-browser-heading h2 { min-inline-size:0; }
+.tala-record-browser-header p, .tala-record-identity p, .tala-record-history p { color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
+.tala-record-list { flex:1; padding:0 .75rem 1rem; margin:0; list-style:none; max-block-size:36rem; overflow:auto; scrollbar-gutter:stable; }
+.tala-record-list > li + li { margin-block-start:.375rem; }
+.tala-record-option { display:flex; align-items:center; justify-content:space-between; gap:1rem; inline-size:100%; min-block-size:5rem; padding:1rem; text-align:start; border:1px solid transparent; border-radius:.5rem; cursor:pointer; }
+.tala-record-option:hover { background:var(--tala-surface-sunken); }
+.tala-record-option:focus-visible { outline:3px solid var(--tala-focus); outline-offset:-3px; }
+.tala-record-option .fi-badge { margin-block-start:.5rem; }
+.tala-record-option[aria-pressed='true'] { background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); border-color:var(--tala-selected-edge); box-shadow:var(--tala-material-detail); }
+.tala-record-option:has(> .tala-record-option-context) { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.5rem .75rem; }
+.tala-record-option-context { grid-column:1/-1; min-inline-size:0; overflow-wrap:anywhere; }
+.tala-record-option > span:first-child { min-inline-size:0; overflow-wrap:anywhere; }
+.tala-record-option strong, .tala-record-option small { display:block; }
+.tala-record-option strong { font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
+.tala-record-option small { margin-block-start:.25rem; font-size:.75rem; }
+.tala-record-option-result { flex:none; text-align:end; border-inline-start:1px solid var(--tala-edge); padding-inline-start:1rem; font-variant-numeric:tabular-nums; }
+.tala-record-option-result strong { font-size:1.25rem; }
+.tala-record-pagination { padding:1rem; border-block-start:1px solid var(--tala-edge); }
+.tala-record-inspector { min-inline-size:0; min-block-size:30rem; padding:clamp(1.25rem, 2vw, 2rem); background:var(--tala-surface); }
+.tala-record-identity { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; padding:1rem; }
+.tala-identity-surface{border:1px solid var(--tala-selected-edge);border-radius:.75rem;background:linear-gradient(110deg,var(--tala-surface) 15%,var(--tala-surface) 40%,color-mix(in srgb,var(--tala-brand) 9%,var(--tala-surface)) 100%);color:var(--tala-text);}
+@media(forced-colors:none){.dark .tala-identity-surface{background:linear-gradient(110deg,var(--tala-surface) 15%,var(--tala-surface) 40%,var(--tala-brand-tint) 100%);}}
+@media(forced-colors:active){.tala-identity-surface{background:Canvas;border-color:CanvasText;}}
+.tala-record-identity-person { display:flex; align-items:center; gap:1rem; min-inline-size:0; flex:1 1 12rem; }
+.tala-record-identity-person > div:last-child { min-inline-size:0; }
+.tala-record-footer { grid-column:1/-1; padding:1.25rem; background:var(--tala-surface-sunken); border:1px solid var(--tala-border); border-radius:.75rem; box-shadow:var(--tala-material-raised); }
+.tala-inc-follow-up { margin-block:1.5rem; }
+.tala-record-inspector .tala-workflow-handoff { grid-template-columns:minmax(0,1fr); gap:2rem; }
+.tala-record-inspector .tala-handoff-arrow { inset-inline-start:50%; inset-block-start:-1.75rem; transform:translateX(-50%) rotate(90deg); }
+.tala-workflow-handoff:has(> li:only-child) { grid-template-columns:minmax(0,1fr); }
+.tala-workflow-handoff--stacked { grid-template-columns:minmax(0,1fr); gap:2rem; }
+.tala-workflow-handoff--stacked .tala-handoff-arrow { inset-inline-start:50%; inset-block-start:-1.75rem; transform:translateX(-50%) rotate(90deg); }
+.tala-workflow-handoff--band { margin-block-start:1rem; }
+.tala-workflow-handoff--band > li { box-shadow:var(--tala-material-detail); }
+.tala-workflow-handoff--compact > li { padding:.875rem; gap:.625rem; align-items:flex-start; }
+.tala-workflow-handoff--compact .tala-handoff-icon { inline-size:2rem; block-size:2rem; padding:.375rem; }
+.tala-workflow-handoff--compact strong { font-size:1rem; }
+.tala-workflow-handoff--compact li p { font-size:.875rem; line-height:1.4; }
+.tala-record-identity h2 { margin-block:.5rem .25rem; font-size:var(--tala-type-card); font-weight:var(--tala-weight-heading); line-height:1.25; overflow-wrap:anywhere; }
+.tala-record-result { display:flex; align-items:center; justify-content:space-between; gap:1.5rem; margin-block:1.5rem; padding-block:1.75rem; border-block-start:1px solid var(--tala-edge); }
+.tala-record-result p { font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
+.tala-record-result > div > strong { display:block; margin-block-start:.375rem; font-size:var(--tala-type-figure); font-weight:var(--tala-weight-heading); line-height:1.1; font-variant-numeric:tabular-nums; }
+.tala-record-result-context { display:flex; align-items:flex-start; gap:.5rem; font-size:.875rem; }
+.tala-record-result-context svg { flex:none; }
+.tala-record-result-context small { display:block; margin-block-start:.25rem; font-size:.75rem; }
+.tala-record-actions { display:flex; flex-wrap:wrap; gap:.75rem; }
+.tala-record-actions:empty { display:none; }
+.tala-record-result-actions { display:flex; flex-wrap:wrap; gap:.75rem; margin-block-start:.75rem; }
+.tala-record-history-panel.tala-record-history { padding-block-start:0; }
+.tala-record-history-panel .tala-record-timeline { margin-block-start:0; }
+.tala-record-history-panel .tala-record-timeline-item { overflow-wrap:anywhere; }
+.tala-record-reference-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.25rem 2rem; }
+.tala-record-reference-section { min-inline-size:0; }
+.tala-record-reference-section h3 { margin:0; font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
+.tala-record-reference-section .tala-record-source-person { color:var(--tala-text); font-size:var(--tala-type-card); font-weight:var(--tala-weight-heading); line-height:1.3; margin-block-start:.5rem; }
+.tala-record-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; margin-block-start:.75rem; }
+.tala-record-facts > div { min-inline-size:0; }
+.tala-record-facts dt, .tala-record-reference-section p, .tala-record-events time { color:var(--tala-muted); font-size:.8125rem; line-height:1.6; }
+.tala-record-facts dd { margin-block-start:.375rem; overflow-wrap:anywhere; font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
+.tala-record-facts .tala-record-reference { grid-column:1/-1; }
+.tala-record-reference dd { font-size:.75rem; font-weight:400; user-select:all; }
+.tala-record-notifications { grid-column:1/-1; padding-block-start:1rem; border-block-start:1px solid var(--tala-edge); }
+.tala-record-notifications > header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; }
+.tala-record-notifications header p { margin-block-start:.375rem; max-inline-size:65ch; }
+.tala-record-events { list-style:none; padding:0; margin:.5rem 0 0; max-block-size:20rem; overflow:auto; scrollbar-gutter:stable; }
+.tala-record-events li { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:.5rem 1rem; padding-block:.75rem; }
+.tala-record-events li + li { border-block-start:1px solid var(--tala-edge); }
+.tala-record-events strong { font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
+.tala-record-events .fi-badge { flex:none; }
+.tala-record-event-note { flex-basis:100%; }
+.tala-record-notifications .tala-record-events li { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(11rem,auto); align-items:center; }
+.tala-record-notice-state { display:flex; align-items:center; gap:.625rem; font-size:.75rem; color:var(--tala-muted); }
+.tala-record-notifications time { text-align:end; }
+.tala-record-event-caption { margin-block-start:.5rem; }
+@media(max-width:47.99rem){.tala-record-reference-grid{grid-template-columns:minmax(0,1fr);}.tala-record-notifications .tala-record-events li{grid-template-columns:minmax(0,1fr) auto;}.tala-record-notifications time{grid-column:1/-1;text-align:start;}}
+.tala-record-history { margin-block-start:1rem; }
+.tala-record-empty { display:grid; justify-items:start; gap:.75rem; padding:1.5rem; line-height:1.5; }
+.tala-record-empty p { color:var(--tala-muted); font-size:.875rem; }
+@media (max-width: 47.99rem) {
+    .tala-record-workspace { grid-template-columns:minmax(0,1fr); }
+    .tala-record-list { max-block-size:20rem; overflow:auto; }
+    .tala-record-inspector { min-block-size:0; }
+    .tala-record-result { align-items:flex-start; flex-wrap:wrap; }
+}
+/* Shared adaptive record workspace: a collection with local navigation and a flowing detail document. */
+.fi-page-header-main-ctn:has(.tala-record-workspace--framed) { padding-block-end:.75rem; row-gap:1.25rem; }
+.tala-record-workspace--framed { --tala-record-collection-inset:.625rem; --tala-record-option-inset:1rem; --tala-record-pane-limit:min(54rem,80dvh); grid-template-columns:minmax(16rem,.6fr) minmax(0,1.4fr); align-items:start; border:0; border-radius:0; box-shadow:none; background:transparent; }
+.tala-supporting-details + .tala-record-workspace { margin-block-start:1rem; }
+.tala-record-toolbar { grid-column:1/-1; display:flex; align-items:center; flex-wrap:wrap; gap:1rem; padding:0; }
+.tala-record-toolbar h2 { font-size:var(--tala-type-section); font-weight:var(--tala-weight-emphasis); }
+.tala-record-toolbar h2 span { margin-inline-start:.5rem; color:var(--tala-muted); font-weight:400; }
+.tala-record-search { min-inline-size:0; }
+.tala-record-workspace--framed > .tala-record-browser,
+.tala-record-detail { min-inline-size:0; min-block-size:0; max-block-size:var(--tala-record-pane-limit); border:1px solid var(--tala-border); border-radius:.75rem; box-shadow:var(--tala-material-raised); background:var(--tala-surface); }
+.tala-record-workspace--framed > .tala-record-browser { padding-block:.625rem 0; overflow:hidden; }
+.tala-record-workspace--framed .tala-record-list { flex:0 1 auto; min-block-size:0; max-block-size:min(36rem,65dvh); padding:.125rem var(--tala-record-collection-inset) .75rem; scrollbar-gutter:auto; overscroll-behavior:contain; }
+.tala-record-workspace--framed .tala-record-browser-header { flex:none; padding:.75rem var(--tala-record-collection-inset) 1rem; gap:.75rem; }
+.tala-record-detail { display:flex; flex-direction:column; grid-column:2; overflow:visible; }
+.tala-record-detail > .tala-record-inspector { flex:1 1 auto; min-block-size:0; border:0; border-radius:.75rem; box-shadow:none; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:1.25rem; container-type:inline-size; }
+.tala-record-detail:has(> .tala-record-footer) > .tala-record-inspector { border-end-start-radius:0; border-end-end-radius:0; }
+.tala-record-identity:has(.student-identity-art) { position:relative; overflow:hidden; }
+.tala-record-identity .student-identity-art { inline-size:32%; opacity:.35; }
+.tala-record-identity-person,.tala-record-identity > .tala-record-actions { position:relative; z-index:1; }
+.tala-record-identity .student-profile-avatar { display:grid; place-items:center; flex:none; inline-size:4rem; block-size:4rem; overflow:hidden; border-radius:50%; background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); border:.25rem solid var(--tala-surface); box-shadow:0 0 0 1px var(--tala-selected-edge); font-size:1.25rem; font-weight:var(--tala-weight-emphasis); }
+.tala-record-identity .student-profile-avatar img { inline-size:100%; block-size:100%; object-fit:cover; }
+.tala-record-workspace--framed .tala-record-identity h2 { font-size:var(--tala-type-card); margin:0 0 .375rem; }
+.tala-record-workspace--framed .tala-record-identity p + p { margin-block-start:.375rem; }
+.tala-record-workspace--framed .tala-record-result { margin:1rem 0; padding:1rem 1.25rem; border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
+.tala-record-workspace--framed .tala-record-result > div > strong { font-size:2rem; }
+.tala-record-result--completion { display:grid; grid-template-columns:minmax(0,1fr); gap:1rem; }
+.tala-record-result--completion .tala-record-release-date { margin-block-start:.5rem; color:var(--tala-muted); font-size:.8125rem; }
+.tala-inc-deadline { display:grid; gap:.75rem; min-inline-size:0; font-size:.875rem; line-height:1.5; }
+.tala-inc-deadline h3 { display:flex; align-items:center; gap:.5rem; font-weight:var(--tala-weight-emphasis); }
+.tala-inc-deadline h3:not(:first-child) { margin-block-start:.75rem; }
+.tala-inc-deadline p { margin-block-start:.375rem; color:var(--tala-muted); overflow-wrap:anywhere; }
+.tala-record-workspace--framed .tala-inc-follow-up { margin:1rem 0; }
+.tala-record-workspace--framed .tala-inc-facts { gap:1rem 1.5rem; padding-block:0; }
+.tala-inc-completion-state { padding:.875rem 1rem; border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
+.tala-inc-facts:has(> :only-child) { grid-template-columns:minmax(0,1fr); }
+.tala-record-workspace--framed .tala-workflow-handoff { margin-block-start:1rem; gap:2rem; }
+.tala-record-workspace--framed .tala-workflow-handoff strong { font-size:1rem; }
+.tala-record-workspace--framed .tala-workflow-handoff li p { font-size:.875rem; }
+.tala-record-workspace--framed .tala-record-actions { margin-block:1rem; gap:.625rem; }
+.tala-record-workspace--framed .tala-record-actions > .fi-btn { flex:1 1 12rem; justify-content:center; }
+.tala-record-workspace--framed .tala-record-history { margin-block-start:1rem; padding-block-start:0; }
+.tala-record-detail > .tala-record-footer { padding:1rem 1.25rem; border:0; border-block-start:1px solid var(--tala-edge); border-radius:0 0 .75rem .75rem; box-shadow:none; background:var(--tala-surface-sunken); }
+.tala-record-collection-footer { flex:none; border-radius:0 0 .75rem .75rem; padding:0; background:var(--tala-surface-sunken); overflow:hidden; }
+.tala-record-navigation,.tala-record-selection-navigation { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
+.tala-record-navigation { font-size:.8125rem; }
+.tala-record-navigation > p { font-weight:var(--tala-weight-emphasis); }
+.tala-record-navigation > p span,.tala-record-selection-navigation > span { font-weight:400; color:var(--tala-muted); }
+.tala-record-selection-navigation { flex-wrap:nowrap; margin-inline-start:auto; }
+.tala-record-selection-navigation .fi-icon-btn { margin:0; flex:none; inline-size:2.25rem; block-size:2.25rem; border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface); }
+.tala-record-navigation > .fi-pagination { flex:1 1 100%; }
+.tala-record-class-context { display:flex; align-items:center; flex-wrap:wrap; gap:.25rem .75rem; margin-block-start:.5rem; font-size:.875rem; color:var(--tala-muted); }
+.tala-record-class-context strong { color:var(--tala-brand-foreground); font-weight:var(--tala-weight-emphasis); }
+.tala-record-class-context--returned strong { color:var(--tala-text); }
+.tala-record-mobile-back { display:none; }
+.tala-record-selection-status { color:var(--tala-muted); font-size:.875rem; }
+.tala-record-result--completion { align-items:start; }
+@container (min-width:24rem) {
+    .tala-record-result--completion { grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); }
+    .tala-record-result--completion > .tala-inc-deadline { border-inline-start:1px solid var(--tala-edge); padding-inline-start:1rem; }
+}
+@container (min-width:42rem) {
+    .tala-record-result--completion { grid-template-columns:minmax(0,.8fr) minmax(0,2fr); }
+    .tala-record-result--completion > .tala-inc-deadline { grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+    .tala-record-result--completion .tala-inc-deadline > div + div { border-inline-start:1px solid var(--tala-edge); padding-inline-start:1rem; }
+}
+@container (min-width:28rem) {
+    .tala-record-workspace--framed .tala-workflow-handoff:has(> li + li) { grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.75rem; }
+    .tala-record-workspace--framed .tala-workflow-handoff > li { align-items:flex-start; padding:.875rem; gap:.625rem; }
+    .tala-record-workspace--framed .tala-handoff-icon { inline-size:2rem; block-size:2rem; padding:.375rem; }
+    .tala-record-workspace--framed .tala-handoff-arrow { inset-inline-start:-1.625rem; inset-block-start:50%; transform:translateY(-50%); }
+}
+@media(max-width:47.99rem) {
+    .tala-record-workspace--framed { grid-template-columns:minmax(0,1fr); }
+    .tala-record-detail { grid-column:1; }
+    .tala-record-workspace--framed .tala-record-list { max-block-size:none; }
+    .tala-record-toolbar { align-items:stretch; }
+    .tala-record-detail > .tala-record-inspector { padding:1rem; }
+    .tala-record-mobile-back { display:block; margin-block-end:1rem; }
+    .tala-record-identity .student-identity-art { opacity:.15; }
+    .tala-record-workspace[data-record-view='list'] > .tala-record-detail,
+    .tala-record-workspace[data-record-view='detail'] > :is(.tala-record-browser,.tala-record-toolbar) { display:none; }
+}
+.tala-record-page-header { container-type:inline-size; }
+.tala-record-page-header__layout { display:grid; gap:1.25rem; align-items:end; }
+@container (min-width:64rem) {
+    .tala-record-page-header__layout { grid-template-columns:minmax(18rem,.8fr) minmax(0,1.2fr); }
+    .tala-record-page-header .fi-header-subheading { max-inline-size:38ch; }
+}
+.tala-inc-page :is(.fi-page-header-main-ctn, .fi-page-main, .fi-page-content) { row-gap:1rem; }
+.tala-inc-queue { display:grid; gap:1rem; min-inline-size:0; }
+.tala-record-query { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.5rem .75rem; align-items:center; min-inline-size:0; }
+.tala-record-query .fi-ta-search-field { min-inline-size:0; }
+.tala-record-query .fi-ta-search-field .fi-input-wrp { inline-size:100%; }
+.tala-record-query-summary { grid-column:1/-1; font-size:.8125rem; line-height:1.5; color:var(--tala-muted); overflow-wrap:anywhere; }
+.tala-inc-workspace { padding:0; }
+.tala-record-context-row { display:grid; justify-items:start; gap:.375rem 1rem; min-inline-size:0; overflow-wrap:anywhere; }
+.tala-record-context-row > .fi-btn { margin-block-start:.25rem; }
+@container (min-width:26rem) {
+    .tala-record-context-row { grid-template-columns:minmax(0,1fr) auto; align-items:center; }
+    .tala-record-context-row > h3 { grid-column:1; grid-row:1; }
+    .tala-record-context-row > p { grid-column:1; grid-row:2; }
+    .tala-record-context-row > .fi-btn { grid-column:2; grid-row:1 / span 2; justify-self:end; margin:0; }
+}
+.tala-inc-course { margin-block-start:1.5rem; }
+.tala-inc-course h3, .tala-inc-facts h3 { font-weight:var(--tala-weight-emphasis); }
+.tala-inc-course p, .tala-inc-facts p { color:var(--tala-muted); font-size:.875rem; line-height:1.6; }
+.tala-inc-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.5rem; padding-block:0 1.5rem; }
+.tala-inc-facts section { min-inline-size:0; overflow-wrap:anywhere; }
+.tala-inc-facts p { margin-block-start:.375rem; }
+.tala-inc-facts h3:not(:first-child) { margin-block-start:1rem; }
+@media (max-width:47.99rem) {
+    .tala-inc-facts { grid-template-columns:minmax(0,1fr); }
+}
+@media (forced-colors: active) {
+    .tala-record-option[aria-pressed='true'] { border:2px solid Highlight; }
+}
+
+@media (forced-colors: active) {
+    .tala-review-feedback { background: Canvas; color: CanvasText; border-color: CanvasText; }
+}
+.fi-body details.tala-supporting-details > summary {
+    display: list-item;
+    min-block-size: 2.75rem;
+    padding: .75rem 0;
+    cursor: pointer;
+    color: var(--tala-muted);
+    font-size: .875rem;
+    font-weight: 500;
+    line-height: 1.5;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+.fi-body details.tala-supporting-details > summary:hover { color: var(--tala-text); }
+.fi-body details.tala-supporting-details > summary:focus-visible {
+    outline: 3px solid var(--tala-focus);
+    outline-offset: 3px;
+}
+/* Disclosures on a surface reveal the existing canvas tier; on the canvas they reveal a surface. */
+:is(.fi-section,.tala-task-surface,.tala-record-workspace,.faculty-result-editor) { --tala-disclosure-surface:var(--tala-canvas); }
+.tala-supporting-details__content {
+    min-inline-size: 0;
+    padding: 1rem;
+    border-radius: .5rem;
+    background: var(--tala-disclosure-surface,var(--tala-surface));
+    color: var(--tala-text);
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+.tala-supporting-details--inset > .tala-supporting-details__content { background: var(--tala-canvas); }
+.tala-supporting-details__content .tala-supporting-details__content { background:var(--tala-surface); }
+.tala-supporting-details__content > * + * { margin-block-start: .75rem; }
+@media (forced-colors: active) {
+    .tala-supporting-details__content { background: Canvas; border: 1px solid CanvasText; }
+}
+
+
+/* A native filtered collection with one shared search and optional scope rail. */
+.tala-scoped-directory { display:grid; grid-template-columns:minmax(0,1fr); min-inline-size:0; container-type:inline-size; container-name:tala-directory; }
+.tala-scoped-directory > .fi-ta-search-field { display:grid; gap:.5rem; }
+.tala-scoped-directory > .fi-ta-search-field > label { display:block; font-weight:var(--tala-weight-emphasis); font-size:.875rem; }
+.tala-scoped-directory .fi-ta-main .fi-ta-search-field { display:none; }
+.tala-scoped-directory .fi-ta-ctn { --tala-container-surface:transparent; align-items:start; background:transparent; box-shadow:none; }
+.fi-body .tala-scoped-directory :is(.fi-ta, .fi-ta-ctn) { background:transparent; box-shadow:none; border:0; }
+.tala-scoped-directory .fi-ta-main { min-inline-size:0; overflow:hidden; border-radius:.75rem; background:var(--tala-surface); box-shadow:var(--tala-shadow-detail); border:1px solid var(--tala-border); container-type:inline-size; container-name:tala-directory-results; }
+.tala-scoped-directory .fi-ta-filters-before-content-ctn { background:var(--tala-surface); border:1px solid var(--tala-border); border-radius:.75rem; box-shadow:var(--tala-shadow-detail); }
+.fi-body .tala-scoped-directory .fi-ta-filters-before-content-ctn .fi-input-wrp { background-color:var(--tala-surface-sunken); }
+.tala-directory-heading { display:flex; align-items:flex-start; gap:.75rem; padding:1.25rem; border-block-end:1px solid var(--tala-border); }
+.tala-directory-heading > .fi-icon { flex:none; inline-size:2rem; block-size:2rem; color:var(--tala-brand-foreground); }
+.tala-directory-heading h2 { color:var(--tala-text); font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); line-height:1.3; overflow-wrap:anywhere; }
+.tala-directory-heading p { margin-block-start:.375rem; color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
+.tala-student-label { display:flex; align-items:center; gap:.75rem; min-inline-size:0; padding-block:.5rem; }
+.tala-student-label__avatar { display:grid; place-items:center; flex:none; inline-size:2.5rem; block-size:2.5rem; border-radius:50%; color:var(--tala-brand-foreground); background:var(--tala-brand-tint); font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
+.tala-student-label > div { display:grid; gap:.25rem; }
+.tala-student-label strong { color:var(--tala-text); font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
+.tala-student-label :is(span:not(.tala-student-label__avatar), small) { color:var(--tala-muted); font-size:.8125rem; overflow-wrap:anywhere; }
+.tala-scoped-directory .fi-ta-text { padding-block:.625rem; }
+.tala-scoped-directory .fi-ta-table { table-layout:fixed; }
+.tala-scoped-directory .fi-ta-table th:last-child { inline-size:8.5rem; }
+.tala-scoped-directory .fi-ta-col,
+.tala-scoped-directory .tala-student-label > div { min-inline-size:0; }
+.tala-scoped-directory .tala-student-label strong { white-space:normal; overflow-wrap:anywhere; }
+.tala-directory-program .fi-ta-text-description { max-inline-size:12rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.4; }
+@container tala-directory (min-width: 65rem) {
+ .tala-scoped-directory .fi-ta-filters-before-content-ctn { display:block; position:static; z-index:auto; inline-size:16rem; flex:none; }
+ .tala-scoped-directory .fi-ta-main .fi-ta-filters-trigger-action-ctn, .tala-scoped-directory .fi-ta-header-toolbar { display:none; }
+}
+
+/* Bound the desktop directory through layout, keeping collection controls visible. */
+@media (min-width: 48rem) and (min-height: 36rem) {
+ .fi-page:has(.tala-scoped-directory) .fi-page-header-main-ctn { display:grid; grid-template-rows:auto minmax(0,1fr); block-size:100dvh; row-gap:1rem; padding-block:1rem; }
+ .fi-page:has(.tala-scoped-directory) :is(.fi-page-main,.fi-page-content) { min-block-size:0; block-size:100%; }
+ .tala-scoped-directory { min-block-size:0; block-size:100%; grid-template-rows:auto minmax(0,1fr); }
+ .tala-scoped-directory > .fi-ta,
+ .tala-scoped-directory .fi-ta-ctn { min-block-size:0; block-size:100%; }
+ .tala-scoped-directory .fi-ta-ctn { align-items:stretch; }
+ .tala-scoped-directory .fi-ta-main { display:flex; flex-direction:column; min-block-size:0; block-size:100%; }
+ .tala-scoped-directory .fi-ta-main > :not(.fi-ta-content-ctn) { flex:none; }
+ .tala-scoped-directory .fi-ta-content-ctn { flex:1 1 auto; min-block-size:0; overflow:auto; overscroll-behavior:contain; }
+ .tala-scoped-directory .fi-ta-table > thead { position:sticky; inset-block-start:0; z-index:1; background:var(--tala-surface-sunken); }
+}
+@container tala-directory (min-width: 65rem) {
+ .tala-scoped-directory .fi-ta-filters-before-content-ctn { min-block-size:0; block-size:100%; overflow-y:auto; overscroll-behavior:contain; }
+}
+@container tala-directory-results (min-width: 40rem) and (max-width: 47.999rem) {
+ .tala-scoped-directory .fi-ta-table th:last-child { inline-size:5rem; }
+ .tala-scoped-directory .fi-ta-row .fi-ta-actions > .fi-btn { min-inline-size:2.75rem; min-block-size:2.75rem; padding:.625rem; font-size:0; gap:0; }
+ .tala-scoped-directory .fi-ta-row .fi-ta-actions > .fi-btn > .fi-icon { inline-size:1.25rem; block-size:1.25rem; }
+}
+
+@container tala-directory (max-width: 64.999rem) {
+ .tala-scoped-directory .fi-ta-header-ctn { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; }
+ .tala-scoped-directory .tala-directory-heading { padding:1rem; border-block-end:0; }
+ .tala-scoped-directory .tala-directory-heading > .fi-icon { inline-size:1.5rem; block-size:1.5rem; }
+ .tala-scoped-directory .tala-directory-heading p { font-size:.8125rem; }
+ .tala-scoped-directory .fi-ta-header-toolbar { padding:1rem 1rem 1rem 0; border:0; }
+ .tala-scoped-directory .fi-ta-header-toolbar > .fi-ta-actions:empty { display:none; }
+ .tala-scoped-directory .fi-ta-filters-trigger-action-ctn .fi-icon-btn { min-inline-size:2.75rem; min-block-size:2.75rem; }
+ .tala-scoped-directory .fi-ta-filter-indicators { padding:.5rem 1rem; }
+ .tala-scoped-directory .fi-ta-filter-indicators-label { display:none; }
+ .tala-scoped-directory .fi-ta-filters-before-content-ctn { position:absolute; inset-inline:auto; margin-inline:0; inline-size:min(22rem,calc(100vw - 2rem)); max-block-size:min(28rem,50dvh); overflow-y:auto; overscroll-behavior:contain; z-index:50; background:var(--tala-overlay); box-shadow:var(--tala-shadow-overlay); }
+ .tala-scoped-directory .fi-ta-filters-before-content-ctn:not(.fi-open) { display:none; }
+ .tala-scoped-directory .fi-ta-main .fi-ta-filters-trigger-action-ctn { display:block; }
+}
+
+/* Preserve a directory row on compact screens instead of one block per field. */
+@media (max-width: 47.999rem) {
+ .fi-page:has(.tala-scoped-directory) .fi-page-header-main-ctn { row-gap:1rem; padding-block:1rem; }
+}
+@container tala-directory-results (max-width: 39.999rem) {
+ .tala-scoped-directory .fi-ta-table,
+ .tala-scoped-directory .fi-ta-table > tbody { display:block; inline-size:100%; }
+ .tala-scoped-directory .fi-ta-table > thead { display:none; }
+ .tala-scoped-directory .fi-ta-table > tbody > .fi-ta-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; padding:1rem; }
+ .tala-scoped-directory .fi-ta-table > tbody > .fi-ta-row > .fi-ta-cell { display:block; min-inline-size:0; padding:0; }
+ .tala-scoped-directory .fi-ta-cell-last-name { grid-column:1 / -1; grid-row:1; padding-inline-end:3.25rem !important; }
+ .tala-scoped-directory .tala-student-label { padding:0; }
+ .tala-scoped-directory .fi-ta-cell > .fi-ta-cell-label { display:block; padding:0; margin-block-end:.25rem; font-size:.75rem; line-height:1.4; font-weight:normal; color:var(--tala-muted); }
+ .tala-scoped-directory .fi-ta-cell-last-name > .fi-ta-cell-label { display:none; }
+ .tala-scoped-directory .fi-ta-cell .fi-ta-text { padding:0; }
+ .tala-scoped-directory .tala-directory-program .fi-ta-text-description { white-space:normal; max-inline-size:none; font-size:.8125rem; overflow-wrap:anywhere; }
+ .tala-scoped-directory .fi-ta-cell-student-section { grid-column:2; }
+ .tala-scoped-directory .fi-ta-cell-student-section:nth-child(2) { grid-column:1 / -1; }
+ .tala-scoped-directory .fi-ta-cell:has(> .fi-ta-actions) { grid-column:2; grid-row:1; justify-self:end; align-self:start; }
+ .tala-scoped-directory .fi-ta-actions > .fi-btn { min-inline-size:2.75rem; min-block-size:2.75rem; padding:.625rem; font-size:0; gap:0; }
+ .tala-scoped-directory .fi-ta-actions > .fi-btn > .fi-icon { inline-size:1.25rem; block-size:1.25rem; }
+}
+
+
+/* Option 2 Enrollment Decision Dialog */
+.tala-enrollment-decision-modal .fi-modal-window {
+    max-inline-size: min(68rem, calc(100vw - 2rem));
+}
+.tala-enrollment-decision-modal .tala-decision-context-col {
+    background: var(--tala-surface-sunken);
+    border: 1px solid var(--tala-edge);
+    border-radius: var(--tala-radius-surface, 0.75rem);
+    padding: 1.25rem;
+}
+.tala-enrollment-decision-modal .tala-decision-form-col {
+    background: var(--tala-surface);
+    border: 1px solid var(--tala-edge);
+    border-radius: var(--tala-radius-surface, 0.75rem);
+    padding: 1.25rem;
+}
+.tala-enrollment-decision-modal .tala-record-identity {
+    margin: 0;
+    padding: 0.75rem;
+}
+.tala-enrollment-decision-modal .tala-decision-context-layout {
+    display: grid;
+    gap: 1rem;
+}
+.tala-enrollment-decision-modal .tala-record-identity-person {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-inline-size: 0;
+    flex: 1 1 0%;
+}
+.tala-enrollment-decision-modal .tala-record-identity-person > div:last-child {
+    min-inline-size: 0;
+}
+.tala-enrollment-decision-modal .tala-record-identity-person p {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.tala-enrollment-decision-modal .tala-record-identity :is(h1, h2, h3) {
+    margin: 0 0 0.25rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+.tala-enrollment-decision-modal .tala-record-identity .student-profile-avatar {
+    inline-size: 3rem;
+    block-size: 3rem;
+    font-size: 1rem;
+    flex: none;
+}
+.tala-enrollment-decision-modal .fi-modal-footer-actions {
+    display: flex;
+    flex-direction: row !important;
+    align-items: center;
+    justify-content: flex-end;
+    inline-size: 100%;
+    gap: 0.75rem;
+}
+.tala-enrollment-decision-modal .tala-modal-attribution {
+    margin-inline-end: auto;
+}
+@media (max-width: 47.999rem) {
+    .tala-enrollment-decision-modal .student-identity-art, .tala-enrollment-decision-modal .tala-decision-about-heading,
+    .tala-enrollment-decision-modal .tala-decision-preview-desc {
+        display: none;
+    }
+    .tala-enrollment-decision-modal .tala-decision-context-col {
+        padding: 0.75rem 1rem;
+        gap: 0.75rem;
+    }
+    .tala-enrollment-decision-modal .fi-modal-footer-actions {
+        flex-direction: column-reverse !important;
+        align-items: stretch;
+    }
+    .tala-enrollment-decision-modal .tala-modal-attribution {
+        margin-inline-end: 0;
+        text-align: center;
+        justify-content: center;
+    }
+}
+
+/* Lifecycle: shared identity, native fields, and source-backed effects. */
+.servitech-journey-scene { position:relative; isolation:isolate; }
+.servitech-journey-art { position:absolute; inset:0; z-index:-1; pointer-events:none; overflow:clip; mask-image:linear-gradient(to right,transparent,black 4% 96%,transparent),linear-gradient(to bottom,transparent,black 6% 94%,transparent); mask-composite:intersect; }
+.servitech-journey-art img { inline-size:100%; block-size:100%; object-fit:cover; object-position:center top; transform:scale(1.08); transform-origin:center top; }
+.tala-record-picker { inline-size:100%; max-inline-size:76rem; min-inline-size:0; margin-inline:auto; padding:14rem 0 3rem; }
+.tala-record-picker > :is(.fi-sc, .servitech-picker-content) { inline-size:100%; max-inline-size:34rem; margin-inline:auto; gap:1.5rem; }
+.servitech-picker-content { display:grid; }
+.tala-record-picker-heading { text-align:center; }
+.tala-record-picker-heading h2 { margin-block:1rem .5rem; font-size:var(--tala-type-section); font-weight:var(--tala-weight-emphasis); }
+.tala-record-picker-heading p { color:var(--tala-muted); }
+.tala-record-picker .tala-record-picker-icon { display:block; inline-size:4rem; block-size:4rem; padding:1rem; margin-inline:auto; border-radius:50%; background:var(--tala-brand-tint); color:var(--tala-brand-foreground); }
+@media (width < 64rem) {
+    .tala-record-picker .servitech-journey-art { block-size:12rem; }
+}
+@media (min-width:64rem) {
+    .tala-record-picker { min-block-size:max(32rem,calc(100svh - 13rem)); display:grid; align-content:center; padding:3rem 2.5rem 9rem; }
+    .servitech-journey-art img { inline-size:auto; max-inline-size:100%; margin-inline:auto; object-fit:contain; mask-image:linear-gradient(to right,transparent,black 5% 95%,transparent),linear-gradient(to bottom,transparent,black 8% 90%,transparent); mask-composite:intersect; }
+}
+@media (forced-colors:active), print {
+    .servitech-journey-art { display:none; }
+}
+.tala-lifecycle-review-column { min-inline-size:0; border-block-start:1px solid var(--tala-edge); }
+.tala-lifecycle-review-column > .fi-sc { gap:0; }
+.tala-lifecycle-handoff-region { padding:1.25rem; border-block-start:1px solid var(--tala-edge); }
+.tala-lifecycle-handoff-region header p { margin-block-start:.375rem; color:var(--tala-muted); font-size:.875rem; }
+.tala-lifecycle-preserved { display:flex; align-items:center; gap:.625rem; font-size:.875rem; }
+.tala-lifecycle-preserved .fi-icon { flex:none; inline-size:1.125rem; block-size:1.125rem; color:var(--tala-brand-foreground); }
+.tala-lifecycle-effects .tala-record-change-comparison p:not(.tala-record-change-label) { margin-block-start:.5rem; font-size:.875rem; }
+.tala-lifecycle-effects-list:not(:has(> div)) { display:none; }
+.tala-lifecycle-workarea { container-type:inline-size; border:1px solid var(--tala-edge-strong); border-radius:.75rem; overflow:clip; background:var(--tala-surface); box-shadow:var(--tala-material-detail); }
+.tala-lifecycle-workarea > .fi-sc { gap:0; }
+.tala-lifecycle-columns > .fi-sc { align-items:start; grid-template-columns:minmax(0,1fr); gap:0; }
+.tala-lifecycle-form > .fi-section { border:0; border-radius:0; background:transparent; box-shadow:none; }
+.tala-lifecycle-form .tala-choice-options { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.tala-lifecycle-choice-heading p { color:var(--tala-muted); margin-block-start:.375rem; }
+.tala-lifecycle-choice-heading { padding-block-end:1rem; }
+.tala-record-identity--compact .tala-record-identity-person > div:not(.student-profile-avatar) { display:flex; flex-wrap:wrap; column-gap:1rem; min-inline-size:0; }
+.tala-record-identity--compact .tala-record-identity-person h2 { flex-basis:100%; }
+.tala-record-identity--compact .tala-record-identity-person p { margin:0; font-size:.875rem; }
+.tala-lifecycle-form .fi-section-content { padding:1.25rem; gap:1rem; }
+.tala-lifecycle-detail-heading { padding-block-start:1rem; border-block-start:1px solid var(--tala-edge); }
+.tala-lifecycle-identity-actions { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.tala-lifecycle-identity-actions > span { color: var(--tala-muted); font-size: .875rem; }
+.tala-lifecycle-effects { min-inline-size:0; padding:1.25rem; display:grid; gap:1rem; color:var(--tala-text); }
+.tala-lifecycle-effects header p, .tala-lifecycle-effects p, .tala-lifecycle-effects dd { color: var(--tala-muted); }
+.tala-lifecycle-effects header p { margin-block-start: .375rem; }
+.tala-lifecycle-effect-inset, .tala-lifecycle-exception { background: var(--tala-surface-sunken); border: 1px solid var(--tala-edge); border-radius: .75rem; padding: 1rem; }
+.tala-lifecycle-effect-inset > p { margin-block-start: .5rem; }
+.tala-lifecycle-status-change { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-block: .75rem 1rem; }
+.tala-lifecycle-status-change svg { inline-size: 1.25rem; block-size: 1.25rem; flex: none; }
+.tala-lifecycle-effects-list { display: grid; gap: .875rem; }
+.tala-lifecycle-effects-list > div { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: .75rem; padding-block-start: .875rem; border-block-start: 1px solid var(--tala-edge); }
+.tala-lifecycle-effects-list dt { font-weight: 600; }
+.tala-lifecycle-effects-list dd { margin: 0; overflow-wrap: anywhere; }
+.tala-lifecycle-effects-list > .tala-record-fact { display:flex; gap:.375rem 1rem; padding:.875rem 1rem; }
+.tala-lifecycle-confirmation { padding:1rem 1.25rem; background:var(--tala-surface-sunken); border-block-start:1px solid var(--tala-edge); border-radius:0 0 .75rem .75rem; }
+.tala-lifecycle-confirmation > .fi-sc { align-items:center; gap:.75rem; grid-template-columns:minmax(0,1fr) auto auto; }
+.tala-lifecycle-confirmation .fi-fo-field { justify-self:end; row-gap:.25rem; }
+.tala-lifecycle-confirmation .fi-fo-field-label-col { row-gap:.25rem; }
+.tala-lifecycle-confirmation .fi-fo-field .fi-fo-field-helper-text, .tala-lifecycle-confirmation .fi-fo-field .fi-sc-text { margin-block-start:0; }
+.tala-lifecycle-confirmation .fi-ac { margin:0; }
+.tala-lifecycle-application-date { display:grid; gap:.5rem; }
+.tala-lifecycle-confirmation .fi-fo-field-helper-text { font-size:.8125rem; }
+.tala-lifecycle-supporting { font-size: .875rem; }
+@container (min-width: 52rem) {
+    .tala-lifecycle-columns > .fi-sc { grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); }
+    .tala-lifecycle-form .tala-choice-options { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .tala-lifecycle-review-column { border-block-start:0; border-inline-start:1px solid var(--tala-edge); }
+}
+@container (min-width: 60rem) {
+    .tala-lifecycle-columns > .fi-sc { grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); }
+    .tala-lifecycle-form .tala-choice-options { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .tala-lifecycle-review-column { border-block-start:0; border-inline-start:1px solid var(--tala-edge); }
+}
+@media (max-width: 47.999rem) {
+    .tala-lifecycle-form .tala-choice-options { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .tala-lifecycle-effects { padding: 1rem; }
+    .tala-lifecycle-effects-list > div { grid-template-columns: minmax(0, 1fr); gap: .25rem; }
+    .tala-lifecycle-identity-actions { inline-size: 100%; justify-content: space-between; }
+    .tala-lifecycle-confirmation > .fi-sc { grid-template-columns:minmax(0,1fr); }
+    .tala-lifecycle-confirmation .fi-fo-field { justify-self:start; }
+    .tala-lifecycle-confirmation .fi-sc-component:has(.tala-lifecycle-cancel) { order:3; }
+    .tala-lifecycle-confirmation .fi-ac, .tala-lifecycle-confirmation .fi-btn { inline-size:100%; }
+}
+
+.tala-lifecycle-actions.fi-ac.fi-align-end, .tala-lifecycle-actions .fi-ac.fi-align-end { flex-direction: row; justify-content: flex-end; }
+
+/* Standalone search controls must not inherit native table-cell label padding. */
+.fi-ta-search-field > .fi-ta-cell-label { padding:0; margin-block-end:.5rem; }
+.tala-record-workspace--framed .tala-record-browser-header > :is(h2,p) { padding-inline:var(--tala-record-option-inset); }
+.tala-workflow-handoff .fi-btn { max-inline-size:100%; min-inline-size:0; margin-block-start:.75rem; }
+.tala-workflow-handoff .fi-btn-label { white-space:normal; }
+.tala-record-workspace--framed .tala-record-actions--grouped { display:flex; flex-wrap:wrap; align-items:start; justify-content:space-between; gap:1rem; margin-block:1rem 0; padding-block-start:1rem; border-block-start:1px solid var(--tala-edge); }
+.tala-record-actions-main { display:flex; align-items:stretch; flex-wrap:wrap; gap:.75rem; flex:1 1 auto; }
+.tala-record-actions-main > .fi-btn { flex:1 1 10rem; }
+.tala-record-actions-secondary { flex:0 0 auto; }
+.tala-record-actions--grouped .fi-btn { min-block-size:2.5rem; }
+.tala-record-actions--grouped:not(:has(.fi-btn)) { display:none; }
+.tala-record-change-comparison { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:stretch; gap:.75rem; font-size:.875rem; }
+.tala-record-change-comparison > div { min-inline-size:0; padding:1rem; background:var(--tala-surface-sunken); border:1px solid var(--tala-edge); border-radius:.5rem; overflow-wrap:anywhere; }
+.tala-record-change-comparison > .fi-icon { inline-size:1.25rem; block-size:1.25rem; align-self:center; color:var(--tala-muted); }
+.tala-record-change-comparison .tala-record-change-label { margin:0 0 .5rem; font-size:.8125rem; color:var(--tala-muted); }
+.tala-record-change-comparison strong { display:block; font-weight:var(--tala-weight-emphasis); }
+.tala-record-change-comparison p:not(.tala-record-change-label) { margin-block-start:.375rem; font-size:.8125rem; color:var(--tala-muted); }
+.tala-record-change-comparison > .tala-record-change-after--emphasized { background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); border-color:var(--tala-selected-edge); }
+.tala-record-change-after--emphasized :is(.tala-record-change-label,p:not(.tala-record-change-label)) { color:inherit; }
+@container (max-width:36rem) {
+    .tala-record-workspace--framed .tala-record-actions--grouped { display:grid; grid-template-columns:minmax(0,1fr); }
+    .tala-record-actions-main { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .tala-record-actions-main > .fi-btn:only-child { grid-column:1/-1; }
+    .tala-record-actions-secondary > .fi-btn { inline-size:100%; }
+}
+@container (max-width:24rem) {
+    .tala-record-actions-main { grid-template-columns:minmax(0,1fr); }
+    .tala-record-change-comparison { grid-template-columns:minmax(0,1fr); }
+    .tala-record-change-comparison > .fi-icon { rotate:90deg; justify-self:center; }
+}
+@media (max-width:47.99rem) {
+    .tala-record-change-comparison { grid-template-columns:minmax(0,1fr); }
+    .tala-record-change-comparison > .fi-icon { rotate:90deg; justify-self:center; }
+}
+
+/* Compact, paginated class objects; queries and actions remain native Filament. */
+.tala-class-worklist { container-type:inline-size; min-inline-size:0; color:var(--tala-text); }
+.tala-class-query { padding:1rem; border-radius:.75rem; }
+.tala-class-query .fi-ta-search-field { min-inline-size:0; }
+.tala-class-query .fi-ta-cell-label { display:block; margin-block-end:.5rem; padding:0; font-size:.875rem; line-height:1.25rem; font-weight:var(--tala-weight-emphasis); }
+.tala-class-query .fi-input-wrp { inline-size:100%; }
+.tala-class-scope { display:flex; justify-content:flex-end; margin-block:.75rem; }
+.tala-class-query + .tala-content-region { margin-block-start:var(--tala-card-gap); }
+.tala-class-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); list-style:none; padding:0; margin:0; }
+.tala-class-grid > li { display:flex; min-inline-size:0; }
+.tala-class-card { display:flex; flex-direction:column; gap:.625rem; inline-size:100%; min-inline-size:0; padding:1rem; border-radius:.75rem; }
+.tala-class-card-heading { display:flex; align-items:start; flex-wrap:wrap; gap:.5rem .75rem; }
+.tala-class-card-heading > div { flex:1 1 10rem; min-inline-size:0; }
+.tala-class-card-heading h2 { font-size:1rem; font-weight:var(--tala-weight-emphasis); line-height:1.4; overflow-wrap:anywhere; }
+.tala-class-card-heading p { margin-block-start:.25rem; font-size:.875rem; line-height:1.5; color:var(--tala-muted); overflow-wrap:anywhere; }
+.tala-class-card-heading .fi-badge { max-inline-size:100%; white-space:normal; }
+.tala-class-card-faculty { display:flex; align-items:center; gap:.375rem; font-size:.875rem; line-height:1.5; color:var(--tala-muted); overflow-wrap:anywhere; }
+.tala-class-card-faculty .fi-icon { flex:none; inline-size:1rem; block-size:1rem; }
+.tala-class-card-term { font-size:.75rem; line-height:1.5; color:var(--tala-muted); overflow-wrap:anywhere; }
+.tala-class-card-results { display:flex; align-items:center; gap:1rem; margin-block-start:auto; padding-block-start:.75rem; border-block-start:1px solid var(--tala-edge); color:var(--tala-muted); font-size:.875rem; font-variant-numeric:tabular-nums; }
+.tala-class-card-results > p:first-child { flex:1; }
+.tala-class-card-results strong { display:block; color:var(--tala-text); font-size:1.5rem; line-height:1.25; font-weight:var(--tala-weight-heading); }
+.tala-class-card-results span { display:block; margin-block-start:.125rem; }
+.tala-class-card-results > p + p { border-inline-start:1px solid var(--tala-edge); padding-inline-start:1rem; }
+.tala-class-card > .fi-btn { inline-size:100%; margin-block-start:.25rem; }
+.tala-class-pagination { margin-block-start:1rem; padding:0; border:0; background:transparent; font-size:.875rem; }
+@container (max-width:54rem) { .tala-class-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container (max-width:34rem) { .tala-class-grid { grid-template-columns:minmax(0,1fr); } }
+
+/* One collection footer for split workspaces: collection pages, never record selection. */
+.tala-record-collection-footer > .tala-profile-collection-footer { padding:.75rem; }
+.tala-profile-collection-footer > p { color:var(--tala-text); font-weight:var(--tala-weight-emphasis); }
+.tala-collection-page-controls { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:.75rem; }
+.tala-profile-collection-footer nav { gap:.75rem; white-space:nowrap; }
+.tala-collection-page-button { flex:none; inline-size:2.5rem; block-size:2.5rem; padding:0; }
+.tala-collection-page-button:not(:disabled) .fi-icon { color:var(--tala-control-icon); }
+
+/* Native heading and task controls share a row when the page has room. */
+.tala-workspace-heading { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:1rem; }
+.tala-workspace-heading > .fi-header { min-inline-size:0; }
+.tala-workspace-heading-controls { display:flex; flex-direction:row; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:.75rem; padding-block-start:1.75rem; }
+.tala-workspace-heading-controls .tala-navigation { margin:0; }
+@media (max-width:47.99rem) {
+    .tala-workspace-heading { grid-template-columns:minmax(0,1fr); }
+    .tala-workspace-heading-controls { flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:space-between; padding:0; }
+}
+
+/* TOR adapts the shared record workspace; only its document facts need a composition. */
+.tala-tor-request-content { display:grid; gap:1rem; min-inline-size:0; }
+.tala-tor-request-content .tala-record-result { margin:0; }
+.tala-tor-request-facts { display:grid; grid-template-columns:minmax(0,1fr); gap:1rem; font-size:.875rem; }
+.tala-tor-request-facts dt { color:var(--tala-muted); margin-block-end:.375rem; }
+.tala-tor-request-facts dd { font-weight:var(--tala-weight-emphasis); overflow-wrap:anywhere; }
+.tala-tor-context-note,.tala-tor-preparation > p { font-size:.8125rem; line-height:1.5; color:var(--tala-muted); }
+.tala-tor-readiness { display:grid; gap:1rem; padding:1rem; border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
+.tala-tor-readiness > div { display:flex; align-items:start; gap:.625rem; min-inline-size:0; }
+.tala-tor-readiness .fi-icon { flex:none; inline-size:1.25rem; block-size:1.25rem; color:var(--tala-brand-foreground); }
+.tala-tor-readiness h3,.tala-tor-preparation h3 { font-weight:var(--tala-weight-emphasis); }
+.tala-tor-readiness p { margin-block-start:.375rem; color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
+.tala-tor-preparation { padding-block:1rem; border-block:1px solid var(--tala-edge); }
+.tala-tor-preparation > p { margin-block:.375rem 1rem; }
+.tala-tor-preparation form { display:grid; gap:1rem; }
+.tala-tor-preparation form > .fi-btn { justify-self:start; }
+@container (min-width:30rem) {
+    .tala-tor-request-facts { grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr)); }
+    .tala-tor-readiness { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+/* Completion desk composes the shared collection/detail pattern. */
+.tala-tor-workspace { grid-template-columns:minmax(20rem,1fr) minmax(0,1.2fr); }
+.tala-tor-workspace > .tala-record-browser { container-type:inline-size; }
+.tala-tor-queue-head { display:none; }
+.tala-tor-queue-row { display:block; }
+.tala-tor-queue-row > span:first-child { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:.75rem; inline-size:100%; }
+.tala-tor-queue-row > span > span { min-inline-size:0; overflow-wrap:anywhere; font-size:.875rem; line-height:1.5; }
+.tala-tor-queue-row small { display:block; margin-block-start:.25rem; font-size:.8125rem; }
+.tala-tor-queue-row strong { font-weight:var(--tala-weight-emphasis); }
+.tala-tor-queue-row > span > span:first-child > strong { font-size:1rem; }
+.tala-tor-queue-row > span > span:nth-child(2) > strong { font-weight:400; }
+.tala-tor-queue-status { justify-self:end; text-align:end; font-weight:var(--tala-weight-emphasis); }
+.tala-tor-setup { display:flex; align-items:start; flex-wrap:wrap; gap:.75rem; padding:1rem; border:1px solid var(--tala-edge); border-radius:.75rem; background:var(--tala-surface-sunken); }
+.tala-tor-setup > .fi-icon { inline-size:1.25rem; block-size:1.25rem; flex:none; color:var(--tala-brand-foreground); }
+.tala-tor-setup > div { flex:1 1 12rem; min-inline-size:0; }
+.tala-tor-setup h3 { font-weight:var(--tala-weight-emphasis); }
+.tala-tor-setup > .fi-btn { align-self:center; }
+.tala-tor-setup p { font-size:.875rem; line-height:1.5; color:var(--tala-muted); margin-block-start:.375rem; }
+.tala-tor-context-note { margin-block-start:.75rem; }
+.tala-graduation-workspace { grid-template-columns:minmax(20rem,1fr) minmax(0,1.2fr); }
+.tala-graduation-workspace > .tala-record-browser { padding:0; overflow:auto; }
+.tala-graduation-workspace .fi-ta-ctn { border:0; box-shadow:none; }
+@container (min-width:32rem) {
+    .tala-tor-queue-head,.tala-tor-queue-row > span:first-child { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,.7fr) minmax(0,.8fr); gap:.75rem; }
+    .tala-tor-queue-head { margin-inline:calc(var(--tala-record-collection-inset) + var(--tala-record-option-inset)); padding-block:.5rem; color:var(--tala-muted); font-size:.75rem; font-weight:var(--tala-weight-emphasis); }
+    .tala-tor-queue-status { justify-self:start; text-align:start; }
+}
+@media(max-width:47.99rem) { .tala-tor-workspace,.tala-graduation-workspace { grid-template-columns:minmax(0,1fr); } }
+
+.tala-graduation-workspace .fi-ta-header-toolbar { justify-content:space-between; }
+.tala-graduation-workspace .fi-ta-header-toolbar .fi-ta-search-field { flex:1 1 auto; }
+@container (min-width:32rem) { .tala-tor-narrow-label { display:none !important; } }
+
+.tala-record-browser .fi-ta-row.tala-record-table-selected { background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); }
+.tala-record-browser .fi-ta-row.tala-record-table-selected .fi-ta-text-description { color:inherit; }
+
+.tala-tor-request-content > .tala-tor-request-facts { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem 1rem; }
+.tala-tor-request-content > .tala-tor-request-facts > div:first-child { grid-column:1/-1; }
+@container (min-width:30rem) { .tala-tor-request-content > .tala-tor-request-facts { grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr)); } .tala-tor-request-content > .tala-tor-request-facts > div:first-child { grid-column:auto; } }
+
+/* Native tables can share the bounded record collection and its integrated footer. */
+.tala-record-workspace--framed > .tala-record-browser--table { overflow:hidden; }
+.tala-record-browser--table > .fi-ta,.tala-record-browser--table .fi-ta-ctn,.tala-record-browser--table .fi-ta-main { display:flex; flex:1 1 auto; flex-direction:column; min-block-size:0; }
+.tala-record-browser--table .fi-ta-main > :not(.fi-ta-content-ctn) { flex:none; }
+.tala-record-browser--table .fi-ta-content-ctn { min-block-size:0; overflow:auto; overscroll-behavior:contain; }
+.tala-record-browser--table .fi-ta-main > .fi-pagination { display:none; }
+
+/* A compact history document shared by request and graduation records. */
+.tala-record-history-panel { min-inline-size:0; border:1px solid var(--tala-edge); border-radius:.75rem; background:var(--tala-surface-sunken); box-shadow:var(--tala-material-detail); overflow:clip; }
+.tala-record-history-panel > header { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; padding:1rem; border-block-end:1px solid var(--tala-edge); }
+.tala-record-history-panel > header .fi-icon { inline-size:1.125rem; block-size:1.125rem; color:var(--tala-brand-foreground); }
+.tala-record-history-panel h3,.tala-record-timeline h4 { font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
+.tala-record-history-panel > header > span { margin-inline-start:auto; color:var(--tala-muted); font-size:.75rem; }
+.tala-record-timeline { list-style:none; margin:0; padding:.25rem 1rem; }
+.tala-record-timeline-item { display:grid; grid-template-columns:1.75rem minmax(0,1fr); gap:.75rem; position:relative; padding-block:.875rem; }
+.tala-record-timeline-item:not(:last-child)::after { content:''; position:absolute; inset-inline-start:.875rem; inset-block:2.5rem -.875rem; border-inline-start:1px solid var(--tala-edge); }
+.tala-record-timeline-marker { z-index:1; display:grid; place-items:center; inline-size:1.75rem; block-size:1.75rem; border:1px solid var(--tala-edge); border-radius:50%; background:var(--tala-surface); color:var(--tala-brand-foreground); box-shadow:var(--tala-rim-inset); }
+.tala-record-timeline-marker .fi-icon { inline-size:1rem; block-size:1rem; }
+.tala-record-timeline-item > div { min-inline-size:0; overflow-wrap:anywhere; }
+.tala-record-timeline-item header { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:.25rem .75rem; }
+.tala-record-timeline-item time,.tala-record-timeline-item p,.tala-record-history-empty { color:var(--tala-muted); font-size:.8125rem; line-height:1.5; }
+.tala-record-timeline-item time { font-variant-numeric:tabular-nums; }
+.tala-record-timeline-item p { margin-block-start:.375rem; }
+.tala-record-timeline-item .fi-btn { margin-block-start:.625rem; }
+.tala-record-history-empty { padding:1rem; }
+.tala-record-history-panel > .tala-profile-collection-footer { border-block-start:1px solid var(--tala-edge); }
+.tala-graduation-status { display:grid; gap:1rem; padding:1rem; border:1px solid var(--tala-edge); border-radius:.75rem; background:var(--tala-surface-sunken); box-shadow:var(--tala-material-detail); }
+.tala-graduation-status > header { display:flex; align-items:center; gap:.75rem; }
+.tala-graduation-status > header > .fi-icon { flex:none; inline-size:1.5rem; block-size:1.5rem; color:var(--tala-brand-foreground); }
+.tala-graduation-status h3 { font-size:1.125rem; font-weight:var(--tala-weight-heading); }
+.tala-graduation-status h4,.tala-graduation-degree { font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
+.tala-graduation-status p { font-size:.875rem; line-height:1.5; color:var(--tala-muted); }
+.tala-graduation-status > header p,.tala-graduation-source p { font-size:.75rem; margin-block-end:.25rem; }
+.tala-graduation-blocker p { margin-block-start:.375rem; }
+.tala-graduation-source { display:flex; align-items:center; flex-wrap:wrap; gap:.75rem 1rem; padding-block-start:1rem; border-block-start:1px solid var(--tala-edge); font-size:.875rem; }
+.tala-graduation-source > div { flex:1 1 12rem; min-inline-size:0; overflow-wrap:anywhere; }
+.tala-graduation-source strong { font-weight:var(--tala-weight-emphasis); }
+
+
+/* One optional illustration; native Filament owns text, icons and actions. */
+.servitech-empty-state { container: servitech-empty / inline-size; min-inline-size: 0; }
+.servitech-empty-state__layout { display: grid; align-items: center; gap: 1.5rem; }
+.servitech-empty-state .fi-empty-state-footer { display: flex; flex-wrap: wrap; gap: .75rem; }
+.servitech-empty-state .fi-empty-state-description { color: var(--tala-muted); }
+.servitech-empty-state--illustrated .fi-empty-state { padding: 1.5rem; }
+.servitech-empty-state--illustrated .fi-empty-state-heading { font-size: var(--tala-type-section); font-weight: var(--tala-weight-heading); }
+.servitech-empty-state--illustrated .fi-empty-state-description { max-inline-size: 55ch; font-size: var(--tala-type-body); line-height: 1.5; color: var(--tala-muted); }
+.servitech-empty-state__art { display: block; inline-size: 11rem; block-size: auto; max-inline-size: 100%; justify-self: center; pointer-events: none; user-select: none; }
+.servitech-empty-collection { container: servitech-collection / inline-size; }
+.servitech-empty-collection > .tala-record-browser-header { padding-inline: 0; border-block-end: 1px solid var(--tala-edge); margin-block-end: 1rem; }
+@container servitech-collection (max-width: 32rem) {
+    .servitech-empty-collection .tala-record-browser-heading { flex-direction: column; align-items: stretch; gap: .75rem; }
+    .servitech-empty-collection .tala-record-browser-heading > .fi-ac,
+    .servitech-empty-collection .tala-record-browser-heading .fi-btn { inline-size: 100%; }
+}
+@container servitech-empty (min-width: 36rem) {
+    .servitech-empty-state--illustrated .servitech-empty-state__layout { grid-template-columns: minmax(0, 1fr) minmax(12rem, 32%); gap: 2rem; padding-block: 1.5rem; }
+    .servitech-empty-state--illustrated .fi-empty-state-content,
+    .servitech-empty-state--illustrated .fi-empty-state-text-ctn { justify-items: start; text-align: start; margin-inline: 0; }
+    .servitech-empty-state__art { inline-size: 100%; max-inline-size: 20rem; }
+}
+@media (forced-colors: active) {
+    .servitech-empty-state__art { display: none; }
+    .servitech-empty-state--illustrated .servitech-empty-state__layout { grid-template-columns: minmax(0, 1fr); }
 }

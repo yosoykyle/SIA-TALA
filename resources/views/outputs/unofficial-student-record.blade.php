@@ -36,15 +36,15 @@
                                 <td data-label="Units">{{ (float) $result['units'] }}</td>
                                 <td data-label="Released result"><div>
                                     {{ $result['result'] }}
-                                    @if ($result['result'] === 'INC' && $result['event']?->deadline)
-                                        @php($deadline = app(\App\Actions\Grades\IncDeadlineService::class)->currentDeadline($result['event']))
-                                        <br>Completion deadline: {{ $deadline?->format('M j, Y') ?? 'Not recorded' }}
+                                    @if ($result['inc_deadline'])
+                                        <br>Completion deadline: {{ $result['inc_deadline']->format('M j, Y') }} (Asia/Manila)
+                                        <br>{{ $result['inc_state'] === \App\Actions\Grades\IncDeadlineService::StateCompletionOverdue ? 'Completion overdue — no credit.' : 'Completion open.' }}
                                     @endif
                                     @if ($result['event']?->predecessor_event_id)
                                         <br>Supersedes an earlier released result.
                                     @endif
                                 </div></td>
-                                <td data-label="Released">{{ $result['event']?->released_at?->timezone(config('app.display_timezone'))->format('M j, Y') }}</td>
+                                <td data-label="Released">{{ $result['event']?->released_at?->timezone(config('app.display_timezone'))->format('M j, Y') ?? 'Registrar-recorded outcome' }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -58,6 +58,7 @@
     <section aria-labelledby="record-summary">
         <h2 id="record-summary" class="finance-heading">Academic progress</h2>
         <p><strong>Cumulative GWA:</strong> {{ $cumulative['value'] ?? 'Unavailable' }} @if ($cumulative['through']) · Through {{ $cumulative['through'] }} @endif</p>
+        @if ($cumulative['reason'])<p>{{ $cumulative['reason'] }}</p>@endif
         <p><strong>Completed curriculum units:</strong> {{ $curriculum['completed_units'] }}</p>
         <p><strong>Remaining requirements:</strong> {{ $curriculum['deficiency_count'] }}</p>
     </section>

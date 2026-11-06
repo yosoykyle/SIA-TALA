@@ -1,115 +1,143 @@
 <x-filament-panels::page class="tala-term-workspace">
-    @include('filament.pages.partials.term-workspace-header')
+    @if (! $term)@include('filament.pages.partials.term-workspace-header')@endif
     @if ($term)
-        @assets
-            <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css') }}">
-        @endassets
         @php
-            $taskRows = [
-                ['label' => 'Teaching calendar', 'icon' => 'heroicon-o-calendar-days', 'url' => \App\Filament\Pages\TermCalendar::getUrl(['termId' => $term->id]), 'keys' => ['calendar'], 'summary' => $activePackage ? 'Active teaching calendar recorded' : 'Teaching calendar not active'],
-                ['label' => 'Classes & student sections', 'icon' => 'heroicon-o-book-open', 'url' => \App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id]), 'keys' => ['classes', 'sections'], 'summary' => $overviewCounts['recorded'].' classes · '.$overviewCounts['confirmed'].' confirmed · '.$overviewCounts['student_sections'].' '.\Illuminate\Support\Str::plural('student section', $overviewCounts['student_sections'])],
-                ['label' => 'Faculty & rooms', 'icon' => 'heroicon-o-user-group', 'url' => \App\Filament\Pages\TermResources::getUrl(['termId' => $term->id]), 'keys' => ['resources', 'availability', 'deadline'], 'summary' => 'Teaching availability, qualifications and rooms'],
-                ['label' => 'Timetable', 'icon' => 'heroicon-o-table-cells', 'url' => $overviewTimetable['attempt']['url'] ?? $overviewTimetable['official']['url'] ?? \App\Filament\Pages\TermTimetable::getUrl(['termId' => $term->id]), 'keys' => ['result', 'generate'], 'summary' => $overviewTimetable['official']['label'] ?? $overviewTimetable['attempt']['label'] ?? 'No timetable yet'],
+            $parameters = ['termId' => $term->id];
+            $tasks = [
+                ['label' => 'Classes & student sections', 'icon' => 'heroicon-o-book-open', 'url' => \App\Filament\Pages\TermClasses::getUrl($parameters), 'keys' => ['classes', 'sections']],
+                ['label' => 'Faculty & rooms', 'icon' => 'heroicon-o-user-group', 'url' => \App\Filament\Pages\TermResources::getUrl($parameters), 'keys' => ['resources', 'availability', 'deadline']],
+                ['label' => 'Teaching calendar', 'icon' => 'heroicon-o-calendar-days', 'url' => \App\Filament\Pages\TermCalendar::getUrl($parameters), 'keys' => ['calendar']],
             ];
+            $timetable = $overviewTimetable['attempt'] ?? $overviewTimetable['official'];
+            $coveragePage = $this->coveragePage;
         @endphp
-        <div class="registrar-workbench tala-planning-workbench">
-            <section class="registrar-work-panel tala-planning-task-overview tala-task-surface" aria-labelledby="planning-tasks-heading">
-                <h2 id="planning-tasks-heading">Planning overview</h2>
-                <p class="tala-work-footnote">{{ $readOnly ? 'Inspect this Term’s preparation and timetable. The Registrar maintains these records.' : 'Prepare the inputs below, then generate, review and publish this Term’s timetable.' }}</p>
-                <nav class="registrar-work-list" aria-label="Term planning tasks">
-                    @foreach ($taskRows as $task)
-                        @php
-                            $work = collect($overviewWork)->whereIn('key', $task['keys'])->unique('label');
-                            $waiting = collect($overviewWaiting)->whereIn('key', $task['keys'])->unique('label');
-                            $isTimetable = $task['keys'] === ['result', 'generate'];
-                            $summary = $isTimetable ? ($overviewTimetable['attempt']['label'] ?? $task['summary']).($overviewTimetable['attempt'] && $overviewTimetable['official'] ? ' · Official v'.$currentVersion->version.' stays in use' : '') : $task['summary'];
-                        @endphp
-                        <a href="{{ $task['url'] }}" class="registrar-work-row">
-                            <x-filament::icon :icon="$task['icon']" class="registrar-work-icon" />
-                            <span>
-                                <strong>{{ $task['label'] }}</strong>
-                                <span class="registrar-work-description">{{ $summary }}</span>
-                                @foreach ($work as $entry)
-                                    @if ($entry['key'] !== 'result')<span class="tala-planning-task-finding">{{ $entry['label'] }}</span>@endif
-                                @endforeach
-                                @foreach ($waiting as $entry)
-                                    @if ($entry['key'] !== 'result')<span class="tala-planning-task-finding">{{ $entry['description'] }}</span>@endif
-                                @endforeach
-                            </span>
-                            @if ($work->isNotEmpty())<x-filament::badge color="primary">{{ $readOnly ? 'Inspect' : 'Review' }}</x-filament::badge>@elseif ($waiting->isNotEmpty())<x-filament::badge color="gray">Waiting</x-filament::badge>@else<span></span>@endif
-                            <x-filament::icon icon="heroicon-m-chevron-right" class="registrar-work-arrow" />
-                        </a>
-                    @endforeach
-                </nav>
-            </section>
-            <details class="tala-task-surface tala-planning-programs tala-planning-program-coverage">
-                <summary><span><strong>How Term planning works</strong></span><x-filament::icon icon="heroicon-m-chevron-down" /></summary>
-                <div class="tala-planning-coverage-content">
-                    <dl class="tala-evidence-checks tala-planning-guide">
-                        <div><x-filament::icon icon="heroicon-o-clipboard-document-list" /><div><dt>Prepare the inputs</dt><dd>The Registrar prepares the calendar, classes, teachers and rooms. Faculty supplies availability. These tasks can happen in parallel.</dd></div></div>
-                        <div><x-filament::icon icon="heroicon-o-table-cells" /><div><dt>Generate and review</dt><dd>Generate a candidate for the whole Term and review its checks. Correct any named source problem. A repair shows which other meetings would move.</dd></div></div>
-                        <div><x-filament::icon icon="heroicon-o-check-badge" /><div><dt>Accept, then publish</dt><dd>Acceptance records the Registrar’s review. Publishing makes the timetable official; any existing official version stays in use until then.</dd></div></div>
-                    </dl>
+        <div class="tala-workspace-overview">
+            <header class="tala-workspace-overview__heading">
+                <x-filament-panels::header :heading="$term->typeLabel()" :subheading="$term->academicYear?->label"
+                    :breadcrumbs="$readOnly ? [\App\Filament\Pages\AcademicApprovals::getUrl(['termId' => $term->id]) => 'Academic oversight', \App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning', 'Term overview'] : [\App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning', 'Term overview']"
+                    :actions="[\Filament\Actions\Action::make('changeTerm')->label('Change Term')->color('gray')->icon('heroicon-o-arrows-right-left')->url(\App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]))]" />
+                <div class="tala-workspace-overview__context">
+                    <span><x-filament::icon icon="heroicon-o-calendar-days" /><time datetime="{{ $term->starts_on->toDateString() }}">{{ $term->starts_on->format('M j') }}</time> – <time datetime="{{ $term->ends_on->toDateString() }}">{{ $term->ends_on->format('M j, Y') }}</time></span>
+                    <span>Record status: <x-filament::badge color="gray">{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge></span>
+                    <span><x-filament::icon icon="heroicon-o-globe-alt" />School-wide · All programs and year levels</span>
                 </div>
-            </details>
-            <details class="tala-task-surface tala-planning-programs tala-planning-program-coverage">
-                <summary><span><strong>Programs and year levels</strong><small>Inspect the recorded coverage for this Term.</small></span><x-filament::icon icon="heroicon-m-chevron-down" /></summary>
-                <div class="tala-planning-coverage-content">
-                <p class="tala-work-footnote">These are the classes recorded for this Term. A year with no classes is not automatically required to run.</p>
-                @php($programGroups = collect([...$this->coverage['rows'], ...$this->coverage['additional']])->unique('id')->groupBy(fn ($row) => $row['program_id'] ?? 'unmapped'))
-                @php($programsWithRecords = $programGroups->filter(fn ($rows) => $rows->contains(fn ($row) => $row['class_count'] > 0 || $row['section_count'] > 0)))
-                @forelse ($programsWithRecords as $programRows)
-                    @php($recordedYears = $programRows->where('class_count', '>', 0)->pluck('year_level')->filter()->unique())
-                    <details class="tala-planning-program">
-                        <summary>
-                            <span><strong>{{ $programRows->first()['program_name'] }}</strong><small>{{ $recordedYears->isNotEmpty() ? $recordedYears->count().' '.\Illuminate\Support\Str::plural('year level', $recordedYears->count()).' with classes' : 'No curriculum year has recorded classes' }}</small>@if ($programRows->contains('status', 'Needs association'))<small class="tala-planning-program-finding">Student-section links need review</small>@endif</span>
-                            <x-filament::icon icon="heroicon-m-chevron-down" />
-                        </summary>
-                        <ul class="tala-planning-program-years">
-                            @foreach ($programRows as $row)
-                                @php($yearLabel = $row['year_level'] ? (str_contains(strtolower($row['year_level']), 'year') ? $row['year_level'] : 'Year '.$row['year_level']) : 'Student sections to review')
-                                <li class="tala-planning-year-row">
-                                    <h3>{{ $yearLabel }}</h3>
-                                    <div class="tala-planning-year-coverage">
-                                        <strong>{{ $row['class_count'] ? $row['class_count'].' '.\Illuminate\Support\Str::plural('class', $row['class_count']) : 'No classes recorded' }}</strong>
-                                        <p>{{ $row['meeting_count'] }} {{ \Illuminate\Support\Str::plural('weekly meeting', $row['meeting_count']) }} · {{ $row['section_count'] }} {{ \Illuminate\Support\Str::plural('student section', $row['section_count']) }}</p>
-                                        @if ($row['status'] !== 'Prepared' && $row['status'] !== 'Not set up')
-                                            <p class="tala-planning-program-finding">{{ $row['status'] === 'Needs association' ? 'Review how these student sections link to classes and curriculum years.' : $row['reason'] }}</p>
+                @if ($this->termAutoSelected)<p class="tala-work-footnote">Opened automatically: the only Term with an active teaching calendar.</p>@endif
+            </header>
+
+            <div class="tala-workspace-overview__main">
+                <section class="tala-task-surface tala-workspace-preparation" aria-labelledby="planning-tasks-heading">
+                    <header>
+                        <h2 id="planning-tasks-heading">{{ $readOnly ? 'Term preparation' : 'Prepare this term' }}</h2>
+                        <p>{{ $readOnly ? 'Read-only · The Registrar maintains these records.' : 'Calendar, class and faculty preparation can happen in parallel.' }}</p>
+                    </header>
+                    <nav aria-label="Term planning tasks">
+                        @foreach ($tasks as $task)
+                            @php
+                                $work = collect($overviewWork)->whereIn('key', $task['keys'])->unique('label');
+                                $waiting = collect($overviewWaiting)->whereIn('key', $task['keys'])->unique('label');
+                            @endphp
+                            <section class="tala-workspace-preparation__row">
+                                <x-filament::icon :icon="$task['icon']" />
+                                <div class="tala-workspace-preparation__content">
+                                    <h3>{{ $task['label'] }}</h3>
+                                    @if ($task['keys'] === ['classes', 'sections'])
+                                        <div class="tala-workspace-preparation__figure"><strong>{{ $overviewCounts['recorded'] }}</strong><span>{{ \Illuminate\Support\Str::plural('recorded class', $overviewCounts['recorded']) }}</span></div>
+                                        <p>{{ $overviewCounts['confirmed'] }} confirmed · {{ $overviewCounts['student_sections'] }} {{ \Illuminate\Support\Str::plural('student section', $overviewCounts['student_sections']) }}</p>
+                                    @elseif ($task['keys'] === ['resources', 'availability', 'deadline'])
+                                        @if ($missingQualifications > 0)
+                                            <div class="tala-workspace-preparation__figure"><strong>{{ $missingQualifications }}</strong><span>{{ \Illuminate\Support\Str::plural('course', $missingQualifications) }} without eligible faculty</span></div>
+                                        @else
+                                            <p>Teaching availability, qualifications and rooms</p>
                                         @endif
+                                    @else
+                                        <p class="tala-workspace-preparation__status">{{ $activePackage ? 'Active calendar · v'.$activePackage->version : 'No active teaching calendar' }}</p>
+                                    @endif
+                                    @if ($work->isNotEmpty() || $waiting->isNotEmpty())
+                                        <ul class="tala-workspace-preparation__findings">
+                                            @foreach ($work as $entry)
+                                                <li>@if ($entry['key'] === 'sections')<a class="tala-workspace-overview__link" {{ \Filament\Support\generate_href_html($entry['url']) }}>{{ $entry['label'] }}</a>@else{{ $entry['label'] }}@endif</li>
+                                            @endforeach
+                                            @foreach ($waiting as $entry)<li>{{ $entry['description'] }}</li>@endforeach
+                                        </ul>
+                                    @endif
+                                    <div class="tala-workspace-preparation__action">
+                                        <x-filament::button tag="a" :href="$task['url']" :color="$loop->first && ! $readOnly ? 'primary' : 'gray'" icon="heroicon-m-arrow-right" icon-position="after">{{ $readOnly ? 'Inspect' : ($loop->first ? 'Review classes' : ($loop->index === 1 ? 'Review faculty' : 'Open calendar')) }}</x-filament::button>
                                     </div>
-                                    <x-filament::button tag="a" color="gray" size="sm" icon="heroicon-m-chevron-right" icon-position="after" :aria-label="($row['year_level'] ? 'View '.$yearLabel.' classes for ' : 'Review student sections for ').$programRows->first()['program_name']" :href="\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id, ...($row['year_level'] ? ['programId' => $row['program_id'], 'yearLevel' => $row['year_level']] : ['classesView' => 'cohorts'])])">{{ $row['year_level'] ? 'View classes' : 'Review student sections' }}</x-filament::button>
-                                </li>
-                            @endforeach
-                        </ul>
-                        <details class="tala-planning-program-source">
-                            <summary>Curriculum and student sections</summary>
-                            <dl class="tala-planning-reveal tala-planning-program-records">
-                                @foreach ($programRows as $row)
-                                    <div>
-                                        <dt>{{ $row['year_level'] ? (str_contains(strtolower($row['year_level']), 'year') ? $row['year_level'] : 'Year '.$row['year_level']) : 'Student sections to review' }}</dt>
-                                        <dd>
-                                            @if ($row['curriculum_label'])<p><span>Curriculum</span>{{ $row['curriculum_label'] }}</p>@endif
-                                            @if ($row['section_references'])<p><span>Student sections</span>{{ implode(', ', $row['section_references']) }}</p>@endif
-                                        </dd>
-                                    </div>
-                                @endforeach
-                            </dl>
-                        </details>
-                    </details>
-                @empty
-                    <p>No programs have recorded classes or student sections for this Term yet. {{ $readOnly ? 'The Registrar prepares these records.' : 'Record student sections and prepare the classes that will run.' }}</p>
-                @endforelse
-                @if ($programGroups->count() > $programsWithRecords->count())
-                    <details class="tala-planning-program"><summary><span><strong>Other curriculum programs</strong><small>No classes or student sections recorded for this Term</small></span><x-filament::icon icon="heroicon-m-chevron-down" /></summary>
-                        @foreach ($programGroups->diffKeys($programsWithRecords) as $programRows)
-                            <div class="tala-planning-program-year"><div><strong>{{ $programRows->first()['program_name'] }}</strong><p>{{ $programRows->pluck('year_level')->filter()->unique()->map(fn ($year) => str_contains(strtolower($year), 'year') ? $year : 'Year '.$year)->implode(' · ') }}</p><small>No classes recorded. The school decides which years will run.</small></div></div>
+                                </div>
+                            </section>
                         @endforeach
-                    </details>
-                @endif
-                <p class="tala-work-footnote">Shared classes can serve several programs or years; whole-Term totals count each class once.</p>
+                    </nav>
+                </section>
+
+                <aside class="tala-workspace-overview__aside" aria-label="Timetable and term record">
+                    <section class="tala-task-surface tala-workspace-overview__timetable" aria-labelledby="overview-timetable-heading">
+                        <h2 id="overview-timetable-heading">Timetable</h2>
+                        <div class="tala-workspace-overview__result">
+                            <x-filament::icon icon="heroicon-o-table-cells" />
+                            <h3>{{ $timetable['label'] ?? 'No timetable yet' }}</h3>
+                            <p>{{ $timetable['description'] ?? 'Generate and review a candidate in the timetable workspace. Acceptance records your review; publishing makes it official.' }}</p>
+                            @if ($overviewTimetable['official'] && $overviewTimetable['attempt'])
+                                <p>{{ $overviewTimetable['official']['label'] }} stays in use.</p>
+                            @endif
+                            <x-filament::button tag="a" color="gray" icon="heroicon-m-arrow-right" icon-position="after" :href="$timetable['url'] ?? \App\Filament\Pages\TermTimetable::getUrl($parameters)">{{ ($timetable['state'] ?? null) === 'pending' ? 'View progress' : 'Open timetable' }}</x-filament::button>
+                            @if ($overviewTimetable['official'] && $overviewTimetable['attempt'])
+                                <a class="tala-workspace-overview__link" {{ \Filament\Support\generate_href_html($overviewTimetable['official']['url']) }}>View official timetable</a>
+                            @endif
+                        </div>
+                        <p class="tala-workspace-overview__guide">Prepare inputs → Generate and review → Accept, then publish.</p>
+                    </section>
+                    <section class="tala-task-surface tala-workspace-overview__record" aria-labelledby="overview-term-record-heading">
+                        <header><h2 id="overview-term-record-heading">Term details</h2><x-filament::button tag="a" color="gray" size="sm" :href="\App\Filament\Resources\Terms\TermResource::getUrl('view', ['record' => $term, 'viewTab' => 'plan'])">Term settings</x-filament::button></header>
+                        <dl>
+                            @if ($term->label !== $term->typeLabel())<div><dt>Recorded name</dt><dd>{{ $term->label }}</dd></div>@endif
+                            <div><dt>Term dates</dt><dd>{{ $term->starts_on->format('M j') }} – {{ $term->ends_on->format('M j, Y') }}</dd></div>
+                            <div><dt>Record status</dt><dd>{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</dd></div>
+                            <div><dt>Scope</dt><dd>School-wide · All programs and year levels</dd></div>
+                        </dl>
+                    </section>
+                </aside>
+            </div>
+
+            <section id="program-coverage" class="tala-task-surface tala-workspace-coverage" aria-labelledby="program-coverage-heading">
+                <header><h2 id="program-coverage-heading">Programs and year levels</h2><p>Curriculum coverage for this term. A year without classes is not automatically required to run.</p></header>
+                <div class="tala-workspace-coverage__filters">
+                    <div><label for="coverage-search">Find a program or curriculum</label><x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass"><x-filament::input id="coverage-search" type="search" wire:model.live.debounce.350ms="coverageSearch" placeholder="Program or curriculum" /></x-filament::input.wrapper></div>
+                    <div><label for="coverage-year">Year level</label><x-filament::input.wrapper><x-filament::input.select id="coverage-year" wire:model.live="coverageYear"><option value="">All year levels</option>@foreach ($this->coverageYears as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</x-filament::input.select></x-filament::input.wrapper></div>
+                    @if ($coveragePage->isNotEmpty() && ($coverageSearch !== '' || $coverageYear !== ''))<x-filament::button color="gray" wire:click="clearCoverageFilters">Clear filters</x-filament::button>@endif
                 </div>
-            </details>
-            <div class="tala-planning-record-link"><span>Term identity, defaults and history</span><x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\Terms\TermResource::getUrl('view', ['record' => $term, 'viewTab' => 'plan'])">Term settings</x-filament::button></div>
+                @if ($coveragePage->isNotEmpty())
+                    <div class="tala-workspace-coverage__table" wire:loading.class="opacity-60" wire:target="coverageSearch,coverageYear,gotoPage,nextPage,previousPage">
+                        <table>
+                            <caption class="sr-only">Program, curriculum and year-level coverage for {{ $term->typeLabel() }}</caption>
+                            <thead><tr><th scope="col">Program / curriculum</th><th scope="col">Year level</th><th scope="col">Classes</th><th scope="col">Weekly meetings</th><th scope="col">Student sections</th><th scope="col"><span class="sr-only">Open records</span></th></tr></thead>
+                            <tbody>
+                                @foreach ($coveragePage as $row)
+                                    @php($yearLabel = $row['year_level'] ? (str_contains(strtolower($row['year_level']), 'year') ? $row['year_level'] : 'Year '.$row['year_level']) : 'Year not associated')
+                                    <tr wire:key="coverage-{{ $row['id'] }}">
+                                        <th scope="row"><strong>{{ $row['program_name'] }}</strong><small>{{ $row['curriculum_label'] }}</small>@if ($row['status'] === 'Needs association' || $row['status'] === 'Association unresolved')<small>Student-section links need review</small>@endif</th>
+                                        <td data-label="Year level">{{ $yearLabel }}</td>
+                                        <td data-label="Classes">{{ $row['class_count'] }}</td>
+                                        <td data-label="Weekly meetings">{{ $row['meeting_count'] }}</td>
+                                        <td data-label="Student sections">{{ $row['section_count'] }}</td>
+                                        <td class="tala-workspace-coverage__action"><x-filament::button tag="a" color="gray" size="sm" icon="heroicon-m-arrow-right" icon-position="after" :aria-label="($row['year_level'] ? 'View '.$yearLabel.' classes for ' : 'Review student sections for ').$row['program_name'].' · '.$row['curriculum_label']" :href="\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id, ...($row['year_level'] ? ['programId' => $row['program_id'], 'yearLevel' => $row['year_level']] : ['classesView' => 'cohorts'])])">{{ $row['year_level'] ? 'View classes' : 'Review student sections' }}</x-filament::button></td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="tala-workspace-coverage__pagination">
+                        <p role="status">{{ $coveragePage->firstItem() }}–{{ $coveragePage->lastItem() }} of {{ $coveragePage->total() }} coverage records</p>
+                        {{ $coveragePage->links(data: ['scrollTo' => '#program-coverage']) }}
+                    </div>
+                @else
+                    <div class="tala-workspace-coverage__empty">
+                        <h3>{{ $this->coverageEntries->isEmpty() ? 'No curriculum coverage recorded' : 'No matching coverage records' }}</h3>
+                        <p>{{ $this->coverageEntries->isEmpty() ? 'Prepare the classes and student sections that will run in this term.' : 'Try another program, curriculum or year level, or clear the filters.' }}</p>
+                        @if ($this->coverageEntries->isEmpty())<x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\TermClasses::getUrl($parameters)">View classes</x-filament::button>@else<x-filament::button color="gray" wire:click="clearCoverageFilters">Clear filters</x-filament::button>@endif
+                    </div>
+                @endif
+                <p class="tala-workspace-coverage__note">Shared classes may serve several programs or years. Whole-term figures count each class once and are unchanged by these filters.</p>
+            </section>
         </div>
     @else
         <div class="tala-term-chooser">

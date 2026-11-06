@@ -397,9 +397,7 @@ class ListEnrollments extends ListRecords
             ];
         }
 
-        return $this->isRegistrar() && $this->activeTab !== 'overview'
-            ? [Action::make('backToEnrollment')->label('Back to enrollment')->icon('heroicon-o-arrow-left')->color('gray')->url(EnrollmentResource::getUrl('index'))]
-            : [];
+        return [];
     }
 
     /** @return array<string, mixed> */

@@ -116,7 +116,6 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
         $registrar->assignRole(User::StaffRoleRegistrar);
         IncDeadlineAmendment::query()->create([
             'grade_outcome_event_id' => $released->id, 'previous_deadline' => '2026-11-05', 'new_deadline' => '2026-11-20',
-            'authority_reference' => 'SYNTHETIC-APPROVED-DEADLINE', 'authority_date' => now()->toDateString(),
             'reason' => 'Synthetic approved amendment.', 'recorded_by' => $registrar->id, 'recorded_at' => now(),
         ]);
         $this->gradesViewComponent($student)->assertSee('Nov 20, 2026')->assertDontSee('Dec 31, 2099');
