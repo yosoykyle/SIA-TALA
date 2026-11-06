@@ -5,9 +5,12 @@ namespace Tests\Feature\Finance;
 use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\TermAccountProjection;
+use App\Actions\StudentLifecycle\LifecycleFinanceAction;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
+use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
+use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Models\AdmissionApplication;
 use App\Models\ApprovedCoverage;
 use App\Models\Assessment;
@@ -26,6 +29,7 @@ use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
 use App\Models\RegistrationProposalConfirmation;
 use App\Models\RegistrationProposalVersion;
+use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
@@ -193,9 +197,76 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             ->assertDontSee('Fully paid')
             ->assertDontSee('Print current COR')
             ->assertDontSee('Print COR history')
+            ->assertDontSee('Recent student changes')
             ->assertDontSee('Resend failed enrollment email');
 
         $this->assertSame('accounting-account', $component->instance()->focusedAccountingView());
+    }
+
+    public function test_account_shows_only_recent_exact_enrollment_lifecycle_sources_without_changing_its_financial_position(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-11-02 10:00:00', 'Asia/Manila'));
+        $accounting = $this->accounting();
+        $fixture = $this->accountFixture('lifecycle-source@example.test');
+        $case = $fixture['enrollment'];
+        $attributes = [
+            'student_profile_id' => $case->student_profile_id,
+            'term_id' => $case->term_id,
+            'enrollment_id' => $case->id,
+            'type' => StudentLifecycleChange::TypeLeaveOfAbsence,
+            'reason' => 'PRIVATE-LIFECYCLE-REASON',
+            'state' => StudentLifecycleChange::StateApplied,
+            'private_source_reference' => 'PRIVATE-LIFECYCLE-REFERENCE',
+            'impact_snapshot' => ['finance_effect' => ['mode' => 'accounting_review_required']],
+        ];
+        $sources = StudentLifecycleChange::factory()->count(6)->create($attributes);
+        foreach ($sources as $source) {
+            app(LifecycleFinanceAction::class)->execute($source, $accounting);
+        }
+        $eventless = StudentLifecycleChange::factory()->create($attributes);
+        $unrelated = [
+            StudentLifecycleChange::factory()->create([...$attributes, 'enrollment_id' => null]),
+            StudentLifecycleChange::factory()->create([...$attributes, 'student_profile_id' => StudentProfile::factory()->create()->id]),
+            StudentLifecycleChange::factory()->create([...$attributes, 'term_id' => Term::factory()->create()->id]),
+        ];
+        foreach ($unrelated as $source) {
+            OperationalEvent::factory()->create([
+                'event_domain' => OperationalEvent::DomainOperations,
+                'event_type' => OperationalEvent::TypeLifecycleAccountingReview,
+                'related_record_type' => StudentLifecycleChange::class,
+                'related_record_id' => $source->id,
+            ]);
+        }
+        $before = app(TermAccountProjection::class)->forAccount($fixture['account']);
+        $eventCount = OperationalEvent::query()->count();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $component = Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $case->id])
+            ->assertSee('Recent student changes')
+            ->assertSee('Leave of Absence')
+            ->assertSee('Showing the five most recently recorded changes')
+            ->assertSee(StudentLifecycleChangeResource::getUrl('index', ['change' => $sources->last()->id]), false)
+            ->assertDontSee(StudentLifecycleChangeResource::getUrl('index', ['change' => $eventless->id]), false)
+            ->assertDontSee('PRIVATE-LIFECYCLE-REASON')
+            ->assertDontSee('PRIVATE-LIFECYCLE-REFERENCE');
+
+        $context = $component->instance()->accountingViewData();
+        $this->assertSame($sources->reverse()->take(5)->pluck('id')->values()->all(), $context['lifecycleSources']->modelKeys());
+        $this->assertSame('ordinary', $context['reviewState']);
+        $this->assertSame($before, app(TermAccountProjection::class)->forAccount($fixture['account']->fresh()));
+        $this->assertSame($eventCount, OperationalEvent::query()->count());
+        $this->assertSame('12000.00', $fixture['assessment']->fresh()->total);
+
+        Livewire::actingAs($accounting)->withQueryParams(['change' => $sources->last()->id])
+            ->test(ListStudentLifecycleChanges::class)
+            ->assertSet('selectedChangeId', $sources->last()->id)
+            ->assertSee('PRIVATE-LIFECYCLE-REASON')
+            ->assertSee('PRIVATE-LIFECYCLE-REFERENCE')
+            ->assertSee('Student accounts · Financial review')
+            ->assertSee('Open student account')
+            ->assertSee(EnrollmentResource::getUrl('view', ['record' => $case]), false)
+            ->assertDontSee('Open full record');
+        Livewire::withQueryParams([]);
     }
 
     public function test_current_account_preserves_later_fees_after_enrollment_payment_and_opens_retained_history(): void

@@ -17,8 +17,8 @@ class RecordAcademicDecision
         StudentProfile $student,
         ?Term $term,
         string $effect,
-        string $authorityReference,
-        Carbon $authorityDate,
+        ?string $authorityReference,
+        ?Carbon $authorityDate,
         string $reason,
         Carbon $effectiveFrom,
         ?Carbon $effectiveUntil,
@@ -32,11 +32,12 @@ class RecordAcademicDecision
             throw new RuntimeException('Select one accepted academic enrollment effect.');
         }
 
-        $authorityReference = trim($authorityReference);
+        $authorityReference = filled($authorityReference) ? trim((string) $authorityReference) : null;
+        $authorityReference = $authorityReference !== '' ? $authorityReference : null;
         $reason = trim($reason);
 
-        if ($authorityReference === '' || $reason === '') {
-            throw new RuntimeException('Academic decisions require authority and a safe explanation.');
+        if ($reason === '') {
+            throw new RuntimeException('Academic decisions require a safe explanation.');
         }
 
         if ($effectiveUntil?->isBefore($effectiveFrom)) {
@@ -44,11 +45,12 @@ class RecordAcademicDecision
         }
 
         return DB::transaction(function () use ($student, $term, $effect, $authorityReference, $authorityDate, $reason, $effectiveFrom, $effectiveUntil, $actor): AcademicDecision {
+            StudentProfile::query()->lockForUpdate()->findOrFail($student->id);
+
             AcademicDecision::query()
                 ->where('student_profile_id', $student->id)
+                ->where('term_id', $term?->id)
                 ->where('state', 'ACTIVE')
-                ->where(fn ($query) => $query->whereNull('term_id')->orWhere('term_id', $term?->id))
-                ->lockForUpdate()
                 ->update(['state' => 'SUPERSEDED']);
 
             return AcademicDecision::query()->create([

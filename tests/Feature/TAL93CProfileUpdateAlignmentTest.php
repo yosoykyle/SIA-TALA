@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Actions\StudentProfiles\RecordStudentProfileCorrection;
 use App\Filament\Resources\StudentProfiles\Pages\EditStudentProfile;
 use App\Filament\Student\Pages\Profile as StudentProfilePage;
 use App\Models\StudentProfile;
 use App\Models\StudentProfileEvent;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
@@ -63,7 +66,6 @@ class TAL93CProfileUpdateAlignmentTest extends TestCase
                 'phone' => $studentProfile->phone,
                 'address' => $studentProfile->address,
                 'entry_term_id' => $studentProfile->entry_term_id,
-                'authority_reference' => 'Registrar correction ticket RC-2026-001',
                 'reason' => 'Corrected against the authenticated admission record.',
             ])
             ->assertHasNoFormErrors()
@@ -77,12 +79,77 @@ class TAL93CProfileUpdateAlignmentTest extends TestCase
         $event = StudentProfileEvent::query()->sole();
         $this->assertSame($studentProfile->id, $event->student_profile_id);
         $this->assertSame(StudentProfileEvent::TypeCorrection, $event->event_type);
-        $this->assertSame('Registrar correction ticket RC-2026-001', $event->authority_reference);
+        $this->assertNull($event->fresh()->getRawOriginal('authority_reference'));
+        $this->assertNotNull($event->effective_at);
+        $this->assertSame('Cruz', $event->before_snapshot['last_name']);
+        $this->assertSame('Dela Cruz', $event->after_snapshot['last_name']);
         $this->assertSame(['last_name', 'birth_date', 'prior_identifier'], $event->changed_fields);
         $this->assertSame($registrar->id, $event->actor_id);
 
         $this->expectException(\LogicException::class);
         $event->update(['reason' => 'History cannot be rewritten.']);
+    }
+
+    #[Test]
+    public function a_factual_correction_is_stored_without_a_manual_reference(): void
+    {
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+        $profile = StudentProfile::factory()->create(['last_name' => 'Cruz']);
+
+        $event = app(RecordStudentProfileCorrection::class)->execute(
+            $profile,
+            ['last_name' => 'Dela Cruz'],
+            $registrar,
+            'Corrected against the verified source record.',
+        );
+
+        $this->assertNull($event->fresh()->getRawOriginal('authority_reference'));
+        $this->assertSame('Corrected against the verified source record.', $event->reason);
+        $this->assertSame('Cruz', $event->before_snapshot['last_name']);
+        $this->assertSame('Dela Cruz', $event->after_snapshot['last_name']);
+        $this->assertSame('Dela Cruz', $profile->fresh()->last_name);
+        $this->assertSame($registrar->id, $event->actor_id);
+    }
+
+    #[Test]
+    public function a_factual_correction_without_a_reason_records_nothing(): void
+    {
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+        $profile = StudentProfile::factory()->create(['last_name' => 'Cruz']);
+
+        try {
+            app(RecordStudentProfileCorrection::class)->execute(
+                $profile, ['last_name' => 'Dela Cruz'], $registrar, '   ',
+            );
+            $this->fail('A factual correction must explain why the record is changing.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['A factual change and reason are required.'], $exception->errors()['correction']);
+        }
+
+        $this->assertSame('Cruz', $profile->fresh()->last_name);
+        $this->assertDatabaseCount('student_profile_events', 0);
+    }
+
+    #[Test]
+    public function a_student_cannot_record_a_factual_correction(): void
+    {
+        $student = User::factory()->create(['status' => User::StatusActive]);
+        $student->assignRole('student');
+        $profile = StudentProfile::factory()->create(['user_id' => $student->id, 'last_name' => 'Cruz']);
+
+        try {
+            app(RecordStudentProfileCorrection::class)->execute(
+                $profile, ['last_name' => 'Dela Cruz'], $student, 'Corrected against the source record.',
+            );
+            $this->fail('Removing a reference must preserve correction permissions.');
+        } catch (AuthorizationException $exception) {
+            $this->assertSame('This action is unauthorized.', $exception->getMessage());
+        }
+
+        $this->assertSame('Cruz', $profile->fresh()->last_name);
+        $this->assertDatabaseCount('student_profile_events', 0);
     }
 
     #[Test]

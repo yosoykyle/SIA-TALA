@@ -6,16 +6,13 @@ use App\Actions\Academics\RecordExternalCompetencyResult;
 use App\Actions\Completion\CompletionReadinessProjection;
 use App\Actions\Completion\CorrectDegreeConferral;
 use App\Actions\Completion\IssueTranscript;
+use App\Actions\Completion\OfficialOutputRestrictionService;
 use App\Actions\Completion\RecordDegreeConferral;
 use App\Actions\Completion\RecordTranscriptRequest;
 use App\Actions\Completion\ReplaceTranscript;
-use App\Actions\Completion\SubmitGraduationApplication;
 use App\Actions\Completion\VoidTranscript;
-use App\Actions\Completion\WithdrawGraduationApplication;
-use App\Actions\Finance\RecordOfficialOutputPaymentClearance;
 use App\Actions\Grades\ManageTeachingAssignment;
 use App\Actions\Grades\PostAndReleaseGradeRoster;
-use App\Actions\Grades\SaveFinalGradeResult;
 use App\Actions\Grades\SubmitGradeRoster;
 use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Mail\AcademicRecordChangedMail;
@@ -27,7 +24,6 @@ use App\Models\Enrollment;
 use App\Models\ExternalCompetencyRequirement;
 use App\Models\ExternalCompetencyResult;
 use App\Models\GraduationApplication;
-use App\Models\OfficialOutputPaymentClearance;
 use App\Models\OperationalEvent;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\Section;
@@ -42,20 +38,24 @@ use App\Models\TranscriptRequest;
 use App\Models\TranscriptSnapshot;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
+use Tests\InteractsWithGradeRosterDrafts;
 use Tests\TestCase;
 
 class CompletionToStandardTorJourneyTest extends TestCase
 {
     use DatabaseTransactions;
+    use InteractsWithGradeRosterDrafts;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->travelTo(Carbon::parse('2028-07-15 10:00:00', 'Asia/Manila'));
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
@@ -70,14 +70,14 @@ class CompletionToStandardTorJourneyTest extends TestCase
     }
 
     #[Test]
-    public function readiness_application_and_conferral_use_current_attributable_sources(): void
+    public function readiness_and_conferral_use_current_attributable_sources_without_application(): void
     {
         $fixture = $this->fixture();
         $studentUser = $fixture['student']->user;
         $studentUser->assignRole('student');
         $projection = app(CompletionReadinessProjection::class)->forStudent($fixture['student']);
 
-        $this->assertSame(CompletionReadinessProjection::EligibleToApply, $projection['state']);
+        $this->assertSame(CompletionReadinessProjection::AwaitingResultsOrClearance, $projection['state']);
         $this->assertSame('Registrar and Faculty', $projection['blockers'][0]['owner']);
 
         $tracked = ExternalCompetencyRequirement::factory()->create([
@@ -85,7 +85,7 @@ class CompletionToStandardTorJourneyTest extends TestCase
             'treatment' => ExternalCompetencyRequirement::TreatmentTrackedOnly,
             'state' => 'ACTIVE',
         ]);
-        $this->assertSame(CompletionReadinessProjection::EligibleToApply, app(CompletionReadinessProjection::class)->forStudent($fixture['student'])['state']);
+        $this->assertSame(CompletionReadinessProjection::AwaitingResultsOrClearance, app(CompletionReadinessProjection::class)->forStudent($fixture['student'])['state']);
 
         $required = ExternalCompetencyRequirement::factory()->create([
             'curriculum_version_id' => $fixture['student']->curriculum_version_id,
@@ -103,14 +103,7 @@ class CompletionToStandardTorJourneyTest extends TestCase
             $fixture['registrar'],
         );
 
-        $application = app(SubmitGraduationApplication::class)->execute($fixture['student'], $studentUser);
-        $this->assertSame($application->id, app(SubmitGraduationApplication::class)->execute($fixture['student'], $studentUser)->id);
-        $this->assertSame(CompletionReadinessProjection::AwaitingResultsOrClearance, app(CompletionReadinessProjection::class)->forStudent($fixture['student'])['state']);
-
-        app(WithdrawGraduationApplication::class)->execute($application, $studentUser, 'I need to correct my completion intent.');
-        $reapplication = app(SubmitGraduationApplication::class)->execute($fixture['student'], $studentUser);
-        $this->assertSame(2, $reapplication->version);
-        $this->assertSame($application->id, $reapplication->supersedes_application_id);
+        $this->assertNull(app(CompletionReadinessProjection::class)->forStudent($fixture['student'])['application']);
 
         $this->releaseResult($fixture, '2.00');
         $this->assertSame(CompletionReadinessProjection::ReadyForConferral, app(CompletionReadinessProjection::class)->forStudent($fixture['student'])['state']);
@@ -152,7 +145,7 @@ class CompletionToStandardTorJourneyTest extends TestCase
     }
 
     #[Test]
-    public function tor_request_clearance_preview_issuance_void_and_replacement_are_request_bound(): void
+    public function tor_request_restriction_preview_issuance_void_and_replacement_are_request_bound(): void
     {
         $fixture = $this->fixture();
         $fixture['student']->user->assignRole('student');
@@ -178,7 +171,6 @@ class CompletionToStandardTorJourneyTest extends TestCase
             'numeric_grade' => '2.25',
         ]);
         $this->releaseResult($fixture, '1.75');
-        app(SubmitGraduationApplication::class)->execute($fixture['student'], $fixture['student']->user);
         $conferral = app(RecordDegreeConferral::class)->execute(
             $fixture['student'], $fixture['registrar'], 'Bachelor of Science in Information Technology',
             '2028-06-30', 'SYNTH-CONFERRAL-AUTHORITY',
@@ -195,37 +187,17 @@ class CompletionToStandardTorJourneyTest extends TestCase
         );
 
         $this->assertSame('2028-07-31', $request->due_on->toDateString());
-        $this->assertSame(OfficialOutputPaymentClearance::StateActionNeeded, $request->clearanceState());
+        $restriction = app(OfficialOutputRestrictionService::class)->record($fixture['student'], $fixture['accounting'], 'Recorded TOR output restriction');
         try {
             app(IssueTranscript::class)->execute($request, $fixture['registrar'], 'SYNTH-ISSUANCE-AUTHORITY');
-            $this->fail('Issuance must fail before exact-request Accounting clearance.');
+            $this->fail('Issuance must fail before the exact preview is reviewed.');
         } catch (ValidationException) {
             $this->assertDatabaseCount('transcript_snapshots', 0);
             $this->assertDatabaseCount('transcript_issuance_events', 0);
         }
 
-        try {
-            app(RecordOfficialOutputPaymentClearance::class)->execute(
-                $request,
-                $fixture['accounting'],
-                OfficialOutputPaymentClearance::StateCleared,
-                'SYNTH-ACCOUNTING-AUTHORITY',
-                'Reject an invalid negative required amount.',
-                '-1.00',
-            );
-            $this->fail('A negative request-specific amount must be rejected.');
-        } catch (ValidationException) {
-            $this->assertDatabaseCount('official_output_payment_clearances', 0);
-        }
-
-        app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $request,
-            $fixture['accounting'],
-            OfficialOutputPaymentClearance::StateNotRequired,
-            'SYNTH-ACCOUNTING-AUTHORITY',
-            'The synthetic acceptance request has no collectible transcript fee.',
-        );
-        $this->assertSame(OfficialOutputPaymentClearance::StateNotRequired, $request->fresh()->clearanceState());
+        app(OfficialOutputRestrictionService::class)->resolve($restriction, $fixture['accounting'], 'Actual restriction resolved.');
+        $this->assertCount(0, app(OfficialOutputRestrictionService::class)->activeFor($fixture['student']));
 
         config(['institution.address' => null]);
         try {
@@ -397,7 +369,9 @@ class CompletionToStandardTorJourneyTest extends TestCase
     {
         app(ManageTeachingAssignment::class)->designate($fixture['section'], $fixture['faculty'], $fixture['registrar'], 'SYNTH-COMPLETION-ASSIGNMENT');
         $roster = app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
-        app(SaveFinalGradeResult::class)->execute($roster->rows->sole(), $result, null, $fixture['faculty']);
+        $this->saveGradeRosterDraft($roster, $fixture['faculty'], [
+            $roster->rows->sole()->id => ['final_result' => $result, 'inc_completion_note' => null],
+        ]);
         $submitted = app(SubmitGradeRoster::class)->execute($roster, $fixture['faculty']);
         app(PostAndReleaseGradeRoster::class)->execute($submitted, $fixture['registrar'], 'SYNTH-COMPLETION-RELEASE');
     }

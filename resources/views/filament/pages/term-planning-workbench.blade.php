@@ -95,7 +95,7 @@
 
                     @foreach ($terms->take(6) as $availableTerm)
 
-                        <a class="tala-planning-record-link" href="{{ \App\Filament\Pages\TermPlanningWorkbench::getUrl(['termId' => $availableTerm->id, 'viewTab' => 'plan']) }}"><span>{{ $availableTerm->label }}<small>{{ $availableTerm->academicYear?->label }} · {{ \App\Models\Term::typeOptions()[$availableTerm->type] ?? $availableTerm->type }}</small></span><span>Open plan</span></a>
+                        <a class="tala-planning-record-link" {{ \Filament\Support\generate_href_html(\App\Filament\Pages\TermPlanningWorkbench::getUrl(['termId' => $availableTerm->id, 'viewTab' => 'plan'])) }}><span>{{ $availableTerm->label }}<small>{{ $availableTerm->academicYear?->label }} · {{ \App\Models\Term::typeOptions()[$availableTerm->type] ?? $availableTerm->type }}</small></span><span>Open plan</span></a>
 
                     @endforeach
 

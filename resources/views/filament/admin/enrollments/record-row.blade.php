@@ -1,5 +1,7 @@
 @php
     $case = $getRecord();
+    $student = $case->studentProfile;
+    $learner = $student ? collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ') : ($case->credentialUser?->getFilamentName() ?? 'Identity unavailable');
     $stage = \App\Filament\Resources\Enrollments\Tables\EnrollmentsTable::stage($case);
     $lookup = in_array($getLivewire()->activeTab, ['all_cases', 'official_history', 'adjustments_drops'], true);
     $status = match ($stage) {
@@ -34,10 +36,12 @@
 @endphp
 <article class="registrar-enrollment-record">
     <div class="registrar-enrollment-person">
-        <h2>{{ $case->credentialUser?->getFilamentName() ?? 'Identity unavailable' }}</h2>
+        <h2>{{ $learner }}</h2>
         <p class="registrar-enrollment-identifier">{{ $case->studentProfile?->student_number ?? $case->admissionApplication?->application_reference ?? 'Number not assigned' }}</p>
+    </div>
+    <div class="registrar-enrollment-studies">
         <p class="registrar-enrollment-program">{{ $program }}</p>
-        <p class="registrar-enrollment-term">{{ $case->term?->label ?? 'Term not assigned' }}</p>
+        <p class="registrar-enrollment-term">{{ collect([$case->term?->label, $case->term?->academicYear?->label])->filter()->implode(' · ') ?: 'Term not assigned' }}</p>
     </div>
     <div class="registrar-enrollment-status">
         <x-filament::badge :color="$color">{{ $status }}</x-filament::badge>
@@ -52,8 +56,8 @@
                 <p>{{ $subjectCount }} confirmed {{ $subjectCount === 1 ? 'subject' : 'subjects' }} · {{ (float) $case->currentProposalVersion->items->sum('units_snapshot') }} units</p>
             @endif
         @endif
-        <x-filament::link :href="\App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $case, 'queue' => $getLivewire()->activeTab])" icon="heroicon-m-arrow-right" icon-position="after">
-            {{ $action }}<span class="sr-only"> for {{ $case->credentialUser?->getFilamentName() }}</span>
-        </x-filament::link>
+        <x-filament::button tag="a" color="gray" size="sm" :href="\App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $case, 'queue' => $getLivewire()->activeTab])" icon="heroicon-m-arrow-right" icon-position="after">
+            {{ $action }}<span class="sr-only"> for {{ $learner }}</span>
+        </x-filament::button>
     </div>
 </article>

@@ -147,7 +147,7 @@ class Hold extends Model
     {
         return match ($this->hold_type) {
             self::TypeFinancial => 'Accounting Office',
-            self::TypeAcademicDeficit, self::TypePrerequisite => 'Academic Head Office',
+            self::TypeAcademicDeficit, self::TypePrerequisite => 'Registrar Office',
             default => 'Registrar Office',
         };
     }
@@ -163,7 +163,7 @@ class Hold extends Model
         }
 
         if (in_array($holdType, [self::TypeAcademicDeficit, self::TypePrerequisite], true)) {
-            return $actor->hasAnyRole([User::StaffRoleAcademicHead, User::StaffRoleRegistrar]);
+            return $actor->hasRole(User::StaffRoleRegistrar);
         }
 
         return $actor->hasRole(User::StaffRoleRegistrar);

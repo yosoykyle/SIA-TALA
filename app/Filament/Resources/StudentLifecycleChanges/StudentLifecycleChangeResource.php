@@ -6,7 +6,6 @@ use App\Filament\Resources\StudentLifecycleChanges\Pages\CreateStudentLifecycleC
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ViewStudentLifecycleChange;
 use App\Filament\Resources\StudentLifecycleChanges\Schemas\StudentLifecycleChangeForm;
-use App\Filament\Resources\StudentLifecycleChanges\Schemas\StudentLifecycleChangeInfolist;
 use App\Filament\Resources\StudentLifecycleChanges\Tables\StudentLifecycleChangesTable;
 use App\Models\StudentLifecycleChange;
 use BackedEnum;
@@ -31,11 +30,6 @@ class StudentLifecycleChangeResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return StudentLifecycleChangeForm::configure($schema);
-    }
-
-    public static function infolist(Schema $schema): Schema
-    {
-        return StudentLifecycleChangeInfolist::configure($schema);
     }
 
     public static function table(Table $table): Table

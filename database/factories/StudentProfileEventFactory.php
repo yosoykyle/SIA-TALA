@@ -23,7 +23,6 @@ class StudentProfileEventFactory extends Factory
             'student_profile_id' => StudentProfile::factory(),
             'event_type' => StudentProfileEvent::TypeCorrection,
             'source' => 'RegistrarCorrection',
-            'authority_reference' => 'SYNTH-PROFILE-CORRECTION',
             'reason' => 'Synthetic factual correction.',
             'before_snapshot' => ['phone' => '09000000000'],
             'after_snapshot' => ['phone' => '09111111111'],

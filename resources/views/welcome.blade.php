@@ -43,7 +43,7 @@
                 </ul>
             </div>
 
-            <a class="btn btn-secondary-custom public-sign-in" href="{{ route('filament.admin.auth.login') }}">
+            <a class="btn btn-secondary-custom public-sign-in" href="{{ route('public.sign-in') }}">
                 <x-filament::icon icon="heroicon-o-arrow-right-end-on-rectangle" class="tala-public-icon" aria-hidden="true" />
                 <span>Sign in</span>
             </a>
@@ -169,7 +169,7 @@
                                         <p class="hero-availability">Create an Applicant account first.</p>
                                     @endif
                                     <div class="admission-links">
-                                        <a class="hero-inline-link" href="{{ route('filament.admin.auth.login') }}">
+                                        <a class="hero-inline-link" href="{{ route('public.sign-in') }}">
                                             <x-filament::icon icon="heroicon-o-arrow-right-end-on-rectangle" class="tala-public-icon" aria-hidden="true" />
                                             <span>Sign in for application updates</span>
                                         </a>
@@ -410,12 +410,10 @@
                 <div class="visit-layout">
                     <div class="visit-details">
                         <h2 class="section-title" id="location-title">Visit Servitech</h2>
-                        {{-- Campus address from the school's public Google listing, supplied by the owner on Oct 16; a configured institution address takes precedence. --}}
-                        @php($campusAddress = config('institution.address') ?: '162 R. Magsaysay Ave, San Pedro, Laguna, Philippines')
                         <dl class="visit-facts">
                             <div class="visit-fact">
                                 <dt><x-filament::icon icon="heroicon-o-map-pin" class="tala-public-icon" aria-hidden="true" /> Address</dt>
-                                <dd><address class="institution-address mb-0">{{ $campusAddress }}</address></dd>
+                                <dd><address class="institution-address mb-0">{{ config('institution.address') }}</address></dd>
                             </div>
                         </dl>
                         <div class="visit-actions">
@@ -527,7 +525,7 @@
                     <div class="footer-link-group">
                         <h2 class="footer-heading">Access</h2>
                         <ul class="list-unstyled">
-                            <li><a class="footer-link" href="{{ route('filament.admin.auth.login') }}">Sign in</a></li>
+                            <li><a class="footer-link" href="{{ route('public.sign-in') }}">Sign in</a></li>
                             @if ($applicantEntryReady)
                                 <li><a class="footer-link" href="{{ route('public.apply') }}">Create Applicant account</a></li>
                             @endif

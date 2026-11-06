@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermResources;
@@ -9,10 +10,14 @@ use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\Sections\Pages\CreateSection;
 use App\Filament\Resources\Sections\Pages\ListSections;
 use App\Filament\Resources\Terms\Pages\CreateTerm;
+use App\Http\Middleware\EnsureStaffMfaIsEnabled;
 use App\Models\AcademicYear;
+use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\OperationalEvent;
+use App\Models\Program;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
@@ -122,6 +127,12 @@ class Issue76TermOverviewTasksTest extends TestCase
             ->update(['state' => TermCalendarPackage::StateClosed]);
         $active = TermCalendarPackage::factory()->create(['state' => TermCalendarPackage::StateActive])->term;
         $other = Term::factory()->create();
+
+        $navigationUrl = TermPlanningCluster::getNavigationItems()[0]->getUrl();
+        $this->assertSame(TermOverview::getUrl(['chooseTerm' => true]), $navigationUrl);
+        $this->withoutMiddleware(EnsureStaffMfaIsEnabled::class);
+        $this->get($navigationUrl)->assertSee('Choose a Term to plan.')
+            ->assertDontSeeHtml('href="'.e(TermClasses::getUrl(['termId' => $active->id])).'"');
 
         Livewire::test(TermOverview::class)->assertSet('termId', $active->id)
             ->assertSee('Opened automatically: the only Term with an active teaching calendar.');
@@ -302,6 +313,67 @@ class Issue76TermOverviewTasksTest extends TestCase
 
         $rows = $page->filterTable('faculty_scope', 'all')->searchTable($faculty->fresh()->name)->instance()->getTableRecords()->items();
         $this->assertArrayHasKey('faculty-'.$faculty->id, $rows);
+    }
+
+    #[TestWith([User::StaffRoleRegistrar])]
+    #[TestWith([User::StaffRoleAcademicHead])]
+    public function test_coverage_is_paged_and_filtered_without_changing_term_figures(string $role): void
+    {
+        $this->registrar($role);
+        $term = Term::factory()->create(['type' => Term::TypeFirstSemester]);
+        $program = Program::factory()->create(['name' => 'Coverage test program']);
+        for ($index = 1; $index <= 12; $index++) {
+            $curriculum = CurriculumVersion::factory()->create([
+                'program_id' => $program->id,
+                'version_code' => sprintf('COVERAGE-%02d', $index),
+                'state' => CurriculumVersion::StateActive,
+            ]);
+            $entry = CurriculumEntry::factory()->create([
+                'curriculum_version_id' => $curriculum->id,
+                'year_level' => $index % 2 === 0 ? 'Second Year' : 'First Year',
+                'term_type' => $term->type,
+            ]);
+            if ($index <= 2) {
+                Section::factory()->for(TermOffering::factory()->for($term)->state(['curriculum_entry_id' => $entry->id]))->create();
+            }
+        }
+
+        $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
+            ->set('coverageSearch', 'Coverage test program');
+        $counts = $page->viewData('overviewCounts');
+        $this->assertSame(2, $counts['recorded']);
+        $this->assertSame(12, $page->instance()->coveragePage->total());
+        $this->assertCount(10, $page->instance()->coveragePage->items());
+
+        $page->call('gotoPage', 2, 'coveragePage');
+        $this->assertCount(2, $page->instance()->coveragePage->items());
+        $page->set('coverageYear', 'First Year');
+        $this->assertSame(1, $page->get('paginators.coveragePage'));
+        $this->assertSame(6, $page->instance()->coveragePage->total());
+        $this->assertSame(['First Year'], $page->instance()->coveragePage->getCollection()->pluck('year_level')->unique()->all());
+
+        $page->set('coverageSearch', 'COVERAGE-01');
+        $this->assertSame(1, $page->instance()->coveragePage->total());
+        $page->set('coverageSearch', 'no-matching-program')->assertSee('No matching coverage records');
+        $this->assertSame(0, $page->instance()->coveragePage->total());
+        $this->assertSame($counts, $page->viewData('overviewCounts'));
+        $page->call('clearCoverageFilters')->assertSet('coverageSearch', '')->assertSet('coverageYear', '');
+        $this->assertSame($counts, $page->viewData('overviewCounts'));
+    }
+
+    public function test_coverage_empty_term_has_a_real_class_preparation_exit(): void
+    {
+        $this->registrar();
+        CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)
+            ->update(['state' => CurriculumVersion::StateDraft]);
+        $term = Term::factory()->create();
+
+        $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
+            ->assertSee('No curriculum coverage recorded')
+            ->assertSeeHtml('href="'.e(TermClasses::getUrl(['termId' => $term->id])).'"');
+
+        $this->assertSame(0, $page->instance()->coveragePage->total());
+        $this->assertSame(0, $page->viewData('overviewCounts')['recorded']);
     }
 
     private function registrar(string $role = User::StaffRoleRegistrar): void

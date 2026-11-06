@@ -100,7 +100,7 @@
                                 @endif
                             @elseif ($application->application_state === \App\Models\AdmissionApplication::StateDraft && ! app(\App\Queries\Admissions\ReadyApplicantProjectionQuery::class)->draftCycleIsOpen($application))
                                 {{-- Closed cycle: no primary action (F71); a quiet link keeps the read-only draft reachable (#57). --}}
-                                <a class="tala-home-link" href="{{ \App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id]) }}">Inspect saved draft</a>
+                                <a class="tala-home-link" {{ \Filament\Support\generate_href_html(\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])) }}>Inspect saved draft</a>
                             @elseif (in_array($application->application_state, [\App\Models\AdmissionApplication::StateDraft, \App\Models\AdmissionApplication::StateActionNeeded], true))
                                 <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])" tag="a" icon="heroicon-m-arrow-right" icon-position="after">
                                     {{ $application->application_state === \App\Models\AdmissionApplication::StateDraft ? 'Continue application' : 'Respond to correction' }}
@@ -137,7 +137,7 @@
                                     </li>
                                 @endforeach
                             </ul>
-                            <p class="tala-checklist__summary">{{ count($checklist['items']) }} {{ str('document')->plural(count($checklist['items'])) }} required · <a class="tala-home-link" href="{{ $checklist['url'] }}">{{ $checklist['linkLabel'] }}</a></p>
+                            <p class="tala-checklist__summary">{{ count($checklist['items']) }} {{ str('document')->plural(count($checklist['items'])) }} required · <a class="tala-home-link" {{ \Filament\Support\generate_href_html($checklist['url']) }}>{{ $checklist['linkLabel'] }}</a></p>
                         @endif
                     </x-filament::section>
 

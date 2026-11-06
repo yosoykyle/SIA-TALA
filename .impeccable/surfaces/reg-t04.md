@@ -145,3 +145,7 @@ For each changed page, task view or materially changed dialog/role variant: insp
 Reuse sufficient affected tests and valid solver evidence. Inspect representative Registrar/Head/Faculty states, desktop/phone, paired appearances and keyboard/modal behavior in bounded batches; fix demonstrated defects and confirm without an open-ended polish loop. Check request → response/correction → planning source freshness → publication → own schedule → filters → subset/full print → revision/history/return where changed.
 
 Keep synthetic provenance factual and compact; saved captures and fixtures are not fresh runtime, cloud-deployment or acceptance proof. Follow the [Orchestrator Protocol](../../00_Project_Documents/TALA-Orchestrator-Protocol.md) for technical verification, owner review, explicit reporting permission and publication boundaries.
+
+### November 3 — shared illustrated Faculty Term chooser
+
+Owner requested the approved student-picker scenery in My Schedule's no-Term state. Applied it through the existing shared faculty-term-context partial, also used by My Availability. Reused the same wide/vertical transparent assets, scene mask, semantic tokens, heading/icon treatment and native Term form. Removed obsolete local chooser styling. The generic `servitech-picker-content` adapter shares the existing Filament schema content rules. Narrow scenery stays above controls. Selected-Term, no-meeting and unavailable-Term behavior is preserved; no scheduling policy or data changed. Exact checks and captures are in design-qa.md.

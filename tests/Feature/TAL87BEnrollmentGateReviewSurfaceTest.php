@@ -143,8 +143,8 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
 
         Livewire::actingAs($registrar)->withQueryParams(['view' => 'history'])
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->assertSee('Activity')
-            ->assertSee('Supporting records')
+            ->assertSee('Recorded changes')
+            ->assertSee('No enrollment activity recorded')
             ->assertSee($enrollment->case_reference);
 
         Livewire::actingAs($academicHead)->withQueryParams([])

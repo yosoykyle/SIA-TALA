@@ -11,8 +11,16 @@ use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
 use Filament\Actions\Action;
+use Filament\Actions\CreateAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Enums\ThemeMode;
 use Filament\Facades\Filament;
+use Filament\Support\Facades\FilamentView;
+use Filament\Support\Icons\Heroicon;
+use Filament\View\PanelsRenderHook;
+use Illuminate\Support\Facades\Blade;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -21,7 +29,7 @@ class HumanCenteredSharedThemeTest extends TestCase
     public function test_authentication_keeps_landmarks_recovery_and_context_without_staff_remember_device(): void
     {
         $response = $this->get('/admin/login')->assertOk()
-            ->assertSee('Sign in to TALA')
+            ->assertSee('Sign in')
             ->assertSee('<main', false)
             ->assertSee('Return to school home')
             ->assertSee('Contact school support')
@@ -73,6 +81,74 @@ class HumanCenteredSharedThemeTest extends TestCase
         }
     }
 
+    public function test_recurring_native_actions_share_purpose_icons_and_allow_a_task_specific_override(): void
+    {
+        foreach ([
+            [CreateAction::make(), Heroicon::Plus],
+            [EditAction::make(), Heroicon::PencilSquare],
+            [ViewAction::make(), Heroicon::Eye],
+            [DeleteAction::make(), Heroicon::Trash],
+            [Action::make('recordAcademicDecision'), Heroicon::Plus],
+            [Action::make('save'), Heroicon::Check],
+            [Action::make('apply'), Heroicon::Check],
+            [Action::make('cancel'), Heroicon::XMark],
+        ] as [$action, $icon]) {
+            $this->assertSame($icon, $action->getIcon());
+        }
+
+        $this->assertSame(Heroicon::AcademicCap, CreateAction::make()->icon(Heroicon::AcademicCap)->getIcon());
+        $this->assertNull(CreateAction::make()->icon(null)->getIcon());
+    }
+
+    #[DataProvider('panels')]
+    public function test_panel_links_share_native_loading_navigation_without_intercepting_outputs_or_account_switches(string $panelId): void
+    {
+        $panel = Filament::getPanel($panelId);
+        Filament::setCurrentPanel($panel);
+        Filament::bootCurrentPanel();
+
+        $this->assertTrue($panel->hasSpaMode());
+        $this->assertFalse($panel->hasSpaPrefetching());
+        $this->assertSame('var(--tala-brand-foreground)', config('livewire.navigate.progress_bar_color'));
+        $this->assertTrue(config('livewire.navigate.show_progress_bar'));
+
+        $internalUrl = url('/'.$panelId.'/records');
+        $link = Blade::render('<x-workspace-link :href="$href" icon="heroicon-o-document-text" label="Open record" />', ['href' => $internalUrl]);
+        $this->assertStringContainsString('wire:navigate', $link);
+
+        foreach ([
+            url('/outputs/cor/1'),
+            url('/finance/exports/1'),
+            url('/admissions/evidence/1'),
+            url('/workspace-chooser'),
+            url('/'.$panelId.'/login'),
+            url('/'.$panelId.'/password-reset/request'),
+            url('/'.($panelId === 'admin' ? 'student' : 'admin').'/login'),
+            'https://example.org/help',
+        ] as $normalUrl) {
+            $this->assertStringNotContainsString('wire:navigate', (string) \Filament\Support\generate_href_html($normalUrl));
+        }
+
+        $this->assertStringNotContainsString('wire:navigate', (string) \Filament\Support\generate_href_html($internalUrl, true));
+    }
+
+    #[DataProvider('panels')]
+    public function test_panels_render_the_shared_unsaved_navigation_confirmation(string $panelId): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel($panelId));
+        Filament::bootCurrentPanel();
+
+        $scripts = (string) FilamentView::renderHook(PanelsRenderHook::SCRIPTS_AFTER);
+        $this->assertStringContainsString('js/tala-unsaved-changes.js', $scripts);
+        $this->assertStringContainsString('data-navigate-once', $scripts);
+
+        $modal = Blade::render("@include('filament.components.unsaved-changes-confirmation')");
+        $this->assertStringContainsString('Leave without saving?', $modal);
+        $this->assertStringContainsString('Keep editing', $modal);
+        $this->assertStringContainsString('Leave page', $modal);
+        $this->assertStringContainsString('tala-unsaved-changes.heading', $modal);
+    }
+
     #[DataProvider('panels')]
     public function test_contextual_login_keeps_native_auth_designer_layouts_and_tracked_media(string $panelId): void
     {
@@ -80,8 +156,8 @@ class HumanCenteredSharedThemeTest extends TestCase
             ->assertOk()
             ->assertSee('images/brand/servitech-crest.webp', false)
             ->assertSee('talalogo.png', false)
-            ->assertSee('images/auth/'.$panelId.'.webp', false)
-            ->assertSee($panelId === 'admin' ? 'media-left' : 'media-cover', false)
+            ->assertSee('images/auth/admin.webp', false)
+            ->assertSee('media-top', false)
             ->assertDontSee('fi-auth-layout no-media', false)
             ->assertDontSee('storage/images/', false)
             ->assertSee('Enable light theme')
@@ -96,12 +172,12 @@ class HumanCenteredSharedThemeTest extends TestCase
     {
         $this->get('/'.$panelId.'/password-reset/request')
             ->assertOk()
-            ->assertSee('images/auth/'.$panelId.'.webp', false)
-            ->assertSee($panelId === 'admin' ? 'media-left' : 'media-cover', false);
+            ->assertSee('images/auth/admin.webp', false)
+            ->assertSee('media-top', false);
 
         foreach (['login', 'registration', 'password-reset', 'email-verification'] as $page) {
             $config = app(AuthDesignerConfigRepository::class)->getConfig($page, $panelId);
-            $this->assertSame($panelId === 'admin' ? MediaPosition::Left : MediaPosition::Cover, $config->position);
+            $this->assertSame(MediaPosition::Top, $config->position);
             $this->assertTrue($config->showThemeSwitcher);
             $this->assertSame('', $config->mediaAlt, 'Decorative media must not duplicate the form orientation.');
         }

@@ -1,5 +1,5 @@
 <x-tala-access-layout title="Choose workspace" heading-id="chooser-heading" :wide="true">
-            <h1 id="chooser-heading" class="text-3xl font-semibold">Choose a workspace</h1>
+            <h1 id="chooser-heading">Choose a workspace</h1>
             <p class="tala-access-muted mt-2">Only workspaces currently authorized for your account are shown.</p>
             <x-tala-context-entry-notice />
             @error('context')

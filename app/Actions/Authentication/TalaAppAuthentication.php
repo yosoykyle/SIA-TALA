@@ -7,6 +7,9 @@ use Filament\Actions\Action;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
 use Filament\Facades\Filament;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Wizard;
+use Filament\Support\Enums\Width;
 
 class TalaAppAuthentication extends AppAuthentication
 {
@@ -75,6 +78,30 @@ class TalaAppAuthentication extends AppAuthentication
 
         foreach ($actions as $action) {
             $action->button()->color('gray');
+
+            if ($action->getName() === 'setUpAppAuthentication') {
+                $action
+                    ->modalWidth(Width::FiveExtraLarge)
+                    ->modalHeading('Set up two-factor authentication')
+                    ->modalDescription('Use an authenticator app to protect your account.')
+                    ->modifyWizardUsing(function (Wizard $wizard): void {
+                        [$connect, $recovery] = $wizard->getDefaultChildComponents();
+
+                        [$setup, $code, $password] = $connect->getDefaultChildComponents();
+
+                        $connect
+                            ->label('Connect and verify')
+                            ->columns(['md' => 2])
+                            ->schema([
+                                $setup,
+                                Group::make([$code, $password]),
+                            ]);
+
+                        $recovery->label('Save recovery codes');
+
+                        $wizard->nextAction(fn (Action $action): Action => $action->label('Verify and continue'));
+                    });
+            }
         }
         $user = Filament::auth()->user();
 

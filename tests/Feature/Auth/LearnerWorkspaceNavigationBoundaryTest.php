@@ -77,7 +77,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
     {
         return [
             'Registrar' => [User::StaffRoleRegistrar, ['Admissions', 'Students & Enrollment', 'Grades & Completion', 'Catalog & Curricula', 'Term Planning']],
-            'Accounting' => [User::StaffRoleAccounting, ['Student Accounts', 'Fee Plans']],
+            'Accounting' => [User::StaffRoleAccounting, ['Student Accounts', 'Fee Plans', 'TOR restrictions']],
             'Faculty' => [User::StaffRoleFaculty, ['My schedule', 'My availability', 'Grade rosters']],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight']],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit']],

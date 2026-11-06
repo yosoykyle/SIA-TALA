@@ -3,6 +3,7 @@
 namespace App\Actions\Academics;
 
 use App\Mail\AcademicRecordChangedMail;
+use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\IncDeadlineAmendment;
@@ -10,6 +11,7 @@ use App\Models\OperationalEvent;
 use App\Models\StudentLifecycleChange;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -34,15 +36,15 @@ class AcademicRecordNotificationService
             GradeOutcomeEvent::TypePostedCorrection => OperationalEvent::TypeGradeCorrectionReleasedEmail,
             default => OperationalEvent::TypeAcademicProgressLifecycleEmail,
         };
-        $event = $this->recordForRecipientAfterCommit($student, $type, $resultEvent, $changeLabel, '/student/academics');
+        $event = $this->recordForRecipientAfterCommit($student, $type, $resultEvent, $changeLabel, '/student/academics?view=record#course-result-'.$resultEvent->row->course_enrollment_id);
 
         if ($resultEvent->event_type === GradeOutcomeEvent::TypeInitialRelease && $resultEvent->result_code === 'INC') {
-            $this->recordForRecipientAfterCommit($student, OperationalEvent::TypeIncReleasedEmail, $resultEvent, 'An INC result and completion deadline', '/student/academics');
+            $this->recordForRecipientAfterCommit($student, OperationalEvent::TypeIncReleasedEmail, $resultEvent, 'An INC result and completion deadline', '/student/academics?view=record#course-result-'.$resultEvent->row->course_enrollment_id);
             $facultyId = $resultEvent->row->roster?->teachingAssignment?->faculty_user_id;
             $faculty = is_numeric($facultyId) ? User::query()->find((int) $facultyId) : null;
 
             if ($faculty instanceof User) {
-                $this->recordForRecipientAfterCommit($faculty, OperationalEvent::TypeIncReleasedEmail, $resultEvent, 'An INC result requiring Faculty follow-up', '/admin/faculty-grade-roster');
+                $this->recordForRecipientAfterCommit($faculty, OperationalEvent::TypeIncReleasedEmail, $resultEvent, 'An INC result requiring Faculty follow-up', route('filament.admin.pages.faculty-grade-roster', ['roster' => $resultEvent->row->grade_roster_id], false));
             }
         }
 
@@ -55,7 +57,7 @@ class AcademicRecordNotificationService
         $faculty = User::query()->find($roster->teachingAssignment?->faculty_user_id);
 
         return $faculty instanceof User
-            ? $this->recordForRecipientAfterCommit($faculty, OperationalEvent::TypeGradeSubmissionRequiredEmail, $roster, 'A current official roster requires final-result submission', '/admin/faculty-grade-roster', "lock:{$roster->lock_version}")
+            ? $this->recordForRecipientAfterCommit($faculty, OperationalEvent::TypeGradeSubmissionRequiredEmail, $roster, 'A current official roster requires final-result submission', route('filament.admin.pages.faculty-grade-roster', ['roster' => $roster->id], false), "lock:{$roster->lock_version}")
             : null;
     }
 
@@ -65,7 +67,7 @@ class AcademicRecordNotificationService
         $faculty = User::query()->find($roster->teachingAssignment?->faculty_user_id);
 
         return $faculty instanceof User
-            ? $this->recordForRecipientAfterCommit($faculty, OperationalEvent::TypeGradeRosterReturnedEmail, $roster, 'Named roster rows were returned for correction', '/admin/faculty-grade-roster', "version:{$roster->current_version_number}")
+            ? $this->recordForRecipientAfterCommit($faculty, OperationalEvent::TypeGradeRosterReturnedEmail, $roster, 'Named roster rows were returned for correction', route('filament.admin.pages.faculty-grade-roster', ['roster' => $roster->id], false), "version:{$roster->current_version_number}")
             : null;
     }
 
@@ -77,7 +79,7 @@ class AcademicRecordNotificationService
 
         foreach ([$student, $faculty] as $recipient) {
             if ($recipient instanceof User) {
-                $this->recordForRecipientAfterCommit($recipient, OperationalEvent::TypeIncDeadlineAmendedEmail, $amendment, 'An authorized INC deadline amendment', $recipient->hasRole('student') ? '/student/academics' : '/admin/faculty-grade-roster');
+                $this->recordForRecipientAfterCommit($recipient, OperationalEvent::TypeIncDeadlineAmendedEmail, $amendment, 'An authorized INC deadline amendment', $recipient->hasRole('student') ? '/student/academics?view=record#course-result-'.$amendment->incompleteEvent->row->course_enrollment_id : route('filament.admin.pages.faculty-grade-roster', ['roster' => $amendment->incompleteEvent->row->grade_roster_id], false));
             }
         }
     }
@@ -96,6 +98,10 @@ class AcademicRecordNotificationService
                 throw new AuthorizationException('You are not authorized to resend this academic notification.');
             }
 
+            if (! $this->retryableQuery(OperationalEvent::query())->whereKey($event->id)->exists()) {
+                throw ValidationException::withMessages(['notification' => 'This class no longer needs this submission reminder. Open its current roster instead.']);
+            }
+
             $event->update([
                 'status' => OperationalEvent::StatusPending,
                 'processed_at' => null,
@@ -106,6 +112,27 @@ class AcademicRecordNotificationService
 
             return $event->fresh();
         }, attempts: 3);
+    }
+
+    /** @param Builder<OperationalEvent> $events
+     * @return Builder<OperationalEvent>
+     */
+    public function retryableQuery(Builder $events): Builder
+    {
+        $rostersNeedingSubmission = GradeRoster::query()->select('id')
+            ->whereIn('state', [GradeRoster::StateDraft, GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted])
+            ->whereHas('teachingAssignment', fn (Builder $assignment): Builder => $assignment
+                ->where('state', ClassOfferingTeachingAssignment::StateActive)
+                ->whereColumn('class_offering_teaching_assignments.faculty_user_id', 'operational_events.user_id'));
+
+        return $events->whereIn('event_type', OperationalEvent::academicNotificationTypes())
+            ->whereIn('status', [OperationalEvent::StatusFailed, OperationalEvent::StatusPending])
+            ->where(fn (Builder $query): Builder => $query
+                ->where('event_type', '!=', OperationalEvent::TypeGradeSubmissionRequiredEmail)
+                ->orWhere(fn (Builder $reminder): Builder => $reminder
+                    ->where('event_type', OperationalEvent::TypeGradeSubmissionRequiredEmail)
+                    ->where('related_record_type', (new GradeRoster)->getMorphClass())
+                    ->whereIn('related_record_id', $rostersNeedingSubmission)));
     }
 
     public function recordLifecycleAfterCommit(StudentLifecycleChange $change): ?OperationalEvent

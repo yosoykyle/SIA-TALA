@@ -19,9 +19,14 @@ use App\Http\Controllers\TranscriptPreviewController;
 use App\Http\Controllers\TranscriptSnapshotController;
 use App\Http\Controllers\UnofficialStudentRecordController;
 use App\Http\Controllers\WorkspaceContextController;
+use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', PublicGatewayController::class)->name('home');
+$signInPanel = Filament::getPanel('admin');
+Route::get('/sign-in', $signInPanel->getLoginRouteAction())
+    ->middleware($signInPanel->getMiddleware())
+    ->name('public.sign-in');
 Route::get('/apply', [PublicGatewayController::class, 'apply'])->name('public.apply');
 Route::get('/application-status/{token?}', fn () => response()->view('admissions.public-entry-recovery')
     ->withHeaders([
@@ -42,6 +47,8 @@ Route::get('/staff-email-change/{change}', StaffEmailChangeController::class)
 Route::middleware('auth')->group(function (): void {
     Route::get('/student/profile-photo', StudentProfilePhotoController::class)
         ->name('student.profile-photo');
+    Route::get('/staff/grade-rosters/{roster}/students/{row}/profile-photo', [StudentProfilePhotoController::class, 'forRoster'])
+        ->whereNumber('row')->name('grade-rosters.student-photo');
     Route::get('/workspace-chooser', [WorkspaceContextController::class, 'show'])->name('workspace-chooser');
     Route::post('/workspace-chooser', [WorkspaceContextController::class, 'store'])
         ->name('workspace-chooser.select');

@@ -1,4 +1,4 @@
-<section class="student-profile-identity student-identity-panel tala-task-surface" aria-label="Student identity">
+<section class="student-profile-identity student-identity-panel tala-identity-surface tala-task-surface" aria-label="Student identity">
     @include('filament.components.learner-journey-art', ['artClass' => 'student-identity-art', 'artAlignment' => 'xMaxYMax meet'])
     <div class="student-profile-avatar" aria-hidden="true">@if (auth()->user()->avatar_path ?? null)<img src="{{ auth()->user()->getFilamentAvatarUrl() }}" alt="">@else{{ str($student?->first_name)->substr(0, 1) }}{{ str($student?->last_name)->substr(0, 1) }}@endif</div>
     <div class="student-identity-content">

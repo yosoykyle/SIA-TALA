@@ -2,10 +2,9 @@
 
 namespace App\Actions\Academics;
 
-use App\Models\CourseSpecification;
 use App\Models\StudentProfile;
 use App\Models\Term;
-use App\Models\TermAverageLabel;
+use Illuminate\Support\Collection;
 
 class TermWeightedAverageProjection
 {
@@ -14,51 +13,37 @@ class TermWeightedAverageProjection
         private readonly AcademicAverageReadiness $readiness,
     ) {}
 
-    /** @return array{state: string, value: ?string, label: string, reason: ?string, through: ?string} */
+    /** @return array{state: string, value: ?string, label: string, reason: ?string, through: ?string, as_of: string, exclusions: list<string>} */
     public function forStudentAndTerm(StudentProfile $student, Term $term): array
     {
-        $results = $this->results->forStudent($student, $term);
+        return $this->forResults($this->results->forStudent($student, $term), $term);
+    }
+
+    /** @param Collection<int, array<string, mixed>> $results
+     * @return array{state: string, value: ?string, label: string, reason: ?string, through: ?string, as_of: string, exclusions: list<string>}
+     */
+    public function forResults(Collection $results, Term $term): array
+    {
+        $results = $results->where('term.id', $term->id);
         $state = $this->readiness->forResults($results);
-        $label = TermAverageLabel::query()->where('term_id', $term->id)->where('is_current', true)->latest('recorded_at')->value('label')
-            ?? 'Term weighted average';
-
-        if ($state !== AcademicAverageReadiness::Available) {
-            return ['state' => $state, 'value' => null, 'label' => $label, 'reason' => $this->reasonFor($state), 'through' => null];
-        }
-
-        if ($results->contains(fn (array $result): bool => $result['course_specification']?->academic_classification === null)) {
-            return [
-                'state' => AcademicAverageReadiness::GradesNotComplete,
-                'value' => null,
-                'label' => $label,
-                'reason' => 'Course academic classification is not recorded.',
-                'through' => null,
-            ];
-        }
-
-        $included = $results->filter(fn (array $result): bool => is_numeric($result['result'])
-            && ! in_array($result['course_specification']?->academic_classification, [
-                CourseSpecification::AcademicClassificationPe,
-                CourseSpecification::AcademicClassificationNstp,
-            ], true));
-        $units = $included->sum(fn (array $result): float => (float) $result['units']);
-        $weighted = $included->sum(fn (array $result): float => (float) $result['result'] * (float) $result['units']);
 
         return [
-            'state' => AcademicAverageReadiness::Available,
-            'value' => number_format(round($weighted / $units, 2, PHP_ROUND_HALF_UP), 2, '.', ''),
-            'label' => $label,
-            'reason' => null,
-            'through' => $term->label,
+            'state' => $state,
+            'value' => $state === AcademicAverageReadiness::Available ? $this->readiness->average($results) : null,
+            'label' => 'Term weighted average',
+            'reason' => $state === AcademicAverageReadiness::Available ? null : $this->reasonFor($state),
+            'through' => $state === AcademicAverageReadiness::Available ? $term->label : null,
+            'as_of' => now('Asia/Manila')->toIso8601String(),
+            'exclusions' => $results->pluck('average_exclusion')->filter()->unique()->values()->all(),
         ];
     }
 
     private function reasonFor(string $state): string
     {
         return match ($state) {
-            AcademicAverageReadiness::GradesNotComplete => 'Official results are not complete for this term.',
-            AcademicAverageReadiness::IncompleteResultPending => 'An INC remains unresolved for this term.',
-            AcademicAverageReadiness::NotApplicable => 'No included numeric units apply to this term.',
+            AcademicAverageReadiness::GradesNotComplete => 'Official results or course classifications are not complete for this term.',
+            AcademicAverageReadiness::IncompleteResultPending => 'Current academic average pending — incomplete grade unresolved.',
+            AcademicAverageReadiness::NotApplicable => 'Not applicable — no included academic units.',
             default => 'Academic average is unavailable.',
         };
     }

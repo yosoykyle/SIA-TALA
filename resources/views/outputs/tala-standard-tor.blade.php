@@ -1,5 +1,6 @@
 <x-official-output-layout
     title="TRANSCRIPT OF RECORDS"
+    :embedded="$embedded ?? false"
     :subtitle="$document['template_version'].' · Request '.$request->external_request_reference.' · Due '.$request->due_on->format('F j, Y')"
     :context="strtoupper($status)"
     :generated-at="$document['generated_at']"
@@ -56,13 +57,15 @@
         </section>
     @endforeach
 
+    @if (filled($conferral['degree'] ?? null))
     <section aria-labelledby="completion-conferral">
         <h2 id="completion-conferral" class="finance-heading">Completion and conferral</h2>
-        <p><strong>{{ $conferral['degree'] }}</strong> · Conferred {{ \Carbon\CarbonImmutable::parse($conferral['conferred_on'])->format('F j, Y') }}</p>
+        <p><strong>{{ $conferral['degree'] }}</strong>@if (filled($conferral['conferred_on'] ?? null)) · Conferred {{ \Carbon\CarbonImmutable::parse($conferral['conferred_on'])->format('F j, Y') }}@endif</p>
         @if (filled($conferral['honor']))
             <p>Recorded honor: {{ $conferral['honor'] }}</p>
         @endif
     </section>
+    @endif
 
     <section aria-labelledby="certification">
         <h2 id="certification" class="finance-heading">Registrar certification</h2>

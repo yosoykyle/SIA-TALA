@@ -29,7 +29,7 @@ class UnofficialStudentRecordController extends Controller
             403,
         );
 
-        $results = $this->results->forStudent($student)->filter(fn (array $result): bool => $result['event'] !== null);
+        $results = $this->results->forStudent($student)->filter(fn (array $result): bool => $result['outcome_source'] !== null);
         abort_if($results->isEmpty(), 409, 'No released academic results are available for an unofficial record.');
         $terms = $results->pluck('term')->filter()->unique('id')->sortBy('ends_on')->values();
         $termAverages = $terms->mapWithKeys(fn ($term): array => [

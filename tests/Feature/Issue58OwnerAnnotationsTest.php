@@ -184,7 +184,7 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $curriculum = CurriculumVersion::factory()->create(['state' => CurriculumVersion::StateActive]);
         CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->create(['term_type' => $term->type]);
         Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
-            ->assertSee('Other curriculum programs')->assertSee('No classes or student sections recorded for this Term')
+            ->assertSee('Programs and year levels')->assertSee('A year without classes is not automatically required to run.')
             ->assertSee(TermClasses::getUrl(['termId' => $term->id]));
         Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
             ->assertActionVisible(TestAction::make('setUpYear')->table())
@@ -192,7 +192,7 @@ class Issue58OwnerAnnotationsTest extends TestCase
 
         $this->staff(User::StaffRoleAcademicHead);
         Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
-            ->assertSee('Other curriculum programs')->assertSee('The Registrar maintains these records.')
+            ->assertSee('Programs and year levels')->assertSee('The Registrar maintains these records.')
             ->assertSee(TermClasses::getUrl(['termId' => $term->id]));
         Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
             ->assertActionHidden(TestAction::make('setUpYear')->table());

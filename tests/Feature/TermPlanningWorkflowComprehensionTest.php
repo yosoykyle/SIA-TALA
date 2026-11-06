@@ -208,7 +208,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         [$registrar, $term, $prefix] = $this->scenario();
         $this->actingAs($registrar);
         $overview = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
-            ->assertSee('Programs and year levels')->assertSee('School-wide planning');
+            ->assertSee('Programs and year levels')->assertSee('School-wide · All programs and year levels');
         $this->assertSame(3, $overview->instance()->coverage()['summary']['class_count']);
         $this->assertSame(3, $overview->viewData('sourceClasses')->whereNotNull('confirmed_at')->count());
         Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
@@ -235,9 +235,9 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
             ->update(['state' => TermCalendarPackage::StateClosed]);
 
         Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
-            ->assertSeeInOrder(['Teaching calendar', 'Set teaching calendar', 'Classes & student sections', 'Review and confirm classes', 'Faculty & rooms', 'Timetable'])
+            ->assertSeeInOrder(['Classes & student sections', 'Review and confirm classes', 'Faculty & rooms', 'Teaching calendar', 'Set teaching calendar', 'Timetable'])
             ->assertSee('Candidate under review')
-            ->assertSee('Official v1 stays in use')
+            ->assertSee('Official timetable v1 stays in use')
             ->assertDontSee('Next task:')
             ->assertDontSee('Other work and replies');
     }

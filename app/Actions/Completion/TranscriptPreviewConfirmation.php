@@ -2,7 +2,6 @@
 
 namespace App\Actions\Completion;
 
-use App\Models\OfficialOutputPaymentClearance;
 use App\Models\OutputAccessLog;
 use App\Models\TranscriptRequest;
 use App\Models\TranscriptSnapshot;
@@ -31,7 +30,6 @@ class TranscriptPreviewConfirmation
         $this->assertOperation($operation);
         $reference = $this->nextReference($request);
         $confirmation = (string) Str::uuid();
-        $clearance = $request->currentClearance();
         $binding = [
             'reference' => $confirmation,
             'preview_access_log_id' => $accessLog->id,
@@ -41,10 +39,7 @@ class TranscriptPreviewConfirmation
             'source_fingerprint' => (string) $content['source_fingerprint'],
             'expected_reference' => $reference,
             'template_version' => $request->template_version,
-            'clearance_id' => $clearance?->id,
-            'clearance_state' => $clearance instanceof OfficialOutputPaymentClearance
-                ? $clearance->state
-                : OfficialOutputPaymentClearance::StateActionNeeded,
+            'output_restriction_source' => app(OfficialOutputRestrictionService::class)->fingerprintFor($request->studentProfile),
             'signatory_fingerprint' => $this->signatoryFingerprint($request),
             'predecessor_snapshot_id' => $predecessor?->id,
             'predecessor_event_id' => $predecessor?->events()->latest('id')->value('id'),
@@ -81,7 +76,6 @@ class TranscriptPreviewConfirmation
             throw ValidationException::withMessages(['preview' => 'Preview the current TOR and review it before confirming this action.']);
         }
 
-        $clearance = $request->currentClearance();
         $actual = [
             'reference' => $reference,
             'actor_id' => $actor->id,
@@ -90,10 +84,7 @@ class TranscriptPreviewConfirmation
             'source_fingerprint' => $sourceFingerprint,
             'expected_reference' => $expectedReference,
             'template_version' => $request->template_version,
-            'clearance_id' => $clearance?->id,
-            'clearance_state' => $clearance instanceof OfficialOutputPaymentClearance
-                ? $clearance->state
-                : OfficialOutputPaymentClearance::StateActionNeeded,
+            'output_restriction_source' => app(OfficialOutputRestrictionService::class)->fingerprintFor($request->studentProfile),
             'signatory_fingerprint' => $this->signatoryFingerprint($request),
             'predecessor_snapshot_id' => $predecessor?->id,
             'predecessor_event_id' => $predecessor?->events()->latest('id')->value('id'),
@@ -148,6 +139,7 @@ class TranscriptPreviewConfirmation
     private function signatoryFingerprint(TranscriptRequest $request): string
     {
         return hash('sha256', json_encode([
+            'printed_signatory' => app(TranscriptSignatory::class)->forRequest($request),
             'name' => $request->signatory_name,
             'title' => $request->signatory_title,
             'seal_input_type' => $request->seal_input_type,

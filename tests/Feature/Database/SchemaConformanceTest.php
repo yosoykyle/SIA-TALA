@@ -36,7 +36,7 @@ final class SchemaConformanceTest extends TestCase
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
         'payment_attempt_obligations', 'payment_attempts', 'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
         'pending_email_changes',
-        'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances',
+        'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances', 'official_output_restrictions',
         'public_notices', 'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
         'registrar_enrollment_clearances', 'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_credit_evaluations', 'registration_identity_confirmation_versions', 'registration_late_authorities',
         'registration_proposal_confirmations', 'registration_proposal_items', 'registration_proposal_versions',
@@ -68,9 +68,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(131, self::APPLICATION_TABLES);
+        $this->assertCount(132, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(149, $actual);
+        $this->assertCount(150, $actual);
         $this->assertSame($expected, $actual);
     }
 
@@ -87,6 +87,7 @@ final class SchemaConformanceTest extends TestCase
         $this->assertColumns('fee_plan_obligations', ['sequence', 'purpose', 'due_at']);
         $this->assertColumns('assessment_obligations', ['sequence', 'purpose', 'due_at']);
         $this->assertColumns('approved_coverages', ['state', 'category', 'effective_date', 'supersedes_coverage_id']);
+        $this->assertColumns('official_output_restrictions', ['student_profile_id', 'output_type', 'reason', 'source_reference', 'recorded_by', 'recorded_at', 'resolved_by', 'resolved_at', 'resolution_reason']);
         $this->assertColumns('official_output_payment_clearances', ['output_request_reference', 'version', 'supersedes_clearance_id', 'state']);
         $this->assertColumns('ledger_entries', ['source_type', 'source_id', 'reverses_entry_id', 'adjusts_entry_id']);
         $this->assertColumns('accounting_adjustments', ['source_ledger_entry_id', 'ledger_entry_id', 'adjustment_type', 'posted_by']);
@@ -120,6 +121,9 @@ final class SchemaConformanceTest extends TestCase
         $this->assertForeignKey('payment_attempt_obligations', 'assessment_obligation_id', 'assessment_obligations', 'RESTRICT');
         $this->assertForeignKey('payment_allocations', 'payment_id', 'payments', 'RESTRICT');
         $this->assertForeignKey('approved_coverages', 'supersedes_coverage_id', 'approved_coverages', 'RESTRICT');
+        $this->assertForeignKey('official_output_restrictions', 'student_profile_id', 'student_profiles', 'RESTRICT');
+        $this->assertForeignKey('official_output_restrictions', 'recorded_by', 'users', 'RESTRICT');
+        $this->assertForeignKey('official_output_restrictions', 'resolved_by', 'users', 'RESTRICT');
         $this->assertForeignKey('official_output_payment_clearances', 'supersedes_clearance_id', 'official_output_payment_clearances', 'RESTRICT');
         $this->assertForeignKey('ledger_entries', 'payment_allocation_id', 'payment_allocations', 'RESTRICT');
         $this->assertForeignKey('accounting_adjustments', 'ledger_entry_id', 'ledger_entries', 'RESTRICT');

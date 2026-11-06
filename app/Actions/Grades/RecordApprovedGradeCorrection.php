@@ -23,13 +23,19 @@ class RecordApprovedGradeCorrection
         private readonly CompletionReadinessProjection $completionReadiness,
     ) {}
 
-    public function execute(GradeRosterRow $row, string $correctedCode, string $authority, string $reason, ?string $evidenceReference, User $actor, ?string $commandKey = null): GradeRosterRow
+    public function execute(GradeRosterRow $row, string $correctedCode, string $reason, User $actor, ?string $commandKey = null, ?int $expectedEventId = null): GradeRosterRow
     {
         if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff can record posted grade corrections.');
         }
 
-        return DB::transaction(function () use ($row, $correctedCode, $authority, $reason, $evidenceReference, $actor, $commandKey): GradeRosterRow {
+        $reason = trim($reason);
+
+        if ($reason === '') {
+            throw new RuntimeException('A reason for the grade correction is required.');
+        }
+
+        return DB::transaction(function () use ($row, $correctedCode, $reason, $actor, $commandKey, $expectedEventId): GradeRosterRow {
             $locked = GradeRosterRow::query()->lockForUpdate()->findOrFail($row->id);
 
             if ($locked->released_at === null) {
@@ -37,10 +43,8 @@ class RecordApprovedGradeCorrection
             }
 
             $code = $this->policy->normalize($correctedCode);
-            $predecessor = $locked->outcomeEvents()->latest('id')->firstOrFail();
-            $termEndsOn = $predecessor->source_term_ends_on ?? $locked->roster->termOffering->term->ends_on;
             $sourceKey = 'grade-correction:'.hash('sha256', $commandKey ?? implode('|', [
-                $locked->id, $code, trim($authority), trim($reason), (string) $evidenceReference,
+                $locked->id, $code, $reason,
             ]));
 
             $existing = $locked->outcomeEvents()->where('source_key', $sourceKey)->first();
@@ -49,6 +53,17 @@ class RecordApprovedGradeCorrection
                 return $locked->fresh('outcomeEvents');
             }
 
+            $predecessor = $locked->outcomeEvents()->whereNotNull('released_at')->latest('id')->lockForUpdate()->firstOrFail();
+
+            if ($expectedEventId !== null && (int) $predecessor->id !== $expectedEventId) {
+                throw new RuntimeException('The released result changed. Reload and review the current result before recording a correction.');
+            }
+
+            if ($code === $this->policy->normalize($predecessor->result_code)) {
+                throw new RuntimeException('Choose a different final result. The selected result is already the official result.');
+            }
+
+            $termEndsOn = $predecessor->source_term_ends_on ?? $locked->roster->termOffering->term->ends_on;
             $event = $locked->outcomeEvents()->create([
                 'source_key' => $sourceKey,
                 'event_type' => GradeOutcomeEvent::TypePostedCorrection,
@@ -60,9 +75,7 @@ class RecordApprovedGradeCorrection
                 'previous_category' => $locked->current_outcome_category,
                 'new_category' => $this->policy->category($code),
                 'deadline' => $code === 'INC' ? $this->deadlines->originalDeadline($termEndsOn)->toDateString() : null,
-                'authority' => $authority,
                 'reason' => $reason,
-                'evidence_reference' => $evidenceReference,
                 'recorded_by' => $actor->id,
                 'released_at' => now(),
             ]);
@@ -75,7 +88,7 @@ class RecordApprovedGradeCorrection
             $this->notifications->recordAfterCommit($event, 'An authorized academic result correction');
             $student = $locked->courseEnrollment?->enrollment?->studentProfile;
             if ($student !== null) {
-                $this->transcriptSupersession->execute($student, $actor, $authority, $reason);
+                $this->transcriptSupersession->execute($student, $actor, '', $reason);
                 $this->completionReadiness->persist($student, $actor);
             }
 

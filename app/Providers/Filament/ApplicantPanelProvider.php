@@ -17,7 +17,6 @@ use App\Http\Middleware\EnsureStaffMfaIsEnabled;
 use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
-use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
 use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -58,11 +57,7 @@ class ApplicantPanelProvider extends PanelProvider
             ->brandName('Servitech Institute Asia')
             ->plugin(
                 AuthDesignerPlugin::make()
-                    ->defaults(fn (AuthPageConfig $config) => $config
-                        ->media(is_file(public_path('images/auth/applicant.webp')) ? asset('images/auth/applicant.webp') : null, alt: '')
-                        ->mediaPosition(MediaPosition::Cover)
-                        ->blur(6)
-                    )
+                    ->defaults(TalaPanelTheme::authLayout(...))
                     ->login(fn (AuthPageConfig $config) => $config
                         ->usingPage(ContextualLogin::class)
                     )

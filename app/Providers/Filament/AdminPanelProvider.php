@@ -81,7 +81,6 @@ use App\Queries\Admissions\AdmissionQueueCounts;
 use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
-use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -131,11 +130,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('Servitech Institute Asia — Staff Workspace')
             ->plugin(
                 AuthDesignerPlugin::make()
-                    ->defaults(fn (AuthPageConfig $config) => $config
-                        ->media(is_file(public_path('images/auth/admin.webp')) ? asset('images/auth/admin.webp') : null, alt: '')
-                        ->mediaPosition(MediaPosition::Left)
-                        ->mediaSize('50%')
-                    )
+                    ->defaults(TalaPanelTheme::authLayout(...))
                     ->login(fn (AuthPageConfig $config) => $config
                         ->usingPage(ContextualLogin::class)
                     )
@@ -335,10 +330,8 @@ class AdminPanelProvider extends PanelProvider
         if ($selectedContext === User::StaffRoleRegistrar) {
             return $builder->group('Learner work', [
                 ...$this->admissionsWithQueues($this->labeledNavigationItems(['Admissions' => Admissions::class])),
-                ...$this->labeledNavigationItems([
-                    'Students & Enrollment' => EnrollmentResource::class,
-                    'Grades & Completion' => GradesAndCompletion::class,
-                ]),
+                ...$this->labeledNavigationItems(['Students & Enrollment' => EnrollmentResource::class]),
+                ...$this->gradesWithChildren($this->labeledNavigationItems(['Grades & Completion' => GradesAndCompletion::class])),
             ])->group('Academic setup', $this->planningWithChildren($this->labeledNavigationItems([
                 'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
                 'Term Planning' => TermPlanningCluster::class,
@@ -349,6 +342,7 @@ class AdminPanelProvider extends PanelProvider
             User::StaffRoleAccounting => [
                 'Student Accounts' => EnrollmentResource::class,
                 'Fee Plans' => FeePlanResource::class,
+                'TOR restrictions' => TranscriptRequestResource::class,
             ],
             User::StaffRoleFaculty => [
                 'My schedule' => FacultySchedule::class,
@@ -523,6 +517,46 @@ class AdminPanelProvider extends PanelProvider
                     return $item->label($label);
                 })->all();
         })->values()->all();
+    }
+
+    /**
+     * @param  list<NavigationItem>  $items
+     * @return list<NavigationItem>
+     */
+    private function gradesWithChildren(array $items): array
+    {
+        if (! GradesAndCompletion::canAccess()) {
+            return $items;
+        }
+
+        $request = \Filament\Support\original_request();
+        $inside = $request->routeIs(GradesAndCompletion::getRouteName(), CompletionAndTor::getRouteName())
+            || $request->routeIs('filament.admin.resources.grade-rosters.*', 'filament.admin.resources.student-lifecycle-changes.*', 'filament.admin.resources.transcript-requests.*')
+            || ($request->query('viewTab') === 'academic-progress' && $request->routeIs('filament.admin.resources.student-profiles.*'));
+
+        if (! $inside) {
+            return $items;
+        }
+
+        if ($request->routeIs(GradesAndCompletion::getRouteName())
+            && ! array_key_exists((string) $request->query('viewTab', 'overview'), GradesAndCompletion::tabs())) {
+            return $items;
+        }
+
+        $selected = match (true) {
+            $request->routeIs('filament.admin.resources.student-profiles.*') => 'academic-progress',
+            $request->routeIs('filament.admin.resources.student-lifecycle-changes.*') => 'lifecycle',
+            $request->routeIs(CompletionAndTor::getRouteName(), 'filament.admin.resources.transcript-requests.*') => 'completion-tor',
+            default => (string) $request->query('viewTab', 'grade-review'),
+        };
+        $selected = array_key_exists($selected, GradesAndCompletion::tabs()) ? $selected : 'grade-review';
+        $areas = GradesAndCompletion::workAreas();
+        $children = collect(GradesAndCompletion::tabs())->map(fn (string $label, string $key): NavigationItem => NavigationItem::make($label)
+            ->icon($areas[$key]['icon'])
+            ->url(GradesAndCompletion::getUrl(['viewTab' => $key]))
+            ->isActiveWhen(fn (): bool => $selected === $key))->values()->all();
+
+        return array_map(fn (NavigationItem $item): NavigationItem => $item->childItems($children), $items);
     }
 
     /**

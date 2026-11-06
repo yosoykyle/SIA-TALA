@@ -116,6 +116,8 @@ footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #555; font-si
     .document { width: 100%; }
     .document > thead { display: table-header-group; break-inside: avoid; page-break-inside: avoid; }
     .document-header { break-inside: avoid; break-after: avoid; }
+    .document th, .document td { padding-block: 4px; }
+    .document h2, .document h3 { margin-block: 8px 4px; }
     tr, section, .receipt-evidence, .notice, footer { break-inside: avoid; page-break-inside: avoid; }
     h2, h3 { break-after: avoid; page-break-after: avoid; }
 }

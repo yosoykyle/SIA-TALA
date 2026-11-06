@@ -21,7 +21,6 @@ use App\Actions\Grades\ManageTeachingAssignment;
 use App\Actions\Grades\PostAndReleaseGradeRoster;
 use App\Actions\Grades\RecordApprovedGradeCorrection;
 use App\Actions\Grades\ReleaseIncCompletion;
-use App\Actions\Grades\SaveFinalGradeResult;
 use App\Actions\Grades\SubmitGradeRoster;
 use App\Actions\Grades\SubmitIncCompletion;
 use App\Actions\Grades\SynchronizeOfficialGradeRoster;
@@ -56,11 +55,13 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
+use Tests\InteractsWithGradeRosterDrafts;
 use Tests\TestCase;
 
 final class CanonicalSpecialTermJourneyTest extends TestCase
 {
     use DatabaseTransactions;
+    use InteractsWithGradeRosterDrafts;
 
     protected function setUp(): void
     {
@@ -298,6 +299,11 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         $partial = app(TermWeightedAverageProjection::class)->forStudentAndTerm($profile, $term);
         $this->assertSame(AcademicAverageReadiness::GradesNotComplete, $partial['state']);
         $this->assertNull($partial['value']);
+        $partialCumulative = app(CumulativeGwaProjection::class)->forStudent($profile);
+        $this->assertSame(AcademicAverageReadiness::GradesNotComplete, $partialCumulative['state']);
+        $this->assertSame('2.00', $partialCumulative['value']);
+        $this->assertSame(30, $partialCumulative['included_attempts']);
+        $this->assertNotSame($term->label, $partialCumulative['through']);
 
         $this->releaseRoster($retakeRoster, '2.50', $faculty, $registrar, 'RELEASE-IT201-ST');
         $termAverage = app(TermWeightedAverageProjection::class)->forStudentAndTerm($profile, $term);
@@ -361,11 +367,11 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         $incSubmission = app(SubmitIncCompletion::class)->execute(
             $incEvent, '2.50', 'Laboratory demonstration completed.', $faculty,
         );
-        $incSuccessor = app(ReleaseIncCompletion::class)->execute($incSubmission, $registrar, 'INC-COMPLETION-ST-001');
+        $incSuccessor = app(ReleaseIncCompletion::class)->execute($incSubmission, $registrar);
         $this->assertSame($incEvent->id, $incSuccessor->predecessor_event_id);
 
         $corrected = app(RecordApprovedGradeCorrection::class)->execute(
-            $incRoster->fresh()->rows->sole(), '2.25', 'CORRECTION-BOARD-ST-001', 'Approved grade correction.', 'EVIDENCE-ST-001', $registrar,
+            $incRoster->fresh()->rows->sole(), '2.25', 'Approved grade correction.', $registrar,
         );
         $correctionEvent = $corrected->outcomeEvents()->latest('id')->firstOrFail();
         $this->assertSame($incSuccessor->id, $correctionEvent->predecessor_event_id);
@@ -487,7 +493,9 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         string $authority,
         ?string $incNote = null,
     ): void {
-        app(SaveFinalGradeResult::class)->execute($roster->rows->sole(), $result, $incNote, $faculty);
+        $this->saveGradeRosterDraft($roster, $faculty, [
+            $roster->rows->sole()->id => ['final_result' => $result, 'inc_completion_note' => $incNote],
+        ]);
         $submitted = app(SubmitGradeRoster::class)->execute($roster, $faculty);
         app(PostAndReleaseGradeRoster::class)->execute($submitted, $registrar, $authority);
     }

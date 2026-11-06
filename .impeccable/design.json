@@ -3,6 +3,7 @@
   "generatedAt": "2026-10-11T00:40:28.7961583Z",
   "title": "Design System: Servitech Institute Asia — TALA",
   "extensions": {
+    "cardGap": { "token": "--tala-card-gap", "value": "0.75rem", "purpose": "Spacing between related raised cards." },
     "sharedDarkAppearance": {
       "source": "DESIGN.md",
       "updated": "2026-10-23",
@@ -12,7 +13,7 @@
     "shadows": [
       {
         "name": "shadow-surface-light",
-        "value": "0 1px 2px rgb(9 9 11 / 5%), 0 2px 6px -2px rgb(9 9 11 / 6%), 0 10px 24px -12px rgb(9 9 11 / 10%)",
+        "value": "0 1px 2px rgb(9 9 11 / 4%), 0 3px 8px -4px rgb(9 9 11 / 7%)",
         "purpose": "Extracted shared light material depth."
       },
       {
@@ -152,7 +153,7 @@
       "refersTo": "card",
       "description": "Solid readable content with one elevation per stack.",
       "html": "<section class=\"ds-surface\"><strong>Application review</strong><p>Review the next action for this application.</p></section>",
-      "css": ".ds-surface{background:var(--tala-surface);color:var(--tala-text);border:1px solid var(--tala-edge);border-radius:12px;padding:24px;box-shadow:var(--tala-rim-inset),var(--tala-shadow-surface);font:14px/1.5 var(--tala-font-body)}.ds-surface p{color:var(--tala-muted);margin-bottom:0}"
+      "css": ".ds-surface{background:var(--tala-surface);color:var(--tala-text);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);padding:24px;box-shadow:var(--tala-material-raised);font:14px/1.5 var(--tala-font-body)}.ds-surface p{color:var(--tala-muted);margin-bottom:0}"
     },
     {
       "name": "Current location",

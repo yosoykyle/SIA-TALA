@@ -10,6 +10,7 @@
     'backLabel' => 'Back',
     'schedulePresentation' => false,
     'documentClass' => null,
+    'embedded' => false,
 ])
 
 @php
@@ -303,8 +304,23 @@
                 border: 0 !important;
                 margin: 0 !important;
                 max-width: none !important;
-                padding: 0 !important;
+                padding: 0 1mm !important;
             }
+
+            .official-output-header {
+                margin-bottom: 12px;
+                padding-bottom: 8px;
+            }
+
+            .official-output-identity { gap: 10px; }
+            .official-output-logo { width: 44px; height: 44px; }
+            .official-output-context { padding: 4px 8px; }
+            .official-output :is(th, td) { padding: 4px 6px; overflow-wrap: anywhere; }
+            .official-output-footer { margin-top: 12px; }
+            .finance-grid { margin-bottom: 12px; }
+            .finance-heading { margin-block: 12px 6px; }
+            .finance-summary, .schedule-owner { margin-block-end: 8px; }
+            .finance-summary { margin-block-start: 8px; }
 
             .official-output-notice {
                 background: #ffffff !important;
@@ -371,12 +387,14 @@
     {{ $documentStyles ?? '' }}
 </head>
 <body class="{{ $documentClass }}">
+    @if (! $embedded)
     <div class="official-output-toolbar">
         @if ($backUrl)<a href="{{ $backUrl }}">{{ $backLabel }}</a>@endif
         <button type="button" onclick="window.print()">Print or save PDF</button>
     </div>
 
-    @if (request()->boolean('print'))
+    @endif
+    @if (! $embedded && request()->boolean('print'))
         <script>window.addEventListener('load', () => window.print());</script>
     @endif
 

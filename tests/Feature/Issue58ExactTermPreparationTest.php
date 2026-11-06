@@ -8,6 +8,7 @@ use App\Actions\Scheduling\FacultyAvailabilityRequestService;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeadline;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
+use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermOverview;
@@ -517,6 +518,53 @@ final class Issue58ExactTermPreparationTest extends TestCase
             ->assertViewHas('enrollmentSummary', fn (array $summary): bool => $summary['total'] === 0 && $summary['official'] === 0)
             ->assertViewHas('gradeSummary', fn (array $summary): bool => $summary['total'] === 0 && $summary['released'] === 0)
             ->assertViewHas('examination', fn (array $projection): bool => $projection['status'] === 'Available');
+    }
+
+    public function test_head_grade_roster_entry_uses_the_selected_term_and_preserves_native_filtering(): void
+    {
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $term = Term::factory()->create();
+        $otherTerm = Term::factory()->create();
+        $matching = GradeRoster::factory()->create(['term_offering_id' => TermOffering::factory()->create(['term_id' => $term->id])->id]);
+        $other = GradeRoster::factory()->create(['term_offering_id' => TermOffering::factory()->create(['term_id' => $otherTerm->id])->id]);
+
+        $page = Livewire::actingAs($head)->test(ListGradeRosters::class, ['oversightTermId' => $term->id])
+            ->assertCanSeeTableRecords([$matching])->assertCanNotSeeTableRecords([$other])
+            ->assertSeeHtml('<p>'.$term->label.' · '.$term->academicYear->label.'</p>')
+            ->assertActionHasUrl('returnToOversight', AcademicApprovals::getUrl(['termId' => $term->id]));
+        $options = $page->instance()->getTable()->getFilter('term')->getOptions();
+        $this->assertSame($term->label.' · '.$term->academicYear->label, $options[$term->id]);
+        $this->assertSame($otherTerm->label.' · '.$otherTerm->academicYear->label, $options[$otherTerm->id]);
+        $page->filterTable('term', $otherTerm->id)
+            ->assertCanSeeTableRecords([$other])->assertCanNotSeeTableRecords([$matching])
+            ->assertActionHasUrl('returnToOversight', AcademicApprovals::getUrl(['termId' => $term->id]))
+            ->filterTable('term', null)->assertCanSeeTableRecords([$matching, $other]);
+    }
+
+    public function test_head_grade_card_links_apply_an_exact_term_without_overriding_explicit_filters(): void
+    {
+        $head = $this->staff(User::StaffRoleAcademicHead);
+        $term = Term::factory()->create();
+        $otherTerm = Term::factory()->create();
+        $matching = GradeRoster::factory()->create(['term_offering_id' => TermOffering::factory()->create(['term_id' => $term->id])->id]);
+        $other = GradeRoster::factory()->create(['term_offering_id' => TermOffering::factory()->create(['term_id' => $otherTerm->id])->id]);
+        $oversight = Livewire::actingAs($head)->test(AcademicApprovals::class, ['termId' => $term->id]);
+        $url = collect($oversight->instance()->approvalAreas())->firstWhere('title', 'Grades & Progress')['url'];
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+        $this->assertSame((string) $term->id, $query['filters']['term']['value']);
+        $this->assertSame((string) $term->id, $query['oversightTermId']);
+
+        Livewire::withQueryParams($query)->actingAs($head)->test(ListGradeRosters::class)
+            ->assertCanSeeTableRecords([$matching])->assertCanNotSeeTableRecords([$other]);
+        $query['filters']['term']['value'] = $otherTerm->id;
+        Livewire::withQueryParams($query)->actingAs($head)->test(ListGradeRosters::class)
+            ->assertCanSeeTableRecords([$other])->assertCanNotSeeTableRecords([$matching])
+            ->assertActionHasUrl('returnToOversight', AcademicApprovals::getUrl(['termId' => $term->id]));
+        Livewire::withQueryParams([])->actingAs($head)->test(ListGradeRosters::class)
+            ->assertCanSeeTableRecords([$matching, $other]);
+        Livewire::withQueryParams(['viewTab' => 'grade-review', 'oversightTermId' => $term->id])
+            ->actingAs($this->staff())->test(GradesAndCompletion::class)
+            ->assertCanSeeTableRecords([$matching, $other]);
     }
 
     public function test_head_enrollment_list_uses_native_search_filters_and_preserves_inspection_context(): void

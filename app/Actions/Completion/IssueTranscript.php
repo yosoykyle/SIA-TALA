@@ -3,6 +3,7 @@
 namespace App\Actions\Completion;
 
 use App\Models\OutputAccessLog;
+use App\Models\StudentProfile;
 use App\Models\TranscriptIssuanceEvent;
 use App\Models\TranscriptRequest;
 use App\Models\TranscriptSnapshot;
@@ -22,21 +23,19 @@ class IssueTranscript
     public function execute(
         TranscriptRequest $request,
         User $actor,
-        string $authorityReference,
+        ?string $authorityReference = null,
         ?string $previewConfirmation = null,
     ): TranscriptSnapshot {
-        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
+        if (! $actor->canAuthenticate() || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff may issue the official TOR.');
-        }
-        if (blank(trim($authorityReference))) {
-            throw ValidationException::withMessages(['issuance' => 'Issuance authority is required.']);
         }
 
         return DB::transaction(function () use ($request, $actor, $authorityReference, $previewConfirmation): TranscriptSnapshot {
             $locked = TranscriptRequest::query()
-                ->with(['snapshots.events', 'events', 'clearances'])
+                ->with(['snapshots.events', 'events'])
                 ->lockForUpdate()
                 ->findOrFail($request->id);
+            StudentProfile::query()->lockForUpdate()->findOrFail($locked->student_profile_id);
             $confirmation = $previewConfirmation
                 ?? $this->confirmations->latestFor($actor, $locked, TranscriptPreviewConfirmation::OperationIssue);
             if (! is_string($confirmation)) {
@@ -50,7 +49,7 @@ class IssueTranscript
             );
             if ($completed instanceof TranscriptSnapshot) {
                 $issuedEvent = $completed->events()->where('type', TranscriptIssuanceEvent::TypeIssued)->sole();
-                if ($issuedEvent->authority_reference === trim($authorityReference)) {
+                if ($issuedEvent->authority_reference === (filled($authorityReference) ? trim($authorityReference) : null)) {
                     return $completed;
                 }
 
@@ -77,10 +76,10 @@ class IssueTranscript
                 'generated_at' => $issuedAt->copy()->timezone('Asia/Manila')->format('F j, Y g:i A').' Asia/Manila',
                 'generation_reference' => 'TALA-GEN-'.strtoupper(substr($content['source_fingerprint'], 0, 16)),
             ];
-            view('outputs.tala-standard-tor', $content)->render();
+            view(TranscriptRequest::outputViewFor($content['request']->template_version), $content)->render();
             $snapshot = TranscriptSnapshot::query()->create([
                 'transcript_request_id' => $locked->id,
-                'degree_conferral_id' => $locked->degree_conferral_id,
+                'degree_conferral_id' => data_get($content, 'conferral.id'),
                 'version' => $version,
                 'reference' => $reference,
                 'template_version' => $locked->template_version,
@@ -95,7 +94,7 @@ class IssueTranscript
                 'transcript_snapshot_id' => $snapshot->id,
                 'type' => TranscriptIssuanceEvent::TypeIssued,
                 'reference' => "{$reference}-ISSUED",
-                'authority_reference' => trim($authorityReference),
+                'authority_reference' => filled($authorityReference) ? trim($authorityReference) : null,
                 'recorded_by' => $actor->id,
                 'recorded_at' => now(),
             ]);

@@ -114,7 +114,7 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
         $component = Livewire::actingAs($student)->test(HoldsView::class);
 
         $component->assertTableColumnStateSet('office_to_contact', 'Accounting Office', record: $financial);
-        $component->assertTableColumnStateSet('office_to_contact', 'Academic Head Office', record: $academicDeficit);
+        $component->assertTableColumnStateSet('office_to_contact', 'Registrar Office', record: $academicDeficit);
         $component->assertTableColumnStateSet('office_to_contact', 'Registrar Office', record: $documentary);
     }
 

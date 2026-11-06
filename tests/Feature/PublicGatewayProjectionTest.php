@@ -29,7 +29,7 @@ class PublicGatewayProjectionTest extends TestCase
         $this->get('/')->assertOk()->assertViewHas('admissionState', 'Unavailable')
             ->assertSee('Admissions information is temporarily unavailable')
             ->assertDontSee('Applications are closed')
-            ->assertSee(route('filament.admin.auth.login'), false)
+            ->assertSee(route('public.sign-in'), false)
             ->assertDontSee(route('filament.applicant.auth.register'), false);
     }
 
@@ -55,7 +55,7 @@ class PublicGatewayProjectionTest extends TestCase
             ->assertSeeInOrder(['id="top"', 'id="programs"', 'id="faq"', 'id="location"'], false)
             ->assertSee('Servitech Institute Asia Inc.')
             ->assertSee('Explore programs')
-            ->assertSee(route('filament.admin.auth.login'), false)
+            ->assertSee(route('public.sign-in'), false)
             ->assertDontSee('System Administrator')
             ->assertDontSee('System Super Admin')
             ->assertDontSee('handed-over students')
@@ -118,7 +118,7 @@ class PublicGatewayProjectionTest extends TestCase
             ->assertDontSee(route('filament.applicant.auth.register'), false);
         $cycle->update(['opens_at' => now()->subDays(2), 'closes_at' => now()->subDay()]);
         $this->get('/')->assertOk()->assertViewHas('admissionState', 'Closed')->assertSee('Applications are closed')
-            ->assertSee(route('filament.admin.auth.login'), false)
+            ->assertSee(route('public.sign-in'), false)
             ->assertDontSee(route('filament.applicant.auth.register'), false);
     }
 }

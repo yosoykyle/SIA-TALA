@@ -16,7 +16,7 @@ class StudentProfileEvent extends Model
     public const TypeCorrection = 'Correction';
 
     protected $fillable = [
-        'student_profile_id', 'event_type', 'source', 'authority_reference', 'reason',
+        'student_profile_id', 'event_type', 'source', 'reason',
         'before_snapshot', 'after_snapshot', 'changed_fields', 'actor_id', 'effective_at',
     ];
 

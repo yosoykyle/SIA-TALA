@@ -29,6 +29,11 @@ class TermPlanningCluster extends Cluster
         return TermPlanningWorkbench::canAccess();
     }
 
+    public static function getNavigationUrl(): string
+    {
+        return TermOverview::getUrl(['chooseTerm' => true]);
+    }
+
     /** @return list<NavigationItem> */
     public static function workspaceNavigation(?int $termId, string $active = 'plan'): array
     {

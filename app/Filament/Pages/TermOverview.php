@@ -8,11 +8,23 @@ use App\Models\OperationalEvent;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Url;
+use Livewire\WithPagination;
 use UnitEnum;
 
 class TermOverview extends TermPlanningWorkbench
 {
+    use WithPagination;
+
+    #[Url]
+    public string $coverageSearch = '';
+
+    #[Url]
+    public string $coverageYear = '';
+
     protected static ?string $cluster = TermPlanningCluster::class;
 
     protected static ?string $navigationLabel = 'Term overview';
@@ -131,6 +143,57 @@ class TermOverview extends TermPlanningWorkbench
     private function overviewEntry(string $key, string $label, string $description, string $url, string $icon): array
     {
         return compact('key', 'label', 'description', 'url', 'icon');
+    }
+
+    public function updatedCoverageSearch(): void
+    {
+        $this->resetPage('coveragePage');
+    }
+
+    public function updatedCoverageYear(): void
+    {
+        $this->resetPage('coveragePage');
+    }
+
+    public function clearCoverageFilters(): void
+    {
+        $this->reset('coverageSearch', 'coverageYear');
+        $this->resetPage('coveragePage');
+    }
+
+    /** @return Collection<int, array<string, mixed>> */
+    #[Computed]
+    public function coverageEntries(): Collection
+    {
+        return collect([...($this->coverage['rows'] ?? []), ...($this->coverage['additional'] ?? [])])
+            ->unique('id')
+            ->sortBy(fn (array $row): string => sprintf('%d-%s-%s-%s', $row['class_count'] > 0 || $row['section_count'] > 0 ? 0 : 1, $row['program_name'], $row['curriculum_label'], $row['year_level'] ?? ''), SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+    }
+
+    /** @return Collection<string, string> */
+    #[Computed]
+    public function coverageYears(): Collection
+    {
+        return $this->coverageEntries->pluck('year_level')
+            ->mapWithKeys(fn (?string $year): array => [$year ?? 'unassigned' => $year ?? 'Year not associated'])
+            ->sort(SORT_NATURAL | SORT_FLAG_CASE);
+    }
+
+    /** @return LengthAwarePaginator<int, array<string, mixed>> */
+    #[Computed]
+    public function coveragePage(): LengthAwarePaginator
+    {
+        $needle = mb_strtolower(trim($this->coverageSearch));
+        $rows = $this->coverageEntries->filter(fn (array $row): bool => ($needle === '' || str_contains(mb_strtolower($row['program_name'].' '.$row['curriculum_label']), $needle))
+            && ($this->coverageYear === '' || ($row['year_level'] ?? 'unassigned') === $this->coverageYear)
+        )->values();
+        $page = min(max(1, $this->getPage('coveragePage')), max(1, (int) ceil($rows->count() / 10)));
+
+        return new LengthAwarePaginator($rows->forPage($page, 10), $rows->count(), 10, $page, [
+            'path' => request()->url(),
+            'pageName' => 'coveragePage',
+        ]);
     }
 
     #[Computed]
