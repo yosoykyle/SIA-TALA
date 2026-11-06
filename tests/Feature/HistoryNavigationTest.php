@@ -259,6 +259,11 @@ class HistoryNavigationTest extends TestCase
 
         $faculty = User::findOrFail($roster->faculty_user_id);
 
+        $registrarName = "Maribel O'Neil";
+        $facultyName = "Alex D'Angelo";
+        $fixture['registrar']->update(User::staffNamePayload('Maribel', null, "O'Neil"));
+        $faculty->update(User::staffNamePayload('Alex', null, "D'Angelo"));
+
         $assignment = ClassOfferingTeachingAssignment::query()->create([
 
             'term_offering_id' => $roster->term_offering_id, 'section_id' => $roster->section_id,
@@ -327,9 +332,7 @@ class HistoryNavigationTest extends TestCase
 
         $this->assertStringNotContainsString('Version 1 ·', $modal());
 
-        $this->assertStringContainsString('Oct 3, 2026 · 11:00 AM', $modal());
-
-        $this->assertStringContainsString($fixture['registrar']->getFilamentName(), $modal());
+        $this->assertStringContainsString('Released</strong> Oct 3, 2026 · 11:00 AM · '.e($registrarName), $modal());
 
         app()->instance('originalRequest', Request::create('/admin/grade-rosters/2'));
 
@@ -337,13 +340,9 @@ class HistoryNavigationTest extends TestCase
 
         $this->assertStringContainsString('Version 1 · Returned', $modal());
 
-        $this->assertStringContainsString('Oct 1, 2026 · 9:00 AM', $modal());
+        $this->assertStringContainsString('Submitted</strong> Oct 1, 2026 · 9:00 AM · '.e($facultyName), $modal());
 
-        $this->assertStringContainsString($faculty->getFilamentName(), $modal());
-
-        $this->assertStringContainsString('Returned for changes', $modal());
-
-        $this->assertStringContainsString('Oct 2, 2026 · 10:00 AM', $modal());
+        $this->assertStringContainsString('Returned for changes</strong> Oct 2, 2026 · 10:00 AM · '.e($registrarName), $modal());
 
         $this->assertStringContainsString('Check the original assessment', $modal());
 
