@@ -13,7 +13,7 @@
         $reservationDeadline = $proposal?->items->map(fn ($item) => $item->reservation?->deadline)->filter()->min();
         $hasExpiredPlacement = ($proposal?->items->contains(fn ($item) => $item->reservation?->status !== \App\Models\EnrollmentSeatReservation::StatusActive || ($item->reservation?->deadline !== null && $item->reservation->deadline->isPast())) ?? false)
             || ($readiness !== null && ! ($readiness['placement'] ?? true));
-        $money = fn ($value) => $value === null ? 'Unavailable' : 'PHP '.number_format((float) $value, 2);
+        $money = fn ($value) => $value === null ? 'Not yet posted' : 'PHP '.number_format((float) $value, 2);
     @endphp
     <div class="learner-enrollment student-registration">
         <div wire:loading class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300" role="status">

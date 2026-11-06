@@ -96,7 +96,7 @@
                     <x-supporting-details summary="Average sources" inset><p>As of {{ \Illuminate\Support\Carbon::parse($cumulative['as_of'])->timezone('Asia/Manila')->format('M j, Y g:i A') }} · Asia/Manila</p>@foreach ($cumulative['exclusions'] as $exclusion)<p>{{ $exclusion }}</p>@endforeach</x-supporting-details>
                     <div class="student-record-terms">@foreach ($recordTerms as $term)
                         @php($average = $termAverages->get($term->id))
-                        <section><h2>{{ $term->label }}</h2><p class="student-academic-note">{{ $average['label'] }}: {{ $average['value'] ?? $average['reason'] }}</p>
+                        <section class="student-record-term"><h2>{{ collect([$termYearLevels->get($term->id), $term->label, $term->academicYear?->label])->filter()->implode(' · ') }}</h2><p class="student-academic-note">{{ $average['label'] }}: {{ $average['value'] ?? $average['reason'] }}</p>
                             <div class="student-academic-table-wrap" role="region" aria-label="{{ $term->label }} results" tabindex="0"><table class="student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Result</th></tr></thead><tbody>
                                 @foreach ($results->where('term.id', $term->id) as $result)<tr><th scope="row">{{ $result['course_specification']?->title }}<span class="student-academic-secondary">{{ $result['course_specification']?->course?->code }}</span></th><td>{{ (float) $result['units'] }}</td><td><x-student-academic-result :$result /></td></tr>@endforeach
                             </tbody></table></div>
