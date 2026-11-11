@@ -14,6 +14,7 @@ use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\StudentHub\StudentStudyContext;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
+use App\Models\ExternalCompetencyRequirement;
 use App\Models\ExternalCompetencyResult;
 use App\Models\OperationalEvent;
 use App\Models\StudentProfile;
@@ -21,6 +22,7 @@ use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Livewire\Attributes\Url;
 
 class Academics extends Page
@@ -32,6 +34,8 @@ class Academics extends Page
     protected static ?string $title = 'Academics';
 
     protected string $view = 'filament.student.pages.academics';
+
+    protected Width|string|null $maxContentWidth = Width::Full;
 
     #[Url(as: 'view', except: 'current', history: true)]
     public string $academicView = 'current';
@@ -73,10 +77,7 @@ class Academics extends Page
             ];
         }
 
-        return $this->academicView === 'current' ? [
-            Action::make('academicRecord')->label('Academic record')->icon('heroicon-o-document-text')->color('gray')
-                ->url(static::getUrl(['view' => 'record'], panel: 'student')),
-        ] : [];
+        return [];
     }
 
     public static function canAccess(): bool
@@ -151,7 +152,7 @@ class Academics extends Page
                 ->first()),
         ]);
 
-        $completion = app(CompletionReadinessProjection::class)->forStudent($student);
+        $completion = $this->academicView === 'graduation' ? app(CompletionReadinessProjection::class)->forStudent($student) : null;
         $curriculum = app(CurriculumEvaluation::class)->forStudent($student);
 
         return [
@@ -168,7 +169,7 @@ class Academics extends Page
             'examinationPeriod' => app(ExaminationPeriodProjection::class)->forTerm($examinationTerm),
             'cumulative' => app(CumulativeGwaProjection::class)->forStudent($student),
             'curriculum' => $curriculum,
-            'curriculumGroups' => collect($curriculum['required'])->groupBy('curriculum_entry.year_level')
+            'curriculumGroups' => collect($curriculum['required'])->groupBy(fn (array $row): string => $this->yearLevelLabel($row['curriculum_entry']->year_level) ?? 'Year not recorded')
                 ->map(fn ($rows) => $rows->groupBy('curriculum_entry.term_label')),
             'planRequirements' => collect($curriculum['required'])->mapWithKeys(fn (array $row): array => [
                 $row['curriculum_entry']->id => $row['curriculum_entry']->courseSpecification?->requirements
@@ -178,10 +179,14 @@ class Academics extends Page
                         && ($requirement->effective_until === null || $requirement->effective_until->gte(today()))),
             ]),
             'effect' => app(AcademicEnrollmentEffect::class)->forStudent($student),
-            'competencyResults' => ExternalCompetencyResult::query()
-                ->where('student_profile_id', $student->id)
-                ->with('requirement')
-                ->latest('recorded_at')->get(),
+            'competencyRequirements' => $this->academicView === 'plan'
+                ? ExternalCompetencyRequirement::query()->applicableTo($student)
+                    ->withCurrentResultFor($student)->orderBy('requirement_code')->get() : collect(),
+            'competencyResults' => $this->academicView === 'record'
+                ? ExternalCompetencyResult::query()->where('student_profile_id', $student->id)
+                    ->with('requirement:id,qualification_label,qualification_level')
+                    ->latest('recorded_at')->orderByDesc('id')
+                    ->get(['id', 'external_competency_requirement_id', 'outcome', 'assessment_date', 'recorded_at', 'is_current']) : collect(),
             'lifecycleChanges' => $student->lifecycleChanges()->latest('effective_on')->get(),
             'enrollmentUrl' => Enrollment::getUrl(panel: 'student'),
             'completion' => $completion,

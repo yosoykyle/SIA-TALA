@@ -10,7 +10,11 @@ class AcademicEnrollmentEffect
 {
     public function __construct(private readonly OfficialCourseResultProjection $results) {}
 
-    /** @return array{effect: string, source: string, reason: string} */
+    /**
+     * `student_reason` is the plain-language Student Hub wording, present when it differs from the staff-facing reason.
+     *
+     * @return array{effect: string, source: string, reason: string, student_reason?: string}
+     */
     public function forStudent(StudentProfile $student, ?Term $term = null): array
     {
         if ($student->blocksEnrollmentByLifecycle()) {
@@ -57,6 +61,7 @@ class AcademicEnrollmentEffect
                 'effect' => AcademicDecision::EffectAdvisingRequired,
                 'source' => 'Released academic-record projection',
                 'reason' => 'Current unresolved or deficient course results require an individually advised selection; only affected prerequisites remain unavailable.',
+                'student_reason' => 'You have a subject result that is still open or was not passed. You can still enroll next term. The Registrar will help you choose your subjects, and only subjects that depend on the affected one stay on hold.',
             ];
         }
 

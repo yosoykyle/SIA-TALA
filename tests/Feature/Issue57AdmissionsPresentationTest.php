@@ -211,7 +211,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         [, $applicant] = $this->application();
         $this->actingAs($applicant)->get('/applicant/missing-issue57-page')->assertNotFound()
             ->assertSee('HTTP 404')->assertDontSee('Pause background animation')
-            ->assertSee('Return to Servitech Institute Asia home')->assertDontSee('Try submitting again');
+            ->assertSee('Back to home')->assertDontSee('Try submitting again');
     }
 
     public function test_current_review_copies_are_separated_from_retained_earlier_versions(): void

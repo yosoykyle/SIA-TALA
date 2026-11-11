@@ -13,6 +13,7 @@ use App\Actions\Enrollment\IssueRegistrationProposal;
 use App\Actions\Enrollment\PlaceRegistrationProposal;
 use App\Actions\Enrollment\PrepareRegistrationProposal;
 use App\Actions\Enrollment\RecordCourseDrop;
+use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
@@ -133,6 +134,18 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         $retakeEntry = $this->entry($curriculum, 'IT201-ST-R', 'Second Year', 'First Semester', Term::TypeFirstSemester, 3);
         $this->recordPriorCanonicalHistory($profile, $curriculum, $retakeEntry, $registrar);
         $dependentEntry = $this->entry($curriculum, 'IT301-ST-BLOCKED', 'Third Year', 'First Semester', Term::TypeFirstSemester, 3);
+        $externalReq = ExternalCompetencyRequirement::factory()->create([
+            'curriculum_version_id' => $curriculum->id,
+            'curriculum_entry_id' => $dependentEntry->id,
+            'state' => 'ACTIVE',
+        ]);
+        ExternalCompetencyRequirement::factory()->create([
+            'curriculum_version_id' => $curriculum->id,
+            'qualification_label' => 'Synthetic graduation requirement',
+            'authority_reference' => 'SYNTHETIC COMPLETION AUTHORITY — TEST ONLY',
+            'treatment' => ExternalCompetencyRequirement::TreatmentCompletionRequired,
+            'state' => 'ACTIVE',
+        ]);
         CourseRequirement::factory()->create([
             'course_specification_id' => $dependentEntry->course_specification_id,
             'rule_type' => CourseRequirement::TypePrerequisite,
@@ -327,11 +340,8 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         $this->assertSame($otherEnrollmentState, $otherEnrollment->fresh()->only(array_keys($otherEnrollmentState)));
         $this->assertFalse(CourseEnrollment::query()->where('enrollment_id', $otherEnrollment->id)->exists());
 
-        // Coordinated synthetic acceptance: External-competency supersedes without altering grade averages
-        $externalReq = ExternalCompetencyRequirement::factory()->create([
-            'curriculum_version_id' => $profile->curriculum_version_id,
-            'state' => 'ACTIVE',
-        ]);
+        $prerequisiteCredits = app(RegistrationAcademicEligibilityQuery::class)->satisfiedCourseIds($profile)->sort()->values()->all();
+        $assessmentBefore = $assessment->fresh()->getAttributes();
         $externalResult = app(RecordExternalCompetencyResult::class)->execute(
             $externalReq, $profile, ExternalCompetencyResult::OutcomeCompetent,
             'TESDA-ASSESSOR-001', 'REG-ST-EXT-001', today(), $registrar,
@@ -346,6 +356,9 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         $this->assertSame(ExternalCompetencyResult::OutcomeCompetent, $externalResult->outcome);
         $this->assertSame('2.13', app(TermWeightedAverageProjection::class)->forStudentAndTerm($profile, $term)['value']);
         $this->assertSame('2.01', app(CumulativeGwaProjection::class)->forStudent($profile)['value']);
+        $this->assertSame($evaluation['completed_units'], app(CurriculumEvaluation::class)->forStudent($profile)['completed_units']);
+        $this->assertSame($prerequisiteCredits, app(RegistrationAcademicEligibilityQuery::class)->satisfiedCourseIds($profile)->sort()->values()->all());
+        $this->assertSame($assessmentBefore, $assessment->fresh()->getAttributes());
 
         // Coordinated synthetic acceptance: INC, completion amendment, and correction append successors on named roster row
         $incOffering = TermOffering::factory()->create(['term_id' => $term->id]);

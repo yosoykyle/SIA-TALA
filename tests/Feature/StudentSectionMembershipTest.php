@@ -223,7 +223,7 @@ class StudentSectionMembershipTest extends TestCase
         $page = Livewire::actingAs($registrar)->withQueryParams(['viewTab' => 'academic-progress', 'queue' => ['page' => 2]])
             ->test(ViewStudentProfile::class, ['record' => $enrollment->student_profile_id])
             ->assertSee('Current enrollment')->assertSee('Academic guidance')->assertSee('Payment clearance is separate.')
-            ->assertDontSee('Cumulative GWA')->assertDontSee('No released grades yet')->assertDontSee('Record TESDA assessment');
+            ->assertDontSee('Cumulative GWA')->assertDontSee('No released grades yet')->assertDontSee('Record external assessment result');
         $this->assertEmpty($page->instance()->getCachedHeaderActions());
         $page->call('selectRecordTab', 'academic')->assertSee('No released grades yet');
         $page->call('selectRecordTab', 'enrollment')->assertSee($enrollment->term->label)
@@ -265,11 +265,11 @@ class StudentSectionMembershipTest extends TestCase
         $student->curriculumVersion->update(['state' => 'ACTIVE']);
         ExternalCompetencyRequirement::factory()->create(['state' => 'ACTIVE']);
         $page = Livewire::actingAs($registrar)->withQueryParams(['viewTab' => 'academic-progress', 'recordTab' => 'academic'])
-            ->test(ViewStudentProfile::class, ['record' => $student->id])->assertDontSee('Record TESDA assessment');
+            ->test(ViewStudentProfile::class, ['record' => $student->id])->assertDontSee('Record external assessment result');
         ExternalCompetencyRequirement::factory()->create(['state' => 'ACTIVE', 'curriculum_version_id' => $student->curriculum_version_id]);
-        $page->call('$refresh')->assertSee('Record TESDA assessment');
+        $page->call('$refresh')->assertSee('Record external assessment result');
         Livewire::actingAs($this->staff(User::StaffRoleAcademicHead))->withQueryParams(['viewTab' => 'academic-progress', 'recordTab' => 'academic'])
-            ->test(ViewStudentProfile::class, ['record' => $student->id])->assertDontSee('Record TESDA assessment')
+            ->test(ViewStudentProfile::class, ['record' => $student->id])->assertDontSee('Record external assessment result')
             ->assertActionHidden('recordExternalCompetency')->assertActionHidden('recordAcademicDecision');
     }
 

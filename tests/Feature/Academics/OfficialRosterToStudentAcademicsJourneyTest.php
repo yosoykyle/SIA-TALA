@@ -42,6 +42,7 @@ use App\Filament\Student\Pages\Academics as StudentAcademics;
 use App\Mail\AcademicRecordChangedMail;
 use App\Models\AcademicDecision;
 use App\Models\ClassOfferingTeachingAssignment;
+use App\Models\CorVersion;
 use App\Models\CourseDropRecord;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
@@ -52,6 +53,7 @@ use App\Models\ExternalCompetencyRequirement;
 use App\Models\ExternalCompetencyResult;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
+use App\Models\GradeRosterRow;
 use App\Models\GradeRosterVersion;
 use App\Models\OperationalEvent;
 use App\Models\OutputAccessLog;
@@ -438,6 +440,9 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $page = Livewire::actingAs($fixture['registrar'])->test(ViewStudentProfile::class, ['record' => $student->id])
             ->mountAction('recordExternalCompetency')
             ->assertFormFieldExists('requirement_id', fn (Select $field): bool => array_keys($field->getOptions()) === [$requirement->id])
+            ->setActionData(['requirement_id' => $otherRequirement->id])
+            ->callMountedAction()
+            ->assertHasActionErrors(['requirement_id' => 'in'])
             ->set('mountedActions.0.data.requirement_id', $requirement->id)
             ->set('mountedActions.0.data.student_profile_id', $other->id)
             ->assertActionDataSet(['requirement_id' => $requirement->id, 'expected_predecessor_id' => 0])
@@ -499,6 +504,68 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertDatabaseCount('external_competency_results', 2);
         $this->assertTrue($successor->fresh()->is_current);
         $this->assertFalse($first->fresh()->is_current);
+    }
+
+    #[Test]
+    public function study_plan_shows_applicable_status_and_academic_record_keeps_only_student_safe_attempt_details(): void
+    {
+        $fixture = $this->fixture();
+        $student = $fixture['student'];
+        $student->user->assignRole('student');
+        $requirement = ExternalCompetencyRequirement::factory()->create([
+            'curriculum_version_id' => $student->curriculum_version_id,
+            'qualification_label' => 'Computer Systems Servicing',
+            'state' => 'ACTIVE',
+        ]);
+        ExternalCompetencyRequirement::factory()->create([
+            'curriculum_version_id' => $student->curriculum_version_id,
+            'qualification_label' => 'Synthetic Web Development',
+            'treatment' => ExternalCompetencyRequirement::TreatmentCompletionRequired,
+            'state' => 'ACTIVE',
+        ]);
+        ExternalCompetencyRequirement::factory()->create([
+            'curriculum_version_id' => $student->curriculum_version_id,
+            'qualification_label' => 'Draft qualification',
+        ]);
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+        $plan = Livewire::actingAs($student->user)->withQueryParams(['view' => 'plan'])->test(StudentAcademics::class);
+        $plan->assertSeeInOrder(['Computer Systems Servicing', 'Tracked only', 'Not recorded'])
+            ->assertSeeInOrder(['Synthetic Web Development', 'Ask the Registrar', 'Required for graduation', 'Not recorded'])
+            ->assertDontSee('Draft qualification')
+            ->assertDontSee('View assessment history');
+
+        $action = app(RecordExternalCompetencyResult::class);
+        $first = $action->execute(
+            $requirement, $student, ExternalCompetencyResult::OutcomeNotYetCompetent,
+            'PRIVATE-ATTEMPT-001', 'APPROVAL-PRIVATE-001', today(), $fixture['registrar'],
+        );
+        $this->assertDatabaseMissing('operational_events', [
+            'user_id' => $student->user->id,
+            'event_type' => OperationalEvent::TypeCompletionRequiresActionEmail,
+        ]);
+        $plan->call('$refresh')->assertSee('Not yet competent')->assertSee('View assessment history');
+
+        $action->execute(
+            $requirement, $student, ExternalCompetencyResult::OutcomeCompetent,
+            'PRIVATE-ATTEMPT-002', 'APPROVAL-PRIVATE-002', today(), $fixture['registrar'],
+            expectedPredecessorId: $first->id,
+        );
+        $plan->call('$refresh')->assertSee('Competent')->assertDontSee('Not yet competent');
+        Livewire::actingAs($student->user)->withQueryParams(['view' => 'record'])->test(StudentAcademics::class)
+            ->assertSeeInOrder(['External assessment history', 'Competent', 'Latest attempt', 'Not yet competent', 'Earlier attempt'])
+            ->assertDontSee('PRIVATE-ATTEMPT')
+            ->assertDontSee('APPROVAL-PRIVATE');
+
+        $other = StudentProfile::factory()->create([
+            'program_id' => $student->program_id,
+            'curriculum_version_id' => $student->curriculum_version_id,
+        ]);
+        $other->user->assignRole('student');
+        Livewire::actingAs($other->user)->withQueryParams(['view' => 'plan'])->test(StudentAcademics::class)
+            ->assertSeeInOrder(['Computer Systems Servicing', 'Tracked only', 'Not recorded'])
+            ->assertDontSee('Competent');
+        Livewire::actingAs($other->user)->withQueryParams(['view' => 'record'])->test(StudentAcademics::class)
+            ->assertDontSee('External assessment history');
     }
 
     #[Test]
@@ -1062,6 +1129,46 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $notApplicable = app(TermWeightedAverageProjection::class)->forStudentAndTerm($peFixture['student'], $peFixture['term']);
         $this->assertSame(AcademicAverageReadiness::NotApplicable, $notApplicable['state']);
         $this->assertNull($notApplicable['value']);
+    }
+
+    #[Test]
+    public function student_subject_ledger_shows_released_inc_guidance_and_keeps_draft_grades_private(): void
+    {
+        $fixture = $this->fixture(termEndsOn: '2026-12-18');
+        $this->releaseResult($fixture, 'INC', 'Complete the final reflection.');
+        $pending = $this->fixture(term: $fixture['term'], student: $fixture['student']);
+        $roster = GradeRoster::factory()->create([
+            'section_id' => $pending['section']->id,
+            'term_offering_id' => $pending['course_enrollment']->term_offering_id,
+            'faculty_user_id' => $pending['faculty']->id,
+        ]);
+        GradeRosterRow::factory()->create([
+            'grade_roster_id' => $roster->id,
+            'course_enrollment_id' => $pending['course_enrollment']->id,
+            'final_result' => '1.25',
+            'inc_completion_note' => 'Private unreleased Faculty note.',
+        ]);
+        $case = $fixture['course_enrollment']->enrollment;
+        $certificate = CorVersion::factory()->create(['enrollment_id' => $case->id]);
+        $case->update(['current_cor_version_id' => $certificate->id]);
+        $fixture['student']->user->assignRole('student');
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+
+        Livewire::actingAs($fixture['student']->user)->test(StudentAcademics::class)
+            ->assertSee('Complete the final reflection.')
+            ->assertSee('Complete remaining work')
+            ->assertSee('Review completion')
+            ->assertSee('Grades not complete')
+            ->assertSee('1 of 2')
+            ->assertSee('Not released')
+            ->assertDontSeeText('1.25')
+            ->assertDontSeeText('Private unreleased Faculty note.');
+
+        $this->travelTo(Carbon::parse('2028-01-01', 'Asia/Manila'));
+        Livewire::actingAs($fixture['student']->user)->test(StudentAcademics::class)
+            ->assertSee('Ordinary completion is closed.')
+            ->assertSee('Review completion options')
+            ->assertDontSee('Complete remaining work');
     }
 
     #[Test]
@@ -2208,7 +2315,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
 
         Livewire::actingAs($head)->test(ViewGradeRoster::class, ['record' => $roster->id])
             ->assertSee('1 enrolled student')->assertSee('HEAD-MEMBER-001')->assertSee('Santos, Mira A')
-            ->assertDontSee('1.25')->assertDontSee('PRIVATE-DRAFT-NOTE')
+            ->assertDontSeeText('1.25')->assertDontSee('PRIVATE-DRAFT-NOTE')
             ->assertActionHidden('exportRoster')->assertActionHidden('return')->assertActionHidden('postAndRelease');
 
         $other = $this->fixture();
@@ -2263,9 +2370,19 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->releaseResult($secondYear, '2.00');
 
         Filament::setCurrentPanel(Filament::getPanel('student'));
-        Livewire::actingAs($firstYear['student']->user)->withQueryParams(['view' => 'record'])->test(StudentAcademics::class)
-            ->assertSee('Second Year · Second Semester')
-            ->assertSee('First Year · First Semester');
+        $page = Livewire::actingAs($firstYear['student']->user)->withQueryParams(['view' => 'record'])->test(StudentAcademics::class);
+        $document = new \DOMDocument;
+        @$document->loadHTML($page->html());
+        $xpath = new \DOMXPath($document);
+        $headings = $xpath->query('//header[@class="student-record-term-heading"]');
+        $this->assertSame(2, $headings->length);
+        $levelsByTerm = [];
+        foreach ($headings as $heading) {
+            $term = trim($xpath->query('.//h2', $heading)->item(0)->textContent);
+            $levelsByTerm[$term] = trim($xpath->query('.//p', $heading)->item(0)->textContent);
+        }
+        $this->assertStringContainsString('Second Year', $levelsByTerm['Second Semester']);
+        $this->assertStringContainsString('First Year', $levelsByTerm['First Semester']);
     }
 
     #[Test]
@@ -2386,8 +2503,8 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             ->assertSee('Current academic average pending');
         Filament::setCurrentPanel(Filament::getPanel('student'));
         Livewire::actingAs($fixture['student']->user)->test(StudentAcademics::class, ['academicView' => 'record'])
-            ->assertSee('INC details and next step')->assertSee('Approved completion extension.')
-            ->assertSee('DRP')->assertSee('Completion pending');
+            ->assertSee('View INC details')->assertSee('Approved completion extension.')
+            ->assertSee('DRP')->assertSee('INC completion pending');
     }
 
     #[Test]

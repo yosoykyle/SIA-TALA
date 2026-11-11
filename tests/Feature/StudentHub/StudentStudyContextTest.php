@@ -311,7 +311,7 @@ class StudentStudyContextTest extends TestCase
             ->assertSeeHtml('href="'.\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student').'"')
             ->assertSee('Contact the Registrar about your next enrollment.')
             ->set('academicView', 'plan')
-            ->assertSee('Registrar advising needed')
+            ->assertSee($failed->termOffering->curriculumEntry->courseSpecification->title.' needs follow-up')
             ->assertSee('Prerequisite: '.$failed->termOffering->curriculumEntry->courseSpecification->course->code)
             ->assertDontSee($future->relatedCourse->code)
             ->assertSee('Ask the Registrar about completing or retaking this subject.');
@@ -325,6 +325,37 @@ class StudentStudyContextTest extends TestCase
 
         $evaluation = app(CurriculumEvaluation::class)->forStudent($profile->fresh());
         $this->assertSame('In progress', collect($evaluation['required'])->firstWhere('curriculum_entry.id', $failed->termOffering->curriculum_entry_id)['status']);
+    }
+
+    public function test_study_plan_keeps_summer_within_its_year_in_a_four_year_curriculum(): void
+    {
+        $profile = StudentProfile::factory()->create();
+        foreach (['First Year', 'Second Year', 'Third Year', 'Fourth Year'] as $index => $year) {
+            CurriculumEntry::factory()->for($profile->curriculumVersion)->create([
+                'year_level' => $year,
+                'term_label' => 'First Semester',
+                'sequence' => $index * 3,
+            ]);
+        }
+        foreach (['Second Semester', 'Summer'] as $index => $term) {
+            CurriculumEntry::factory()->for($profile->curriculumVersion)->create([
+                'year_level' => 'Second Year',
+                'term_label' => $term,
+                'sequence' => $index + 4,
+            ]);
+        }
+        $this->signInStudent($profile);
+
+        $page = Livewire::withQueryParams(['view' => 'plan'])->test(Academics::class)
+            ->assertSee('Third Year')->assertSee('Fourth Year')->assertSee('Summer')
+            ->assertSee('Scroll across to browse all curriculum years.');
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($page->html());
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(4, $xpath->query('//ol[@aria-label="Curriculum years"]/li/button')->length);
+        $this->assertSame(3, $xpath->query('//section[@aria-labelledby="student-plan-year-1"]//h3')->length);
+        $this->assertSame(1, $xpath->query('//section[@aria-labelledby="student-plan-year-1"]//h3[normalize-space(.)="Summer"]')->length);
     }
 
     private function signInStudent(StudentProfile $profile): void

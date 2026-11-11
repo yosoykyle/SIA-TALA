@@ -39,7 +39,7 @@
                 <section class="student-enrollment-task tala-task-surface" aria-labelledby="enrollment-entry-heading">
                     <h2 id="enrollment-entry-heading">{{ $this->startRegistrationAction->isDisabled() ? 'Enrollment is unavailable' : 'Start your enrollment' }}</h2>
                     <p>{{ $entryContext['reason'] ?? 'Open enrollment to review the subjects and fees prepared for this term. The Registrar reviews your classes before you confirm.' }}</p>
-                    <div class="student-finance-actions">{{ $this->startRegistrationAction }}</div>
+                    <div class="student-finance-actions">{{ $this->startRegistrationAction }} <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(panel: 'student')" icon="heroicon-o-academic-cap">View academics</x-filament::button></div>
                 </section>
             @else
                 <div class="student-enrollment-task-layout">

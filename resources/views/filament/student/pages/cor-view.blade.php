@@ -7,7 +7,7 @@
         $selected = collect($versions)->firstWhere('id', $selectedVersionId);
         $documentStatus = data_get($output, 'summary.document_status') ?? ($selected && ! $selected['current'] ? 'Earlier copy' : 'Current');
     @endphp
-    <div class="learner-enrollment student-cor-record space-y-4">
+    <div class="learner-enrollment student-cor-record">
         @if (! $available)
             <x-filament::section heading="No issued COR to show" icon="heroicon-o-document-text">
                 <div class="space-y-4">
@@ -16,54 +16,62 @@
                 </div>
             </x-filament::section>
         @else
-            <x-filament::section>
-                <div class="cor-identity">
-                    <x-filament::icon icon="heroicon-o-document-text" class="student-context-icon" />
-                    <div class="cor-identity-content">
-                        <h2>{{ data_get($output, 'summary.student_name') }}</h2>
-                        <p class="student-academic-secondary">{{ data_get($output, 'summary.student_number') }}</p>
-                        <p class="cor-program">{{ data_get($output, 'summary.program') }}</p>
-                        <p class="student-academic-secondary">{{ data_get($output, 'summary.term') }}</p>
-                    </div>
-                    <x-filament::badge :color="$documentStatus === 'Current' ? 'success' : 'gray'">Issued copy · {{ $documentStatus }}</x-filament::badge>
+            <x-record-identity
+                class="student-cor-summary"
+                :name="data_get($output, 'summary.student_name')"
+                :number="data_get($output, 'summary.student_number')"
+                :program="collect([data_get($output, 'summary.program'), data_get($output, 'summary.term')])->filter()->implode(' · ')"
+                number-label="Student number"
+                role="group"
+                aria-label="Issued certificate summary"
+            >
+                <x-slot:status>
+                    <x-filament::badge :color="$documentStatus === 'Current' ? 'success' : 'gray'" icon="heroicon-o-document-check">
+                        {{ $documentStatus }}
+                    </x-filament::badge>
+                </x-slot:status>
+                <x-slot:details>
+                    <dl class="student-cor-summary-facts tala-context-inset">
+                        <div><dt>Subjects</dt><dd>{{ $subjects->count() }}</dd></div>
+                        <div><dt>Total units</dt><dd>{{ (float) data_get($output, 'summary.total_units') }}</dd></div>
+                        <div><dt>Issued</dt><dd>{{ $issuedAt?->format('M j, Y') ?? 'Not recorded' }}</dd></div>
+                    </dl>
+                </x-slot:details>
+            </x-record-identity>
+            <section class="tala-task-surface student-record-card student-cor-subjects" aria-labelledby="cor-subjects-heading">
+                <div class="student-registration-subjects-heading"><h2 class="student-record-heading" id="cor-subjects-heading"><x-filament::icon icon="heroicon-o-book-open" />Subjects</h2><p>Recorded on this issued copy. Later changes are shown on a new copy.</p></div>
+                <div class="student-academic-table-wrap" role="region" aria-label="Subjects on this certificate" tabindex="0">
+                    <table class="student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Units</th><th scope="col">Schedule</th></tr></thead><tbody>
+                        @foreach ($subjects as $meetings)
+                            @php($subject = $meetings->first())
+                            <tr wire:key="cor-subject-{{ $loop->index }}">
+                                <th scope="row">{{ $subject['subject_description'] }}<span class="student-academic-secondary">{{ $subject['subject_code'] }}</span></th>
+                                <td>{{ $subject['section'] }}</td>
+                                <td class="student-academic-number">{{ (float) $subject['units'] }}</td>
+                                <td class="cor-subject-meetings">@foreach ($meetings as $meeting)<p>{{ collect([$meeting['day'], $meeting['time'], $meeting['room'], $meeting['instructor']])->reject(fn ($part): bool => in_array($part, ['Not applicable', 'Not recorded', null, ''], true))->unique()->implode(' · ') }}</p>@endforeach</td>
+                            </tr>
+                        @endforeach
+                    </tbody></table>
                 </div>
-                <dl class="cor-facts">
-                    <div><dt>Subjects</dt><dd>{{ $subjects->count() }}</dd></div>
-                    <div><dt>Total units</dt><dd>{{ data_get($output, 'summary.total_units') }}</dd></div>
-                    <div><dt>Issued</dt><dd>{{ $issuedAt?->format('M j, Y') ?? 'Not recorded' }}</dd></div>
-                </dl>
-            </x-filament::section>
-            <x-filament::section heading="Subjects" icon="heroicon-o-book-open" description="Recorded on this issued copy. Later changes are shown on a new copy.">
-                <div class="divide-y divide-gray-200 dark:divide-white/10">
-                    @foreach ($subjects as $meetings)
-                        @php($subject = $meetings->first())
-                        <div wire:key="cor-subject-{{ $loop->index }}" class="cor-subject-row">
-                            <div><strong>{{ $subject['subject_description'] }}</strong><p class="text-gray-600 dark:text-gray-300">{{ $subject['subject_code'] }} · {{ $subject['units'] }} units · {{ $subject['section'] }}</p></div>
-                            <div class="cor-subject-meetings">
-                                @foreach ($meetings as $meeting)<p>{{ $meeting['day'] }} · {{ $meeting['time'] }} · {{ $meeting['room'] }}@if ($meeting['instructor'] !== 'Not recorded') · {{ $meeting['instructor'] }}@endif</p>@endforeach
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </x-filament::section>
+            </section>
             @if (count($versions) > 1)
-                <details class="learner-disclosure">
-                    <summary>Earlier copies and other terms</summary>
+                <section class="tala-task-surface student-record-card student-cor-side" aria-labelledby="cor-versions-heading">
+                    <h2 class="student-record-heading" id="cor-versions-heading"><x-filament::icon icon="heroicon-o-archive-box" />Earlier copies and other terms</h2>
                     <nav class="cor-versions" aria-label="Issued registration copies">
                         @foreach ($versions as $choice)
                             <a href="{{ $choice['url'] }}" wire:navigate wire:key="cor-version-{{ $choice['id'] }}" @if ($choice['id'] === $selectedVersionId) aria-current="page" @endif>{{ $choice['label'] }}</a>
                         @endforeach
                     </nav>
-                </details>
+                </section>
             @endif
-            <details class="learner-disclosure"><summary>Fees at issuance and issue details</summary><div class="space-y-3 text-sm">
+            <section class="tala-task-surface student-record-card student-cor-side" aria-labelledby="cor-fees-heading">
+                <div class="student-registration-subjects-heading"><h2 class="student-record-heading" id="cor-fees-heading"><x-filament::icon icon="heroicon-o-banknotes" />Fees at issue</h2><p>Issued by {{ data_get($output, 'summary.issued_by', 'Not recorded') }}.</p></div>
                 <dl class="learner-money">
-                    <div><dt>Assessed total</dt><dd>{{ data_get($output, 'summary.assessment_total') === null ? 'Unavailable' : 'PHP '.number_format((float) data_get($output, 'summary.assessment_total'), 2) }}</dd></div>
                     @foreach (($output['fees'] ?? []) as $fee)<div wire:key="cor-fee-{{ $loop->index }}"><dt>{{ $fee['label'] }}</dt><dd>PHP {{ number_format((float) $fee['amount'], 2) }}</dd></div>@endforeach
+                    <div class="student-money-total"><dt>Assessed total</dt><dd>{{ data_get($output, 'summary.assessment_total') === null ? 'Unavailable' : 'PHP '.number_format((float) data_get($output, 'summary.assessment_total'), 2) }}</dd></div>
                 </dl>
-                <p class="text-gray-600 dark:text-gray-300">Issued by {{ data_get($output, 'summary.issued_by', 'Not recorded') }}. Later payments and coverage appear in Finance.</p>
-                <x-filament::link :href="\App\Filament\Student\Pages\Finance::getUrl(panel: 'student')">View fees and payments</x-filament::link>
-            </div></details>
+                <div class="student-tile-actions"><x-filament::button tag="a" color="gray" icon="heroicon-o-banknotes" :href="\App\Filament\Student\Pages\Finance::getUrl(panel: 'student')">View fees and payments</x-filament::button></div>
+            </section>
         @endif
     </div>
 </x-filament-panels::page>

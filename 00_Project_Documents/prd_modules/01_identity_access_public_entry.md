@@ -232,7 +232,7 @@ Expired, already-used, malformed, throttled, and mail-failure paths must state w
 2. The account's authorized roles and security state determine eligible destinations after authentication. Public entry never grants or discloses a role.
 3. The user signs in with verified email and password.
 4. Unknown email or wrong password receives the same generic failure.
-5. A retained role-specific link or requested destination cannot grant access. Correct credentials authenticate once, then resolve an authorized destination with a short explanation when necessary.
+5. A retained role-specific link or requested destination cannot grant access. Correct credentials authenticate once, then resolve an authorized destination with a short explanation when necessary. Every sign-in address, including a retained role-specific link, shows the same **Sign in** heading and account description; it does not name a role or workspace before authentication.
 6. A single authorized context routes directly.
 7. Multiple authorized contexts open the workspace chooser.
 8. The user may switch contexts without another sign-in; every direct route is still independently authorized.

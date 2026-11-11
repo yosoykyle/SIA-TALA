@@ -22,7 +22,6 @@ use App\Models\AcademicDecision;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\ExternalCompetencyRequirement;
-use App\Models\ExternalCompetencyResult;
 use App\Models\Hold;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
@@ -174,7 +173,7 @@ class ViewStudentProfile extends ViewRecord
 
     public function recordExternalCompetencyAction(): Action
     {
-        return StudentAcademicActions::make($this->record)[0]->label('Record TESDA assessment')
+        return StudentAcademicActions::make($this->record)[0]
             ->visible(fn (): bool => auth()->user()?->status === User::StatusActive
                 && auth()->user()->hasRole(User::StaffRoleRegistrar)
                 && $this->hasExternalRequirement());
@@ -182,9 +181,7 @@ class ViewStudentProfile extends ViewRecord
 
     private function hasExternalRequirement(): bool
     {
-        return ExternalCompetencyRequirement::query()->where('state', 'ACTIVE')
-            ->where('curriculum_version_id', $this->record->curriculum_version_id)
-            ->whereHas('curriculumVersion', fn ($query) => $query->where('state', 'ACTIVE'))->exists();
+        return ExternalCompetencyRequirement::query()->applicableTo($this->record)->exists();
     }
 
     /** @return array<string, mixed> */
@@ -221,10 +218,8 @@ class ViewStudentProfile extends ViewRecord
             'nextTask' => $accountingWait ? 'Continue enrollment when cleared.' : null,
         ] : null;
         $requirements = $this->activeRecordTab() === 'academic'
-            ? ExternalCompetencyRequirement::query()->where('state', 'ACTIVE')
-                ->where('curriculum_version_id', $student->curriculum_version_id)
-                ->whereHas('curriculumVersion', fn ($query) => $query->where('state', 'ACTIVE'))
-                ->orderBy('requirement_code')->get()
+            ? ExternalCompetencyRequirement::query()->applicableTo($student)
+                ->withCurrentResultFor($student)->orderBy('requirement_code')->get()
             : collect();
 
         return [
@@ -258,10 +253,6 @@ class ViewStudentProfile extends ViewRecord
                 ->sortByDesc('ends_on')->map(fn (Term $term): array => ['term' => $term,
                     'average' => app(TermWeightedAverageProjection::class)->forResults($results, $term)]) : collect(),
             'externalRequirements' => $requirements,
-            'externalResults' => $requirements->isNotEmpty() ? ExternalCompetencyResult::query()
-                ->where('student_profile_id', $student->id)->where('is_current', true)
-                ->whereIn('external_competency_requirement_id', $requirements->modelKeys())
-                ->get()->keyBy('external_competency_requirement_id') : collect(),
         ];
     }
 
