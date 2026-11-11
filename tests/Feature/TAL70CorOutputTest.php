@@ -69,14 +69,21 @@ final class TAL70CorOutputTest extends TestCase
         $student = $fixture['student'];
         $enrollment = $fixture['enrollment'];
 
-        Livewire::actingAs($student)
+        $page = Livewire::actingAs($student)
             ->test(CorView::class)
-            ->assertSee('Issued copy')
+            ->assertSet('cor.summary.document_status', 'Current')
             ->assertSee($fixture['course_code'])
             ->assertSee('Subjects')
             ->assertSee('Recorded on this issued copy.')
             ->assertSet('cor.subjects.0.modality', 'Face-to-Face')
-            ->assertSee('Print or save PDF');
+            ->assertSee('Print or save PDF')
+            ->assertSeeHtml('href="'.e(route('cor.print', ['enrollment' => $enrollment, 'version' => $enrollment->currentCorVersion->version])).'"');
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($page->html());
+        $statuses = (new \DOMXPath($document))->query('//header[@aria-label="Issued certificate summary"]//span[@class="fi-badge-label"]');
+        $this->assertCount(1, $statuses);
+        $this->assertSame('Current', trim($statuses->item(0)->textContent));
 
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => BuildCorOutput::OutputType,
