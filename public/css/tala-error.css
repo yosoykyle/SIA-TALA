@@ -366,3 +366,173 @@ h1 {
     .admission-recovery, .admission-recovery .error-card { background: Canvas; color: CanvasText; animation: none; }
     .admission-recovery .primary-action { background: ButtonFace; color: ButtonText; border: 1px solid ButtonText; box-shadow: none; }
 }
+
+/* One recovery design for every error page: the glow colour follows the kind of error. */
+.admission-recovery[data-recovery-code='429']::before,
+.admission-recovery[data-recovery-code='503']::before { background: #a16207; }
+.admission-recovery[data-recovery-code^='5']:not([data-recovery-code='503'])::before { background: #b4113f; }
+.admission-recovery .error-card { max-inline-size: 34rem; margin-inline: auto; }
+.admission-recovery h1 { font-size: clamp(1.75rem, 1.3rem + 2vw, 2.5rem); line-height: 1.15; letter-spacing: -.02em; text-wrap: balance; }
+.admission-recovery .summary { font-size: 1.0625rem; line-height: 1.6; text-wrap: pretty; }
+.admission-recovery .next-step h2 { font-size: .8125rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.admission-recovery .error-actions { flex-wrap: wrap; gap: .75rem; }
+.admission-recovery .error-card > .status-code:first-of-type { margin-block-end: .5rem; }
+
+/* Expressive error layout: a giant tilted status numeral with the paper plane, then mood line, title, and one action panel.
+   The background glows are unchanged. Accent follows the kind of error. */
+.admission-recovery { --error-accent: #2f7d3b; --error-accent-soft: rgb(47 125 59 / 10%); }
+.admission-recovery:is([data-recovery-code='403'], [data-recovery-code='419'], [data-recovery-code='429'], [data-recovery-code='503']) { --error-accent: #a16207; --error-accent-soft: rgb(161 98 7 / 11%); }
+.admission-recovery[data-recovery-code^='5']:not([data-recovery-code='503']) { --error-accent: #b4113f; --error-accent-soft: rgb(180 17 63 / 9%); }
+.admission-recovery .error-stage { width: min(100%, 68rem); max-inline-size: 68rem; text-align: start; padding: clamp(1rem, 3vw, 2rem); }
+.admission-recovery .error-stage .brand { justify-content: flex-start; margin-bottom: clamp(1.5rem, 5vh, 3.5rem); }
+.error-hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: center; gap: clamp(1.5rem, 5vw, 4.5rem); }
+.error-numeral { position: relative; display: flex; justify-content: flex-end; font-family: var(--tala-font-heading, system-ui), sans-serif; font-size: clamp(7rem, 21vw, 17rem); font-weight: 800; line-height: .82; letter-spacing: -.06em; color: var(--error-accent); user-select: none; }
+.error-numeral > span { display: inline-block; text-shadow: .045em .045em 0 var(--error-accent-soft); }
+.error-numeral > span:nth-child(1) { transform: rotate(-7deg) translateY(.03em); }
+.error-numeral > span:nth-child(2) { transform: rotate(5deg) translateY(-.05em); color: transparent; -webkit-text-stroke: .035em var(--error-accent); text-shadow: none; }
+.error-numeral > span:nth-child(3) { transform: rotate(-3deg) translateY(.04em); }
+.error-plane { position: absolute; inset-inline-end: -.12em; inset-block-start: -.3em; inline-size: .95em; block-size: auto; overflow: visible; }
+.error-plane-trail { fill: none; stroke: var(--error-accent); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 2 9; opacity: .65; }
+.error-plane-body { fill: var(--error-accent); }
+.error-plane-fold { fill: var(--error-accent); opacity: .55; }
+.error-copy { display: grid; justify-items: start; gap: .625rem; min-inline-size: 0; }
+.error-mood { margin: 0; font-size: clamp(1.0625rem, .95rem + .6vw, 1.375rem); font-weight: 700; line-height: 1.3; color: var(--error-accent); }
+.admission-recovery .error-stage .status-code { margin: 0; font-size: .75rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.admission-recovery .error-stage h1 { margin: 0; font-size: clamp(2.25rem, 1.5rem + 3.2vw, 4rem); font-weight: 800; line-height: 1.02; letter-spacing: -.035em; text-wrap: balance; }
+.admission-recovery .error-stage .summary { margin: .25rem 0 0; font-size: 1.125rem; line-height: 1.55; max-inline-size: 38ch; text-wrap: pretty; }
+.admission-recovery .error-stage .next-step { margin-block-start: .625rem; padding: .875rem 1rem; border: 0; border-inline-start: .25rem solid var(--error-accent); border-radius: .5rem; background: var(--error-accent-soft); max-inline-size: 44ch; }
+.admission-recovery .error-stage .next-step h2 { margin: 0 0 .25rem; color: var(--error-accent); }
+.admission-recovery .error-stage .next-step p { margin: 0; line-height: 1.55; }
+.admission-recovery .error-stage .error-actions { justify-content: flex-start; margin-block-start: .875rem; }
+.admission-recovery .error-stage .primary-action { font-weight: 700; padding-inline: 1.25rem; }
+.admission-recovery .error-stage .support-note { margin: 0; }
+@media (max-width: 56rem) {
+    .error-hero { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+    .error-numeral { justify-content: flex-start; font-size: clamp(6rem, 34vw, 11rem); }
+    .error-plane { inset-inline-end: auto; inset-inline-start: 2.05em; }
+    .admission-recovery .error-stage .brand { margin-bottom: 1.5rem; }
+}
+@keyframes error-plane-float { from { transform: translate(-.06em, .05em) rotate(-3deg); } to { transform: translate(0, 0) rotate(0deg); } }
+@media (prefers-reduced-motion: no-preference) { .error-plane { animation: error-plane-float 1.6s ease-out both; } }
+@media (prefers-color-scheme: dark) {
+    .admission-recovery { --error-accent: #6acb7c; --error-accent-soft: rgb(106 203 124 / 13%); }
+    .admission-recovery:is([data-recovery-code='403'], [data-recovery-code='419'], [data-recovery-code='429'], [data-recovery-code='503']) { --error-accent: #f4d598; --error-accent-soft: rgb(244 213 152 / 13%); }
+    .admission-recovery[data-recovery-code^='5']:not([data-recovery-code='503']) { --error-accent: #ffc0cc; --error-accent-soft: rgb(255 192 204 / 13%); }
+}
+@media print, (forced-colors: active) { .error-plane { display: none; } .error-numeral, .error-numeral > span { color: CanvasText; -webkit-text-stroke: 0; text-shadow: none; } }
+.admission-recovery { overflow-x: clip; }
+@media (max-width: 56rem) { .error-plane { inset-inline-start: auto; inset-inline-end: 0; inline-size: .8em; inset-block-start: -.22em; } }
+
+/* "What you can do": a label chip and plain text. No box, no accent bar. */
+.admission-recovery .error-stage .next-step { margin-block-start: .875rem; padding: 0; border: 0; border-radius: 0; background: transparent; max-inline-size: 42ch; }
+.admission-recovery .error-stage .next-step h2 { display: inline-block; margin: 0 0 .5rem; padding: .2rem .7rem; border-radius: 99px; background: var(--error-accent-soft); color: var(--error-accent); font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.admission-recovery .error-stage .next-step p { font-size: 1.0625rem; }
+
+/* Trinkets around the numeral: small shapes that drift at their own pace. Decorative only. */
+.error-trinket { position: absolute; pointer-events: none; color: var(--error-accent); }
+svg.error-trinket { overflow: visible; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.error-trinket-spark { inline-size: .2em; inset-inline-start: -.06em; inset-block-start: -.18em; fill: currentColor; stroke: none; }
+.error-trinket-spark-small { inline-size: .1em; inset-inline-start: auto; inset-inline-end: .5em; inset-block-start: auto; inset-block-end: -.2em; opacity: .7; }
+.error-trinket-ring { inline-size: .13em; inset-inline-start: .62em; inset-block-start: -.3em; opacity: .75; }
+.error-trinket-plus { inline-size: .11em; inset-inline-end: -.1em; inset-block-end: .1em; opacity: .8; }
+.error-trinket-squiggle { inline-size: .42em; inset-inline-start: .08em; inset-block-end: -.26em; opacity: .55; }
+.error-trinket-plane { inline-size: .15em; inset-inline-start: -.2em; inset-block-end: .2em; fill: currentColor; stroke: none; opacity: .45; transform: rotate(-24deg); }
+.error-trinket-dot { inline-size: .055em; block-size: .055em; border-radius: 50%; background: currentColor; inset-inline-start: 1.28em; inset-block-start: -.14em; opacity: .8; }
+.error-trinket-dot-far { inline-size: .035em; block-size: .035em; inset-inline-start: -.14em; inset-block-start: .42em; opacity: .5; }
+@keyframes error-trinket-bob { from { translate: 0 0; } to { translate: 0 -.045em; } }
+@keyframes error-trinket-sway { from { rotate: -9deg; } to { rotate: 9deg; } }
+@keyframes error-trinket-twinkle { from { scale: .72; opacity: .45; } to { scale: 1.08; opacity: 1; } }
+@keyframes error-trinket-turn { to { rotate: 360deg; } }
+
+/* Background: two slow glows that breathe and drift on different clocks, so the pattern never visibly repeats. */
+@keyframes error-glow-breathe-a { 0% { transform: translate(0, 0) scale(1); opacity: .16; } 50% { transform: translate(7rem, 4rem) scale(1.22); opacity: .26; } 100% { transform: translate(2rem, 9rem) scale(1.08); opacity: .2; } }
+@keyframes error-glow-breathe-b { 0% { transform: translate(0, 0) scale(1.05); opacity: .18; } 50% { transform: translate(-6rem, -5rem) scale(1.26); opacity: .27; } 100% { transform: translate(-10rem, -1rem) scale(.98); opacity: .15; } }
+@media (prefers-reduced-motion: no-preference) {
+    .admission-recovery[data-recovery-code]::before { animation: error-glow-breathe-a 19s ease-in-out infinite alternate; }
+    .admission-recovery[data-recovery-code]::after { animation: error-glow-breathe-b 27s ease-in-out infinite alternate; }
+    .error-trinket-spark { animation: error-trinket-twinkle 3.4s ease-in-out infinite alternate; }
+    .error-trinket-spark-small { animation: error-trinket-twinkle 2.3s ease-in-out .6s infinite alternate; }
+    .error-trinket-ring { animation: error-trinket-bob 5.2s ease-in-out infinite alternate; }
+    .error-trinket-plus { animation: error-trinket-turn 22s linear infinite; }
+    .error-trinket-squiggle { animation: error-trinket-sway 6.5s ease-in-out infinite alternate; }
+    .error-trinket-plane { animation: error-trinket-bob 4.4s ease-in-out .3s infinite alternate; }
+    .error-trinket-dot { animation: error-trinket-bob 3.1s ease-in-out infinite alternate; }
+    .error-trinket-dot-far { animation: error-trinket-twinkle 4.1s ease-in-out infinite alternate; }
+    .error-plane { animation: error-plane-float 1.6s ease-out both, error-trinket-bob 5.6s ease-in-out 1.6s infinite alternate; }
+}
+@media print, (forced-colors: active) { .error-trinket { display: none; } }
+@media (max-width: 56rem) { .error-numeral { margin-block-end: .75rem; } .error-trinket-squiggle, .error-trinket-plane, .error-trinket-dot-far { display: none; } }
+
+/* Actions: short labels, an icon each, support as a real button. */
+.admission-recovery .error-stage :is(.primary-action, .secondary-action) { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-block-size: 2.75rem; font-weight: 700; }
+.action-icon { inline-size: 1.15em; block-size: 1.15em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.admission-recovery .error-stage .secondary-action { background: transparent; color: inherit; border: 1px solid color-mix(in srgb, currentColor 35%, transparent); text-decoration: none; }
+.admission-recovery .error-stage .secondary-action:hover { background: var(--error-accent-soft); border-color: var(--error-accent); }
+
+/* Two columns from tablet width up; stack only on phones. */
+.error-numeral { font-size: clamp(4.5rem, 19vw, 17rem); }
+.admission-recovery .error-stage .brand { margin-bottom: clamp(1rem, 4vh, 3.5rem); }
+@media (min-width: 44.0625rem) and (max-width: 56rem) {
+    .error-hero { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(1.25rem, 4vw, 3rem); }
+    .error-numeral { justify-content: flex-end; font-size: clamp(4.5rem, 19vw, 17rem); margin-block-end: 0; }
+    .error-plane { inset-inline-start: auto; inset-inline-end: -.12em; inline-size: .95em; inset-block-start: -.3em; }
+    .error-trinket-squiggle, .error-trinket-plane, .error-trinket-dot-far { display: block; }
+    .admission-recovery .error-stage h1 { font-size: clamp(1.875rem, 1rem + 3vw, 3rem); }
+}
+@media (max-width: 44rem) { .error-numeral { font-size: clamp(6rem, 34vw, 11rem); } }
+
+/* Background: each glow travels its own slow loop in opposite directions, on clocks that never line up. */
+@keyframes error-glow-orbit-a {
+    0% { transform: translate(0, 0) scale(1); opacity: .17; }
+    25% { transform: translate(16rem, 2rem) scale(1.18); opacity: .25; }
+    50% { transform: translate(22rem, 15rem) scale(1.28); opacity: .2; }
+    75% { transform: translate(5rem, 19rem) scale(1.1); opacity: .27; }
+    100% { transform: translate(0, 0) scale(1); opacity: .17; }
+}
+@keyframes error-glow-orbit-b {
+    0% { transform: translate(0, 0) scale(1.05); opacity: .19; }
+    25% { transform: translate(-6rem, -16rem) scale(1.24); opacity: .26; }
+    50% { transform: translate(-21rem, -12rem) scale(1.1); opacity: .16; }
+    75% { transform: translate(-15rem, 3rem) scale(1.3); opacity: .24; }
+    100% { transform: translate(0, 0) scale(1.05); opacity: .19; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .admission-recovery[data-recovery-code]::before { animation: error-glow-orbit-a 37s ease-in-out infinite; }
+    .admission-recovery[data-recovery-code]::after { animation: error-glow-orbit-b 53s ease-in-out infinite; }
+}
+.admission-recovery .error-stage .error-actions { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: .625rem; }
+
+/* Every error action shares one button design, including the account-switch dialog. */
+.admission-recovery :is(.primary-action, .secondary-action) { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-block-size: 2.75rem; padding-inline: 1.25rem; border-radius: .625rem; font-weight: 700; text-decoration: none; cursor: pointer; }
+.admission-recovery .secondary-action { background: transparent; color: inherit; border: 1px solid color-mix(in srgb, currentColor 35%, transparent); }
+.admission-recovery .secondary-action:hover { background: var(--error-accent-soft); border-color: var(--error-accent); }
+.admission-recovery .account-switch-dialog { border: 1px solid color-mix(in srgb, currentColor 14%, transparent); border-radius: 1rem; background: #ffffff; color: #18181b; }
+.admission-recovery .account-switch-dialog h2 { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; }
+.admission-recovery .dialog-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .625rem; }
+@media (prefers-color-scheme: dark) { .admission-recovery .account-switch-dialog { background: #18181b; color: #fafafa; } }
+
+/* Glow strength is a variable so light mode can run stronger than dark. */
+.admission-recovery { --glow-low: .3; --glow-mid: .4; --glow-high: .5; }
+.admission-recovery::before, .admission-recovery::after { opacity: var(--glow-mid); filter: blur(64px); }
+@media (prefers-color-scheme: dark) { .admission-recovery { --glow-low: .16; --glow-mid: .21; --glow-high: .27; } .admission-recovery::before, .admission-recovery::after { filter: blur(72px); } }
+@keyframes error-glow-travel-a {
+    0% { transform: translate(0, 0) scale(1); opacity: var(--glow-low); }
+    25% { transform: translate(16rem, 2rem) scale(1.18); opacity: var(--glow-high); }
+    50% { transform: translate(22rem, 15rem) scale(1.28); opacity: var(--glow-mid); }
+    75% { transform: translate(5rem, 19rem) scale(1.1); opacity: var(--glow-high); }
+    100% { transform: translate(0, 0) scale(1); opacity: var(--glow-low); }
+}
+@keyframes error-glow-travel-b {
+    0% { transform: translate(0, 0) scale(1.05); opacity: var(--glow-mid); }
+    25% { transform: translate(-6rem, -16rem) scale(1.24); opacity: var(--glow-high); }
+    50% { transform: translate(-21rem, -12rem) scale(1.1); opacity: var(--glow-low); }
+    75% { transform: translate(-15rem, 3rem) scale(1.3); opacity: var(--glow-high); }
+    100% { transform: translate(0, 0) scale(1.05); opacity: var(--glow-mid); }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .admission-recovery[data-recovery-code]::before { animation: error-glow-travel-a 37s ease-in-out infinite; }
+    .admission-recovery[data-recovery-code]::after { animation: error-glow-travel-b 53s ease-in-out infinite; }
+}
+@media print, (forced-colors: active) { .admission-recovery::before, .admission-recovery::after { display: none !important; } }
+/* Light mode carries the stronger glow, so its supporting text runs a shade darker to stay readable over the colour. */
+@media (prefers-color-scheme: light) { .admission-recovery .error-stage :is(.summary, .next-step p) { color: #27272a; } .admission-recovery .error-stage .status-code { color: #3f3f46; } }

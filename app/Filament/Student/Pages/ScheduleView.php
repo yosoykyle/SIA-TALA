@@ -5,6 +5,7 @@ namespace App\Filament\Student\Pages;
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\StudentHub\RecordStudentScheduleAccess;
 use App\Actions\StudentHub\StudentDashboardService;
+use App\Filament\Student\Pages\Enrollment as EnrollmentPage;
 use App\Models\Enrollment;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -27,7 +28,7 @@ class ScheduleView extends Page
     /** @return array<string|int, string> */
     public function getBreadcrumbs(): array
     {
-        return [Dashboard::getUrl(panel: 'student') => 'Overview', $this->getTitle()];
+        return [Dashboard::getUrl(panel: 'student') => 'Overview', EnrollmentPage::getUrl(panel: 'student') => 'Enrollment', $this->getTitle()];
     }
 
     public function mount(): void

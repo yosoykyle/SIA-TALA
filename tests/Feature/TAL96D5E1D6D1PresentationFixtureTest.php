@@ -177,12 +177,21 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
             }
         }
 
-        $this->get(route('filament.student.pages.academics'))
+        $response = $this->get(route('filament.student.pages.academics'))
             ->assertOk()
             ->assertSee('Current subjects')
-            ->assertSee('View study plan')
             ->assertDontSee('Showing 3 of 53 named blockers.')
             ->assertDontSee('Review remaining 50 blockers');
+
+        $studyPlanUrl = route('filament.student.pages.academics', ['view' => 'plan']);
+        $document = new \DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $links = (new \DOMXPath($document))->query('//*[@id="fi-main-sidebar"]//a[@href="'.$studyPlanUrl.'"]');
+        $this->assertCount(1, $links);
+        $this->assertSame('Study plan', trim($links->item(0)->textContent));
+
+        $this->app->forgetInstance('originalRequest');
+        $this->get($studyPlanUrl)->assertOk()->assertSeeHtml('aria-label="Curriculum years"');
     }
 
     private function presentationTerm(): Term

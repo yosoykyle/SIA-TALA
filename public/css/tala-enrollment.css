@@ -21,7 +21,6 @@
 .student-home h2{font-size:1.375rem;font-weight:600;line-height:1.3;}
 .student-home .tala-timetable{--timetable-slot-height:1.75rem;}
 .student-home .tala-timetable-weekly{max-block-size:none;overflow:visible;}
-.student-information{max-inline-size:72rem;}
 .student-information-intro{color:var(--tala-muted);font-size:1rem;}
 .student-information-section{padding-block:1.5rem;border-block-end:1px solid var(--tala-edge);}
 .student-information h2,.student-information summary{font-size:1.125rem;font-weight:600;line-height:1.5;}
@@ -58,17 +57,17 @@
 .student-study-value{font-size:1.5rem;line-height:1.25;font-weight:600;}
 .student-study-note{font-size:.8125rem;line-height:1.5;color:var(--tala-muted);margin-block-start:.75rem;max-inline-size:60ch;}
 .student-study-term{display:grid;gap:1rem;}.student-study-term dd{font-size:1.0625rem;line-height:1.4;margin:0;}
-.student-academics{display:grid;grid-template-columns:minmax(0,1fr);gap:1.75rem;color:var(--tala-text);}
+.student-academics{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap,12px);color:var(--tala-text);}
 .student-academics h2{font-size:1.25rem;line-height:1.4;font-weight:600;letter-spacing:-.015em;}
 .student-academic-reading{padding-block:.25rem 1rem;}
-.student-academic-reading-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(12rem,1fr);gap:2rem;align-items:start;}
+.student-academic-reading-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--tala-card-gap,12px);align-items:start;}
 .student-academic-reading-grid>*,.student-academic-reading section{min-inline-size:0;}
 .student-academic-heading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.75rem;margin-block-end:1.25rem;}.student-academic-heading>p{font-size:.875rem;color:var(--tala-muted);font-variant-numeric:tabular-nums;}
 .student-academic-table-wrap{overflow-x:auto;min-inline-size:0;}
 .student-academic-table{inline-size:100%;border-collapse:collapse;text-align:start;font-size:.9375rem;}
 .student-academic-table :is(th,td){padding:1.25rem .5rem;text-align:start;border-block-end:1px solid var(--tala-edge);vertical-align:middle;line-height:1.5;}
 .student-academic-table thead th{color:var(--tala-muted);font-size:.8125rem;font-weight:500;padding-block:.5rem .75rem;}
-.student-academic-table tbody th{font-weight:600;}.student-academic-table tr>*:first-child{padding-inline-start:0;}.student-academic-table tr>*:last-child{padding-inline-end:0;}
+.student-academic-table tbody th{font-weight:600;}
 .student-academic-secondary{display:block;font-size:.8125rem;font-weight:400;line-height:1.5;color:var(--tala-muted);margin-block-start:.25rem;}
 .student-academic-number{font-variant-numeric:tabular-nums;white-space:nowrap;}
 .student-academic-note{font-size:.875rem;line-height:1.6;color:var(--tala-muted);padding-block-start:.75rem;max-inline-size:65ch;}
@@ -79,14 +78,14 @@
 .student-academic-total{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;margin-block:1rem 1.25rem;}.student-academic-total strong{font-size:2.5rem;line-height:1;font-weight:600;letter-spacing:-.025em;font-variant-numeric:tabular-nums;}.student-academic-total span{font-size:.875rem;line-height:1.5;color:var(--tala-muted);}
 .student-academic-program{font-size:1.125rem;line-height:1.5;color:var(--tala-muted);}
 .student-plan-figures{display:flex;flex-wrap:wrap;gap:1.25rem 2.5rem;border-block:1px solid var(--tala-edge);padding-block:1.5rem;}.student-plan-figures>div{display:flex;flex-direction:column-reverse;gap:.5rem;}.student-plan-figures dt{font-size:.875rem;color:var(--tala-muted);}.student-plan-figures dd{font-size:2rem;line-height:1;font-weight:600;letter-spacing:-.025em;font-variant-numeric:tabular-nums;margin:0;}
-.student-plan-map{display:grid;gap:2.5rem;}.student-plan-year{display:grid;grid-template-columns:minmax(8rem,.6fr) minmax(0,3fr);gap:1.5rem;}.student-plan-year>h2{border-inline-start:1px solid var(--tala-selected-edge);padding-inline-start:1rem;}.student-plan-term+.student-plan-term{margin-block-start:2rem;}.student-plan-term h3{font-weight:600;font-size:1.0625rem;line-height:1.5;padding-block-end:.75rem;}
-.student-plan-subjects{list-style:none;margin:0;padding:0;}.student-plan-subjects li{display:grid;grid-template-columns:minmax(0,2fr) minmax(4rem,.4fr) minmax(7rem,.8fr);gap:1rem;align-items:center;padding-block:1.25rem;border-block-start:1px solid var(--tala-edge);}.student-plan-subjects h4{font-size:1rem;font-weight:600;line-height:1.5;}.student-plan-subjects p{font-size:.875rem;line-height:1.5;}.student-plan-status{display:flex;align-items:center;gap:.5rem;}.student-plan-status>.fi-icon{inline-size:1.25rem;block-size:1.25rem;flex:none;color:var(--tala-brand);}
-.student-record-empty{display:grid;justify-items:start;gap:1rem;padding-block:1.75rem 2rem;border-block-end:1px solid var(--tala-edge);}.student-record-empty>.fi-icon{inline-size:2rem;block-size:2rem;color:var(--tala-muted);}.student-record-empty p{font-size:.9375rem;line-height:1.6;color:var(--tala-muted);max-inline-size:60ch;}.student-record-empty .fi-btn{margin-block-start:.5rem;}
+.student-plan-map{display:grid;gap:var(--tala-card-gap,12px);}.student-plan-year{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap,12px);}.student-plan-year>h2{border-inline-start:1px solid var(--tala-selected-edge);padding-inline-start:1rem;}.student-plan-term+.student-plan-term{margin-block-start:0;}.student-plan-term h3{font-weight:600;font-size:1.0625rem;line-height:1.5;padding-block-end:.75rem;}
+.student-plan-subjects{list-style:none;margin:0;padding:0;}.student-plan-subjects li{display:grid;grid-template-columns:minmax(0,2fr) minmax(4rem,.4fr) minmax(7rem,.8fr);gap:1rem;align-items:center;padding-block:1.25rem;border-block-start:1px solid var(--tala-edge);}.student-plan-subjects h4{font-size:1rem;font-weight:600;line-height:1.5;}.student-plan-subjects p{font-size:.875rem;line-height:1.5;}.student-plan-status{display:flex;align-items:center;gap:.5rem;}.student-plan-status>.fi-icon{inline-size:1.25rem;block-size:1.25rem;flex:none;color:var(--tala-brand-foreground);}
+.student-record-empty{display:grid;justify-items:start;gap:var(--tala-card-gap,12px);padding:1.25rem;}.student-record-empty>.fi-icon{inline-size:2rem;block-size:2rem;color:var(--tala-muted);}.student-record-empty p{font-size:.9375rem;line-height:1.6;color:var(--tala-muted);max-inline-size:60ch;}.student-record-empty .fi-btn{margin-block-start:.5rem;}
 .student-record-gwa{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem 1rem;font-size:.9375rem;}.student-record-gwa strong{font-size:2rem;line-height:1.2;font-weight:600;font-variant-numeric:tabular-nums;}.student-record-gwa span{font-size:.875rem;color:var(--tala-muted);}
-.student-record-terms{display:grid;gap:2.5rem;}.student-record-section{border-block-start:1px solid var(--tala-edge);padding-block-start:1.5rem;}.student-record-section>p{font-size:.9375rem;line-height:1.6;margin-block-start:.75rem;}
+.student-record-terms{display:grid;gap:var(--tala-card-gap,12px);}.student-record-section{border-block-start:1px solid var(--tala-edge);padding-block-start:1.5rem;}.student-record-section>p{font-size:.9375rem;line-height:1.6;margin-block-start:.75rem;}
 .student-academic-source{margin-block-start:1rem;font-size:.875rem;line-height:1.6;}.student-academic-source>summary{cursor:pointer;font-weight:500;min-block-size:2.75rem;padding-block:.625rem;color:var(--tala-brand);}.student-academic-source>p{margin-block:.75rem;max-inline-size:65ch;}
 .student-academic-notice{padding-block:1rem;border-block:1px solid var(--tala-edge);}.student-academic-notice p{margin-block:.5rem;line-height:1.6;font-size:.875rem;max-inline-size:65ch;}
-.student-registration{display:grid;gap:2rem;min-inline-size:0;}.student-registration-heading{display:flex;align-items:start;justify-content:space-between;gap:1.5rem;padding-block-end:1.5rem;border-block-end:1px solid var(--tala-edge);}.student-registration h2{font-size:1.25rem;font-weight:600;line-height:1.4;}.student-registration-heading p,.student-registration-subjects-heading p{font-size:.9375rem;color:var(--tala-muted);margin-block-start:.5rem;}.student-registration-heading>.fi-btn{flex:none;}.student-registration section{min-inline-size:0;}.student-registration-subjects-heading{margin-block-end:1rem;}.student-registration-links{display:flex;flex-wrap:wrap;gap:1rem 2rem;margin-block-start:1.5rem;}.student-registration-history-row{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding-block:.75rem;}.student-registration-help{font-size:.875rem;line-height:1.6;color:var(--tala-muted);padding-block-start:1.25rem;border-block-start:1px solid var(--tala-edge);max-inline-size:75ch;}
+.student-registration{display:grid;gap:var(--tala-card-gap,12px);min-inline-size:0;}.student-registration-heading{display:flex;align-items:start;justify-content:space-between;gap:1.5rem;padding-block-end:1.5rem;border-block-end:1px solid var(--tala-edge);}.student-registration h2{font-size:1.25rem;font-weight:600;line-height:1.4;}.student-registration-heading p,.student-registration-subjects-heading p{font-size:.9375rem;color:var(--tala-muted);margin-block-start:.5rem;}.student-registration-heading>.fi-btn{flex:none;}.student-registration section{min-inline-size:0;}.student-registration-subjects-heading{margin-block-end:1rem;}.student-registration-links{display:flex;flex-wrap:wrap;gap:1rem 2rem;margin-block-start:1.5rem;}.student-registration-history-row{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding-block:.75rem;}.student-registration-help{font-size:.875rem;line-height:1.6;color:var(--tala-muted);padding-block-start:1.25rem;border-block-start:1px solid var(--tala-edge);max-inline-size:75ch;}
 .student-registration-heading+.student-academic-notice{border-block-start:0;padding-block-start:0;}.student-registration-shortages{padding-inline-start:1.25rem;list-style:disc;}.student-registration-details{display:grid;gap:.75rem;font-size:.875rem;line-height:1.6;}
 .student-review-deadline{font-size:.875rem;line-height:1.6;color:var(--tala-muted);}.student-review-layout,.student-review-subjects{display:grid;gap:2rem;min-inline-size:0;}.student-review-layout.tala-task-surface,.student-review-schedule.tala-task-surface{padding:1.5rem;}
 .student-review-subjects>section{min-inline-size:0;}.student-review-subjects>section>h2{margin-block-end:1rem;}.student-review-payment{display:grid;gap:1rem;align-content:start;padding-block-start:1.5rem;border-block-start:1px solid var(--tala-edge);min-inline-size:0;}.student-review-payment>p:not(.student-review-amount){font-size:.875rem;line-height:1.6;color:var(--tala-muted);}.student-review-amount{font-size:1.75rem;font-weight:600;letter-spacing:-.025em;font-variant-numeric:tabular-nums;}.student-review-payment>.fi-btn{inline-size:100%;}.student-review-payment .learner-money>div{flex-wrap:wrap;gap:.25rem .75rem;}
@@ -281,8 +280,7 @@
 .registrar-subject-table :is(th,td){text-align:start;vertical-align:middle;padding:1rem .5rem;border-block-end:1px solid var(--tala-edge);}
 .registrar-subject-table thead th{color:var(--tala-muted);font-size:.875rem;font-weight:500;padding-block:.5rem;}
 .registrar-subject-table tbody th{font-weight:600;}
-.registrar-subject-table tr>*:first-child{padding-inline-start:0;}
-.registrar-subject-table tr>*:last-child{text-align:end;padding-inline-end:0;font-variant-numeric:tabular-nums;}
+.registrar-subject-table tr>*:last-child{text-align:end;font-variant-numeric:tabular-nums;}
 .registrar-subject-table th span{display:block;font-size:.875rem;font-weight:400;color:var(--tala-muted);overflow-wrap:anywhere;margin-block-start:.25rem;}
 .registrar-subject-table .registrar-subject-actions{display:flex;justify-content:flex-end;gap:.5rem;white-space:nowrap;}
 .registrar-subject-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
@@ -461,7 +459,7 @@
 .oversight-welcome-records{display:grid;justify-items:center;gap:1rem;}
 .oversight-welcome-records h3{font-size:.875rem;line-height:1.5;font-weight:var(--tala-weight-emphasis);}
 .oversight-welcome-records nav{display:flex;justify-content:center;flex-wrap:wrap;gap:.75rem;}
-.oversight-board{--oversight-official:#168252;--oversight-in-progress:#b9e8d4;--oversight-pending:#cbd5e1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(17rem,.75fr);grid-template-areas:"calendar calendar attention" "enrollment grades attention" "authority authority authority" "lifecycle lifecycle lifecycle";gap:1rem;color:var(--tala-text);}
+.oversight-board{--oversight-official:var(--tala-brand-foreground);--oversight-in-progress:#b9e8d4;--oversight-pending:#cbd5e1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(17rem,.75fr);grid-template-areas:"calendar calendar attention" "enrollment grades attention" "authority authority authority" "lifecycle lifecycle lifecycle";gap:1rem;color:var(--tala-text);}
 .oversight-panel{min-inline-size:0;border:1px solid var(--tala-edge);border-radius:.75rem;padding:1.5rem;background:var(--tala-surface);}
 .oversight-panel h2{font-size:1.1875rem;line-height:1.3;font-weight:var(--tala-weight-emphasis);letter-spacing:-.015em;margin:0;}
 .oversight-panel-heading{display:flex;justify-content:space-between;align-items:start;gap:1rem;flex-wrap:wrap;}
@@ -520,9 +518,11 @@
 .oversight-enrollment{grid-area:enrollment;}.oversight-grades{grid-area:grades;}
 .oversight-figure{display:flex;align-items:baseline;flex-wrap:wrap;gap:.5rem;margin-block:1rem .75rem;font-variant-numeric:tabular-nums;}
 .oversight-figure>strong{font-size:2.5rem;line-height:1.1;letter-spacing:-.035em;font-weight:var(--tala-weight-heading);}.oversight-figure>span{font-size:.875rem;color:var(--tala-muted);}
-.oversight-distribution{display:flex;inline-size:100%;block-size:1.125rem;border:1px solid #60746a;border-radius:1rem;overflow:hidden;background:var(--tala-surface-sunken);}
+.student-tile-bar,.oversight-distribution{box-sizing:border-box;display:flex;inline-size:100%;block-size:.75rem;border:1px solid var(--tala-edge-strong);border-radius:99px;overflow:hidden;background:var(--tala-surface-sunken);box-shadow:var(--tala-inset-well);}
+.student-tile-bar>span,.oversight-distribution>span{display:block;block-size:100%;}
+.student-tile-bar>span{background:var(--tala-brand-foreground);}
 .oversight-distribution>span{flex-basis:0;min-inline-size:0;}
-.oversight-distribution>span+span{border-inline-start:1px solid #60746a;}
+.oversight-distribution>span+span{border-inline-start:1px solid var(--tala-surface);}
 .oversight-segment-official,.oversight-grade-released{background:var(--oversight-official);}
 .oversight-segment-in_progress{background:var(--oversight-in-progress);}
 .oversight-segment-closed,.oversight-grade-in_progress{background:var(--oversight-pending);}
@@ -535,7 +535,7 @@
 .oversight-unavailable{min-block-size:8.5rem;display:grid;align-content:center;gap:.75rem;line-height:1.5;color:var(--tala-muted);font-size:.875rem;}.oversight-unavailable>strong{font-size:2rem;line-height:1;}
 .oversight-summary-note{font-size:.875rem;color:var(--tala-muted);line-height:1.6;margin-block:1rem 1.25rem;}
 .oversight-authority{grid-area:authority;}.oversight-heading-scope{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;}
-.oversight-program-summary{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1.5rem;align-items:center;margin-block:1rem;font-size:.8125rem;}.oversight-program-summary strong{font-weight:var(--tala-weight-emphasis);font-variant-numeric:tabular-nums;}.oversight-program-distribution{block-size:.75rem;}
+.oversight-program-summary{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1.5rem;align-items:center;margin-block:1rem;font-size:.8125rem;}.oversight-program-summary strong{font-weight:var(--tala-weight-emphasis);font-variant-numeric:tabular-nums;}
 .oversight-programs{list-style:none;margin:0;padding:0;}.oversight-programs li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-block:.75rem;border-block-start:1px solid var(--tala-edge);}.oversight-programs a{font-size:.875rem;font-weight:var(--tala-weight-emphasis);line-height:1.6;}.oversight-programs small{display:block;font-size:.75rem;line-height:1.5;color:var(--tala-muted);margin-block-start:.25rem;}
 .oversight-lifecycle{grid-area:lifecycle;display:flex;align-items:center;justify-content:space-between;gap:1.5rem;}.oversight-lifecycle p{font-size:.75rem;color:var(--tala-muted);line-height:1.5;margin-block-start:.5rem;}.oversight-lifecycle nav{display:flex;flex-wrap:wrap;gap:.75rem;}.oversight-lifecycle nav>a{min-inline-size:13rem;}
 .oversight-checked{font-size:.75rem;color:var(--tala-muted);line-height:1.6;margin:0;}
@@ -683,20 +683,25 @@
 .head-enrollment-closed-message{display:flex;align-items:start;gap:1rem;padding:1.25rem 1.5rem;background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:.75rem;}.head-enrollment-closed-message>svg{inline-size:1.5rem;block-size:1.5rem;flex-shrink:0;}.head-enrollment-closed-message h2{font-size:1.125rem;font-weight:600;line-height:1.5;}.head-enrollment-closed-message p{font-size:.875rem;color:var(--tala-muted);line-height:1.6;max-inline-size:80ch;margin-block-start:.5rem;}.head-enrollment-source-grid small{display:block;font-size:.75rem;color:var(--tala-muted);}
 
 /* Student Finance task and account composition. */
-.student-finance-workspace{display:grid;gap:1.5rem;min-inline-size:0;color:var(--tala-text);}
-.student-finance-board{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:1.5rem;align-items:start;}
-.student-finance-task,.student-finance-position{padding:1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);min-inline-size:0;}
-.student-finance-task{background:var(--tala-surface);}.student-finance-task-review{border-color:#b99b63;}
+.student-finance-workspace{display:grid;gap:var(--tala-card-gap,12px);min-inline-size:0;color:var(--tala-text);container-type:inline-size;}
+.student-finance-pair{display:grid;grid-template-columns:minmax(0,1fr);}
+.student-finance-pair>section{min-inline-size:0;}
+.student-finance-pair>section+section{border-block-start:1px solid var(--tala-edge);}
+@container(min-width:50rem){
+    .student-finance-pair:has(>section+section){grid-template-columns:repeat(2,minmax(0,1fr));}
+    .student-finance-pair>section+section{border-block-start:0;border-inline-start:1px solid var(--tala-edge);}
+}
+.student-finance-task,.student-finance-position{min-inline-size:0;}
+.student-finance-pair:has(>.student-finance-task-review){border-color:var(--warning-600,#d97706);}
 .student-finance-workspace h2{font-size:1.25rem;line-height:1.35;font-weight:600;letter-spacing:-.015em;}
-.student-finance-task>p{font-size:.9375rem;line-height:1.65;max-inline-size:65ch;margin-block:1rem;overflow-wrap:anywhere;}
+.student-finance-task>p{font-size:.9375rem;line-height:1.65;max-inline-size:65ch;margin-block:.75rem;overflow-wrap:anywhere;}
 .student-finance-actions{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem 1.25rem;margin-block-start:1.25rem;}
-.student-finance-position dl{margin-block-start:1rem;}.student-finance-position dl>div{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;padding-block:.875rem;border-block-end:1px solid var(--tala-edge);}
+.student-finance-position dl{margin-block-start:.5rem;}.student-finance-position dl>div{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;padding-block:.625rem;border-block-end:1px solid var(--tala-edge);}
 .student-finance-position dt{font-size:.8125rem;line-height:1.5;color:var(--tala-muted);}.student-finance-position dd{font-size:1.125rem;font-weight:600;font-variant-numeric:tabular-nums;text-align:end;white-space:nowrap;}
 .student-finance-workspace .student-finance-section{min-inline-size:0;}.student-finance-workspace .student-finance-table-wrap{max-inline-size:100%;}
 .student-finance-workspace article{font-size:.875rem;line-height:1.65;overflow-wrap:anywhere;}.student-finance-workspace h3{font-weight:600;font-size:.9375rem;}.student-finance-workspace article p{margin-block:.5rem;}
 .student-finance-workspace :is(summary,a,[role="region"]):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
-@media(max-width:55rem){.student-finance-board{grid-template-columns:minmax(0,1fr);}.student-finance-position dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;}.student-finance-position dl>div{display:block;border:0;}.student-finance-position dd{text-align:start;margin-block-start:.5rem;}}
-@media(max-width:34rem){.student-finance-task,.student-finance-position{padding:1.25rem;}.student-finance-position dl{grid-template-columns:minmax(0,1fr);gap:0;}.student-finance-position dl>div{display:flex;border-block-end:1px solid var(--tala-edge);}.student-finance-position dd{margin:0;}.student-finance-actions{align-items:stretch;}}
+@media(max-width:34rem){.student-finance-actions{align-items:stretch;}.student-finance-position dd{font-size:1rem;}}
 .student-finance-workspace .student-finance-section{margin-block-start:0;}
 
 
@@ -755,27 +760,7 @@
 @media(max-width:40rem){.accounting-review-task{padding:1.25rem}.accounting-review-facts{grid-template-columns:1fr;gap:1rem}.accounting-review-task .accounting-context-actions{align-items:stretch}.accounting-review-task .accounting-context-actions .fi-btn{max-width:100%;white-space:normal}}
 
 /* Student identity, task summaries and readable supporting records. */
-.student-profile-identity{display:flex;align-items:center;gap:1.5rem;padding:1.75rem 2rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));margin-block-end:2rem;color:var(--tala-text);}
-.student-profile-identity h2{font-size:1.75rem;font-weight:600;line-height:1.25;letter-spacing:-.02em;margin-block-end:.4rem;text-wrap:balance;}
-.student-profile-identity p{line-height:1.6;overflow-wrap:anywhere;}
-.student-profile-avatar{display:grid;place-items:center;flex-shrink:0;inline-size:5.5rem;block-size:5.5rem;border-radius:50%;background:color-mix(in srgb,var(--tala-brand) 17%,var(--tala-surface));font-size:1.75rem;font-weight:600;overflow:hidden;}
-.student-profile-avatar img{inline-size:100%;block-size:100%;object-fit:cover;}
 
-.student-identity-panel{position:relative;isolation:isolate;overflow:hidden;gap:1.75rem;min-block-size:12rem;}
-.student-identity-panel>.student-profile-avatar,.student-identity-content{position:relative;z-index:1;}
-.student-identity-panel>.student-profile-avatar{inline-size:6rem;block-size:6rem;border:.375rem solid var(--tala-surface);box-shadow:0 0 0 1px var(--tala-selected-edge),var(--tala-shadow-surface);}
-.student-identity-content{min-inline-size:0;max-inline-size:calc(100% - 10rem);}
-.student-identity-panel .student-identity-content>h2{font-size:clamp(1.5rem,2.5vw,2rem);font-weight:700;line-height:1.25;margin-block-end:.5rem;}
-.student-identity-program{font-size:1rem;max-inline-size:55ch;}
-.student-identity-facts{display:flex;flex-wrap:wrap;gap:.875rem 1.5rem;margin-block-start:1.25rem;}
-.student-identity-facts>div{min-inline-size:0;}
-.student-identity-facts>div+div{padding-inline-start:1.5rem;border-inline-start:1px solid var(--tala-edge);}
-.student-identity-facts dt{font-size:.8125rem;color:var(--tala-muted);line-height:1.5;}
-.student-identity-facts dd{font-size:.9375rem;line-height:1.5;margin-block-start:.25rem;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
-.student-identity-art{inline-size:min(40%,23rem);}
-@media(max-width:75rem){.student-identity-content{max-inline-size:100%;}.student-identity-art{opacity:.25;}}
-@media(max-width:40rem){.student-identity-panel{display:grid;grid-template-columns:4rem minmax(0,1fr);gap:.5rem 1rem;align-items:start;}.student-identity-panel>.student-profile-avatar{inline-size:4rem;block-size:4rem;border-width:.25rem;grid-row:1/3;}.student-identity-content{display:contents;}.student-identity-panel .student-identity-content h2{font-size:1.5rem;grid-column:2;margin:0;}.student-identity-program{font-size:.9375rem;grid-column:2;}.student-identity-facts{position:relative;z-index:1;grid-column:1/-1;display:grid;gap:.75rem;margin-block-start:.75rem;}.student-identity-facts>div+div{padding-inline-start:0;border:0;}.student-identity-art{inline-size:55%;block-size:7rem;inset-block-start:auto;opacity:.25;}}
-@media(forced-colors:active){.student-identity-art{display:none;}.student-identity-panel>.student-profile-avatar{box-shadow:none;border-color:CanvasText;}}
 .student-profile-meta,.student-proof-privacy{font-size:.875rem;color:var(--tala-muted);line-height:1.6;}
 .student-overview-board{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:1.25rem;margin-block-end:1.25rem;}
 .student-overview-board>section{padding:1.75rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);box-shadow:var(--tala-material-raised);min-inline-size:0;}
@@ -791,28 +776,46 @@
 .student-overview-links{display:flex;flex-wrap:wrap;gap:.75rem 2.5rem;padding-block:1.5rem 0;border-block-start:1px solid var(--tala-edge);margin-block-start:1.5rem;}
 .student-overview-links .fi-link{text-decoration:underline;text-underline-offset:.3em;min-block-size:2.75rem;}
 .student-review-home .student-home-schedule{padding:0;border:0;}
-.student-profile-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:1.5rem;align-items:start;}
-.student-profile-section{min-inline-size:0;padding:1.5rem;}
-.student-profile-page h2{font-size:1.25rem;line-height:1.4;margin-block-end:1rem;}
-.student-profile-page .student-profile-section-heading{display:flex;align-items:center;gap:.75rem;font-weight:700;margin-block-end:1.25rem;}
-.student-profile-section-heading>.fi-icon{inline-size:1.5rem;block-size:1.5rem;flex:none;color:var(--tala-brand-strong);}
-.dark .student-profile-section-heading>.fi-icon{color:var(--primary-200);}
-.student-profile-section .student-profile-study-note{padding:0;border-radius:0;background:transparent;color:var(--tala-text);margin-block-end:1.25rem;max-inline-size:55ch;}
-.student-profile-section dl{margin-block-start:0;}
-.student-profile-section:has(.student-profile-study-note) dl{grid-template-columns:repeat(2,minmax(0,1fr));}
-.student-profile-section .student-information-guidance{color:var(--tala-muted);padding-block-start:1.25rem;}
-
-.student-profile-page dl>div{display:block;}
-.student-profile-page dl{gap:1.25rem;}
-.student-profile-page dt{font-size:.875rem;margin-block-end:.25rem;}
-.student-profile-page dd{font-size:1rem;line-height:1.6;}
-.student-profile-photo-action{margin-block-start:1rem;}
-.student-profile-study-note,.student-plan-start{padding:1.25rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));font-size:.9375rem;line-height:1.6;}
-.student-profile-school{padding:1.5rem;margin-block-start:1.5rem;}
-.student-profile-school dl{grid-template-columns:repeat(2,minmax(0,1fr));}
-.student-profile-corrections{margin-block-start:1.5rem;}
+.student-profile-page{container-type:inline-size;}
+.student-profile-page .tala-record-identity{padding:clamp(1rem,3cqi,2rem);border-radius:var(--tala-card-radius);}
+.student-profile-page .tala-record-identity-person{gap:clamp(.875rem,2.5cqi,1.75rem);}
+.student-profile-page .tala-record-identity-heading{display:flex;align-items:center;flex-wrap:wrap;gap:.375rem .875rem;}
+.student-profile-page .tala-record-identity h2{font-size:clamp(1.625rem,3.2cqi,2.75rem);font-weight:var(--tala-weight-emphasis);line-height:1.1;letter-spacing:-.025em;margin:0;}
+.student-profile-page .tala-record-identity p:first-of-type{font-size:1.0625rem;font-weight:var(--tala-weight-heading);margin-block-start:.375rem;}
+.student-profile-page .tala-record-identity-number-label{display:block;color:var(--tala-muted);font-size:.8125rem;font-weight:400;}
+.student-profile-page .tala-record-identity p:has(.tala-record-identity-number-label){margin-block-start:.75rem;font-variant-numeric:tabular-nums;font-weight:var(--tala-weight-heading);}
+.student-profile-page .student-profile-avatar{inline-size:clamp(3.5rem,8cqi,6rem);block-size:clamp(3.5rem,8cqi,6rem);font-size:clamp(1.25rem,3cqi,2rem);}
+.student-profile-page .tala-record-identity .student-identity-art{inline-size:min(34%,26rem);}
+.student-profile-page .tala-record-actions{align-self:flex-start;}
+.student-profile-columns{display:grid;grid-template-columns:minmax(0,1.22fr) minmax(0,1fr);gap:var(--tala-card-gap);}
+.student-profile-section{min-inline-size:0;padding:clamp(1rem,2.25cqi,1.75rem);border-radius:var(--tala-card-radius);}
+.student-profile-section-heading{display:flex;align-items:center;gap:.75rem;font-size:1.25rem;line-height:1.25;font-weight:var(--tala-weight-heading);margin-block-end:1rem;}
+.student-profile-section-heading>.student-overview-task-icon{inline-size:2.5rem;block-size:2.5rem;}
+.student-profile-page dl{margin:0;max-inline-size:none;gap:0;}
+.student-profile-page dl>div{min-inline-size:0;}
+.student-profile-page dt,.student-profile-note{color:var(--tala-muted);font-size:.875rem;line-height:1.5;}
+.student-profile-page dd{overflow-wrap:anywhere;font-weight:var(--tala-weight-heading);line-height:1.5;}
+.student-profile-year{font-size:clamp(1.625rem,3.4cqi,2.5rem);font-weight:var(--tala-weight-emphasis);line-height:1.12;letter-spacing:-.025em;margin-block-end:.875rem;}
+.student-profile-page .student-profile-term{grid-template-columns:repeat(auto-fit,minmax(min(100%,8.5rem),1fr));gap:.75rem 1rem;padding:.75rem 1rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+.student-profile-page .student-profile-term>div,.student-profile-contact dl>div{display:block;}
+.student-profile-studies .student-profile-note{margin-block:.75rem 1rem;max-inline-size:60ch;}
+.student-profile-page .student-profile-record>div{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:.75rem;align-items:baseline;padding-block:.875rem;border-block-end:1px solid var(--tala-edge);}
+.student-profile-page .student-profile-record>div:last-child{border-block-end:0;}
+.student-profile-contact{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,13rem);gap:1rem 1.5rem;align-items:center;}
+.student-profile-contact .student-profile-section-heading{margin:0;}
+.student-profile-contact dl{grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:.75rem 1rem;}
+.student-profile-contact dl>div,.student-profile-contact>.student-profile-note{border-inline-start:1px solid var(--tala-edge);padding-inline-start:1rem;}
 .student-profile-corrections summary{min-block-size:2.75rem;cursor:pointer;}
 .student-profile-corrections li{padding-block:.75rem;}
+@container (max-width:46rem){
+    .student-profile-columns{grid-template-columns:minmax(0,1fr);}
+    .student-profile-contact{grid-template-columns:minmax(0,1fr);gap:.75rem;}
+    .student-profile-contact dl>div,.student-profile-contact>.student-profile-note{border:0;padding:0;}
+}
+@container (max-width:26rem){
+    .student-profile-page .tala-record-actions{flex-basis:100%;}
+}
+.student-profile-study-note,.student-plan-start{padding:1.25rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));font-size:.9375rem;line-height:1.6;}
 .student-plan-intro{font-size:1rem;line-height:1.6;max-inline-size:65ch;margin-block:1rem 1.5rem;}
 .student-plan-start h2{font-size:1.125rem;font-weight:600;margin-block-end:.5rem;}
 .student-plan-start .fi-link{display:inline-flex;margin-block-start:.75rem;}
@@ -831,7 +834,7 @@
 .student-registration-help-panel h2{font-size:1.25rem;font-weight:600;margin-block-end:.5rem;}
 .student-registration-help-panel p{font-size:.9375rem;line-height:1.6;max-inline-size:65ch;color:var(--tala-muted);}
 .student-registration-help-panel .student-finance-actions{margin-block-start:1rem;}
-@media(max-width:48rem){.student-overview-board,.student-profile-columns{grid-template-columns:1fr;}.student-profile-identity{padding:1.25rem;gap:1rem;align-items:flex-start;}.student-profile-avatar{inline-size:4rem;block-size:4rem;font-size:1.25rem;}.student-profile-identity h2{font-size:1.375rem;}.student-profile-columns{gap:2rem;}.student-overview-board>section,.student-registration-help-panel{padding:1.25rem;}.student-receipt-row{align-items:flex-start;flex-direction:column;gap:.75rem;}.student-profile-school dl{grid-template-columns:1fr;}.payment-proof-preview iframe{min-block-size:18rem;}.student-overview-links{gap:1rem;}}
+@media(max-width:48rem){.student-overview-board{grid-template-columns:1fr;}.student-overview-board>section,.student-registration-help-panel{padding:1.25rem;}.student-receipt-row{align-items:flex-start;flex-direction:column;gap:.75rem;}.payment-proof-preview iframe{min-block-size:18rem;}.student-overview-links{gap:1rem;}}
 
 .payment-proof-preview{padding:1rem;max-block-size:65vh;min-block-size:18rem;overflow:auto;overscroll-behavior:contain;}
 .payment-proof-pages{display:grid;gap:1rem;justify-items:center;inline-size:100%;min-inline-size:0;}
@@ -842,7 +845,11 @@
 .student-read-empty{display:grid;justify-items:start;gap:1rem;padding-block:1.5rem;color:var(--tala-text);}
 .student-read-empty h2{font-size:1.25rem;font-weight:600;line-height:1.4;}
 .student-read-empty p{max-inline-size:65ch;font-size:.9375rem;line-height:1.6;color:var(--tala-muted);}
-.student-payment-schedule{list-style:none;padding:0;margin:0;}.student-payment-schedule>li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:1rem 2rem;padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);}.student-payment-schedule h3{font-size:1rem;line-height:1.5;font-weight:600;}.student-payment-schedule .student-finance-number{font-variant-numeric:tabular-nums;text-align:end;}.student-payment-schedule .fi-badge{justify-self:end;}@media(max-width:40rem){.student-payment-schedule>li{grid-template-columns:minmax(0,1fr) auto;gap:.75rem 1rem;align-items:start;}.student-payment-schedule>li>.fi-badge{grid-column:2;}.student-payment-schedule .student-finance-number{font-size:.9375rem;}}
+.student-payment-schedule{list-style:none;padding:0;margin:.5rem 0 0;}
+.student-payment-schedule>li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);align-items:start;gap:.75rem 1rem;}
+.student-payment-schedule h3{line-height:1.4;overflow-wrap:anywhere;}
+.student-finance-installment{display:grid;gap:.25rem;justify-items:end;text-align:end;min-inline-size:0;}
+.student-finance-installment .student-finance-number{font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
 
 @media(max-width:48rem){.student-overview-records{padding:1.25rem;}.student-overview-board h2,.student-review-home .student-home-schedule-heading h2{align-items:flex-start;gap:.75rem;}.student-overview-task-icon{inline-size:2.25rem;block-size:2.25rem;padding:.5rem;}}
 
@@ -851,7 +858,7 @@
 .student-checkout-targets{margin-block:1.5rem;}
 .student-checkout-confirmation p{max-inline-size:65ch;}
 
-.student-finance-history{min-inline-size:0;max-inline-size:72rem;display:grid;gap:1.5rem;}
+.student-finance-history{display:grid;gap:var(--tala-card-gap,12px);min-inline-size:0;}
 .student-finance-history>.fi-link{justify-self:start;}
 .student-finance-history p{line-height:1.6;max-inline-size:65ch;overflow-wrap:anywhere;}
 .student-finance-history>h2,.student-finance-history-heading h2{font-size:1.5rem;font-weight:700;line-height:1.3;}
@@ -1009,7 +1016,6 @@
 @media(forced-colors:active){.accounting-awaiting-summary{box-shadow:none;border:1px solid CanvasText}.accounting-awaiting-message{background:Canvas}.accounting-awaiting-icon{color:CanvasText}.accounting-awaiting-details{border-color:CanvasText}}
 
 .student-home,.student-information{color:var(--tala-text);}
-.student-identity-content>.student-profile-photo-action{position:relative;z-index:1;grid-column:1/-1;}
 
 /* Shared Student study context and read-only record hierarchy. */
 @media (forced-colors: none) {
@@ -1034,8 +1040,7 @@
 .student-registration-official h2,.student-academic-current h2,.student-cor-record h2,.student-finance-workspace h2{font-weight:700;}
 .student-registration-official .student-registration-links{gap:.75rem;}
 .student-registration-official .student-academic-table thead th,.student-academic-current .student-academic-table thead th{background:var(--tala-surface-sunken);padding:.75rem .5rem;font-weight:600;}
-.student-academic-current .student-academic-reading-grid{grid-template-columns:minmax(0,1fr);gap:1.5rem;}
-.student-record-panel{padding:1.5rem;}
+.student-record-panel{padding:1.25rem;}
 .student-academic-current .student-academic-rail{padding:0;border:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;}
 .student-academic-current .student-academic-rail>section{padding:1.5rem;}
 .student-academic-current .student-academic-rail section+section{border-block-start:1px solid var(--tala-edge);}
@@ -1045,8 +1050,6 @@
 .student-record-term .student-academic-table-wrap{padding:0 1.25rem 1rem;}
 .student-record-term .student-academic-table thead th{background:transparent;padding:.75rem .5rem;font-weight:600;}
 .student-record-term .student-academic-table :is(th,td){padding:.875rem .5rem;}
-.student-record-term .student-academic-table tr>*:first-child{padding-inline-start:0;}
-.student-record-term .student-academic-table tr>*:last-child{padding-inline-end:0;}
 .student-academic-current .student-academic-rail h2{font-size:1.25rem;}
 .student-academic-current .student-academic-rail .fi-btn{margin-block-start:1rem;white-space:normal;}
 .student-cor-record .cor-identity{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:1.25rem;}
@@ -1059,7 +1062,7 @@
 .cor-subject-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:1.5rem;padding-block:1rem;font-size:.9375rem;line-height:1.6;}
 .student-finance-workspace .student-finance-section,.student-finance-workspace .student-finance-records{padding:1.5rem;}
 .student-finance-workspace .student-finance-task .student-finance-next-label{margin-block:1.5rem .25rem;font-size:.875rem;color:var(--tala-muted);}
-.student-finance-workspace .student-finance-task .student-finance-next-amount{font-size:1.75rem;line-height:1.25;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-block:.25rem .5rem;}
+.student-finance-workspace .student-finance-task .student-finance-next-amount{font-size:2rem;line-height:1.15;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-block:.25rem .5rem;}
 .student-finance-workspace .student-finance-task>.fi-btn{margin-block-start:1rem;}
 .student-finance-workspace .student-finance-records>.student-receipt-row:last-child,.student-payment-schedule>li:last-child{border-block-end:0;}
 @media(max-width:40rem){.student-study-summary{padding:1.25rem;gap:1rem;}.student-context-body{flex-basis:calc(100% - 4rem);}.student-study-summary .student-context-body h2{font-size:1.25rem;}.student-study-summary>.fi-btn{inline-size:100%;}.student-record-panel,.student-academic-current .student-academic-rail>section,.student-finance-workspace .student-finance-section,.student-finance-workspace .student-finance-records{padding:1.25rem;}.student-academic-current .student-academic-rail{grid-template-columns:minmax(0,1fr);}.student-cor-record .cor-identity{grid-template-columns:3rem minmax(0,1fr);gap:1rem;}.student-cor-record .cor-identity>.fi-badge{grid-column:2;white-space:normal;}.cor-subject-row{grid-template-columns:minmax(0,1fr);gap:.5rem;}.student-cor-record .cor-facts dd{font-size:1.25rem;}}
@@ -1149,8 +1152,6 @@
     .tala-enrollment-record-identity .tala-record-actions { margin-inline-start:4rem; }
     .tala-enrollment-ledger-heading,.tala-enrollment-schedule,.tala-enrollment-selections { padding:1rem; }
     .tala-enrollment-ledger .tala-enrollment-subjects { padding:0 1rem; }
-    .tala-enrollment-subjects .registrar-subject-table tr > :first-child { padding-inline-start:0; }
-    .tala-enrollment-subjects .registrar-subject-table tr > :last-child { padding-inline-end:0; }
     .tala-enrollment-ledger-actions { inline-size:100%; }
     .tala-enrollment-ledger-actions .fi-btn { flex:1 1 10rem; }
     .tala-enrollment-record-context { padding:.75rem 1rem; }
@@ -1218,3 +1219,486 @@
 .tala-lifecycle-credit-list article { display:flex; align-items:start; justify-content:space-between; gap:1rem; padding-block:.75rem; border-block-start:1px solid var(--tala-edge); font-size:.875rem; }
 .tala-lifecycle-credit-list p { margin-block-start:.25rem; color:var(--tala-muted); }
 @container (max-width:36rem) { .tala-lifecycle-recording .tala-record-facts { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+.student-academic-context{display:flex;flex-wrap:wrap;gap:.35rem 1rem;color:var(--tala-muted);font-size:.9375rem;line-height:1.5;}
+.student-academic-context>span:first-child{color:var(--tala-text);font-weight:500;}
+.student-academic-workspace{min-inline-size:0;padding:.875rem;}
+.student-academic-workspace .student-academic-navigation{display:flex;inline-size:100%;max-inline-size:none;justify-content:stretch;margin:0;}
+.student-academic-workspace .student-academic-navigation>.fi-tabs-item{flex:1 1 0;min-inline-size:0;justify-content:center;padding:.75rem .5rem;white-space:normal;}
+.student-academic-body{display:grid;gap:var(--tala-card-gap,12px);padding:1rem .5rem .5rem;min-inline-size:0;}
+.student-academic-workspace .student-academic-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--tala-card-gap,12px);margin-block-end:1rem;}
+.student-academic-workspace .student-academic-heading h2{font-size:1.375rem;font-weight:700;}
+.student-academic-workspace .student-academic-heading h3{font-size:1rem;font-weight:600;}
+.student-academic-ledger{font-size:.875rem;}
+.student-mobile-subject-meta{display:none;}
+.student-academic-workspace .student-academic-ledger :is(th,td){padding:.5rem .875rem;}
+.student-academic-workspace .student-academic-ledger thead th{background:var(--tala-surface-sunken);font-weight:600;}
+.student-academic-ledger :is(th,td):first-child{inline-size:52%;}
+.student-academic-ledger tbody td:last-child{font-weight:600;}
+.student-academic-ledger .student-subject-selected>*{background:var(--tala-brand-tint);}
+.student-subject-toggle{display:flex;inline-size:100%;align-items:center;justify-content:space-between;gap:.75rem;text-align:start;cursor:pointer;min-block-size:2.75rem;}
+.student-subject-toggle>.fi-icon{inline-size:1rem;block-size:1rem;flex:none;}
+.student-subject-chevron-open{transform:rotate(180deg);}
+.student-academics :is(.student-subject-toggle,.student-subject-hide):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
+.student-subject-hide{color:var(--tala-brand-foreground);cursor:pointer;font-size:.875rem;min-block-size:2.75rem;padding-inline:.5rem;}
+.student-academic-workspace .student-subject-detail>td{padding:1rem 1.25rem;background:color-mix(in srgb,var(--tala-brand-tint) 35%,var(--tala-surface));font-weight:400;white-space:normal;}
+.student-inc-guidance{display:grid;gap:.5rem;font-size:.875rem;line-height:1.5;}
+.student-inc-work{font-weight:600;}
+.student-inc-deadline{display:flex;align-items:center;gap:.375rem;color:var(--tala-muted);}
+.student-inc-deadline>.fi-icon{inline-size:1rem;block-size:1rem;flex:none;}
+.student-inc-guidance>.student-academic-note{padding-block-start:0;}
+.student-academic-summary{display:flex;flex-wrap:wrap;gap:1rem 2rem;padding:1rem;border-block-end:1px solid var(--tala-edge);background:var(--tala-surface-sunken);}
+.student-academic-summary>div{display:flex;align-items:baseline;gap:.5rem;}
+.student-academic-summary dt{color:var(--tala-muted);font-size:.8125rem;}
+.student-academic-summary dd{margin:0;font-weight:600;font-size:.9375rem;}
+.student-academic-empty-state{display:flex;align-items:flex-start;gap:1rem;padding:1.5rem;background:var(--tala-surface-sunken);border-radius:var(--tala-card-radius);}
+.student-academic-empty-state>.fi-icon{inline-size:1.75rem;block-size:1.75rem;flex:none;color:var(--tala-brand-foreground);}
+.student-academic-empty-state h3{font-weight:600;margin-block-end:.375rem;}
+.student-academic-empty-state p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);max-inline-size:65ch;}
+.student-academic-calendar{display:flex;gap:.75rem;padding:1rem;border-block-start:1px solid var(--tala-edge);}
+.student-academic-calendar>.fi-icon{inline-size:1.25rem;block-size:1.25rem;flex:none;color:var(--tala-brand-foreground);}
+.student-academic-workspace .student-academic-section{padding:1rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+.student-academic-workspace .student-plan-year>div{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,24rem),1fr));gap:var(--tala-card-gap,12px);align-items:start;}
+.student-academic-workspace .student-plan-term{padding:1rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+.student-academic-workspace .student-plan-subjects li{padding-block:.875rem;}
+.student-academic-workspace .student-plan-figures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--tala-card-gap,12px);padding:1rem;background:var(--tala-surface-sunken);border-radius:var(--tala-card-radius);}
+@media(max-width:60rem){.student-academic-workspace .student-plan-year>div{grid-template-columns:minmax(0,1fr);}}
+@media(max-width:40rem){.student-academic-workspace{padding:.5rem;}.student-academic-body{padding:.75rem .25rem .25rem;}.student-academic-workspace .student-academic-navigation>.fi-tabs-item{font-size:.8125rem;padding:.625rem .25rem;gap:.25rem;}.student-academic-navigation .fi-icon{display:none;}.student-academic-ledger{min-inline-size:0;table-layout:fixed;}.student-academic-workspace .student-academic-ledger :is(th,td){padding:.625rem .375rem;overflow-wrap:anywhere;}.student-academic-ledger tr:not(.student-subject-detail)>:is(:nth-child(2),:nth-child(3)){display:none;}.student-academic-ledger tr:not(.student-subject-detail)>:first-child{inline-size:65%;}.student-mobile-subject-meta{display:block;font-size:.75rem;font-weight:400;color:var(--tala-muted);margin-block-start:.25rem;}.student-academic-workspace .student-subject-detail>td{padding:.875rem;}.student-academic-workspace .student-academic-heading{align-items:flex-start;}.student-academic-workspace .student-academic-heading>.fi-btn{flex:none;}.student-academic-summary{gap:.75rem;}.student-academic-empty-state{padding:1rem;}}
+
+.student-academic-advising{display:flex;align-items:flex-start;gap:.625rem;padding:.875rem 1rem;background:var(--tala-surface-sunken);border-radius:var(--tala-card-radius);}
+.student-academic-advising>.fi-icon{inline-size:1.125rem;block-size:1.125rem;flex:none;color:var(--tala-brand-foreground);}
+.student-academics .student-academic-advising h2{font-size:.875rem;letter-spacing:0;}
+.student-academic-advising p{font-size:.8125rem;line-height:1.5;color:var(--tala-muted);margin-block-start:.25rem;max-inline-size:95ch;}
+
+@media(max-width:40rem){
+    .student-academic-workspace .student-academic-ledger,.student-academic-ledger thead,.student-academic-ledger tbody{display:block;inline-size:100%;}
+    .student-academic-ledger tr:not(.student-subject-detail){display:grid;grid-template-columns:minmax(0,1fr) 6rem;}
+    .student-academic-workspace .student-academic-ledger :is(th,td):first-child{inline-size:auto;}
+    .student-academic-ledger tr:not(.student-subject-detail)>:last-child{overflow-wrap:normal;white-space:normal;}
+    .student-academic-ledger tr:not(.student-subject-detail)>td:last-child>span{white-space:nowrap;}
+    .student-academic-ledger .student-subject-detail{display:block;}
+    .student-academic-workspace .student-subject-detail>td{display:block;inline-size:100%;}
+}
+
+.student-subject-detail .student-academic-heading{margin-block-end:.5rem;}
+.student-subject-detail .student-subject-hide{min-block-size:2rem;}
+
+/* Shared Student Hub card rhythm, Academic Guidance surface, and Academic Record overview. */
+.student-review-home{display:grid;gap:var(--tala-card-gap,12px);min-inline-size:0;}
+.student-review-home>.student-overview-board{gap:var(--tala-card-gap,12px);margin-block-end:0;}
+.student-home-notice.tala-task-surface{display:flex;align-items:flex-start;gap:1rem;padding:1.25rem 1.5rem;border:1px solid var(--tala-selected-edge);border-radius:var(--tala-card-radius,.75rem);background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));box-shadow:var(--tala-material-raised);}
+.student-home-notice-body{display:grid;gap:.375rem;min-inline-size:0;}
+.student-home-notice-body h2{font-size:1.125rem;font-weight:700;line-height:1.35;}
+.student-home-notice-body p{margin:0;font-size:.9375rem;line-height:1.55;max-inline-size:70ch;}
+.student-home-notice-body ul{margin:.25rem 0 0;padding-inline-start:1.25rem;display:grid;gap:.25rem;}
+
+.student-enrollment-task-layout{gap:var(--tala-card-gap,12px);}
+.student-profile-page{display:grid;gap:var(--tala-card-gap,12px);min-inline-size:0;}
+.student-cor-record.space-y-4>*+*{margin-block-start:var(--tala-card-gap,12px);}
+.student-registration-official .student-registration-links{padding-block-start:.25rem;}
+.student-registration-purpose{font-size:.875rem;line-height:1.6;color:var(--tala-muted);max-inline-size:75ch;margin-block-start:.25rem;}
+.student-home-notice-body>.tala-workflow-handoff{margin-block-start:.5rem;}
+.student-schedule-reading>.student-read-empty.tala-task-surface{padding:1.25rem 1.5rem;}
+
+.student-record-overview{display:grid;gap:.5rem;padding:1rem 1.25rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius,.75rem);background:var(--tala-surface-sunken);}
+.student-record-overview details.tala-supporting-details>summary{padding-block:.375rem 0;min-block-size:2rem;}
+.student-plan-status-warning,.student-plan-status-warning>.fi-icon{color:var(--warning-700,#b45309);}
+.dark .student-plan-status-warning,.dark .student-plan-status-warning>.fi-icon{color:var(--warning-300,#fcd34d);}
+@media(max-width:40rem){
+    .student-home-notice.tala-task-surface{padding:1rem 1.25rem;gap:.75rem;}
+    .student-home-notice.tala-task-surface>.fi-icon{display:none;}
+    .student-registration-official .student-academic-table thead th{white-space:nowrap;}
+    .student-academic-workspace .student-plan-subjects li{grid-template-columns:minmax(0,1fr) auto;gap:.375rem .75rem;}
+    .student-academic-workspace .student-plan-subjects li>div{grid-column:1/-1;}
+}
+
+/* Student Overview widget tiles (bento). One grid, tiles sized by importance; every color comes from shared tokens. */
+.student-bento{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--tala-card-gap,12px);min-inline-size:0;}
+.student-tile{grid-column:span 2;display:flex;flex-direction:column;gap:.375rem;padding:1.125rem 1.25rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface);box-shadow:var(--tala-material-raised);color:var(--tala-text);min-inline-size:0;}
+.student-tile-wide{grid-column:span 3;}
+.student-tile-full{grid-column:1/-1;}
+.student-tile h2{font-size:1.25rem;font-weight:700;line-height:1.3;letter-spacing:-.015em;text-wrap:balance;}
+.student-tile p{font-size:.9375rem;line-height:1.55;max-inline-size:60ch;margin:0;}
+.student-tile .student-tile-kicker{display:flex;align-items:center;gap:.4rem;font-size:.75rem;font-weight:600;line-height:1.4;letter-spacing:.05em;text-transform:uppercase;color:var(--tala-muted);}
+.student-tile-kicker>.fi-icon{inline-size:1rem;block-size:1rem;flex:none;}
+.student-tile .student-tile-figure{font-size:2.25rem;font-weight:700;line-height:1.1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;}
+.student-tile .student-tile-meta{font-size:.875rem;color:var(--tala-muted);}
+.student-tile-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-block-start:auto;padding-block-start:.75rem;}
+.student-tile-fill{background:var(--tala-brand);border-color:transparent;color:var(--tala-on-brand);}
+.student-tile-fill :is(.student-tile-kicker,.student-tile-meta){color:var(--tala-on-brand);opacity:.88;}
+.student-tile-tint{background:var(--tala-brand-tint);border-color:var(--tala-selected-edge);color:var(--tala-on-brand-tint);}
+.student-tile-tint :is(.student-tile-kicker,.student-tile-meta){color:var(--tala-on-brand-tint);opacity:.85;}
+.student-tile-attention{background:color-mix(in srgb,var(--warning-500,#f59e0b) 14%,var(--tala-surface));border-color:color-mix(in srgb,var(--warning-600,#d97706) 35%,transparent);}
+.student-tile-attention .student-tile-kicker{color:var(--warning-800,#92400e);}
+.dark .student-tile-attention .student-tile-kicker{color:var(--warning-200,#fde68a);}
+.student-tile-split{display:flex;align-items:center;gap:1rem;}
+.student-tile-ring{inline-size:4.75rem;block-size:4.75rem;flex:none;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:1rem;font-variant-numeric:tabular-nums;background:radial-gradient(closest-side,var(--tala-surface) 72%,transparent 73%),conic-gradient(var(--tala-brand) calc(var(--tile-progress,0)*1%),var(--tala-surface-sunken) 0);}
+.student-tile-bar{margin-block:.25rem;}
+.student-tile-steps{display:flex;flex-wrap:wrap;gap:.375rem;list-style:none;margin:.25rem 0 0;padding:0;font-size:.8125rem;}
+.student-tile-steps li{padding:.2rem .65rem;border-radius:99px;background:var(--tala-surface);border:1px solid var(--tala-edge);}
+.student-tile-steps li[aria-current]{background:var(--tala-brand-tint);color:var(--tala-on-brand-tint);border-color:var(--tala-selected-edge);font-weight:600;}
+.student-tile-list{margin:0;padding-inline-start:1.25rem;list-style:disc;display:grid;gap:.25rem;font-size:.9375rem;}
+.student-bento .student-home-schedule{padding:1.125rem 1.25rem;border:1px solid var(--tala-edge);}
+.student-bento .student-home-schedule-heading{margin-block-end:.25rem;}
+.student-review-home>.student-overview-links{padding-block:.25rem 0;border:0;margin:0;}
+@media(max-width:64rem){.student-tile,.student-tile-wide{grid-column:span 3;}}
+@media(max-width:40rem){.student-tile,.student-tile-wide{grid-column:1/-1;}.student-tile .student-tile-figure{font-size:1.875rem;}}
+.student-review-home .student-bento .student-home-schedule-heading h2.student-tile-kicker{font-size:.75rem;gap:.4rem;align-items:center;}
+
+/* Student Hub tiles carried to Fees, Enrollment and Academics. Same tile language as the Overview. */
+.student-finance-task-due .student-finance-next-amount{color:var(--tala-on-brand-tint);}
+.student-finance-position .student-tile-bar{margin-block:.875rem .375rem;}
+.student-registration-official>.student-bento .student-tile-figure{font-size:1.875rem;}
+.student-academic-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));gap:var(--tala-card-gap,12px);}
+.student-academic-tiles>.student-tile{grid-column:auto;padding:1rem 1.125rem;box-shadow:none;background:var(--tala-surface-sunken);}
+.student-academic-tiles .student-tile-figure{font-size:1.875rem;}
+.student-academic-tiles .student-tile-ring{background:radial-gradient(closest-side,var(--tala-surface-sunken) 72%,transparent 73%),conic-gradient(var(--tala-brand) calc(var(--tile-progress,0)*1%),var(--tala-edge-strong) 0);}
+.student-academic-workspace .student-record-overview{border-radius:var(--tala-card-radius);}
+.student-academic-tiles>.student-tile-attention{background:color-mix(in srgb,var(--warning-500,#f59e0b) 14%,var(--tala-surface));}
+.student-academic-tiles .student-tile-figure>.student-tile-meta{font-size:1rem;font-weight:500;letter-spacing:0;}
+
+/* Student Hub shared card scale. Page-level cards: 1rem radius, 1.25rem padding, 1.25rem/700 titles.
+   Cards nested inside another card: .75rem radius, 1rem padding. One scale for Overview, Enrollment, Academics and Fees. */
+.student-registration-official>.tala-task-surface,
+.student-academics>.student-academic-workspace.tala-task-surface,
+.student-schedule-reading>.student-read-empty.tala-task-surface,
+.student-cor-record .tala-task-surface{border-radius:var(--tala-card-radius);}
+.student-registration-official>.tala-task-surface{padding:1.25rem;}
+.student-finance-workspace :is(.student-finance-task,.student-finance-position,.student-finance-section,.student-finance-records){padding:1.25rem;}
+.student-academic-workspace :is(.student-plan-term,.student-academic-section,.student-academic-advising,.student-record-overview,.student-academic-empty-state),
+.student-academic-workspace .student-academic-tiles>.student-tile{border-radius:var(--tala-card-radius);padding:1rem;}
+.student-academic-workspace .student-academic-heading h2,
+.student-academic-workspace .student-academic-section h2,
+.student-academic-workspace .student-record-term>h2{font-size:1.25rem;font-weight:700;line-height:1.3;letter-spacing:-.015em;}
+.student-academic-workspace .student-plan-year>h2{font-size:1.0625rem;font-weight:700;border:0;padding-inline-start:.25rem;}
+.student-academic-workspace .student-plan-term h3{font-size:1rem;font-weight:600;}
+.student-academics .student-academic-workspace .student-academic-advising h2{font-size:.875rem;font-weight:700;}
+.student-finance-workspace h2.student-record-heading,.student-finance-workspace .student-finance-position>h2,.student-finance-workspace .student-finance-records>h2,.student-finance-workspace .student-finance-section>h2{font-size:1.25rem;font-weight:700;}
+
+/* Student Hub refinement, pass 2: fuller tiles, one status card, shared tables, clearer disclosure, illustrated empty states. */
+.student-tile-schedule{list-style:none;margin:.625rem 0 0;padding:0;font-size:.875rem;}
+.student-tile-schedule li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:.75rem;padding-block:.45rem;border-block-start:1px solid color-mix(in srgb,currentColor 22%,transparent);}
+.student-tile-schedule-amount{font-weight:600;font-variant-numeric:tabular-nums;}
+.student-tile-chip{min-inline-size:4.75rem;text-align:center;font-size:.75rem;font-weight:600;line-height:1.5;padding:.05rem .5rem;border-radius:99px;border:1px solid color-mix(in srgb,currentColor 40%,transparent);}
+
+.student-status-card{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.7fr) auto;align-items:center;gap:1rem 1.75rem;}
+.student-status-main{display:grid;gap:.25rem;min-inline-size:0;}
+.student-status-facts{display:flex;flex-wrap:wrap;gap:.75rem 2rem;margin:0;}
+.student-status-facts dt{font-size:.75rem;line-height:1.4;opacity:.85;}
+.student-status-facts dd{margin:0;font-size:1.0625rem;font-weight:700;line-height:1.4;font-variant-numeric:tabular-nums;}
+.student-status-card .student-tile-actions{margin:0;padding:0;flex-direction:column;align-items:stretch;}
+@media(max-width:64rem){.student-status-card{grid-template-columns:minmax(0,1fr);}.student-status-card .student-tile-actions{flex-direction:row;}}
+
+.student-record-card{padding:1.25rem;min-inline-size:0;}
+.student-registration-official .student-academic-table,.student-cor-record .student-academic-table{font-size:.875rem;}
+.student-registration-official .student-academic-table :is(th,td),.student-cor-record .student-academic-table :is(th,td){padding:.5rem .875rem;}
+.student-cor-record .student-academic-table thead th{background:var(--tala-surface-sunken);font-weight:600;white-space:nowrap;}
+.student-cor-record .cor-subject-meetings p{margin:0;}
+.student-registration-official .student-registration-help{border:0;padding-block-start:.5rem;}
+.student-registration-official .student-registration-links{margin-block-start:1rem;}
+.student-cor-record .learner-money{max-inline-size:36rem;}
+.student-money-total{font-weight:700;}
+.student-money-total dt{color:var(--tala-text);}
+.student-cor-record .cor-versions{padding:0;margin-block-start:.75rem;}
+.student-empty-card{padding:.5rem 1.25rem;}
+
+.student-academics>.student-academic-workspace.tala-task-surface{padding:1.25rem;}
+.student-academic-workspace .student-academic-body{padding:0;}
+.student-academic-tiles{margin-block-end:var(--tala-card-gap,12px);}
+.student-subject-toggle-hint{display:inline-flex;align-items:center;gap:.375rem;flex:none;font-size:.8125rem;font-weight:600;line-height:1.4;padding:.25rem .625rem;border:1px solid var(--tala-selected-edge);border-radius:99px;background:var(--tala-surface);color:var(--tala-brand-foreground);}
+.student-subject-toggle-hint>.fi-icon{inline-size:.875rem;block-size:.875rem;}
+.student-subject-toggle:hover .student-subject-toggle-hint{background:var(--tala-brand-tint);color:var(--tala-on-brand-tint);}
+.student-academic-workspace .student-plan-subjects li{padding-block:.5rem;}
+.student-academic-workspace .student-plan-subjects h4{font-size:.9375rem;}
+
+.student-finance-workspace .student-payment-schedule>li{position:relative;padding-block:.875rem;padding-inline-start:1.75rem;border-block-end:0;}
+.student-finance-workspace .student-payment-schedule>li::after{content:"";position:absolute;inset-block:0;inset-inline-start:.5625rem;inline-size:2px;background:var(--tala-edge);}
+.student-finance-workspace .student-payment-schedule>li:first-child::after{inset-block-start:1.5rem;}
+.student-finance-workspace .student-payment-schedule>li:last-child::after{inset-block-end:calc(100% - 1.5rem);}
+.student-finance-workspace .student-payment-schedule>li::before{content:"";position:absolute;z-index:1;inset-inline-start:.1875rem;inset-block-start:1.25rem;inline-size:.875rem;block-size:.875rem;border-radius:50%;border:2px solid var(--tala-control-border);background:var(--tala-surface);}
+.student-finance-workspace .student-payment-schedule>.student-schedule-done::before{background:var(--tala-brand);border-color:var(--tala-brand);}
+.student-finance-workspace .student-payment-schedule>.student-schedule-due::before{background:var(--warning-500,#f59e0b);border-color:var(--warning-600,#d97706);}
+.student-fee-breakdown{list-style:none;margin:.75rem 0 0;padding:0;display:grid;gap:.875rem;}
+.student-fee-breakdown li>div:first-child{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.75rem;align-items:baseline;font-size:.9375rem;overflow-wrap:anywhere;}
+.student-fee-breakdown strong{text-align:end;font-variant-numeric:tabular-nums;}
+.student-fee-breakdown .student-fee-total{padding-block-start:.75rem;border-block-start:1px solid var(--tala-edge);font-weight:700;}
+
+/* Status card: identity and actions on one row, facts as one even strip below. Certificate page: subjects beside fees. */
+.student-status-card{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:.875rem 1.5rem;}
+.student-status-card .student-status-facts{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(7.5rem,1fr));gap:.75rem 1.5rem;padding-block-start:.875rem;border-block-start:1px solid var(--tala-selected-edge);}
+.student-status-card .student-tile-actions{flex-direction:row;align-items:center;}
+@media(max-width:40rem){.student-status-card{grid-template-columns:minmax(0,1fr);}}
+.student-cor-record{container-type:inline-size;display:grid;grid-template-columns:minmax(0,1fr) clamp(20rem,30%,28rem);gap:var(--tala-card-gap,12px);align-items:start;}
+.student-cor-record.space-y-4>*+*{margin-block-start:0;}
+.student-cor-record>*{grid-column:1/-1;min-inline-size:0;}
+.student-cor-record > .student-cor-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    gap: .875rem 1.5rem;
+    padding: clamp(1rem, 2.5cqi, 1.25rem);
+}
+.student-cor-summary .tala-record-identity-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .375rem .75rem;
+}
+.student-cor-summary .tala-record-identity-heading h2 {
+    font-size: clamp(1.375rem, 2.1vw, 1.875rem);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+.student-cor-summary .tala-record-identity-person {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+}
+.student-cor-summary .student-cor-summary-facts {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
+    margin: 0;
+    padding: .625rem 0;
+}
+.student-cor-summary-facts > div {
+    min-inline-size: 0;
+    padding-inline: clamp(.5rem, 1.75cqi, 1.25rem);
+    overflow-wrap: anywhere;
+}
+.student-cor-summary-facts > div + div {
+    border-inline-start: 1px solid var(--tala-edge);
+}
+.student-cor-summary-facts dt {
+    color: var(--tala-muted);
+    font-size: .8125rem;
+}
+.student-cor-summary-facts dd {
+    margin: 0;
+    font-weight: var(--tala-weight-heading);
+    font-variant-numeric: tabular-nums;
+}
+@container (min-width: 44rem) {
+    .student-cor-record > .student-cor-summary {
+        grid-template-columns: minmax(0, 1.15fr) minmax(19rem, 1fr);
+        padding: clamp(1.25rem, 2cqi, 1.75rem);
+    }
+    .student-cor-summary .student-cor-summary-facts {
+        padding-block: .875rem;
+    }
+    .student-cor-summary-facts > div {
+        padding-inline: clamp(.75rem, 1.8cqi, 1.75rem);
+    }
+    .student-cor-summary-facts dd {
+        font-size: clamp(1rem, 1.6cqi, 1.375rem);
+        line-height: 1.35;
+    }
+}
+.student-cor-record>.student-cor-subjects{grid-column:1;grid-row:2 / span 2;}
+.student-cor-record>.student-cor-side{grid-column:2;}
+.student-cor-record .student-cor-side .learner-money{max-inline-size:none;}
+.student-cor-record .student-cor-side .learner-money > div {
+    flex-wrap: wrap;
+    gap: .125rem .875rem;
+}
+.student-cor-record .student-cor-side .learner-money dt {
+    flex: 1 1 9rem;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+}
+.student-cor-record .student-cor-side .learner-money dd {
+    margin-inline-start: auto;
+}
+.student-cor-record .student-cor-side .student-tile-actions .fi-btn{inline-size:100%;}
+.student-status-card .student-tile-actions{grid-column:2;grid-row:1;align-self:center;}
+.student-cor-record .student-academic-table{min-inline-size:32rem;}
+@media(max-width:40rem){.student-status-card .student-tile-actions{grid-column:1;grid-row:auto;}}
+@media(max-width:80rem){.student-cor-record{grid-template-columns:minmax(0,1fr);}.student-cor-record>.student-cor-subjects,.student-cor-record>.student-cor-side{grid-column:1;grid-row:auto;}}
+
+/* Overview payment schedule: the same status colors as the Fees timeline. */
+.student-tile-schedule li{position:relative;padding-inline-start:1.25rem;}
+.student-tile-schedule li::before{content:"";position:absolute;inset-inline-start:0;inset-block-start:50%;translate:0 -50%;inline-size:.625rem;block-size:.625rem;border-radius:50%;border:2px solid currentColor;opacity:.7;}
+.student-tile-schedule .student-tile-schedule-done::before{background:currentColor;opacity:1;}
+.student-tile-schedule .student-tile-schedule-due::before{background:var(--warning-400,#fbbf24);border-color:var(--warning-400,#fbbf24);opacity:1;}
+.student-tile-schedule .student-tile-schedule-done .student-tile-chip{background:var(--tala-surface);color:var(--tala-brand-strong,#256331);border-color:transparent;}
+.student-tile-schedule .student-tile-schedule-due .student-tile-chip{background:var(--warning-300,#fcd34d);color:#451a03;border-color:transparent;}
+
+/* Accepted Study plan: program and progress summary, then the year timeline. */
+.student-plan-workspace .student-academic-body{display:grid;gap:var(--tala-card-gap);}
+.student-plan-workspace .student-academic-body>.student-academic-section{padding:1rem 1.25rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface);box-shadow:var(--tala-material-raised);}
+.student-plan-overview{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);align-items:center;padding:1.25rem 1.5rem;border:1px solid var(--tala-selected-edge);border-radius:var(--tala-card-radius);background:var(--tala-brand-tint);color:var(--tala-on-brand-tint);box-shadow:var(--tala-material-raised);}
+.student-plan-overview-program{min-inline-size:0;padding-inline-end:1.5rem;}
+.student-plan-overview-program h2{font-size:1.5rem;font-weight:700;line-height:1.25;letter-spacing:-.015em;text-wrap:balance;}
+.student-plan-overview-program ul{display:flex;flex-wrap:wrap;gap:.125rem .5rem;list-style:none;margin:.375rem 0 0;padding:0;font-size:1rem;line-height:1.5;opacity:.9;}
+.student-plan-overview-program li{white-space:nowrap;}
+.student-plan-overview-program li:not(:last-child)::after{content:"·";margin-inline-start:.5rem;font-weight:700;}
+.student-plan-overview-progress{min-inline-size:0;padding-inline-start:2rem;border-inline-start:1px solid var(--tala-selected-edge);}
+.student-plan-overview-progress p{font-size:1.0625rem;line-height:1.4;}
+.student-plan-overview-progress strong{font-size:1.5rem;font-weight:700;letter-spacing:-.015em;font-variant-numeric:tabular-nums;}
+.student-plan-overview .student-tile-bar{margin-block:.5rem 0;}
+/* Year timeline: pick a year on the line, read that year below it. Timeline and year share one card. */
+.student-plan-workspace .student-plan-map{gap:1.25rem;padding:1.25rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface);box-shadow:var(--tala-material-raised);}
+.student-plan-timeline{list-style:none;margin:0;padding:0 0 1rem;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(9.5rem,1fr);overflow-x:auto;border-block-end:1px solid var(--tala-edge);}
+.student-plan-timeline li{position:relative;min-inline-size:0;}
+.student-plan-timeline li::before{content:"";position:absolute;inset-inline:0;inset-block-start:.75rem;block-size:.1875rem;background:var(--tala-edge-strong);}
+.student-plan-timeline li:first-child::before{border-start-start-radius:99px;border-end-start-radius:99px;}
+.student-plan-timeline li:last-child::before{border-start-end-radius:99px;border-end-end-radius:99px;}
+.student-plan-timeline .student-plan-timeline-complete::before{background:var(--tala-brand);}
+.student-plan-timeline .student-plan-timeline-active::before{background:linear-gradient(90deg,var(--tala-brand) 50%,var(--tala-edge-strong) 50%);}
+.student-plan-timeline button{position:relative;display:grid;justify-items:start;gap:.125rem;inline-size:100%;padding:0 .75rem .25rem 0;text-align:start;cursor:pointer;border-radius:.5rem;}
+.student-plan-timeline-dot{inline-size:1.625rem;block-size:1.625rem;border-radius:50%;border:.1875rem solid var(--tala-edge-strong);background:var(--tala-surface);margin-block-end:.5rem;}
+.student-plan-timeline-complete .student-plan-timeline-dot{background:var(--tala-brand);border-color:var(--tala-brand);}
+.student-plan-timeline-active .student-plan-timeline-dot{border-color:var(--tala-brand);}
+.student-plan-timeline button[aria-current="step"] .student-plan-timeline-dot{background:var(--tala-brand-foreground);box-shadow:0 0 0 .25rem var(--tala-brand-tint);border-color:var(--tala-surface);}
+.student-plan-timeline-label{font-size:1.125rem;font-weight:700;line-height:1.3;color:var(--tala-muted);}
+.student-plan-timeline button:hover .student-plan-timeline-label{color:var(--tala-text);}
+.student-plan-timeline button[aria-current="step"] .student-plan-timeline-label{font-weight:700;color:var(--tala-brand-foreground);}
+.student-plan-timeline-meta{font-size:.8125rem;line-height:1.4;color:var(--tala-muted);}
+.student-plan-timeline-current{font-size:.75rem;font-weight:600;line-height:1.5;color:var(--tala-brand-foreground);}
+.student-academics .student-plan-timeline button:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;}
+.student-plan-year-heading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.25rem 1rem;}
+.student-plan-workspace .student-plan-year-heading h2{font-size:1.25rem;font-weight:700;line-height:1.3;letter-spacing:-.015em;}
+.student-plan-year-heading p{font-size:.875rem;line-height:1.5;color:var(--tala-muted);}
+.student-plan-workspace .student-plan-term h3{font-size:1rem;font-weight:700;padding-block-end:.5rem;}
+.student-plan-workspace .student-plan-subjects h4{font-weight:600;}
+.student-plan-workspace .student-plan-subjects li>p:nth-child(2){color:var(--tala-muted);font-variant-numeric:tabular-nums;}
+@media(max-width:48rem){
+.student-plan-overview{grid-template-columns:minmax(0,1fr);gap:1rem;padding:1rem;}
+.student-plan-overview-program{padding-inline-end:0;}
+.student-plan-overview-program h2{font-size:1.25rem;}
+.student-plan-overview-progress{padding-inline-start:0;padding-block-start:1rem;border-inline-start:0;border-block-start:1px solid var(--tala-selected-edge);}
+}
+.student-plan-workspace .student-academic-body>.student-academic-advising{padding:1rem 1.25rem;border:1px solid var(--tala-edge);background:var(--tala-surface);box-shadow:var(--tala-material-raised);}
+.student-academics>.student-academic-workspace.student-plan-workspace{padding:0;}
+.student-plan-workspace .student-plan-timeline{padding:.375rem .375rem 1rem;margin:-.375rem -.375rem 0;}
+
+.student-plan-workspace .student-academic-body>.student-plan-advising{align-items:center;gap:var(--tala-card-gap);background:color-mix(in srgb,var(--warning-500,#f59e0b) 10%,var(--tala-surface));border-color:color-mix(in srgb,var(--warning-500,#f59e0b) 35%,var(--tala-edge));}
+.student-plan-advising>div{flex:1;min-inline-size:0;}
+.student-plan-advising>.fi-icon{inline-size:1.75rem;block-size:1.75rem;color:var(--warning-700,#b45309);}
+.dark .student-plan-advising>.fi-icon{color:var(--warning-300,#fcd34d);}
+.student-academics .student-plan-workspace .student-plan-advising h2{font-size:1.125rem;line-height:1.35;font-weight:700;color:var(--tala-text);}
+.student-plan-advising p{font-size:.875rem;color:var(--tala-text);}
+.student-plan-advising>.fi-btn{flex:none;}
+.student-plan-scroll-hint{display:none;}
+.student-plan-workspace{container-type:inline-size;container-name:study-plan;}
+@container study-plan (min-width:64rem){
+.student-plan-workspace .student-academic-body:has(>.student-plan-advising){grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;}
+.student-plan-workspace .student-academic-body:has(>.student-plan-advising)>*{grid-column:1/-1;min-inline-size:0;}
+.student-plan-workspace .student-academic-body:has(>.student-plan-advising)>.student-plan-overview{grid-column:1;grid-row:1;grid-template-columns:minmax(0,1fr);gap:1rem;}
+.student-plan-workspace .student-academic-body:has(>.student-plan-advising) .student-plan-overview-program{padding-inline-end:0;}
+.student-plan-workspace .student-academic-body:has(>.student-plan-advising) .student-plan-overview-progress{padding-inline-start:0;padding-block-start:1rem;border-inline-start:0;border-block-start:1px solid var(--tala-selected-edge);}
+.student-plan-workspace .student-academic-body>.student-plan-advising{grid-column:2;grid-row:1;display:grid;grid-template-columns:1.75rem minmax(0,1fr);align-content:center;align-items:start;}
+.student-plan-advising>.fi-btn{grid-column:2;justify-self:start;}
+}
+@media(max-width:40rem){
+.student-plan-workspace .student-academic-body>.student-plan-advising{align-items:start;flex-wrap:wrap;}
+.student-plan-advising>.fi-btn{margin-inline-start:2.5rem;}
+.student-plan-scroll-hint{display:block;font-size:.8125rem;color:var(--tala-muted);margin-block-start:-.75rem;}
+}
+
+.student-plan-timeline-copy{display:grid;gap:.125rem;padding:.5rem .625rem;border:1px solid transparent;border-radius:var(--tala-card-radius);}
+.student-plan-timeline button[aria-current="step"] .student-plan-timeline-copy{background:var(--tala-brand-tint);border-color:var(--tala-selected-edge);}
+.student-plan-timeline button[aria-current="step"] .student-plan-timeline-copy>span{color:var(--tala-on-brand-tint);}
+.student-plan-timeline button:not([aria-current]):hover .student-plan-timeline-copy{background:var(--tala-surface-sunken);}
+.student-plan-note{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--tala-card-gap);padding-block-start:1rem;border-block-start:1px solid var(--tala-edge);font-size:.8125rem;line-height:1.5;color:var(--tala-muted);}
+@media(max-width:40rem){.student-plan-note{grid-template-columns:minmax(0,1fr);gap:.5rem;}}
+.student-record-workspace{container-type:inline-size;container-name:academic-record;}
+.student-academics>.student-record-workspace{padding:0;}
+.student-record-workspace .student-academic-body{display:grid;gap:var(--tala-card-gap);padding:0;}
+.student-record-summary-row{display:grid;gap:var(--tala-card-gap);align-items:start;}
+.student-record-masthead{grid-template-columns:minmax(0,1.4fr) minmax(0,.8fr) minmax(0,1fr);gap:.75rem;align-items:start;}
+.student-record-masthead .student-plan-overview-program{padding-inline-end:0;}
+.student-record-gwa,.student-record-release{min-inline-size:0;padding-inline-start:1.5rem;border-inline-start:1px solid var(--tala-edge);}
+.student-record-gwa dt,.student-record-release>p{font-size:.875rem;line-height:1.5;}
+.student-record-gwa dd>strong,.student-record-release strong{display:inline-block;font-size:2rem;font-weight:700;line-height:1.3;font-variant-numeric:tabular-nums;}
+.student-record-gwa dd>span{display:block;font-size:.8125rem;margin-block-start:.25rem;}
+.student-record-release>.student-tile-bar{margin-block:.625rem;}
+.fi-body details.student-record-sources{grid-column:1/-1;margin:0;padding:.625rem 0 0;border:0;border-block-start:1px solid var(--tala-selected-edge);border-radius:0;background:transparent;}
+.student-record-sources .tala-supporting-details__content{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;padding-block-start:.75rem;color:var(--tala-muted);font-size:.8125rem;}
+.student-record-inc{grid-template-rows:auto 1fr auto;align-content:start;display:grid;grid-template-columns:1.75rem minmax(0,1fr);gap:var(--tala-card-gap);align-items:start;padding:1rem 1.25rem;border:1px solid color-mix(in srgb,var(--warning-500,#f59e0b) 35%,var(--tala-edge));border-radius:var(--tala-card-radius);background:color-mix(in srgb,var(--warning-500,#f59e0b) 12%,var(--tala-surface));color:var(--tala-text);}
+.student-record-inc>.fi-icon{inline-size:1.75rem;block-size:1.75rem;color:var(--warning-700,#b45309);}
+.dark .student-record-inc>.fi-icon{color:var(--warning-300,#fcd34d);}
+.student-record-inc h2{font-size:1.375rem;line-height:1.35;font-weight:700;}
+.fi-body details.student-record-inc-details{grid-column:1/-1;grid-row:3;align-self:end;margin:0;padding:.625rem 0 0;border-block-start:1px solid color-mix(in srgb,var(--warning-500,#f59e0b) 25%,var(--tala-edge));}
+.student-record-inc-details[open]>.tala-supporting-details__content{margin-block-start:.5rem;padding:.875rem;background:var(--tala-surface);border-radius:var(--tala-card-radius);}
+.student-record-inc-details .tala-supporting-details__content{padding-block-start:.75rem;}
+.student-record-inc-details .student-inc-guidance{display:grid;gap:.625rem;}
+.student-record-inc-details .student-inc-guidance>p{margin:0;}
+.student-record-term-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--tala-card-gap);padding:1rem 1.25rem;background:transparent;}
+.student-record-term-heading h2{font-size:1.25rem;line-height:1.3;font-weight:700;}
+.student-record-term-heading p,.student-record-term-average>span{font-size:.875rem;color:var(--tala-muted);}
+.student-record-term-average{display:grid;gap:.25rem;text-align:end;}
+.student-record-term-average>strong{font-size:1.125rem;line-height:1.3;font-weight:700;font-variant-numeric:tabular-nums;}
+.student-record-workspace .student-academic-table{table-layout:fixed;}
+.student-record-workspace .student-academic-table :is(th,td){padding:.625rem .5rem;}
+.student-record-workspace .student-academic-table th:first-child{inline-size:72%;}
+.student-record-workspace .student-academic-table th:nth-child(2){inline-size:10%;text-align:center;}
+.student-record-workspace .student-academic-table td:nth-child(2){text-align:center;}
+.student-record-workspace .student-academic-table :is(th,td):last-child{text-align:end;}
+.student-record-workspace .student-academic-table .student-record-grade>span[id]{font-size:1.125rem;font-weight:700;font-variant-numeric:tabular-nums;}
+.student-record-workspace .student-record-term{background:var(--tala-surface);box-shadow:var(--tala-material-raised);}
+.student-record-workspace .student-record-term .student-academic-table-wrap{margin:0 1rem;padding:.25rem .75rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+.student-record-term-note{margin:0;padding:.75rem 1.25rem 1rem;background:transparent;font-size:.8125rem;color:var(--tala-muted);}
+@container academic-record (max-width:55rem){
+.student-record-masthead{grid-template-columns:repeat(2,minmax(0,1fr));}
+.student-record-masthead>.student-plan-overview-program{grid-column:1/-1;}
+.student-record-gwa{padding-inline-start:0;border-inline-start:0;}
+.student-record-masthead .student-plan-overview-program h2{font-size:1.25rem;}
+}
+@container academic-record (max-width:35rem){
+.student-record-masthead{grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap);padding:1rem;}
+.student-record-gwa,.student-record-release{padding:1rem 0 0;border-inline-start:0;border-block-start:1px solid var(--tala-selected-edge);}
+.student-record-inc{grid-template-columns:1.5rem minmax(0,1fr);padding:1rem;}
+
+
+.student-record-term-heading{align-items:start;flex-direction:column;padding:1rem;}
+.student-record-term-average{text-align:start;}
+.student-record-workspace .student-academic-table-wrap{padding:0 .75rem .75rem;}
+.student-record-workspace .student-academic-table{font-size:.8125rem;}
+.student-record-workspace .student-academic-table th:first-child{inline-size:52%;}
+.student-record-workspace .student-academic-table th:nth-child(2){inline-size:14%;}
+.student-record-workspace .student-academic-table :is(th,td){overflow-wrap:anywhere;padding:.625rem .375rem;}
+}
+
+.student-record-gwa dd{display:grid;gap:.25rem;}
+.student-record-term-average dt{font-size:.875rem;color:var(--tala-muted);}
+.student-record-term-average dd{display:grid;gap:.125rem;}
+.student-record-term-average dd strong{font-size:1.125rem;font-weight:700;font-variant-numeric:tabular-nums;}
+.student-record-term-average dd span{font-size:.75rem;color:var(--tala-muted);}
+
+.student-record-sources .tala-supporting-details__content>*{margin:0;}
+.student-record-inc:has(.student-record-inc-deadline) .student-inc-deadline{display:none;}
+.student-record-inc-details>.tala-supporting-details__content{padding:0;background:transparent;border-radius:0;}
+.student-record-workspace #external-assessment-history .tala-record-timeline-item{padding-block:.625rem;}
+.student-record-workspace #external-assessment-history .tala-record-timeline-item>div>div{display:inline;}
+.student-record-workspace #external-assessment-history .tala-record-timeline-item p{display:inline-block;margin:.25rem 1rem 0 0;}
+
+@container academic-record (min-width:48rem){
+.student-record-summary-row:has(>.student-record-inc):not(:has(details[open])){align-items:stretch;}
+.student-record-summary-row:has(>.student-record-inc){grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);}
+.student-record-summary-row:has(>.student-record-inc) .student-record-masthead{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--tala-card-gap);padding:1rem 1.25rem;}
+.student-record-summary-row:has(>.student-record-inc) .student-plan-overview-program{grid-column:1/-1;padding-block-end:.75rem;border-block-end:1px solid var(--tala-selected-edge);}
+.student-record-summary-row:has(>.student-record-inc) .student-record-gwa{padding-inline-start:0;border-inline-start:0;}
+}
+
+.student-record-inc-status{margin-block-start:.375rem;font-size:1rem;font-weight:600;}
+.student-record-masthead .student-plan-overview-program h2{font-size:1.375rem;}
+
+.student-record-inc-work{grid-column:1/-1;grid-row:2;align-self:center;padding-block:.5rem;}
+.student-record-inc-work>span{font-size:.8125rem;color:var(--tala-muted);}
+.student-record-inc-work>p{font-size:1.25rem;font-weight:600;line-height:1.45;margin-block-start:.25rem;}
+.student-record-inc:has(>.student-record-inc-work) .student-inc-work{display:none;}
+@container academic-record (max-width:47.999rem){.student-record-inc{grid-template-rows:auto auto auto auto;}.student-record-inc-work{grid-row:auto;}.fi-body details.student-record-inc-details{grid-row:auto;}}
+
+.fi-body details.student-record-inc-details>summary{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem .875rem;list-style:none;}
+.student-record-inc-details>summary::-webkit-details-marker{display:none;}
+.student-record-inc-deadline{display:inline-flex;align-items:center;flex-wrap:wrap;gap:.375rem;font-size:.9375rem;font-weight:600;}
+.student-record-inc-deadline>.fi-icon{inline-size:1.125rem;block-size:1.125rem;}
+.student-record-inc-deadline>span{font-size:.75rem;font-weight:400;}
+.student-record-inc-toggle{display:inline-flex;align-items:center;gap:.375rem;margin-inline-start:auto;}
+.student-record-inc-toggle>.fi-icon{inline-size:1rem;block-size:1rem;}
+.student-record-inc-details[open] .student-record-inc-toggle>.fi-icon{transform:rotate(180deg);}
+.student-record-inc-details .student-inc-guidance{container-type:inline-size;container-name:inc-guidance;}
+@container inc-guidance (max-width:30rem){
+.student-inc-guidance .tala-workflow-handoff{grid-template-columns:minmax(0,1fr);gap:2rem;}
+.student-inc-guidance .tala-handoff-arrow{inset-inline-start:50%;inset-block-start:-1.75rem;transform:translateX(-50%) rotate(90deg);}
+}

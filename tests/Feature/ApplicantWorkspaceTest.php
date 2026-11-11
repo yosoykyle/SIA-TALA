@@ -12,6 +12,7 @@ use App\Models\Term;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -23,7 +24,7 @@ class ApplicantWorkspaceTest extends TestCase
     {
         parent::setUp();
 
-        $this->assertSame('test_tala_db', config('database.connections.mysql.database'));
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         Role::findOrCreate('applicant', 'web');
         Role::findOrCreate('student', 'web');
     }

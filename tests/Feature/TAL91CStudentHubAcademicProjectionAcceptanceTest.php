@@ -59,7 +59,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_test_codex', DB::connection()->getDatabaseName());
 

@@ -342,9 +342,9 @@ class StudentHubPriorityResolver
 
         return [
             'tier' => 'Academic Guidance',
-            'student_reason' => $effect['reason'],
+            'student_reason' => $effect['student_reason'] ?? $effect['reason'],
             'required_action' => match ($effect['effect']) {
-                AcademicDecision::EffectAdvisingRequired => 'Work with the Registrar Office on an individually advised registration proposal.',
+                AcademicDecision::EffectAdvisingRequired => 'Before your next enrollment, ask the Registrar Office to plan your subjects with you.',
                 default => 'Contact the Registrar Office for the named academic review or authorized next step.',
             },
             'office_to_contact' => 'Registrar Office',
