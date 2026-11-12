@@ -18,6 +18,8 @@ The approved numbered product set is Baseline 00 and PRDs 01–06, with their in
 
 Impeccable leads UI/UX judgment. Relevant skills, Laravel Boost, Serena and installed-version official documentation support the task; Filament demo content is not school authority. Surface briefs hold durable direction, not progress.
 
+Portable instructions name project-local skills and required outcomes, such as an inspectable prototype, rather than requiring an environment-only plugin. Current delivery method and executor continuity belong to Protocol Sections 5–6. Dated design iterations remain in Issues and the [historical source index](archive/project-progress/2026-11-12-executor-continuity-and-design-history.md); archived evidence never reactivates a superseded command.
+
 Keep original F/S/M/C concern IDs, D decisions, surface IDs and AC criteria. The [#48 source register](https://github.com/yosoykyle/SIA-TALA/issues/48#issuecomment-5918342932) retains feedback provenance.
 
 ## Evidence and archive classification

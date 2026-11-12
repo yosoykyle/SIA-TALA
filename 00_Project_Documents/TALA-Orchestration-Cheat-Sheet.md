@@ -41,6 +41,8 @@ A direct untracked request names its outcome and scope instead of an Issue numbe
 
 ## Preserve scope and evidence
 
+Use the [Protocol's delivery method](TALA-Orchestrator-Protocol.md#structure-first-shared-design-connected-delivery) for structure-first, cross-role simplification, shared design, meaningful prototypes and connected verification. Tools for prototypes may differ by environment; the inspectable result and its source/role boundaries remain the requirement.
+
 Use the existing coordination register for system concerns and stable identifiers. Expand the owning concern before adding a new one. Derive only the next dependency-ready bounded task. Keep the actual shared task state in GitHub Issues and Project views.
 
 Inspect and preserve unrelated edits. Solo work uses the primary checkout on `main`. Concurrent work uses the protocol's isolated Issue workspace, branch, database, and PR arrangement. Stage only the accepted manifest at completion.
@@ -56,3 +58,5 @@ A diagnose-only request is read-only. Within an execution assignment, inspect an
 ## Resume after interruption
 
 Read recent owner instructions and refresh volatile Issue, Git, and evidence state. Retain the accepted decisions and permission boundary. Resolve a material conflict in its owning authority before affected execution. Routine implementation detail stays with the assigned executor.
+
+For an owner-requested replacement, follow [Executor continuity and replacement](TALA-Orchestrator-Protocol.md#executor-continuity-and-replacement): secure the old return, preserve its work/evidence, give the successor a bounded source-linked handoff, then archive the old chat. Archiving does not remove workspaces or transfer release permission.
