@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\StudentLifecycleChangeFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -70,6 +71,29 @@ class StudentLifecycleChange extends Model
             self::TypeProgramShift => 'Program Shift',
             self::TypeCompletion => 'Completion',
         ];
+    }
+
+    /** @param Builder<StudentLifecycleChange> $query */
+    public function scopeAppliedForStudent(Builder $query, StudentProfile $student): Builder
+    {
+        return $query->where('student_profile_id', $student->id)
+            ->where('state', self::StateApplied)
+            ->select(['id', 'student_profile_id', 'term_id', 'type', 'state', 'effective_on']);
+    }
+
+    public function studentLabel(): string
+    {
+        return match ($this->type) {
+            self::TypeSubjectDrop => 'Subject dropped',
+            self::TypeWithdrawal => 'Withdrawal from term',
+            self::TypeLeaveOfAbsence => 'Leave of absence',
+            self::TypeTransferOut => 'Transfer to another school',
+            self::TypeReactivation => 'Return to studies',
+            self::TypeInactivation => 'Inactivity recorded',
+            self::TypeProgramShift => 'Program change',
+            self::TypeCompletion => 'Completion recorded',
+            default => 'School record updated',
+        };
     }
 
     public function applicationAvailableOn(): Carbon

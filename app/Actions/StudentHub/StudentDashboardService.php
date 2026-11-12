@@ -2,7 +2,7 @@
 
 namespace App\Actions\StudentHub;
 
-use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
@@ -33,7 +33,7 @@ class StudentDashboardService
         private readonly StudentGradeLabelFormatter $gradeLabels,
         private readonly CurrentOfficialEnrollmentResolver $currentEnrollmentResolver,
         private readonly EnrollmentAcademicContextResolver $academicContextResolver,
-        private readonly AcademicEnrollmentEffect $academicEnrollmentEffect,
+        private readonly AcademicEnrollmentGuidance $academicEnrollmentEffect,
     ) {}
 
     /**

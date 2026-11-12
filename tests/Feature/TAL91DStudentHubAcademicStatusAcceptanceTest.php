@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Actions\StudentHub\StudentDashboardService;
+use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\HoldsView;
-use App\Filament\Student\Pages\LifecycleView;
 use App\Models\Hold;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
@@ -161,10 +161,9 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
             'effective_on' => now()->toDateString(),
         ]);
 
-        Livewire::actingAs($studentA)
-            ->test(LifecycleView::class)
-            ->assertCanSeeTableRecords([$changeA])
-            ->assertCanNotSeeTableRecords([$changeB]);
+        Livewire::actingAs($studentA)->withQueryParams(['view' => 'record'])
+            ->test(Academics::class)
+            ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->getCollection()->modelKeys() === [$changeA->id]);
     }
 
     #[Test]

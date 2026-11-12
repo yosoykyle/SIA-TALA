@@ -146,6 +146,7 @@ class TalaPanelTheme
             ->sidebarLivewireComponent(AccessibleSidebar::class)
             ->renderHook(PanelsRenderHook::HEAD_END, fn (): HtmlString => new HtmlString('<script src="'.e(asset('js/tala-wizard.js')).'"></script>'), scopes: [ApplicantApplication::class, AssistedAdmissionApplication::class])
             ->renderHook(PanelsRenderHook::BODY_START, fn (): View => view('filament.components.skip-link'))
+            ->renderHook(PanelsRenderHook::LAYOUT_END, fn (): View => view('filament.components.idle-countdown', ['panelId' => $panel->getId()]))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.content-anchor'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.form-accessibility'))
             ->renderHook(PanelsRenderHook::CONTENT_BEFORE, fn (): HtmlString => new HtmlString(

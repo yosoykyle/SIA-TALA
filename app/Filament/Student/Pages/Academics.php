@@ -2,7 +2,7 @@
 
 namespace App\Filament\Student\Pages;
 
-use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
@@ -17,16 +17,22 @@ use App\Models\CourseRequirement;
 use App\Models\ExternalCompetencyRequirement;
 use App\Models\ExternalCompetencyResult;
 use App\Models\OperationalEvent;
+use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Url;
+use Livewire\WithPagination;
 
 class Academics extends Page
 {
+    use WithPagination;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-academic-cap';
 
     protected static ?string $navigationLabel = 'Academics';
@@ -39,6 +45,46 @@ class Academics extends Page
 
     #[Url(as: 'view', except: 'current', history: true)]
     public string $academicView = 'current';
+
+    #[Url]
+    public ?int $change = null;
+
+    public function mount(): void
+    {
+        $student = $this->actor()->studentProfile;
+        if ($this->academicView !== 'record' || $this->change === null || ! $student instanceof StudentProfile) {
+            return;
+        }
+
+        $change = $this->schoolChangesQuery($student)->whereKey($this->change)->first();
+        if (! $change instanceof StudentLifecycleChange) {
+            return;
+        }
+
+        $newer = $this->schoolChangesQuery($student)->where(function (Builder $query) use ($change): void {
+            $query->where('effective_on', '>', $change->effective_on)
+                ->orWhere(fn (Builder $sameDate): Builder => $sameDate->where('effective_on', $change->effective_on)->where('id', '>', $change->id));
+        })->count();
+        $this->setPage(intdiv($newer, 10) + 1, pageName: 'changesPage');
+    }
+
+    /** @return Builder<StudentLifecycleChange> */
+    private function schoolChangesQuery(StudentProfile $student): Builder
+    {
+        return StudentLifecycleChange::query()->appliedForStudent($student);
+    }
+
+    private function schoolChanges(StudentProfile $student): LengthAwarePaginator
+    {
+        $query = $this->schoolChangesQuery($student)->with('term.academicYear')->latest('effective_on')->latest('id');
+        $changes = $query->paginate(10, pageName: 'changesPage');
+        if ($changes->currentPage() > $changes->lastPage()) {
+            $this->setPage($changes->lastPage(), pageName: 'changesPage');
+            $changes = $query->paginate(10, pageName: 'changesPage');
+        }
+
+        return $changes;
+    }
 
     public function getTitle(): string
     {
@@ -154,6 +200,7 @@ class Academics extends Page
 
         $completion = $this->academicView === 'graduation' ? app(CompletionReadinessProjection::class)->forStudent($student) : null;
         $curriculum = app(CurriculumEvaluation::class)->forStudent($student);
+        $guidance = app(AcademicEnrollmentGuidance::class)->forStudent($student);
 
         return [
             'student' => $student,
@@ -178,7 +225,7 @@ class Academics extends Page
                         && ($requirement->effective_from === null || $requirement->effective_from->lte(today()))
                         && ($requirement->effective_until === null || $requirement->effective_until->gte(today()))),
             ]),
-            'effect' => app(AcademicEnrollmentEffect::class)->forStudent($student),
+            'effect' => $guidance,
             'competencyRequirements' => $this->academicView === 'plan'
                 ? ExternalCompetencyRequirement::query()->applicableTo($student)
                     ->withCurrentResultFor($student)->orderBy('requirement_code')->get() : collect(),
@@ -187,8 +234,9 @@ class Academics extends Page
                     ->with('requirement:id,qualification_label,qualification_level')
                     ->latest('recorded_at')->orderByDesc('id')
                     ->get(['id', 'external_competency_requirement_id', 'outcome', 'assessment_date', 'recorded_at', 'is_current']) : collect(),
-            'lifecycleChanges' => $student->lifecycleChanges()->latest('effective_on')->get(),
-            'enrollmentUrl' => Enrollment::getUrl(panel: 'student'),
+            'lifecycleChanges' => $this->academicView === 'record' ? $this->schoolChanges($student) : collect(),
+            'changeUnavailable' => $this->academicView === 'record' && $this->change !== null && ! $this->schoolChangesQuery($student)->whereKey($this->change)->exists(),
+            'enrollmentUrl' => Enrollment::getUrl(array_filter(['term' => $guidance['term_id']]), panel: 'student'),
             'completion' => $completion,
             'graduationApplications' => $student->graduationApplications()->latest('version')->get(),
             'degreeConferrals' => $student->degreeConferrals()->latest('version')->get(),

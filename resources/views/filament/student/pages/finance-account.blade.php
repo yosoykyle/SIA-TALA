@@ -6,6 +6,13 @@
     $later = $available ? collect($position['obligations'])->where('is_due', false)->sum('balance') : null;
 @endphp
 <div class="student-finance student-finance-workspace">
+    @if (! isset($accountData['account']))
+        <section class="student-record-empty tala-task-surface">
+            <x-servitech-empty-state illustrated heading="Your fees will appear here" description="Your fees and payment schedule will appear after Accounting prepares your term account.">
+                <x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh account</x-filament::button>
+            </x-servitech-empty-state>
+        </section>
+    @else
     <p class="student-information-intro">{{ data_get($accountData, 'state.term') }}</p>
     <div wire:loading.delay wire:target="refreshFinance" role="status">Refreshing your account…</div>
     @if (! $available)
@@ -119,4 +126,5 @@
         </section>
     @endif
     <p class="student-finance-secondary">Updated {{ $date($position['as_of'] ?? null) }} · Asia/Manila</p>
+    @endif
 </div>

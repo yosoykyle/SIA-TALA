@@ -815,10 +815,8 @@
 @container (max-width:26rem){
     .student-profile-page .tala-record-actions{flex-basis:100%;}
 }
-.student-profile-study-note,.student-plan-start{padding:1.25rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));font-size:.9375rem;line-height:1.6;}
+.student-profile-study-note{padding:1.25rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));font-size:.9375rem;line-height:1.6;}
 .student-plan-intro{font-size:1rem;line-height:1.6;max-inline-size:65ch;margin-block:1rem 1.5rem;}
-.student-plan-start h2{font-size:1.125rem;font-weight:600;margin-block-end:.5rem;}
-.student-plan-start .fi-link{display:inline-flex;margin-block-start:.75rem;}
 .student-plan-status-future,.student-plan-status-future .fi-icon{color:var(--tala-muted);}
 .student-finance-records{padding-block:1.5rem;border-block-start:1px solid var(--tala-edge);}
 .student-finance-records h2{margin-block-end:.5rem;}
@@ -1220,8 +1218,7 @@
 .tala-lifecycle-credit-list p { margin-block-start:.25rem; color:var(--tala-muted); }
 @container (max-width:36rem) { .tala-lifecycle-recording .tala-record-facts { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
-.student-academic-context{display:flex;flex-wrap:wrap;gap:.35rem 1rem;color:var(--tala-muted);font-size:.9375rem;line-height:1.5;}
-.student-academic-context>span:first-child{color:var(--tala-text);font-weight:500;}
+
 .student-academic-workspace{min-inline-size:0;padding:.875rem;}
 .student-academic-workspace .student-academic-navigation{display:flex;inline-size:100%;max-inline-size:none;justify-content:stretch;margin:0;}
 .student-academic-workspace .student-academic-navigation>.fi-tabs-item{flex:1 1 0;min-inline-size:0;justify-content:center;padding:.75rem .5rem;white-space:normal;}
@@ -1317,10 +1314,14 @@
 .student-tile{grid-column:span 2;display:flex;flex-direction:column;gap:.375rem;padding:1.125rem 1.25rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface);box-shadow:var(--tala-material-raised);color:var(--tala-text);min-inline-size:0;}
 .student-tile-wide{grid-column:span 3;}
 .student-tile-full{grid-column:1/-1;}
-.student-tile h2{font-size:1.25rem;font-weight:700;line-height:1.3;letter-spacing:-.015em;text-wrap:balance;}
-.student-tile p{font-size:.9375rem;line-height:1.55;max-inline-size:60ch;margin:0;}
-.student-tile .student-tile-kicker{display:flex;align-items:center;gap:.4rem;font-size:.75rem;font-weight:600;line-height:1.4;letter-spacing:.05em;text-transform:uppercase;color:var(--tala-muted);}
-.student-tile-kicker>.fi-icon{inline-size:1rem;block-size:1rem;flex:none;}
+.student-tile h2{font-size:1.25rem;font-weight:700;line-height:1.3;letter-spacing:-.015em;text-wrap:balance;font-variant-numeric:tabular-nums;}
+.student-tile p{font-size:.9375rem;line-height:1.55;max-inline-size:60ch;margin:0;text-wrap:pretty;}
+.student-tile .student-tile-kicker{display:flex;align-items:center;gap:.4rem;font-size:.75rem;font-weight:600;line-height:1.4;letter-spacing:.05em;text-transform:uppercase;color:var(--tala-brand-foreground);}
+/* Tile label: the icon sits in a soft chip of the label colour, so each tile carries its role colour without tinting the whole card. */
+.student-tile-kicker>.fi-icon{box-sizing:content-box;inline-size:1rem;block-size:1rem;flex:none;padding:.3125rem;border-radius:50%;background:color-mix(in srgb,currentColor 13%,transparent);}
+.student-tile-info .student-tile-kicker{color:var(--tala-link);}
+.student-tile .student-tile-kicker+h2{margin-block-start:.125rem;}
+.student-bento .student-home-empty{color:var(--tala-muted);}
 .student-tile .student-tile-figure{font-size:2.25rem;font-weight:700;line-height:1.1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;}
 .student-tile .student-tile-meta{font-size:.875rem;color:var(--tala-muted);}
 .student-tile-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-block-start:auto;padding-block-start:.75rem;}
@@ -1571,13 +1572,7 @@
 .student-academics>.student-academic-workspace.student-plan-workspace{padding:0;}
 .student-plan-workspace .student-plan-timeline{padding:.375rem .375rem 1rem;margin:-.375rem -.375rem 0;}
 
-.student-plan-workspace .student-academic-body>.student-plan-advising{align-items:center;gap:var(--tala-card-gap);background:color-mix(in srgb,var(--warning-500,#f59e0b) 10%,var(--tala-surface));border-color:color-mix(in srgb,var(--warning-500,#f59e0b) 35%,var(--tala-edge));}
-.student-plan-advising>div{flex:1;min-inline-size:0;}
-.student-plan-advising>.fi-icon{inline-size:1.75rem;block-size:1.75rem;color:var(--warning-700,#b45309);}
-.dark .student-plan-advising>.fi-icon{color:var(--warning-300,#fcd34d);}
-.student-academics .student-plan-workspace .student-plan-advising h2{font-size:1.125rem;line-height:1.35;font-weight:700;color:var(--tala-text);}
-.student-plan-advising p{font-size:.875rem;color:var(--tala-text);}
-.student-plan-advising>.fi-btn{flex:none;}
+.student-academics .student-plan-workspace .student-plan-advising h2{font-size:1.125rem;}
 .student-plan-scroll-hint{display:none;}
 .student-plan-workspace{container-type:inline-size;container-name:study-plan;}
 @container study-plan (min-width:64rem){
@@ -1586,12 +1581,10 @@
 .student-plan-workspace .student-academic-body:has(>.student-plan-advising)>.student-plan-overview{grid-column:1;grid-row:1;grid-template-columns:minmax(0,1fr);gap:1rem;}
 .student-plan-workspace .student-academic-body:has(>.student-plan-advising) .student-plan-overview-program{padding-inline-end:0;}
 .student-plan-workspace .student-academic-body:has(>.student-plan-advising) .student-plan-overview-progress{padding-inline-start:0;padding-block-start:1rem;border-inline-start:0;border-block-start:1px solid var(--tala-selected-edge);}
-.student-plan-workspace .student-academic-body>.student-plan-advising{grid-column:2;grid-row:1;display:grid;grid-template-columns:1.75rem minmax(0,1fr);align-content:center;align-items:start;}
-.student-plan-advising>.fi-btn{grid-column:2;justify-self:start;}
+.student-plan-workspace .student-academic-body>.student-plan-advising{grid-column:2;grid-row:1;}
 }
 @media(max-width:40rem){
-.student-plan-workspace .student-academic-body>.student-plan-advising{align-items:start;flex-wrap:wrap;}
-.student-plan-advising>.fi-btn{margin-inline-start:2.5rem;}
+
 .student-plan-scroll-hint{display:block;font-size:.8125rem;color:var(--tala-muted);margin-block-start:-.75rem;}
 }
 
@@ -1702,3 +1695,35 @@
 .student-inc-guidance .tala-workflow-handoff{grid-template-columns:minmax(0,1fr);gap:2rem;}
 .student-inc-guidance .tala-handoff-arrow{inset-inline-start:50%;inset-block-start:-1.75rem;transform:translateX(-50%) rotate(90deg);}
 }
+
+/* Primary record absence and applied history reuse the shared Servitech components. */
+.student-record-context{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;padding:1rem 1.25rem;border:1px solid var(--tala-selected-edge);border-radius:var(--tala-card-radius);background:var(--tala-brand-tint);color:var(--tala-on-brand-tint);}
+.student-record-context strong{font-size:1.125rem;font-weight:700;}
+.student-record-context span{padding-inline-start:1rem;border-inline-start:1px solid var(--tala-selected-edge);}
+.student-record-empty.tala-task-surface{padding:.5rem;}
+.student-record-empty>.servitech-empty-state{inline-size:100%;}
+.student-record-empty .servitech-empty-state .fi-empty-state-heading{font-size:clamp(1.5rem,2.4vw,2rem);line-height:1.2;font-weight:700;color:var(--tala-brand-foreground);text-wrap:balance;}
+.student-record-empty .servitech-empty-state .fi-empty-state-description{font-size:1rem;line-height:1.55;}
+.student-record-empty .servitech-empty-state .fi-empty-state-footer{margin-block-start:1.25rem;}
+.student-record-empty .servitech-empty-state__art{max-inline-size:15rem;}
+/* Study plan orientation: one lead line inside the plan card, so the subject list starts sooner. */
+.student-plan-lead{display:flex;align-items:flex-start;gap:.625rem;padding:.75rem 1rem;border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);font-size:.9375rem;line-height:1.55;color:var(--tala-text);}
+.student-plan-lead>.fi-icon{flex:none;inline-size:1.25rem;block-size:1.25rem;margin-block-start:.125rem;color:var(--tala-brand-foreground);}
+.student-plan-lead .fi-link{margin-inline-start:.25rem;}
+/* Study plan guidance: same shared task state, tighter, with its action beside the reason when there is room. */
+.student-plan-workspace .student-plan-advising{padding:1rem 1.25rem;}
+.student-plan-workspace .student-plan-advising .servitech-task-state__body{flex:1;gap:.25rem;}
+.student-plan-workspace .student-plan-advising .servitech-task-state__actions{margin-block-start:.5rem;}
+@container study-plan (min-width:44rem) and (max-width:63.999rem){
+.student-plan-workspace .student-plan-advising .servitech-task-state__body{grid-template-columns:minmax(0,1fr) auto;column-gap:1.5rem;align-items:center;}
+.student-plan-workspace .student-plan-advising .servitech-task-state__body>*{grid-column:1;}
+.student-plan-workspace .student-plan-advising .servitech-task-state__actions{grid-column:2;grid-row:1/span 4;margin-block-start:0;}
+}
+
+#school-record-changes{scroll-margin-block-start:1rem;}
+#school-record-changes .tala-record-timeline-item h3{font-size:1.125rem;font-weight:700;line-height:1.35;}
+#school-record-changes .tala-record-timeline-item p,#school-record-changes .tala-record-timeline-item time{font-size:.9375rem;line-height:1.5;}
+#school-record-changes .tala-record-timeline-item p+p{margin-block-start:.375rem;}
+.student-school-change-target{outline:1px solid var(--tala-selected-edge);outline-offset:.25rem;border-radius:var(--tala-card-radius);background:var(--tala-brand-tint);}
+.student-school-change-unavailable{list-style:none;padding-block:.75rem;color:var(--tala-muted);font-size:.9375rem;}
+@media(max-width:40rem){.student-record-context{align-items:flex-start;flex-direction:column;}.student-record-context span{padding:0;border:0;}.student-record-empty .servitech-empty-state__art{max-inline-size:9rem;}.student-record-empty .servitech-empty-state__layout{gap:.25rem;}#school-record-changes .tala-record-timeline-item h3{font-size:1rem;}}

@@ -162,8 +162,51 @@
 .tala-auth-main { position: relative; width: 100%; min-height: 100dvh; }
 .tala-auth-school { display: none; }
 /* Keep the form's top padding on short screens: centre it only when it fits, so the heading never slides under the photo. */
-.tala-auth-main .media-top.has-media .fi-auth-content-section { align-items: flex-start; }
-.tala-auth-main .media-top.has-media .fi-auth-form-container { margin-block: auto; }
+.tala-auth-main .media-top.has-media .fi-auth-content-section {
+    align-items: flex-start;
+    flex: 1 0 auto;
+    overflow: visible;
+    padding-block: clamp(1.25rem, 4svh, 2rem);
+    position: relative;
+    margin-block-start: calc(-1 * var(--tala-card-radius));
+    border-start-start-radius: var(--tala-card-radius);
+    border-start-end-radius: var(--tala-card-radius);
+    background: var(--tala-surface);
+}
+.tala-auth-main .media-top.has-media .fi-auth-form-container { margin-block: auto; position: relative; z-index: 1; }
+/* The recovery screens' spark, ring and paper-plane family stays outside the form's reading column. */
+@media (min-width: 60rem) and (forced-colors: none) {
+    .tala-auth-main .media-top.has-media .fi-auth-content-section::before,
+    .tala-auth-main .media-top.has-media .fi-auth-content-section::after {
+        content: '';
+        position: absolute;
+        pointer-events: none;
+        inline-size: min(14vw, 12rem);
+        block-size: min(72%, 23rem);
+        inset-block-start: 12%;
+        inset-inline-start: 4%;
+        background: var(--primary-600);
+        opacity: .25;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 360'%3E%3Ccircle cx='38' cy='72' r='13' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='128' cy='28' r='3'/%3E%3Cpath d='M124 170c1 10 5 14 15 15-10 1-14 5-15 15-1-10-5-14-15-15 10-1 14-5 15-15ZM35 277l44-14-24 38-7-13Z'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+    .tala-auth-main .media-top.has-media .fi-auth-content-section::after {
+        inset-inline-start: auto;
+        inset-inline-end: 5%;
+        inset-block-start: 18%;
+        inline-size: min(12vw, 10rem);
+        mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 360'%3E%3Cpath d='M110 25c2 13 7 18 20 20-13 2-18 7-20 20-2-13-7-18-20-20 13-2 18-7 20-20Z'/%3E%3Cg fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='38' cy='163' r='10'/%3E%3Cpath d='M95 263c10-18 20 18 30 0s20-18 30 0M59 302v16m-8-8h16'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    .dark .tala-auth-main .media-top.has-media .fi-auth-content-section::before,
+    .dark .tala-auth-main .media-top.has-media .fi-auth-content-section::after {
+        background: var(--primary-400);
+        opacity: .3;
+    }
+}
+@media (min-width: 60rem) and (prefers-reduced-motion: no-preference) {
+    .tala-auth-main .media-top.has-media .fi-auth-content-section::before { animation: tala-auth-trinket-drift 12s ease-in-out infinite alternate; }
+    .tala-auth-main .media-top.has-media .fi-auth-content-section::after { animation: tala-auth-trinket-drift 15s ease-in-out -6s infinite alternate-reverse; }
+}
+@keyframes tala-auth-trinket-drift { from { translate: 0 -4px; } to { translate: 0 4px; } }
 .tala-auth-main .fi-simple-header-heading { color: var(--tala-brand-strong); }
 .dark .tala-auth-main .fi-simple-header-heading { color: var(--primary-400); }
 .tala-auth-main .media-top.has-media button[type="submit"].fi-color-primary {

@@ -2,6 +2,8 @@
 
 namespace App\Actions\Academics;
 
+use App\Filament\Student\Pages\Academics;
+use App\Filament\Student\Pages\Enrollment;
 use App\Mail\AcademicRecordChangedMail;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\GradeOutcomeEvent;
@@ -139,9 +141,12 @@ class AcademicRecordNotificationService
     {
         $change->loadMissing('studentProfile.user');
         $recipient = $change->studentProfile?->user;
+        $actionPath = $change->state === StudentLifecycleChange::StateApplied
+            ? Academics::getUrl(['view' => 'record', 'change' => $change->id], isAbsolute: false, panel: 'student').'#school-record-changes'
+            : Enrollment::getUrl(['term' => $change->term_id], isAbsolute: false, panel: 'student');
 
         return $recipient instanceof User
-            ? $this->recordForRecipientAfterCommit($recipient, OperationalEvent::TypeAcademicProgressLifecycleEmail, $change, 'An authorized lifecycle result', '/student/academics', "state:{$change->state}")
+            ? $this->recordForRecipientAfterCommit($recipient, OperationalEvent::TypeAcademicProgressLifecycleEmail, $change, 'A school record update', $actionPath, "state:{$change->state}")
             : null;
     }
 

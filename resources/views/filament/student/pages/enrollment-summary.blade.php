@@ -37,7 +37,7 @@
         ]) : [];
     @endphp
     <div class="student-bento">
-        <section @class(['student-tile student-tile-wide student-overview-payment', 'student-tile-fill' => $paymentDue]) aria-labelledby="overview-payment-heading">
+        <section @class(['student-tile student-overview-payment', 'student-tile-wide' => $showNotice, 'student-tile-full' => ! $showNotice, 'student-tile-fill' => $paymentDue, 'student-tile-info' => $proofPending || ($position['state'] ?? 'Unavailable') === 'Unavailable']) aria-labelledby="overview-payment-heading">
             <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-credit-card" />Fees and payments</p>
             @if ($proofPending)<h2 id="overview-payment-heading">Your payment proof is under review</h2><p>Accounting is reviewing your PHP {{ number_format((float) $latestEvidence->claimed_amount, 2) }} receipt. No action is needed while it is reviewed.</p>
             @elseif (($position['state'] ?? 'Unavailable') === 'Unavailable')<h2 id="overview-payment-heading">Accounting is updating your fees</h2><p>Your balance will appear when your assessment is ready.</p>
@@ -56,23 +56,29 @@
             <section class="student-tile student-tile-wide student-tile-attention" aria-label="Needs your attention">
                 <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-information-circle" />Needs your attention</p>
                 <h2>{{ $notice['tier'] }}</h2>
+                @if ($notice['tier'] === 'Academic Guidance')<p class="student-tile-meta">{{ $notice['scope_label'] }}</p>@endif
                 <p>{{ $notice['student_reason'] }}</p>
                 @if ($notice['required_action'])<p>{{ $notice['required_action'] }}</p>@endif
                 @if ($notice['tier'] === 'Academic Guidance')
-                    <ol class="student-tile-steps" aria-label="What happens next"><li aria-current="step">You ask the Registrar</li><li>Registrar prepares your subjects</li><li>You review them</li></ol>
-                    <div class="student-tile-actions"><x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(panel: 'student')">View your results</x-filament::button></div>
+                    @if ($notice['academic_effect'] === 'ADVISING_REQUIRED')
+                        <ol class="student-tile-steps" aria-label="What happens next"><li aria-current="step">You ask the Registrar</li><li>Registrar prepares your subjects</li><li>You review them</li></ol>
+                    @endif
+                    <div class="student-tile-actions">
+                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Enrollment::getUrl(array_filter(['term' => $notice['term_id']]), panel: 'student')">Review enrollment</x-filament::button>
+                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(['view' => 'record'], panel: 'student')">View your results</x-filament::button>
+                    </div>
                 @elseif ($notice['office_to_contact'])<p class="student-tile-meta">Contact {{ $notice['office_to_contact'] }}.</p>@endif
             </section>
         @endif
-        <section @class(['student-tile student-overview-enrollment', 'student-tile-wide' => ! $showNotice, 'student-tile-tint' => $official]) aria-labelledby="overview-enrollment-heading">
+        <section @class(['student-tile student-overview-enrollment', 'student-tile-wide' => $showResults !== $showPlan, 'student-tile-full' => ! $showResults && ! $showPlan, 'student-tile-tint' => $official]) aria-labelledby="overview-enrollment-heading">
             <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-document-text" />Enrollment</p>
             <h2 id="overview-enrollment-heading">{{ $title }}</h2>
             <p class="student-tile-meta">{{ $case?->term?->label ?? $context['term']?->label ?? 'The Registrar will confirm the enrollment period.' }}@if ($showResults) · {{ $academicSnapshot['subjects'] }} {{ $academicSnapshot['subjects'] === 1 ? 'subject' : 'subjects' }}@endif</p>
-            <p>{{ $official ? 'Open your enrollment record to check subjects and document availability.' : ($context['reason'] ?? 'Review your subjects and fees when the Registrar has prepared them.') }}</p>
+            @if ($official || ! $showNotice || ($context['reason'] ?? null) !== $notice['student_reason'])<p>{{ $official ? 'Open your enrollment record to check subjects and document availability.' : ($context['reason'] ?? 'Review your subjects and fees when the Registrar has prepared them.') }}</p>@endif
             <div class="student-tile-actions"><x-filament::button tag="a" :href="\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">View enrollment</x-filament::button></div>
         </section>
         @if ($showResults)
-            <section class="student-tile" aria-labelledby="overview-results-heading">
+            <section @class(['student-tile', 'student-tile-wide' => ! $showPlan]) aria-labelledby="overview-results-heading">
                 <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-academic-cap" />Results this term</p>
                 <div class="student-tile-split">
                     <div class="student-tile-ring" style="--tile-progress: {{ (int) round($academicSnapshot['released'] / $academicSnapshot['subjects'] * 100) }}" aria-hidden="true">{{ $academicSnapshot['released'] }}/{{ $academicSnapshot['subjects'] }}</div>
@@ -83,7 +89,7 @@
             </section>
         @endif
         @if ($showPlan)
-            <section @class(['student-tile', 'student-tile-wide' => ! $showResults && $showNotice]) aria-labelledby="overview-plan-heading">
+            <section @class(['student-tile', 'student-tile-wide' => ! $showResults]) aria-labelledby="overview-plan-heading">
                 <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-map" />Study plan</p>
                 <h2 id="overview-plan-heading">{{ (float) $academicSnapshot['completed_units'] }} of {{ (float) $academicSnapshot['total_units'] }} units completed</h2>
                 <div class="student-tile-bar" role="img" aria-label="{{ $planPercent }} percent of curriculum units completed"><span style="inline-size: {{ $planPercent }}%"></span></div>

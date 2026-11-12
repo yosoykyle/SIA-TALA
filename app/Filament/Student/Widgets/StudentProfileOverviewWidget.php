@@ -2,7 +2,7 @@
 
 namespace App\Filament\Student\Widgets;
 
-use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Finance\StudentTermAccountPresenter;
 use App\Models\AcademicDecision;
@@ -46,7 +46,7 @@ class StudentProfileOverviewWidget extends BaseWidget
         $finance = app(StudentTermAccountPresenter::class)->forUser($user);
         $balance = $finance['state']['remaining_balance'] ?? 'PHP 0.00';
         $hasBalance = ($finance['state']['remaining_balance'] ?? 'PHP 0.00') !== 'PHP 0.00';
-        $academicEffect = app(AcademicEnrollmentEffect::class)->forStudent($profile);
+        $academicEffect = app(AcademicEnrollmentGuidance::class)->forStudent($profile);
         $curriculum = app(CurriculumEvaluation::class)->forStudent($profile);
 
         $stats = [
@@ -60,8 +60,8 @@ class StudentProfileOverviewWidget extends BaseWidget
                     StudentProfile::LifecycleArchived => 'danger',
                     default => 'info',
                 }),
-            Stat::make('Enrollment Guidance', AcademicDecision::effectOptions()[$academicEffect['effect']] ?? str($academicEffect['effect'])->lower()->headline()->toString())
-                ->description($academicEffect['reason'].' Source: '.$academicEffect['source'].'.')
+            Stat::make('Enrollment Guidance', $academicEffect['label'])
+                ->description($academicEffect['scope_label'].'. '.$academicEffect['student_reason'])
                 ->color(match ($academicEffect['effect']) {
                     AcademicDecision::EffectBlocked => 'danger',
                     AcademicDecision::EffectAdvisingRequired, AcademicDecision::EffectPendingDecision => 'warning',

@@ -10,6 +10,7 @@ use App\Http\Controllers\GradeRosterOutputController;
 use App\Http\Controllers\PaymentAcknowledgementController;
 use App\Http\Controllers\PaymentEvidenceDownloadController;
 use App\Http\Controllers\PublicGatewayController;
+use App\Http\Controllers\SessionActivityController;
 use App\Http\Controllers\StaffEmailChangeController;
 use App\Http\Controllers\StaffInvitationActivationController;
 use App\Http\Controllers\StudentProfilePhotoController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\TranscriptPreviewController;
 use App\Http\Controllers\TranscriptSnapshotController;
 use App\Http\Controllers\UnofficialStudentRecordController;
 use App\Http\Controllers\WorkspaceContextController;
+use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Route;
 
@@ -53,6 +55,12 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/workspace-chooser', [WorkspaceContextController::class, 'store'])
         ->name('workspace-chooser.select');
 });
+
+Route::post('/session/continue', [SessionActivityController::class, 'continue'])
+    ->middleware(['auth', EnforceCanonicalSessionPolicy::class])
+    ->name('session.continue');
+Route::post('/session/expire', [SessionActivityController::class, 'expire'])
+    ->name('session.expire');
 
 Route::get('/outputs/cor/{enrollment}', CorPrintController::class)
     ->middleware('auth')
