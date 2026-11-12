@@ -80,7 +80,12 @@ class LedgerEntriesTable
                 TextColumn::make('state')
                     ->label('Posting State')
                     ->formatStateUsing(fn (string $state): string => str($state)->replace('_', ' ')->headline()->toString())
-                    ->badge(),
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'posted' => 'success',
+                        'reversed' => 'danger',
+                        default => 'gray',
+                    }),
                 TextColumn::make('poster.name')
                     ->label('Posted By')
                     ->placeholder('System')

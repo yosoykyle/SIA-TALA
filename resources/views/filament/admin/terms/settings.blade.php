@@ -2,7 +2,7 @@
     <section class="tala-task-surface tala-term-settings-summary" aria-labelledby="term-identity-heading">
         <header class="tala-calendar-sheet-heading">
             <h2 id="term-identity-heading"><x-filament::icon icon="heroicon-o-calendar-days" />{{ $term->typeLabel() }}</h2>
-            <x-filament::badge :color="$term->state === \App\Models\Term::StateActive ? 'success' : 'gray'"><span class="sr-only">Term status: </span>{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge>
+            <x-filament::badge :color="$term->stateColor()"><span class="sr-only">Term status: </span>{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge>
         </header>
         <dl class="tala-term-settings-identity">
             <div><dt>Term name</dt><dd>{{ $term->label }}</dd></div>

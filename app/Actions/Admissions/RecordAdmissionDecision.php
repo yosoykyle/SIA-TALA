@@ -35,7 +35,6 @@ class RecordAdmissionDecision
         string $applicantExplanation,
         ?int $expectedCurrentDecisionId = null,
         ?int $expectedSubmissionVersionId = null,
-        bool $requiresExternalApproval = false,
     ): AdmissionDecision {
         $this->authorize($actor);
         $expectedSubmissionVersionId ??= $application->current_submission_version_id;
@@ -60,7 +59,6 @@ class RecordAdmissionDecision
             $validated,
             $expectedCurrentDecisionId,
             $expectedSubmissionVersionId,
-            $requiresExternalApproval,
         ): AdmissionDecision {
             $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
             if ($locked->current_submission_version_id !== $expectedSubmissionVersionId) {
@@ -81,10 +79,10 @@ class RecordAdmissionDecision
                 ]);
             }
 
-            if (($current instanceof AdmissionDecision || $requiresExternalApproval)
+            if ($current instanceof AdmissionDecision
                 && blank($validated['authority_reference'])) {
                 throw ValidationException::withMessages([
-                    'authority_reference' => 'Enter the separate approval reference for a replacement decision or exceptional approval.',
+                    'authority_reference' => 'Enter the separate approval reference for a replacement decision.',
                 ]);
             }
 
@@ -142,7 +140,6 @@ class RecordAdmissionDecision
                 'payload' => [
                     'decision' => $recorded->decision,
                     'supersedes_decision_id' => $current?->id,
-                    'requires_external_approval' => $requiresExternalApproval,
                 ],
                 'occurred_at' => $recorded->decided_at,
             ]);

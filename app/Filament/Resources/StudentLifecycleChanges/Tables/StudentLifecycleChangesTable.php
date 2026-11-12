@@ -81,6 +81,7 @@ class StudentLifecycleChangesTable
                     ->label('Status')
                     ->badge()
                     ->sortable()
+                    ->color(fn (StudentLifecycleChange $record): string => $record->statusColor())
                     ->formatStateUsing(fn (StudentLifecycleChange $record): string => $record->statusLabel())
                     ->description(fn (StudentLifecycleChange $record): string => match ($record->state) {
                         StudentLifecycleChange::StateRecordedApproved => 'Registrar · Apply when due or cancel',

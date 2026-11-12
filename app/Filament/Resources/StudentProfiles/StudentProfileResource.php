@@ -17,6 +17,7 @@ use App\Filament\Resources\StudentProfiles\Pages\ListStudentProfiles;
 use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelationManager;
 use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager;
+use App\Models\AcademicDecision;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\Hold;
@@ -101,6 +102,7 @@ class StudentProfileResource extends Resource
                     TextEntry::make('lifecycle_status')
                         ->label('Student Lifecycle Status')
                         ->badge()
+                        ->color(fn (?string $state): string => StudentProfile::lifecycleStatusColor($state))
                         ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state)),
                 ])
                 ->columns(2)
@@ -172,6 +174,7 @@ class StudentProfileResource extends Resource
                             ->map(fn (Hold $hold): array => [
                                 'type' => str($hold->hold_type)->headline()->toString(),
                                 'effect' => str($hold->blocking_level)->headline()->toString(),
+                                'effect_color' => Hold::blockingLevelColor($hold->blocking_level),
                                 'reason' => $hold->reason,
                                 'office' => $hold->studentFacingOfficeLabel(),
                                 'next_step' => $hold->resolution_requirement ?: $hold->studentFacingMessage(),
@@ -179,7 +182,8 @@ class StudentProfileResource extends Resource
                             ->all())
                         ->schema([
                             TextEntry::make('type')->label('Hold')->badge(),
-                            TextEntry::make('effect')->label('What It Blocks')->badge(),
+                            TextEntry::make('effect')->label('What It Blocks')->badge()
+                                ->color(fn (Get $get): string => $get('effect_color') ?? 'gray'),
                             TextEntry::make('office')->label('Responsible Office'),
                             TextEntry::make('reason')->label('Reason'),
                             TextEntry::make('next_step')->label('How to Resolve')->columnSpanFull(),
@@ -305,6 +309,7 @@ class StudentProfileResource extends Resource
                                 'term' => $assessment->enrollment?->term?->label,
                                 'version' => 'Version '.$assessment->version,
                                 'status' => str($assessment->state)->headline()->toString(),
+                                'status_color' => $assessment->stateColor(),
                                 'total' => 'PHP '.number_format((float) $assessment->total, 2),
                                 'source_url' => $assessment->enrollment !== null
                                     ? EnrollmentResource::getUrl('view', ['record' => $assessment->enrollment])
@@ -314,7 +319,8 @@ class StudentProfileResource extends Resource
                         ->schema([
                             TextEntry::make('term')->label('Academic Term')->weight('bold'),
                             TextEntry::make('version')->label('Assessment'),
-                            TextEntry::make('status')->label('Status')->badge(),
+                            TextEntry::make('status')->label('Status')->badge()
+                                ->color(fn (Get $get): string => $get('status_color') ?? 'gray'),
                             TextEntry::make('total')->label('Total Assessed'),
                             TextEntry::make('source_label')
                                 ->label('Source Record')
@@ -341,7 +347,8 @@ class StudentProfileResource extends Resource
                                 'type' => str((string) $change->type)->headline()->toString(),
                                 'term' => $change->term->label,
                                 'effective_on' => $change->effective_on->format('M j, Y'),
-                                'state' => str((string) $change->state)->headline()->toString(),
+                                'state' => $change->statusLabel(),
+                                'state_color' => $change->statusColor(),
                                 'reason' => $change->reason,
                                 'source_url' => StudentLifecycleChangeResource::getUrl('index', ['change' => $change->id]),
                             ])
@@ -350,7 +357,8 @@ class StudentProfileResource extends Resource
                             TextEntry::make('type')->label('Change')->badge(),
                             TextEntry::make('term')->label('Academic Term'),
                             TextEntry::make('effective_on')->label('Effective Date'),
-                            TextEntry::make('state')->label('Recorded State')->badge(),
+                            TextEntry::make('state')->label('Recorded State')->badge()
+                                ->color(fn (Get $get): string => $get('state_color') ?? 'gray'),
                             TextEntry::make('reason')->label('Reason')->columnSpanFull(),
                             TextEntry::make('source_label')
                                 ->label('Source Record')
@@ -422,12 +430,18 @@ class StudentProfileResource extends Resource
                 TextColumn::make('lifecycle_status')
                     ->label('Lifecycle Status')
                     ->badge()
+                    ->color(fn (?string $state): string => StudentProfile::lifecycleStatusColor($state))
                     ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state))
                     ->sortable(),
                 TextColumn::make('academic_effect')
                     ->label('Enrollment Guidance')
                     ->state(fn (StudentProfile $record): string => str(app(AcademicEnrollmentEffect::class)->forStudent($record)['effect'])->headline()->toString())
-                    ->badge(),
+                    ->badge()
+                    ->color(fn (StudentProfile $record): string => match (app(AcademicEnrollmentEffect::class)->forStudent($record)['effect']) {
+                        AcademicDecision::EffectBlocked => 'danger',
+                        AcademicDecision::EffectAdvisingRequired, AcademicDecision::EffectPendingDecision => 'warning',
+                        default => 'success',
+                    }),
             ])->filters([
                 ...self::academicBrowsingFilters(),
                 SelectFilter::make('current_enrollment_status')

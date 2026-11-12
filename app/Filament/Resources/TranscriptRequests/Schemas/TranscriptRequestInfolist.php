@@ -28,7 +28,8 @@ class TranscriptRequestInfolist
             ]),
             Section::make('Issuance readiness')->columnSpanFull()->columns(2)
                 ->description('TALA records issuance. Physical signature, seal and delivery are handled by the school.')->schema([
-                    TextEntry::make('lifecycle_state')->label('Current TOR')->state(fn (TranscriptRequest $record): string => app(TranscriptLifecycleProjection::class)->statusForRequest($record))->badge(),
+                    TextEntry::make('lifecycle_state')->label('Current TOR')->state(fn (TranscriptRequest $record): string => app(TranscriptLifecycleProjection::class)->statusForRequest($record))->badge()
+                        ->color(fn (TranscriptRequest $record): string => TranscriptLifecycleProjection::statusColor(app(TranscriptLifecycleProjection::class)->statusForRequest($record))),
                     TextEntry::make('accounting_restrictions')->label('Accounting')->state(fn (TranscriptRequest $record): string => $record->officialOutputRestrictions->whereNull('resolved_at')->isEmpty()
                         ? 'No active TOR restriction' : $record->officialOutputRestrictions->whereNull('resolved_at')->pluck('reason')->implode('; ')),
                     TextEntry::make('preparation')->label('Next action')->columnSpanFull()->state(function (TranscriptRequest $record): string {
@@ -67,7 +68,7 @@ class TranscriptRequestInfolist
                 ]),
             Section::make('Issuance history')->columnSpanFull()->collapsible()->collapsed()->schema([
                 RepeatableEntry::make('events')->schema([
-                    TextEntry::make('type')->badge(),
+                    TextEntry::make('type')->badge()->color(fn (string $state): string => TranscriptLifecycleProjection::statusColor($state)),
                     TextEntry::make('reference')->url(fn (TranscriptIssuanceEvent $record): ?string => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false) && $record->transcript_snapshot_id !== null ? route('transcript-snapshots.show', $record->transcript_snapshot_id) : null),
                     TextEntry::make('authority_reference')->label('External reference')->placeholder('Actor and time recorded by TALA'),
                     TextEntry::make('reason')->placeholder('Not applicable'),

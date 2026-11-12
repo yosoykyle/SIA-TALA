@@ -33,11 +33,7 @@ class TermsTable
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => Term::stateOptions()[$state] ?? str((string) $state)->headline()->toString())
-                    ->color(fn (?string $state): string => match ($state) {
-                        Term::StateActive => 'success',
-                        Term::StateClosed => 'warning',
-                        default => 'gray',
-                    })
+                    ->color(fn (Term $record): string => $record->stateColor())
                     ->sortable(),
                 TextColumn::make('starts_on')->label('Starts')->date('M j, Y')->sortable()->placeholder('Not recorded'),
                 TextColumn::make('ends_on')->label('Ends')->date('M j, Y')->sortable()->placeholder('Not recorded'),

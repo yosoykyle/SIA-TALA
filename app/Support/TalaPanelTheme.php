@@ -148,16 +148,21 @@ class TalaPanelTheme
             ->renderHook(PanelsRenderHook::BODY_START, fn (): View => view('filament.components.skip-link'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.content-anchor'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.form-accessibility'))
-            ->renderHook(PanelsRenderHook::CONTENT_BEFORE, fn (): HtmlString => new HtmlString(
-                self::isApplicantPanel($panel)
-                    ? view('filament.components.applicant-topbar', [
-                        'brand' => new HtmlString(self::brand($panel)->render()),
-                        'person' => self::applicantName($panel),
-                    ])->render()
-                    : '',
-            ))
+            ->renderHook(PanelsRenderHook::CONTENT_BEFORE, fn (): HtmlString => new HtmlString(match (true) {
+                self::isApplicantPanel($panel) => view('filament.components.applicant-topbar', [
+                    'brand' => new HtmlString(self::brand($panel)->render()),
+                    'person' => self::applicantName($panel),
+                ])->render(),
+                self::isRegistrarWorkspace($panel) => view('filament.components.registrar-topbar', [
+                    'brand' => new HtmlString(self::brand($panel)->render()),
+                    'person' => self::staffName($panel),
+                ])->render(),
+                default => '',
+            }))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): HtmlString => new HtmlString(
-                self::isApplicantPanel($panel) ? '' : '<div class="tala-mobile-workspace-identity">'.self::brand($panel)->render().'</div>',
+                self::isApplicantPanel($panel) || self::isRegistrarWorkspace($panel)
+                    ? ''
+                    : '<div class="tala-mobile-workspace-identity">'.self::brand($panel)->render().'</div>',
             ))
             ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_START, fn (array $scopes): View => view('filament.components.auth-main-start', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
             ->renderHook(PanelsRenderHook::SIDEBAR_NAV_START, fn (): HtmlString => new HtmlString(
@@ -197,6 +202,28 @@ class TalaPanelTheme
     private static function isApplicantPanel(Panel $panel): bool
     {
         return $panel->getId() === 'applicant';
+    }
+
+    /** The Registrar top bar (#80) only shows while Registrar is the user's current selected workspace, not merely a held role. */
+    private static function isRegistrarWorkspace(Panel $panel): bool
+    {
+        $user = $panel->auth()->user();
+        if ($panel->getId() !== 'admin' || ! $user instanceof User) {
+            return false;
+        }
+
+        $resolver = app(WorkspaceContextResolver::class);
+        $contexts = $resolver->availableContexts($user);
+        $selected = $resolver->selected($user) ?? (count($contexts) === 1 ? array_key_first($contexts) : null);
+
+        return $selected === User::StaffRoleRegistrar;
+    }
+
+    private static function staffName(Panel $panel): ?string
+    {
+        $user = $panel->auth()->user();
+
+        return $user instanceof User && filled($user->name) ? (string) $user->name : null;
     }
 
     private static function applicantName(Panel $panel): ?string

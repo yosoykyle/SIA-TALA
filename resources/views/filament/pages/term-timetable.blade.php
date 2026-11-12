@@ -185,7 +185,7 @@
                         <dl class="tala-evidence-facts">
                             <div class="tala-evidence-wide"><dt>Recorded name</dt><dd>{{ $term->label }}</dd></div>
                             <div><dt>Term dates</dt><dd>{{ $term->starts_on->format('M j, Y') }} – {{ $term->ends_on->format('M j, Y') }}</dd></div>
-                            <div><dt>Record status</dt><dd><x-filament::badge color="gray">{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge></dd></div>
+                            <div><dt>Record status</dt><dd><x-filament::badge :color="$term->stateColor()">{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge></dd></div>
                         </dl>
                     </section>
                     <section class="tala-evidence-scope">

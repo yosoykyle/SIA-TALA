@@ -204,6 +204,10 @@ class Issue57AdmissionsPresentationTest extends TestCase
             ->assertActionDataSet(['document_evidence_id' => $evidence->id]);
         $this->assertSame('Review application — '.$application->first_name.' '.$application->last_name, $record->instance()->getTitle());
         $this->assertSame('Review application', $record->instance()->getBreadcrumb());
+        $record->assertSee('Personal Information')->assertSee('Educational Information')->assertSee('Application Choice')
+            ->assertSee($application->email)->assertDontSee('Version / Uploaded')
+            ->assertSee('Admission decisions')->assertSee('Registrar enrollment clearance');
+        $this->assertContains('Application queue', $record->instance()->getBreadcrumbs());
     }
 
     public function test_reached_recovery_preserves_response_and_context_safe_actions(): void
@@ -1695,7 +1699,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
         // 1. Current submitted version match
         $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        $page->assertSee("Submission Version {$submissionVersion1->version} · Current submitted version")
+        $page->assertSee("Submission #{$submissionVersion1->version} · Current submitted version")
             ->assertSee('Admitted')
             ->assertSee('Admitted with verified documents')
             ->assertSee($registrar->name);
@@ -1712,7 +1716,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $application->update(['current_submission_version_id' => $submissionVersion2->id]);
 
         $pageUpdated = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        $pageUpdated->assertSee("Submission Version {$submissionVersion1->version} · Earlier submitted version (retained)")
+        $pageUpdated->assertSee("Submission #{$submissionVersion1->version} · Earlier submitted version (retained)")
             ->assertSee('Admitted')
             ->assertSee('Admitted with verified documents')
             ->assertSee($registrar->name);

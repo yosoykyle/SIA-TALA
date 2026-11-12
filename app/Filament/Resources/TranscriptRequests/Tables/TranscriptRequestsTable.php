@@ -24,6 +24,7 @@ class TranscriptRequestsTable
                     ->description(fn ($record): string => $record->state !== TranscriptRequest::StateIssued && $record->due_on->endOfDay()->isPast() ? 'Due date passed · follow up' : '30 days from the actual request'),
                 TextColumn::make('lifecycle_state')->label('Status')
                     ->state(fn ($record): string => app(TranscriptLifecycleProjection::class)->statusForRequest($record))->badge()
+                    ->color(fn ($record): string => TranscriptLifecycleProjection::statusColor(app(TranscriptLifecycleProjection::class)->statusForRequest($record)))
                     ->description(fn ($record): string => $record->officialOutputRestrictions->whereNull('resolved_at')->isNotEmpty() ? 'Accounting restriction · open request' : 'No active Accounting TOR restriction'),
             ])
             ->recordActions([ViewAction::make()->label('Open request')])

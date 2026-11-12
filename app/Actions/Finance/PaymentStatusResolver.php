@@ -125,4 +125,16 @@ class PaymentStatusResolver
     {
         return $scheduleRows->contains(fn (PaymentScheduleRow $row): bool => $row->state === PaymentScheduleRow::StateDue);
     }
+
+    public static function statusColor(string $status): string
+    {
+        return match ($status) {
+            self::StatusFullPaid => 'success',
+            self::StatusInstallment, self::StatusPaymentPending => 'info',
+            self::StatusUnpaid, self::StatusPaymentUnderReview => 'warning',
+            self::StatusPaymentRejected => 'danger',
+            self::StatusPartiallyPaid => 'warning',
+            default => 'gray',
+        };
+    }
 }

@@ -79,6 +79,17 @@ class StudentProfile extends Model
         };
     }
 
+    public static function lifecycleStatusColor(?string $status): string
+    {
+        return match ($status) {
+            self::LifecycleActive => 'success',
+            self::LifecycleLeaveOfAbsence, self::LifecycleInactive => 'warning',
+            self::LifecycleArchived => 'danger',
+            self::LifecycleWithdrawn, self::LifecycleTransferredOut, self::LifecycleCompleted => 'gray',
+            default => 'gray',
+        };
+    }
+
     public function hasActiveLifecycleStatus(): bool
     {
         return $this->lifecycle_status === self::LifecycleActive

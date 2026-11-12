@@ -26,7 +26,7 @@
             <dl>
                 <div><dt>Made official</dt><dd>{{ $case->officially_enrolled_at?->timezone('Asia/Manila')->format('j M Y, g:i A') ?? 'Date unavailable' }}<small>Asia/Manila</small></dd></div>
                 <div><dt>Recorded by</dt><dd>{{ $case->finalizer?->getFilamentName() ?? 'Registrar not recorded' }}</dd></div>
-                <div><dt>Current enrollment clearance</dt><dd><x-filament::badge :color="$requirement['state'] === 'Cleared' ? 'success' : 'gray'">{{ match ($requirement['state']) { 'Cleared' => 'Cleared', 'ActionNeeded' => 'Accounting review needed', default => 'Unavailable' } }}</x-filament::badge><small>Accounting · checked {{ \Carbon\CarbonImmutable::parse($requirement['as_of'])->timezone('Asia/Manila')->format('j M Y, g:i A') }}</small></dd></div>
+                <div><dt>Current enrollment clearance</dt><dd><x-filament::badge :color="match ($requirement['state']) { 'Cleared' => 'success', 'ActionNeeded' => 'warning', default => 'gray' }">{{ match ($requirement['state']) { 'Cleared' => 'Cleared', 'ActionNeeded' => 'Accounting review needed', default => 'Unavailable' } }}</x-filament::badge><small>Accounting · checked {{ \Carbon\CarbonImmutable::parse($requirement['as_of'])->timezone('Asia/Manila')->format('j M Y, g:i A') }}</small></dd></div>
             </dl>
             @if ($pendingProposal)<p class="head-enrollment-note">A subject change is being reviewed. The official registrations shown here remain current until the change is applied.</p>@endif
         </section>

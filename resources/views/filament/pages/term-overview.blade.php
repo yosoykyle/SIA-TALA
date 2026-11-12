@@ -18,7 +18,7 @@
                     :actions="[\Filament\Actions\Action::make('changeTerm')->label('Change Term')->color('gray')->icon('heroicon-o-arrows-right-left')->url(\App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]))]" />
                 <div class="tala-workspace-overview__context">
                     <span><x-filament::icon icon="heroicon-o-calendar-days" /><time datetime="{{ $term->starts_on->toDateString() }}">{{ $term->starts_on->format('M j') }}</time> – <time datetime="{{ $term->ends_on->toDateString() }}">{{ $term->ends_on->format('M j, Y') }}</time></span>
-                    <span>Record status: <x-filament::badge color="gray">{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge></span>
+                    <span>Record status: <x-filament::badge :color="$term->stateColor()">{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge></span>
                     <span><x-filament::icon icon="heroicon-o-globe-alt" />School-wide · All programs and year levels</span>
                 </div>
                 @if ($this->termAutoSelected)<p class="tala-work-footnote">Opened automatically: the only Term with an active teaching calendar.</p>@endif
@@ -164,7 +164,7 @@
                                 @foreach ($yearTerms as $availableTerm)
                                     <li class="tala-term-option">
                                         <div class="tala-term-option-copy">
-                                            <div class="tala-term-option-title"><h3>{{ $availableTerm->typeLabel() }}</h3><x-filament::badge :color="$availableTerm->state === \App\Models\Term::StateActive ? 'success' : 'gray'">{{ \App\Models\Term::stateOptions()[$availableTerm->state] ?? $availableTerm->state }}</x-filament::badge></div>
+                                            <div class="tala-term-option-title"><h3>{{ $availableTerm->typeLabel() }}</h3><x-filament::badge :color="$availableTerm->stateColor()">{{ \App\Models\Term::stateOptions()[$availableTerm->state] ?? $availableTerm->state }}</x-filament::badge></div>
                                             <p class="tala-term-option-dates"><time datetime="{{ $availableTerm->starts_on->toDateString() }}">{{ $availableTerm->starts_on->format('M j, Y') }}</time> – <time datetime="{{ $availableTerm->ends_on->toDateString() }}">{{ $availableTerm->ends_on->format('M j, Y') }}</time></p>
                                             @if ($availableTerm->label !== $availableTerm->typeLabel())<p class="tala-term-option-name">{{ $availableTerm->label }}</p>@endif
                                             <p class="tala-term-option-count">{{ $availableTerm->term_offerings_count ? $availableTerm->term_offerings_count.' course offerings with recorded classes' : 'No classes recorded' }}</p>

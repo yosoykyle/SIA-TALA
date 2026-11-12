@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Assessments\Tables;
 
+use App\Actions\Finance\PaymentStatusResolver;
 use App\Actions\Finance\StudentAccountPresenter;
 use App\Models\Assessment;
 use App\Models\User;
@@ -50,6 +51,7 @@ class AssessmentsTable
                 TextColumn::make('state')
                     ->label('Account State')
                     ->badge()
+                    ->color(fn (Assessment $record): string => $record->stateColor())
                     ->formatStateUsing(fn (string $state): string => str($state)->replace('_', ' ')->headline()->toString()),
                 TextColumn::make('total')
                     ->label('Assessment')
@@ -68,6 +70,7 @@ class AssessmentsTable
                     ->label('Payment Status')
                     ->state(fn (Assessment $record): string => self::account($record)['payment_status'])
                     ->badge()
+                    ->color(fn (Assessment $record): string => PaymentStatusResolver::statusColor(self::account($record)['payment_status']))
                     ->wrap(),
                 TextColumn::make('finance_gate')
                     ->label('Finance Gate')

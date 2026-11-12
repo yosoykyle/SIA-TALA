@@ -33,7 +33,7 @@
             <div class="issuer"><img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="" width="56" height="56"><strong>{{ config('institution.public.name', 'Servitech Institute Asia') }}</strong></div>
             <h1>Application acknowledgment</h1>
             <p class="application-reference">Reference <x-application-reference :value="$source['application_reference']" /></p>
-            <p class="applicant-identity">{{ collect([data_get($version->snapshot, 'first_name'), data_get($version->snapshot, 'middle_name'), data_get($version->snapshot, 'last_name'), data_get($version->snapshot, 'extension_name')])->filter()->implode(' ') }} · Submitted version {{ $version->version }} · Requirement Set version {{ $version->requirementSet->version }}</p>
+            <p class="applicant-identity">{{ collect([data_get($version->snapshot, 'first_name'), data_get($version->snapshot, 'middle_name'), data_get($version->snapshot, 'last_name'), data_get($version->snapshot, 'extension_name')])->filter()->implode(' ') }} · Submission #{{ $version->version }} · Requirement Set version {{ $version->requirementSet->version }}</p>
             <p class="version-status {{ $source['is_current'] ? 'is-current' : 'is-historical' }}">{{ $source['is_current'] ? 'Current submitted version' : 'Historical superseded version' }}</p>
         </header>
         </td></tr></thead>
@@ -109,7 +109,7 @@
         <section aria-labelledby="source-heading">
             <h2 id="source-heading">Submission and output references</h2>
             <dl>
-                <dt>Application version</dt><dd>{{ $version->version }}</dd>
+                <dt>Submission</dt><dd>#{{ $version->version }}</dd>
                 <dt>Requirement Set version</dt><dd>{{ $version->requirementSet->version }}</dd>
                 <dt>Version status</dt><dd>{{ $source['is_current'] ? 'Current' : 'Historical and superseded' }}</dd>
                 <dt>Submitted</dt><dd>{{ $version->submitted_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}</dd>
@@ -124,7 +124,7 @@
         </p>
 
         <footer>
-            Generated through TALA · Immutable source: Application {{ $source['application_reference'] }}, version {{ $version->version }}, Requirement Set version {{ $version->requirementSet->version }}.
+            Generated through TALA · Immutable source: Application {{ $source['application_reference'] }}, submission #{{ $version->version }}, Requirement Set version {{ $version->requirementSet->version }}.
         </footer>
         </td></tr>
         </tbody>
