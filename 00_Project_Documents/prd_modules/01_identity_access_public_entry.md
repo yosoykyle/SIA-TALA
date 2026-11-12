@@ -312,9 +312,9 @@ The dedicated public status-request, token, cache, read-rate-limit and access-re
 
 ### 7.1 Passwords
 
-- Accept 15–64 characters.
+- Applicant self-registration accepts 8–64 characters with at least one uppercase letter, one lowercase letter, one number and one special character, shown as a live requirements checklist while typing (owner decision, October 18, 2026, #72).
+- Staff activation, password reset and every other password creation or change accept 15–64 characters and do not require uppercase, lowercase, number, or symbol composition.
 - Allow spaces, paste, autofill, and password managers.
-- Do not require uppercase, lowercase, number, or symbol composition.
 - Do not require periodic changes.
 - Reject known-compromised values through Laravel's privacy-preserving check when the service is reachable.
 - When the compromised-password service is unreachable, apply every local passphrase rule, record the degraded check for operations, and avoid exposing provider details. It does not weaken unrelated authorization.
@@ -460,7 +460,7 @@ Technical IDs and evidence references remain secondary detail.
 - Focus is visible and not obscured; labels and instructions are programmatically associated; errors identify fields, announce a summary, and focus the first error; state changes include screen-reader status text.
 - Interactive targets meet the WCAG 2.2 minimum and use comfortable touch sizing where practical.
 - Content remains usable at 200% zoom, in high-contrast mode, and with reduced motion.
-- The Public Gateway remains one Bootstrap page. Home, Programs, conditional Announcements, Visit and FAQ use native in-page anchors with an accurate current-section cue. The school-first introduction and **Apply** lead the masthead, using current open/closed intake facts; existing-account **Sign in** remains available. Compact admission availability and effective school Announcements share one clearly labelled card stack with manual Previous/Next controls and position; their authoritative sources stay independent. Announcements navigation reveals the notice card and identifies the current destination. Programs follow the masthead with supplied descriptions/images, task-useful fact-based filters and **Read more** details under Section 6.8. Status and corrections lead to signed-in Applicant Home under Section 6.9. The map iframe has a meaningful title, lazy loading, a minimum 200-pixel height and an external-link fallback. Support copy serves actual admissions, location, access, privacy and accessibility needs. The privacy notice covers current account/application purposes and applicable bases. Support, Privacy Notice, and Accessibility retain the approved bounded Bootstrap modal treatment: full-screen below the small breakpoint; wide, centered and scrollable above it; labelled title, close control, Escape dismissal, contained focus and focus restoration.
+- The Public Gateway remains one Bootstrap page. Home, About, Programs, conditional Announcements, FAQ and Visit use native in-page anchors, in that order in the menu and footer, with an accurate current-section cue (#61 F89/F100). The school-first introduction and **Apply** lead the masthead, using current open/closed intake facts; existing-account **Sign in** remains available. Compact admission availability and effective school Announcements share one clearly labelled card stack with manual Previous/Next controls and position; their authoritative sources stay independent. Announcements navigation reveals the notice card and identifies the current destination. The About section's factual introduction and approved facts follow the masthead, then Programs with supplied descriptions/images, task-useful fact-based filters and **Read more** details under Section 6.8. Status and corrections lead to signed-in Applicant Home under Section 6.9. The map iframe has a meaningful title, lazy loading, a minimum 200-pixel height and an external-link fallback. Support copy serves actual admissions, location, access, privacy and accessibility needs. The privacy notice covers current account/application purposes and applicable bases. Support, Privacy Notice, and Accessibility retain the approved bounded Bootstrap modal treatment: full-screen below the small breakpoint; wide, centered and scrollable above it; labelled title, close control, Escape dismissal, contained focus and focus restoration.
 - Approved hero media never carries task meaning by itself. Approved video is muted and has a poster; authored CSS ambient motion has a static composition fallback. Continuing movement is pausable and becomes static under reduced motion, including when scripting is unavailable. Missing media or an unavailable map embed leaves the textual content and external map fallback intact.
 - The registration Privacy Notice link opens `/?modal=privacy` in a new tab so entered Filament form data remains intact while the same Public Gateway notice is shown; the notice is not duplicated inside Filament.
 - Session-expiry warning allows the user to continue when the security policy permits without removing the accepted idle timeout.
@@ -499,7 +499,7 @@ The implemented module must prove:
 - Minimal registration and no accidental application creation
 - Duplicate-email guidance without account disclosure
 - Verification required, resend throttle, expired/used links, and dispatch failure recovery
-- Password creation/reset against the passphrase policy
+- Password creation/reset against the applicable Section 7.1 policy (Applicant registration or passphrase)
 - Session invalidation after completed recovery
 - One public sign-in with verified email and authorized Applicant/Student/Staff resolution
 - Wrong-entry recovery without pre-authentication role disclosure
