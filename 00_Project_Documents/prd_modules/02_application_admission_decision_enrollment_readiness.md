@@ -363,14 +363,13 @@ Application status, relevant dates, correction instructions and the next permitt
 
 Information order:
 
-1. Plain-language current situation, responsible office, relevant deadline and permitted next step or waiting condition.
-2. One primary action when the applicant can act; otherwise the reason and condition that enable the next step.
-3. Compact application reference, cycle, program, path and submission facts.
-4. Distinct preliminary-review, admission and Registrar-clearance summaries.
-5. One short **What happens next** explanation.
-6. Reachable application history and version-bound acknowledgment.
+1. A greeting, "Hi, [first name]!" with "Here's what's happening with your application." ("Hi there!" without a first name).
+2. Compact **Application status** card (application number, program, student type, current status label and a one-sentence explanation naming the office that acts next) and **Application deadline** card (the active correction due date, otherwise the Cycle's public closing; while a submitted application is still editable, it says updates remain possible until review starts).
+3. The five-stage journey with "Step X of 5", one short instruction and, when the applicant can act, one primary action beside it; otherwise the waiting reason or condition.
+4. **Requirements checklist** and **Important dates** with school announcements.
+5. **Need help**, when the Cycle publishes a support contact.
 
-Home is a status-first task page. A five-stage journey (Application, Requirements, Registrar review, Admission decision, Enrollment clearance) explains progress from existing facts without introducing stored workflow states. It marks each stage Completed, In progress or Pending and states "Step X of 5" with one short instruction and, when the applicant can act, the one primary action beside it. An Application Status card (application number, program, student type, current status label and a one-sentence explanation naming the office that acts next) and an Important Dates card (Admission Cycle opening and public closing, any active correction due date, and an undated decision explanation) follow. Home offers no destructive action; Discard draft is on the Application page. Secondary readiness and historical details remain reachable through progressive disclosure.
+Home is a status-first task page. The five-stage journey (Application, Requirements, Registrar review, Admission decision, Enrollment clearance) explains progress from existing facts without introducing stored workflow states, and marks each stage Completed, In progress or Pending. Preliminary review, admission decision and Registrar clearance remain distinct stages; an accepted copy never reads as admission or clearance. The Requirements checklist lists the current Requirement Set's preliminary items, with Uploaded/Not uploaded while the application is a Draft and Accepted/Submitted/Not submitted after submission (Needs action when the preliminary review asks for a new copy), links to Requirements and says when no uploads are required. Important dates shows Admission Cycle opening and public closing, any active correction due date and an undated decision explanation, followed by effective school announcements read-only, or "No announcements yet." Need help shows the published support contact as a link and is hidden when none is published. Home offers no destructive action; Discard draft is on the Application page. **Open enrollment** appears once the applicant is ready for enrollment; **Withdraw application** and **Resend failed update** stay under **More actions**, each with its confirmation. Application details, history, receipts and acknowledgments are on **Applicant's History**, opened from the account menu. (Owner decisions D5–D9, October 11; F76–F80, October 14; F97, October 17, 2026; #61.)
 
 Conditional coverage includes no application, open/closed intake, saved Draft inspection and discard, save/validation failure, scoped and overdue corrections, consent-gated optional details, LRN availability, transferee education, minor-contact requirements, evidence availability/replacement, admission outcomes, pending or ActionNeeded clearance, withdrawal, history and version-bound acknowledgment. Each applicable state requires evidence; the presence of a hidden control does not establish its usability or correct authorization. Registration/payment surfaces already reachable after readiness retain PRDs 04/06 ownership. Admissions creates no fee, payment obligation or official Student; the UI explains the next office and handoff.
 
@@ -399,6 +398,7 @@ Digital rows show the selected requirement, purpose, current review result/versi
 
 ### 12.4 History and submission receipt
 
+- The Applicant reaches history through **Applicant's History** in the account menu, which shows the application details, per-version receipts and acknowledgments, events and applications (#61 F97).
 - Earlier submitted versions, withdrawals and decisions remain read-only history. Recorded pre-review edits create successors rather than rewriting these sources.
 - Successful submission shows the stable reference, received time, current submitted summary, requirement-version instructions and safe next step on screen. It is a receipt, not admission, enrollment, COR or a Student record.
 - A failed or stale submission retains safe input, records no false receipt and offers contextual recovery. A receipt returns to the exact Application and its permitted next action.
@@ -408,7 +408,7 @@ Digital rows show the selected requirement, purpose, current review result/versi
 
 ### 13.1 Admissions workbench
 
-Use one native Filament table with operational-count tabs:
+Use one native Filament table filtered by five operational queues. The Admissions sidebar entry shows the count of applications waiting on the Registrar (Needs review plus Registrar clearance). While the Registrar is inside Admissions, each queue is a sidebar sub-item with its count, opened by click or route rather than hover. The queues still filter the list by URL, the list heading names the current queue and its count, and no tab bar is shown. Sidebar and page share one source of queue counts (owner decision F101, October 18, 2026, #61):
 
 - Needs review.
 - Waiting for applicant.
@@ -429,7 +429,7 @@ Columns:
 
 Search supports application reference, legal name, verified email, and exact authorized LRN search without displaying LRN in the list.
 
-Native filters are cycle, program, path, application state, submitted date/time range, last-activity date/time range, and deadline or overdue state. Filament's filter panel and active indicators replace custom column-header dropdowns. Small tab counts satisfy the admissions-analytics need; no chart dashboard, applicant score, forecast, or ranking is created.
+Native filters are cycle, program, path, application state, submitted date/time range, last-activity date/time range, and deadline or overdue state. Filament's filter panel and active indicators replace custom column-header dropdowns. Small queue counts satisfy the admissions-analytics need; no chart dashboard, applicant score, forecast, or ranking is created.
 
 ### 13.2 Applicant Record
 
