@@ -48,7 +48,7 @@
                         'ambiguous' => 'The Registrar needs to confirm your Term',
                         'closed' => 'Enrollment is not open',
                         default => $entryContext['can_start'] ? 'Start your enrollment' : 'Enrollment is unavailable',
-                    }" :description="$entryContext['reason'] ?? 'Review the subjects and fees prepared for this Term. The Registrar checks your classes before you confirm.'" :scope="$academicGuidance['scope_label']" :office="in_array($entryContext['context_state'], ['academic_restriction', 'ambiguous'], true) ? 'Registrar Office' : null" :attention="in_array($entryContext['context_state'], ['academic_restriction', 'ambiguous'], true)">
+                    }" :description="$entryContext['reason'] ?? 'Review the subjects and fees prepared for this Term. The Registrar checks your classes before you confirm.'" :scope="$academicGuidance['scope_label'] ?? null" :office="in_array($entryContext['context_state'], ['academic_restriction', 'ambiguous'], true) ? 'Registrar Office' : null" :attention="in_array($entryContext['context_state'], ['academic_restriction', 'ambiguous'], true)">
                     @if ($entryContext['can_start']){{ $this->startRegistrationAction }}@endif
                     <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(['view' => 'plan'], panel: 'student')" icon="heroicon-o-map">View study plan</x-filament::button>
                 </x-servitech-task-state>
