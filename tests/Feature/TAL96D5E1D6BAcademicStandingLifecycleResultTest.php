@@ -10,7 +10,7 @@ use App\Actions\StudentLifecycle\StudentLifecycleService;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
-use App\Filament\Student\Pages\LifecycleView;
+use App\Filament\Student\Pages\Academics;
 use App\Models\AcademicDecision;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
@@ -196,9 +196,8 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        Livewire::test(LifecycleView::class)
-            ->assertCanSeeTableRecords([$ownChange])
-            ->assertCanNotSeeTableRecords([$otherChange])
+        Livewire::withQueryParams(['view' => 'record'])->test(Academics::class)
+            ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->getCollection()->modelKeys() === [$ownChange->id])
             ->assertSee('School record changes')
             ->assertSee('Withdrawal')
             ->assertSee('Contact the Registrar about corrections.')

@@ -63,11 +63,11 @@ class ContextualLogin extends Login
 
     public function getSubheading(): string|Htmlable|null
     {
-        if ($this->requestedContext === null && blank($this->userUndertakingMultiFactorAuthentication)) {
-            return 'Access your Servitech account. For students, applicants, and staff.';
+        if (filled($this->userUndertakingMultiFactorAuthentication)) {
+            return parent::getSubheading();
         }
 
-        if (! filled($this->userUndertakingMultiFactorAuthentication) && Filament::getCurrentOrDefaultPanel()->getId() === 'applicant') {
+        if (Filament::getCurrentOrDefaultPanel()->getId() === 'applicant') {
             try {
                 $registrationAvailable = app(ApplicantEntryReadinessService::class)->registrationIsAvailable();
             } catch (QueryException $exception) {
@@ -79,7 +79,7 @@ class ContextualLogin extends Login
             }
         }
 
-        return parent::getSubheading();
+        return 'Access your Servitech account. For students, applicants, and staff.';
     }
 
     public const AuthenticatingSessionKey = 'tala.contextual_login_in_progress';
@@ -265,18 +265,7 @@ class ContextualLogin extends Login
             return parent::getHeading();
         }
 
-        $label = match ($this->requestedContext) {
-            'applicant' => 'Applicant',
-            'student' => 'Student',
-            User::StaffRoleRegistrar => 'Registrar',
-            User::StaffRoleAccounting => 'Accounting',
-            User::StaffRoleFaculty => 'Faculty',
-            User::StaffRoleAcademicHead => 'Academic Head',
-            User::StaffRoleSystemSuperAdmin => 'System Administrator',
-            default => null,
-        };
-
-        return $label === null ? 'Sign in' : "Sign in to {$label}";
+        return 'Sign in';
     }
 
     /**

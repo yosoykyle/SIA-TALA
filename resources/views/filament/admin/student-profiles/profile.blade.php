@@ -44,8 +44,9 @@
                     <x-slot:heading>Academic guidance</x-slot:heading>
                     <x-slot:description>Academic standing and restrictions.</x-slot:description>
                     <div class="tala-profile-inset">
+                        <p class="tala-profile-muted">{{ $profile['effect']['scope_label'] }}</p>
                         <strong>{{ $profile['guidance'] }}</strong>
-                        @if ($profile['effect']['effect'] !== \App\Models\AcademicDecision::EffectAllowed)<p class="tala-profile-muted">{{ $profile['effect']['reason'] }}</p>@endif
+                        @if ($profile['effect']['needs_attention'])<p class="tala-profile-muted">{{ $profile['effect']['student_reason'] }}</p>@endif
                         <p class="tala-profile-muted">Payment clearance is separate.</p>
                     </div>
                     <x-slot:footer><x-filament::button color="gray" icon="heroicon-o-book-open" wire:click="selectRecordTab('academic')" class="tala-profile-full-action">View academic record</x-filament::button></x-slot:footer>

@@ -11,7 +11,7 @@ use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResourc
 use App\Filament\Resources\StudentProfiles\Pages\ListStudentProfiles;
 use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
-use App\Filament\Student\Pages\LifecycleView;
+use App\Filament\Student\Pages\Academics;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumVersion;
@@ -471,7 +471,7 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
 
         Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
             ->assertSee('Academic summary')
-            ->assertSee('Next enrollment')
+            ->assertSee('Student-wide · next enrollment Term not confirmed')
             ->assertSee('AY 2025-2026 First Semester')
             ->assertSee('Officially Enrolled')
             ->assertSee('Released grades')
@@ -500,9 +500,8 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        Livewire::test(LifecycleView::class)
-            ->assertCanSeeTableRecords([$own])
-            ->assertCanNotSeeTableRecords([$other]);
+        Livewire::withQueryParams(['view' => 'record'])->test(Academics::class)
+            ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->getCollection()->modelKeys() === [$own->id]);
     }
 
     #[Test]

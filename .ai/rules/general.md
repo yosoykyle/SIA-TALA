@@ -17,3 +17,7 @@ Follow the Orchestrator Protocol's Practical acceptance criteria section and Sec
 
 ## Keep TALA governance outside Boost-generated blocks
 Boost owns generated `<laravel-boost-guidelines>` blocks and generated skills. Routine SDLC edits in `AGENTS.md` are limited to `<TALA_ORCHESTRATOR_ROUTER>`; leave other generated agent files unchanged. The TALA Orchestrator Protocol owns accepted-contract reuse, task-specific readiness, and continuation to the explicitly authorized endpoint; companions link to it rather than introduce extra approval rounds.
+
+## Keep instructions portable and current
+
+Protocol Sections 5–6 own executor continuity and the structure-first/shared-design delivery method. Keep platform/model/session choices in task handoffs. Use project-local skills and outcome-based equivalents for unavailable environment-only tools. Product/design authorities and briefs hold current requirements; dated progress, checks, captures and superseded experiments belong in Issues or classified evidence. Preserve foundational documents, source provenance and meaningful operating guidance when condensing.

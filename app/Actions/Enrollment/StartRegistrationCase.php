@@ -142,7 +142,7 @@ class StartRegistrationCase
                 }
                 $selectionBasis = $this->selectionBasisResolver->forContinuingStudent($studentProfile, $term);
                 if ($startMethod === 'SelfService' && ! Enrollment::query()->where('credential_user_id', $credentialUser->id)->where('term_id', $term->id)->exists()) {
-                    $entry = app(RegistrationEntryContext::class)->forUser($actor);
+                    $entry = app(RegistrationEntryContext::class)->forUser($actor, $term);
                     if ((int) $entry['term']?->id !== (int) $term->id || ! $entry['can_start']) {
                         throw ValidationException::withMessages(['term' => $entry['reason'] ?? 'Open the current exact-Term enrollment workspace.']);
                     }

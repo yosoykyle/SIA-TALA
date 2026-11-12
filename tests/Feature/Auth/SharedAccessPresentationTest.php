@@ -137,7 +137,7 @@ class SharedAccessPresentationTest extends TestCase
             ->assertSee('The request outcome is unconfirmed.')
             ->assertSee('Contact school support')
             ->assertSee('System Administration')
-            ->assertSee('Return to Servitech Institute Asia home')
+            ->assertSee('Back to home')
             ->assertDontSee('Return to TALA home')
             ->assertDontSee('/build/assets', false)
             ->assertDontSee('livewire.js', false);

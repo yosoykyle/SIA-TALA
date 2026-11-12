@@ -8,6 +8,7 @@ use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\GraduationReviewBatches\Pages\ViewGraduationReviewBatch;
 use App\Filament\Resources\GraduationReviewBatches\RelationManagers\MembersRelationManager;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
+use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\GradesView;
 use App\Filament\Student\Pages\LifecycleView;
 use App\Models\GradeRoster;
@@ -154,13 +155,11 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $gradesPage = Livewire::test(GradesView::class)->instance();
         $this->assertInstanceOf(GradesView::class, $gradesPage);
         $this->assertTrue($gradesPage->getTable()->isStackedOnMobile());
-        $lifecycle = Livewire::test(LifecycleView::class);
-        $studentLifecyclePage = $lifecycle->instance();
-        $this->assertInstanceOf(LifecycleView::class, $studentLifecyclePage);
-        $this->assertTrue($studentLifecyclePage->getTable()->isStackedOnMobile());
-        $lifecycle->assertSee('No changes recorded')
-            ->assertSee('Approved school record changes will appear here.')
-            ->assertSee('View enrollment');
+        Livewire::withQueryParams(['view' => 'record'])->test(Academics::class)
+            ->assertSee('No applied changes')
+            ->assertSee('School record changes appear here after the Registrar applies them.');
+        Livewire::withQueryParams([])->test(LifecycleView::class)
+            ->assertRedirect(Academics::getUrl(['view' => 'record'], panel: 'student').'#school-record-changes');
     }
 
     #[Test]

@@ -2830,6 +2830,23 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame(0, RegistrationAdjustmentFinanceConfirmation::query()->where('enrollment_id', $official->id)->count());
     }
 
+    public function test_enrollment_payment_shows_not_yet_posted_until_accounting_posts_an_amount(): void
+    {
+        $student = StudentProfile::factory()->create();
+        $student->user?->assignRole('student');
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        Enrollment::factory()->create([
+            'student_profile_id' => $student->id,
+            'term_id' => $term->id,
+            'credential_user_id' => $student->user_id,
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+        Livewire::actingAs($student->user)->test(StudentEnrollmentPage::class)
+            ->assertSee('Enrollment payment')
+            ->assertSee('Not yet posted');
+    }
+
     /** @return array{Enrollment, CourseEnrollment, Section, RegistrationProposalVersion, User} */
     private function noCostReviewFixture(): array
     {
@@ -3631,13 +3648,27 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('student'));
         $student = $official->credentialUser->fresh();
 
-        Livewire::actingAs($student)->test(CorView::class)
-            ->assertSee('Issued copy · Current')->assertSee('Earlier copies and other terms')->assertSee('Earlier copy')->assertDontSee('Version 1')
-            ->assertSet('cor.summary.cor_version', 2);
-        Livewire::withQueryParams(['version' => $first->id])->actingAs($student)->test(CorView::class)
-            ->assertSee('Earlier copy')->assertSet('cor.summary.cor_version', 1);
-        Livewire::withQueryParams(['version' => $foreign->id])->actingAs($student)->test(CorView::class)
-            ->assertSet('cor.summary.enrollment_id', $official->id)->assertSet('cor.summary.cor_version', 2);
+        $current = Livewire::actingAs($student)->test(CorView::class)
+            ->assertSee('Earlier copies and other terms')->assertSee('Earlier copy')->assertDontSee('Version 1')
+            ->assertSet('cor.summary.document_status', 'Current')
+            ->assertSet('cor.summary.cor_version', 2)
+            ->assertSeeHtml('href="'.e(CorView::getUrl(['version' => $first->id], panel: 'student')).'"');
+        $earlier = Livewire::withQueryParams(['version' => $first->id])->actingAs($student)->test(CorView::class)
+            ->assertSee('Earlier copy')->assertSet('cor.summary.cor_version', 1)
+            ->assertSet('cor.summary.document_status', 'Superseded');
+        $foreignSelection = Livewire::withQueryParams(['version' => $foreign->id])->actingAs($student)->test(CorView::class)
+            ->assertSet('cor.summary.enrollment_id', $official->id)->assertSet('cor.summary.cor_version', 2)
+            ->assertSet('cor.summary.document_status', 'Current')
+            ->assertDontSeeHtml('href="'.e(CorView::getUrl(['version' => $foreign->id], panel: 'student')).'"');
+
+        foreach ([[$current, 'Current', 2], [$earlier, 'Superseded', 1], [$foreignSelection, 'Current', 2]] as [$page, $expectedStatus, $version]) {
+            $document = new \DOMDocument;
+            @$document->loadHTML($page->html());
+            $statuses = (new \DOMXPath($document))->query('//header[@aria-label="Issued certificate summary"]//span[@class="fi-badge-label"]');
+            $this->assertCount(1, $statuses);
+            $this->assertSame($expectedStatus, trim($statuses->item(0)->textContent));
+            $page->assertSeeHtml('href="'.e(route('cor.print', ['enrollment' => $official, 'version' => $version])).'"');
+        }
     }
 
     public function test_student_cor_page_labels_past_term_version_as_historical_not_current(): void
@@ -3659,10 +3690,15 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        Livewire::actingAs($student)->test(CorView::class)
+        $page = Livewire::actingAs($student)->test(CorView::class)
             ->assertSet('cor.summary.document_status', 'Historical')
-            ->assertSee('Historical')
-            ->assertDontSee('Issued copy · Current');
+            ->assertSee('Historical');
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($page->html());
+        $statuses = (new \DOMXPath($document))->query('//header[@aria-label="Issued certificate summary"]//span[@class="fi-badge-label"]');
+        $this->assertCount(1, $statuses);
+        $this->assertSame('Historical', trim($statuses->item(0)->textContent));
     }
 
     private function recordApprovedTransferEvaluation(Enrollment $case, array $credits = []): void

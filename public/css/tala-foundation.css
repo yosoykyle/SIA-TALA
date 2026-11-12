@@ -671,3 +671,16 @@ html:not(.dark) :is(.tala-access-card h1, .tala-auth-main .fi-simple-header-head
 .tala-class-grid {
     gap: var(--tala-card-gap);
 }
+
+/* Shared scrollbar: thin, on a clear track, tinted with the brand green. Applies to every scrolling area in every workspace. */
+:root {
+    --tala-scrollbar-thumb: color-mix(in srgb, var(--tala-brand) 45%, #8a8a94);
+    scrollbar-color: var(--tala-scrollbar-thumb) transparent;
+}
+:root.dark, :root[data-bs-theme='dark'] {
+    --tala-scrollbar-thumb: color-mix(in srgb, var(--tala-brand-foreground) 40%, #6b7280);
+}
+* { scrollbar-width: thin; }
+@media (forced-colors: active) {
+    :root { scrollbar-color: auto; }
+}

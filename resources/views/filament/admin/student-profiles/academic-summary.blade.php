@@ -2,10 +2,10 @@
     <div class="grid gap-4 sm:grid-cols-2">
         <x-academic-average :average="$cumulative" />
         <dl class="space-y-2">
-            <dt class="text-sm text-gray-600 dark:text-gray-300">Next enrollment</dt>
-            <dd><x-filament::badge color="gray">{{ str($effect['effect'])->lower()->replace('_', ' ')->ucfirst() }}</x-filament::badge></dd>
-            <dd class="text-sm">{{ $effect['reason'] }}</dd>
-            <dd class="text-sm text-gray-600 dark:text-gray-300">Registrar confirms the next subject selection. Decisions for the selected term are checked during enrollment.</dd>
+            <dt class="text-sm text-gray-600 dark:text-gray-300">{{ $effect['scope_label'] }}</dt>
+            <dd><x-filament::badge color="gray">{{ $effect['label'] }}</x-filament::badge></dd>
+            <dd class="text-sm">{{ $effect['student_reason'] }}</dd>
+            <dd class="text-sm text-gray-600 dark:text-gray-300">{{ $effect['context_reason'] ?? 'The Registrar confirms the next subject selection. Payment clearance is separate.' }}</dd>
         </dl>
     </div>
     <x-supporting-details summary="Term averages and sources" inset>

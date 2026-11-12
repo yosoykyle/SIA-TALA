@@ -66,10 +66,29 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
             $finance['state']['payment_evidence']['required_action'],
         );
         $this->assertSame('Accounting', $finance['state']['payment_evidence']['responsible_office']);
+        Livewire::actingAs($student)->test(Finance::class)
+            ->assertSee('Your fees will appear here')
+            ->assertSee('Accounting prepares your term account.')
+            ->assertDontSee('Account information unavailable')
+            ->assertDontSee('No verified payment is recorded for this term.')
+            ->assertDontSee('Updated Not recorded');
         $this->assertStringNotContainsString(
             'Pay Current Due',
             $finance['state']['payment_evidence']['required_action'],
         );
+    }
+
+    #[Test]
+    public function test_existing_account_without_an_active_assessment_keeps_recovery_instead_of_first_use(): void
+    {
+        $fixture = $this->financeFixture();
+        $fixture['assessment']->update(['state' => Assessment::StateSuperseded]);
+
+        Livewire::actingAs($fixture['student'])->test(Finance::class)
+            ->assertSee('Account information unavailable')
+            ->assertSee('Contact Accounting before making a payment.')
+            ->assertDontSee('Your fees will appear here')
+            ->assertSee('Payments');
     }
 
     #[Test]

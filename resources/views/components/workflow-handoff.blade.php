@@ -1,4 +1,5 @@
 @props([
+    'compact' => false,
     'currentOwner',
     'currentTask',
     'nextOwner' => null,
@@ -12,7 +13,7 @@
     'currentLinkLabel' => null,
     'nextLinkLabel' => null,
 ])
-<ol {{ $attributes->class(['tala-workflow-handoff']) }} aria-label="Current responsibility and next step">
+<ol {{ $attributes->class(['tala-workflow-handoff', 'tala-workflow-handoff--compact' => $compact]) }} aria-label="Current responsibility and next step">
     <li class="tala-handoff-current" aria-current="step">
         <x-filament::icon :icon="$currentIcon" class="tala-handoff-icon" aria-hidden="true" />
         <div>

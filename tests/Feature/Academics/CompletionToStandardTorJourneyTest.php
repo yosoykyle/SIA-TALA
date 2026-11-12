@@ -80,19 +80,24 @@ class CompletionToStandardTorJourneyTest extends TestCase
         $this->assertSame(CompletionReadinessProjection::AwaitingResultsOrClearance, $projection['state']);
         $this->assertSame('Registrar and Faculty', $projection['blockers'][0]['owner']);
 
-        $tracked = ExternalCompetencyRequirement::factory()->create([
+        ExternalCompetencyRequirement::factory()->create([
             'curriculum_version_id' => $fixture['student']->curriculum_version_id,
             'treatment' => ExternalCompetencyRequirement::TreatmentTrackedOnly,
             'state' => 'ACTIVE',
         ]);
-        $this->assertSame(CompletionReadinessProjection::AwaitingResultsOrClearance, app(CompletionReadinessProjection::class)->forStudent($fixture['student'])['state']);
+        $this->releaseResult($fixture, '2.00');
+        $this->assertSame(CompletionReadinessProjection::ReadyForConferral, app(CompletionReadinessProjection::class)->forStudent($fixture['student'])['state']);
 
         $required = ExternalCompetencyRequirement::factory()->create([
             'curriculum_version_id' => $fixture['student']->curriculum_version_id,
+            'qualification_label' => 'Synthetic graduation requirement',
+            'authority_reference' => 'SYNTHETIC COMPLETION AUTHORITY — TEST ONLY',
             'treatment' => ExternalCompetencyRequirement::TreatmentCompletionRequired,
             'state' => 'ACTIVE',
         ]);
-        $this->assertSame(CompletionReadinessProjection::NotEligible, app(CompletionReadinessProjection::class)->forStudent($fixture['student'])['state']);
+        $blocked = app(CompletionReadinessProjection::class)->forStudent($fixture['student']);
+        $this->assertSame(CompletionReadinessProjection::NotEligible, $blocked['state']);
+        $this->assertSame(["external-competency:{$required->id}:not-competent"], array_column($blocked['blockers'], 'code'));
         app(RecordExternalCompetencyResult::class)->execute(
             $required,
             $fixture['student'],
@@ -105,8 +110,9 @@ class CompletionToStandardTorJourneyTest extends TestCase
 
         $this->assertNull(app(CompletionReadinessProjection::class)->forStudent($fixture['student'])['application']);
 
-        $this->releaseResult($fixture, '2.00');
         $this->assertSame(CompletionReadinessProjection::ReadyForConferral, app(CompletionReadinessProjection::class)->forStudent($fixture['student'])['state']);
+        $this->assertDatabaseCount('degree_conferrals', 0);
+        $this->assertDatabaseMissing('student_lifecycle_changes', ['student_profile_id' => $fixture['student']->id, 'type' => 'COMPLETION']);
 
         $conferral = app(RecordDegreeConferral::class)->execute(
             $fixture['student'],
@@ -141,7 +147,6 @@ class CompletionToStandardTorJourneyTest extends TestCase
                 && ! str_contains($mail->changeLabel, 'Bachelor')
                 && ! str_contains($mail->changeLabel, '2.00');
         });
-        $this->assertTrue($tracked->fresh()->exists);
     }
 
     #[Test]
@@ -149,6 +154,15 @@ class CompletionToStandardTorJourneyTest extends TestCase
     {
         $fixture = $this->fixture();
         $fixture['student']->user->assignRole('student');
+        $tracked = ExternalCompetencyRequirement::factory()->create([
+            'curriculum_version_id' => $fixture['student']->curriculum_version_id,
+            'qualification_label' => 'Synthetic TOR exclusion qualification',
+            'state' => 'ACTIVE',
+        ]);
+        app(RecordExternalCompetencyResult::class)->execute(
+            $tracked, $fixture['student'], ExternalCompetencyResult::OutcomeCompetent,
+            'SYNTHETIC PRIVATE TOR EXCLUSION EVIDENCE', 'SYNTHETIC APPROVAL', today(), $fixture['registrar'],
+        );
         $creditedSpecification = CourseSpecification::factory()->create([
             'academic_classification' => CourseSpecification::AcademicClassificationOrdinary,
             'scheduling_treatment' => CourseSpecification::SchedulingExternallyArranged,
@@ -246,6 +260,7 @@ class CompletionToStandardTorJourneyTest extends TestCase
         $this->assertDatabaseCount('transcript_snapshots', 1);
         $this->assertDatabaseCount('transcript_issuance_events', 1);
         $this->assertSame($snapshot->reference, data_get($snapshot->content, 'document.reference'));
+        $this->assertStringNotContainsString($tracked->qualification_label, json_encode($snapshot->content, JSON_THROW_ON_ERROR));
         $this->assertSame(
             'TALA-GEN-'.strtoupper(substr($snapshot->source_fingerprint, 0, 16)),
             data_get($snapshot->content, 'document.generation_reference'),

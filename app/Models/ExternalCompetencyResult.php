@@ -11,6 +11,15 @@ class ExternalCompetencyResult extends Model
 
     public const OutcomeCompetent = 'COMPETENT';
 
+    public static function outcomeLabel(?string $outcome): string
+    {
+        return match ($outcome) {
+            self::OutcomeCompetent => 'Competent',
+            self::OutcomeNotYetCompetent => 'Not yet competent',
+            default => 'Not recorded',
+        };
+    }
+
     protected $fillable = [
         'external_competency_requirement_id', 'student_profile_id', 'outcome',
         'assessment_date', 'external_source', 'credential_type', 'credential_reference',

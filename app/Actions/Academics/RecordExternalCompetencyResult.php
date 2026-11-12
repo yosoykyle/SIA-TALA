@@ -90,7 +90,7 @@ class RecordExternalCompetencyResult
             if ($requirement->state !== 'ACTIVE'
                 || $requirement->curriculumVersion?->state !== 'ACTIVE'
                 || (int) $requirement->curriculum_version_id !== (int) $student->curriculum_version_id) {
-                throw new RuntimeException('The external competency requirement is not active for the Student current curriculum.');
+                throw new RuntimeException('This qualification is no longer active for the student’s curriculum. Reopen the action and select a current qualification.');
             }
 
             $current = ExternalCompetencyResult::query()
@@ -103,7 +103,7 @@ class RecordExternalCompetencyResult
             $currentId = $current instanceof ExternalCompetencyResult ? (int) $current->id : 0;
 
             if ($expectedPredecessorId !== null && $currentId !== $expectedPredecessorId) {
-                throw new RuntimeException('External competency evidence changed while this action was open. Review the current result and try again.');
+                throw new RuntimeException('Another result was recorded while this form was open. Clear and reselect the qualification to review the latest result, then try again.');
             }
 
             $result = ExternalCompetencyResult::query()->create([
@@ -127,7 +127,7 @@ class RecordExternalCompetencyResult
             ]);
 
             $current?->update(['is_current' => false]);
-            $this->completionReadiness->persist($student, $registrar);
+            $this->completionReadiness->persist($student, $registrar, cause: 'external-competency-result');
 
             return $result;
         }, attempts: 3);

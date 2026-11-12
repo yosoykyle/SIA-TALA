@@ -55,7 +55,8 @@ class RoleAwareLoginLandingTest extends TestCase
         $this->assertGuest();
         $this->get(route('filament.admin.auth.login', ['context' => User::StaffRoleRegistrar]))
             ->assertOk()
-            ->assertSee('Sign in to Registrar');
+            ->assertSee('Sign in')
+            ->assertDontSee('Sign in to Registrar');
     }
 
     #[DataProvider('verifiedCanonicalRoleRedirects')]

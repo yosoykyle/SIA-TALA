@@ -105,7 +105,7 @@ Purposeful feedback explains saved facts, updated readiness and activation with 
 
 ## Prototype, implementation and verification
 
-Inventory affected role, record and component variants as well as pages: loading, first use, empty, filtered-empty, partial, success, warning, error, disabled, read-only and denied states where applicable. Use DESIGN.md's shared state/role guidance. Empty search results offer criteria recovery; missing sources identify the responsible office without instructing Head to edit. Keep source, automated and rendered evidence distinct in #76; reuse valid evidence proportionately.
+Inventory affected role, record and component variants as well as pages: loading, first use, empty, filtered-empty, partial, success, warning, error, disabled, read-only and denied states where applicable. Use DESIGN.md's shared state/role guidance. Empty search results offer criteria recovery; missing sources identify the responsible office without instructing Head to edit. Keep source, automated and rendered evidence distinct in the owning Issue; reuse valid evidence proportionately.
 
 For each changed page, task view or materially changed dialog/role variant: inspect/simplify → image prototype → implementation → rendered check, then continue. One overall image is insufficient. Reuse the selected world/components and valid evidence; account for surfaces deliberately retained unchanged. This brief does not authorize image generation or execution by itself.
 

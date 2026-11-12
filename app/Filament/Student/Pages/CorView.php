@@ -67,9 +67,12 @@ class CorView extends Page
     /** @return array<string, mixed> */
     protected function getViewData(): array
     {
+        $versions = $this->versionChoices();
+
         return [
             'output' => $this->cor,
-            'versions' => $this->versionChoices(),
+            'versions' => $versions,
+            'illustrateEmpty' => $versions === [] && ($this->cor['enrollment'] ?? null) === null && auth()->user()?->studentProfile !== null,
             'selectedVersionId' => $this->selectedVersionId(),
         ];
     }

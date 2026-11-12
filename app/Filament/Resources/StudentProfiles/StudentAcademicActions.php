@@ -26,7 +26,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View as SchemaView;
 use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -36,11 +36,17 @@ class StudentAcademicActions
     /** @return list<Action> */
     public static function make(StudentProfile $student): array
     {
+        $requirements = null;
+        $qualifications = function () use ($student, &$requirements): Collection {
+            return $requirements ??= ExternalCompetencyRequirement::query()->applicableTo($student)
+                ->withCurrentResultFor($student)->orderBy('requirement_code')->get()->keyBy('id');
+        };
+
         return [
             Action::make('recordExternalCompetency')
-                ->label('Record external competency')->color('gray')
+                ->label('Record external assessment result')->color('gray')
                 ->visible(fn (): bool => auth()->user()?->status === User::StatusActive && auth()->user()->hasRole(User::StaffRoleRegistrar))
-                ->modalDescription('Record a verified result from an external assessment. Registrar and recording time are captured automatically.')
+                ->modalDescription('Record a result already verified by the school. A reassessment keeps the earlier attempt in the student’s record.')
                 ->modalSubmitActionLabel('Record result')
                 ->modalWidth(Width::FourExtraLarge)
                 ->stickyModalFooter()
@@ -48,48 +54,60 @@ class StudentAcademicActions
                     Hidden::make('command_key')->default(fn (): string => (string) Str::uuid()),
                     Hidden::make('expected_predecessor_id')->default(0)->required(),
                     Section::make('Assessment')
+                        ->compact()
                         ->columns(2)
                         ->schema([
-                            Select::make('requirement_id')->label('Authorized requirement')
-                                ->options(fn (): array => ExternalCompetencyRequirement::query()->where('state', 'ACTIVE')
-                                    ->where('curriculum_version_id', $student->curriculum_version_id)
-                                    ->whereHas('curriculumVersion', fn (Builder $versions): Builder => $versions->where('state', 'ACTIVE'))
-                                    ->orderBy('requirement_code')->pluck('qualification_label', 'id')->all())
-                                ->helperText(fn (Select $component): string => $component->getOptions() === []
-                                        ? 'No active requirement is recorded for this curriculum. Check Catalog & Curricula.'
-                                        : 'Only active requirements from this student’s curriculum are listed.')
+                            Select::make('requirement_id')->label('Qualification')->placeholder('Choose a qualification')
+                                ->options(fn (): array => $qualifications()->pluck('qualification_label', 'id')->all())
+                                ->helperText(function (Get $get) use ($qualifications): string {
+                                    if ($qualifications()->isEmpty()) {
+                                        return 'No active qualifications are listed. Check the student’s curriculum in Catalog & Curricula.';
+                                    }
+
+                                    $qualification = $qualifications()->get($get('requirement_id') ?? 0);
+
+                                    if (! $qualification instanceof ExternalCompetencyRequirement) {
+                                        return 'Choose an active qualification from the student’s curriculum.';
+                                    }
+
+                                    $result = $qualification->currentResult;
+                                    $status = ExternalCompetencyResult::outcomeLabel($result?->outcome);
+
+                                    return 'Current result: '.$status.($result?->assessment_date ? ' · '.$result->assessment_date->format('M j, Y') : '');
+                                })
                                 ->noSearchResultsMessage('No active requirements match. Check this student’s curriculum setup.')
-                                ->required()->searchable()->live()
-                                ->afterStateUpdated(function (Get $get, Set $set) use ($student): void {
-                                    $set('expected_predecessor_id', ExternalCompetencyResult::query()
-                                        ->where('student_profile_id', $student->id)
-                                        ->where('external_competency_requirement_id', $get('requirement_id'))
-                                        ->where('is_current', true)->value('id') ?? 0);
+                                ->required()->searchable()->live()->columnSpanFull()
+                                ->validationMessages(['in' => 'Choose a current qualification. If the curriculum changed, reopen the action.'])
+                                ->afterStateUpdated(function (Get $get, Set $set) use ($qualifications): void {
+                                    $set('expected_predecessor_id', $qualifications()->get($get('requirement_id') ?? 0)?->currentResult?->id ?? 0);
                                 }),
-                            Select::make('outcome')->options([
-                                ExternalCompetencyResult::OutcomeNotYetCompetent => 'Not Yet Competent',
+                            Select::make('outcome')->label('Verified result')->options([
+                                ExternalCompetencyResult::OutcomeNotYetCompetent => 'Not yet competent',
                                 ExternalCompetencyResult::OutcomeCompetent => 'Competent',
                             ])->required(),
                             DatePicker::make('assessment_date')->label('Assessment date')->required(),
                         ]),
-                    Section::make('Evidence and approval')
+                    Section::make('Verified evidence')
+                        ->compact()
+                        ->description('Use the assessment provider’s record and the school’s approval to document this result.')
                         ->columns(2)
                         ->schema([
-                            TextInput::make('external_source')->label('Assessment source')->required()->maxLength(255),
-                            TextInput::make('evidence_reference')->label('Private evidence reference')->required()->maxLength(255),
-                            TextInput::make('authority_reference')->required()->maxLength(255),
-                            DatePicker::make('authority_date')->required(),
-                            Textarea::make('safe_remarks')->label('Safe remarks (optional)')
-                                ->helperText('Keep sensitive assessment evidence in the private source record.')
-                                ->rows(2)->maxLength(1000)->columnSpanFull(),
+                            TextInput::make('external_source')->label('Assessment provider')->required()->maxLength(255),
+                            TextInput::make('evidence_reference')->label('Private evidence reference')
+                                ->helperText('Enter the identifier of the verified assessment record.')->required()->maxLength(255),
+                            TextInput::make('authority_reference')->label('School approval reference')->required()->maxLength(255),
+                            DatePicker::make('authority_date')->label('School approval date')->required(),
                         ]),
-                    Section::make('Credential details (optional)')
-                        ->collapsible()->collapsed()->columns(2)
+                    Section::make('Credential and notes (optional)')
+                        ->compact()->collapsible()->collapsed()->columns(2)
                         ->schema([
                             Select::make('credential_type')->label('Credential type')->options(['NC' => 'NC', 'COC' => 'COC'])
                                 ->requiredWith(['credential_reference', 'credential_valid_until']),
                             TextInput::make('credential_reference')->label('Credential reference')->requiredWith('credential_type')->maxLength(255),
                             DatePicker::make('credential_valid_until')->label('Credential valid until'),
+                            Textarea::make('safe_remarks')->label('Remarks')
+                                ->helperText('Keep sensitive details in the private evidence record.')
+                                ->rows(2)->maxLength(1000)->columnSpanFull(),
                         ]),
                 ])
                 ->action(function (array $data) use ($student): void {
@@ -97,8 +115,11 @@ class StudentAcademicActions
                     abort_unless($actor instanceof User, 403);
 
                     try {
+                        $requirement = ExternalCompetencyRequirement::query()->find((int) $data['requirement_id'])
+                            ?? throw new RuntimeException('This qualification is no longer available. Reopen the action and select a current qualification.');
+
                         app(RecordExternalCompetencyResult::class)->execute(
-                            ExternalCompetencyRequirement::query()->findOrFail((int) $data['requirement_id']),
+                            $requirement,
                             $student,
                             (string) $data['outcome'],
                             (string) $data['evidence_reference'],

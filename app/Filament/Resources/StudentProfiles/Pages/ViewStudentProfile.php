@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\StudentProfiles\Pages;
 
-use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\OfficialCourseResultProjection;
@@ -18,11 +18,9 @@ use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelati
 use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager;
 use App\Filament\Resources\StudentProfiles\StudentAcademicActions;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
-use App\Models\AcademicDecision;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\ExternalCompetencyRequirement;
-use App\Models\ExternalCompetencyResult;
 use App\Models\Hold;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
@@ -174,7 +172,7 @@ class ViewStudentProfile extends ViewRecord
 
     public function recordExternalCompetencyAction(): Action
     {
-        return StudentAcademicActions::make($this->record)[0]->label('Record TESDA assessment')
+        return StudentAcademicActions::make($this->record)[0]
             ->visible(fn (): bool => auth()->user()?->status === User::StatusActive
                 && auth()->user()->hasRole(User::StaffRoleRegistrar)
                 && $this->hasExternalRequirement());
@@ -182,9 +180,7 @@ class ViewStudentProfile extends ViewRecord
 
     private function hasExternalRequirement(): bool
     {
-        return ExternalCompetencyRequirement::query()->where('state', 'ACTIVE')
-            ->where('curriculum_version_id', $this->record->curriculum_version_id)
-            ->whereHas('curriculumVersion', fn ($query) => $query->where('state', 'ACTIVE'))->exists();
+        return ExternalCompetencyRequirement::query()->applicableTo($this->record)->exists();
     }
 
     /** @return array<string, mixed> */
@@ -212,7 +208,7 @@ class ViewStudentProfile extends ViewRecord
             Str::lower(collect([$result['course_specification']?->course?->code, $result['course_specification']?->title])->filter()->implode(' ')), $search,
         ))->values();
         $pagedResults = $this->paginateRows($filtered, $this->academicPage, 'academicPage');
-        $effect = app(AcademicEnrollmentEffect::class)->forStudent($student, $enrollment?->term);
+        $effect = app(AcademicEnrollmentGuidance::class)->forStudent($student);
         $accountingWait = ($context['responsible_office'] ?? null) === 'Accounting Office';
         $handoff = $enrollment?->canonical_outcome === Enrollment::OutcomeInProgress ? [
             'currentOwner' => $context['responsible_office'],
@@ -221,10 +217,8 @@ class ViewStudentProfile extends ViewRecord
             'nextTask' => $accountingWait ? 'Continue enrollment when cleared.' : null,
         ] : null;
         $requirements = $this->activeRecordTab() === 'academic'
-            ? ExternalCompetencyRequirement::query()->where('state', 'ACTIVE')
-                ->where('curriculum_version_id', $student->curriculum_version_id)
-                ->whereHas('curriculumVersion', fn ($query) => $query->where('state', 'ACTIVE'))
-                ->orderBy('requirement_code')->get()
+            ? ExternalCompetencyRequirement::query()->applicableTo($student)
+                ->withCurrentResultFor($student)->orderBy('requirement_code')->get()
             : collect();
 
         return [
@@ -242,8 +236,7 @@ class ViewStudentProfile extends ViewRecord
                 ? EnrollmentResource::getUrl('view', ['record' => $enrollment]) : null,
             'cumulative' => $this->activeRecordTab() === 'academic' ? app(CumulativeGwaProjection::class)->forStudent($student) : null,
             'effect' => $effect,
-            'guidance' => $effect['effect'] === AcademicDecision::EffectAllowed
-                ? 'No academic restriction recorded.' : AcademicDecision::effectOptions()[$effect['effect']],
+            'guidance' => $effect['label'],
             'releasedCount' => $results->filter(fn (array $result): bool => $result['outcome_source'] !== null)->count(),
             'holds' => Hold::query()->where('student_profile_id', $student->id)->where('status', Hold::StatusActive)->get(),
             'hasEnrollments' => $this->activeRecordTab() === 'enrollment' && $student->enrollments()
@@ -258,10 +251,6 @@ class ViewStudentProfile extends ViewRecord
                 ->sortByDesc('ends_on')->map(fn (Term $term): array => ['term' => $term,
                     'average' => app(TermWeightedAverageProjection::class)->forResults($results, $term)]) : collect(),
             'externalRequirements' => $requirements,
-            'externalResults' => $requirements->isNotEmpty() ? ExternalCompetencyResult::query()
-                ->where('student_profile_id', $student->id)->where('is_current', true)
-                ->whereIn('external_competency_requirement_id', $requirements->modelKeys())
-                ->get()->keyBy('external_competency_requirement_id') : collect(),
         ];
     }
 

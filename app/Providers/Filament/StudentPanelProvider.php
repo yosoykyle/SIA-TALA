@@ -8,10 +8,12 @@ use App\Filament\Pages\Auth\ContextualLogin;
 use App\Filament\Pages\Auth\RequestPasswordReset;
 use App\Filament\Pages\Auth\ResetPassword;
 use App\Filament\Student\Pages\Academics;
+use App\Filament\Student\Pages\CorView;
 use App\Filament\Student\Pages\Dashboard;
 use App\Filament\Student\Pages\Enrollment;
 use App\Filament\Student\Pages\Finance;
 use App\Filament\Student\Pages\Profile;
+use App\Filament\Student\Pages\ScheduleView;
 use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use App\Http\Middleware\EnsureStaffMfaIsEnabled;
 use App\Support\TalaPanelTheme;
@@ -86,9 +88,9 @@ class StudentPanelProvider extends PanelProvider
             ])
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $builder->items([
                 $this->navigationItem(Dashboard::class, 'Overview'),
-                $this->navigationItem(Enrollment::class, 'Enrollment'),
-                $this->navigationItem(Academics::class, 'Academics'),
-                $this->navigationItem(Finance::class, 'Fees and payments'),
+                $this->enrollmentNavigationItem(),
+                $this->academicsNavigationItem(),
+                $this->financeNavigationItem(),
             ]))
             ->discoverWidgets(in: app_path('Filament/Student/Widgets'), for: 'App\Filament\Student\Widgets')
             ->widgets([
@@ -121,5 +123,93 @@ class StudentPanelProvider extends PanelProvider
             ->icon($component::getNavigationIcon())
             ->url(fn (): string => $component::getUrl(panel: 'student'))
             ->isActiveWhen(fn (): bool => original_request()->routeIs($component::getRouteName(Filament::getPanel('student'))));
+    }
+
+    private function enrollmentNavigationItem(): NavigationItem
+    {
+        $panel = Filament::getPanel('student');
+        $enrollmentRoute = Enrollment::getRouteName($panel);
+        $corRoute = CorView::getRouteName($panel);
+        $scheduleRoute = ScheduleView::getRouteName($panel);
+        $inEnrollment = original_request()->routeIs($enrollmentRoute, $corRoute, $scheduleRoute);
+        $item = NavigationItem::make('Enrollment')
+            ->key(Enrollment::class)
+            ->icon(Enrollment::getNavigationIcon())
+            ->url(fn (): string => Enrollment::getUrl(panel: 'student'))
+            ->isActiveWhen(fn (): bool => $inEnrollment);
+
+        if (! $inEnrollment) {
+            return $item;
+        }
+
+        return $item->childItems([
+            NavigationItem::make('Current registration')
+                ->icon('heroicon-o-clipboard-document-check')
+                ->url(fn (): string => Enrollment::getUrl(panel: 'student'))
+                ->isActiveWhen(fn (): bool => original_request()->routeIs($enrollmentRoute)),
+            NavigationItem::make('Certificate (COR)')
+                ->icon('heroicon-o-document-text')
+                ->url(fn (): string => CorView::getUrl(panel: 'student'))
+                ->isActiveWhen(fn (): bool => original_request()->routeIs($corRoute)),
+            NavigationItem::make('Class schedule')
+                ->icon('heroicon-o-calendar-days')
+                ->url(fn (): string => ScheduleView::getUrl(panel: 'student'))
+                ->isActiveWhen(fn (): bool => original_request()->routeIs($scheduleRoute)),
+        ]);
+    }
+
+    private function financeNavigationItem(): NavigationItem
+    {
+        $item = $this->navigationItem(Finance::class, 'Fees and payments');
+        $inFinance = original_request()->routeIs(Finance::getRouteName(Filament::getPanel('student')));
+
+        if (! $inFinance) {
+            return $item;
+        }
+
+        $showingHistory = original_request()->query('view') === 'history';
+
+        return $item->childItems([
+            NavigationItem::make('This term')
+                ->icon('heroicon-o-banknotes')
+                ->url(fn (): string => Finance::getUrl(panel: 'student'))
+                ->isActiveWhen(fn (): bool => ! $showingHistory),
+            NavigationItem::make('Past statements')
+                ->icon('heroicon-o-archive-box')
+                ->url(fn (): string => Finance::getUrl(['view' => 'history'], panel: 'student'))
+                ->isActiveWhen(fn (): bool => $showingHistory),
+        ]);
+    }
+
+    private function academicsNavigationItem(): NavigationItem
+    {
+        $panel = Filament::getPanel('student');
+        $academicsRoute = Academics::getRouteName($panel);
+        $inAcademics = original_request()->routeIs($academicsRoute);
+        $item = $this->navigationItem(Academics::class, 'Academics');
+
+        if (! $inAcademics) {
+            return $item;
+        }
+
+        $activeView = (string) original_request()->query('view', 'current');
+        if ($activeView === 'graduation') {
+            $activeView = 'record';
+        }
+
+        return $item->childItems([
+            NavigationItem::make('Current subjects')
+                ->icon('heroicon-o-book-open')
+                ->url(fn (): string => Academics::getUrl(['view' => 'current'], panel: 'student'))
+                ->isActiveWhen(fn (): bool => $inAcademics && ! in_array($activeView, ['plan', 'record'], true)),
+            NavigationItem::make('Study plan')
+                ->icon('heroicon-o-map')
+                ->url(fn (): string => Academics::getUrl(['view' => 'plan'], panel: 'student'))
+                ->isActiveWhen(fn (): bool => $inAcademics && $activeView === 'plan'),
+            NavigationItem::make('Academic record')
+                ->icon('heroicon-o-document-text')
+                ->url(fn (): string => Academics::getUrl(['view' => 'record'], panel: 'student'))
+                ->isActiveWhen(fn (): bool => $inAcademics && $activeView === 'record'),
+        ]);
     }
 }

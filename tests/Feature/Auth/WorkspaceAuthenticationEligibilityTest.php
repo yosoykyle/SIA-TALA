@@ -103,7 +103,8 @@ class WorkspaceAuthenticationEligibilityTest extends TestCase
         $this->assertGuest();
         $this->get(route('filament.admin.auth.login', ['context' => User::StaffRoleRegistrar]))
             ->assertOk()
-            ->assertSee('Sign in to Registrar');
+            ->assertSee('Sign in')
+            ->assertDontSee('Sign in to Registrar');
     }
 
     private function userWithRole(string $role, string $status): User

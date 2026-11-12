@@ -1,0 +1,69 @@
+/* Inactivity countdown: a see-through veil over whichever signed-in screen was left open. Shared by every panel. */
+.tala-idle { --idle-stage: #fafafa; --idle-accent: #2f7d3b; --idle-accent-soft: rgb(47 125 59 / 12%); --idle-glow-a: #2f7d3b; --idle-glow-b: #1d4ed8;
+    position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; box-sizing: border-box; padding: 1.25rem; color: var(--tala-text); overflow: clip; overscroll-behavior: none; touch-action: none; isolation: isolate;
+    background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--idle-stage) 90%, transparent) 0, color-mix(in srgb, var(--idle-stage) 78%, transparent) 17rem, color-mix(in srgb, var(--idle-stage) 38%, transparent) 34rem, color-mix(in srgb, var(--idle-stage) 26%, transparent) 100%);
+    -webkit-backdrop-filter: blur(2.5px) saturate(.9); backdrop-filter: blur(2.5px) saturate(.9); animation: tala-idle-veil .5s ease-out; }
+@keyframes tala-idle-veil { from { opacity: 0; } }
+.tala-idle[hidden] { display: none; }
+html:has(.tala-idle:not([hidden])), body:has(.tala-idle:not([hidden])) { overflow: clip !important; overscroll-behavior: none; }
+.tala-idle[data-phase='warm'] { --idle-accent: #a16207; --idle-accent-soft: rgb(161 98 7 / 13%); --idle-glow-a: #a16207; }
+.tala-idle[data-phase='hot'] { --idle-accent: #b4113f; --idle-accent-soft: rgb(180 17 63 / 11%); --idle-glow-a: #b4113f; --idle-glow-b: #a16207; }
+.dark .tala-idle { --idle-stage: #09090b; --idle-accent: #6acb7c; --idle-accent-soft: rgb(106 203 124 / 15%); }
+.dark .tala-idle[data-phase='warm'] { --idle-accent: #f4d598; --idle-accent-soft: rgb(244 213 152 / 15%); }
+.dark .tala-idle[data-phase='hot'] { --idle-accent: #ffc0cc; --idle-accent-soft: rgb(255 192 204 / 15%); }
+.tala-idle-glow { position: absolute; z-index: -1; inline-size: 36rem; block-size: 36rem; border-radius: 50%; filter: blur(100px); opacity: .3; transition: background 1.2s ease; }
+.tala-idle-glow-a { background: var(--idle-glow-a); inset-block-start: -12rem; inset-inline-start: -12rem; }
+.tala-idle-glow-b { background: var(--idle-glow-b); inset-block-end: -12rem; inset-inline-end: -12rem; }
+.tala-idle-edge { position: absolute; inset: 0; z-index: -1; pointer-events: none; box-shadow: inset 0 0 5rem 0 color-mix(in srgb, var(--idle-accent) 34%, transparent); transition: box-shadow 1.2s ease; }
+.tala-idle-field { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.tala-idle-field > span { position: absolute; display: block; }
+.tala-idle-field > span > * { display: block; inline-size: 100%; color: var(--idle-accent); opacity: .5; transition: color 1.2s ease; }
+.tala-idle-field svg { fill: currentColor; overflow: visible; }
+.tala-idle-field .tala-idle-line { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; }
+.tala-idle-field .tala-idle-dot { border-radius: 50%; background: currentColor; }
+.tala-idle-stage { display: grid; justify-items: center; align-items: center; gap: 1.25rem; text-align: center; inline-size: min(100%, 30rem); min-inline-size: 0; }
+.tala-idle-dial { position: relative; display: grid; place-items: center; inline-size: clamp(13rem, 44vw, 17rem); aspect-ratio: 1; }
+.tala-idle-ring { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; rotate: -90deg; overflow: visible; }
+.tala-idle-ring circle { fill: none; stroke-width: 5; }
+.tala-idle-ring-track { stroke: var(--idle-accent-soft); }
+.tala-idle-ring-left { stroke: var(--idle-accent); stroke-linecap: round; stroke-dasharray: 100; transition: stroke-dashoffset 1s linear, stroke 1.2s ease; }
+.tala-idle-count { display: grid; justify-items: center; gap: .875rem; }
+.tala-idle-numeral { display: flex; align-items: center; justify-content: center; inline-size: 2.2ch; block-size: 1em; white-space: nowrap; font-family: var(--tala-font-heading, inherit); font-size: clamp(5.5rem, 19vw, 7.75rem); font-weight: 800; line-height: 1; text-box: trim-both cap alphabetic; color: var(--idle-accent); user-select: none; font-variant-numeric: tabular-nums; transition: color 1.2s ease; }
+.tala-idle-numeral span { display: inline-block; text-shadow: .045em .045em 0 var(--idle-accent-soft); }
+.tala-idle-numeral span:nth-child(1) { transform: rotate(-7deg); }
+.tala-idle-numeral span:empty { display: none; }
+.tala-idle-numeral span:nth-child(2) { margin-inline-start: -.06em; transform: rotate(5deg); color: transparent; -webkit-text-stroke: .035em var(--idle-accent); text-shadow: none; }
+
+.tala-idle-numeral.tala-idle-tick { animation: tala-idle-tick .32s ease-out; }
+@keyframes tala-idle-tick { from { scale: 1.08; } to { scale: 1; } }
+.tala-idle-unit { line-height: 1; text-box: trim-both cap alphabetic; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--idle-accent); }
+.tala-idle-plane { position: absolute; inset-inline-end: -1.5rem; inset-block-start: -1.25rem; inline-size: 5.5rem; overflow: visible; fill: var(--idle-accent); }
+.tala-idle-plane-trail { fill: none; stroke: var(--idle-accent); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 2 9; opacity: .65; }
+.tala-idle-plane-fold { opacity: .55; }
+.tala-idle-copy { display: grid; gap: .5rem; justify-items: center; }
+.tala-idle-mood { margin: 0; font-size: 1rem; font-weight: 700; color: var(--idle-accent); transition: color 1.2s ease; }
+.tala-idle-copy h2 { margin: 0; font-size: clamp(1.625rem, 1.3rem + 1.4vw, 2.25rem); font-weight: 800; line-height: 1.1; letter-spacing: -.03em; text-wrap: balance; }
+.tala-idle-summary { margin: 0; font-size: 1rem; line-height: 1.55; max-inline-size: 36ch; text-wrap: pretty; color: var(--tala-muted); }
+.tala-idle-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .75rem; margin-block-start: .5rem; }
+.tala-idle-feedback { margin: 0; inline-size: 100%; max-inline-size: 40ch; min-block-size: 4.2em; font-size: .8125rem; line-height: 1.4; color: var(--tala-muted); }
+.tala-idle-feedback[hidden] { display: block; visibility: hidden; }
+.tala-idle-hint { margin: 0; font-size: .8125rem; color: var(--tala-muted); }
+@media (max-height: 44rem) {
+    .tala-idle { padding: .75rem; }
+    .tala-idle-stage { gap: .75rem; }
+    .tala-idle-dial { inline-size: clamp(7rem, 25dvh, 11rem); }
+    .tala-idle-count { gap: .5rem; }
+    .tala-idle-numeral { font-size: clamp(3.5rem, 13dvh, 5.5rem); }
+    .tala-idle-copy { gap: .375rem; }
+    .tala-idle-copy h2 { font-size: 1.5rem; }
+    .tala-idle-summary { font-size: .875rem; line-height: 1.4; }
+    .tala-idle-actions { margin-block-start: .25rem; }
+}
+@media (max-height: 32rem) and (min-width: 36rem) {
+    .tala-idle-stage { inline-size: min(100%, 54rem); grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+    .tala-idle-dial { inline-size: clamp(7rem, 42dvh, 13rem); }
+}
+@media (max-width: 40rem) { .tala-idle-field > span:nth-child(odd) { display: none; } }
+@media (prefers-reduced-motion: reduce) { .tala-idle, .tala-idle-numeral.tala-idle-tick { animation: none; } .tala-idle-glow, .tala-idle-edge, .tala-idle-numeral, .tala-idle-mood, .tala-idle-ring-left { transition: none; } }
+@media (forced-colors: active) { .tala-idle { background: Canvas; } .tala-idle-glow, .tala-idle-edge, .tala-idle-field, .tala-idle-plane { display: none; } .tala-idle-numeral, .tala-idle-numeral span { color: CanvasText; -webkit-text-stroke: 0; text-shadow: none; } }
+@media print { .tala-idle { display: none; } }

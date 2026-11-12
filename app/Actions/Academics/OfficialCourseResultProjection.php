@@ -45,6 +45,7 @@ class OfficialCourseResultProjection
             ->whereIn('status', [CourseEnrollment::StatusActive, CourseEnrollment::StatusDropped, CourseEnrollment::StatusWithdrawn])
             ->with([
                 'enrollment.term.academicYear',
+                'section',
                 'termOffering.curriculumEntry.courseSpecification.course',
                 'gradeRosterRow.outcomeEvents.deadlineAmendments',
             ])

@@ -119,19 +119,12 @@ class CompletionReadinessProjection
         }
 
         $requiredCompetencies = ExternalCompetencyRequirement::query()
-            ->where('curriculum_version_id', $student->curriculum_version_id)
-            ->where('state', 'ACTIVE')
+            ->applicableTo($student)
             ->where('treatment', ExternalCompetencyRequirement::TreatmentCompletionRequired)
+            ->withCurrentResultFor($student)
             ->get();
         foreach ($requiredCompetencies as $requirement) {
-            $competent = ExternalCompetencyResult::query()
-                ->where('student_profile_id', $student->id)
-                ->where('external_competency_requirement_id', $requirement->id)
-                ->where('is_current', true)
-                ->where('outcome', ExternalCompetencyResult::OutcomeCompetent)
-                ->exists();
-
-            if (! $competent) {
+            if ($requirement->currentResult?->outcome !== ExternalCompetencyResult::OutcomeCompetent) {
                 $blockers[] = [
                     'code' => "external-competency:{$requirement->id}:not-competent",
                     'source' => "ExternalCompetencyRequirement:{$requirement->requirement_code}",

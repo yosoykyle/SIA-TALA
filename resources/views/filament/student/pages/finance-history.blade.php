@@ -1,15 +1,18 @@
 <div class="student-finance student-finance-past student-finance-history">
-    <x-filament::link :href="static::getUrl($pastAccount ? ['view' => 'history'] : [])">{{ $pastAccount ? 'Back to past statements and payments' : 'Back to fees and payments' }}</x-filament::link>
     @if (! $pastAccount)
-        <h2>Past statements and payments</h2>
-        <p>Choose a term to find its statements, payments and submitted receipts.</p>
-        <ul class="student-finance-past-list">
-            @forelse ($pastAccounts as $record)
-                <li><h3>{{ $record->term?->label ?? 'Term not recorded' }}</h3><x-filament::button tag="a" color="gray" :href="static::getUrl(['view' => 'history', 'account' => $record->id])">View records<span class="sr-only">: {{ $record->term?->label }}</span></x-filament::button></li>
-            @empty
-                <li>No earlier term accounts are recorded.</li>
-            @endforelse
-        </ul>
+        @if ($pastAccounts->isEmpty())
+            <x-servitech-empty-state illustrated class="tala-task-surface student-empty-card" heading="No past statements yet" description="No earlier term accounts are recorded. Statements, payments and receipts appear here after you complete a term.">
+                <x-filament::button tag="a" color="gray" :href="static::getUrl(panel: 'student')">View this term</x-filament::button>
+            </x-servitech-empty-state>
+        @else
+            <h2>Past statements and payments</h2>
+            <p>Choose a term to find its statements, payments and submitted receipts.</p>
+            <ul class="student-finance-past-list">
+                @foreach ($pastAccounts as $record)
+                    <li><h3>{{ $record->term?->label ?? 'Term not recorded' }}</h3><x-filament::button tag="a" color="gray" :href="static::getUrl(['view' => 'history', 'account' => $record->id])">View records<span class="sr-only">: {{ $record->term?->label }}</span></x-filament::button></li>
+                @endforeach
+            </ul>
+        @endif
     @else
         @php
             $statementAssessment = $pastAccount->assessments->firstWhere('state', \App\Models\Assessment::StateActive) ?? $pastAccount->assessments->first();

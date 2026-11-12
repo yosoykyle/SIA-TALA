@@ -72,9 +72,16 @@
 @endif
 @if ($profile['externalRequirements']->isNotEmpty())
     <x-filament::section compact>
-        <x-slot:heading>Required external assessments</x-slot:heading>
-        <x-slot:description>Only assessments required by this student's curriculum are shown.</x-slot:description>
-        <dl class="tala-profile-context-facts">@foreach ($profile['externalRequirements'] as $requirement)<div><dt>{{ $requirement->qualification_label }}</dt><dd>{{ $profile['externalResults']->get($requirement->id)?->outcome ? str($profile['externalResults']->get($requirement->id)->outcome)->headline() : 'No result recorded' }}</dd></div>@endforeach</dl>
+        <x-slot:heading>External assessments</x-slot:heading>
+        <x-slot:description>Verified results for qualifications listed in the student’s active curriculum.</x-slot:description>
+        <dl class="tala-profile-context-facts">
+            @foreach ($profile['externalRequirements'] as $requirement)
+                <div>
+                    <dt>{{ $requirement->qualification_label }}</dt>
+                    <dd>{{ \App\Models\ExternalCompetencyResult::outcomeLabel($requirement->currentResult?->outcome) }}</dd>
+                </div>
+            @endforeach
+        </dl>
         @if ($this->recordExternalCompetencyAction->isVisible())<x-slot:footer>{{ $this->recordExternalCompetencyAction }}</x-slot:footer>
         @endif
     </x-filament::section>
