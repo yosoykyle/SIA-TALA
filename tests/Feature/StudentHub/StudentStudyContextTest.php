@@ -309,7 +309,8 @@ class StudentStudyContextTest extends TestCase
 
         Livewire::test(Academics::class)
             ->assertSeeHtml('href="'.\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student').'"')
-            ->assertSee('Contact the Registrar about your next enrollment.')
+            ->assertSee('Registrar Office')
+            ->assertSee('Student-wide · next enrollment Term not confirmed')
             ->set('academicView', 'plan')
             ->assertSee($failed->termOffering->curriculumEntry->courseSpecification->title.' needs follow-up')
             ->assertSee('Prerequisite: '.$failed->termOffering->curriculumEntry->courseSpecification->course->code)

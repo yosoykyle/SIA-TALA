@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\StudentProfiles\Pages;
 
-use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\OfficialCourseResultProjection;
@@ -18,7 +18,6 @@ use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelati
 use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager;
 use App\Filament\Resources\StudentProfiles\StudentAcademicActions;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
-use App\Models\AcademicDecision;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\ExternalCompetencyRequirement;
@@ -209,7 +208,7 @@ class ViewStudentProfile extends ViewRecord
             Str::lower(collect([$result['course_specification']?->course?->code, $result['course_specification']?->title])->filter()->implode(' ')), $search,
         ))->values();
         $pagedResults = $this->paginateRows($filtered, $this->academicPage, 'academicPage');
-        $effect = app(AcademicEnrollmentEffect::class)->forStudent($student, $enrollment?->term);
+        $effect = app(AcademicEnrollmentGuidance::class)->forStudent($student);
         $accountingWait = ($context['responsible_office'] ?? null) === 'Accounting Office';
         $handoff = $enrollment?->canonical_outcome === Enrollment::OutcomeInProgress ? [
             'currentOwner' => $context['responsible_office'],
@@ -237,8 +236,7 @@ class ViewStudentProfile extends ViewRecord
                 ? EnrollmentResource::getUrl('view', ['record' => $enrollment]) : null,
             'cumulative' => $this->activeRecordTab() === 'academic' ? app(CumulativeGwaProjection::class)->forStudent($student) : null,
             'effect' => $effect,
-            'guidance' => $effect['effect'] === AcademicDecision::EffectAllowed
-                ? 'No academic restriction recorded.' : AcademicDecision::effectOptions()[$effect['effect']],
+            'guidance' => $effect['label'],
             'releasedCount' => $results->filter(fn (array $result): bool => $result['outcome_source'] !== null)->count(),
             'holds' => Hold::query()->where('student_profile_id', $student->id)->where('status', Hold::StatusActive)->get(),
             'hasEnrollments' => $this->activeRecordTab() === 'enrollment' && $student->enrollments()

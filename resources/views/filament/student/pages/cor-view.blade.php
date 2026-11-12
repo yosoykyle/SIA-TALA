@@ -9,12 +9,11 @@
     @endphp
     <div class="learner-enrollment student-cor-record">
         @if (! $available)
-            <x-filament::section heading="No issued COR to show" icon="heroicon-o-document-text">
-                <div class="space-y-4">
-                    <p class="text-sm text-gray-600 dark:text-gray-300">{{ $output['reason'] ?? data_get($output, 'state.notice', 'Your COR appears after the Registrar finalizes official enrollment.') }}</p>
+            <section class="student-record-empty tala-task-surface">
+                <x-servitech-empty-state :illustrated="$illustrateEmpty" heading="No issued COR to show" :description="$output['reason'] ?? data_get($output, 'state.notice', 'Your COR appears after the Registrar finalizes official enrollment.')">
                     <x-filament::button tag="a" :href="\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student')">View enrollment</x-filament::button>
-                </div>
-            </x-filament::section>
+                </x-servitech-empty-state>
+            </section>
         @else
             <x-record-identity
                 class="student-cor-summary"

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Enrollment\CancelRegistrationCase;
 use App\Actions\Enrollment\ConfirmRegistrationProposal;
 use App\Actions\Enrollment\RegistrationEntryContext;
@@ -18,6 +19,7 @@ use App\Models\CourseEnrollment;
 use App\Models\Enrollment as EnrollmentRecord;
 use App\Models\OperationalEvent;
 use App\Models\RegistrationProposalVersion;
+use App\Models\Term;
 use App\Models\User;
 use App\Support\RegistrationSchedulePresentation;
 use App\Support\StudentPaymentActions;
@@ -30,6 +32,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\Url;
 use Throwable;
 
 class Enrollment extends Page
@@ -41,6 +44,9 @@ class Enrollment extends Page
     protected static ?string $title = 'Enrollment';
 
     protected string $view = 'filament.student.pages.enrollment';
+
+    #[Url(as: 'term')]
+    public ?int $term = null;
 
     /** Proposal fixed when the confirmation form opened. */
     #[Locked]
@@ -254,6 +260,8 @@ class Enrollment extends Page
 
         return [
             'entryContext' => $context, 'enrollment' => $case, 'proposal' => $proposal,
+            'academicGuidance' => $context['student_profile'] !== null
+                ? app(AcademicEnrollmentGuidance::class)->forStudent($context['student_profile'], $context['guidance_term']) : null,
             'readiness' => ! $official && $case !== null ? app(RegistrationReadinessQuery::class)->for($case) : null,
             'preparedForConfirmation' => ! $official && $this->preparedForConfirmation(),
             'paymentRequirement' => $requirement, 'accountPosition' => $position, 'assessment' => $assessment,
@@ -270,7 +278,7 @@ class Enrollment extends Page
     /** @return array<string, mixed> */
     protected function entryContext(): array
     {
-        return app(RegistrationEntryContext::class)->forUser($this->actor());
+        return app(RegistrationEntryContext::class)->forUser($this->actor(), $this->term !== null ? Term::query()->findOrFail($this->term) : null);
     }
 
     protected function currentEnrollment(): ?EnrollmentRecord

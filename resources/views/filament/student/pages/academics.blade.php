@@ -7,13 +7,13 @@
     @else
         <div @class(['student-academics student-academic-reading', 'student-academic-current' => $academicView === 'current', 'student-academic-record' => $academicView === 'record'])>
             @if (! in_array($academicView, ['plan', 'record'], true) || ($academicView === 'plan' && $curriculum['required'] === []))
-                <p class="student-academic-context">
-                    <span>{{ $studyContext['program_name'] ?? 'Program unavailable' }}</span>
+                <div class="student-record-context">
+                    <strong>{{ $studyContext['program_name'] ?? 'Program unavailable' }}</strong>
                     @if ($studyContext['is_official'])
                         <span>{{ $studyContext['study_level_label'] }}</span>
                         <span>{{ collect([$studyContext['semester'], $studyContext['academic_year']])->filter()->implode(' · ') }}</span>
                     @endif
-                </p>
+                </div>
             @endif
             <div @class(['student-academic-workspace', 'tala-task-surface' => ! in_array($academicView, ['plan', 'record'], true), 'student-plan-workspace' => $academicView === 'plan', 'student-record-workspace' => $academicView === 'record'])>
                 <div class="student-academic-body">
@@ -98,11 +98,8 @@
                         </div>
                     @endif
                 </section>
-                @if ($effect['effect'] !== 'ALLOWED')
-                    <section class="student-academic-advising" aria-label="Enrollment guidance">
-                        <x-filament::icon icon="heroicon-o-information-circle" />
-                        <div><h2>Next enrollment guidance</h2><p>{{ $effect['student_reason'] ?? $effect['reason'] }} Contact the Registrar about your next enrollment.</p></div>
-                    </section>
+                @if ($effect['needs_attention'])
+                    @include('filament.student.pages.academic-guidance')
                 @endif
                 @if ($examinationPeriod['status'] === 'Available')
                     <section class="student-academic-calendar">
@@ -120,8 +117,9 @@
                         $planPercent = $planTotalUnits > 0 ? (int) round($planCompletedUnits / $planTotalUnits * 100) : 0;
                         $planHasProgress = $planCompletedUnits > 0 || $planRows->contains('status', 'In progress');
                         $planFollowUps = $planRows->where('status', 'Deficient')->values();
-                        $planNeedsAdvising = $effect['effect'] !== 'ALLOWED' || $planFollowUps->isNotEmpty();
+                        $planNeedsAdvising = $effect['needs_attention'] || $planFollowUps->isNotEmpty();
                         $planFollowUpHeading = match (true) {
+                            in_array($effect['effect'], ['BLOCKED', 'PENDING_DECISION'], true), $effect['context_state'] === 'ambiguous' => $effect['label'],
                             $planFollowUps->count() === 1 => ($planFollowUps->first()['curriculum_entry']->courseSpecification?->title ?? 'One subject').' needs follow-up',
                             $planFollowUps->count() > 1 => $planFollowUps->count().' subjects need follow-up',
                             default => 'Your next enrollment needs follow-up',
@@ -162,20 +160,20 @@
                             @if ($planTotalUnits > 0)<div class="student-tile-bar" role="img" aria-label="{{ $planPercent }} percent of curriculum units completed"><span style="inline-size: {{ $planPercent }}%"></span></div>@endif
                         </div>
                     </section>
-                    @if (! $planHasProgress)
-                        <section class="student-plan-start"><h2>{{ $studyContext['is_official'] ? 'No completed units recorded' : 'These are your planned subjects' }}</h2><p>{{ $studyContext['is_official'] ? 'Released passing results and approved credits will update this plan.' : 'Check Enrollment for the subjects being prepared. They become current subjects after official enrollment.' }}</p><x-filament::link :href="$enrollmentUrl">View enrollment</x-filament::link></section>
-                    @endif
                     @if ($planNeedsAdvising)
-                        <section class="student-academic-advising student-plan-advising" aria-label="Study plan guidance">
-                            <x-filament::icon icon="heroicon-o-exclamation-circle" />
-                            <div>
-                                <h2>{{ $planFollowUpHeading }}</h2>
-                                <p>{{ $effect['effect'] !== 'ALLOWED' ? ($effect['student_reason'] ?? $effect['reason']) : 'Ask the Registrar about completing or retaking the subject before choosing your next subjects.' }}</p>
-                            </div>
-                            <x-filament::button tag="a" color="gray" :href="$enrollmentUrl" icon="heroicon-m-arrow-right" icon-position="after">Review enrollment</x-filament::button>
-                        </section>
+                        @include('filament.student.pages.academic-guidance', [
+                            'guidanceClass' => 'student-plan-advising',
+                            'guidanceHeading' => $planFollowUpHeading,
+                            'guidanceReason' => $effect['needs_attention'] ? $effect['student_reason'] : 'Ask the Registrar about completing or retaking the subject before choosing your next subjects.',
+                        ])
                     @endif
                     <div class="student-plan-map" x-data="{ planYear: {{ $planOpenIndex }} }">
+                        @if (! $planHasProgress)
+                            <p class="student-plan-lead">
+                                <x-filament::icon icon="heroicon-o-map" aria-hidden="true" />
+                                <span><strong>{{ $studyContext['is_official'] ? 'No completed units recorded.' : 'These are your planned subjects.' }}</strong> {{ $studyContext['is_official'] ? 'Released passing results and approved credits will update this plan.' : 'Check Enrollment for the subjects being prepared. They become current subjects after official enrollment.' }}@if (! $planNeedsAdvising) <x-filament::link :href="$enrollmentUrl">View enrollment</x-filament::link>@endif</span>
+                            </p>
+                        @endif
                         @if ($planYears->count() > 1)
                             <ol class="student-plan-timeline" aria-label="Curriculum years">
                                 @foreach ($planYears as $planIndex => $planYear)
@@ -223,7 +221,12 @@
                             <p>The Registrar maintains your curriculum evaluation and confirms your next subject selection.</p>
                         </footer>
                     </div>
-                @else<p class="student-academic-empty">Your curriculum is unavailable. Contact the Registrar.</p>@endif
+                @else
+                    @if ($effect['needs_attention'])
+                        @include('filament.student.pages.academic-guidance')
+                    @endif
+                    <p class="student-academic-empty">Your curriculum is unavailable. Contact the Registrar.</p>
+                @endif
                 @if ($competencyRequirements->isNotEmpty())
                     <section class="student-record-panel student-academic-section" aria-labelledby="student-external-qualifications">
                         <header class="student-academic-heading">
@@ -272,8 +275,12 @@
                 @endif
             @elseif ($academicView === 'record')
                 @if ($results->whereNotNull('outcome_source')->isEmpty() && $historicalResults->isEmpty())
-                    <section class="student-record-empty tala-task-surface"><x-filament::icon icon="heroicon-o-document-text" /><h2>Your results will appear here after release.</h2><p>You can check enrolled subjects in Academics.</p><x-filament::button tag="a" color="gray" :href="static::getUrl(panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">View current subjects</x-filament::button></section>
-                    <p class="student-academic-note">An unofficial record becomes available after results are released.</p>
+                    <div class="student-record-context"><strong>{{ $studyContext['program_name'] ?? 'Program not recorded' }}</strong><span>{{ trim($student->first_name.' '.$student->last_name) }}</span></div>
+                    <section class="student-record-empty tala-task-surface">
+                        <x-servitech-empty-state illustrated heading="No released results yet" description="Results appear after the Registrar releases them." note="An unofficial record becomes available after results are released.">
+                            <x-filament::button tag="a" :href="static::getUrl(panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">View current subjects</x-filament::button>
+                        </x-servitech-empty-state>
+                    </section>
                 @else
                     @php
                         $recordReleased = $results->whereNotNull('outcome_source')->count();
@@ -366,7 +373,16 @@
                             @endforeach
                     </x-record-history>
                 @endif
-                @if ($lifecycleChanges->isNotEmpty())<section class="student-record-section"><h2>Student record changes</h2>@foreach ($lifecycleChanges as $change)<p>{{ str($change->type)->replace('_', ' ')->headline() }} · {{ str($change->state)->replace('_', ' ')->headline() }} · {{ $change->effective_on?->format('M j, Y') }}</p>@endforeach</section>@endif
+                    <x-record-history id="school-record-changes" heading="School record changes" heading-tag="h2" description="Applied changes to your school record. Contact the Registrar about corrections." :paginator="$lifecycleChanges" :has-entries="$lifecycleChanges->isNotEmpty()" label="changes" show-count>
+                        @if ($changeUnavailable)<li class="student-school-change-unavailable" role="status">This change is unavailable. Your own applied changes are shown below.</li>@endif
+                        @foreach ($lifecycleChanges as $change)
+                            <x-record-history-item :heading="$change->studentLabel()" heading-tag="h3" icon="heroicon-o-arrow-path" :id="'school-change-'.$change->id" :class="$this->change === $change->id ? 'student-school-change-target' : ''" :wire:key="'school-change-'.$change->id">
+                                <p>{{ collect([$change->term?->label, $change->term?->academicYear?->label])->filter()->implode(' · ') }}</p>
+                                <p>Effective <time datetime="{{ $change->effective_on?->toDateString() }}">{{ $change->effective_on?->format('M j, Y') }}</time></p>
+                            </x-record-history-item>
+                        @endforeach
+                        <x-slot:empty>@if ($changeUnavailable)This change is unavailable. @endif No applied changes. School record changes appear here after the Registrar applies them.</x-slot:empty>
+                    </x-record-history>
             @else
                 @php
                     $earlierConferrals = $degreeConferrals->reject(fn (\App\Models\DegreeConferral $conferral): bool => $conferral->is($completion['conferral']));

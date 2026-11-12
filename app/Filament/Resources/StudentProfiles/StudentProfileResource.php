@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\StudentProfiles;
 
-use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\OfficialCourseResultProjection;
@@ -149,7 +149,7 @@ class StudentProfileResource extends Resource
                             $terms = $results->pluck('term')->filter()->unique('id')->sortByDesc('ends_on');
 
                             return [
-                                'effect' => app(AcademicEnrollmentEffect::class)->forStudent($record),
+                                'effect' => app(AcademicEnrollmentGuidance::class)->forStudent($record),
                                 'curriculum' => app(CurriculumEvaluation::class)->forStudent($record),
                                 'cumulative' => app(CumulativeGwaProjection::class)->forStudent($record),
                                 'termAverages' => $terms->map(fn (Term $term): array => [
@@ -426,7 +426,12 @@ class StudentProfileResource extends Resource
                     ->sortable(),
                 TextColumn::make('academic_effect')
                     ->label('Enrollment Guidance')
-                    ->state(fn (StudentProfile $record): string => str(app(AcademicEnrollmentEffect::class)->forStudent($record)['effect'])->headline()->toString())
+                    ->state(function (StudentProfile $record): string {
+                        $guidance = app(AcademicEnrollmentGuidance::class)->forStudent($record);
+
+                        return $guidance['label'].' · '.$guidance['scope_label'];
+                    })
+                    ->wrap()
                     ->badge(),
             ])->filters([
                 ...self::academicBrowsingFilters(),

@@ -19,6 +19,13 @@
         <div wire:loading class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300" role="status">
             <x-filament::loading-indicator class="h-4 w-4" /> Updating enrollment details…
         </div>
+        @if ($enrollment !== null && ($academicGuidance['needs_attention'] ?? false))
+            @include('filament.student.pages.academic-guidance', [
+                'effect' => $academicGuidance,
+                'enrollmentUrl' => \App\Filament\Student\Pages\Academics::getUrl(['view' => 'plan'], panel: 'student'),
+                'guidanceActionLabel' => 'View study plan',
+            ])
+        @endif
         @if ($official)
             @include('filament.student.pages.enrollment-official')
         @elseif ($terminal)
@@ -34,13 +41,17 @@
         @elseif ($proposal && ! $confirmed && ! $canConfirm && ! $terminal)
             @include('filament.student.pages.enrollment-preparing')
         @else
-            <p class="student-enrollment-context">{{ $enrollment?->term?->label ?? $entryContext['term']?->label ?? 'Enrollment term unavailable' }}@if ($enrollment?->admissionApplication?->program) · {{ $enrollment->admissionApplication->program->name }}@endif</p>
+            @if ($enrollment)<p class="student-enrollment-context">{{ $enrollment?->term?->label ?? $entryContext['term']?->label ?? 'Enrollment term unavailable' }}@if ($entryContext['term']?->academicYear) · {{ $entryContext['term']->academicYear->label }}@endif @if ($enrollment?->admissionApplication?->program) · {{ $enrollment->admissionApplication->program->name }}@endif</p>@endif
             @if (! $enrollment)
-                <section class="student-enrollment-task tala-task-surface" aria-labelledby="enrollment-entry-heading">
-                    <h2 id="enrollment-entry-heading">{{ $this->startRegistrationAction->isDisabled() ? 'Enrollment is unavailable' : 'Start your enrollment' }}</h2>
-                    <p>{{ $entryContext['reason'] ?? 'Open enrollment to review the subjects and fees prepared for this term. The Registrar reviews your classes before you confirm.' }}</p>
-                    <div class="student-finance-actions">{{ $this->startRegistrationAction }} <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(panel: 'student')" icon="heroicon-o-academic-cap">View academics</x-filament::button></div>
-                </section>
+                <x-servitech-task-state :heading="match ($entryContext['context_state']) {
+                        'academic_restriction' => 'Academic review needed',
+                        'ambiguous' => 'The Registrar needs to confirm your Term',
+                        'closed' => 'Enrollment is not open',
+                        default => $entryContext['can_start'] ? 'Start your enrollment' : 'Enrollment is unavailable',
+                    }" :description="$entryContext['reason'] ?? 'Review the subjects and fees prepared for this Term. The Registrar checks your classes before you confirm.'" :scope="$academicGuidance['scope_label'] ?? null" :office="in_array($entryContext['context_state'], ['academic_restriction', 'ambiguous'], true) ? 'Registrar Office' : null" :attention="in_array($entryContext['context_state'], ['academic_restriction', 'ambiguous'], true)">
+                    @if ($entryContext['can_start']){{ $this->startRegistrationAction }}@endif
+                    <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(['view' => 'plan'], panel: 'student')" icon="heroicon-o-map">View study plan</x-filament::button>
+                </x-servitech-task-state>
             @else
                 <div class="student-enrollment-task-layout">
                     <section class="student-enrollment-task tala-task-surface" aria-labelledby="enrollment-task-heading">

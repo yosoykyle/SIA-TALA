@@ -2,7 +2,7 @@
 
 namespace App\Actions\StudentHub;
 
-use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Finance\StudentTermAccountPresenter;
@@ -38,7 +38,7 @@ use Illuminate\Notifications\DatabaseNotification;
  *
  * TAL-91E implements the remaining tiers 6-10: missing requirements
  * (reusing {@see ChecklistItem} and its `isResolved()` logic), active
- * academic guidance (reusing the canonical AcademicEnrollmentEffect),
+ * academic guidance (reusing the canonical AcademicEnrollmentGuidance),
  * schedule available (reusing the exact published+active filter shape
  * from {@see StudentDashboardService::scheduleFor()}), COR available
  * (reusing {@see BuildCorOutput::forStudent()} directly rather than
@@ -54,7 +54,7 @@ class StudentHubPriorityResolver
         private readonly StudentTermAccountPresenter $finance,
         private readonly RegistrationReadinessQuery $registrationReadiness,
         private readonly BuildCorOutput $corOutput,
-        private readonly AcademicEnrollmentEffect $academicEnrollmentEffect,
+        private readonly AcademicEnrollmentGuidance $academicEnrollmentEffect,
     ) {}
 
     /**
@@ -336,12 +336,15 @@ class StudentHubPriorityResolver
     {
         $effect = $this->academicEnrollmentEffect->forStudent($studentProfile);
 
-        if ($effect['effect'] === AcademicDecision::EffectAllowed) {
+        if (! $effect['needs_attention']) {
             return null;
         }
 
         return [
             'tier' => 'Academic Guidance',
+            'scope_label' => $effect['scope_label'],
+            'term_id' => $effect['term_id'],
+            'academic_effect' => $effect['effect'],
             'student_reason' => $effect['student_reason'] ?? $effect['reason'],
             'required_action' => match ($effect['effect']) {
                 AcademicDecision::EffectAdvisingRequired => 'Before your next enrollment, ask the Registrar Office to plan your subjects with you.',

@@ -1144,8 +1144,27 @@
 .tala-record-history-panel > header .fi-icon { inline-size:1.125rem; block-size:1.125rem; color:var(--tala-brand-foreground); }
 .tala-record-history-panel h3,.tala-record-timeline h4 { font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
 .tala-record-history-panel > header > span { margin-inline-start:auto; color:var(--tala-muted); font-size:.75rem; }
+.tala-record-history-panel > header > div { min-inline-size:0; }
+.tala-record-history-panel > header > div > p { color:var(--tala-muted); font-size:.875rem; line-height:1.5; margin-block-start:.375rem; }
+.tala-record-history-panel > header h2 { font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); }
+.servitech-empty-state__footer { display:grid; gap:1rem; }
+.servitech-empty-state__actions { display:flex; flex-wrap:wrap; gap:.75rem; }
+.servitech-empty-state__note { color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
+.servitech-task-state { display:flex; align-items:flex-start; gap:1rem; padding:1.5rem; border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface); color:var(--tala-text); box-shadow:var(--tala-material-raised); min-inline-size:0; }
+.servitech-task-state__icon { display:grid; place-items:center; flex:none; inline-size:2.75rem; block-size:2.75rem; border-radius:50%; background:var(--tala-surface-sunken); color:var(--tala-brand-foreground); }
+.servitech-task-state__icon > .fi-icon { inline-size:1.5rem; block-size:1.5rem; }
+.servitech-task-state__body { display:grid; gap:.75rem; min-inline-size:0; }
+.servitech-task-state .servitech-task-state__body h2 { font-size:1.5rem; font-weight:var(--tala-weight-heading); line-height:1.25; text-wrap:balance; margin:0; }
+.servitech-task-state .servitech-task-state__body p { margin:0; max-inline-size:70ch; font-size:.9375rem; line-height:1.55; }
+.servitech-task-state .servitech-task-state__scope { font-weight:var(--tala-weight-emphasis); }
+.servitech-task-state .servitech-task-state__office { font-size:.875rem; }
+.servitech-task-state__actions { display:flex; flex-wrap:wrap; gap:.75rem; margin-block-start:.25rem; }
+.servitech-task-state--attention { background:color-mix(in srgb,var(--warning-500) 12%,var(--tala-surface)); border-color:color-mix(in srgb,var(--warning-500) 35%,var(--tala-edge)); }
+.servitech-task-state--attention .servitech-task-state__icon { color:var(--warning-700); background:color-mix(in srgb,var(--warning-500) 16%,var(--tala-surface)); }
+.dark .servitech-task-state--attention .servitech-task-state__icon { color:var(--warning-300); }
+@media(max-width:40rem) { .servitech-task-state { gap:.75rem; padding:1rem; } .servitech-task-state__icon { inline-size:2.25rem; block-size:2.25rem; } .servitech-task-state .servitech-task-state__body h2 { font-size:1.25rem; } }
 .tala-record-timeline { list-style:none; margin:0 1rem 1rem; padding:.25rem .875rem; border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface-sunken); }
-.tala-record-timeline-item { display:grid; grid-template-columns:1.75rem minmax(0,1fr); gap:.75rem; position:relative; padding-block:.875rem; }
+.tala-record-timeline-item { display:grid; grid-template-columns:1.75rem minmax(0,1fr); gap:.875rem; position:relative; padding-block:1rem; }
 .tala-record-timeline-item:not(:last-child)::after { content:''; position:absolute; inset-inline-start:.875rem; inset-block:2.5rem -.875rem; border-inline-start:1px solid var(--tala-edge); }
 .tala-record-timeline-marker { z-index:1; display:grid; place-items:center; inline-size:1.75rem; block-size:1.75rem; border:1px solid var(--tala-edge); border-radius:50%; background:var(--tala-surface); color:var(--tala-brand-foreground); box-shadow:var(--tala-rim-inset); }
 .tala-record-timeline-marker .fi-icon { inline-size:1rem; block-size:1rem; }
@@ -1156,7 +1175,7 @@
 .tala-record-timeline-item p { margin-block-start:.375rem; }
 .tala-record-timeline-item .fi-btn { margin-block-start:.625rem; }
 .tala-record-history-empty { padding:1rem; }
-.tala-record-history-panel > .tala-profile-collection-footer { border-block-start:1px solid var(--tala-edge); }
+.tala-record-history-panel > .tala-profile-collection-footer { background:var(--tala-surface); border-block-start:1px solid var(--tala-edge); }
 .tala-graduation-status { display:grid; gap:1rem; padding:1rem; border:1px solid var(--tala-edge); border-radius:.75rem; background:var(--tala-surface-sunken); box-shadow:var(--tala-material-detail); }
 .tala-graduation-status > header { display:flex; align-items:center; gap:.75rem; }
 .tala-graduation-status > header > .fi-icon { flex:none; inline-size:1.5rem; block-size:1.5rem; color:var(--tala-brand-foreground); }

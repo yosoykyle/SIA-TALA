@@ -22,8 +22,8 @@ class RegistrationEntryContext
         private readonly RegistrationSelectionBasisResolver $selectionBasis,
     ) {}
 
-    /** @return array{term:?Term,enrollment:?Enrollment,application:?AdmissionApplication,student_profile:?StudentProfile,can_start:bool,reason:?string} */
-    public function forUser(User $user): array
+    /** @return array{term:?Term,enrollment:?Enrollment,application:?AdmissionApplication,student_profile:?StudentProfile,can_start:bool,reason:?string,guidance_term:?Term,context_state:string} */
+    public function forUser(User $user, ?Term $requestedTerm = null): array
     {
         $profile = StudentProfile::query()->where('user_id', $user->id)->first();
         $cases = Enrollment::query()->with(['term', 'currentProposalVersion.confirmation', 'termAccount', 'admissionApplication', 'studentProfile'])
@@ -31,28 +31,47 @@ class RegistrationEntryContext
         $application = null;
         $term = null;
         $reason = null;
+        $contextState = 'unavailable';
+        $guidanceTerm = null;
         if ($profile instanceof StudentProfile) {
-            $terms = Term::query()->whereHas('calendarPackages', fn ($query) => $query->where('state', TermCalendarPackage::StateActive)
-                ->whereHas('windows', fn ($window) => $window->where('window_type', TermCalendarWindow::TypeEnrollment)))
+            $terms = $requestedTerm instanceof Term ? collect([$requestedTerm]) : Term::query()
+                ->with('academicYear')
+                ->whereHas('calendarPackages', fn ($query) => $query->where('state', TermCalendarPackage::StateActive)
+                    ->whereHas('windows', fn ($window) => $window->where('window_type', TermCalendarWindow::TypeEnrollment)))
                 ->orderBy('starts_on')->get()->filter(function (Term $candidate) use ($profile): bool {
                     try {
                         $this->calendar->assertEnrollmentWindowOpen($candidate->id);
+
+                        if ($candidate->registration_applicability === 'ReadyApplicants') {
+                            return false;
+                        }
+
                         $basis = $this->selectionBasis->forContinuingStudent($profile, $candidate);
                         app(RegistrationWindowApplicability::class)->assertPermitted($candidate, $basis, false);
 
                         return true;
-                    } catch (CalendarGateViolation|ValidationException) {
+                    } catch (ValidationException $exception) {
+                        return isset($exception->errors()['academic_effect']);
+                    } catch (CalendarGateViolation) {
                         return false;
                     }
                 });
             if ($terms->count() === 1) {
-                $term = $terms->first();
+                $term = $guidanceTerm = $terms->first();
                 try {
-                    $this->selectionBasis->forContinuingStudent($profile, $term);
+                    $this->calendar->assertEnrollmentWindowOpen($term->id);
+                    $basis = $this->selectionBasis->forContinuingStudent($profile, $term);
+                    app(RegistrationWindowApplicability::class)->assertPermitted($term, $basis, false);
+                    $contextState = 'open';
+                } catch (CalendarGateViolation $exception) {
+                    $reason = $exception->getMessage();
+                    $contextState = 'closed';
                 } catch (ValidationException $exception) {
                     $reason = $exception->getMessage();
+                    $contextState = isset($exception->errors()['academic_effect']) ? 'academic_restriction' : 'unavailable';
                 }
             } else {
+                $contextState = $terms->isEmpty() ? 'closed' : 'ambiguous';
                 $reason = $terms->isEmpty()
                     ? 'Enrollment is not open for you right now. Ask the Registrar about the next enrollment date.'
                     : 'The Registrar needs to confirm which term you can enroll in before you can start.';
@@ -62,10 +81,11 @@ class RegistrationEntryContext
             $ready = $applications->filter(fn (AdmissionApplication $candidate): bool => $this->readyApplicants->forApplication($candidate)['ready']);
             if ($ready->count() === 1) {
                 $application = $ready->first();
-                $term = $application->term()->first();
+                $term = $guidanceTerm = $application->term()->first();
                 try {
                     $this->calendar->assertEnrollmentWindowOpen($term->id);
                     app(RegistrationWindowApplicability::class)->assertPermitted($term, $this->selectionBasis->forApplicant($application), true);
+                    $contextState = 'open';
                 } catch (CalendarGateViolation|ValidationException $exception) {
                     $reason = $exception->getMessage();
                 }
@@ -81,6 +101,7 @@ class RegistrationEntryContext
             : ($unfinished->count() === 1 ? $unfinished->first() : ($activeCases->count() === 1 ? $activeCases->first() : ($activeCases->isEmpty() ? $cases->first() : null)));
         if (! $term instanceof Term && $activeCases->count() > 1 && $unfinished->count() !== 1) {
             $reason = 'The Registrar needs to confirm your current enrollment term. Your earlier enrollment records remain available.';
+            $contextState = 'ambiguous';
         }
         if ($case instanceof Enrollment && ! $term instanceof Term) {
             $term = $case->term;
@@ -90,7 +111,7 @@ class RegistrationEntryContext
         return [
             'term' => $term, 'enrollment' => $case, 'application' => $application, 'student_profile' => $profile,
             'can_start' => $user->canAuthenticate() && $term instanceof Term && ! $case instanceof Enrollment && $reason === null,
-            'reason' => $reason,
+            'reason' => $reason, 'guidance_term' => $guidanceTerm, 'context_state' => $contextState,
         ];
     }
 }
