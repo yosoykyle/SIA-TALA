@@ -29,6 +29,7 @@ use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\IndividualAssessmentSources;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
+use App\Actions\Finance\RecordCounterCashPayment;
 use App\Actions\Finance\RevalidateAssessmentEffects;
 use App\Actions\Finance\ReverseApprovedCoverage;
 use App\Actions\Finance\ReversePaymentPosting;
@@ -574,6 +575,7 @@ class ViewEnrollment extends ViewRecord
                 $this->recordApprovedCoverageAction(),
                 $this->reverseApprovedCoverageAction(),
                 $this->downloadPaymentEvidenceAction(),
+                $this->recordCounterCashPaymentAction(),
                 $this->verifyPaymentEvidenceAction(),
                 $this->reversePaymentPostingAction(),
                 $this->rejectPaymentEvidenceAction(),
@@ -1460,6 +1462,42 @@ class ViewEnrollment extends ViewRecord
                     $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Evidence was not verified', $exception);
+                }
+            });
+    }
+
+    public function recordCounterCashPaymentAction(): Action
+    {
+        return Action::make('recordCounterCashPayment')
+            ->label('Record cash payment at counter')
+            ->modalHeading('Record a cash payment received at the counter')
+            ->modalDescription('Use this when the learner paid cash in person at the school. Recording immediately verifies and applies the payment, with no proof-of-payment upload needed from the learner.')
+            ->modalSubmitActionLabel('Record and clear payment')
+            ->modalCancelActionLabel('Cancel')
+            ->icon('heroicon-o-banknotes')
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
+                && ($this->accountingViewData()['position']['state'] ?? 'Unavailable') !== 'Unavailable')
+            ->schema([
+                TextInput::make('amount')->label('Amount received')->numeric()->minValue(0.01)->prefix('PHP')->required()
+                    ->helperText('The exact cash amount the learner handed over at the counter.'),
+                TextInput::make('or_number')->label('Official Receipt number')->required()->maxLength(255)
+                    ->helperText('The OR issued to the learner for this in-person cash payment.'),
+                DateTimePicker::make('paid_at')->label('Received at')->default(now())->maxDate(now()->addMinutes(5))->required(),
+            ])
+            ->action(function (array $data): void {
+                try {
+                    $account = $this->getRecord()->termAccount()->firstOrFail();
+                    app(RecordCounterCashPayment::class)->execute(
+                        $account,
+                        $this->actor(),
+                        (string) $data['amount'],
+                        (string) $data['or_number'],
+                        $data['paid_at'],
+                    );
+                    Notification::make()->title('Cash payment recorded and cleared')->success()->send();
+                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
+                } catch (Throwable $exception) {
+                    $this->failure('Cash payment was not recorded', $exception);
                 }
             });
     }

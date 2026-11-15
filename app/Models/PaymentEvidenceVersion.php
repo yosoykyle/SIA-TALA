@@ -18,10 +18,14 @@ class PaymentEvidenceVersion extends Model
 
     public const StateRejected = 'Rejected';
 
+    public const SourceApplicantUpload = 'applicant_upload';
+
+    public const SourceAccountingCounter = 'accounting_counter';
+
     protected $fillable = [
         'term_account_id', 'assessment_id', 'obligation_snapshot', 'supersedes_version_id', 'version', 'state', 'disk', 'path',
         'original_name', 'mime_type', 'size_bytes', 'checksum', 'claimed_amount', 'channel', 'paid_at',
-        'payment_reference', 'possible_duplicate', 'submitted_by', 'submitted_at', 'reviewed_by',
+        'payment_reference', 'possible_duplicate', 'submitted_by', 'submitted_at', 'source', 'reviewed_by',
         'reviewed_at', 'review_note', 'external_check_reference', 'actual_verified_amount',
     ];
 

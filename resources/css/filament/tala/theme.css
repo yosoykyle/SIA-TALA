@@ -142,6 +142,8 @@
 
 
 .fi-ta-text-item { font-variant-numeric: tabular-nums; }
+/* Table text and descriptions stay on one line with an ellipsis instead of Filament's default mid-word wrap; tables that need real wrapping (e.g. .tala-applicant-history-table) override this with a more specific selector. */
+:is(.fi-ta-text-item, .fi-ta-text-description) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%; }
 .fi-badge { min-height: 1.5rem; }
 
 .fi-simple-layout {
@@ -1247,16 +1249,16 @@
         overflow-wrap: anywhere;
     }
 }
-/* Applicant and Registrar top bars: signed-in person's name at the start, current Asia/Manila date and time at the end; no account or notification controls. */
-:is(.tala-applicant-topbar, .tala-registrar-topbar) { position: sticky; inset-block-start: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 4rem; padding-inline: 2rem; border-bottom: 1px solid var(--tala-chrome-divider); background: var(--tala-chrome); box-shadow: var(--tala-shadow-detail); }
-:is(.tala-applicant-topbar__identity, .tala-registrar-topbar__identity) { display: none; min-width: 0; }
-:is(.tala-applicant-topbar__identity, .tala-registrar-topbar__identity) .tala-brand__name { font-size: 0.875rem; }
-:is(.tala-applicant-topbar__person, .tala-registrar-topbar__person) { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--gray-900); }
-.dark :is(.tala-applicant-topbar__person, .tala-registrar-topbar__person) { color: var(--gray-100); }
-:is(.tala-applicant-topbar__person-icon, .tala-registrar-topbar__person-icon) { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; color: var(--primary-700); }
-.dark :is(.tala-applicant-topbar__person-icon, .tala-registrar-topbar__person-icon) { color: var(--primary-400); }
-:is(.tala-applicant-topbar__person-name, .tala-registrar-topbar__person-name) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:is(.tala-applicant-topbar__end, .tala-registrar-topbar__end) { display: flex; flex: 0 0 auto; margin-inline-start: auto; }
+/* Applicant, Registrar and other staff/Student Hub top bars: signed-in person's name at the start, current Asia/Manila date and time at the end; no account or notification controls. */
+:is(.tala-applicant-topbar, .tala-registrar-topbar, .tala-staff-topbar) { position: sticky; inset-block-start: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 4rem; padding-inline: 2rem; border-bottom: 1px solid var(--tala-chrome-divider); background: var(--tala-chrome); box-shadow: var(--tala-shadow-detail); }
+:is(.tala-applicant-topbar__identity, .tala-registrar-topbar__identity, .tala-staff-topbar__identity) { display: none; min-width: 0; }
+:is(.tala-applicant-topbar__identity, .tala-registrar-topbar__identity, .tala-staff-topbar__identity) .tala-brand__name { font-size: 0.875rem; }
+:is(.tala-applicant-topbar__person, .tala-registrar-topbar__person, .tala-staff-topbar__person) { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--gray-900); }
+.dark :is(.tala-applicant-topbar__person, .tala-registrar-topbar__person, .tala-staff-topbar__person) { color: var(--gray-100); }
+:is(.tala-applicant-topbar__person-icon, .tala-registrar-topbar__person-icon, .tala-staff-topbar__person-icon) { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; color: var(--primary-700); }
+.dark :is(.tala-applicant-topbar__person-icon, .tala-registrar-topbar__person-icon, .tala-staff-topbar__person-icon) { color: var(--primary-400); }
+:is(.tala-applicant-topbar__person-name, .tala-registrar-topbar__person-name, .tala-staff-topbar__person-name) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(.tala-applicant-topbar__end, .tala-registrar-topbar__end, .tala-staff-topbar__end) { display: flex; flex: 0 0 auto; margin-inline-start: auto; }
 .tala-clock { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; font-size: 0.875rem; font-weight: 600; color: var(--gray-800); font-variant-numeric: tabular-nums; }
 .dark .tala-clock { color: var(--gray-200); }
 .tala-clock__part { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.25rem; padding-inline: 0.75rem; border: 1px solid var(--tala-edge); border-radius: 0.625rem; background: var(--tala-surface); white-space: nowrap; }
@@ -1265,7 +1267,7 @@
 .tala-clock__zone { font-size: 0.75rem; font-weight: 500; color: var(--tala-muted); }
 .tala-clock--compact { display: none; }
 @media (max-width: 63.999rem) {
-    :is(.tala-applicant-topbar, .tala-registrar-topbar) {
+    :is(.tala-applicant-topbar, .tala-registrar-topbar, .tala-staff-topbar) {
         position: relative;
         z-index: 5;
         min-block-size: var(--tala-workspace-header-height);
@@ -1273,10 +1275,10 @@
     }
 }
 @media (max-width: 39.999rem) {
-    /* Applicant swaps its name for the school brand on mobile; the Registrar top bar keeps the signed-in name instead (#80). */
+    /* Applicant swaps its name for the school brand on mobile; the Registrar and other staff/Student Hub top bars keep the signed-in name instead (#80). */
     .tala-applicant-topbar__identity { display: block; }
     .tala-applicant-topbar__person { display: none; }
-    .tala-registrar-topbar__person { flex: 1 1 auto; }
+    :is(.tala-registrar-topbar__person, .tala-staff-topbar__person) { flex: 1 1 auto; }
     .tala-clock--bar { display: none; }
     .tala-clock--compact { display: grid; justify-items: end; gap: 0.125rem; flex: 0 0 auto; font-size: 0.8125rem; text-align: end; }
     .tala-clock--compact .tala-clock__part { min-height: 0; padding: 0; border: 0; background: none; }

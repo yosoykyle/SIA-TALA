@@ -9,6 +9,7 @@ use App\Filament\Applicant\Pages\Application;
 use App\Filament\Applicant\Pages\ApplicationHistory;
 use App\Filament\Applicant\Pages\Dashboard;
 use App\Filament\Applicant\Pages\SubmissionReceipt;
+use App\Filament\Clusters\Admissions;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Models\AdmissionApplication;
@@ -201,7 +202,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertSeeInOrder(['Account security', "Applicant's History", 'Sign out']);
     }
 
-    public function test_registrar_sidebar_shows_admissions_queues_with_counts(): void
+    public function test_registrar_sidebar_is_flat_and_the_admissions_dashboard_shows_queue_cards_with_counts(): void
     {
         $this->application();
         $this->application();
@@ -209,16 +210,23 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $registrar->saveAppAuthenticationSecret('base32secret3232');
         $registrar->acknowledgeRecoveryCodeStorage();
         $needsReview = app(AdmissionQueueCounts::class)->count(AdmissionQueueCounts::NeedsReview);
+        $this->assertGreaterThanOrEqual(2, $needsReview);
 
-        $queueList = $this->actingAs($registrar)
+        $this->actingAs($registrar)
             ->get(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::NeedsReview], panel: 'admin'))
             ->assertOk()
-            ->assertSeeInOrder(['Admissions', 'Needs review', 'Waiting for applicant', 'Registrar clearance', 'Ready for enrollment', 'Closed applications', 'Students &amp; Enrollment'], false)
-            ->assertSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::RegistrarClearance], panel: 'admin'));
-        $this->assertGreaterThanOrEqual(2, $needsReview);
-        $this->assertStringContainsString('>'.$needsReview.'<', preg_replace('/\s+/', '', (string) $queueList->getContent()));
+            ->assertDontSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::WaitingForApplicant], panel: 'admin'))
+            ->assertDontSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::RegistrarClearance], panel: 'admin'))
+            ->assertDontSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::ReadyForEnrollment], panel: 'admin'))
+            ->assertDontSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::Closed], panel: 'admin'));
 
-        $this->assertStringContainsString('fi-sidebar-sub-group-items', (string) $queueList->getContent());
+        $dashboard = $this->actingAs($registrar)
+            ->get(Admissions::getUrl(panel: 'admin'))
+            ->assertOk()
+            ->assertSeeInOrder(['Needs review', 'Registrar clearance', 'Other queues', 'Waiting for applicant', 'Ready for enrollment', 'Closed applications', 'Admission cycles'], false)
+            ->assertSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::NeedsReview], panel: 'admin'))
+            ->assertSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::RegistrarClearance], panel: 'admin'));
+        $this->assertStringContainsString('>'.$needsReview.'<', preg_replace('/\s+/', '', (string) $dashboard->getContent()));
     }
 
     public function test_waiting_and_decided_states_offer_no_primary_action(): void

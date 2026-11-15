@@ -34,7 +34,6 @@ use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
-use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Courses\CourseResource;
@@ -77,7 +76,6 @@ use App\Models\AdmissionCycle;
 use App\Models\FaqEntry;
 use App\Models\Term;
 use App\Models\User;
-use App\Queries\Admissions\AdmissionQueueCounts;
 use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
@@ -329,7 +327,7 @@ class AdminPanelProvider extends PanelProvider
         $termPlanningContext = $this->focusedTermPlanningContext();
         if ($selectedContext === User::StaffRoleRegistrar) {
             return $builder->group('Learner work', [
-                ...$this->admissionsWithQueues($this->labeledNavigationItems(['Admissions' => Admissions::class])),
+                ...$this->labeledNavigationItems(['Admissions' => Admissions::class]),
                 ...$this->labeledNavigationItems(['Students & Enrollment' => EnrollmentResource::class]),
                 ...$this->gradesWithChildren($this->labeledNavigationItems(['Grades & Completion' => GradesAndCompletion::class])),
             ])->group('Academic setup', $this->planningWithChildren($this->labeledNavigationItems([
@@ -557,41 +555,5 @@ class AdminPanelProvider extends PanelProvider
             ->isActiveWhen(fn (): bool => $selected === $key))->values()->all();
 
         return array_map(fn (NavigationItem $item): NavigationItem => $item->childItems($children), $items);
-    }
-
-    /**
-     * Admissions shows the Registrar-action count and, while inside Admissions, one sub-item per queue (#61 F101).
-     *
-     * @param  list<NavigationItem>  $items
-     * @return list<NavigationItem>
-     */
-    private function admissionsWithQueues(array $items): array
-    {
-        if ($items === [] || ! AdmissionApplicationResource::canAccess()) {
-            return $items;
-        }
-
-        $queues = app(AdmissionQueueCounts::class);
-        $counts = collect(AdmissionQueueCounts::labels())->map(fn (string $label, string $queue): int => $queues->count($queue));
-        $actionCount = collect(AdmissionQueueCounts::registrarActionQueues())->sum(fn (string $queue): int => $counts[$queue]);
-        $onList = fn (): bool => request()->routeIs(ListAdmissionApplications::getRouteName());
-
-        $children = $counts->map(fn (int $count, string $queue): NavigationItem => NavigationItem::make(AdmissionQueueCounts::labels()[$queue])
-            ->icon(match ($queue) {
-                AdmissionQueueCounts::NeedsReview => Heroicon::OutlinedDocumentMagnifyingGlass,
-                AdmissionQueueCounts::WaitingForApplicant => Heroicon::OutlinedClock,
-                AdmissionQueueCounts::RegistrarClearance => Heroicon::OutlinedClipboardDocumentCheck,
-                AdmissionQueueCounts::ReadyForEnrollment => Heroicon::OutlinedCheckCircle,
-                AdmissionQueueCounts::Closed => Heroicon::OutlinedArchiveBox,
-                default => Heroicon::OutlinedQueueList,
-            })
-            ->url(ListAdmissionApplications::getUrl(['tab' => $queue]))
-            ->badge($count ?: null, in_array($queue, AdmissionQueueCounts::registrarActionQueues(), true) ? 'warning' : 'gray')
-            ->isActiveWhen(fn (): bool => $onList() && (request()->query('tab') ?? AdmissionQueueCounts::NeedsReview) === $queue))
-            ->values()->all();
-
-        return array_map(fn (NavigationItem $item): NavigationItem => $item
-            ->badge($actionCount ?: null, 'warning')
-            ->childItems($children), $items);
     }
 }

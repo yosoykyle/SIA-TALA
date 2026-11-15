@@ -3,10 +3,10 @@
 namespace Tests\Feature\Auth;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Clusters\Admissions;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\MyAvailability;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
-use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -97,8 +97,8 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $this->get(AdmissionApplicationResource::getUrl())
             ->assertOk()
-            ->assertSee('Admission cycles')
-            ->assertSee(AdmissionCycleResource::getUrl(), false);
+            ->assertSee('Admissions')
+            ->assertSee(Admissions::getUrl(), false);
 
         $academicHead = $this->userWithRole(User::StaffRoleAcademicHead, User::StatusActive);
         $this->actingAs($academicHead)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAcademicHead]);

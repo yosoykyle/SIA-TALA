@@ -158,10 +158,20 @@ class TalaPanelTheme
                     'brand' => new HtmlString(self::brand($panel)->render()),
                     'person' => self::staffName($panel),
                 ])->render(),
+                self::otherStaffWorkspace($panel) !== null => view('filament.components.staff-workspace-topbar', [
+                    'workspace' => self::otherStaffWorkspace($panel),
+                    'brand' => new HtmlString(self::brand($panel)->render()),
+                    'person' => self::staffName($panel),
+                ])->render(),
+                self::isStudentPanel($panel) => view('filament.components.staff-workspace-topbar', [
+                    'workspace' => 'student',
+                    'brand' => new HtmlString(self::brand($panel)->render()),
+                    'person' => self::staffName($panel),
+                ])->render(),
                 default => '',
             }))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): HtmlString => new HtmlString(
-                self::isApplicantPanel($panel) || self::isRegistrarWorkspace($panel)
+                self::hasWorkspaceTopBar($panel)
                     ? ''
                     : '<div class="tala-mobile-workspace-identity">'.self::brand($panel)->render().'</div>',
             ))
@@ -170,6 +180,9 @@ class TalaPanelTheme
                 self::isApplicantPanel($panel) ? '' : '<p class="tala-workspace-context">'.e(self::workspaceContext($panel)).'</p>',
             ))
             ->renderHook(PanelsRenderHook::SIDEBAR_NAV_START, fn (): View => view('filament.components.workspace-search'))
+            ->renderHook(PanelsRenderHook::SIDEBAR_NAV_END, fn (): HtmlString => new HtmlString(
+                '<div class="tala-sidebar-shapes" aria-hidden="true"></div>',
+            ))
             ->renderHook(PanelsRenderHook::SIDEBAR_FOOTER, fn (): HtmlString => self::attribution($panel, '<div class="tala-sidebar-attribution">%s</div>'))
             ->renderHook(PanelsRenderHook::CONTENT_END, fn (): HtmlString => self::attribution($panel, '<footer class="tala-mobile-attribution">%s</footer>'))
             ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_END, fn (array $scopes): View => view('filament.components.auth-main-end', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
@@ -205,19 +218,48 @@ class TalaPanelTheme
         return $panel->getId() === 'applicant';
     }
 
-    /** The Registrar top bar (#80) only shows while Registrar is the user's current selected workspace, not merely a held role. */
-    private static function isRegistrarWorkspace(Panel $panel): bool
+    private static function isStudentPanel(Panel $panel): bool
+    {
+        return $panel->getId() === 'student';
+    }
+
+    /** The user's current selected staff workspace within the shared admin panel, not merely a held role. */
+    private static function selectedStaffContext(Panel $panel): ?string
     {
         $user = $panel->auth()->user();
         if ($panel->getId() !== 'admin' || ! $user instanceof User) {
-            return false;
+            return null;
         }
 
         $resolver = app(WorkspaceContextResolver::class);
         $contexts = $resolver->availableContexts($user);
-        $selected = $resolver->selected($user) ?? (count($contexts) === 1 ? array_key_first($contexts) : null);
 
-        return $selected === User::StaffRoleRegistrar;
+        return $resolver->selected($user) ?? (count($contexts) === 1 ? array_key_first($contexts) : null);
+    }
+
+    /** The Registrar top bar (#80) only shows while Registrar is the user's current selected workspace. */
+    private static function isRegistrarWorkspace(Panel $panel): bool
+    {
+        return self::selectedStaffContext($panel) === User::StaffRoleRegistrar;
+    }
+
+    /** The remaining staff workspaces (#80) share one generic top bar, keyed by a short workspace slug. */
+    private static function otherStaffWorkspace(Panel $panel): ?string
+    {
+        return match (self::selectedStaffContext($panel)) {
+            User::StaffRoleAccounting => 'accounting',
+            User::StaffRoleFaculty => 'faculty',
+            User::StaffRoleAcademicHead => 'academic-head',
+            User::StaffRoleSystemSuperAdmin => 'system-admin',
+            default => null,
+        };
+    }
+
+    /** Whether this panel/workspace renders a sticky top bar instead of the plain mobile-only brand identity. */
+    private static function hasWorkspaceTopBar(Panel $panel): bool
+    {
+        return self::isApplicantPanel($panel) || self::isRegistrarWorkspace($panel)
+            || self::otherStaffWorkspace($panel) !== null || self::isStudentPanel($panel);
     }
 
     private static function staffName(Panel $panel): ?string
@@ -247,19 +289,11 @@ class TalaPanelTheme
 
     private static function workspaceContext(Panel $panel): string
     {
-        $user = $panel->auth()->user();
-        if ($panel->getId() !== 'admin' || ! $user instanceof User) {
+        if ($panel->getId() !== 'admin' || ! $panel->auth()->user() instanceof User) {
             return (string) str($panel->getBrandName())->after(' — ');
         }
 
-        $resolver = app(WorkspaceContextResolver::class);
-        $contexts = $resolver->availableContexts($user);
-        $selected = $resolver->selected($user);
-        if ($selected === null && count($contexts) === 1) {
-            $selected = array_key_first($contexts);
-        }
-
-        $label = User::staffRoleOptions()[$selected ?? ''] ?? null;
+        $label = User::staffRoleOptions()[self::selectedStaffContext($panel) ?? ''] ?? null;
 
         return $label !== null ? $label.' workspace' : 'Choose a workspace';
     }

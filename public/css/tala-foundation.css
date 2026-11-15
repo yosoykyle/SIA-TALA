@@ -181,6 +181,15 @@
 .tala-workspace-launcher__main .tala-workspace-feature__body > :not(.tala-workspace-card__icon):not(h2):not(h3) { grid-column:1 / -1; }
 .tala-workspace-launcher__main .tala-workspace-card__icon { inline-size:2.5rem; block-size:2.5rem; }
 .tala-workspace-launcher__main .tala-workspace-card__icon > .fi-icon { inline-size:1.5rem; block-size:1.5rem; }
+.tala-workspace-launcher__main .tala-workspace-feature__body--with-art { display:flex; flex-direction:row; align-items:center; gap:1.25rem; }
+.tala-workspace-feature__content { display:flex; flex-direction:column; gap:1rem; min-inline-size:0; flex:1; }
+.tala-workspace-feature__content :is(h2,h3) { font-size:var(--tala-type-section); }
+.tala-workspace-feature__content > p { font-size:var(--tala-type-caption); }
+.tala-workspace-card__art { flex-shrink:0; inline-size:6rem; block-size:6rem; filter:drop-shadow(0 .5rem 1rem rgb(0 0 0 / 35%)); }
+.tala-workspace-card__art > svg { display:block; inline-size:100%; block-size:100%; }
+@container (max-width: 26rem) {
+    .tala-workspace-card__art { display:none; }
+}
 .tala-workspace-launcher__main .tala-workspace-figure > strong { font-size:var(--tala-type-value); }
 .tala-workspace-launcher__main .tala-workspace-feature__body > p { font-size:var(--tala-type-caption); }
 .tala-workspace-launcher__main .tala-workspace-feature__action { padding:1rem 1.25rem; }
@@ -213,13 +222,15 @@
 .tala-workspace-text-link > .fi-icon { inline-size: 1rem; block-size: 1rem; flex-shrink: 0; }
 .tala-workspace-text-link:focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 3px; }
 .tala-workspace-card {
-    display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) 1rem; align-items: center;
+    display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) auto; align-items: start;
     gap: .75rem; min-inline-size: 0; padding: 1.25rem; color: var(--tala-text); text-decoration: none;
 }
 .tala-workspace-card__content { display: grid; gap: .5rem; min-inline-size: 0; }
 .tala-workspace-card__title { font-size: var(--tala-type-caption); font-weight: var(--tala-weight-emphasis); line-height: 1.35; }
 .tala-workspace-card__description, .tala-workspace-card__note { color: var(--tala-muted); font-size: var(--tala-type-caption); line-height: 1.5; }
-.tala-workspace-card__arrow { inline-size: 1rem; block-size: 1rem; color: var(--tala-muted); }
+.tala-workspace-card__trailing { display: flex; align-items: center; gap: .625rem; flex-shrink: 0; margin-block-start: .125rem; }
+.tala-workspace-card__count { font-size: var(--tala-type-value); font-weight: var(--tala-weight-heading); line-height: 1; font-variant-numeric: tabular-nums; color: var(--tala-text); }
+.tala-workspace-card__arrow { inline-size: 1rem; block-size: 1rem; color: var(--tala-muted); flex-shrink: 0; }
 .tala-workspace-card:hover { background: var(--tala-surface-sunken); }
 .tala-workspace-card:focus-visible { outline: 3px solid var(--tala-focus); outline-offset: -3px; }
 .tala-workspace-launcher__supporting { margin-block-start: 1.75rem; }
@@ -240,12 +251,18 @@
 .tala-workspace-launcher__split { display: grid; gap: 1rem; }
 @container (min-width: 40rem) {
     .tala-workspace-launcher__main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .tala-workspace-launcher__main--two-up { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .tala-workspace-launcher__other { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
     .tala-workspace-card--compact + .tala-workspace-card--compact { border-block-start: 0; border-inline-start: 1px solid var(--tala-edge); }
     .tala-workspace-task-grid, .tala-workspace-launcher__split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.tala-workspace-launcher__other--plain-list { grid-auto-flow: row; grid-template-columns: 1fr; }
+.tala-workspace-launcher__other--plain-list .tala-workspace-card--compact + .tala-workspace-card--compact { border-inline-start: 0; border-block-start: 1px solid var(--tala-edge); }
+.tala-workspace-launcher__other--plain-list .tala-workspace-card__icon { inline-size: 1.5rem; block-size: 1.5rem; border-radius: 0; background: transparent; color: var(--tala-muted); }
+.tala-workspace-launcher__other--plain-list .tala-workspace-card__icon > .fi-icon { inline-size: 1.5rem; block-size: 1.5rem; }
 @container (min-width: 64rem) {
     .tala-workspace-launcher__main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .tala-workspace-launcher__main--two-up { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (forced-colors: active) {
     .tala-workspace-feature .tala-workspace-feature__body, .tala-workspace-feature__action, .tala-workspace-card__icon { background: Canvas; color: CanvasText; }
@@ -385,6 +402,28 @@
     flex: none;
     height: 1rem;
     width: 1rem;
+}
+
+/*
+ * The sign-in page's own decorative shapes, reused in the sidebar nav's leftover space (#80).
+ * A flex child (not absolutely positioned) so it only ever claims space the nav items don't
+ * already need, and can never overlap the last nav item regardless of how many groups render.
+ */
+.tala-sidebar-shapes {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    inline-size: 100%;
+    pointer-events: none;
+    background-color: var(--tala-brand);
+    opacity: .24;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: center; mask-position: center;
+    -webkit-mask-size: contain; mask-size: contain;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 220'%3E%3Ccircle cx='24' cy='20' r='7' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='136' cy='34' r='2.5'/%3E%3Ccircle cx='88' cy='14' r='2'/%3E%3Ccircle cx='58' cy='52' r='2.5'/%3E%3Ccircle cx='165' cy='70' r='6' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='12' cy='70' r='2'/%3E%3Ccircle cx='110' cy='95' r='2'/%3E%3Cpath d='M44 80c1 7 3 10 11 11-8 1-10 4-11 11-1-7-3-10-11-11 8-1 10-4 11-11Z'/%3E%3Cpath d='M132 88c1 7 3 10 11 11-8 1-10 4-11 11-1-7-3-10-11-11 8-1 10-4 11-11Z'/%3E%3Cpath d='M92 55c1 5 2 7 8 8-6 1-7 3-8 8-1-5-2-7-8-8 6-1 7-3 8-8Z'/%3E%3Cpath d='M25 105c1 5 2 7 8 8-6 1-7 3-8 8-1-5-2-7-8-8 6-1 7-3 8-8Z'/%3E%3Cpath d='M26 130l30-10-16 26-5-9Z'/%3E%3Cpath d='M148 145l24-8-13 21-4-7Z'/%3E%3Cpath d='M70 110l22-7-12 19-4-6Z'/%3E%3Cpath d='M92 148q16 8 0 16q-16-8 0-16' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M60 188q10 5 0 10q-10-5 0-10' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M150 195q12 6 0 12q-12-6 0-12' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='148' cy='190' r='2'/%3E%3Ccircle cx='18' cy='182' r='2.5'/%3E%3Ccircle cx='90' cy='200' r='2'/%3E%3Cpath d='M108 22h8m-4-4v8' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M158 108h7m-3.5-3.5v7' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M18 155h7m-3.5-3.5v7' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M128 165h6m-3-3v6' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 220'%3E%3Ccircle cx='24' cy='20' r='7' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='136' cy='34' r='2.5'/%3E%3Ccircle cx='88' cy='14' r='2'/%3E%3Ccircle cx='58' cy='52' r='2.5'/%3E%3Ccircle cx='165' cy='70' r='6' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='12' cy='70' r='2'/%3E%3Ccircle cx='110' cy='95' r='2'/%3E%3Cpath d='M44 80c1 7 3 10 11 11-8 1-10 4-11 11-1-7-3-10-11-11 8-1 10-4 11-11Z'/%3E%3Cpath d='M132 88c1 7 3 10 11 11-8 1-10 4-11 11-1-7-3-10-11-11 8-1 10-4 11-11Z'/%3E%3Cpath d='M92 55c1 5 2 7 8 8-6 1-7 3-8 8-1-5-2-7-8-8 6-1 7-3 8-8Z'/%3E%3Cpath d='M25 105c1 5 2 7 8 8-6 1-7 3-8 8-1-5-2-7-8-8 6-1 7-3 8-8Z'/%3E%3Cpath d='M26 130l30-10-16 26-5-9Z'/%3E%3Cpath d='M148 145l24-8-13 21-4-7Z'/%3E%3Cpath d='M70 110l22-7-12 19-4-6Z'/%3E%3Cpath d='M92 148q16 8 0 16q-16-8 0-16' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M60 188q10 5 0 10q-10-5 0-10' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M150 195q12 6 0 12q-12-6 0-12' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='148' cy='190' r='2'/%3E%3Ccircle cx='18' cy='182' r='2.5'/%3E%3Ccircle cx='90' cy='200' r='2'/%3E%3Cpath d='M108 22h8m-4-4v8' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M158 108h7m-3.5-3.5v7' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M18 155h7m-3.5-3.5v7' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M128 165h6m-3-3v6' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+@media (forced-colors: active) {
+    .tala-sidebar-shapes { display: none; }
 }
 
 .tala-access-page { margin: 0; background: var(--tala-canvas); color: var(--tala-text); font-family: var(--tala-font-body); line-height: 1.6; }

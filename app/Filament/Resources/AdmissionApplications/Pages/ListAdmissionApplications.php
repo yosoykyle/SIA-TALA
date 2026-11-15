@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AdmissionApplications\Pages;
 
+use App\Filament\Clusters\Admissions;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Models\AdmissionApplication;
@@ -37,6 +38,21 @@ class ListAdmissionApplications extends ListRecords
         return 'Application queue';
     }
 
+    /**
+     * Hardcoded rather than inherited: the clustered resource's plural model label is also
+     * "Admissions" (for queue-count labelling elsewhere), which collides with the cluster's own
+     * breadcrumb label and makes Filament skip linking back to the Admissions dashboard (#80).
+     *
+     * @return array<string>
+     */
+    public function getBreadcrumbs(): array
+    {
+        return [
+            ...(Admissions::canAccess() ? [Admissions::getUrl() => 'Admissions'] : []),
+            'Application queue',
+        ];
+    }
+
     protected function getHeaderActions(): array
     {
         $applicantLabel = fn (User $applicant): string => $applicant->getFilamentName().' · '.$applicant->email;
@@ -55,6 +71,7 @@ class ListAdmissionApplications extends ListRecords
                 ->label('Prepare assisted draft')
                 ->icon('heroicon-o-user-plus')
                 ->color('gray')
+                ->outlined()
                 ->modalSubmitActionLabel('Continue')
                 ->modalDescription('Find an Applicant by name, email or application reference. Available drafts open for assistance; submitted applications open for Registrar review. Applicants submit their own drafts.')
                 ->schema([
