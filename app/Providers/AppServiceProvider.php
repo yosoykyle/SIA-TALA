@@ -2,9 +2,6 @@
 
 namespace App\Providers;
 
-use App\Actions\Integrations\Payments\MockPaymentGateway;
-use App\Actions\Integrations\Payments\PaymentGateway;
-use App\Actions\Integrations\Payments\PayMongoPaymentGateway;
 use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
 use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\GoogleServiceAccountCloudRunIdTokenProvider;
@@ -29,7 +26,6 @@ use App\Models\FinancialAccommodation;
 use App\Models\ImportBatch;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
 use App\Models\Room;
@@ -55,7 +51,6 @@ use App\Policies\FeeRulePolicy;
 use App\Policies\FinancialAccommodationPolicy;
 use App\Policies\ImportBatchPolicy;
 use App\Policies\LedgerEntryPolicy;
-use App\Policies\PaymentAttemptPolicy;
 use App\Policies\PaymentPolicy;
 use App\Policies\PaymentScheduleRowPolicy;
 use App\Policies\ProgramPolicy;
@@ -67,7 +62,6 @@ use App\Policies\SectionDeliveryGroupPolicy;
 use App\Policies\SectionMeetingPolicy;
 use App\Policies\SectionPolicy;
 use App\Policies\TermPolicy;
-use App\Support\DecimalMoney;
 use App\Support\TalaPanelTheme;
 use Filament\Actions\Action;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as FilamentLoginResponse;
@@ -136,28 +130,6 @@ class AppServiceProvider extends ServiceProvider
                 default => throw new InvalidArgumentException('Unsupported TALA scheduling solver driver configured.'),
             };
         });
-
-        $this->app->singleton(PayMongoPaymentGateway::class, function ($app): PayMongoPaymentGateway {
-            return new PayMongoPaymentGateway(
-                money: $app->make(DecimalMoney::class),
-                baseUrl: (string) config('tala_integrations.payments.paymongo.base_url', 'https://api.paymongo.com'),
-                secretKey: config('tala_integrations.payments.paymongo.secret_key') !== null
-                    ? (string) config('tala_integrations.payments.paymongo.secret_key')
-                    : null,
-                paymentMethodTypes: (array) config('tala_integrations.payments.paymongo.payment_method_types', ['gcash', 'card']),
-            );
-        });
-
-        $this->app->singleton(PaymentGateway::class, function ($app): PaymentGateway {
-            return match (config('tala_integrations.payments.driver', 'mock')) {
-                'mock' => new MockPaymentGateway(
-                    providerName: (string) config('tala_integrations.payments.mock.provider', 'mock'),
-                    checkoutBaseUrl: (string) config('tala_integrations.payments.mock.checkout_base_url', 'https://mock-payments.test/checkout'),
-                ),
-                'paymongo' => $app->make(PayMongoPaymentGateway::class),
-                default => throw new InvalidArgumentException('Unsupported TALA payment gateway driver configured.'),
-            };
-        });
     }
 
     /**
@@ -183,7 +155,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(PaymentScheduleRow::class, PaymentScheduleRowPolicy::class);
         Gate::policy(LedgerEntry::class, LedgerEntryPolicy::class);
         Gate::policy(Payment::class, PaymentPolicy::class);
-        Gate::policy(PaymentAttempt::class, PaymentAttemptPolicy::class);
         Gate::policy(SchedulingDemand::class, SchedulingDemandPolicy::class);
         Gate::policy(ScheduleGenerationRun::class, ScheduleGenerationRunPolicy::class);
         Gate::policy(Section::class, SectionPolicy::class);

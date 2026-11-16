@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Finance\FinanceEvidenceService;
+use App\Actions\Finance\SchoolPaymentChannels;
 use App\Filament\Student\Pages\Finance;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
@@ -172,10 +173,26 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
     public function test_finance_page_distinguishes_payment_checkout_evidence_review_ledger_posted_and_or_mapping_states(): void
     {
         $fixture = $this->financeFixture(['post_payment' => false]);
+        $accounting = User::factory()->create(['status' => User::StatusActive]);
+        $accounting->assignRole(Role::query()->firstOrCreate(['name' => User::StaffRoleAccounting, 'guard_name' => 'web']));
+        app(SchoolPaymentChannels::class)->update([
+            'bank_transfer' => [
+                'enabled' => true,
+                'accounts' => [[
+                    'id' => 'bank-tal91b-1',
+                    'bank_name' => 'Land Bank of the Philippines',
+                    'account_name' => 'TALA State College',
+                    'account_number' => '0012-3456-78',
+                ]],
+            ],
+            'e_wallets' => ['enabled' => false, 'accounts' => []],
+            'cash' => ['enabled' => true, 'location' => 'Campus Cashier Window'],
+        ], $accounting, 'Enable bank transfer for finance action visibility check');
+
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
             ->assertSee('Account balance')
-            ->assertSee('Submit payment proof')
+            ->assertSee('Submit receipt')
             ->assertDontSee('Payment checkout')
             ->assertDontSee('Pending OR Mapping')
             ->assertDontSee('Mapped OR');
@@ -271,13 +288,13 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
         ]);
         $payment = Payment::factory()->for($profile)->for($term)->create([
             'term_account_id' => $account->id,
-            'method' => 'paymongo',
-            'channel' => 'paymongo',
+            'method' => 'bank_transfer',
+            'channel' => 'bank_transfer',
             'amount' => '500.00',
             'evidence_status' => 'verified',
             'paid_at' => now()->subMinutes(30),
             'verified_at' => now()->subMinutes(20),
-            'provider_reference' => 'pm_'.fake()->unique()->numerify('######'),
+            'provider_reference' => 'MANUAL-'.fake()->unique()->numerify('######'),
             'or_number' => null,
         ]);
 

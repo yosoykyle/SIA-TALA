@@ -18,7 +18,7 @@
             <div><dt>Subjects confirmed</dt><dd>{{ $subjectCount }} {{ $subjectCount === 1 ? 'subject' : 'subjects' }} · {{ (float) $proposal?->items->sum('units_snapshot') }} units</dd></div>
             <div><dt>Enrollment payment</dt><dd>{{ ($paymentRequirement['satisfaction_basis'] ?? '') === 'NoPaymentRequired' ? 'No payment required' : 'Requirement met' }}</dd></div>
         </dl>
-        @if ($seatDeadline)<p class="student-registration-help">Temporary seats are reserved until {{ $seatDeadline->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}.</p>@endif
+        @if ($seatDeadline)<p class="student-registration-help">Your temporary seat reservations are held until {{ $seatDeadline->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}.</p>@endif
         <div class="learner-status-actions">
             <x-filament::button wire:click="$refresh" color="gray" icon="heroicon-o-arrow-path">Refresh status</x-filament::button>
             @if ($isStudent)<x-filament::link :href="\App\Filament\Student\Pages\Finance::getUrl(panel: 'student')">View fees and payments</x-filament::link>@endif

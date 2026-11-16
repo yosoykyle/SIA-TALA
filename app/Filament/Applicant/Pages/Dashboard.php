@@ -50,25 +50,6 @@ class Dashboard extends BaseDashboard implements HasTable
         return 'Applicant Home';
     }
 
-    public function mount(): void
-    {
-        if (request()->query('checkout') === 'success') {
-            Notification::make()
-                ->title('Payment confirmation pending')
-                ->body('No balance changes until TALA verifies signed PayMongo evidence.')
-                ->info()
-                ->send();
-        }
-
-        if (request()->query('checkout') === 'cancelled') {
-            Notification::make()
-                ->title('Checkout cancelled — no payment was recorded from this return')
-                ->body('Manual payment evidence remains available while no payment is confirmed.')
-                ->warning()
-                ->send();
-        }
-    }
-
     protected function getHeaderActions(): array
     {
         $actions = [
@@ -107,7 +88,7 @@ class Dashboard extends BaseDashboard implements HasTable
                 ->icon('heroicon-o-archive-box-x-mark')
                 ->color('danger')
                 ->requiresConfirmation()
-                ->modalDescription('The same Application reference and all submitted versions remain in history. Withdrawal is blocked once Clinic 4 registration starts.')
+                ->modalDescription('The same Application reference and all submitted versions remain in history. Withdrawal is blocked once enrollment registration starts.')
                 ->schema([
                     Textarea::make('reason')
                         ->label('Reason (optional)')
@@ -667,6 +648,6 @@ class Dashboard extends BaseDashboard implements HasTable
 
         return $actor instanceof User
             ? app(StudentTermAccountPresenter::class)->forUser($actor)
-            : ['available' => false, 'checkout' => ['enabled' => false, 'reason' => 'Sign in to continue.']];
+            : ['available' => false];
     }
 }

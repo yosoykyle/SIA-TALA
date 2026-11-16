@@ -75,7 +75,7 @@ class RecordCourseDrop
                 ->where('status', CourseEnrollment::StatusActive)
                 ->lockForUpdate()
                 ->count() <= 1) {
-                throw ValidationException::withMessages(['drop' => 'Dropping the final active course is a full-withdrawal decision owned by Clinic 5, not Course Drop.']);
+                throw ValidationException::withMessages(['drop' => 'Dropping the final active course requires a full program withdrawal rather than a Course Drop.']);
             }
 
             if ($lockedCourse->gradeRosterRow()->whereNotNull('released_at')->exists()) {

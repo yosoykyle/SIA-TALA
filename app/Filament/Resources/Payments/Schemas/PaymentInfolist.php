@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Payments\Schemas;
 
+use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -15,9 +16,9 @@ class PaymentInfolist
         return $schema->components([
             Section::make('Immutable posting')->schema([
                 TextEntry::make('provider_reference')->label('Posting reference'),
-                TextEntry::make('termAccount.credentialUser.email')->label('Learner credential'),
+                TextEntry::make('termAccount.credentialUser.email')->label('Student credential'),
                 TextEntry::make('term.label')->label('Term'),
-                TextEntry::make('channel')->badge(),
+                TextEntry::make('channel')->state(fn (Payment $record): string => $record->channelDetailLabel())->badge(),
                 TextEntry::make('amount')->money('PHP'),
                 TextEntry::make('state')->badge(),
                 TextEntry::make('verification_basis')->label('Verification basis'),

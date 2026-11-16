@@ -9,7 +9,7 @@ use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
-use App\Models\PaymentAttempt;
+use App\Models\PaymentEvidenceVersion;
 use App\Models\PaymentScheduleRow;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -83,7 +83,7 @@ class FinanceEvidenceService
 
         $ledgerEntries = $this->ledgerEntries($assessment);
         $payments = $this->payments($assessment);
-        $paymentAttempts = $this->paymentAttempts($assessment);
+        $evidenceVersions = $this->paymentEvidenceVersions($assessment);
         $balance = $this->ledgerBalance($ledgerEntries);
         $postedPaymentTotal = $ledgerEntries
             ->where('direction', LedgerEntry::DirectionPayment)
@@ -92,9 +92,9 @@ class FinanceEvidenceService
             $assessment,
             $balance,
             $postedPaymentTotal,
-            $paymentAttempts,
             $payments,
             $assessment->paymentScheduleRows,
+            $evidenceVersions,
         );
         $verificationStatus = $this->verificationStatus($assessment);
         $due = $this->currentDue($assessment, $balance);
@@ -120,7 +120,6 @@ class FinanceEvidenceService
             'disclaimer' => self::EVIDENCE_DISCLAIMER,
             'ledger_entries' => $ledgerEntries,
             'payments' => $payments,
-            'payment_attempts' => $paymentAttempts,
             'available_acknowledgements' => $availableAcknowledgements,
             'payment_schedule_rows' => $assessment->paymentScheduleRows,
             'active_accommodation' => $accommodation,
@@ -147,7 +146,7 @@ class FinanceEvidenceService
             ],
             'state' => [
                 'availability_status' => 'Available',
-                'notice' => 'Finance details are derived from the active assessment, posted ledger entries, payment evidence, and payment schedule.',
+                'notice' => 'Finance details are derived from the active assessment, posted ledger entries, submitted receipts, and payment schedule.',
                 'student_number' => $enrollment->studentProfile->student_number,
                 'student_name' => $studentName,
                 'program' => $enrollment->studentProfile->program?->code ?: $enrollment->studentProfile->program?->name ?: 'Not recorded',
@@ -167,14 +166,13 @@ class FinanceEvidenceService
                 'charge_lines' => $this->chargeLines($assessment),
                 'ledger_rows' => $this->ledgerRows($ledgerEntries),
                 'schedule_rows' => $this->scheduleRows($assessment->paymentScheduleRows),
-                'attempt_rows' => $this->attemptRows($paymentAttempts),
                 'acknowledgement_rows' => $this->acknowledgementRows($availableAcknowledgements),
                 'allocation_rows' => $this->allocationRows($availableAcknowledgements),
                 'payment_evidence' => $this->paymentEvidencePresenter->present(
-                    $paymentAttempts,
                     $payments,
                     $availableAcknowledgements,
                     hasCurrentDue: $this->money->greaterThanZero($due['amount']),
+                    evidenceVersions: $evidenceVersions,
                 ),
                 'accommodation_summary' => $this->accommodationSummary($accommodation),
             ],
@@ -198,7 +196,7 @@ class FinanceEvidenceService
             'studentProfile.user',
             'studentProfile.program',
             'term',
-            'paymentAttempt.assessment.enrollment.term',
+            'termAccount.enrollment.term',
             'ledgerEntry',
             'allocations.assessmentLine',
             'allocations.paymentScheduleRow',
@@ -236,6 +234,7 @@ class FinanceEvidenceService
                 'amount' => $this->money->normalize((string) $payment->amount),
                 'method' => $payment->method,
                 'channel' => $payment->channel,
+                'channel_label' => $payment->channelDetailLabel(),
                 'provider_reference' => $payment->provider_reference,
                 'ledger_entry_id' => (int) $ledgerEntry->id,
                 'paid_at' => $payment->paid_at,
@@ -325,27 +324,39 @@ class FinanceEvidenceService
     /** @return Collection<int, Payment> */
     private function payments(Assessment $assessment): Collection
     {
+        $enrollment = $assessment->enrollment;
+
         return Payment::query()
             ->with([
                 'ledgerEntry',
-                'paymentAttempt',
                 'allocations.assessmentLine',
                 'allocations.paymentScheduleRow',
                 'allocations.priorBalanceLedgerEntry',
+                'allocations.assessmentObligation',
             ])
-            ->where('student_profile_id', $assessment->enrollment->student_profile_id)
-            ->where('term_id', $assessment->enrollment->term_id)
+            ->when(
+                $enrollment->student_profile_id !== null,
+                fn (Builder $query): Builder => $query
+                    ->where('student_profile_id', $enrollment->student_profile_id)
+                    ->where('term_id', $enrollment->term_id),
+                fn (Builder $query): Builder => $query
+                    ->where('term_account_id', $assessment->term_account_id),
+            )
             ->latest('paid_at')
             ->latest('id')
             ->get();
     }
 
-    /** @return Collection<int, PaymentAttempt> */
-    private function paymentAttempts(Assessment $assessment): Collection
+    /** @return Collection<int, PaymentEvidenceVersion> */
+    private function paymentEvidenceVersions(Assessment $assessment): Collection
     {
-        return PaymentAttempt::query()
-            ->where('assessment_id', $assessment->id)
-            ->latest('created_at')
+        if ($assessment->term_account_id === null) {
+            return collect();
+        }
+
+        return PaymentEvidenceVersion::query()
+            ->where('term_account_id', $assessment->term_account_id)
+            ->latest('version')
             ->latest('id')
             ->get();
     }
@@ -489,22 +500,6 @@ class FinanceEvidenceService
         }
 
         return $scheduleRows;
-    }
-
-    /** @param Collection<int, PaymentAttempt> $attempts
-     * @return list<array<string, mixed>>
-     */
-    private function attemptRows(Collection $attempts): array
-    {
-        return $attempts
-            ->map(fn (PaymentAttempt $attempt): array => [
-                'reference' => $attempt->internal_reference,
-                'provider' => $attempt->provider,
-                'status' => str($attempt->status)->headline()->toString(),
-                'amount' => $this->formatPeso((string) $attempt->amount),
-            ])
-            ->values()
-            ->all();
     }
 
     /** @param Collection<int, Payment> $payments
@@ -713,7 +708,6 @@ class FinanceEvidenceService
                 'charge_lines' => [],
                 'ledger_rows' => [],
                 'schedule_rows' => [],
-                'attempt_rows' => [],
                 'acknowledgement_rows' => [],
                 'allocation_rows' => [],
                 'payment_evidence' => [

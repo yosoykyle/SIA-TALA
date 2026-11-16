@@ -4,7 +4,7 @@ namespace App\Actions\Finance;
 
 use App\Models\Assessment;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
+use App\Models\PaymentEvidenceVersion;
 use App\Models\PaymentScheduleRow;
 use App\Support\DecimalMoney;
 use Illuminate\Support\Collection;
@@ -27,40 +27,34 @@ class PaymentStatusResolver
 
     public const StatusInstallment = 'Installment';
 
-    public const StatusPaymentPending = 'Payment Pending';
-
     public const StatusPaymentUnderReview = 'Payment Under Review';
 
     public const StatusPaymentRejected = 'Payment Rejected';
 
-    private const AttemptPending = PaymentAttempt::StatusPending;
-
-    private const AttemptUnderReview = PaymentAttempt::StatusReviewRequired;
-
-    private const AttemptFailed = PaymentAttempt::StatusFailed;
-
     private const EvidenceUnderReview = 'under_review';
+
+    private const EvidenceRejected = 'rejected';
 
     public function __construct(private readonly DecimalMoney $money) {}
 
     /**
      * Resolve the salient payment status for the given finance source state.
      *
-     * Priority while a balance remains: an in-progress review, then a pending
-     * checkout, then a rejected-only attempt, before falling back to the
+     * Priority while a balance remains: an in-progress review, then a rejected-only
+     * submission when nothing has posted yet, before falling back to the
      * ledger-derived Unpaid/Installment/Partially Paid states.
      *
-     * @param  Collection<int, PaymentAttempt>  $attempts
      * @param  Collection<int, Payment>  $payments
      * @param  Collection<int, PaymentScheduleRow>  $scheduleRows
+     * @param  Collection<int, PaymentEvidenceVersion>|null  $evidenceVersions
      */
     public function resolve(
         ?Assessment $assessment,
         string $balance,
         string $postedPayments,
-        Collection $attempts,
         Collection $payments,
         Collection $scheduleRows,
+        ?Collection $evidenceVersions = null,
     ): string {
         if (! $assessment instanceof Assessment) {
             return self::StatusNoAssessment;
@@ -70,18 +64,12 @@ class PaymentStatusResolver
             return self::StatusFullPaid;
         }
 
-        if ($this->hasUnderReview($attempts, $payments)) {
+        if ($this->hasUnderReview($payments, $evidenceVersions)) {
             return self::StatusPaymentUnderReview;
         }
 
-        $latestAttemptStatus = $this->latestAttemptStatus($attempts);
-
-        if ($latestAttemptStatus === self::AttemptPending) {
-            return self::StatusPaymentPending;
-        }
-
         if (! $this->money->greaterThanZero($postedPayments)) {
-            return $latestAttemptStatus === self::AttemptFailed
+            return $this->hasRejectedSubmission($payments, $evidenceVersions)
                 ? self::StatusPaymentRejected
                 : self::StatusUnpaid;
         }
@@ -94,28 +82,39 @@ class PaymentStatusResolver
     }
 
     /**
-     * @param  Collection<int, PaymentAttempt>  $attempts
      * @param  Collection<int, Payment>  $payments
+     * @param  Collection<int, PaymentEvidenceVersion>|null  $evidenceVersions
      */
-    private function hasUnderReview(Collection $attempts, Collection $payments): bool
+    private function hasUnderReview(Collection $payments, ?Collection $evidenceVersions): bool
     {
-        return $attempts->contains(fn (PaymentAttempt $attempt): bool => $attempt->status === self::AttemptUnderReview)
-            || $payments->contains(fn (Payment $payment): bool => $payment->evidence_status === self::EvidenceUnderReview);
+        if ($payments->contains(fn (Payment $payment): bool => $payment->evidence_status === self::EvidenceUnderReview)) {
+            return true;
+        }
+
+        return $evidenceVersions instanceof Collection
+            && $evidenceVersions->contains(
+                fn (PaymentEvidenceVersion $version): bool => $version->state === PaymentEvidenceVersion::StateSubmitted,
+            );
     }
 
     /**
-     * The status of the most recent payment attempt, used to distinguish a
-     * pending checkout from a rejected one while a balance remains.
-     *
-     * @param  Collection<int, PaymentAttempt>  $attempts
+     * @param  Collection<int, Payment>  $payments
+     * @param  Collection<int, PaymentEvidenceVersion>|null  $evidenceVersions
      */
-    private function latestAttemptStatus(Collection $attempts): ?string
+    private function hasRejectedSubmission(Collection $payments, ?Collection $evidenceVersions): bool
     {
-        $latest = $attempts
-            ->sortByDesc(fn (PaymentAttempt $attempt): int => (int) $attempt->id)
-            ->first();
+        if ($evidenceVersions instanceof Collection) {
+            $latestVersion = $evidenceVersions
+                ->sortByDesc(fn (PaymentEvidenceVersion $version): int => (int) $version->version)
+                ->first();
 
-        return $latest instanceof PaymentAttempt ? $latest->status : null;
+            if ($latestVersion instanceof PaymentEvidenceVersion
+                && $latestVersion->state === PaymentEvidenceVersion::StateRejected) {
+                return true;
+            }
+        }
+
+        return $payments->contains(fn (Payment $payment): bool => $payment->evidence_status === self::EvidenceRejected);
     }
 
     /**

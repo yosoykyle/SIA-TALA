@@ -3,11 +3,10 @@
 namespace App\Actions\Finance;
 
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
-use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use App\Models\StudentProfile;
+use App\Models\TermAccount;
 use Illuminate\Container\Attributes\Scoped;
 
 #[Scoped]
@@ -46,24 +45,20 @@ final class PaymentAcademicContextResolver
             }
         }
 
-        $attempt = $payment->relationLoaded('paymentAttempt')
-            ? $payment->paymentAttempt
-            : null;
-        $assessment = $attempt instanceof PaymentAttempt && $attempt->relationLoaded('assessment')
-            ? $attempt->assessment
-            : null;
-        $attemptEnrollment = $assessment instanceof Assessment && $assessment->relationLoaded('enrollment')
-            ? $assessment->enrollment
-            : null;
+        $termAccount = $payment->relationLoaded('termAccount')
+            ? $payment->termAccount
+            : ($payment->term_account_id !== null ? $payment->termAccount()->with('enrollment')->first() : null);
 
-        if ($attemptEnrollment instanceof Enrollment
-            && (int) $attemptEnrollment->student_profile_id === (int) $payment->student_profile_id
-            && (int) $attemptEnrollment->term_id === (int) $payment->term_id) {
+        if ($termAccount instanceof TermAccount && $termAccount->enrollment instanceof Enrollment) {
             if ($profile instanceof StudentProfile) {
-                $attemptEnrollment->setRelation('studentProfile', $profile);
+                $termAccount->enrollment->setRelation('studentProfile', $profile);
             }
 
-            return $this->enrollments[$cacheKey] = $attemptEnrollment;
+            return $this->enrollments[$cacheKey] = $termAccount->enrollment;
+        }
+
+        if ($payment->student_profile_id === null || $payment->term_id === null) {
+            return $this->enrollments[$cacheKey] = null;
         }
 
         return $this->enrollments[$cacheKey] = Enrollment::query()

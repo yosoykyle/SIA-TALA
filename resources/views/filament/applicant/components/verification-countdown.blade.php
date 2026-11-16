@@ -1,14 +1,14 @@
 <div class="space-y-2">
-    <p class="text-sm text-gray-300 dark:text-gray-300">A verification link was sent to your email address.</p>
+    <p class="text-sm text-gray-700 dark:text-gray-200">A verification link was sent to your email address.</p>
 
     @if ($expiresAtMilliseconds === null)
-        <p class="text-base font-semibold tabular-nums text-warning-600 dark:text-warning-400">
+        <p class="text-base font-semibold tabular-nums text-warning-700 dark:text-warning-300">
             Link expires 60 minutes after it was sent.
         </p>
     @else
         <p
             role="timer"
-            class="text-base font-semibold tabular-nums text-warning-600 dark:text-warning-400"
+            class="text-base font-semibold tabular-nums text-warning-700 dark:text-warning-300"
             x-data="{
                 expiresAt: {{ $expiresAtMilliseconds }},
                 now: Date.now(),
@@ -31,5 +31,5 @@
         </p>
     @endif
 
-    <p class="text-sm text-gray-400 dark:text-gray-400">Only the most recent verification link can be used.</p>
+    <p class="text-sm text-gray-600 dark:text-gray-300">Only the most recent verification link can be used.</p>
 </div>

@@ -165,7 +165,7 @@ flowchart TB
   STANDARD -->|No| ADVISE["Registrar: resolve deviations and explain advised subjects"]
   DERIVE --> PREPARE["Reserve valid seats and obtain source-backed assessment"]
   ADVISE --> PREPARE
-  PREPARE --> CONFIRM["Learner: review Why these subjects, schedule and assessment; confirm"]
+  PREPARE --> CONFIRM["Student or applicant: review Why these subjects, schedule and assessment; confirm"]
   CONFIRM --> MONEY["D6: verify exact payment, coverage or authorized no-payment basis"]
   MONEY --> FINAL["Registrar: finalize individually or batch with atomic per-case rechecks"]
   FINAL --> OFFICIAL(["Official enrollment, roster and COR; first Student identity only now"])
@@ -183,15 +183,15 @@ flowchart TB
   class OFFICIAL paperBox;
 ```
 
-Opening one eligible Registration Case derives the unambiguous standard proposal, temporary reservations and assessment **before learner confirmation or payment**. It does not create cases for everyone merely because Enrollment opens. Ambiguous or exceptional selection goes to Registrar advice, promptly explaining the actual reason; this is not unrestricted course shopping or a permanent Regular label.
+Opening one eligible Registration Case derives the unambiguous standard proposal, temporary reservations and assessment **before student or applicant confirmation or payment**. It does not create cases for everyone merely because Enrollment opens. Ambiguous or exceptional selection goes to Registrar advice, promptly explaining the actual reason; this is not unrestricted course shopping or a permanent Regular label.
 
 Current admission/identity facts, curriculum, released prerequisites/credits, published classes, schedule, capacity and load remain real checks. Reuse verified identity/contact facts rather than asking for another confirmation. A stale or missing source names its owner and recovery. Consumer windows and genuine late authority govern the relevant action. Registrar sees Students & Enrollment; Accounting sees focused Student Accounts from the same underlying records.
 
-Finalization rechecks current sources, exact learner confirmation, reservations and due-now finance evidence atomically for each case. Only the first successful official enrollment creates the minimal Student profile, permanent student number and Student access on the existing account. It creates the official roster and immutable COR version; retries and failed mail cannot duplicate or reverse them.
+Finalization rechecks current sources, exact student or applicant confirmation, reservations and due-now finance evidence atomically for each case. Only the first successful official enrollment creates the minimal Student profile, permanent student number and Student access on the existing account. It creates the official roster and immutable COR version; retries and failed mail cannot duplicate or reverse them.
 
-Expiry or cancellation releases seats once, closes checkout and preserves money history in the same Term Account. Authorized reopening restores no stale proposal, confirmation, reservation, assessment or clearance automatically. Retained funds require Accounting reconciliation, not automatic refunds or lost history.
+Expiry or cancellation releases seats once and preserves money history in the same Term Account. Authorized reopening restores no stale proposal, confirmation, reservation, assessment or clearance automatically. Retained funds require Accounting reconciliation, not automatic refunds or lost history.
 
-Adjustments and drops retain their window or exact late authority, placement/load/capacity checks and material learner confirmation. An add/replacement needs cleared additional cost or an authoritative no-additional-amount result. Removals route applicable finance review; TALA does not invent a refund. Released grade or timetable changes invalidate affected preparation before finalization and trigger Registrar impact review after enrollment. Existing official facts remain until an authorized change is applied. COR history stays immutable; live finance remains in the account view.
+Adjustments and drops retain their window or exact late authority, placement/load/capacity checks and material student confirmation. An add/replacement needs cleared additional cost or an authoritative no-additional-amount result. Removals route applicable finance review; TALA does not invent a refund. Released grade or timetable changes invalidate affected preparation before finalization and trigger Registrar impact review after enrollment. Existing official facts remain until an authorized change is applied. COR history stays immutable; live finance remains in the account view.
 
 ## D5 — Grades, records, graduation, degree award
 
@@ -236,13 +236,13 @@ flowchart TB
   SOURCE["Accounting: published Fee Plan or eligible authorized individual assessment"]
   SOURCE --> ACCOUNT["One Term Account view: assessment, coverage, payment and due-now basis"]
   ACCOUNT --> PAY{"How is the exact current requirement satisfied?"}
-  PAY -->|PayMongo| WEBHOOK["TALA: verify signed, matched, idempotent provider evidence"]
-  PAY -->|Manual external payment| VERIFY["Accounting: inspect private evidence and record verified result"]
+  PAY -->|Bank transfer or e-wallet receipt| VERIFY["Accounting: inspect submitted receipt, verify amount, and map OR"]
+  PAY -->|Cash at Campus Cashier| ONSITE["Accounting/Cashier: record onsite payment directly with OR"]
   PAY -->|Coverage or authorized zero due| COVER["Accounting: record current source-backed basis"]
-  WEBHOOK --> CLEAR["Publish current clearance to D4"]
-  VERIFY --> CLEAR
+  VERIFY --> CLEAR["Publish current clearance to D4"]
+  ONSITE --> CLEAR
   COVER --> CLEAR
-  WEBHOOK -->|Mismatch or uncertain outcome| RESOLVE["Accounting: resolve the named payment problem with retained history"]
+  VERIFY -->|Discrepancy or rejected proof| RESOLVE["Accounting: reject or resolve with retained history"]
   RESOLVE --> ACCOUNT
   ACCOUNT --> SOA(["Statement of Account with payment acknowledgment"])
   ACCOUNT --> OUTPUT["Current named OUTPUT restriction and recovery owner for D5 TOR"]
@@ -257,11 +257,11 @@ flowchart TB
 
 Use one understandable assessment presentation, preserving distinct Fee Plan, individual assessment, coverage and payment source records. Missing fee authority is unavailable, not an invented FeeRule rate or zero amount. Show the exact amount required now and its basis; total account balance is not a universal zero-balance gate.
 
-PayMongo verifies signed events against the current obligation, currency, amount, provider/reference and idempotency contract. A browser return is not proof of payment. Unavailable integration routes to the authorized alternative and understandable recovery. Manual evidence is private and externally verified; TALA is not a cashiering engine. Resolve payment problems in one Accounting context while preserving guards for mismatches, duplicate/late events, refund and chargeback facts. Money events and reversals are attributable and append-only; executing refunds remains external.
+Payment is manual-first across approved school channels configured in Accounting's **Payment channels** settings (multi-account `Bank Transfer`, multi-account `E-Wallets` replacing standalone GCash, and `Cash (Campus Cashier)`). Students and applicants view **How to pay** instructions and use `Submit receipt` only when at least one digital channel (`Bank Transfer` or `E-Wallets`) is enabled, viewing or downloading uploaded files in the shared `<x-document-viewer>` modal; when only onsite Campus Cashier is active, no student receipt upload UI appears. Onsite Campus Cashier payments are recorded directly by Accounting/Cashier inside Student Accounts for both enrolled Students and pre-student Applicants without requiring a student receipt upload. Submitted receipt evidence captures an immutable `channel_snapshot`, stays private, and is externally verified; Official Receipt (OR) numbers can be recorded at posting or mapped inline later on verified posted payments missing an OR. Resolve receipt discrepancies, rejections, and externally completed refunds/reversals in one Accounting context with attributable, append-only history; executing refunds remains external.
 
 Payment acknowledgment belongs in the Statement of Account and is not a tax receipt. Historically issued separate acknowledgments retain authorized access, snapshots and print guards. A current OUTPUT-scoped restriction affects only its named official output; there is no per-request approval queue or blanket service hold. Unknown/stale source evidence closes the affected action with an owner and remedy.
 
-Health covers mail, PayMongo and the solver with attributable read-only evidence; unknown is not healthy. Further Health beyond those three is deferred, without removing production backup/recovery duties from the Runbook. Audit remains authorized, read-only and privacy-scoped; record retention/disposal decisions remain external. Further refinement of the three CSV exports is deferred; existing exports, authorized operational prints and their data/access safety remain. No general Report Hub, provider-control console or in-app notification feed is introduced.
+Health covers mail and the solver with attributable read-only evidence; unknown is not healthy. Further Health beyond those two is deferred, without removing production backup/recovery duties from the Runbook. Audit remains authorized, read-only and privacy-scoped; record retention/disposal decisions remain external. Further refinement of the three CSV exports is deferred; existing exports, authorized operational prints and their data/access safety remain. No general Report Hub, payment-gateway console or in-app notification feed is introduced.
 
 ## Authority and notation
 

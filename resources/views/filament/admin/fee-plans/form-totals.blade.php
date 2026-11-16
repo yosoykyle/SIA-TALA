@@ -1,4 +1,26 @@
-<div class="accounting-fee-plan-form-totals" role="status" aria-live="polite">
-    <dl><div><dt>Total charges</dt><dd>{{ $chargeTotal === null ? 'Enter amounts' : 'PHP '.number_format($chargeTotal / 100, 2) }}</dd></div><div><dt>Scheduled payments</dt><dd>{{ $paymentTotal === null ? 'Enter amounts' : 'PHP '.number_format($paymentTotal / 100, 2) }}</dd></div></dl>
-    @if ($chargeTotal !== null && $paymentTotal !== null)<p>{{ $chargeTotal === $paymentTotal ? 'Amounts match' : 'Payments must match the total charges. Difference: PHP '.number_format(abs($chargeTotal - $paymentTotal) / 100, 2) }}</p>@endif
+@php
+    $balanced = $chargeTotal !== null && $paymentTotal !== null && $chargeTotal === $paymentTotal;
+    $unbalanced = $chargeTotal !== null && $paymentTotal !== null && ! $balanced;
+@endphp
+<div class="tala-live-totals accounting-fee-plan-form-totals" role="status" aria-live="polite">
+    <dl>
+        <div>
+            <dt>Total charges</dt>
+            <dd>{{ $chargeTotal === null ? 'Enter amounts' : \App\Actions\Finance\AccountingDisplay::cents($chargeTotal) }}</dd>
+        </div>
+        <div>
+            <dt>Scheduled payments</dt>
+            <dd>{{ $paymentTotal === null ? 'Enter amounts' : \App\Actions\Finance\AccountingDisplay::cents($paymentTotal) }}</dd>
+        </div>
+    </dl>
+    @if ($chargeTotal !== null && $paymentTotal !== null)
+        <p @class([
+            'accounting-fee-plan-form-totals__status',
+            'is-balanced' => $balanced,
+            'is-unbalanced' => $unbalanced,
+        ])>
+            <x-filament::icon :icon="$balanced ? 'heroicon-o-check-circle' : 'heroicon-o-exclamation-triangle'" aria-hidden="true" />
+            <span>{{ $balanced ? 'Amounts match' : 'Payments must match the total charges. Difference: '.\App\Actions\Finance\AccountingDisplay::cents(abs($chargeTotal - $paymentTotal)) }}</span>
+        </p>
+    @endif
 </div>

@@ -6,6 +6,7 @@ use App\Actions\Imports\ImportBatchLifecycleService;
 use App\Filament\Resources\ImportBatches\ImportBatchDownloadActions;
 use App\Models\ImportBatch;
 use App\Models\User;
+use App\Support\SafeUserNotification;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
@@ -134,11 +135,11 @@ class ImportBatchesTable
                 ->success()
                 ->send();
         } catch (Throwable $exception) {
-            Notification::make()
-                ->title('Import batch action failed')
-                ->body($exception->getMessage())
-                ->danger()
-                ->send();
+            SafeUserNotification::sendError(
+                'Import batch action failed',
+                $exception,
+                'The import batch action could not be completed. Review the batch status and try again.',
+            );
         }
     }
 

@@ -55,7 +55,7 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
     protected function getDescription(): ?string
     {
         return match (true) {
-            $this->actor()->hasRole(User::StaffRoleAccounting) => 'Start with fee rules, then review student accounts and payment exceptions.',
+            $this->actor()->hasRole(User::StaffRoleAccounting) => 'Publish Fee plans for each program and term first, then review assessments, review submitted receipts, and review student status changes in Student accounts.',
             $this->actor()->hasRole(User::StaffRoleFaculty) => 'Your schedule, unavailable times, and assigned grade rosters are kept together here.',
             $this->actor()->hasRole(User::StaffRoleAcademicHead) => 'Use these read and review surfaces for academic readiness, planning, grades, and approvals.',
             default => 'Manage identities and public content, then inspect evidence-first system health and governance records.',
@@ -91,8 +91,8 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
             ->count();
 
         return [
-            $this->stat('1. Fee Plans', 'Publish fixed charges', 'Review the exact Program-and-Term plan before assessment.', FeePlanResource::getUrl('index')),
-            $this->stat('2. Student Accounts', "{$activeAssessments} active", 'Review student accounts and payment exceptions. Use TOR restrictions only when an official-output restriction exists.', EnrollmentResource::getUrl('index')),
+            $this->stat('1. Fee plans', 'Charges & payment dates', 'Set up or publish standard fees and installment due dates per program and term.', FeePlanResource::getUrl('index')),
+            $this->stat('2. Student accounts', "{$activeAssessments} active assessments", 'Open the Accounting overview to review assessments, review submitted receipts, and review student status changes.', EnrollmentResource::getUrl('index')),
         ];
     }
 

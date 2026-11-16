@@ -108,7 +108,7 @@ class AdmissionCycleReadinessService
             || ! $owner->can('manage-admission-setup')) {
             $blockers[] = $this->blocker(
                 'registrar_owner',
-                'Admission Cycle Registrar owner and Clinic 1 access authority',
+                'Admission Cycle Registrar owner and identity/access authority',
                 'Institution',
                 'The cycle has no accountable authorized Registrar owner.',
                 'Assign an authorized Registrar owner.',

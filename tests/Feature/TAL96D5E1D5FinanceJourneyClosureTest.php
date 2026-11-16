@@ -7,8 +7,6 @@ use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Finance\PaymentConfirmationService;
 use App\Actions\Finance\ReviewPaymentEvidence;
 use App\Actions\Finance\StudentAccountPresenter;
-use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
-use App\Actions\Integrations\Payments\PayMongoPaymentPostingService;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
@@ -22,7 +20,6 @@ use App\Models\FeeRule;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
-use App\Models\PaymentAttempt;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
 use App\Models\Section;
@@ -370,7 +367,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
 
         $this->assertSame('Mapped OR OR-D5E1D5-MAPPED', $finance['state']['payment_evidence']['or_mapping_state']);
         $this->assertSame(
-            'Use Pay exact current due for the remaining amount.',
+            'Electronic receipt uploads are currently turned off. Pay directly at the Campus Cashier: Accounting records onsite payments directly.',
             $finance['state']['payment_evidence']['required_action'],
         );
     }
@@ -379,7 +376,9 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
     {
         $fixture = $this->activeAssessmentFixture();
         $this->actingAs($fixture['accounting']);
-        $widget = Livewire::test(StaffRoleWorkspaceOverviewWidget::class);
+        $widget = Livewire::test(StaffRoleWorkspaceOverviewWidget::class)
+            ->assertSee('review submitted receipts')
+            ->assertDontSee('verify payment proof');
         $method = new ReflectionMethod(StaffRoleWorkspaceOverviewWidget::class, 'getColumns');
 
         $this->assertSame(
@@ -399,43 +398,6 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             ->assertSee('finance-responsive-table', false)
             ->assertSee('data-label="Description"', false)
             ->assertSee('data-label="Remaining"', false);
-    }
-
-    public function test_automatic_provider_allocation_does_not_retarget_a_satisfied_obligation(): void
-    {
-        $fixture = $this->activeAssessmentFixture();
-        $obligations = $fixture['assessment']->obligations()->orderBy('id')->get();
-        $evidence = PaymentEvidenceVersion::factory()->create([
-            'term_account_id' => $fixture['assessment']->term_account_id,
-            'assessment_id' => $fixture['assessment']->id,
-            'obligation_snapshot' => $fixture['assessment']->obligations->map(fn ($row): array => ['id' => $row->id, 'amount' => $row->amount])->all(),
-            'claimed_amount' => '1000.00',
-            'channel' => 'bank_transfer',
-            'paid_at' => now()->subMinute(),
-            'submitted_by' => $fixture['profile']->user_id,
-        ]);
-        app(ReviewPaymentEvidence::class)->verify(
-            $evidence,
-            $fixture['accounting'],
-            '1000.00',
-            'SYN-INDEPENDENT-CHECK-PROVIDER-SEAM',
-        );
-
-        $attempt = $this->exactDueAttempt($fixture, 'TALA-D5E1D5-SECOND-OBLIGATION');
-        $posted = app(PayMongoPaymentPostingService::class)->post(
-            attempt: $attempt,
-            amount: '500.00',
-            providerReference: 'paymongo:D5E1D5-SECOND-OBLIGATION',
-            actor: null,
-            timestamp: CarbonImmutable::now(config('app.timezone'))->subMinute(),
-            description: 'Verified PayMongo payment',
-        );
-        $allocation = PaymentAllocation::query()
-            ->where('payment_id', $posted['payment']->id)
-            ->sole();
-
-        $this->assertSame($obligations[1]->id, $allocation->assessment_obligation_id);
-        $this->assertNull($allocation->prior_balance_ledger_entry_id);
     }
 
     public function test_payment_above_the_eligible_outstanding_total_is_rejected_without_partial_writes(): void
@@ -496,42 +458,6 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $this->assertFalse(Payment::query()
             ->where('provider_reference', 'CASH-D5E1D5-CROSS-STUDENT')
             ->exists());
-    }
-
-    public function test_paymongo_uses_the_same_allocation_seam_and_duplicate_processing_does_not_repost(): void
-    {
-        $fixture = $this->activeAssessmentFixture();
-        $attempt = $this->exactDueAttempt($fixture, 'TALA-D5E1D5-PAYMONGO');
-        $timestamp = CarbonImmutable::now(config('app.timezone'))->subMinute();
-        $service = app(PayMongoPaymentPostingService::class);
-
-        $first = $service->post(
-            attempt: $attempt,
-            amount: '1500.00',
-            providerReference: 'paymongo:D5E1D5-PAID',
-            actor: null,
-            timestamp: $timestamp,
-            description: 'Verified PayMongo payment',
-        );
-        $second = $service->post(
-            attempt: $attempt->refresh(),
-            amount: '1500.00',
-            providerReference: 'paymongo:D5E1D5-PAID',
-            actor: null,
-            timestamp: $timestamp,
-            description: 'Verified PayMongo payment',
-        );
-
-        $this->assertSame('posted', $first['status']);
-        $this->assertSame('duplicate', $second['status']);
-        $this->assertSame(1, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
-        $this->assertSame('1500.00', PaymentAllocation::query()
-            ->where('payment_id', $first['payment']->id)
-            ->sum('amount'));
-        $this->assertSame(2, LedgerEntry::query()
-            ->where('payment_id', $first['payment']->id)
-            ->whereNotNull('payment_allocation_id')
-            ->count());
     }
 
     /**
@@ -641,38 +567,6 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         }
 
         return compact('accounting', 'profile', 'term', 'enrollment', 'account', 'assessment', 'lines');
-    }
-
-    /**
-     * @param  array{profile:StudentProfile,account:TermAccount,assessment:Assessment}  $fixture
-     */
-    private function exactDueAttempt(array $fixture, string $reference): PaymentAttempt
-    {
-        $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($fixture['account']);
-        $attempt = PaymentAttempt::query()->create([
-            'assessment_id' => $fixture['assessment']->id,
-            'term_account_id' => $fixture['account']->id,
-            'student_profile_id' => $fixture['profile']->id,
-            'assessment_version' => $fixture['assessment']->version,
-            'snapshot_created_at' => $snapshot['created_at'],
-            'snapshot_checksum' => $snapshot['checksum'],
-            'channel' => 'paymongo',
-            'provider' => 'paymongo',
-            'internal_reference' => $reference,
-            'amount' => $snapshot['amount'],
-            'currency' => 'PHP',
-            'status' => PaymentAttempt::StatusPending,
-            'expires_at' => now()->addHour(),
-        ]);
-        foreach ($snapshot['obligations'] as $target) {
-            $attempt->obligations()->create([
-                'assessment_obligation_id' => $target['id'],
-                'sequence' => $target['sequence'],
-                'amount' => $target['amount'],
-            ]);
-        }
-
-        return $attempt;
     }
 
     private function attachAcademicContext(

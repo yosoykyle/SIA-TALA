@@ -1,29 +1,29 @@
 <div class="accounting-plan-confirmation">
-    <div>
-        <p><strong>{{ $case->credentialUser?->getFilamentName() }}</strong></p>
-        <p>{{ $case->currentProposalVersion?->curriculumVersion?->program?->name }} · {{ $case->term?->label }}</p>
+    <div class="tala-context-inset">
+        <p><strong>{{ \App\Actions\Finance\AccountingDisplay::learnerName($case) }}</strong></p>
+        <p>{{ $case->currentProposalVersion?->curriculumVersion?->program?->name ?? \App\Actions\Finance\AccountingDisplay::learnerProgram($case) }} · {{ $case->term?->label }}</p>
     </div>
     @if ($plan)
         <p class="accounting-plan-reference">Fee Plan · Version {{ $plan->version }}</p>
-        <section aria-labelledby="confirmed-plan-charges">
+        <section class="tala-context-inset" aria-labelledby="confirmed-plan-charges">
             <h3 id="confirmed-plan-charges">Charges</h3>
             <dl>
                 @foreach ($plan->charges as $charge)
-                    <div><dt>{{ $charge->label }}</dt><dd>PHP {{ number_format((float) $charge->amount, 2) }}</dd></div>
+                    <div><dt>{{ $charge->label }}</dt><dd>{{ \App\Actions\Finance\AccountingDisplay::money($charge->amount) }}</dd></div>
                 @endforeach
             </dl>
         </section>
-        <section aria-labelledby="confirmed-plan-payments">
+        <section class="tala-context-inset" aria-labelledby="confirmed-plan-payments">
             <h3 id="confirmed-plan-payments">Payment dates</h3>
             <dl>
                 @foreach ($plan->obligations->sortBy('sequence') as $obligation)
-                    <div><dt>{{ $obligation->label }}<span>Due {{ \App\Support\DisplayDateTime::format($obligation->due_at, 'M j, Y · g:i A') }}</span></dt><dd>PHP {{ number_format((float) $obligation->amount, 2) }}</dd></div>
+                    <div><dt>{{ $obligation->label }}<span>Due {{ \App\Actions\Finance\AccountingDisplay::dateTime($obligation->due_at) }}</span></dt><dd>{{ \App\Actions\Finance\AccountingDisplay::money($obligation->amount) }}</dd></div>
                 @endforeach
             </dl>
         </section>
-        <p class="accounting-plan-reference">Approval: {{ $plan->authority_reference }} · {{ $plan->authority_date?->format('M j, Y') }}</p>
+        <p class="accounting-plan-reference">Approval: {{ $plan->authority_reference }} · {{ \App\Actions\Finance\AccountingDisplay::date($plan->authority_date) }}</p>
         <p>This records the plan exactly. Ready initial subjects will be sent to the learner for confirmation.</p>
     @else
-        <p>The selected plan is unavailable. Close this dialog and review the current Fee Plan.</p>
+        <p class="tala-warning-banner" role="status">The selected plan is unavailable. Close this dialog and review the current Fee Plan.</p>
     @endif
 </div>

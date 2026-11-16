@@ -22,6 +22,7 @@ use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\GovernanceAudit;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Pages\MyAvailability;
+use App\Filament\Pages\PaymentChannels;
 use App\Filament\Pages\StaffEntry;
 use App\Filament\Pages\SystemHealth;
 use App\Filament\Pages\TermCalendar;
@@ -193,6 +194,7 @@ class AdminPanelProvider extends PanelProvider
                 CompletionAndTor::class,
                 SystemHealth::class,
                 GovernanceAudit::class,
+                PaymentChannels::class,
             ])
             ->discoverClusters(in: app_path('Filament/Clusters'), for: 'App\Filament\Clusters')
             ->authenticatedRoutes(function (): void {
@@ -338,12 +340,11 @@ class AdminPanelProvider extends PanelProvider
             ]), $termPlanningContext));
         }
 
+        if ($selectedContext === User::StaffRoleAccounting) {
+            return $builder->items($this->accountingNavigation());
+        }
+
         $components = match ($selectedContext) {
-            User::StaffRoleAccounting => [
-                'Student Accounts' => EnrollmentResource::class,
-                'Fee Plans' => FeePlanResource::class,
-                'TOR restrictions' => TranscriptRequestResource::class,
-            ],
             User::StaffRoleFaculty => [
                 'My schedule' => FacultySchedule::class,
                 'My availability' => MyAvailability::class,
@@ -497,6 +498,46 @@ class AdminPanelProvider extends PanelProvider
         }
 
         return $items;
+    }
+
+    /** @return list<NavigationItem> */
+    private function accountingNavigation(): array
+    {
+        $items = [];
+
+        if (EnrollmentResource::canAccess()) {
+            $request = \Filament\Support\original_request();
+            $inside = $request->routeIs('filament.admin.resources.enrollments.*', 'filament.admin.resources.student-lifecycle-changes.*', 'filament.admin.resources.transcript-requests.*');
+            $overview = $request->routeIs('filament.admin.resources.enrollments.index') && $request->query('tab', 'overview') === 'overview';
+            $selected = $request->routeIs('filament.admin.resources.enrollments.index')
+                ? (string) $request->query('tab', 'overview')
+                : (string) $request->query('queue', 'accounts');
+            $children = collect([
+                'accounts' => ['All student accounts', Heroicon::OutlinedFolderOpen],
+                'assessment_required' => ['Assessment reviews', Heroicon::OutlinedDocumentCurrencyDollar],
+                'payment_proof' => ['Review receipts', Heroicon::OutlinedDocumentMagnifyingGlass],
+                'student_changes' => ['Student status changes', Heroicon::OutlinedClipboardDocumentCheck],
+            ])->map(fn (array $area, string $key): NavigationItem => NavigationItem::make($area[0])
+                ->icon($area[1])
+                ->url(EnrollmentResource::getUrl('index', ['tab' => $key]))
+                ->isActiveWhen(fn (): bool => $inside && $selected === $key))->values()->all();
+
+            $items[] = NavigationItem::make('Overview')->icon(Heroicon::OutlinedHome)
+                ->url(EnrollmentResource::getUrl('index'))
+                ->isActiveWhen(fn (): bool => $overview);
+            $items[] = NavigationItem::make('Student accounts')->icon(Heroicon::OutlinedBanknotes)
+                ->url(EnrollmentResource::getUrl('index', ['tab' => 'accounts']))
+                ->isActiveWhen(fn (): bool => $inside && ! $overview)
+                ->childItems($children);
+        }
+
+        return [
+            ...$items,
+            ...$this->labeledNavigationItems([
+                'Fee plans' => FeePlanResource::class,
+                'Payment channels' => PaymentChannels::class,
+            ]),
+        ];
     }
 
     private function labeledNavigationItems(array $components): array

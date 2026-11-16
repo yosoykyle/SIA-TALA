@@ -34,10 +34,11 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
     #[Test]
     public function system_health_is_the_only_registered_integration_monitor_and_never_renders_secrets(): void
     {
-        Config::set('tala_integrations.payments.driver', 'paymongo');
-        Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_hidden');
-        Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_hidden');
-        Config::set('tala_integrations.payments.paymongo.webhook_signature', 'whsec_hidden');
+        Config::set('mail.default', 'smtp');
+        Config::set('mail.mailers.smtp.host', 'smtp.example.test');
+        Config::set('mail.mailers.smtp.username', 'mailer-user');
+        Config::set('mail.mailers.smtp.password', 'smtp_secret_hidden');
+        Config::set('tala_integrations.scheduling_solver.credentials', 'solver_secret_hidden');
 
         $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
         $this->actingAs($admin);
@@ -45,9 +46,8 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $component = Livewire::test(SystemHealth::class)->assertOk();
         $html = $component->html();
 
-        $this->assertStringNotContainsString('pk_test_hidden', $html);
-        $this->assertStringNotContainsString('sk_test_hidden', $html);
-        $this->assertStringNotContainsString('whsec_hidden', $html);
+        $this->assertStringNotContainsString('smtp_secret_hidden', $html);
+        $this->assertStringNotContainsString('solver_secret_hidden', $html);
         $this->assertStringContainsString('Not checked by TALA', $html);
         $this->assertFileDoesNotExist(app_path('Filament/Pages/IntegrationStatus.php'));
         $this->assertFileDoesNotExist(app_path('Filament/Resources/OperationalEvents/OperationalEventResource.php'));

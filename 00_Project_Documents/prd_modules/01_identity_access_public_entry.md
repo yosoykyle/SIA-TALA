@@ -14,7 +14,7 @@ Clinic 1 gives each person one secure TALA credential account and only the works
 - Verified-email sign-in and recovery
 - Authenticator-app MFA for Staff-capable accounts
 - Direct single-role routing and explicit multi-role switching
-- A focused Account Security surface
+- A focused **Profile** account-security surface (`/<panel>/account-profile`)
 - A System Administrator Users & Access workbench
 - Bounded notices and FAQ
 - Clear inaccessible, disabled, expired, throttled, and service-failure recovery
@@ -95,7 +95,7 @@ These are domain contracts, not approved physical table names.
 |---|---|---|---|---|---|
 | User Account | Credential, verification, security, session, invitation, and current disablement facts | Account holder for self-service facts; System Administrator for Staff/access actions | Persisted authoritative record | Every authenticated workspace | Remains distinct from Applicant, Student, and Staff domain facts |
 | Staff Access Profile and role assignment history | Safe Staff identity plus fixed authorized contexts | System Administrator records the external authorization result | Persisted authoritative record plus immutable events | Workspace resolution and role-owned pages | Contains no employment or HR lifecycle |
-| Verification, recovery, invitation, MFA, and session-security facts | Enforce bounded authentication journeys | PRD 01 | Persisted security facts or immutable events on the Account | Authentication and Account Security | They do not require separate product modules or public resources |
+| Verification, recovery, invitation, MFA, and session-security facts | Enforce bounded authentication journeys | PRD 01 | Persisted security facts or immutable events on the Account | Authentication and **Profile** (`/<panel>/account-profile`) | They do not require separate product modules or public resources |
 | Workspace Context | Resolve one authorized role and fixed destination | PRD 01 | Derived projection/calculation | Authenticated shell | Never duplicated or stored as another role record |
 | Account Access State | Present InvitationPending, VerificationRequired, Active, or Disabled | PRD 01 | Derived projection/calculation | Authentication, workspace chooser, Users & Access | Derived from current Account/security facts; no state-machine engine |
 | Access Change Evidence | Preserve actor, authority, reason, effect, and time | PRD 01 through the existing audit facility | Immutable version or event | Users & Access and Governance & Audit | Reuses product audit history; no parallel audit store |
@@ -173,7 +173,7 @@ The existing audit facility may carry this evidence. No parallel audit engine is
 |---|---|---|---|---|---|---|---|
 | Public entry available/unavailable | Publish or close the current admissions-entry source | Registrar through Clinic 2 | Clinic 2 cycle authority | Current cycle and publication readiness | Public gateway derives whether **Apply** is available | Later cycle publication supersedes the projection; existing sign-in is never removed | Public sees availability; existing Applicants retain sign-in |
 | `VerificationRequired` | Create Applicant account | Public applicant | Self-registration while entry is open | Unique normalized email, privacy acknowledgement and valid password | One credential account and pending verification evidence | Verification links are single-purpose; a later resend supersedes the prior pending link | Account holder sees verification guidance; System Administrator sees safe state only |
-| Pending sign-in email change | Request a replacement address, then verify it | Applicant/Student-only account holder; System Administrator initiates for Staff-capable accounts | Recent actor password confirmation; recorded authority for a Staff change | New address valid/unique; current account/source; one current pending change | Existing account remains active on its verified address; verification makes the replacement address effective | Expiry, cancellation or failed dispatch preserves the existing address. A successor request invalidates its predecessor; verification rechecks uniqueness | New address receives verification; existing address receives a security alert; account holder sees pending status and recovery |
+| Pending sign-in email change | Request a replacement address, then verify it | Applicant/Student-only account holder; System Administrator initiates for Staff-capable accounts | Current-password confirmation; recorded authority for a Staff change | New address valid/unique; current account/source; one current pending change | Existing account remains active on its verified address; verification makes the replacement address effective | Expiry, cancellation or failed dispatch preserves the existing address. A successor request invalidates its predecessor; verification rechecks uniqueness | New address receives verification; existing address receives a security alert; account holder sees pending status and recovery |
 | `InvitationPending` | Invite new Staff or resend invitation | System Administrator | Fixed-role assignment plus recorded reason and authority | No duplicate account; final-administrator and self-escalation protections | One account, Staff access profile, role assignment evidence, and expiring activation link | Resend invalidates the previous link; activation supersedes pending invitation | Invited person sees activation; administrator sees pending/expired state |
 | `Active` | Verify email, complete activation, or reactivate | Account holder or System Administrator | Valid signed link, or recorded reactivation authority | Account not disabled; Staff-capable account must complete MFA before Staff access | Authorized workspace contexts become usable | Activation/verification evidence is retained; reactivation does not erase prior disablement | Chooser shows only authorized contexts; single-role users route directly |
 | MFA enrollment/challenge required | Enter a Staff-capable context | Staff account holder | Existing Staff role | Password-authenticated session; valid TOTP or unused recovery code | Staff workspace access or continued enrollment requirement | Recovery codes are single-use; reset supersedes the prior factor only after external identity verification | Staff sees security action; administrator sees bounded reset evidence, never secrets |
@@ -260,7 +260,7 @@ A disabled account with a correct password sees only that access is disabled and
 5. System Administrator records the authorized reset reason, authority, and optional evidence, then resets MFA.
 6. The Staff member signs in with the remaining valid credential and enrolls a new authenticator before workspace access.
 
-Any account holding at least one Staff role is Staff-capable. It cannot bypass MFA, the shorter session, or remember-me restrictions by entering through Applicant or Student.
+Any account holding at least one Staff role is Staff-capable. It cannot bypass MFA, the shorter session, or remember-me restrictions by entering through Applicant or Student. Inside **Profile**, Staff-capable accounts cannot disable MFA and are directed to contact a System Administrator to reset a lost authenticator, whereas Applicant/Student accounts with optional MFA may turn it off using current-password confirmation or a recovery code.
 
 Pending MFA enrollment is a Staff-workspace security gate, not a fifth account state.
 
@@ -278,11 +278,14 @@ Clinic 4 owns the transaction:
 
 ### 6.6 Recovery and email change
 
-- Any eligible account may request a generic password-recovery message without account disclosure.
-- A completed password recovery invalidates other applicable sessions.
+- Any eligible account may request password recovery—via a generic non-disclosing request from public **Sign in**, or via verified-email confirmation while signed in from **Profile** (`/<panel>/account-profile`) or MFA `Current password` prompts (dispatching only to the account's currently verified sign-in email without bypassing security checks).
+- An emailed password-recovery link may be completed even if opened inside the same signed-in browser session: completing recovery updates the password, invalidates all sessions, clears the active browser session, and requires fresh sign-in (plus MFA where applicable).
+- Completed password recovery invalidates all applicable sessions, and a self-service **Profile** password change invalidates all other applicable sessions while keeping the acting session authenticated.
 - Applicant/Student-only users may request a sign-in email change. The old address remains live until the new address is verified; the old address receives an alert.
 - Staff-capable email changes are initiated by System Administrator with recorded authority. The same safe pending-verification transition applies.
-- Sensitive email, password, access, disablement, and MFA-reset actions require current-password confirmation where the acting user has a password-authenticated session.
+- Sensitive email, password, MFA setup/disablement/recovery-code regeneration, Staff access, disablement, and Staff MFA-reset actions require per-submission `Current password` confirmation where the acting user has a password-authenticated session. On **Profile**, `Change password` groups `Current password` visibly above `New password` and `Confirm new password` with zero hidden-field layout shift below account identity/email, `Cancel` discards unsaved edits and validation state in place without leaving **Profile**, and empty/no-op, partial, or same-as-current password submissions fail inline validation rather than reporting a false save.
+- Regenerating MFA recovery codes on **Profile** confirms with per-submission `Current password` (and offers **Forgot your password?**) without requiring an authenticator code, while presenting role-specific lost-authenticator guidance (Staff contact a System Administrator for MFA reset; Applicant/Student accounts may turn off optional MFA with `Current password` or a recovery code).
+- Email-based password recovery never bypasses `Current password` inline, never reveals or regenerates MFA recovery codes, and never bypasses or resets MFA.
 
 ### 6.7 Disable, reactivate, and Staff access change
 
@@ -312,12 +315,11 @@ The dedicated public status-request, token, cache, read-rate-limit and access-re
 
 ### 7.1 Passwords
 
-- Applicant self-registration accepts 8–64 characters with at least one uppercase letter, one lowercase letter, one number and one special character, shown as a live requirements checklist while typing (owner decision, October 18, 2026, #72).
-- Staff activation, password reset and every other password creation or change accept 15–64 characters and do not require uppercase, lowercase, number, or symbol composition.
+- All password creation, activation, reset, and change flows—including Applicant self-registration, Staff activation, password reset, and Profile password changes—accept 15–64 characters and do not require uppercase, lowercase, number, or symbol composition (superseding the earlier Applicant composition exception; Applicant registration shows live 15–64 character length guidance while typing).
 - Allow spaces, paste, autofill, and password managers.
-- Do not require periodic changes.
+- Do not require periodic changes, and do not reject or force-reset existing credentials at normal sign-in when they were created before the current length policy.
 - Reject known-compromised values through Laravel's privacy-preserving check when the service is reachable.
-- When the compromised-password service is unreachable, apply every local passphrase rule, record the degraded check for operations, and avoid exposing provider details. It does not weaken unrelated authorization.
+- When the compromised-password service is unreachable, apply every local length and format rule, record the degraded check for operations, and avoid exposing provider details. It does not weaken unrelated authorization.
 
 ### 7.2 MFA
 
@@ -357,11 +359,11 @@ Audit high-value events only:
 
 - Staff invitation and activation
 - Email verification
-- Completed password recovery
+- Password change (`password_changed`, including **Profile** password changes) and completed password recovery
 - Email change
 - Role assignment and revocation
 - Disable/reactivate
-- MFA enrollment, challenge outcome, recovery-code use, and authorized reset
+- MFA enrollment, challenge outcome, recovery-code use and regeneration, and authorized reset
 - Last successful sign-in
 
 Bounded security logs may retain throttling and failed-authentication evidence without passwords, tokens, MFA secrets, recovery codes, full request bodies, or a navigation clickstream. Institutional retention schedules, privacy requests, legal holds, and secure disposal remain external responsibilities. TALA provides no automatic disposal function and PRD 01 invents no retention duration.
@@ -378,7 +380,7 @@ Clinic 1 capability coverage, hierarchy, states and responsive/accessibility out
 | Unified sign-in | All account holders | Authenticate once and resolve an authorized context | Sign in |
 | Password recovery/reset | All eligible accounts | Restore password access | Send recovery link / Reset password |
 | Workspace chooser | Multi-role account | Choose one authorized context | Open workspace |
-| Account Security | Signed-in account | Manage email/password and applicable MFA | Contextual security action |
+| **Profile** (`/<panel>/account-profile`, legacy `/<panel>/account-security` redirects) | Signed-in account | Manage profile photo, email/password, session guidance, and applicable MFA | Contextual account-menu action |
 | Users & Access list | System Administrator | Find accounts and identify the next access action | Invite Staff |
 | Account detail | System Administrator | Review one account and take a safe access action | State-dependent action |
 | Invite Staff | System Administrator | Provision fixed Staff contexts without a password | Send invitation |
@@ -476,13 +478,13 @@ The following matrix is the controlling module-specific mutation contract. Produ
 
 | Action or record | Who and when | Validation/readiness | Confirmation and audit | Limits, deletion, and recovery |
 |---|---|---|---|---|
-| Applicant registration and verification | Public user while registration is available | Email primitive; password 8–64 with at least one uppercase letter, one lowercase letter, one number and one special character, checked live while typing; acknowledgement; no protected duplicate disclosure | Routine submission records the credential reference and verification event | One credential account per normalized email. Resend is one message per 60 seconds; token expires after 60 minutes; no duplicate account is created |
-| Sign-in, MFA, and recovery | Account owner; Staff context requires enrolled TOTP | Five failed login/MFA attempts per normalized account/IP per minute; stricter Staff session policy; valid recovery token/code | Sensitive account changes require password reconfirmation no older than 15 minutes | Throttle waits for window reset, never permanent auto-lock. Recovery codes are shown once and complete-set replacement invalidates the prior set |
-| Email change | Applicant/Student-only account holder; System Administrator initiates for Staff-capable accounts after recent actor password confirmation | New email valid/unique; current account/version; one current pending change; verify the replacement before it becomes effective | **Change sign-in email** shows session and notification consequences; Staff change records authority/reason; audit old/new address safely | Prior verified email remains active until successor verification completes. Expiry/cancellation preserves it; stale/conflicting verification applies no change |
+| Applicant registration and verification | Public user while registration is available | Email primitive; password 15–64 characters without mandatory uppercase, lowercase, number, or symbol composition, with live length guidance while typing; acknowledgement; no protected duplicate disclosure | Routine submission records the credential reference and verification event | One credential account per normalized email. Resend is one message per 60 seconds; token expires after 60 minutes; no duplicate account is created |
+| Sign-in, MFA, and recovery | Account owner; Staff context requires enrolled TOTP | Five failed login/MFA attempts per normalized account/IP per minute; stricter Staff session policy; valid recovery token/code; Profile rejects empty/no-op, partial, and same-as-current password saves inline | Sensitive account changes (Profile password/email edits and MFA setup/disable/recovery-code regeneration, with recovery-code regeneration confirming via `Current password` without an authenticator code) require per-submission `Current password` confirmation; `Cancel` discards unsaved Profile edits in place; authenticated password-recovery requests dispatch only to the verified email; Profile password changes end other sessions and log `password_changed`, while completed recovery ends all sessions | Throttle waits for window reset, never permanent auto-lock. Email recovery never bypasses MFA or regenerates codes. Recovery codes are shown once and complete-set replacement invalidates the prior set |
+| Email change | Applicant/Student-only account holder; System Administrator initiates for Staff-capable accounts after current-password confirmation | New email valid/unique; current account/version; one current pending change; verify the replacement before it becomes effective | **Change sign-in email** shows session and notification consequences; Staff change records authority/reason; audit old/new address safely | Prior verified email remains active until successor verification completes. Expiry/cancellation preserves it; stale/conflicting verification applies no change |
 | Staff invitation/resend/activation | System Administrator with Staff-access authority | Existing eligible verified account is reused; fixed role; unique active invitation; mail readiness | **Invite Staff** or **Resend invitation** shows role, recipient, expiry, and that the prior link becomes invalid | One active invitation per account/scope; expiry creates no account. Resend invalidates prior link; activation is idempotent |
 | Role assignment/revocation | System Administrator | Fixed role set; authority/reason; current account; transactional final-active-System-Administrator protection | Named confirmation shows gained/lost workspaces and sessions; records before/after roles and reason | No role builder or account deletion. Rejected final-admin action changes nothing and is safe to retry after another administrator exists |
 | Disable/reactivate | System Administrator for another account; self-disable is unavailable | Current account/state, reason/authority, affected contexts, and transactional final-active-System-Administrator protection | **Disable account** states that all sessions and contexts end while history remains; **Reactivate account** states restored access | Accounts are never archived or deleted. Disablement preserves every domain link; reactivation does not recreate roles or records |
-| MFA reset | System Administrator under bounded recovery authority | Verified subject/recovery basis, recent actor password confirmation, current Staff account | **Reset Staff MFA** shows session termination and re-enrollment requirement | Old factor and recovery codes become unusable; no secret is displayed or recoverable |
+| MFA reset | System Administrator under bounded recovery authority | Verified subject/recovery basis, current-password confirmation, current Staff account | **Reset Staff MFA** shows session termination and re-enrollment requirement | Old factor and recovery codes become unusable; no secret is displayed or recoverable |
 | Public Notice/FAQ Draft | System Administrator | Bounded text and safe content; notice window/link and type-specific display order | Save Draft retains the entered content | Hard-delete only before first publication and without references. Previously published content is unpublished or superseded, never deleted |
 | Publish/unpublish public content | System Administrator | Current record/version, complete safe content and unique published order; notices also validate window/link | **Publish [type]** or **Unpublish [type]** shows public visibility and the notice's effective window when supplied | Atomic and idempotent; stale version changes nothing. Public projections follow the current publication state and applicable notice window |
 
@@ -499,7 +501,7 @@ The implemented module must prove:
 - Minimal registration and no accidental application creation
 - Duplicate-email guidance without account disclosure
 - Verification required, resend throttle, expired/used links, and dispatch failure recovery
-- Password creation/reset against the applicable Section 7.1 policy (Applicant registration or passphrase)
+- Password creation, change, and reset against the unified Section 7.1 policy (15–64 characters without mandatory composition, allowing spaces/paste/autofill, with compromised-value checks and no forced reset of existing accounts on normal sign-in)
 - Session invalidation after completed recovery
 - One public sign-in with verified email and authorized Applicant/Student/Staff resolution
 - Wrong-entry recovery without pre-authentication role disclosure
@@ -528,7 +530,7 @@ This module supplies credential and role contexts for the coordinated baseline o
 
 | Reference | Persona and starting state | Roles/contexts | Demonstrated evidence |
 |---|---|---|---|
-| `C1-APP-ACTIVE` | Ana Applicant, `ana.applicant@example.test`, active and verified | Applicant | Open-entry sign-in, direct routing, Account Security |
+| `C1-APP-ACTIVE` | Ana Applicant, `ana.applicant@example.test`, active and verified | Applicant | Open-entry sign-in, direct routing, Profile |
 | `C1-APP-VERIFY` | Vera Applicant, `vera.verify@example.test`, `VerificationRequired` | Applicant pending | Expired verification, resend, verification completion |
 | `C1-STAFF-INVITE` | Felipe Invitee, `felipe.invitee@example.test`, `InvitationPending` | Faculty pending | Invitation expiry, resend invalidation, activation, MFA enrollment |
 | `C1-STAFF-ACTIVE` | Regina Registrar, `regina.registrar@example.test`, active | Registrar | Unified sign-in, TOTP, Staff session policy |
@@ -543,7 +545,7 @@ This module supplies credential and role contexts for the coordinated baseline o
 |---|---|---|---|---|---|---|---|
 | Public visitor; entry closed then open | Public gateway | Inspect closed state, Programs, FAQ, map context, and single public sign-in; then select **Apply** after Clinic 2 opens entry | Availability, active Program source, support, privacy/accessibility links, institution/location, and single public sign-in remain clear | Existing Applicant sign-in remains available | Applicant registration entry only when open | Unsafe public link, unavailable map/media, or unavailable source shows a textual safe fallback | No duplicate marketing/CMS detour, no artificial urgency, and no application is created by registration |
 | `C1-APP-VERIFY` | Applicant registration | Create account, open expired link, resend, verify | Generic duplicate protection, pending state, resend guidance, verified completion | System Administrator sees bounded state, not secrets | Verified Applicant access | Mail failure preserves account and offers retry/support | One account reaches Applicant workspace |
-| `C1-APP-ACTIVE` | Applicant sign-in | Use unified sign-in or a retained role-specific link, recover, then reset password | School identity, generic auth error, authorized destination, recovery result | Other roles remain undisclosed | Applicant workspace and invalidated old sessions | Used/expired recovery link has one safe action | Authentication occurs once and route authorization holds |
+| `C1-APP-ACTIVE` | Applicant sign-in | Use unified sign-in or a retained role-specific link; update password on **Profile** (`Current password` visibly above `New password` / `Confirm new password` inside `Change password`, with in-place `Cancel` discard) or request password recovery (public or signed-in via **Profile** / MFA prompts), then reset password even inside an active browser session | School identity, generic auth error, authorized destination, `Current password` enforcement, recovery result | Other roles remain undisclosed | Applicant workspace, `password_changed` audit event, invalidated other/all sessions, and clean sign-out requiring fresh login on reset | Wrong `Current password`, empty/no-op, partial, or same-as-current password submissions fail inline without false save; used/expired recovery link has one safe action | Authentication occurs once, route authorization holds, and email recovery never bypasses MFA |
 | `C1-MULTIROLE` | Staff sign-in | Complete MFA, choose Student, switch to Faculty | Only authorized contexts, current context identity, stricter Staff session policy | Student and Faculty projections remain separate | Correct destination for each chosen context | Direct unauthorized role route is inaccessible without record leakage | No combined-role dashboard or privilege merging |
 | System Administrator and `C1-STAFF-INVITE` | Users & Access | Invite Staff, expire/resend link, activate, enroll MFA | Pending/expired state, invalidated old link, fixed roles, access evidence | Invitee receives Staff context after MFA | Activated Staff account | Duplicate-email path reuses an eligible verified account | Administrator never enters a password; one account is used |
 | System Administrator and `C1-DISABLED` | Account detail | Disable, attempt sign-in/direct route, then reactivate | Required authority evidence, ended sessions, generic support guidance | All contexts blocked then restored | Immutable access-change evidence | Mail failure does not reverse access state | Linked records and roles remain intact |

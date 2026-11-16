@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Models\User;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -16,7 +17,10 @@ class UserInfolist
                     TextEntry::make('name')->placeholder('Applicant account'),
                     TextEntry::make('email')->label('Verified sign-in email'),
                     TextEntry::make('staffAccessProfile.staff_identifier')->label('Staff identifier')->placeholder('Not assigned'),
-                    TextEntry::make('status')->badge(),
+                    TextEntry::make('status')
+                        ->badge()
+                        ->formatStateUsing(fn (?string $state): string => User::statusLabel($state))
+                        ->color(fn (?string $state): string => User::statusColor($state)),
                 ])->columns(2),
             Section::make('Authorized contexts')
                 ->schema([

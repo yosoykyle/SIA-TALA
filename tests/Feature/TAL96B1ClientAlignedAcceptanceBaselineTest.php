@@ -253,7 +253,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             $this->assertTrue($user->hasVerifiedEmail(), $email);
         }
 
-        foreach (['schedule_runs', 'section_meetings', 'enrollments', 'assessments', 'ledger_entries', 'payments', 'payment_attempts', 'webhook_calls'] as $table) {
+        foreach (['schedule_runs', 'section_meetings', 'enrollments', 'assessments', 'ledger_entries', 'payments'] as $table) {
             $this->assertSame(0, DB::table($table)->count(), $table);
         }
     }
@@ -555,8 +555,6 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertStringContainsString('downstream_assessments=0', $output);
         $this->assertStringContainsString('downstream_ledger_entries=0', $output);
         $this->assertStringContainsString('downstream_payments=0', $output);
-        $this->assertStringContainsString('downstream_payment_attempts=0', $output);
-        $this->assertStringContainsString('downstream_webhook_calls=0', $output);
         $this->assertSame($before, $this->baselineCounts());
         $this->assertSame($latestUpdate, DB::table('scheduling_demands')->max('updated_at'));
     }

@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Actions\SystemAdministration\TAL96D5E1ExplorationPersonaCatalog;
 use App\Models\AdmissionApplication;
 use App\Models\ApplicantIntake;
-use App\Models\PaymentAttempt;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\SectionMeeting;
@@ -176,12 +175,6 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         $this->assertSame(User::StatusInactive, $denied->status);
         $this->assertFalse($denied->canAuthenticate());
         $this->assertTrue($denied->hasRole(User::StaffRoleRegistrar));
-
-        foreach (['CHECKOUT-EXPIRED-001', 'CHECKOUT-REVIEW-001'] as $reference) {
-            $attempt = PaymentAttempt::query()->where('internal_reference', $reference)->sole();
-            $this->assertNotNull($attempt->term_account_id);
-            $this->assertNotNull($attempt->assessment_version);
-        }
     }
 
     #[Test]

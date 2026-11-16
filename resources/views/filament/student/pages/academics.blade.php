@@ -52,7 +52,7 @@
                             @endif
                         </div>
                         <div class="student-academic-table-wrap" role="region" aria-label="Current subjects and released results" tabindex="0">
-                            <table class="student-academic-table student-academic-ledger">
+                            <table class="tala-data-table student-academic-table student-academic-ledger">
                                 <thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Units</th><th scope="col">Released result</th></tr></thead>
                                 <tbody>
                                     @foreach ($currentResults as $result)
@@ -352,7 +352,7 @@
                                 <div><h2>{{ $term->label }}</h2><p>{{ collect([$termYearLevels->get($term->id), $term->academicYear?->label])->filter()->implode(' · ') }}</p></div>
                                 <div class="student-record-term-average"><x-academic-average :$average compact /></div>
                             </header>
-                            <div class="student-academic-table-wrap" role="region" aria-label="{{ $term->label }} results" tabindex="0"><table class="student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Result</th></tr></thead><tbody>
+                            <div class="student-academic-table-wrap" role="region" aria-label="{{ $term->label }} results" tabindex="0"><table class="tala-data-table student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Result</th></tr></thead><tbody>
                                 @foreach ($results->where('term.id', $term->id) as $result)<tr><th scope="row">{{ $result['course_specification']?->title }}<span class="student-academic-secondary">{{ $result['course_specification']?->course?->code }}</span></th><td>{{ (float) $result['units'] }}</td><td @class(['student-record-grade' => is_numeric($result['result'])])><x-student-academic-result :$result :show-details="false" /></td></tr>@endforeach
                             </tbody></table></div>
                             @if ($average['value'] === null)<p class="student-record-term-note">{{ $average['reason'] }}</p>@endif

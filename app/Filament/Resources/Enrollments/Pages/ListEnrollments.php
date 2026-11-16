@@ -8,22 +8,27 @@ use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\IndividualAssessmentSources;
 use App\Actions\Finance\TermAccountProjection;
+use App\Actions\StudentLifecycle\LifecycleAccountingReview;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
+use App\Filament\Resources\Enrollments\Tables\StudentAccountsTable;
 use App\Models\AdmissionApplication;
 use App\Models\Assessment;
 use App\Models\Enrollment;
+use App\Models\FeePlan;
 use App\Models\FinanceExport;
-use App\Models\OperationalEvent;
-use App\Models\PaymentAttempt;
+use App\Models\OfficialOutputRestriction;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
 use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
+use App\Models\TranscriptRequest;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
+use App\Support\SafeUserNotification;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Radio;
@@ -39,18 +44,307 @@ use Filament\Schemas\Components\View as SchemaView;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Throwable;
 
 class ListEnrollments extends ListRecords
 {
+    public const ACCOUNTING_TAB_KEYS = [
+        'overview',
+        'accounts',
+        'assessment_required',
+        'payment_proof',
+        'student_changes',
+    ];
+
+    public const REGISTRAR_TAB_KEYS = [
+        'overview',
+        'ready_applicants',
+        'ready_to_prepare',
+        'waiting_for_learner',
+        'placement_shortages',
+        'finance_pending',
+        'ready_to_finalize',
+        'adjustments_drops',
+        'official_history',
+        'all_cases',
+    ];
+
     protected static string $resource = EnrollmentResource::class;
+
+    #[Url(as: 'account')]
+    public ?int $selectedAccountingId = null;
+
+    #[Url(as: 'view')]
+    public string $accountingSection = 'work';
+
+    #[Url(as: 'scope')]
+    public string $accountingScope = '';
+
+    private function normalizeAccountingTab(): void
+    {
+        if (! $this->isAccounting() || ! filled($this->activeTab)) {
+            return;
+        }
+
+        if ($this->activeTab === 'assessment_reviews') {
+            $this->activeTab = 'assessment_required';
+
+            return;
+        }
+
+        if (! in_array($this->activeTab, self::ACCOUNTING_TAB_KEYS, true)) {
+            $this->activeTab = 'overview';
+        }
+    }
+
+    private function totalTermsCount(): int
+    {
+        return $this->memoTotalTerms ??= Term::query()->count();
+    }
+
+    /** @return list<int> */
+    public function accountingPendingLifecycleIds(): array
+    {
+        return $this->memoPendingLifecycleIds ??= app(LifecycleAccountingReview::class)->pendingEnrollmentIds();
+    }
+
+    public function accountingTermGateActive(): bool
+    {
+        $this->normalizeAccountingTab();
+
+        if (! $this->isAccounting() || $this->activeTab !== 'accounts') {
+            return false;
+        }
+
+        if ($this->totalTermsCount() <= 1) {
+            return false;
+        }
+
+        if ($this->accountingScope === 'all' || $this->selectedAccountingId !== null || $this->hasTableSearch()) {
+            return false;
+        }
+
+        if (collect(Arr::dot($this->tableFilters ?? []))->contains(fn (mixed $value): bool => filled($value))) {
+            return false;
+        }
+
+        if (filled(request()->query('proof'))) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function selectAccountingTerm(int $termId): void
+    {
+        abort_unless($this->isAccounting(), 403);
+        $this->accountingScope = '';
+        $filters = $this->tableFilters ?? [];
+        data_set($filters, 'term.value', (string) $termId);
+        $this->getTableFiltersForm()->fill($filters);
+        $this->handleTableFilterUpdates();
+        $this->selectedAccountingId = null;
+        $this->accountingSection = 'work';
+        $this->flushCachedTableRecords();
+    }
+
+    public function showAllAccountingTerms(): void
+    {
+        abort_unless($this->isAccounting(), 403);
+        $this->removeTableFilter('term');
+        $this->accountingScope = 'all';
+        $this->selectedAccountingId = null;
+        $this->accountingSection = 'work';
+        $this->flushCachedTableRecords();
+    }
+
+    public function resetAccountingScope(): void
+    {
+        abort_unless($this->isAccounting(), 403);
+        $this->accountingScope = '';
+        $this->resetTableFiltersForm();
+        $this->resetTableSearch();
+        $this->selectedAccountingId = null;
+        $this->accountingSection = 'work';
+        $this->resetPage($this->getTablePaginationPageName());
+        $this->flushCachedTableRecords();
+    }
+
+    public function clearAccountingTermFilter(): void
+    {
+        abort_unless($this->isAccounting(), 403);
+        $this->removeTableFilter('term');
+        $this->accountingScope = $this->activeTab === 'accounts' ? 'all' : '';
+        $this->selectedAccountingId = null;
+        $this->accountingSection = 'work';
+        $this->flushCachedTableRecords();
+    }
+
+    public function selectedAccountingRecord(): ?Enrollment
+    {
+        abort_unless($this->isAccounting(), 403);
+        $records = $this->getTableRecords();
+        $record = $this->selectedAccountingId === null ? $records->first() : $records->firstWhere('id', $this->selectedAccountingId);
+        if ($record !== null) {
+            Gate::authorize('view', $record);
+        }
+
+        return $record;
+    }
+
+    public function selectAccountingRecord(int $recordId): void
+    {
+        abort_unless($this->isAccounting(), 403);
+        abort_unless($this->getTableRecords()->contains('id', $recordId), 404);
+        $this->selectedAccountingId = $recordId;
+        $this->accountingSection = 'work';
+        $this->dispatch('record-selected');
+    }
+
+    public function showAccountingSection(string $section): void
+    {
+        abort_unless($this->isAccounting() && in_array($section, ['work', 'history'], true), 404);
+        $case = $this->selectedAccountingRecord();
+        $hasLifecycleHistory = $case !== null && app(LifecycleAccountingReview::class)->safeStatus($case)['reviewed'] > 0;
+        abort_unless($case !== null && ($section !== 'history' || $case->termAccount !== null || $hasLifecycleHistory), 404);
+        $this->selectedAccountingId = $case->id;
+        $this->accountingSection = $section;
+        $this->dispatch('record-selected');
+    }
+
+    private bool $hadAccountingTermFilter = false;
+
+    public function clearAccountingFilters(): void
+    {
+        abort_unless($this->isAccounting(), 403);
+        $hadTermFilter = $this->activeTab === 'accounts' && filled(data_get($this->tableFilters, 'term.value'));
+        $this->resetTableFiltersForm();
+        $this->resetTableSearch();
+        $this->selectedAccountingId = null;
+        $this->accountingSection = 'work';
+        if ($hadTermFilter) {
+            $this->accountingScope = 'all';
+        }
+        $this->flushCachedTableRecords();
+    }
+
+    public function updating(string $property): void
+    {
+        if ($this->isAccounting() && $this->activeTab === 'accounts' && ($property === 'tableFilters' || str_starts_with($property, 'tableFilters.term'))) {
+            $this->hadAccountingTermFilter = filled(data_get($this->tableFilters, 'term.value'));
+        }
+    }
+
+    public function updated(string $property): void
+    {
+        $this->normalizeAccountingTab();
+
+        if ($this->isAccounting() && (in_array($property, ['activeTab', 'tableSearch', 'tableRecordsPerPage'], true) || str_starts_with($property, 'tableFilters'))) {
+            $this->selectedAccountingId = null;
+            $this->accountingSection = 'work';
+            if ($property === 'activeTab') {
+                $this->accountingScope = '';
+            } elseif ($property === 'tableFilters' || str_starts_with($property, 'tableFilters.term')) {
+                if (filled(data_get($this->tableFilters, 'term.value'))) {
+                    $this->accountingScope = '';
+                } elseif ($this->activeTab === 'accounts' && $this->hadAccountingTermFilter) {
+                    $this->accountingScope = 'all';
+                }
+            }
+            $this->hadAccountingTermFilter = false;
+        }
+    }
+
+    public function updatedPaginators(int $page, string $pageName): void
+    {
+        if ($this->isAccounting() && ! $this->shouldMountInteractsWithTable && $pageName === $this->getTablePaginationPageName()) {
+            $this->selectedAccountingId = null;
+            $this->accountingSection = 'work';
+        }
+    }
+
+    #[On('accounting-record-updated')]
+    public function refreshAccountingRecords(): void
+    {
+        abort_unless($this->isAccounting(), 403);
+        $this->accountingWorkIds = null;
+        $this->memoPendingLifecycleIds = null;
+        $this->memoPendingLifecycleCounts = [];
+        $this->flushCachedTableRecords();
+    }
+
+    public function bootedInteractsWithTable(): void
+    {
+        $this->normalizeAccountingTab();
+        parent::bootedInteractsWithTable();
+        if (! $this->isAccounting() || ! $this->shouldMountInteractsWithTable || $this->selectedAccountingId === null || request()->query('page') !== null) {
+            return;
+        }
+        $position = $this->getFilteredSortedTableQuery()->pluck('enrollments.id')->search($this->selectedAccountingId, true);
+        if ($position !== false) {
+            $this->setPage(intdiv($position, max(1, (int) $this->getTableRecordsPerPage())) + 1, $this->getTablePaginationPageName());
+        }
+    }
+
+    /** @return array{label:string,icon:string} */
+    public function accountingRecordSummary(Enrollment $case): array
+    {
+        $matchingQueues = collect(['student_changes', 'proof', 'assessment'])
+            ->filter(fn (string $kind): bool => in_array($case->id, $this->accountingCaseIds($kind), true))
+            ->values();
+        $extraSuffix = $matchingQueues->count() > 1
+            ? ' (+'.($matchingQueues->count() - 1).' more)'
+            : '';
+
+        if ($matchingQueues->contains('student_changes')) {
+            $pending = $this->memoPendingLifecycleCounts[$case->id] ??= app(LifecycleAccountingReview::class)->safeStatus($case)['pending'];
+            $label = $pending.' pending '.Str::plural('change', $pending);
+            if ($case->termAccount === null) {
+                $label .= ' · account source unavailable';
+            }
+
+            return ['label' => $label.$extraSuffix, 'icon' => 'heroicon-o-clipboard-document-check'];
+        }
+        if ($case->termAccount === null) {
+            return $case->canonical_outcome === Enrollment::OutcomeInProgress
+                ? ['label' => 'Waiting for Registrar', 'icon' => 'heroicon-o-clock']
+                : ['label' => 'Account source unavailable', 'icon' => 'heroicon-o-exclamation-triangle'];
+        }
+        foreach ([
+            'proof' => ['Receipts to review', 'heroicon-o-document-magnifying-glass'],
+            'assessment' => ['Assessment review', 'heroicon-o-document-currency-dollar'],
+        ] as $kind => [$label, $icon]) {
+            if ($matchingQueues->contains($kind)) {
+                return ['label' => $label.$extraSuffix, 'icon' => $icon];
+            }
+        }
+
+        return ['label' => StudentAccountsTable::rowData($case, $this->activeTab)['status'], 'icon' => 'heroicon-o-banknotes'];
+    }
+
+    public function accountingInspectorView(): string
+    {
+        if (in_array($this->accountingSection, ['account', 'changes', 'proof', 'history', 'assessment'], true)) {
+            return $this->accountingSection;
+        }
+
+        return match ($this->activeTab) {
+            'student_changes' => 'changes', 'payment_proof' => 'proof',
+            'assessment_required' => 'assessment', default => 'overview',
+        };
+    }
 
     #[Locked]
     public bool $financeExportFailed = false;
@@ -83,34 +377,55 @@ class ListEnrollments extends ListRecords
     /** @var array<string, list<int>>|null */
     private ?array $accountingWorkIds = null;
 
+    private ?int $memoTotalTerms = null;
+
+    /** @var Collection<int, Term>|null */
+    private ?Collection $memoActiveTerms = null;
+
+    /** @var list<int>|null */
+    private ?array $memoPendingLifecycleIds = null;
+
+    /** @var array<int, int> */
+    private array $memoPendingLifecycleCounts = [];
+
     /** @return list<int> */
     private function accountingCaseIds(string $kind): array
     {
         if ($this->accountingWorkIds === null) {
-            $this->accountingWorkIds = ['assessment' => [], 'proof' => [], 'provider' => []];
-            $cases = Enrollment::query()->with(['termAccount.assessments', 'termAccount.paymentEvidenceVersions'])
-                ->where(fn (Builder $query): Builder => $query->whereHas('termAccount')->orWhere('canonical_outcome', Enrollment::OutcomeInProgress))->get();
+            $this->accountingWorkIds = ['assessment' => [], 'proof' => [],
+                'student_changes' => $this->accountingPendingLifecycleIds()];
+            $cases = Enrollment::query()->with([
+                'term',
+                'currentProposalVersion.confirmation',
+                'currentCorVersion',
+                'termAccount.enrollment',
+                'termAccount.assessments.obligations.paymentAllocations.payment',
+                'termAccount.assessments.obligations.coverages',
+                'termAccount.paymentEvidenceVersions',
+            ])->where(fn (Builder $query): Builder => $query->whereHas('termAccount')->orWhere('canonical_outcome', Enrollment::OutcomeInProgress))->get();
             foreach ($cases as $case) {
                 $assessment = $case->termAccount?->assessments->where('state', Assessment::StateActive)->sortByDesc('version')->first();
-                $sources = app(IndividualAssessmentSources::class)->forEnrollment($case);
-                $position = $case->termAccount !== null ? app(TermAccountProjection::class)->forAccount($case->termAccount) : null;
-                if (($case->canonical_outcome === Enrollment::OutcomeInProgress && ($assessment === null || (int) $assessment->source_proposal_version_id !== (int) $case->current_proposal_version_id))
-                    || $sources['course_drop'] !== null
-                    || ($sources['adjustment'] && (int) $assessment?->source_proposal_version_id !== (int) $case->current_proposal_version_id)
-                    || ($position['reconciliation_required'] ?? false)) {
+                $needsInProgressAssessment = $case->canonical_outcome === Enrollment::OutcomeInProgress
+                    && ($assessment === null || (int) $assessment->source_proposal_version_id !== (int) $case->current_proposal_version_id);
+
+                if ($needsInProgressAssessment) {
                     $this->accountingWorkIds['assessment'][] = (int) $case->id;
+                } else {
+                    $sources = app(IndividualAssessmentSources::class)->forEnrollment($case, useLoadedRelations: true);
+                    if ($sources['course_drop'] !== null
+                        || ($sources['adjustment'] && (int) $assessment?->source_proposal_version_id !== (int) $case->current_proposal_version_id)) {
+                        $this->accountingWorkIds['assessment'][] = (int) $case->id;
+                    } elseif ($case->termAccount !== null && $assessment !== null && (int) $assessment->version > 1) {
+                        $position = app(TermAccountProjection::class)->forAccount($case->termAccount, useLoadedRelations: true);
+                        if ($position['reconciliation_required'] ?? false) {
+                            $this->accountingWorkIds['assessment'][] = (int) $case->id;
+                        }
+                    }
                 }
                 if ($case->termAccount?->paymentEvidenceVersions->contains('state', PaymentEvidenceVersion::StateSubmitted)) {
                     $this->accountingWorkIds['proof'][] = (int) $case->id;
                 }
             }
-            $this->accountingWorkIds['provider'] = Enrollment::query()->whereHas('termAccount.paymentAttempts', fn (Builder $query): Builder => $query
-                ->where('status', PaymentAttempt::StatusReviewRequired)
-                ->orWhereExists(function ($events): void {
-                    $events->selectRaw('1')->from('operational_events')->whereColumn('operational_events.related_record_id', 'payment_attempts.id')
-                        ->where('operational_events.related_record_type', PaymentAttempt::class)->where('operational_events.integration', OperationalEvent::IntegrationPayMongo)
-                        ->whereIn('operational_events.status', [OperationalEvent::StatusReviewRequired, OperationalEvent::StatusFailed]);
-                }))->pluck('id')->all();
         }
 
         return $this->accountingWorkIds[$kind];
@@ -121,7 +436,179 @@ class ListEnrollments extends ListRecords
     {
         abort_unless($this->isAccounting(), 403);
 
-        return collect(['assessment', 'proof', 'provider'])->mapWithKeys(fn (string $kind): array => [$kind => count($this->accountingCaseIds($kind))])->all();
+        return collect(['assessment', 'proof', 'student_changes'])->mapWithKeys(fn (string $kind): array => [$kind => count($this->accountingCaseIds($kind))])->all();
+    }
+
+    public function accountingUniqueReviewCount(): int
+    {
+        abort_unless($this->isAccounting(), 403);
+
+        return collect(['assessment', 'proof', 'student_changes'])
+            ->flatMap(fn (string $kind): array => $this->accountingCaseIds($kind))
+            ->unique()
+            ->count();
+    }
+
+    /** @return Collection<int, Term> */
+    private function accountingActiveTerms(): Collection
+    {
+        return $this->memoActiveTerms ??= Term::query()
+            ->where('state', Term::StateActive)
+            ->latest('starts_on')
+            ->latest('id')
+            ->get();
+    }
+
+    public function accountingActiveTerm(): ?Term
+    {
+        abort_unless($this->isAccounting(), 403);
+
+        return $this->accountingActiveTerms()->first();
+    }
+
+    public function accountingOtherTermPendingCount(?int $scopedTermId = null): int
+    {
+        abort_unless($this->isAccounting(), 403);
+
+        $pendingIds = collect(['assessment', 'proof', 'student_changes'])
+            ->flatMap(fn (string $kind): array => $this->accountingCaseIds($kind))
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($pendingIds === []) {
+            return 0;
+        }
+
+        return Enrollment::query()
+            ->whereIn('id', $pendingIds)
+            ->when($scopedTermId !== null, fn (Builder $query): Builder => $query->where('term_id', '!=', $scopedTermId))
+            ->count();
+    }
+
+    public function accountingHiddenCurrentQueueCount(int $scopedTermId): int
+    {
+        abort_unless($this->isAccounting(), 403);
+
+        $kind = match ($this->activeTab) {
+            'assessment_required' => 'assessment',
+            'payment_proof' => 'proof',
+            'student_changes' => 'student_changes',
+            default => null,
+        };
+
+        if ($kind === null) {
+            return 0;
+        }
+
+        $ids = $this->accountingCaseIds($kind);
+        if ($ids === []) {
+            return 0;
+        }
+
+        return Enrollment::query()
+            ->whereIn('id', $ids)
+            ->where('term_id', '!=', $scopedTermId)
+            ->count();
+    }
+
+    /**
+     * @return array{
+     *     activeTermId: ?int,
+     *     activeTermLabel: string,
+     *     activeTermNames: list<string>,
+     *     totalTerms: int,
+     *     feePlanPublishedCount: int,
+     *     feePlanAllPublishedCount: int,
+     *     feePlanScopeLabel: string,
+     *     feePlanDraftCount: int,
+     *     openAccountsCount: int,
+     *     unpaidAccountsCount: int,
+     *     torOpenCount: int,
+     *     torRestrictedCount: int,
+     *     uniqueReviewCount: int,
+     *     otherTermPendingCount: int,
+     *     multiTermPendingNote: ?string,
+     * }
+     */
+    public function accountingOverviewSummary(): array
+    {
+        abort_unless($this->isAccounting(), 403);
+
+        $activeTerms = $this->accountingActiveTerms();
+        $activeTerm = $activeTerms->first();
+        $activeTermNames = $activeTerms->pluck('label')->filter()->values()->all();
+        $otherTermPendingCount = $activeTerm !== null
+            ? $this->accountingOtherTermPendingCount($activeTerm->id)
+            : $this->accountingOtherTermPendingCount();
+        $openAccountsCount = TermAccount::query()->where('state', TermAccount::StateOpen)->count();
+        $feePlanStats = FeePlan::query()
+            ->selectRaw(
+                'SUM(CASE WHEN state = ? THEN 1 ELSE 0 END) as all_published_count, SUM(CASE WHEN state = ? THEN 1 ELSE 0 END) as draft_count'
+                .($activeTerm !== null ? ', SUM(CASE WHEN state = ? AND term_id = ? THEN 1 ELSE 0 END) as active_published_count' : ''),
+                $activeTerm !== null
+                    ? [FeePlan::StatePublished, FeePlan::StateDraft, FeePlan::StatePublished, $activeTerm->id]
+                    : [FeePlan::StatePublished, FeePlan::StateDraft],
+            )
+            ->first();
+        $allPublishedCount = (int) ($feePlanStats?->all_published_count ?? 0);
+        $scopedPublishedCount = $activeTerm !== null
+            ? (int) ($feePlanStats?->active_published_count ?? 0)
+            : $allPublishedCount;
+
+        return [
+            'activeTermId' => $activeTerm?->id,
+            'activeTermLabel' => $activeTerm?->label ?? 'No active term',
+            'activeTermNames' => $activeTermNames,
+            'totalTerms' => $this->totalTermsCount(),
+            'feePlanPublishedCount' => $scopedPublishedCount,
+            'feePlanAllPublishedCount' => $allPublishedCount,
+            'feePlanScopeLabel' => $activeTerm?->label ?? 'All terms',
+            'feePlanDraftCount' => (int) ($feePlanStats?->draft_count ?? 0),
+            'openAccountsCount' => $openAccountsCount,
+            'unpaidAccountsCount' => $openAccountsCount,
+            'torOpenCount' => TranscriptRequest::query()->where('state', TranscriptRequest::StateOpen)->count(),
+            'torRestrictedCount' => OfficialOutputRestriction::query()
+                ->where('output_type', OfficialOutputRestriction::OutputTor)
+                ->whereNull('resolved_at')
+                ->count(),
+            'uniqueReviewCount' => $this->accountingUniqueReviewCount(),
+            'otherTermPendingCount' => $otherTermPendingCount,
+            'multiTermPendingNote' => $activeTerm !== null && $otherTermPendingCount > 0
+                ? $otherTermPendingCount.' pending '.Str::plural('task', $otherTermPendingCount).' from other terms '.($otherTermPendingCount === 1 ? 'is' : 'are').' included in the queues below.'
+                : null,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     multiTerm: bool,
+     *     activeTerm: ?Term,
+     *     selectedTerm: ?Term,
+     *     selectedProgram: ?Program,
+     *     otherTermPendingCount: int,
+     *     hiddenCurrentQueueCount: int,
+     *     workCounts: array<string, int>,
+     *     hasTermOrProgramFilter: bool,
+     * }
+     */
+    public function accountingScopeContext(): array
+    {
+        abort_unless($this->isAccounting(), 403);
+
+        $termId = (int) data_get($this->tableFilters, 'term.value') ?: null;
+        $programId = (int) data_get($this->tableFilters, 'program.value') ?: null;
+
+        return [
+            'multiTerm' => $this->totalTermsCount() > 1,
+            'activeTerm' => $this->accountingActiveTerm(),
+            'selectedTerm' => $termId !== null ? Term::query()->with('academicYear')->find($termId) : null,
+            'selectedProgram' => $programId !== null ? Program::query()->find($programId) : null,
+            'otherTermPendingCount' => $termId !== null ? $this->accountingOtherTermPendingCount($termId) : 0,
+            'hiddenCurrentQueueCount' => $termId !== null ? $this->accountingHiddenCurrentQueueCount($termId) : 0,
+            'workCounts' => $this->accountingWorkCounts(),
+            'hasTermOrProgramFilter' => $termId !== null || $programId !== null,
+        ];
     }
 
     /** @return list<int> */
@@ -160,15 +647,18 @@ class ListEnrollments extends ListRecords
 
     public function content(Schema $schema): Schema
     {
+        $this->normalizeAccountingTab();
+
         if ($this->isAccounting() && $this->activeTab === 'overview') {
             return $schema->components([SchemaView::make('filament.admin.enrollments.accounting-workbench')
-                ->viewData(fn (): array => ['counts' => $this->accountingWorkCounts()])]);
+                ->viewData(fn (): array => [
+                    'counts' => $this->accountingWorkCounts(),
+                    'overviewSummary' => $this->accountingOverviewSummary(),
+                ])]);
         }
 
         if ($this->isAccounting()) {
-            $schema = parent::content($schema);
-
-            return $schema->components([SchemaView::make('filament.admin.enrollments.queue-context'), ...$schema->getComponents()]);
+            return $schema->components([SchemaView::make('filament.admin.enrollments.accounting-workspace')]);
         }
 
         if (! $this->isRegistrar()) {
@@ -214,7 +704,9 @@ class ListEnrollments extends ListRecords
             return 'Enrollment oversight';
         }
         if ($this->isAccounting()) {
-            return (string) ($this->getCachedTabs()[$this->activeTab ?? 'overview']?->getLabel() ?? 'Student accounts');
+            $this->normalizeAccountingTab();
+
+            return $this->activeTab === 'overview' ? 'Accounting overview' : 'Student accounts';
         }
 
         return $this->isRegistrar()
@@ -228,12 +720,17 @@ class ListEnrollments extends ListRecords
             return 'Read-only enrollment records. Registrar manages enrollment.';
         }
         if ($this->isAccounting()) {
+            $this->normalizeAccountingTab();
+
             return match ($this->activeTab) {
-                'overview' => 'Review assessments and payments, or find an account.',
-                'assessment_required' => 'Review unassessed subjects, recorded changes and retained payment sources.',
-                'payment_proof' => 'Check submitted proof against its named fees before recording a payment.',
-                'payment_exceptions' => 'Resolve failed or unmatched online payment records.',
-                default => 'Find a student and review the current term account.',
+                'overview' => 'Review pending work or find a student’s account.',
+                'accounts' => $this->accountingTermGateActive()
+                    ? 'Select a term or search for a student before loading full account records.'
+                    : 'Search and filter student account records by term or program.',
+                'payment_proof' => 'Verify submitted payment receipts and record verification results across all terms.',
+                'assessment_required' => 'Review unassessed enrollments, adjusted subjects and earlier payments across all terms.',
+                'student_changes' => 'Review recorded student status changes and confirm account updates across all terms.',
+                default => 'Find a student and review their account work.',
             };
         }
         if (! $this->isRegistrar()) {
@@ -255,8 +752,15 @@ class ListEnrollments extends ListRecords
     /** @return array<string, string> */
     public function getBreadcrumbs(): array
     {
-        return $this->isRegistrar() || $this->isAccounting()
-            ? ($this->activeTab === 'overview' ? [] : [EnrollmentResource::getUrl('index') => ($this->isAccounting() ? 'Student accounts' : 'Enrollment'), $this->getTitle()])
+        if ($this->isAccounting()) {
+            return $this->activeTab === 'overview' ? [] : [
+                EnrollmentResource::getUrl('index') => 'Overview',
+                $this->getTitle(),
+            ];
+        }
+
+        return $this->isRegistrar()
+            ? ($this->activeTab === 'overview' ? [] : [EnrollmentResource::getUrl('index') => 'Enrollment', $this->getTitle()])
             : parent::getBreadcrumbs();
     }
 
@@ -304,17 +808,13 @@ class ListEnrollments extends ListRecords
         }
 
         return [
-            'overview' => Tab::make('Student accounts'),
-            'accounts' => Tab::make('Account records')->modifyQueryUsing(
-                fn (Builder $query): Builder => $query->where(fn (Builder $scope): Builder => $scope->whereHas('termAccount')->orWhere('canonical_outcome', Enrollment::OutcomeInProgress)),
-            ),
-            'assessment_required' => Tab::make('Review assessments')->modifyQueryUsing(
+            'overview' => Tab::make('Accounting overview'),
+            'accounts' => Tab::make('All student accounts'),
+            'assessment_required' => Tab::make('Assessment reviews')->modifyQueryUsing(
                 fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('assessment')),
             ),
-            'payment_proof' => Tab::make('Review payment proof')->modifyQueryUsing(fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('proof'))),
-            'payment_exceptions' => Tab::make('Resolve online payments')->modifyQueryUsing(
-                fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('provider')),
-            ),
+            'payment_proof' => Tab::make('Review receipts')->modifyQueryUsing(fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('proof'))),
+            'student_changes' => Tab::make('Student status changes')->modifyQueryUsing(fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('student_changes'))),
         ];
     }
 
@@ -329,10 +829,23 @@ class ListEnrollments extends ListRecords
         }
         if ($this->isAccounting()) {
             return [
-                Action::make('backToAccounts')->label('Student accounts')->icon('heroicon-o-arrow-left')->color('gray')
-                    ->url(EnrollmentResource::getUrl('index'))->visible(fn (): bool => $this->activeTab !== 'overview'),
+                Action::make('accountingAllTerms')
+                    ->label('All terms')
+                    ->color('gray')
+                    ->visible(fn (): bool => $this->activeTab === 'accounts'
+                        && ! $this->accountingTermGateActive()
+                        && filled(data_get($this->tableFilters, 'term.value')))
+                    ->action(fn () => $this->showAllAccountingTerms()),
+                Action::make('accountingChangeTerm')
+                    ->label('Change term')
+                    ->icon(Heroicon::OutlinedCalendarDays)
+                    ->color('gray')
+                    ->visible(fn (): bool => $this->activeTab === 'accounts'
+                        && ! $this->accountingTermGateActive()
+                        && $this->totalTermsCount() > 1)
+                    ->action(fn () => $this->resetAccountingScope()),
                 Action::make('exportAccountStatus')
-                    ->label('Export account status')
+                    ->label('Export account status')->color('gray')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->modalHeading('Export account status')
                     ->modalDescription('Review the current account position before downloading.')
@@ -347,6 +860,10 @@ class ListEnrollments extends ListRecords
                         return [];
                     })
                     ->modalSubmitAction(fn (Action $action): Action => $action->disabled(function (): bool {
+                        if ($this->activeTab !== 'accounts' || $this->accountingTermGateActive()) {
+                            return true;
+                        }
+
                         $count = (clone $this->getFilteredSortedTableQuery())->whereHas('termAccount')->count();
 
                         return $count === 0 || $count > 10000;
@@ -357,7 +874,7 @@ class ListEnrollments extends ListRecords
                         SchemaView::make('filament.admin.enrollments.account-status-export')
                             ->viewData(fn (): array => $this->accountStatusExportData()),
                     ])
-                    ->visible(fn (): bool => $this->activeTab === 'accounts')
+                    ->visible(fn (): bool => $this->activeTab === 'accounts' && ! $this->accountingTermGateActive())
                     ->action(function (Action $action): void {
                         try {
                             $query = clone $this->getFilteredSortedTableQuery();
@@ -433,13 +950,13 @@ class ListEnrollments extends ListRecords
             ->authorize(fn (): bool => $this->isRegistrar())
             ->modalHeading('Who can enroll during this period')
             ->modalWidth(Width::Large)
-            ->modalSubmitActionLabel('Save allowed learners')
+            ->modalSubmitActionLabel('Save allowed students')
             ->modalCancelActionLabel('Keep current setting')
             ->modalDescription('Choose who may start enrollment during the published dates. The dates stay the same.')
             ->schema([
                 Select::make('term_id')->label('Enrollment term')->options(fn (): array => Term::query()->orderByDesc('starts_on')->pluck('label', 'id')->all())->searchable()->required()->live()
                     ->afterStateUpdated(fn (Set $set, mixed $state) => $set('applicability', filled($state) ? Term::query()->find($state)?->registration_applicability : null)),
-                Radio::make('applicability')->label('Allowed learners')->options(RegistrationWindowApplicability::options())->required()
+                Radio::make('applicability')->label('Allowed students')->options(RegistrationWindowApplicability::options())->required()
                     ->helperText('Your name, the time and the changes are recorded automatically.'),
             ])
             ->action(function (array $data): void {
@@ -447,9 +964,14 @@ class ListEnrollments extends ListRecords
                 abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
                 try {
                     app(RegistrationWindowApplicability::class)->record(Term::query()->findOrFail($data['term_id']), $actor, $data['applicability']);
-                    Notification::make()->title('Allowed learners saved')->success()->send();
+                    Notification::make()->title('Allowed students saved')->success()->send();
                 } catch (Throwable $exception) {
-                    Notification::make()->title('Allowed learners were not saved')->body($exception->getMessage())->danger()->persistent()->send();
+                    SafeUserNotification::sendError(
+                        'Allowed students were not saved',
+                        $exception,
+                        'Allowed students could not be updated. Keep the current setting and try again.',
+                        persistent: true,
+                    );
                 }
             });
     }
@@ -546,11 +1068,11 @@ class ListEnrollments extends ListRecords
 
                     $this->redirect(EnrollmentResource::getUrl('view', ['record' => $enrollment]));
                 } catch (Throwable $exception) {
-                    Notification::make()
-                        ->title('Enrollment not started')
-                        ->body($exception->getMessage())
-                        ->danger()
-                        ->send();
+                    SafeUserNotification::sendError(
+                        'Enrollment not started',
+                        $exception,
+                        'Enrollment could not be started right now. Refresh the page and try again.',
+                    );
                 }
             });
     }
@@ -699,26 +1221,12 @@ class ListEnrollments extends ListRecords
                         ->body('The enrollment window for this term is not currently open.')
                         ->warning()
                         ->send();
-                } catch (ValidationException $exception) {
-                    Notification::make()
-                        ->title('Registration not started')
-                        ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
-                        ->danger()
-                        ->send();
-                } catch (AuthorizationException $exception) {
-                    Notification::make()
-                        ->title('Registration not started')
-                        ->body($exception->getMessage())
-                        ->danger()
-                        ->send();
-                } catch (Throwable $exception) {
-                    report($exception);
-
-                    Notification::make()
-                        ->title('Registration not started')
-                        ->body('An unexpected error occurred while starting registration. Please try again or contact system support.')
-                        ->danger()
-                        ->send();
+                } catch (ValidationException|AuthorizationException|Throwable $exception) {
+                    SafeUserNotification::sendError(
+                        'Registration not started',
+                        $exception,
+                        'An unexpected error occurred while starting registration. Please try again or contact system support.',
+                    );
                 }
             });
     }

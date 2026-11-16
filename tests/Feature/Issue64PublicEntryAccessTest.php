@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Applicants\DispatchApplicantEmailVerification;
+use App\Actions\Authentication\DispatchPasswordRecovery;
 use App\Actions\Authentication\UserSessionService;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Applicant\Pages\Application;
@@ -436,6 +437,99 @@ class Issue64PublicEntryAccessTest extends TestCase
     public static function validPassphraseLengths(): array
     {
         return ['minimum' => [15], 'maximum' => [64]];
+    }
+
+    public function test_signed_in_user_can_open_and_complete_reset_password_safely_in_same_browser(): void
+    {
+        Role::findOrCreate(User::StaffRoleFaculty, 'web');
+
+        $staff = User::factory()->create([
+            'password' => Hash::make('original passphrase 2026'),
+            'remember_token' => 'pre-reset-remember-token',
+        ]);
+        $staff->assignRole(User::StaffRoleFaculty);
+        $staff->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $staff->saveAppAuthenticationRecoveryCodes(['retained-recovery-code']);
+        $staff->acknowledgeRecoveryCodeStorage();
+
+        Http::preventStrayRequests();
+        Http::fake(['api.pwnedpasswords.com/*' => Http::response('', 200)]);
+
+        $adminPanel = Filament::getPanel('admin');
+        Filament::setCurrentPanel($adminPanel);
+        $token = Password::broker()->createToken($staff);
+        $resetUrl = $adminPanel->getResetPasswordUrl($token, $staff);
+
+        DB::table('sessions')->insert([
+            'id' => 'same-browser-other-session-'.$staff->id,
+            'user_id' => $staff->id,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'PHPUnit',
+            'payload' => '',
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $this->actingAs($staff)
+            ->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleFaculty])
+            ->get($resetUrl)
+            ->assertOk()
+            ->assertSee('You are currently signed in. Setting a new password will sign you out here and return you to the sign-in page.');
+
+        $this->actingAs($staff);
+        session()->put(WorkspaceContextResolver::SessionKey, User::StaffRoleFaculty);
+
+        Livewire::test(ResetPassword::class, ['email' => $staff->email, 'token' => 'invalid-reset-token'])
+            ->set('password', 'replacement passphrase 2026')
+            ->set('passwordConfirmation', 'replacement passphrase 2026')
+            ->call('resetPassword')
+            ->assertNoRedirect();
+
+        $this->assertAuthenticatedAs($staff);
+        $this->assertTrue(Hash::check('original passphrase 2026', $staff->fresh()->password));
+
+        Livewire::test(ResetPassword::class, ['email' => $staff->email, 'token' => $token])
+            ->set('password', 'replacement passphrase 2026')
+            ->set('passwordConfirmation', 'replacement passphrase 2026')
+            ->call('resetPassword')
+            ->assertHasNoErrors()
+            ->assertNotified(__('passwords.reset'))
+            ->assertRedirect(route('filament.admin.auth.login'));
+
+        $freshStaff = $staff->fresh();
+        $this->assertTrue(Hash::check('replacement passphrase 2026', $freshStaff->password));
+        $this->assertNotSame('pre-reset-remember-token', $freshStaff->remember_token);
+        $this->assertSame('JBSWY3DPEHPK3PXP', $freshStaff->getAppAuthenticationSecret());
+        $this->assertSame(['retained-recovery-code'], $freshStaff->getAppAuthenticationRecoveryCodes());
+        $this->assertDatabaseMissing('sessions', ['user_id' => $staff->id]);
+        $this->assertDatabaseHas('activity_log', [
+            'subject_type' => User::class,
+            'subject_id' => $staff->id,
+            'event' => 'password_recovery_completed',
+        ]);
+        $this->assertGuest();
+        $this->assertFalse(session()->has(WorkspaceContextResolver::SessionKey));
+        $this->assertFalse(session()->has(ContextualLogin::AuthenticatingSessionKey));
+    }
+
+    public function test_authenticated_recovery_dispatcher_blocks_disabled_or_unauthorized_panel_targets(): void
+    {
+        Role::findOrCreate('applicant', 'web');
+        Notification::fake();
+
+        $applicant = User::factory()->create(['status' => User::StatusActive]);
+        $applicant->assignRole('applicant');
+        $this->actingAs($applicant);
+        session()->put(WorkspaceContextResolver::SessionKey, 'applicant');
+
+        $dispatcher = app(DispatchPasswordRecovery::class);
+
+        $this->assertFalse($dispatcher->sendForAuthenticatedUser($applicant, Filament::getPanel('admin')));
+        Notification::assertNothingSent();
+
+        $disabledUser = User::factory()->create(['status' => User::StatusDisabled]);
+        $disabledUser->assignRole('applicant');
+        $this->assertFalse($dispatcher->sendForAuthenticatedUser($disabledUser, Filament::getPanel('applicant')));
+        Notification::assertNothingSent();
     }
 
     private function openFor(Program $program): AdmissionCycle

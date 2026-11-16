@@ -7,6 +7,7 @@
     $future = $pending && $change->isFutureDated();
     $cancelled = $change->state === \App\Models\StudentLifecycleChange::StateCancelled;
     $shift = $change->type === \App\Models\StudentLifecycleChange::TypeProgramShift;
+    $accountingReviewStatus = app(\App\Actions\StudentLifecycle\LifecycleAccountingReview::class)->statusForChange($change);
     $financeReview = ! $cancelled && ! $pending && data_get($effects, 'finance_effect.mode') === 'accounting_review_required';
     $studentUrl = $student && \Illuminate\Support\Facades\Gate::allows('view', $student)
         ? \App\Filament\Resources\StudentProfiles\StudentProfileResource::getUrl('view', ['record' => $student, 'viewTab' => 'academic-progress'])
@@ -29,7 +30,7 @@
     $nextArea = $financeReview ? 'Student accounts · Financial review' : ($future ? ($shift ? 'Lifecycle · Apply program shift' : 'Lifecycle · Apply approval') : 'Student record · Program and status');
     $accountUrl = $financeReview && auth()->user()?->hasRole(\App\Models\User::StaffRoleAccounting)
         && $change->enrollment && \Illuminate\Support\Facades\Gate::allows('view', $change->enrollment)
-        ? \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $change->enrollment])
+        ? \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('index', ['tab' => 'student_changes', 'account' => $change->enrollment->id, 'view' => 'changes'])
         : null;
     $nextTask = match (true) {
         $financeReview => 'Review any financial consequence separately. No automatic refund or balance change.',
@@ -38,7 +39,7 @@
         default => 'Read the recorded change in School record changes. Contact the Registrar about corrections.',
     };
 @endphp
-<x-record-identity :name="$student ? collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ') : 'Student record unavailable'" :number="$student?->student_number ?? 'Student number unavailable'" :program="$student?->program?->name" :photo-url="$student?->user?->getFilamentAvatarUrl()" :initials="$student ? mb_substr($student->first_name, 0, 1).mb_substr($student->last_name, 0, 1) : null" />
+<x-record-identity :name="$student ? collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ') : 'Student record unavailable'" :number="$student?->student_number ?? 'Student number unavailable'" :program="$student?->program?->name" :photo-url="$student?->adminPhotoUrl()" :initials="$student ? mb_substr($student->first_name, 0, 1).mb_substr($student->last_name, 0, 1) : null" />
 <section class="tala-lifecycle-inspector-section" aria-labelledby="lifecycle-details-heading">
     <header><h3 id="lifecycle-details-heading">Original change record</h3><x-filament::badge :color="$change->statusColor()">{{ $change->statusLabel() }}</x-filament::badge></header>
     <dl class="tala-lifecycle-details">
@@ -46,6 +47,10 @@
         <div><dt>Effective date and term</dt><dd>{{ $change->effective_on->format('M j, Y') }} · {{ collect([$change->term?->label, $change->term?->academicYear?->label])->filter()->implode(' · ') ?: 'Term not recorded' }}</dd></div>
         @if ($change->expectedReturnTerm)<div><dt>Expected return</dt><dd>{{ collect([$change->expectedReturnTerm->label, $change->expectedReturnTerm->academicYear?->label])->filter()->implode(' · ') }}</dd></div>@endif
     </dl>
+    @if ($accountingReviewStatus)
+        <p><x-filament::badge :color="$accountingReviewStatus === 'Accounting review pending' ? 'warning' : 'gray'">{{ $accountingReviewStatus }}</x-filament::badge></p>
+        <p class="tala-lifecycle-inspector-note">Accounting owns the account review. This status grants no payment clearance and changes no academic effect.</p>
+    @endif
 </section>
 @if ($shift)
     <section class="tala-lifecycle-inspector-section" aria-labelledby="lifecycle-program-heading">

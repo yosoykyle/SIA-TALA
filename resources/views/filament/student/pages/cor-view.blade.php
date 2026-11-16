@@ -40,7 +40,7 @@
             <section class="tala-task-surface student-record-card student-cor-subjects" aria-labelledby="cor-subjects-heading">
                 <div class="student-registration-subjects-heading"><h2 class="student-record-heading" id="cor-subjects-heading"><x-filament::icon icon="heroicon-o-book-open" />Subjects</h2><p>Recorded on this issued copy. Later changes are shown on a new copy.</p></div>
                 <div class="student-academic-table-wrap" role="region" aria-label="Subjects on this certificate" tabindex="0">
-                    <table class="student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Units</th><th scope="col">Schedule</th></tr></thead><tbody>
+                    <table class="tala-data-table student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Units</th><th scope="col">Schedule</th></tr></thead><tbody>
                         @foreach ($subjects as $meetings)
                             @php($subject = $meetings->first())
                             <tr wire:key="cor-subject-{{ $loop->index }}">

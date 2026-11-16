@@ -19,11 +19,15 @@ class FeePlanResource extends Resource
 {
     protected static ?string $model = FeePlan::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalculator;
 
     protected static string|UnitEnum|null $navigationGroup = 'Accounting';
 
-    protected static ?string $navigationLabel = 'Fee Plans';
+    protected static ?string $navigationLabel = 'Fee plans';
+
+    protected static ?string $modelLabel = 'fee plan';
+
+    protected static ?string $pluralModelLabel = 'fee plans';
 
     public static function shouldRegisterNavigation(): bool
     {

@@ -39,7 +39,7 @@ class AccountAccessChangedNotification extends Notification implements ShouldQue
         return (new MailMessage)
             ->subject("{$institution} — Your account access was updated")
             ->line($this->summary)
-            ->action('Review Account Security', url('/'))
+            ->action('Review Profile', url('/'))
             ->line('If you did not expect this change, contact the institution through its official support channel.')
             ->salutation("Regards,\n{$institution} via ".config('app.name'));
     }

@@ -23,6 +23,16 @@ use Throwable;
 
 trait InteractsWithTranscriptActions
 {
+    private ?int $cachedCurrentSnapshotRequestId = null;
+
+    private ?TranscriptSnapshot $cachedCurrentSnapshot = null;
+
+    protected function flushTranscriptSnapshotCache(): void
+    {
+        $this->cachedCurrentSnapshotRequestId = null;
+        $this->cachedCurrentSnapshot = null;
+    }
+
     /** @return list<Component> */
     protected function transcriptInputFields(): array
     {
@@ -43,6 +53,7 @@ trait InteractsWithTranscriptActions
                 ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false) && $this->currentSnapshot() !== null),
             Action::make('recordRestriction')
                 ->label('Record TOR restriction')
+                ->color('warning')
                 ->modalSubmitActionLabel('Record restriction')
                 ->icon('heroicon-o-lock-closed')
                 ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleAccounting) ?? false)
@@ -56,16 +67,26 @@ trait InteractsWithTranscriptActions
                     abort_unless($actor instanceof User, 403);
                     app(OfficialOutputRestrictionService::class)->record($this->request()->studentProfile, $actor, $data['reason'], $data['source_reference'] ?? null);
                     $this->request()->refresh();
+                    $this->flushTranscriptSnapshotCache();
                     Notification::make()->title('TOR restriction recorded')->success()->send();
                 }),
             Action::make('resolveRestriction')
                 ->label('Resolve TOR restriction')
+                ->color('primary')
                 ->modalSubmitActionLabel('Resolve restriction')
                 ->icon('heroicon-o-lock-open')
                 ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleAccounting) ?? false)
                     && app(OfficialOutputRestrictionService::class)->activeFor($this->request()->studentProfile)->isNotEmpty())
                 ->schema([
-                    Select::make('restriction_id')->label('Restriction')->options(fn (): array => app(OfficialOutputRestrictionService::class)->activeFor($this->request()->studentProfile)->pluck('reason', 'id')->all())->required(),
+                    Select::make('restriction_id')
+                        ->label('Restriction')
+                        ->options(fn (): array => app(OfficialOutputRestrictionService::class)->activeFor($this->request()->studentProfile)->pluck('reason', 'id')->all())
+                        ->default(function (): ?int {
+                            $active = app(OfficialOutputRestrictionService::class)->activeFor($this->request()->studentProfile);
+
+                            return $active->count() === 1 ? (int) $active->first()?->id : null;
+                        })
+                        ->required(),
                     Textarea::make('resolution_reason')->label('Why issuance is now allowed')->required()->maxLength(1000),
                 ])
                 ->action(function (array $data): void {
@@ -75,6 +96,7 @@ trait InteractsWithTranscriptActions
                         ->where('output_type', OfficialOutputRestriction::OutputTor)->findOrFail($data['restriction_id']);
                     app(OfficialOutputRestrictionService::class)->resolve($restriction, $actor, $data['resolution_reason']);
                     $this->request()->refresh();
+                    $this->flushTranscriptSnapshotCache();
                     Notification::make()->title('TOR restriction resolved')->success()->send();
                 }),
             Action::make('prepare')
@@ -153,6 +175,8 @@ trait InteractsWithTranscriptActions
                     $actor = auth()->user();
                     abort_unless($actor instanceof User, 403);
                     app(VoidTranscript::class)->execute($this->latestSnapshotOrFail(), $actor, $data['authority_reference'] ?? null, (string) $data['reason']);
+                    $this->request()->refresh();
+                    $this->flushTranscriptSnapshotCache();
                     Notification::make()->title('TOR void recorded')->success()->send();
                 }),
             Action::make('replaceLatest')
@@ -209,9 +233,16 @@ trait InteractsWithTranscriptActions
 
     private function currentSnapshot(): ?TranscriptSnapshot
     {
-        return app(TranscriptLifecycleProjection::class)->currentSnapshot(
-            $this->request()->load(['snapshots.events', 'events']),
-        );
+        $request = $this->request();
+
+        if ($this->cachedCurrentSnapshotRequestId !== $request->id) {
+            $this->cachedCurrentSnapshotRequestId = $request->id;
+            $this->cachedCurrentSnapshot = app(TranscriptLifecycleProjection::class)->currentSnapshot(
+                $request->loadMissing(['snapshots.events', 'events']),
+            );
+        }
+
+        return $this->cachedCurrentSnapshot;
     }
 
     private function latestSnapshotIsVoided(): bool

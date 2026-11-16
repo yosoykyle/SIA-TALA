@@ -44,10 +44,8 @@ Use the example environment's mock integrations initially. Keep credentials, mac
 When configuring external integrations, consult the dedicated developer guides in [`00_Project_Documents/developer-guides/`](00_Project_Documents/developer-guides/):
 
 * [**TALA Developer Workflow Playbook**](00_Project_Documents/developer-guides/tala-workflow-playbook.md): Task execution, workspace selection, publication follow-through, and recovery examples.
-* [**ngrok Local Tunneling Guide**](00_Project_Documents/developer-guides/ngrok-setup.md): Exposing localhost for testing incoming webhooks and remote redirects.
 * [**Gmail SMTP Setup & Testing**](00_Project_Documents/developer-guides/smtp-setup.md): App Password setup, `.env` mail variables, and terminal testing via Tinker.
 * [**CP-SAT Cloud Run Solver Integration**](00_Project_Documents/developer-guides/cpsat-cloudrun-setup.md): Service Account key setup, Google Cloud CLI installation, and terminal `/health` verification.
-* [**PayMongo Checkout & Webhook Integration**](00_Project_Documents/developer-guides/paymongo-setup.md): Hosted checkout setup, webhook event selection, signing secret retrieval, and ngrok tunneling.
 
 ## 2. Connect your coding tools
 
@@ -161,26 +159,23 @@ Report a blocking prerequisite with its safe remedy. Otherwise continue within t
 
 ## 3. Add integration credentials only when needed
 
-Basic onboarding uses mock payments, the local solver stub, and log email. Ask the owner for restricted development credentials through a private sharing channel only when the assigned task requires provider access.
+Basic onboarding uses the local solver stub and log email. Ask the owner for restricted development credentials through a private sharing channel only when the assigned task requires external service access.
 
 <details>
-<summary>Configure email, PayMongo, or the hosted solver</summary>
+<summary>Configure email or the hosted solver</summary>
 
 | Supplied item | Put it here |
 | --- | --- |
-| SMTP account and sender settings | `.env`: `MAIL_MAILER=smtp`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_SCHEME`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`; use the provider's TLS/scheme and port settings |
-| PayMongo test keys and matching webhook secret | `.env`: `PAYMONGO_PUBLIC_KEY`, `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SIG`; keep `PAYMONGO_LIVEMODE=false` |
+| SMTP account and sender settings | `.env`: `MAIL_MAILER=smtp`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_SCHEME`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`; use the mail service's TLS/scheme and port settings |
 | Solver URL, audience, and service-account JSON | Store JSON in `storage/app/private/credentials/`. Set `.env`'s `TALA_SCHEDULING_SOLVER_DRIVER=cloud_run`, `TALA_SCHEDULING_SOLVER_URL`, `TALA_SCHEDULING_SOLVER_AUDIENCE`, and `TALA_SCHEDULING_SOLVER_CREDENTIALS` to the supplied values and absolute JSON path |
 
 Create the private directory if missing. Quote paths containing spaces, for example `TALA_SCHEDULING_SOLVER_CREDENTIALS="C:/Projects/SIA-TALA/storage/app/private/credentials/solver-dev.json"`; use your own path. Never commit keys/JSON, paste them into Issues, or place them under `public/`.
 
 For **email**, keep `MAIL_MAILER=log` until real delivery is needed; messages appear in the application log instead of an inbox. Use an approved recipient for an explicitly authorized send. See [Laravel mail configuration](https://laravel.com/framework/docs/12.x/mail#configuration).
 
-For **PayMongo**, also set `TALA_PAYMENT_GATEWAY_DRIVER=paymongo`. The owner must approve a reachable HTTPS test webhook ending in `/api/webhooks/paymongo`, its subscribed events (including `checkout_session.payment.paid` for hosted checkout), and its matching signing secret. A local endpoint needs an approved tunnel or hosted endpoint; never redirect another developer's shared webhook. Keep `QUEUE_CONNECTION=database` and the `composer run dev` queue listener running for confirmation processing. See [PayMongo webhook setup](https://docs.paymongo.com/docs/creating-a-webhook-endpoint).
-
 For the **hosted solver**, the supplied identity needs permission to invoke that service, and the audience must match its approved configuration. The PHP client obtains its token from the JSON file; calling the existing hosted service needs neither Python nor Google Cloud CLI. See [Cloud Run service authentication](https://docs.cloud.google.com/run/docs/authenticating/service-to-service). Local Python solver work needs its own environment and pinned dependencies from the [solver guide](cloud/scheduler-solver/README.md); Cloud administration/deployment uses separately authorized tooling and access, such as [Google Cloud CLI](https://docs.cloud.google.com/sdk/docs/install-sdk).
 
-After approved `.env` changes, clear stale local configuration with `php artisan config:clear --no-interaction` and restart local processes. Credentials alone do not prove connectivity: perform only the task's authorized checks and report anything unverified. Provider requests, shared webhook changes, and Cloud changes need separate authorization.
+After approved `.env` changes, clear stale local configuration with `php artisan config:clear --no-interaction` and restart local processes. Credentials alone do not prove connectivity: perform only the task's authorized checks and report anything unverified. External service credential requests and Cloud changes need separate authorization.
 
 </details>
 

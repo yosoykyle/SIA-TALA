@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Enrollments\Schemas;
 use App\Actions\Enrollment\RegistrationPlacementValidator;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\RegistrationShortageProjection;
+use App\Actions\Finance\AccountingDisplay;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\TermAccountProjection;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
@@ -16,7 +17,6 @@ use App\Models\CourseEnrollment;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
-use App\Models\PaymentAttempt;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
@@ -107,14 +107,14 @@ class EnrollmentInfolist
                 ->columnSpanFull()]);
         }
         if ($page instanceof ViewEnrollment && ($accountingView = $page->focusedAccountingView()) !== null) {
-            return $schema->components([View::make('filament.admin.enrollments.'.$accountingView)
-                ->viewData(fn (): array => $page->accountingViewData() + match ($accountingView) {
-                    'accounting-proof' => $page->paymentProofViewData(),
-                    'accounting-online' => $page->onlinePaymentViewData(),
-                    'accounting-webhook' => $page->webhookPaymentViewData(),
-                    'accounting-history' => ['onlineHistory' => $page->onlinePaymentHistory()],
-                    default => [],
-                })
+            return $schema->components([View::make('filament.admin.enrollments.accounting-record')
+                ->viewData(fn (): array => ['accountingView' => $accountingView, 'workSections' => $page->isAccountingWorkspace() && $accountingView !== 'accounting-history' ? $page->accountingWorkspaceSections() : []] + $page->accountingViewData()
+                    + (in_array($accountingView, ['accounting-account', 'accounting-awaiting-source'], true) ? $page->lifecycleReviewData() : []) + match ($accountingView) {
+                        'accounting-proof' => $page->paymentProofViewData(),
+                        'accounting-history' => ['historyGroups' => $page->accountingHistoryGroups()],
+                        'accounting-lifecycle' => $page->lifecycleReviewData(),
+                        default => [],
+                    })
                 ->columnSpanFull()]);
         }
         if ($page instanceof ViewEnrollment && ($focusedView = $page->focusedRegistrarView()) !== null) {
@@ -169,7 +169,7 @@ class EnrollmentInfolist
                 ]),
             Section::make('Identity, Program, Curriculum, and exact Term')
                 ->schema([
-                    TextEntry::make('learner_name')->label('Learner')->state(fn (Enrollment $record): string => $record->credentialUser?->getFilamentName() ?? 'Identity unavailable'),
+                    TextEntry::make('learner_name')->label('Student or applicant')->state(fn (Enrollment $record): string => $record->credentialUser?->getFilamentName() ?? 'Identity unavailable'),
                     TextEntry::make('student_number')
                         ->label('Student number')
                         ->state(fn (Enrollment $record): ?string => $record->studentProfile?->student_number)
@@ -190,7 +190,7 @@ class EnrollmentInfolist
                 ])
                 ->columns(3),
             Section::make('Academic basis')
-                ->description('Selection basis and eligibility remain source-owned; the learner does not choose them.')
+                ->description('Selection basis and eligibility remain source-owned; the student does not choose them.')
                 ->schema([
                     TextEntry::make('selection_basis')->label('Selection basis')->badge()->formatStateUsing(fn (?string $state): string => Str::headline((string) $state)),
                     TextEntry::make('eligibility_state')
@@ -390,7 +390,7 @@ class EnrollmentInfolist
 
         return $data + ['progress' => EnrollmentsTable::headProgress($case), 'stage' => $stage,
             'owner' => match ($stage) {
-                'Waiting for learner' => 'Learner', 'Payment or fee review' => 'Accounting', default => 'Registrar'
+                'Waiting for learner' => 'Student', 'Payment or fee review' => 'Accounting', default => 'Registrar'
             },
             'deadline' => $deadline];
     }
@@ -414,9 +414,7 @@ class EnrollmentInfolist
                 && ! ($item->reservation?->status === EnrollmentSeatReservation::StatusActive && $item->reservation->deadline?->isPast()));
         $assessment = $data['assessment'];
         $paymentReview = $assessment !== null && ($case->termAccount?->paymentEvidenceVersions
-            ->where('assessment_id', $assessment->id)->where('state', PaymentEvidenceVersion::StateSubmitted)->isNotEmpty()
-            || PaymentAttempt::query()->where('term_account_id', $case->termAccount?->id)->where('assessment_id', $assessment->id)
-                ->where('status', PaymentAttempt::StatusReviewRequired)->exists());
+            ->where('assessment_id', $assessment->id)->where('state', PaymentEvidenceVersion::StateSubmitted)->isNotEmpty() ?? false);
         $deadline = $data['placementCurrent'] ? $proposal->items->map(fn (RegistrationProposalItem $item) => $item->reservation?->deadline)
             ->filter()->sort()->first() : null;
 
@@ -518,7 +516,7 @@ class EnrollmentInfolist
     private static function owner(Enrollment $enrollment): string
     {
         return match (self::stage($enrollment)) {
-            'Waiting for learner' => 'Learner',
+            'Waiting for learner' => 'Student',
             'Finance pending' => 'Accounting',
             default => 'Registrar',
         };
@@ -529,7 +527,7 @@ class EnrollmentInfolist
         return match (self::stage($enrollment)) {
             'Eligibility action required' => 'Resolve the current Applicant or Student eligibility and identity source.',
             'Prepare proposal' => 'Prepare and issue the current source-derived proposal.',
-            'Waiting for learner' => 'The learner confirms the exact issued proposal, or the Registrar records bounded assisted-confirmation evidence.',
+            'Waiting for learner' => 'The student confirms the exact issued proposal, or the Registrar records bounded assisted-confirmation evidence.',
             'Placement and shortage review' => 'Resolve the named prerequisite, class, capacity, conflict, or timetable-source blocker.',
             'Finance pending' => 'Accounting resolves the current assessment and payment or coverage requirement.',
             'Source review required' => 'Resolve the current finalization blockers before retrying.',
@@ -547,7 +545,7 @@ class EnrollmentInfolist
 
         return [
             ['label' => 'Student eligibility', 'state' => $readiness['eligibility'] && $readiness['identity'] ? 'Verified' : 'Action required', 'source' => $enrollment->admission_application_id !== null ? 'Verified admissions identity and contact source' : 'Released Student lifecycle, result, and progress facts', 'owner' => 'Registrar consumes; source office owns the fact', 'as_of' => $asOf, 'consequence' => 'A stale or blocked source prevents the next consuming action.', 'recovery' => 'Correct the owning source or prepare a source-valid successor; no local override is created.'],
-            ['label' => 'Confirmed proposed subjects', 'state' => $readiness['confirmation'] ? 'Verified' : 'Action required', 'source' => 'Current immutable Registration Proposal and exact-version confirmation', 'owner' => 'Registrar and learner', 'as_of' => $asOf, 'consequence' => 'An unconfirmed or superseded proposal cannot be placed or finalized.', 'recovery' => 'Issue the current proposal and obtain online or attributable assisted confirmation.'],
+            ['label' => 'Confirmed proposed subjects', 'state' => $readiness['confirmation'] ? 'Verified' : 'Action required', 'source' => 'Current immutable Registration Proposal and exact-version confirmation', 'owner' => 'Registrar and student', 'as_of' => $asOf, 'consequence' => 'An unconfirmed or superseded proposal cannot be placed or finalized.', 'recovery' => 'Issue the current proposal and obtain online or attributable assisted confirmation.'],
             ['label' => 'Valid class placement', 'state' => $readiness['placement'] ? 'Verified' : 'Action required', 'source' => 'Current Published Timetable, prerequisites, conflicts, capacity, and reservations', 'owner' => 'Registrar', 'as_of' => $asOf, 'consequence' => 'Only the affected course is blocked; no ranked waitlist or silent move is created.', 'recovery' => 'Resolve the named placement or shortage condition using a current authorized source.'],
             ['label' => 'Accounting clearance', 'state' => $readiness['finance'] ? 'Verified' : 'Action required', 'source' => 'Enrollment Payment Requirement and exact Term Account', 'owner' => 'Accounting', 'as_of' => self::asOf(self::finance($enrollment)['as_of']), 'consequence' => 'Unavailable or unsatisfied current requirement blocks finalization only.', 'recovery' => 'Accounting records the current Fee Plan or eligible exact assessment and valid payment or coverage result.'],
             ['label' => 'Registrar finalization', 'state' => $enrollment->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled ? 'Verified' : 'Action required', 'source' => 'Atomic Registration Case result', 'owner' => 'Registrar', 'as_of' => $asOf, 'consequence' => 'No Student activation, official roster, or COR exists until the transaction commits.', 'recovery' => $readiness['ready'] ? 'All prior checkpoints are ready for Registrar finalization.' : 'Resolve the earlier named checkpoint, refresh current evidence, and retry.'],
@@ -556,7 +554,7 @@ class EnrollmentInfolist
 
     private static function money(mixed $amount): ?string
     {
-        return $amount === null ? null : 'PHP '.number_format((float) $amount, 2);
+        return $amount === null ? null : AccountingDisplay::money($amount);
     }
 
     private static function asOf(string $value): string

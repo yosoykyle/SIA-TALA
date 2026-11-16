@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <title>{{ $statusCode }} — {{ $pageTitle }} | Servitech Institute Asia Inc.</title>
-    <link rel="icon" href="{{ asset('talalogo.png') }}">
+    <link rel="icon" type="image/webp" href="{{ asset('images/brand/servitech-crest-outlined-192.webp') }}">
     <link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-foundation.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-error.css') }}">
@@ -42,12 +42,7 @@
     <main id="error-content" class="error-shell" aria-labelledby="error-title" tabindex="-1">
         <article class="error-card error-stage">
             <a class="brand" href="{{ url('/') }}" aria-label="Servitech Institute Asia home">
-                <span class="brand-crest-plate">
-                    <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="" aria-hidden="true" class="brand-crest" width="48" height="48">
-                </span>
-                <span class="brand-text">
-                    <span class="brand-name">Servitech Institute Asia</span>
-                </span>
+                <x-tala-panel-brand crest="outlined" />
             </a>
 
             <div class="error-hero">
@@ -85,6 +80,9 @@
                 @elseif ($canSwitchAccount)
                     <a class="primary-action" href="{{ url($workspacePath) }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 6 4 12l6 6M4 12h16" /></svg>Return to {{ $workspaceName }}</a>
                     <button class="secondary-action" type="button" data-open-account-switch><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 4 3 8l4 4M3 8h13a4 4 0 0 1 4 4M17 20l4-4-4-4M21 16H8a4 4 0 0 1-4-4" /></svg>Use another account</button>
+                @elseif ($statusCode === 419)
+                    <a class="primary-action" href="{{ route('public.sign-in') }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" /></svg>Sign in again</a>
+                    <a class="secondary-action" href="{{ url('/') }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 11.5 12 4l9 7.5M5.5 10v9.5h13V10M10 19.5v-5h4v5" /></svg>Back to home</a>
                 @else
                     <a class="primary-action" href="{{ url('/') }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 11.5 12 4l9 7.5M5.5 10v9.5h13V10M10 19.5v-5h4v5" /></svg>Back to home</a>
                 @endif

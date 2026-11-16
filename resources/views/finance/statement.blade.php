@@ -31,7 +31,7 @@
         @else<p>Charge details are not recorded. Contact Accounting for the assessment breakdown.</p>@endif
     </section>
     <section><h2>{{ $available ? 'Account activity' : 'Recorded account activity' }}</h2>
-        @if ($statement['activity']->isEmpty())<p>No verified payment or approved coverage is recorded. Submitted payment proof is separate from a verified payment.</p>
+        @if ($statement['activity']->isEmpty())<p>No verified payment or approved coverage is recorded. Submitted receipts are separate from a verified payment.</p>
         @else<div class="official-output-table finance-responsive-table"><table><thead><tr><th scope="col">Date</th><th scope="col">Activity</th><th scope="col">Details</th><th scope="col">Amount</th></tr></thead><tbody>
             @foreach ($statement['activity'] as $event)<tr><td data-label="Date">{{ $date($event['date']) }}</td><td data-label="Activity">{{ $event['description'] }}<span class="finance-source">{{ $event['state'] }}</span></td><td data-label="Details">{{ $event['details'] }}<span class="finance-source">{{ $event['reference'] ?: 'Reference not recorded' }}@if ($event['external_reference']) · External reference {{ $event['external_reference'] }}@endif</span></td><td data-label="Amount">{{ $money($event['amount']) }}</td></tr>@endforeach
         </tbody></table></div>@endif

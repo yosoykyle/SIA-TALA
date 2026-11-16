@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }} — Servitech Institute Asia Inc.</title>
-    <link rel="icon" href="{{ asset('talalogo.png') }}">
+    <link rel="icon" type="image/webp" href="{{ asset('images/brand/servitech-crest-outlined-192.webp') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-foundation.css') }}">

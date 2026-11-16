@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Components\AccessibleSidebar;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Models\ChecklistItem;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -57,6 +58,27 @@ class WorkspaceNavigationSearchTest extends TestCase
         $this->assertSame([], $this->titles('Duplicate'));
     }
 
+    public function test_accounting_can_find_every_account_work_filter_in_the_sidebar(): void
+    {
+        $this->signIn(User::StaffRoleAccounting);
+        $items = collect(Filament::getNavigation())->flatMap(fn ($group) => $group->getItems());
+        $accounts = $items->first(fn ($item): bool => $item->getLabel() === 'Student accounts');
+
+        foreach ([
+            'All student accounts' => 'accounts',
+            'Review receipts' => 'payment_proof',
+            'Assessment reviews' => 'assessment_required',
+            'Student status changes' => 'student_changes',
+        ] as $label => $queue) {
+            $item = collect($accounts->getChildItems())->first(fn ($item): bool => $item->getLabel() === $label);
+            $this->assertNotNull($item);
+            $this->assertSame(EnrollmentResource::getUrl('index', ['tab' => $queue]), $item->getUrl());
+            $this->assertContains($label, $this->titles($label));
+        }
+
+        $this->assertContains('Payment channels', $this->titles('Payment channels'));
+    }
+
     public function test_registrar_without_schedule_permission_cannot_find_sections(): void
     {
         $this->signIn(User::StaffRoleRegistrar);
@@ -86,7 +108,7 @@ class WorkspaceNavigationSearchTest extends TestCase
         foreach (['queue', 'cycle', 'Rooms', 'Term Offerings', 'Qualifications', 'Course Catalog'] as $query) {
             $this->assertSame([], $this->titles($query));
         }
-        $this->assertContains('Student Accounts', $this->titles('Student Accounts'));
+        $this->assertContains('Student accounts', $this->titles('Student accounts'));
     }
 
     public function test_multi_role_user_without_selected_context_gets_no_registrar_destinations(): void
@@ -117,7 +139,7 @@ class WorkspaceNavigationSearchTest extends TestCase
     public static function otherStaffWorkspaces(): array
     {
         return [
-            'Accounting' => [User::StaffRoleAccounting, ['Student Accounts', 'Fee Plans', 'TOR restrictions'], []],
+            'Accounting' => [User::StaffRoleAccounting, ['Overview', 'Student accounts', 'Fee plans', 'Payment channels'], []],
             'Faculty' => [User::StaffRoleFaculty, ['My schedule', 'My availability', 'Grade rosters'], []],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight'], []],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit'], ['manage-faqs', 'manage-public-notices']],

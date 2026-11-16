@@ -16,10 +16,16 @@ class IndividualAssessmentSources
     public function __construct(private readonly RegistrationPlacementValidator $placementValidator) {}
 
     /** @return array{initial:bool,adjustment:bool,course_drop:?CourseDropRecord,categories:list<string>} */
-    public function forEnrollment(Enrollment $enrollment): array
+    public function forEnrollment(Enrollment $enrollment, bool $useLoadedRelations = false): array
     {
         $none = ['initial' => false, 'adjustment' => false, 'course_drop' => null, 'categories' => []];
-        $case = Enrollment::query()->with(['term', 'currentProposalVersion.confirmation', 'currentCorVersion'])->find($enrollment->id);
+        $case = ($useLoadedRelations
+            && $enrollment->relationLoaded('term')
+            && $enrollment->relationLoaded('currentProposalVersion')
+            && ($enrollment->currentProposalVersion === null || $enrollment->currentProposalVersion->relationLoaded('confirmation'))
+            && $enrollment->relationLoaded('currentCorVersion'))
+            ? $enrollment
+            : Enrollment::query()->with(['term', 'currentProposalVersion.confirmation', 'currentCorVersion'])->find($enrollment->id);
         $proposal = $case?->currentProposalVersion;
         if ($case === null || $proposal === null || (int) $proposal->enrollment_id !== (int) $case->id) {
             return $none;

@@ -139,7 +139,7 @@ class UserAccessService
                 'after_contexts' => $roles,
                 'evidence_reference' => $evidenceReference,
             ]);
-            $this->notifyAccessChangeAfterCommit($locked, 'Your authorized TALA Staff contexts changed. Review Account Security after signing in.');
+            $this->notifyAccessChangeAfterCommit($locked, 'Your authorized TALA Staff contexts changed. Review your Profile after signing in.');
 
             return $locked->refresh();
         });

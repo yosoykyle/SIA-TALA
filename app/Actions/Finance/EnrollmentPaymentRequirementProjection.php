@@ -12,21 +12,29 @@ class EnrollmentPaymentRequirementProjection
     public function __construct(private readonly TermAccountProjection $accounts, private readonly DecimalMoney $money) {}
 
     /**
+     * @param  array<string, mixed>|null  $position
      * @return array{state:string,basis:?string,total:?string,satisfied:?string,balance:?string,assessment_id:?int,payment_applied:?string,coverage_applied:?string,satisfaction_basis:string,later_obligation:bool,as_of:string}
      */
-    public function forEnrollment(Enrollment $enrollment): array
+    public function forEnrollment(Enrollment $enrollment, ?array $position = null, ?Assessment $activeAssessment = null, bool $useLoadedRelations = false): array
     {
-        $account = TermAccount::query()->where('enrollment_id', $enrollment->id)->first();
+        $account = ($useLoadedRelations && $enrollment->relationLoaded('termAccount'))
+            ? $enrollment->termAccount
+            : TermAccount::query()->where('enrollment_id', $enrollment->id)->first();
         if (! $account instanceof TermAccount) {
             return $this->unavailable();
         }
-        $position = $this->accounts->forAccount($account);
+        $position ??= $this->accounts->forAccount($account, useLoadedRelations: $useLoadedRelations);
         if ($position['assessment_id'] === null || $position['state'] === 'Unavailable') {
             return $this->unavailable();
         }
         $required = collect($position['obligations'])->where('required_for_enrollment', true);
         $totalCents = $required->sum(fn (array $row): int => $this->money->toCents($row['amount']));
-        $assessment = Assessment::query()->find($position['assessment_id']);
+        $assessment = ($activeAssessment instanceof Assessment && (int) $activeAssessment->id === (int) $position['assessment_id'])
+            ? $activeAssessment
+            : (($useLoadedRelations && $account->relationLoaded('assessments'))
+                ? $account->assessments->firstWhere('id', $position['assessment_id'])
+                : null)
+            ?? Assessment::query()->find($position['assessment_id']);
         if ($required->isEmpty() || ($totalCents === 0 && blank(data_get($assessment?->source_snapshot, 'no_payment_required_authority_reference')))) {
             return $this->unavailable();
         }

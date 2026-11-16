@@ -23,23 +23,24 @@ use App\Actions\Enrollment\RegistrationPlacementValidator;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\ReopenRegistrationCase;
 use App\Actions\Enrollment\StudentUnitLoadService;
+use App\Actions\Finance\AccountingDisplay;
 use App\Actions\Finance\CreateAssessmentFromPublishedFeePlan;
 use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\IndividualAssessmentSources;
+use App\Actions\Finance\MapOfficialReceiptToPayment;
+use App\Actions\Finance\PaymentConfirmationService;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
 use App\Actions\Finance\RevalidateAssessmentEffects;
 use App\Actions\Finance\ReverseApprovedCoverage;
 use App\Actions\Finance\ReversePaymentPosting;
 use App\Actions\Finance\ReviewPaymentEvidence;
+use App\Actions\Finance\SchoolPaymentChannels;
 use App\Actions\Finance\TermAccountProjection;
-use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
-use App\Actions\Integrations\Payments\PaymentAttemptSnapshotException;
-use App\Actions\Integrations\Payments\PayMongoCheckoutRecoveryService;
-use App\Actions\Integrations\Payments\PayMongoReconciliationService;
-use App\Actions\Integrations\Payments\PayMongoWebhookEvent;
 use App\Actions\Scheduling\ResolveTimetableRevisionRegistrationImpact;
+use App\Actions\StudentLifecycle\LifecycleAccountingReview;
+use App\Actions\StudentLifecycle\RecordLifecycleAccountingReview;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
@@ -57,7 +58,6 @@ use App\Models\FeePlan;
 use App\Models\FinanceExport;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
@@ -68,12 +68,13 @@ use App\Models\RegistrationLateAuthority;
 use App\Models\RegistrationProposalItem;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
-use App\Models\StudentLifecycleChange;
 use App\Models\TermOffering;
 use App\Models\TimetableRevision;
+use App\Models\TranscriptRequest;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use App\Support\RegistrationSchedulePresentation;
+use App\Support\SafeUserNotification;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -95,20 +96,30 @@ use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View as SchemaView;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
+use Livewire\WithPagination;
+use RuntimeException;
 use Throwable;
 
 class ViewEnrollment extends ViewRecord
 {
+    use WithPagination;
+
     protected static string $resource = EnrollmentResource::class;
 
     #[Url(as: 'view')]
@@ -117,17 +128,20 @@ class ViewEnrollment extends ViewRecord
     #[Url(as: 'queue')]
     public ?string $returnQueue = null;
 
+    /** @var array{event_id:int,source_fingerprint:string,current_result_id:?int,account_id:int}|array{} */
+    #[Locked]
+    public array $reviewedLifecycleChange = [];
+
+    /** @var array<string, string> */
+    #[Locked]
+    public array $reviewedLifecycleFinancialSources = [];
+
+    /** @var array<string, string> */
+    #[Locked]
+    public array $lifecycleFinancialSourceOptions = [];
+
     #[Url(as: 'proof')]
     public ?int $paymentProofId = null;
-
-    #[Url(as: 'attempt')]
-    public ?int $onlineAttemptId = null;
-
-    #[Url(as: 'event')]
-    public ?int $onlineEventId = null;
-
-    #[Url(as: 'webhook')]
-    public ?int $webhookEventId = null;
 
     #[Locked]
     public bool $financeExportFailed = false;
@@ -139,14 +153,6 @@ class ViewEnrollment extends ViewRecord
     /** @var array<int, string> Reviewed payment ID to source fingerprint, fixed when the refund form opens. */
     #[Locked]
     public array $reviewedPayments = [];
-
-    /** @var array{account_id:int,attempt_id:int,event_id:int|null,fingerprint:string} Exact provider source reviewed for Accounting actions. */
-    #[Locked]
-    public array $reviewedOnlineCheckout = [];
-
-    /** @var array{event_id:int,fingerprint:string} Exact webhook event reviewed for a direct retry. */
-    #[Locked]
-    public array $reviewedWebhookEvent = [];
 
     /** @var array<string, mixed> Reviewed assessment and retained sources, fixed when the reconciliation form opens. */
     #[Locked]
@@ -196,14 +202,13 @@ class ViewEnrollment extends ViewRecord
     public function mount(int|string $record): void
     {
         parent::mount($record);
-        $this->reviewedProposalVersionId = $this->getRecord()->current_proposal_version_id;
-        if ($this->isAccountingActor()) {
-            $this->reviewedOnlineCheckout = $this->onlineCheckoutSnapshot();
-            $event = $this->selectedWebhookEvent();
-            if ($event !== null) {
-                $this->reviewedWebhookEvent = ['event_id' => $event->id, 'fingerprint' => $this->webhookSourceFingerprint()];
-            }
+        if ($this->isAccountingActor() && ! $this->isAccountingWorkspace()
+            && request()->routeIs('filament.admin.resources.enrollments.view')) {
+            $this->redirect($this->enrollmentUrl());
+
+            return;
         }
+        $this->reviewedProposalVersionId = $this->getRecord()->current_proposal_version_id;
     }
 
     public function isHeadReader(): bool
@@ -228,6 +233,9 @@ class ViewEnrollment extends ViewRecord
     /** @var array<string, mixed>|null */
     protected ?array $accountingContext = null;
 
+    /** @var array<string, mixed> */
+    private array $accountingMemo = [];
+
     private function hasCurrentReservedProposal(): bool
     {
         if ($this->reservedInitialContext !== null) {
@@ -247,31 +255,58 @@ class ViewEnrollment extends ViewRecord
         }
     }
 
+    public function isAccountingWorkspace(): bool
+    {
+        return false;
+    }
+
     public function focusedAccountingView(): ?string
     {
         if (! $this->actor()->hasRole(User::StaffRoleAccounting)) {
             return null;
         }
         $context = $this->accountingViewData();
-        if ($this->enrollmentView === 'history' && $context['account'] !== null) {
-            return 'accounting-history';
+        if ($this->enrollmentView === 'changes' || ($this->isAccountingWorkspace() && $this->enrollmentView === 'overview' && ($context['lifecycleStatus']['pending'] ?? 0) > 0)) {
+            return 'accounting-lifecycle';
         }
-        if ($this->enrollmentView !== 'account' && $this->selectedWebhookEvent() !== null) {
-            return 'accounting-webhook';
+        if ($this->enrollmentView === 'history' && ($context['account'] !== null || ($context['lifecycleStatus']['reviewed'] ?? 0) > 0)) {
+            return 'accounting-history';
         }
         if (in_array($this->enrollmentView, ['overview', 'proof'], true) && $this->selectedPaymentProof() !== null) {
             return 'accounting-proof';
-        }
-        if ($this->enrollmentView !== 'account' && $this->selectedOnlineAttempt() !== null
-            && $this->payMongoEventOptions(OperationalEvent::StatusReviewRequired, OperationalEvent::ChannelWebhook) === []
-            && $this->failedPayMongoEventOptions() === []) {
-            return 'accounting-online';
         }
         if ($context['assessment'] === null && $this->hasCurrentReservedProposal()) {
             return 'accounting-unassessed';
         }
 
         return $context['account'] !== null ? 'accounting-account' : 'accounting-awaiting-source';
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    public function accountingWorkspaceSections(): array
+    {
+        $context = $this->accountingViewData();
+        $sections = [];
+        if (($context['lifecycleStatus']['pending'] ?? 0) > 0 || $this->enrollmentView === 'changes') {
+            $sections['accounting-lifecycle'] = $this->lifecycleReviewData();
+        }
+        if ($this->selectedPaymentProof() !== null) {
+            $sections['accounting-proof'] = $this->paymentProofViewData();
+        }
+        if ($context['assessment'] === null && $this->hasCurrentReservedProposal()) {
+            $sections['accounting-unassessed'] = [];
+        } elseif ($context['account'] !== null && $context['reviewState'] !== 'ordinary') {
+            $sections['accounting-account-review'] = $this->lifecycleReviewData();
+        } elseif ($context['account'] === null && $sections === []) {
+            $sections['accounting-awaiting-source'] = $this->lifecycleReviewData();
+        }
+
+        $focused = $this->focusedAccountingView();
+        if (isset($sections[$focused])) {
+            $sections = [$focused => $sections[$focused]] + $sections;
+        }
+
+        return $sections;
     }
 
     /** @return array<string, mixed> */
@@ -282,15 +317,30 @@ class ViewEnrollment extends ViewRecord
             return $this->accountingContext;
         }
         $case = $this->getRecord();
-        $case->loadMissing(['credentialUser', 'studentProfile.program', 'admissionApplication.program', 'term',
-            'currentProposalVersion.items.section', 'currentProposalVersion.curriculumVersion.program',
-            'termAccount.assessments.lines', 'termAccount.payments.verifier', 'termAccount.payments.reversals',
-            'termAccount.payments.allocations.assessmentObligation', 'termAccount.coverages.obligation',
-            'termAccount.paymentEvidenceVersions', 'termAccount.paymentAttempts', 'termAccount.financeExports']);
+        $case->loadMissing([
+            'credentialUser',
+            'studentProfile.program',
+            'admissionApplication.program',
+            'term',
+            'currentProposalVersion.confirmation',
+            'currentProposalVersion.items.section',
+            'currentProposalVersion.curriculumVersion.program',
+            'currentCorVersion',
+            'termAccount.enrollment',
+            'termAccount.assessments.lines',
+            'termAccount.assessments.obligations.paymentAllocations.payment',
+            'termAccount.assessments.obligations.coverages',
+            'termAccount.payments.verifier',
+            'termAccount.payments.reversals',
+            'termAccount.payments.allocations.assessmentObligation',
+            'termAccount.coverages.obligation',
+            'termAccount.paymentEvidenceVersions',
+            'termAccount.financeExports',
+        ]);
         $account = $case->termAccount;
         $assessment = $account?->assessments->where('state', Assessment::StateActive)->sortByDesc('version')->first();
-        $position = $account !== null ? app(TermAccountProjection::class)->forAccount($account) : null;
-        $requirement = app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case);
+        $position = $account !== null ? app(TermAccountProjection::class)->forAccount($account, useLoadedRelations: true) : null;
+        $requirement = app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case, $position, $assessment, useLoadedRelations: true);
         $sources = $this->individualAssessmentSources();
         $pending = $this->pendingAdjustment();
         $pending = $pending !== null && (int) $pending->enrollment_id === (int) $case->id ? $pending : null;
@@ -306,21 +356,120 @@ class ViewEnrollment extends ViewRecord
         return $this->accountingContext = [
             'case' => $case, 'proposal' => $case->currentProposalVersion, 'account' => $account, 'assessment' => $assessment,
             'position' => $position, 'requirement' => $requirement, 'reviewState' => $reviewState, 'sources' => $sources,
-            'lifecycleSources' => $case->lifecycleChanges()
-                ->where('student_profile_id', $case->student_profile_id)
-                ->where('term_id', $case->term_id)
-                ->whereIn('id', OperationalEvent::query()
-                    ->select('related_record_id')
-                    ->where('event_domain', OperationalEvent::DomainOperations)
-                    ->where('event_type', OperationalEvent::TypeLifecycleAccountingReview)
-                    ->where('related_record_type', StudentLifecycleChange::class))
-                ->latest('id')->limit(5)
-                ->get(['id', 'enrollment_id', 'student_profile_id', 'term_id', 'type', 'state', 'effective_on', 'created_at']),
+            'lifecycleStatus' => app(LifecycleAccountingReview::class)->safeStatus($case),
             'recordedAssessment' => $assessment ?? $account?->assessments->sortByDesc('version')->first(),
             'pendingAdjustment' => $pending, 'change' => $pending !== null ? $this->adjustmentChange() : null,
             'adjustmentFinanceReady' => $pending !== null && $pending->state === RegistrationProposalVersion::StateConfirmed && $this->adjustmentFinanceBases() !== [],
             'plan' => $assessment === null ? $this->applicablePublishedFeePlan() : null,
+            'hasTranscriptRequests' => $case->studentProfile !== null
+                && TranscriptRequest::query()->where('student_profile_id', $case->studentProfile->id)->exists(),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    public function lifecycleReviewData(): array
+    {
+        abort_unless($this->isAccountingActor(), 403);
+        $case = $this->getRecord();
+        $reviews = app(LifecycleAccountingReview::class);
+
+        return [
+            'pendingReviews' => $reviews->forEnrollment($case)->paginate(10, pageName: 'changesPage'),
+            'reviewHistory' => $reviews->history($case)->paginate(10, pageName: 'reviewHistoryPage'),
+            'reviewAccountAvailable' => $reviews->accountMatches($case->termAccount, $case),
+        ];
+    }
+
+    /**
+     * @return array<string, array{title: string, recordLabel: string, amountLabel: string, icon: string, records: LengthAwarePaginator<int, array{kind: string, record: Model, at: mixed}>}>
+     */
+    public function accountingHistoryGroups(): array
+    {
+        $account = $this->accountingViewData()['account'];
+        $groups = [];
+        foreach ([
+            'payment' => [$account?->payments, 'paid_at', 'Payments and reversals', 'Payment', 'Amount', 'heroicon-o-banknotes'],
+            'proof' => [$account?->paymentEvidenceVersions, 'submitted_at', 'Receipts submitted', 'Receipt', 'Claimed amount', 'heroicon-o-document-magnifying-glass'],
+            'assessment' => [$account?->assessments, 'created_at', 'Assessed charges', 'Assessment', 'Amount', 'heroicon-o-document-currency-dollar'],
+            'coverage' => [$account?->coverages, 'approved_at', 'Approved coverage', 'Coverage', 'Amount', 'heroicon-o-shield-check'],
+            'export' => [$account?->financeExports, 'generated_at', 'Exports', 'Export', 'Document', 'heroicon-o-arrow-down-tray'],
+        ] as $kind => [$records, $dateAttribute, $title, $recordLabel, $amountLabel, $icon]) {
+            $entries = collect($records ?? [])->map(fn (Model $record): array => [
+                'kind' => $kind, 'record' => $record, 'at' => $record->{$dateAttribute} ?? $record->created_at,
+            ])->sortByDesc(fn (array $entry): string => ($entry['at']?->format('Y-m-d H:i:s.u') ?? '').'-'.str_pad((string) $entry['record']->id, 20, '0', STR_PAD_LEFT))->values();
+            if ($entries->isEmpty()) {
+                continue;
+            }
+            $pageName = 'accountHistory'.Str::studly($kind).'Page';
+            $page = min(max(1, (int) $this->getPage($pageName)), max(1, (int) ceil($entries->count() / 10)));
+            $groups[$kind] = [
+                'title' => $title, 'recordLabel' => $recordLabel, 'amountLabel' => $amountLabel, 'icon' => $icon,
+                'records' => new LengthAwarePaginator($entries->forPage($page, 10)->values(), $entries->count(), 10, $page, ['pageName' => $pageName]),
+            ];
+        }
+
+        return $groups;
+    }
+
+    public function recordLifecycleReviewAction(): Action
+    {
+        return Action::make('recordLifecycleReview')->label('Record review result')->icon('heroicon-o-pencil-square')
+            ->visible(fn (): bool => $this->isAccountingActor())
+            ->modalWidth(Width::TwoExtraLarge)
+            ->modalHeading(fn (): string => ($this->reviewedLifecycleChange['current_result_id'] ?? null) !== null ? 'Correct review result' : 'Record review result')
+            ->modalSubmitActionLabel('Record review result')->modalCancelActionLabel(fn (): string => ($this->reviewedLifecycleChange['current_result_id'] ?? null) !== null ? 'Keep current review' : 'Cancel')
+            ->mountUsing(function (Schema $schema, array $arguments): void {
+                abort_unless($this->isAccountingActor(), 403);
+                $reviews = app(LifecycleAccountingReview::class);
+                $this->reviewedLifecycleChange = $reviews->snapshot($this->getRecord(), (int) ($arguments['review'] ?? 0));
+                $sources = $reviews->financialSources($this->getRecord());
+                $this->reviewedLifecycleFinancialSources = collect($sources)->map(fn ($source): string => $reviews->fingerprint($source))->all();
+                $this->lifecycleFinancialSourceOptions = collect($sources)->map(fn ($source, string $key): string => $reviews->financialSourceLabel($key, $source))->all();
+                $schema->fill();
+            })
+            ->schema([
+                SchemaView::make('filament.admin.enrollments.lifecycle-review-context')
+                    ->viewData(function (): array {
+                        $event = app(LifecycleAccountingReview::class)->roots()->with('lifecycleReviewSource')->find($this->reviewedLifecycleChange['event_id'] ?? null);
+
+                        return ['case' => $this->getRecord(), 'source' => $event?->lifecycleReviewSource];
+                    }),
+                Radio::make('outcome')->label('Review result')->required()->live()
+                    ->options(fn (): array => LifecycleAccountingReview::outcomes(($this->reviewedLifecycleChange['current_result_id'] ?? null) !== null)),
+                Select::make('financial_source')->label('Existing financial record')->searchable()
+                    ->options(fn (): array => $this->lifecycleFinancialSourceOptions)
+                    ->visible(fn (Get $get): bool => $get('outcome') === LifecycleAccountingReview::FinancialActionRecorded)
+                    ->required(fn (Get $get): bool => $get('outcome') === LifecycleAccountingReview::FinancialActionRecorded)
+                    ->helperText('Record any needed charge adjustment, approved coverage, or refund reversal in the student account first, then link that record here. Keep this review pending if no matching financial record exists yet.'),
+                Textarea::make('reason')->label(fn (Get $get): string => $get('outcome') === LifecycleAccountingReview::FinancialActionRecorded ? 'How this record addresses the change' : 'Reason')
+                    ->required()->maxLength(1000)->rows(3),
+                Text::make('This records the review only. Fees, academic records, payment clearance and issued documents remain unchanged.'),
+            ])
+            ->action(function (array $data): void {
+                abort_unless($this->isAccountingActor(), 403);
+                try {
+                    app(RecordLifecycleAccountingReview::class)->execute($this->getRecord(), $this->actor(), $this->reviewedLifecycleChange, $data, $this->reviewedLifecycleFinancialSources);
+                    $this->accountingContext = null;
+                    $this->accountingMemo = [];
+                    if ($this->isAccountingWorkspace()) {
+                        $this->dispatch('accounting-record-updated');
+                    }
+                    $this->resetPage('changesPage');
+                    $this->resetPage('reviewHistoryPage');
+                    Notification::make()->title($data['outcome'] === LifecycleAccountingReview::Pending ? 'Review returned to pending' : 'Review result recorded')->success()->send();
+                } catch (ValidationException $exception) {
+                    SafeUserNotification::sendError('Review result was not recorded', $exception, persistent: true);
+                    throw $exception;
+                } catch (Throwable $exception) {
+                    SafeUserNotification::sendError(
+                        'Review result was not recorded',
+                        $exception,
+                        'Nothing was saved. Keep this review pending and try again, or contact system support.',
+                        persistent: true,
+                    );
+                    throw ValidationException::withMessages(['reason' => 'Nothing was saved. Try again or contact system support.']);
+                }
+            });
     }
 
     public function applicablePublishedFeePlan(): ?FeePlan
@@ -336,20 +485,33 @@ class ViewEnrollment extends ViewRecord
     private function individualAssessmentSources(): array
     {
         return $this->individualAssessmentContext ??= $this->actor()->hasRole(User::StaffRoleAccounting)
-            ? app(IndividualAssessmentSources::class)->forEnrollment($this->getRecord())
+            ? app(IndividualAssessmentSources::class)->forEnrollment($this->getRecord(), useLoadedRelations: true)
             : ['initial' => false, 'adjustment' => false, 'course_drop' => null, 'categories' => []];
     }
 
-    /** @param array<array-key, array<string, mixed>> $charges
+    /**
+     * @param  array<array-key, array<string, mixed>>  $charges
      * @param  array<string, mixed>  $enrollmentPayment
      * @param  array<array-key, array<string, mixed>>  $laterPayments
+     * @return array{chargeTotal: ?int, paymentTotal: ?int}
      */
-    private function assessmentDraftSummary(array $charges, array $enrollmentPayment, array $laterPayments): string
+    private function assessmentDraftTotals(array $charges, array $enrollmentPayment, array $laterPayments): array
     {
-        $total = collect($charges)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0));
-        $payments = (float) ($enrollmentPayment['amount'] ?? 0) + collect($laterPayments)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0));
+        $money = app(DecimalMoney::class);
+        $sum = static function (array $rows) use ($money): ?int {
+            if ($rows === [] || collect($rows)->contains(fn (array $row): bool => ! preg_match('/^\d+(\.\d{1,2})?$/', (string) ($row['amount'] ?? '')))) {
+                return null;
+            }
 
-        return 'Total charges: PHP '.number_format($total, 2).' · Total payments: PHP '.number_format($payments, 2).' · Difference: PHP '.number_format($total - $payments, 2).'. Charges and payment dates must add up to the same total.';
+            return collect($rows)->sum(fn (array $row): int => $money->toCents($row['amount']));
+        };
+
+        $paymentRows = array_merge([$enrollmentPayment], $laterPayments);
+
+        return [
+            'chargeTotal' => $sum($charges),
+            'paymentTotal' => $sum($paymentRows),
+        ];
     }
 
     public function focusedRegistrarView(): ?string
@@ -418,8 +580,16 @@ class ViewEnrollment extends ViewRecord
         return EnrollmentsTable::stage($case) === 'Waiting for learner' ? 'waiting' : 'requirements';
     }
 
+    public function getHeading(): string
+    {
+        return $this->focusedAccountingView() !== null ? '' : (string) parent::getHeading();
+    }
+
     public function getTitle(): string
     {
+        if ($this->isAccountingActor() && $this->enrollmentView === 'changes') {
+            return 'Review student status changes';
+        }
         if ($this->isHeadReader()) {
             return $this->getRecord()->credentialUser?->getFilamentName() ?? 'Enrollment record';
         }
@@ -440,6 +610,27 @@ class ViewEnrollment extends ViewRecord
     {
         if ($this->isHeadReader()) {
             return [];
+        }
+
+        if ($this->focusedAccountingView() !== null) {
+            $queue = array_key_exists($this->returnQueue ?? '', app(ListEnrollments::class)->getTabs()) && $this->returnQueue !== 'overview'
+                ? $this->returnQueue : 'accounts';
+            $section = match ($this->focusedAccountingView()) {
+                'accounting-lifecycle' => 'Student status changes',
+                'accounting-history' => 'Account history',
+                'accounting-proof' => 'Review receipts',
+                default => null,
+            };
+
+            return [
+                EnrollmentResource::getUrl('index') => 'Overview',
+                EnrollmentResource::getUrl('index', ['tab' => 'accounts', ...($queue === 'accounts' ? $this->accountingReturnParameters() : [])]) => 'Student accounts',
+                ...($queue === 'accounts' ? [] : [
+                    EnrollmentResource::getUrl('index', ['tab' => $queue, ...$this->accountingReturnParameters()]) => app(ListEnrollments::class)->getTabs()[$queue]->getLabel(),
+                ]),
+                $this->enrollmentUrl(['view' => 'account', 'queue' => $queue]) => $this->getRecord()->credentialUser?->getFilamentName() ?? 'Student account',
+                ...($section === null ? [] : [$section]),
+            ];
         }
 
         if ($this->usesEnrollmentRecordLayout()) {
@@ -496,12 +687,36 @@ class ViewEnrollment extends ViewRecord
             return null;
         }
 
-        return array_key_exists($this->returnQueue, app(ListEnrollments::class)->getTabs()) ? $this->returnQueue : null;
+        return in_array($this->returnQueue, ListEnrollments::REGISTRAR_TAB_KEYS, true) ? $this->returnQueue : null;
+    }
+
+    /** @return array<string, mixed> */
+    private function accountingReturnParameters(): array
+    {
+        return [
+            ...(filled($this->returnSearch) ? ['search' => $this->returnSearch] : []),
+            ...($this->returnFilters !== [] ? ['filters' => $this->returnFilters] : []),
+        ];
     }
 
     /** @param array<string, mixed> $parameters */
     public function enrollmentUrl(array $parameters = []): string
     {
+        if ($this->isAccountingActor()) {
+            $queue = in_array($this->returnQueue ?? '', ListEnrollments::ACCOUNTING_TAB_KEYS, true) && $this->returnQueue !== 'overview'
+                ? $this->returnQueue : 'accounts';
+
+            return EnrollmentResource::getUrl('index', [
+                'tab' => $queue,
+                'account' => $this->getRecord()->id,
+                ...(filled($this->returnSearch) ? ['search' => $this->returnSearch] : []),
+                ...($this->returnFilters !== [] ? ['filters' => $this->returnFilters] : []),
+                ...array_filter(['proof' => $this->paymentProofId], fn (?int $value): bool => $value !== null),
+                'view' => $parameters['view'] ?? ($this->enrollmentView === 'overview' ? 'work' : $this->enrollmentView),
+                ...Arr::except($parameters, ['record', 'queue', 'view']),
+            ]);
+        }
+
         $queue = $this->registrarReturnQueue();
 
         return EnrollmentResource::getUrl('view', [
@@ -522,13 +737,7 @@ class ViewEnrollment extends ViewRecord
                 ]))];
         }
         if ($this->focusedAccountingView() !== null) {
-            if ($this->enrollmentView === 'history' || in_array($this->focusedAccountingView(), ['accounting-proof', 'accounting-online', 'accounting-webhook'], true)) {
-                return [Action::make('backToAccount')->label('Back to account')->color('gray')->icon('heroicon-o-arrow-left')
-                    ->url(EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'account']))];
-            }
-
-            return [Action::make('backToAccounts')->label('Student accounts')->color('gray')->icon('heroicon-o-arrow-left')
-                ->url(EnrollmentResource::getUrl('index'))];
+            return [];
         }
         $focusedView = $this->focusedRegistrarView();
         if ($focusedView !== null && $this->enrollmentView === 'history') {
@@ -546,7 +755,7 @@ class ViewEnrollment extends ViewRecord
             Action::make('resendOfficialEnrollmentEmail')
                 ->label('Resend enrollment email')
                 ->icon('heroicon-o-arrow-path')
-                ->tooltip('Send the failed enrollment email again to the learner.')
+                ->tooltip('Send the failed enrollment email again to the student.')
                 ->visible(fn (): bool => $this->failedOfficialEnrollmentNotification() instanceof OperationalEvent)
                 ->action(function (): void {
                     $event = $this->failedOfficialEnrollmentNotification();
@@ -654,7 +863,7 @@ class ViewEnrollment extends ViewRecord
 
     public function reconcileAssessmentEffectsAction(): Action
     {
-        return Action::make('reconcileAssessmentEffects')->label('Reconcile retained payment and coverage')
+        return Action::make('reconcileAssessmentEffects')->label('Match earlier payments and coverage')
             ->icon('heroicon-o-arrows-right-left')
             ->authorize(fn (): bool => $this->isAccountingActor())
             ->visible(function (): bool {
@@ -663,8 +872,8 @@ class ViewEnrollment extends ViewRecord
                 return $this->isAccountingActor() && $account !== null
                     && (app(TermAccountProjection::class)->forAccount($account)['reconciliation_required'] ?? false);
             })
-            ->modalHeading('Apply earlier payments and coverage')
-            ->modalDescription('Choose which current payment each earlier amount should count toward. Original records stay in account history.')
+            ->modalHeading('Match earlier payments to current schedule')
+            ->modalDescription('Choose which current payment due date each earlier payment or coverage should apply toward. Original records stay in account history.')
             ->stickyModalFooter()
             ->modalSubmitActionLabel('Record mapping')->modalCancelActionLabel('Keep for review')
             ->modalSubmitAction(fn (Action $action): Action|false => ($this->reviewedReconciliation['sources'] ?? []) !== [] ? $action : false)
@@ -686,7 +895,7 @@ class ViewEnrollment extends ViewRecord
                     [$assessment, $mapping] = $this->reviewedReconciliationMapping($data['mapping'] ?? []);
                     app(RevalidateAssessmentEffects::class)->execute($assessment, $this->actor(), $mapping, null);
                     $this->record = $this->getRecord()->refresh();
-                    Notification::make()->title('Retained financial effects reconciled')->success()->send();
+                    Notification::make()->title('Earlier payments matched')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Retained effects were not reconciled', $exception);
                 }
@@ -719,7 +928,7 @@ class ViewEnrollment extends ViewRecord
 
     private function money(mixed $amount): string
     {
-        return 'PHP '.number_format((float) $amount, 2);
+        return AccountingDisplay::money($amount);
     }
 
     /** @return array<string, mixed> */
@@ -778,7 +987,7 @@ class ViewEnrollment extends ViewRecord
     {
         return AssessmentObligation::query()->where('assessment_id', $this->reviewedReconciliation['assessment_id'] ?? 0)->orderBy('id')->get()
             ->mapWithKeys(fn (AssessmentObligation $obligation): array => [
-                $obligation->id => $obligation->label.' (PHP '.number_format((float) $obligation->amount, 2).')',
+                $obligation->id => $obligation->label.' ('.$this->money($obligation->amount).')',
             ])->all();
     }
 
@@ -824,7 +1033,7 @@ class ViewEnrollment extends ViewRecord
 
         return 'Captured assessment '.($evidence->assessment_id ?? 'unavailable').'. Named targets: '.($targets->isEmpty()
             ? 'Unavailable; obtain current source review before posting.'
-            : $targets->map(fn (array $target): string => ($target['label'] ?? $target['code'] ?? 'Obligation '.($target['id'] ?? $target['assessment_obligation_id'] ?? '')).' · '.(isset($target['available_balance']) ? 'PHP '.number_format((float) $target['available_balance'], 2) : 'Captured amount unavailable'))->implode('; '))
+            : $targets->map(fn (array $target): string => ($target['label'] ?? $target['code'] ?? 'Obligation '.($target['id'] ?? $target['assessment_obligation_id'] ?? '')).' · '.(isset($target['available_balance']) ? $this->money($target['available_balance']) : 'Captured amount unavailable'))->implode('; '))
             .($evidence->possible_duplicate ? ' Possible duplicate: compare the original external source before posting.' : '');
     }
 
@@ -978,7 +1187,7 @@ class ViewEnrollment extends ViewRecord
             ->color($this->getRecord()->currentProposalVersion === null ? 'primary' : 'gray')
             ->icon('heroicon-o-document-plus')
             ->modalHeading('Choose subjects')
-            ->modalDescription(fn (): string => ($this->getRecord()->credentialUser?->getFilamentName() ?? 'Learner').' · '.$this->getRecord()->term?->label.'. '.($this->getRecord()->currentProposalVersion === null
+            ->modalDescription(fn (): string => ($this->getRecord()->credentialUser?->getFilamentName() ?? 'Student').' · '.$this->getRecord()->term?->label.'. '.($this->getRecord()->currentProposalVersion === null
                 ? 'Saving prepares a draft. Seats and assessment are checked next.'
                 : 'Saving a changed selection replaces these subjects and releases their temporary class places. Charges must be checked and the student must confirm again.'))
             ->modalSubmitActionLabel('Save subjects')
@@ -1176,7 +1385,7 @@ class ViewEnrollment extends ViewRecord
     {
         return Action::make('createAssessment')
             ->label('Use Fee Plan')
-            ->icon('heroicon-o-banknotes')
+            ->icon('heroicon-o-document-currency-dollar')
             ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
                 && $this->hasCurrentReservedProposal() && $this->applicablePublishedFeePlan() !== null)
             ->authorize(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting))
@@ -1250,8 +1459,9 @@ class ViewEnrollment extends ViewRecord
             ->schema([
                 Hidden::make('reviewed_proposal_id')->required(),
                 Hidden::make('reviewed_drop_id'),
-                Text::make(fn (): string => ($this->getRecord()->credentialUser?->getFilamentName() ?? 'Learner').' · '.$this->getRecord()->term?->label)
-                    ->extraAttributes(['class' => 'accounting-assessment-context'])->columnSpanFull(),
+                SchemaView::make('filament.admin.enrollments.accounting-correction-context')
+                    ->viewData(fn (): array => $this->correctionContext())
+                    ->columnSpanFull(),
                 ...$categoryFields,
                 SchemaSection::make('Charges')
                     ->description('Add each approved charge and its amount for this assessment.')
@@ -1296,8 +1506,9 @@ class ViewEnrollment extends ViewRecord
                             DatePicker::make('authority_date')->label('Approval date')->required(),
                         ]),
                     ])->columnSpanFull(),
-                Text::make(fn (Get $get): string => $this->assessmentDraftSummary($get('charges') ?? [], $get('enrollment_payment') ?? [], $get('later_payments') ?? []))
-                    ->extraAttributes(['class' => 'accounting-assessment-summary'])->columnSpanFull(),
+                SchemaView::make('filament.admin.enrollments.accounting-draft-totals')
+                    ->viewData(fn (Get $get): array => $this->assessmentDraftTotals($get('charges') ?? [], $get('enrollment_payment') ?? [], $get('later_payments') ?? []))
+                    ->columnSpanFull(),
             ])
             ->action(function (array $data): void {
                 try {
@@ -1352,7 +1563,9 @@ class ViewEnrollment extends ViewRecord
             ])
             ->schema([
                 Hidden::make('reviewed_assessment_id')->required(),
-                Text::make(fn (): string => ($this->getRecord()->credentialUser?->getFilamentName() ?? 'Learner').' · '.$this->getRecord()->term?->label),
+                SchemaView::make('filament.admin.enrollments.accounting-correction-context')
+                    ->viewData(fn (): array => $this->correctionContext())
+                    ->columnSpanFull(),
                 ...($replacements !== [] ? [
                     Radio::make('mode')->label('Coverage entry')->options(fn (): array => [
                         ...($this->coverageFeeOptions() !== [] ? ['new' => 'New coverage'] : []), 'replace' => 'Replace existing coverage',
@@ -1373,14 +1586,14 @@ class ViewEnrollment extends ViewRecord
                 Text::make(function (Get $get): string {
                     $previous = $this->replacementCoverages()->firstWhere('id', (int) $get('supersedes_coverage_id'));
 
-                    return $previous ? $previous->obligation?->label.' · Existing coverage PHP '.number_format((float) $previous->amount, 2).'. The replacement remains on this fee. Previous approval stays in account history.' : 'Choose the existing approval to replace.';
+                    return $previous ? $previous->obligation?->label.' · Existing coverage '.$this->money($previous->amount).'. The replacement remains on this fee. Previous approval stays in account history.' : 'Choose the existing approval to replace.';
                 })->visible(fn (Get $get): bool => $get('mode') === 'replace'),
                 Select::make('obligation_id')->label('Fee to cover')->options(fn (): array => $this->coverageFeeOptions())
                     ->helperText('Only fees with available balance can receive new coverage.')
                     ->visible(fn (Get $get): bool => $get('mode') !== 'replace')
                     ->required(fn (Get $get): bool => $get('mode') !== 'replace'),
                 Grid::make(['md' => 2])->schema([
-                    Select::make('category')->label('Coverage type')->options(collect(ApprovedCoverage::Categories)->mapWithKeys(fn (string $category): array => [$category => Str::headline($category)])->all())->required(),
+                    Select::make('category')->label('Coverage type')->options(collect(ApprovedCoverage::Categories)->mapWithKeys(fn (string $category): array => [$category => AccountingDisplay::coverageCategoryLabel($category)])->all())->required(),
                     TextInput::make('amount')->label('Amount')->numeric()->minValue(0.01)->prefix('PHP')->required(),
                 ]),
                 TextInput::make('safe_source_description')->label('Funding source')->required()->maxLength(255),
@@ -1443,217 +1656,272 @@ class ViewEnrollment extends ViewRecord
                 SchemaView::make('filament.admin.enrollments.payment-proof-context')->viewData(fn (): array => $this->paymentProofViewData()),
                 TextInput::make('actual_verified_amount')->label('Verified amount')->numeric()->minValue(0.01)->prefix('PHP')->required()->live(onBlur: true)
                     ->helperText('Enter the amount confirmed by the independent source.'),
-                TextInput::make('external_check_reference')->label('Independent verification result')->required()->maxLength(255)
-                    ->helperText('Record the bank or collecting-office result used to verify this payment.'),
+                TextInput::make('external_check_reference')->label('Bank or collecting-office verification reference')->required()->maxLength(255)
+                    ->helperText('Enter the bank transaction number, deposit reference, or collecting-office confirmation note used to verify this payment.'),
+                TextInput::make('or_number')->label('Official Receipt (OR) number (optional)')->maxLength(100)
+                    ->helperText('Optional. Enter the Official Receipt number now, or map it later from payment history.'),
                 SchemaView::make('filament.admin.enrollments.payment-proof-allocation')
                     ->viewData(fn (Get $get): array => $this->paymentProofViewData($get('actual_verified_amount'))),
             ])
             ->action(function (array $data): void {
                 try {
-                    app(ReviewPaymentEvidence::class)->verify(
-                        $this->boundSubmittedProof((int) $data['evidence_id']),
-                        $this->actor(),
-                        (string) $data['actual_verified_amount'],
-                        $data['external_check_reference'],
-                    );
-                    Notification::make()->title('Payment evidence verified')->success()->send();
+                    DB::transaction(function () use ($data): void {
+                        $payment = app(ReviewPaymentEvidence::class)->verify(
+                            $this->boundSubmittedProof((int) $data['evidence_id']),
+                            $this->actor(),
+                            (string) $data['actual_verified_amount'],
+                            $data['external_check_reference'],
+                        );
+
+                        if (filled($data['or_number'] ?? null)) {
+                            app(MapOfficialReceiptToPayment::class)->execute(
+                                $payment,
+                                trim((string) $data['or_number']),
+                                $this->actor(),
+                            );
+                        }
+                    });
+                    Notification::make()->title('Payment receipt verified')->success()->send();
                     $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
-                    $this->failure('Evidence was not verified', $exception);
+                    $this->failure('Receipt was not verified', $exception);
                 }
             });
     }
 
-    public function retrievePayMongoCheckoutAction(): Action
+    public function recordOnsitePaymentAction(): Action
     {
-        return Action::make('retrievePayMongoCheckout')
-            ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleAccounting))
-            ->label('Check provider status')
-            ->icon('heroicon-o-arrow-path')
-            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
-                && $this->canRetrieveSelectedCheckout())
-            ->action(function (): void {
+        return Action::make('recordOnsitePayment')
+            ->label('Record onsite payment')
+            ->icon('heroicon-o-banknotes')
+            ->modalHeading('Record onsite payment')
+            ->modalDescription('Record a walk-in cash, e-wallet, or bank transfer payment collected by Accounting and apply it directly to this account.')
+            ->modalSubmitActionLabel('Record payment')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->isAccountingActor())
+            ->visible(fn (): bool => $this->canRecordOnsitePayment())
+            ->fillForm(function (): array {
+                $position = $this->accountingViewData()['position'] ?? null;
+                $money = app(DecimalMoney::class);
+                $currentDue = (string) ($position['current_due'] ?? '0');
+                $remaining = (string) ($position['remaining_balance'] ?? '0');
+                $defaultAmount = $money->toCents($currentDue) > 0 ? $currentDue : $remaining;
+
+                return [
+                    'channel' => 'cash',
+                    'amount' => $money->toCents($defaultAmount) > 0 ? $defaultAmount : null,
+                    'confirmed_at' => now(config('app.display_timezone')),
+                ];
+            })
+            ->schema([
+                Select::make('channel')
+                    ->label('Payment channel')
+                    ->options(Payment::manualConfirmationChannelOptions())
+                    ->default('cash')
+                    ->required()
+                    ->live()
+                    ->afterStateUpdated(fn (Set $set): mixed => $set('channel_account_id', null)),
+                Select::make('channel_account_id')
+                    ->label('School receiving account (optional)')
+                    ->options(fn (Get $get): array => app(SchoolPaymentChannels::class)->accountOptionsForGroup((string) ($get('channel') ?? '')))
+                    ->visible(fn (Get $get): bool => ($channel = (string) ($get('channel') ?? 'cash')) !== 'cash'
+                        && app(SchoolPaymentChannels::class)->accountOptionsForGroup($channel) !== [])
+                    ->placeholder('Choose the school account received on (optional)')
+                    ->helperText('Optional. Captures the specific bank or e-wallet account in the payment record.')
+                    ->live(),
+                Grid::make(['md' => 2])->schema([
+                    TextInput::make('amount')
+                        ->label('Payment amount')
+                        ->numeric()
+                        ->minValue(0.01)
+                        ->prefix('PHP')
+                        ->required(),
+                    TextInput::make('or_number')
+                        ->label('Official Receipt (OR) number')
+                        ->maxLength(100)
+                        ->required(fn (Get $get): bool => $get('channel') === 'cash')
+                        ->helperText(fn (Get $get): string => $get('channel') === 'cash'
+                            ? 'Required for cash payments collected at the campus cashier.'
+                            : 'Optional. Enter the Official Receipt (OR) number now or map it later from history.'),
+                ]),
+                Grid::make(['md' => 2])->schema([
+                    TextInput::make('payment_reference')
+                        ->label('Payment or transfer reference')
+                        ->maxLength(120)
+                        ->required(fn (Get $get): bool => $get('channel') !== 'cash')
+                        ->helperText(function (Get $get): string {
+                            $channel = (string) ($get('channel') ?? 'cash');
+                            if ($channel === 'cash') {
+                                return 'Optional for cash. Leave blank to generate a cashier reference automatically.';
+                            }
+                            $snapshot = app(SchoolPaymentChannels::class)->resolveAccountSnapshot(
+                                $channel,
+                                filled($get('channel_account_id')) ? (string) $get('channel_account_id') : null,
+                            );
+
+                            return SchoolPaymentChannels::referenceGuidance($channel, $snapshot['provider_or_bank'] ?? null)['hint'];
+                        }),
+                    DateTimePicker::make('confirmed_at')
+                        ->label('Payment date and time')
+                        ->timezone(config('app.display_timezone'))
+                        ->helperText(config('app.display_timezone'))
+                        ->maxDate(fn () => now(config('app.display_timezone'))),
+                ]),
+            ])
+            ->action(function (array $data, Action $action): void {
+                abort_unless($this->isAccountingActor(), 403);
                 try {
-                    $attemptId = $this->assertReviewedOnlineCheckout();
-                    $result = app(PayMongoCheckoutRecoveryService::class)->recover(
-                        $attemptId,
-                        $this->actor(),
+                    $channel = (string) ($data['channel'] ?? 'cash');
+                    $channelSnapshot = $channel !== 'cash'
+                        ? app(SchoolPaymentChannels::class)->resolveAccountSnapshot(
+                            $channel,
+                            filled($data['channel_account_id'] ?? null) ? (string) $data['channel_account_id'] : null,
+                        )
+                        : null;
+                    $reference = filled($data['payment_reference'] ?? null)
+                        ? trim((string) $data['payment_reference'])
+                        : ($channel === 'cash'
+                            ? 'CASH-'.$this->getRecord()->id.'-'.strtoupper(Str::random(6))
+                            : null);
+                    $orNumber = filled($data['or_number'] ?? null)
+                        ? trim((string) $data['or_number'])
+                        : null;
+                    $confirmedAt = filled($data['confirmed_at'] ?? null)
+                        ? CarbonImmutable::parse((string) $data['confirmed_at'], config('app.display_timezone'))->utc()
+                        : null;
+
+                    app(PaymentConfirmationService::class)->confirmManualPayment(
+                        enrollmentId: (int) $this->getRecord()->id,
+                        amount: (string) $data['amount'],
+                        channel: $channel,
+                        paymentReference: $reference,
+                        actor: $this->actor(),
+                        confirmedAt: $confirmedAt,
+                        orNumber: $orNumber,
+                        channelSnapshot: $channelSnapshot,
                     );
+
+                    $this->record = $this->getRecord()->refresh();
+                    $this->accountingContext = null;
+                    $this->accountingMemo = [];
+                    if ($this->isAccountingWorkspace()) {
+                        $this->dispatch('accounting-record-updated');
+                    }
+                    $this->resetPage('accountHistoryPaymentPage');
+
                     Notification::make()
-                        ->title('PayMongo checkout retrieved')
-                        ->body('Provider state: '.$result['status'])
+                        ->title('Onsite payment recorded and applied to this account.')
                         ->success()
                         ->send();
-                    $this->redirect(EnrollmentResource::getUrl('view', ['record' => $this->getRecord(), 'view' => 'online', 'attempt' => $attemptId]));
+                } catch (ValidationException $exception) {
+                    throw $exception;
+                } catch (RuntimeException $exception) {
+                    $this->failure('Onsite payment was not recorded', $exception);
+                    $action->halt();
                 } catch (Throwable $exception) {
-                    $this->failure('PayMongo checkout was not retrieved', $exception);
+                    $this->failure('Onsite payment was not recorded', $exception);
+                    $action->halt();
                 }
             });
     }
 
-    public function confirmRecoveredPayMongoAction(): Action
+    public function mapOfficialReceiptAction(): Action
     {
-        return Action::make('confirmRecoveredPayMongo')
-            ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleAccounting))
-            ->label('Confirm payment')
-            ->modalHeading('Confirm recovered payment')
-            ->modalSubmitActionLabel('Confirm payment')
-            ->modalCancelActionLabel('Keep under review')
-            ->modalWidth(Width::TwoExtraLarge)
-            ->modalIcon('heroicon-o-check-badge')
-            ->icon('heroicon-o-check-badge')
-            ->color('primary')
-            ->requiresConfirmation()
-            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
-                && $this->selectedRecoveredOnlineEvent() !== null)
-            ->disabled(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && ! $this->onlinePaymentViewData()['canConfirm'])
-            ->mountUsing(function (): void {
-                $this->reviewedOnlineCheckout = $this->onlineCheckoutSnapshot();
+        return Action::make('mapOfficialReceipt')
+            ->label('Map OR number')
+            ->icon('heroicon-o-document-text')
+            ->color('gray')
+            ->size('sm')
+            ->modalHeading('Map Official Receipt number')
+            ->modalDescription('Assign the physical Official Receipt (OR) number to this verified payment.')
+            ->modalSubmitActionLabel('Save OR number')
+            ->modalWidth(Width::Medium)
+            ->authorize(function (array $arguments): bool {
+                $payment = $this->paymentForOfficialReceiptMapping($arguments);
+
+                return $this->actor()->canAuthenticate()
+                    && $this->isAccountingActor()
+                    && $payment !== null
+                    && Gate::allows('mapOfficialReceipt', $payment);
             })
-            ->fillForm(fn (): array => ['event_id' => $this->selectedRecoveredOnlineEvent()?->id])
+            ->visible(function (array $arguments): bool {
+                $payment = $this->paymentForOfficialReceiptMapping($arguments);
+
+                return $this->isAccountingActor()
+                    && $payment !== null
+                    && Gate::allows('mapOfficialReceipt', $payment);
+            })
+            ->mountUsing(function (Schema $schema, array $arguments): void {
+                $payment = $this->paymentForOfficialReceiptMapping($arguments);
+                abort_unless($payment !== null && Gate::allows('mapOfficialReceipt', $payment), 403);
+                $schema->fill(['payment_id' => $payment->id]);
+            })
             ->schema([
-                Hidden::make('event_id')->required()->in(fn (): array => [$this->selectedRecoveredOnlineEvent()?->id]),
-                SchemaView::make('filament.admin.enrollments.online-payment-context')->viewData(fn (): array => $this->onlinePaymentViewData() + ['showEffect' => true]),
+                Hidden::make('payment_id')->required(),
+                TextInput::make('or_number')
+                    ->label('Official Receipt (OR) number')
+                    ->required()
+                    ->maxLength(100)
+                    ->helperText('Enter the unique physical Official Receipt number issued for this payment.'),
             ])
-            ->modalDescription('This records the reported amount against the payments shown below.')
-            ->action(function (array $data): void {
+            ->action(function (array $data, Action $action): void {
+                abort_unless($this->isAccountingActor(), 403);
+                $payment = $this->getRecord()->termAccount?->payments()->find((int) ($data['payment_id'] ?? 0));
+                abort_unless($payment instanceof Payment && Gate::allows('mapOfficialReceipt', $payment), 403);
+
                 try {
-                    $this->decideRecoveredOnlinePayment($data, confirm: true);
-                    Notification::make()->title('Recovered PayMongo payment posted')->success()->send();
-                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
+                    app(MapOfficialReceiptToPayment::class)->execute(
+                        $payment,
+                        trim((string) $data['or_number']),
+                        $this->actor(),
+                    );
+
+                    $this->record = $this->getRecord()->refresh();
+                    $this->accountingContext = null;
+                    $this->accountingMemo = [];
+                    if ($this->isAccountingWorkspace()) {
+                        $this->dispatch('accounting-record-updated');
+                    }
+
+                    Notification::make()
+                        ->title('Official Receipt mapped')
+                        ->success()
+                        ->send();
+                } catch (ValidationException $exception) {
+                    throw $exception;
+                } catch (RuntimeException $exception) {
+                    $this->failure('Official Receipt was not mapped', $exception);
+                    $action->halt();
                 } catch (Throwable $exception) {
-                    $this->failure('Recovered PayMongo payment was not posted', $exception);
+                    $this->failure('Official Receipt was not mapped', $exception);
+                    $action->halt();
                 }
             });
     }
 
-    public function rejectRecoveredPayMongoAction(): Action
+    private function canRecordOnsitePayment(): bool
     {
-        return Action::make('rejectRecoveredPayMongo')
-            ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleAccounting))
-            ->label('Reject result')
-            ->modalHeading('Reject recovered result')
-            ->modalSubmitActionLabel('Reject result')
-            ->modalCancelActionLabel('Keep under review')
-            ->modalWidth(Width::TwoExtraLarge)
-            ->modalIcon(null)
-            ->modalDescription('Rejection marks this attempt as failed and records no payment. The result and decision remain in account history.')
-            ->icon('heroicon-o-x-circle')
-            ->color('danger')
-            ->requiresConfirmation()
-            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
-                && $this->selectedRecoveredOnlineEvent() !== null)
-            ->fillForm(fn (): array => ['event_id' => $this->selectedRecoveredOnlineEvent()?->id])
-            ->schema([
-                Hidden::make('event_id')->required()->in(fn (): array => [$this->selectedRecoveredOnlineEvent()?->id]),
-                SchemaView::make('filament.admin.enrollments.online-payment-context')->viewData(fn (): array => $this->onlinePaymentViewData()),
-                Textarea::make('reason')->label('Reason for the decision')->helperText('Explain why this recovered result cannot be accepted.')->minLength(5)->maxLength(1000)->required(),
-            ])
-            ->action(function (array $data): void {
-                try {
-                    $this->decideRecoveredOnlinePayment($data, confirm: false);
-                    Notification::make()->title('Recovered evidence rejected')->success()->send();
-                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
-                } catch (Throwable $exception) {
-                    $this->failure('Recovered evidence was not rejected', $exception);
-                }
-            });
+        if (! $this->isAccountingActor()) {
+            return false;
+        }
+        $context = $this->accountingViewData();
+        $position = $context['position'] ?? null;
+
+        return $context['assessment'] !== null
+            && $position !== null
+            && ($position['state'] ?? 'Unavailable') !== 'Unavailable'
+            && app(DecimalMoney::class)->toCents((string) ($position['remaining_balance'] ?? '0')) > 0;
     }
 
-    public function retryPayMongoEventAction(): Action
+    /** @param array<string, mixed> $arguments */
+    private function paymentForOfficialReceiptMapping(array $arguments): ?Payment
     {
-        return Action::make('retryPayMongoEvent')
-            ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleAccounting))
-            ->label('Retry processing')->color('gray')->icon('heroicon-o-arrow-path')
-            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && $this->webhookPaymentViewData()['canRetryWebhook'])
-            ->action(function (): void {
-                try {
-                    $reviewedEvent = $this->reviewedWebhookEvent;
-                    abort_unless(isset($reviewedEvent['event_id'], $reviewedEvent['fingerprint'])
-                        && $reviewedEvent['event_id'] === $this->selectedWebhookEvent()?->id, 404);
-                    $this->decideWebhook([
-                        'event_id' => $reviewedEvent['event_id'],
-                        'reviewed_source' => $reviewedEvent['fingerprint'],
-                        'reason' => 'Accounting requested retry of the retained delivery.',
-                    ], 'retry');
-                    Notification::make()->title('Original payment delivery queued again')->success()->send();
-                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
-                } catch (Throwable $exception) {
-                    $this->failure('Payment processing was not queued', $exception);
-                }
-            });
-    }
+        $paymentId = (int) ($arguments['payment'] ?? 0);
+        if ($paymentId <= 0) {
+            return null;
+        }
 
-    public function linkUnknownPayMongoEventAction(): Action
-    {
-        return Action::make('linkUnknownPayMongoEvent')
-            ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleAccounting))
-            ->label('Link and retry')->icon('heroicon-o-link')->modalHeading('Link result and retry')
-            ->modalDescription('Link this result to the selected checkout and queue the original delivery. Payment and reference checks still apply; this does not confirm payment immediately.')
-            ->modalSubmitActionLabel('Link and retry')->modalCancelActionLabel('Keep under review')
-            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && $this->webhookPaymentViewData()['canLinkWebhook'])
-            ->fillForm(fn (): array => ['event_id' => $this->selectedWebhookEvent()?->id, 'reviewed_source' => $this->webhookSourceFingerprint()])
-            ->schema([
-                ...$this->webhookBoundFields(),
-                SchemaView::make('filament.admin.enrollments.webhook-payment-context')->viewData(fn (): array => $this->webhookPaymentViewData()),
-                Textarea::make('reason')->label('Linkage evidence')->helperText('Record the source facts that connect this result to the selected account and checkout.')->minLength(5)->maxLength(1000)->required(),
-            ])->action(function (array $data): void {
-                try {
-                    $this->decideWebhook($data, 'link');
-                    Notification::make()->title('Payment result linked and queued')->success()->send();
-                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
-                } catch (Throwable $exception) {
-                    $this->failure('Payment result was not linked', $exception);
-                }
-            });
-    }
-
-    public function confirmPayMongoExceptionAction(): Action
-    {
-        return Action::make('confirmPayMongoException')
-            ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleAccounting))
-            ->label('Confirm payment')->icon('heroicon-o-check-circle')
-            ->modalHeading('Confirm reference discrepancy')->modalSubmitActionLabel('Confirm payment')->modalCancelActionLabel('Keep under review')
-            ->modalDescription('Confirmation records one verified payment to these targets. The reference discrepancy and your reason remain in account history.')
-            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && $this->webhookPaymentViewData()['canConfirmWebhook'])
-            ->fillForm(fn (): array => ['event_id' => $this->selectedWebhookEvent()?->id, 'reviewed_source' => $this->webhookSourceFingerprint()])
-            ->schema([
-                ...$this->webhookBoundFields(),
-                SchemaView::make('filament.admin.enrollments.webhook-payment-context')->viewData(fn (): array => $this->webhookPaymentViewData() + ['showEffect' => true]),
-                Textarea::make('reason')->label('Accounting decision basis')->helperText('Explain how you established that this result belongs to the selected checkout.')->minLength(5)->maxLength(1000)->required(),
-            ])->action(function (array $data): void {
-                try {
-                    $this->decideWebhook($data, 'confirm');
-                    Notification::make()->title('Payment exception confirmed')->success()->send();
-                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
-                } catch (Throwable $exception) {
-                    $this->failure('Payment exception was not confirmed', $exception);
-                }
-            });
-    }
-
-    public function rejectPayMongoExceptionAction(): Action
-    {
-        return Action::make('rejectPayMongoException')
-            ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleAccounting))
-            ->label('Reject result')->icon('heroicon-o-no-symbol')->color('danger')
-            ->modalHeading('Reject payment result')->modalSubmitActionLabel('Reject result')->modalCancelActionLabel('Keep under review')
-            ->modalDescription('The result and decision remain in account history. An unverified claim is rejected without recording payment; its linked active attempt is marked failed.')
-            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && $this->webhookPaymentViewData()['canRejectWebhook'])
-            ->fillForm(fn (): array => ['event_id' => $this->selectedWebhookEvent()?->id, 'reviewed_source' => $this->webhookSourceFingerprint()])
-            ->schema([
-                ...$this->webhookBoundFields(),
-                SchemaView::make('filament.admin.enrollments.webhook-payment-context')->viewData(fn (): array => $this->webhookPaymentViewData()),
-                Textarea::make('reason')->label('Reason for rejection')->helperText('Explain why the reported result cannot be accepted.')->minLength(5)->maxLength(1000)->required(),
-            ])->action(function (array $data): void {
-                try {
-                    $this->decideWebhook($data, 'reject');
-                    Notification::make()->title('Payment result rejected')->success()->send();
-                    $this->redirect($this->enrollmentUrl(['view' => 'history']));
-                } catch (Throwable $exception) {
-                    $this->failure('Payment result was not rejected', $exception);
-                }
-            });
+        return $this->accountingViewData()['account']?->payments->firstWhere('id', $paymentId);
     }
 
     public function reverseApprovedCoverageAction(): Action
@@ -1665,7 +1933,7 @@ class ViewEnrollment extends ViewRecord
             ->authorize(fn (): bool => $this->isAccountingActor())
             ->visible(fn (): bool => $this->isAccountingActor() && $this->appliedCoverages()->isNotEmpty())
             ->modalHeading('Reverse approved coverage')
-            ->modalDescription('Corrects this Term account. It does not refund money or contact a provider.')
+            ->modalDescription('Corrects this term account. It does not refund money or contact a provider.')
             ->stickyModalFooter()
             ->modalSubmitActionLabel('Reverse coverage')->modalCancelActionLabel('Keep coverage')
             ->modalSubmitAction(fn (Action $action): Action|false => $this->reviewedCoverage !== [] ? $action : false)
@@ -1682,7 +1950,7 @@ class ViewEnrollment extends ViewRecord
                 TextInput::make('authority_reference')->label('Reversal approval reference')->required()->maxLength(255)
                     ->helperText('The external approval for this correction, not the original coverage reference.'),
                 Textarea::make('safe_reason')->label('Reason')->required()->maxLength(1000)
-                    ->helperText('Use an explanation that is safe for the learner to read. Leave out private eligibility details.'),
+                    ->helperText('Use an explanation that is safe for the student to read. Leave out private eligibility details.'),
                 Text::make('The coverage becomes Reversed, the original record stays in history, and the account is recalculated. No refund or provider request is made, and enrollment is not revoked.')->color('neutral'),
             ])->action(function (array $data): void {
                 try {
@@ -1700,15 +1968,15 @@ class ViewEnrollment extends ViewRecord
     public function reversePaymentPostingAction(): Action
     {
         return Action::make('reversePaymentPosting')
-            ->label('Reverse verified payment')
+            ->label('Record refund reversal')
             ->icon('heroicon-o-arrow-uturn-left')
             ->color('danger')
             ->authorize(fn (): bool => $this->isAccountingActor())
             ->visible(fn (): bool => $this->isAccountingActor() && $this->reversiblePayments()->isNotEmpty())
-            ->modalHeading('Record a completed refund')
+            ->modalHeading('Record refund reversal')
             ->modalDescription('Record an externally completed refund against this verified payment. This action does not send money or contact a provider.')
             ->stickyModalFooter()
-            ->modalSubmitActionLabel('Record refund')->modalCancelActionLabel('Keep payment unchanged')
+            ->modalSubmitActionLabel('Record refund reversal')->modalCancelActionLabel('Keep payment unchanged')
             ->modalSubmitAction(fn (Action $action): Action|false => $this->reviewedPayments !== [] ? $action : false)
             ->fillForm(function (): array {
                 $this->reviewedPayments = $this->reversiblePayments()->mapWithKeys(fn (Payment $payment): array => [$payment->id => $this->sourceFingerprint($payment)])->all();
@@ -1717,17 +1985,12 @@ class ViewEnrollment extends ViewRecord
             })
             ->schema([
                 Select::make('payment_id')->label('Payment to correct')->placeholder('Choose the payment')->required()->live()
-                    ->options(fn (): array => $this->paymentChoices())->visible(fn (): bool => count($this->reviewedPayments) > 1)
-                    ->afterStateUpdated(fn (Set $set): mixed => $set('paymongo_event_id', null)),
+                    ->options(fn (): array => $this->paymentChoices())->visible(fn (): bool => count($this->reviewedPayments) > 1),
                 SchemaView::make('filament.admin.enrollments.accounting-correction-context')
                     ->viewData(fn (Get $get): array => $this->paymentContext($get('payment_id'))),
                 TextInput::make('authority_reference')->label('Refund approval reference')->required()->maxLength(255),
                 Textarea::make('safe_reason')->label('Reason')->required()->maxLength(1000)
-                    ->helperText('Use a learner-safe explanation of this correction.'),
-                Select::make('paymongo_event_id')->label('Matching PayMongo refund or reversal evidence')->placeholder('None')
-                    ->options(fn (Get $get): array => $this->refundEventChoices($get('payment_id')))
-                    ->visible(fn (Get $get): bool => $this->refundEventChoices($get('payment_id')) !== [])
-                    ->helperText('Choose it only when this refund resolves provider evidence waiting for review. A pending or failed delivery is not proof of a completed refund.'),
+                    ->helperText('Use a student-safe explanation of this correction.'),
                 TextInput::make('external_refund_reference')->label('Completed external refund reference')->required()->maxLength(255),
                 TextInput::make('refund_amount')->label('Actual refunded amount')->numeric()->minValue(0.01)->prefix('PHP')->required()
                     ->maxValue(fn (Get $get): float => $this->paymentRemaining($get('payment_id'))),
@@ -1736,27 +1999,16 @@ class ViewEnrollment extends ViewRecord
             ])->action(function (array $data): void {
                 try {
                     $payment = $this->reviewedPaymentSource($data['payment_id'] ?? null);
-                    $eventId = filled($data['paymongo_event_id'] ?? null) ? (int) $data['paymongo_event_id'] : null;
-                    if ($eventId !== null && ! array_key_exists($eventId, $this->refundEventChoices($payment->id))) {
-                        throw ValidationException::withMessages(['paymongo_event_id' => 'This provider evidence does not belong to the selected payment. Choose again or leave it empty.']);
-                    }
-                    DB::transaction(function () use ($data, $payment, $eventId): void {
-                        $reversal = app(ReversePaymentPosting::class)->execute(
-                            $payment,
-                            $this->actor(), $data['authority_reference'], $data['safe_reason'],
-                            $data['external_refund_reference'], (string) $data['refund_amount'], $data['refunded_at'],
-                        );
-                        if ($eventId !== null) {
-                            app(PayMongoReconciliationService::class)->recordRefundReversal(
-                                $eventId,
-                                $payment,
-                                $reversal,
-                                (string) $data['safe_reason'],
-                                $this->actor(),
-                            );
-                        }
-                    });
-                    Notification::make()->title('Payment reversal recorded')->success()->send();
+                    app(ReversePaymentPosting::class)->execute(
+                        $payment,
+                        $this->actor(),
+                        $data['authority_reference'],
+                        $data['safe_reason'],
+                        $data['external_refund_reference'],
+                        (string) $data['refund_amount'],
+                        $data['refunded_at'],
+                    );
+                    Notification::make()->title('Refund reversal recorded')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Payment was not reversed', $exception);
                 }
@@ -1837,7 +2089,7 @@ class ViewEnrollment extends ViewRecord
     {
         return $this->appliedCoverages()->filter(fn (ApprovedCoverage $coverage): bool => array_key_exists($coverage->id, $this->reviewedCoverage))
             ->mapWithKeys(fn (ApprovedCoverage $coverage): array => [
-                $coverage->id => $this->money($coverage->amount).' · '.Str::headline($coverage->category).' · '.$coverage->obligation?->label,
+                $coverage->id => $this->money($coverage->amount).' · '.AccountingDisplay::coverageCategoryLabel($coverage->category).' · '.$coverage->obligation?->label,
             ])->all();
     }
 
@@ -1846,7 +2098,7 @@ class ViewEnrollment extends ViewRecord
     {
         return $this->reversiblePayments()->filter(fn (Payment $payment): bool => array_key_exists($payment->id, $this->reviewedPayments))
             ->mapWithKeys(fn (Payment $payment): array => [
-                $payment->id => $this->money($this->remainingReversible($payment)).' left · '.$payment->channelLabel().' · '.$payment->paid_at?->timezone(config('app.display_timezone'))->format('M j, Y'),
+                $payment->id => $this->money($this->remainingReversible($payment)).' left · '.$payment->channelLabel().' · '.AccountingDisplay::date($payment->paid_at),
             ])->all();
     }
 
@@ -1862,10 +2114,10 @@ class ViewEnrollment extends ViewRecord
         }
 
         return $this->correctionContext(array_filter([
-            'Amount' => $this->money($coverage->amount).' · '.$coverage->state,
+            'Amount' => $this->money($coverage->amount).' · '.AccountingDisplay::coverageStateLabel($coverage->state),
             'Applies to' => $coverage->obligation?->label,
-            'Category and source' => Str::headline($coverage->category).' · '.$coverage->safe_source_description,
-            'Original approval' => collect([$coverage->authority_reference, $coverage->authority_date?->format('M j, Y')])->filter()->implode(' · '),
+            'Category and source' => AccountingDisplay::coverageCategoryLabel($coverage->category).' · '.$coverage->safe_source_description,
+            'Original approval' => collect([$coverage->authority_reference, AccountingDisplay::date($coverage->authority_date)])->filter()->implode(' · '),
         ]));
     }
 
@@ -1894,25 +2146,6 @@ class ViewEnrollment extends ViewRecord
         $payment = $this->reversiblePayments()->firstWhere('id', $this->reviewedSourceId($this->reviewedPayments, $chosen));
 
         return $payment instanceof Payment ? $this->remainingReversible($payment) : 0.0;
-    }
-
-    /** @return array<int, string> */
-    private function refundEventChoices(mixed $chosen): array
-    {
-        $id = $this->reviewedSourceId($this->reviewedPayments, $chosen);
-        if ($id === null) {
-            return [];
-        }
-
-        return OperationalEvent::query()
-            ->where('integration', OperationalEvent::IntegrationPayMongo)
-            ->where('channel', OperationalEvent::ChannelWebhook)
-            ->where('status', OperationalEvent::StatusReviewRequired)
-            ->whereIn('diagnostics->reason', ['refund_or_reversal'])
-            ->where('related_record_type', Payment::class)->where('related_record_id', $id)
-            ->orderByDesc('id')->get()
-            ->mapWithKeys(fn (OperationalEvent $event): array => [$event->id => 'Event #'.$event->id.' — '.$event->event_type])
-            ->all();
     }
 
     public function exportTermAccountAction(): Action
@@ -2012,21 +2245,45 @@ class ViewEnrollment extends ViewRecord
     private function downloadPaymentEvidenceAction(): Action
     {
         return Action::make('downloadPaymentEvidence')
-            ->label('Download submitted evidence')
-            ->icon('heroicon-o-arrow-down-tray')
+            ->label('View submitted receipt')
+            ->icon('heroicon-o-document-magnifying-glass')
+            ->modalHeading('Submitted receipt')
+            ->modalDescription(fn (): ?string => ($evidence = $this->latestSubmittedEvidence()) instanceof PaymentEvidenceVersion
+                ? $evidence->original_name.' · '.str($evidence->state)->headline()
+                : null)
+            ->modalWidth(Width::FiveExtraLarge)
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Close')
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
                 && $this->latestSubmittedEvidence() instanceof PaymentEvidenceVersion)
-            ->url(fn (): string => route('finance.payment-evidence.download', $this->latestSubmittedEvidence()))
-            ->openUrlInNewTab();
+            ->modalContent(function (): HtmlString {
+                $evidence = $this->latestSubmittedEvidence();
+                abort_unless($evidence instanceof PaymentEvidenceVersion, 404);
+
+                return new HtmlString(Blade::render(
+                    '<x-document-viewer :id="$id" :view-url="$viewUrl" :download-url="$downloadUrl" :title="$title" :download-label="$downloadLabel" :loading-message="$loadingMessage" :privacy-note="$privacyNote" :inline="true" :show-inline-download="true" />',
+                    [
+                        'id' => 'accounting-receipt-viewer-'.$evidence->id,
+                        'viewUrl' => route('finance.payment-evidence.view', $evidence),
+                        'downloadUrl' => route('finance.payment-evidence.download', $evidence),
+                        'title' => 'Submitted receipt',
+                        'downloadLabel' => 'Download receipt',
+                        'loadingMessage' => 'Loading receipt…',
+                        'privacyNote' => 'Private to the student and authorized school staff. If your browser cannot display the file, download it below.',
+                    ],
+                ));
+            });
     }
 
     public function rejectPaymentEvidenceAction(): Action
     {
         return Action::make('rejectPaymentEvidence')
-            ->label('Reject proof')
-            ->modalHeading('Reject payment proof')
-            ->modalDescription('The proof and reason stay in account history. The learner can submit a corrected receipt.')
-            ->modalSubmitActionLabel('Reject proof')
+            ->label('Reject receipt')
+            ->modalHeading('Reject submitted receipt')
+            ->modalDescription('The receipt and reason stay in account history. The student can submit a corrected receipt.')
+            ->modalSubmitActionLabel('Reject receipt')
             ->modalCancelActionLabel('Keep under review')
             ->icon('heroicon-o-x-circle')
             ->color('danger')
@@ -2036,7 +2293,7 @@ class ViewEnrollment extends ViewRecord
             ->schema([
                 $this->selectedProofField(),
                 SchemaView::make('filament.admin.enrollments.payment-proof-context')->viewData(fn (): array => $this->paymentProofViewData()),
-                Textarea::make('safe_reason')->label('Reason for the learner')->helperText('Explain what could not be verified and what the learner should correct.')->required()->maxLength(1000),
+                Textarea::make('safe_reason')->label('Reason for the student')->helperText('Explain what could not be verified and what the student should correct.')->required()->maxLength(1000),
             ])
             ->action(function (array $data): void {
                 try {
@@ -2045,10 +2302,10 @@ class ViewEnrollment extends ViewRecord
                         $this->actor(),
                         $data['safe_reason'],
                     );
-                    Notification::make()->title('Payment evidence rejected')->success()->send();
+                    Notification::make()->title('Payment receipt rejected')->success()->send();
                     $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
-                    $this->failure('Evidence was not rejected', $exception);
+                    $this->failure('Receipt was not rejected', $exception);
                 }
             });
     }
@@ -2691,12 +2948,12 @@ class ViewEnrollment extends ViewRecord
     {
         return Action::make('confirmNoAdditionalCost')
             ->label('Confirm no additional cost')
-            ->icon('heroicon-o-banknotes')
+            ->icon('heroicon-o-check-circle')
             ->authorize(fn (): bool => $this->isAccountingActor())
             ->visible(fn (): bool => $this->isAccountingActor() && $this->noCostReviewContext() !== [])
             ->modalHeading('Confirm no additional cost')
             ->requiresConfirmation()
-            ->modalIcon('heroicon-o-banknotes')
+            ->modalIcon('heroicon-o-check-circle')
             ->modalWidth(Width::Large)
             ->modalDescription('Confirm that this learner-approved change requires no additional payment. Registrar applies the change separately.')
             ->modalSubmitActionLabel('Confirm no additional cost')->modalCancelActionLabel('Keep for review')
@@ -3191,7 +3448,7 @@ class ViewEnrollment extends ViewRecord
                 Hidden::make('reviewed_lock_version')->required(),
                 TextInput::make('authority_reference')->label('Approval reference')->required()->maxLength(255),
             ])
-            ->modalDescription('Record the actual approval received for this learner, case and Term. This does not reopen enrollment.')
+            ->modalDescription('Record the actual approval received for this student, case and Term. This does not reopen enrollment.')
             ->action(function (array $data): void {
                 try {
                     $reviewedLockVersion = $this->assertReviewedLateReopenCase();
@@ -3444,7 +3701,7 @@ class ViewEnrollment extends ViewRecord
 
         return $position !== null && $position['state'] !== 'Unavailable'
             ? collect($position['obligations'])->filter(fn (array $row): bool => (float) $row['available_balance'] > 0)
-                ->mapWithKeys(fn (array $row): array => [$row['id'] => $row['label'].' · PHP '.number_format((float) $row['available_balance'], 2).' available'])->all() : [];
+                ->mapWithKeys(fn (array $row): array => [$row['id'] => $row['label'].' · '.$this->money($row['available_balance']).' available'])->all() : [];
     }
 
     /** @return Collection<int, ApprovedCoverage> */
@@ -3466,7 +3723,7 @@ class ViewEnrollment extends ViewRecord
     private function replacementCoverageOptions(): array
     {
         return $this->replacementCoverages()->mapWithKeys(fn (ApprovedCoverage $coverage): array => [
-            $coverage->id => Str::headline($coverage->category).' · '.$coverage->safe_source_description.' · PHP '.number_format((float) $coverage->amount, 2),
+            $coverage->id => AccountingDisplay::coverageCategoryLabel($coverage->category).' · '.$coverage->safe_source_description.' · '.$this->money($coverage->amount),
         ])->all();
     }
 
@@ -3478,161 +3735,8 @@ class ViewEnrollment extends ViewRecord
             ->orderBy('submitted_at')
             ->get()
             ->mapWithKeys(fn (PaymentEvidenceVersion $evidence): array => [
-                $evidence->id => "v{$evidence->version} — {$evidence->original_name} — PHP {$evidence->claimed_amount}",
+                $evidence->id => "v{$evidence->version} — {$evidence->original_name} — {$this->money($evidence->claimed_amount)}",
             ])->all() ?? [];
-    }
-
-    /** @return array<int, string> */
-    private function recoverablePayMongoAttemptOptions(): array
-    {
-        return $this->payMongoAttemptOptions([PaymentAttempt::StatusPending], requireCheckout: true);
-    }
-
-    /** @return array<int, string> */
-    private function activePayMongoAttemptOptions(): array
-    {
-        return $this->payMongoAttemptOptions(PaymentAttempt::ActiveStatuses);
-    }
-
-    /**
-     * @param  list<string>  $statuses
-     * @return array<int, string>
-     */
-    private function payMongoAttemptOptions(array $statuses, bool $requireCheckout = false): array
-    {
-        $account = $this->getRecord()->termAccount;
-
-        if ($account === null) {
-            return [];
-        }
-
-        return $account->paymentAttempts()
-            ->with('obligations.assessmentObligation')
-            ->where('provider', 'paymongo')
-            ->whereIn('status', $statuses)
-            ->when($requireCheckout, fn (Builder $query): Builder => $query->whereNotNull('provider_checkout_id'))
-            ->orderByDesc('id')
-            ->get()
-            ->mapWithKeys(function (PaymentAttempt $attempt): array {
-                $targets = $attempt->obligations
-                    ->map(fn ($target): string => (string) $target->assessmentObligation?->label)
-                    ->filter()
-                    ->implode(', ');
-
-                return [
-                    $attempt->id => collect([
-                        'Attempt #'.$attempt->id,
-                        'PHP '.$attempt->amount,
-                        $attempt->status,
-                        $targets,
-                        $this->maskedProviderReference($attempt->provider_checkout_id),
-                    ])->filter()->implode(' — '),
-                ];
-            })
-            ->all();
-    }
-
-    /** @return array<int, string> */
-    private function recoveredPayMongoEventOptions(): array
-    {
-        return $this->payMongoEventOptions(
-            status: OperationalEvent::StatusReviewRequired,
-            channel: OperationalEvent::ChannelProviderApi,
-            eventType: 'checkout_session.payment.recovered',
-        );
-    }
-
-    /** @return array<int, string> */
-    private function failedPayMongoEventOptions(): array
-    {
-        return $this->payMongoEventOptions(
-            status: OperationalEvent::StatusFailed,
-            channel: OperationalEvent::ChannelWebhook,
-        );
-    }
-
-    /** @return array<int, string> */
-    private function confirmablePayMongoEventOptions(): array
-    {
-        return $this->payMongoEventOptions(
-            status: OperationalEvent::StatusReviewRequired,
-            channel: OperationalEvent::ChannelWebhook,
-            includeReasons: ['missing_tala_reference', 'reference_mismatch'],
-        );
-    }
-
-    /** @return array<int, string> */
-    private function rejectablePayMongoEventOptions(): array
-    {
-        return $this->payMongoEventOptions(
-            status: OperationalEvent::StatusReviewRequired,
-            channel: OperationalEvent::ChannelWebhook,
-            excludeReasons: ['refund_or_reversal', 'unknown_refund_payment'],
-        );
-    }
-
-    /** @return array<int, string> */
-    private function unknownPayMongoEventOptions(): array
-    {
-        return OperationalEvent::query()
-            ->where('integration', OperationalEvent::IntegrationPayMongo)
-            ->where('channel', OperationalEvent::ChannelWebhook)
-            ->where('status', OperationalEvent::StatusReviewRequired)
-            ->where('diagnostics->reason', 'unknown_reference')
-            ->orderByDesc('id')
-            ->limit(50)
-            ->get()
-            ->mapWithKeys(fn (OperationalEvent $event): array => [
-                $event->id => 'Event #'.$event->id.' — unknown reference — '.$event->event_type,
-            ])
-            ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function payMongoEventOptions(
-        string $status,
-        string $channel,
-        ?string $eventType = null,
-        ?array $includeReasons = null,
-        ?array $excludeReasons = null,
-    ): array {
-        $account = $this->getRecord()->termAccount;
-
-        if ($account === null) {
-            return [];
-        }
-
-        $attemptIds = $account->paymentAttempts()->pluck('id');
-        $paymentIds = $account->payments()->pluck('id');
-
-        return OperationalEvent::query()
-            ->where('integration', OperationalEvent::IntegrationPayMongo)
-            ->where('channel', $channel)
-            ->where('status', $status)
-            ->when($eventType !== null, fn (Builder $query): Builder => $query->where('event_type', $eventType))
-            ->when($includeReasons !== null, fn (Builder $query): Builder => $query->whereIn('diagnostics->reason', $includeReasons))
-            ->when($excludeReasons !== null, fn (Builder $query): Builder => $query->whereNotIn('diagnostics->reason', $excludeReasons))
-            ->where(function (Builder $query) use ($attemptIds, $paymentIds): void {
-                $query->where(function (Builder $query) use ($attemptIds): void {
-                    $query->where('related_record_type', PaymentAttempt::class)
-                        ->whereIn('related_record_id', $attemptIds);
-                })->orWhere(function (Builder $query) use ($paymentIds): void {
-                    $query->where('related_record_type', Payment::class)
-                        ->whereIn('related_record_id', $paymentIds);
-                });
-            })
-            ->orderByDesc('id')
-            ->get()
-            ->mapWithKeys(function (OperationalEvent $event): array {
-                $reason = data_get($event->diagnostics, 'reason', 'provider evidence requires review');
-
-                return [
-                    $event->id => 'Event #'.$event->id.' — '.str((string) $reason)->replace('_', ' ')->headline().' — '.$event->event_type,
-                ];
-            })
-            ->all();
     }
 
     private function maskedProviderReference(?string $reference): ?string
@@ -3646,312 +3750,6 @@ class ViewEnrollment extends ViewRecord
         return 'Provider …'.substr($reference, -6);
     }
 
-    private function webhookEvents(): Collection
-    {
-        abort_unless($this->actor()->hasRole(User::StaffRoleAccounting), 403);
-        $account = $this->getRecord()->termAccount;
-
-        return OperationalEvent::query()->where('integration', OperationalEvent::IntegrationPayMongo)
-            ->where('channel', OperationalEvent::ChannelWebhook)->whereIn('status', [OperationalEvent::StatusReviewRequired, OperationalEvent::StatusFailed])
-            ->where(function (Builder $query) use ($account): void {
-                $query->where(fn (Builder $query): Builder => $query->where('related_record_type', PaymentAttempt::class)->whereIn('related_record_id', $account?->paymentAttempts()->pluck('id') ?? []))
-                    ->orWhere(fn (Builder $query): Builder => $query->where('related_record_type', Payment::class)->whereIn('related_record_id', $account?->payments()->pluck('id') ?? []));
-                if (($this->enrollmentView === 'webhook' || $this->selectedOnlineAttempt()?->provider_checkout_id === null) && $this->activePayMongoAttemptOptions() !== []) {
-                    $query->orWhere(fn (Builder $query): Builder => $query->whereNull('related_record_type')->whereNull('related_record_id')
-                        ->where('status', OperationalEvent::StatusReviewRequired)->where('diagnostics->reason', 'unknown_reference'));
-                }
-            })->latest('occurred_at')->latest('id')->get()->filter(function (OperationalEvent $event) use ($account): bool {
-                if ($event->related_record_type !== null) {
-                    return true;
-                }
-                $raw = DB::table('webhook_calls')->where('id', data_get($event->diagnostics, 'latest_webhook_call_id', data_get($event->diagnostics, 'webhook_call_id')))->where('name', 'paymongo')->value('payload');
-                try {
-                    $context = PayMongoWebhookEvent::fromRawBody((string) $raw)->paymentContext();
-                } catch (\InvalidArgumentException) {
-                    return false;
-                }
-
-                return ($account?->paymentAttempts()->where('provider', 'paymongo')->whereIn('status', PaymentAttempt::ActiveStatuses)->get() ?? collect())
-                    ->contains(fn (PaymentAttempt $attempt): bool => $this->webhookContextMatchesAttempt($context, $attempt));
-            })->values();
-    }
-
-    /** @param array<string, mixed> $context */
-    private function webhookContextMatchesAttempt(array $context, PaymentAttempt $attempt): bool
-    {
-        return filled($context['checkout_session_id'] ?? $context['payment_intent_id'] ?? $context['tala_reference'] ?? null)
-            && (($context['checkout_session_id'] ?? null) === null || $attempt->provider_checkout_id === null || $context['checkout_session_id'] === $attempt->provider_checkout_id)
-            && (($context['payment_intent_id'] ?? null) === null || $attempt->provider_intent_id === null || $context['payment_intent_id'] === $attempt->provider_intent_id)
-            && (($context['tala_reference'] ?? null) === null || $context['tala_reference'] === $attempt->internal_reference)
-            && (($context['term_account_id'] ?? null) === null || (string) $context['term_account_id'] === (string) $attempt->term_account_id)
-            && (($context['assessment_version'] ?? null) === null || (string) $context['assessment_version'] === (string) $attempt->assessment_version)
-            && (($context['snapshot_checksum'] ?? null) === null || $context['snapshot_checksum'] === $attempt->snapshot_checksum);
-    }
-
-    private function selectedWebhookEvent(): ?OperationalEvent
-    {
-        $events = $this->webhookEvents();
-
-        return $this->webhookEventId !== null ? $events->firstWhere('id', $this->webhookEventId) : $events->first();
-    }
-
-    private function webhookAttempt(): ?PaymentAttempt
-    {
-        $event = $this->selectedWebhookEvent();
-        $account = $this->getRecord()->termAccount;
-        $attemptId = match ($event?->related_record_type) {
-            PaymentAttempt::class => $event->related_record_id,
-            Payment::class => $account?->payments()->find($event->related_record_id)?->payment_attempt_id,
-            default => null,
-        };
-
-        return $attemptId !== null ? $account?->paymentAttempts()->with('obligations.assessmentObligation')->find($attemptId) : $this->selectedOnlineAttempt();
-    }
-
-    private function webhookSourceFingerprint(): string
-    {
-        $event = $this->selectedWebhookEvent();
-        $callId = data_get($event?->diagnostics, 'latest_webhook_call_id', data_get($event?->diagnostics, 'webhook_call_id'));
-
-        return hash('sha256', json_encode([$event?->only(['id', 'status', 'related_record_type', 'related_record_id', 'diagnostics', 'payload']),
-            DB::table('webhook_calls')->where('id', $callId)->value('payload'),
-            $this->webhookAttempt()?->only(['id', 'term_account_id', 'assessment_id', 'assessment_version', 'snapshot_checksum', 'status', 'provider_checkout_id', 'provider_intent_id', 'internal_reference', 'amount'])], JSON_THROW_ON_ERROR));
-    }
-
-    /** @return array<string, mixed> */
-    public function webhookPaymentViewData(): array
-    {
-        abort_unless($this->actor()->hasRole(User::StaffRoleAccounting), 403);
-        $event = $this->selectedWebhookEvent();
-        $attempt = $this->webhookAttempt();
-        $context = [];
-        $sourceAvailable = false;
-        $sourceModeMatches = false;
-        $sourceCurrent = false;
-        $reason = data_get($event?->diagnostics, 'reason');
-        $callId = data_get($event?->diagnostics, 'latest_webhook_call_id', data_get($event?->diagnostics, 'webhook_call_id'));
-        $raw = DB::table('webhook_calls')->where('id', $callId)->where('name', 'paymongo')->value('payload');
-        try {
-            if (is_string($raw)) {
-                $source = PayMongoWebhookEvent::fromRawBody($raw);
-                $context = $source->paymentContext();
-                $sourceModeMatches = $source->livemode === (bool) config('tala_integrations.payments.paymongo.livemode', false);
-                $sourceAvailable = $source->eventId === $event?->external_id && $source->eventType === $event?->event_type
-                    && $source->livemode === (bool) data_get($event?->payload, 'livemode')
-                    && preg_match('/\A[a-f0-9]{64}\z/', (string) data_get($event?->diagnostics, 'payload_sha256')) === 1;
-            }
-            if ($attempt !== null) {
-                $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($this->getRecord()->termAccount);
-                $sourceCurrent = $snapshot['assessment_id'] === $attempt->assessment_id && hash_equals($snapshot['checksum'], (string) $attempt->snapshot_checksum);
-            }
-        } catch (\InvalidArgumentException|PaymentAttemptSnapshotException) {
-            $sourceCurrent = false;
-        }
-        $paidPhp = $sourceAvailable && ($context['status'] ?? null) === 'paid' && ($context['currency'] ?? null) === 'PHP'
-            && is_int($context['amount_centavos'] ?? null) && $context['amount_centavos'] > 0
-            && filled($context['provider_reference'] ?? null) && ($context['is_disputed'] ?? true) === false && ($context['has_refunds'] ?? true) === false
-            && $sourceModeMatches;
-        $claim = $event?->related_record_type === Payment::class ? $this->getRecord()->termAccount?->payments()->find($event->related_record_id) : null;
-        $claimUnposted = $claim === null || ($claim->evidence_status !== 'verified' && $claim->ledgerEntry === null);
-        $matches = $attempt !== null && $paidPhp && $context['amount_centavos'] === app(DecimalMoney::class)->toCents($attempt->amount)
-            && (($context['checkout_session_id'] ?? null) === null || $context['checkout_session_id'] === $attempt->provider_checkout_id)
-            && (($context['payment_intent_id'] ?? null) === null || $attempt->provider_intent_id === null || $context['payment_intent_id'] === $attempt->provider_intent_id);
-
-        return ['case' => $this->getRecord(), 'webhookEvent' => $event, 'webhookContext' => $context, 'attempt' => $attempt,
-            'webhookReason' => $reason, 'sourceAvailable' => $sourceAvailable, 'sourceCurrent' => $sourceCurrent,
-            'canConfirmWebhook' => $matches && $sourceCurrent && $claimUnposted && in_array($reason, ['missing_tala_reference', 'reference_mismatch'], true)
-                && $event?->related_record_type === Payment::class,
-            'canRejectWebhook' => $sourceAvailable && $claimUnposted && $event?->status === OperationalEvent::StatusReviewRequired && ! in_array($reason, ['refund_or_reversal', 'unknown_refund_payment'], true),
-            'canRetryWebhook' => $sourceAvailable && $event?->status === OperationalEvent::StatusFailed && $reason === 'processing_failed',
-            'canLinkWebhook' => $sourceAvailable && $paidPhp && $reason === 'unknown_reference' && $attempt !== null && $this->webhookContextMatchesAttempt($context, $attempt),
-            'webhookChoices' => $this->webhookEvents(), 'checkoutChoices' => $reason === 'unknown_reference' ? ($this->getRecord()->termAccount?->paymentAttempts()->where('provider', 'paymongo')->whereIn('status', PaymentAttempt::ActiveStatuses)->get()->filter(fn (PaymentAttempt $choice): bool => $this->webhookContextMatchesAttempt($context, $choice)) ?? collect()) : collect(),
-            'currentTargets' => collect($this->accountingViewData()['position']['obligations'] ?? [])->whereIn('id', $attempt?->obligations->pluck('assessment_obligation_id') ?? [])];
-    }
-
-    private function webhookBoundFields(): array
-    {
-        return [Hidden::make('event_id')->required()->in(fn (): array => [$this->selectedWebhookEvent()?->id]),
-            Hidden::make('reviewed_source')->required()->in(fn (): array => [$this->webhookSourceFingerprint()])
-                ->validationMessages(['in' => 'The payment source changed. Close this form and review the current account.'])];
-    }
-
-    /** @param array<string, mixed> $data */
-    private function decideWebhook(array $data, string $decision): void
-    {
-        DB::transaction(function () use ($data, $decision): void {
-            $event = $this->selectedWebhookEvent();
-            abort_unless($event !== null && $event->id === (int) $data['event_id'], 404);
-            OperationalEvent::query()->whereKey($event->id)->lockForUpdate()->firstOrFail();
-            if ($attempt = $this->webhookAttempt()) {
-                PaymentAttempt::query()->whereKey($attempt->id)->lockForUpdate()->firstOrFail();
-            }
-            DB::table('webhook_calls')->where('id', data_get($event->diagnostics, 'latest_webhook_call_id', data_get($event->diagnostics, 'webhook_call_id')))->lockForUpdate()->first();
-            if (! hash_equals($this->webhookSourceFingerprint(), (string) $data['reviewed_source'])) {
-                throw ValidationException::withMessages(['reviewed_source' => 'The reviewed source changed. Refresh before deciding.']);
-            }
-            $service = app(PayMongoReconciliationService::class);
-            match ($decision) {
-                'confirm' => $service->confirm($event->id, (string) $data['reason'], $this->actor()),
-                'reject' => $service->reject($event->id, (string) $data['reason'], $this->actor()),
-                'retry' => $service->reprocess($event->id, (string) $data['reason'], $this->actor()),
-                'link' => $service->linkAndReprocess($event->id, (int) $this->webhookAttempt()?->id, (string) $data['reason'], $this->actor()),
-            };
-        });
-    }
-
-    public function selectedOnlineAttempt(): ?PaymentAttempt
-    {
-        abort_unless($this->actor()->hasRole(User::StaffRoleAccounting), 403);
-        $query = $this->getRecord()->termAccount?->paymentAttempts()->with(['obligations.assessmentObligation', 'assessment'])->whereIn('status', PaymentAttempt::ActiveStatuses);
-
-        return $this->onlineAttemptId !== null ? $query?->find($this->onlineAttemptId)
-            : $query?->whereIn('status', PaymentAttempt::ActiveStatuses)->latest('id')->first();
-    }
-
-    private function recoveredOnlineEvents(): Collection
-    {
-        $attempt = $this->selectedOnlineAttempt();
-
-        return OperationalEvent::query()->where('event_domain', OperationalEvent::DomainIntegration)
-            ->where('integration', OperationalEvent::IntegrationPayMongo)->where('channel', OperationalEvent::ChannelProviderApi)
-            ->where('event_type', 'checkout_session.payment.recovered')->where('status', OperationalEvent::StatusReviewRequired)
-            ->where('related_record_type', PaymentAttempt::class)->where('related_record_id', $attempt?->id ?? 0)->latest('id')->get();
-    }
-
-    private function selectedRecoveredOnlineEvent(): ?OperationalEvent
-    {
-        $events = $this->recoveredOnlineEvents();
-
-        return $this->onlineEventId !== null ? $events->firstWhere('id', $this->onlineEventId) : $events->first();
-    }
-
-    private function canRetrieveSelectedCheckout(): bool
-    {
-        $attempt = $this->selectedOnlineAttempt();
-
-        return $attempt !== null && $attempt->provider === 'paymongo' && filled($attempt->provider_checkout_id)
-            && in_array($attempt->status, PaymentAttempt::ActiveStatuses, true)
-            && filled($attempt->snapshot_checksum) && $attempt->assessment?->state === Assessment::StateActive
-            && $attempt->assessment->term_account_id === $attempt->term_account_id
-            && $attempt->student_profile_id === $this->getRecord()->student_profile_id
-            && $this->selectedRecoveredOnlineEvent() === null;
-    }
-
-    private function onlineSourceFingerprint(): string
-    {
-        $attempt = $this->selectedOnlineAttempt();
-        $event = $this->selectedRecoveredOnlineEvent();
-
-        return hash('sha256', json_encode([$attempt?->only(['id', 'term_account_id', 'assessment_id', 'assessment_version', 'snapshot_checksum',
-            'provider', 'provider_checkout_id', 'provider_intent_id', 'status', 'amount']), $attempt?->obligations->map->only(['assessment_obligation_id', 'sequence', 'amount'])->all(),
-            $event?->only(['id', 'status', 'related_record_type', 'related_record_id', 'payload'])], JSON_THROW_ON_ERROR));
-    }
-
-    private function onlineCheckoutSnapshot(): array
-    {
-        $account = $this->getRecord()->termAccount;
-        $attempt = $this->selectedOnlineAttempt();
-
-        if ($account === null || $attempt === null) {
-            return [];
-        }
-
-        return [
-            'account_id' => (int) $account->id,
-            'attempt_id' => (int) $attempt->id,
-            'event_id' => $this->selectedRecoveredOnlineEvent()?->id,
-            'fingerprint' => $this->onlineSourceFingerprint(),
-        ];
-    }
-
-    private function assertReviewedOnlineCheckout(?int $eventId = null): int
-    {
-        $snapshot = $this->reviewedOnlineCheckout;
-        $current = $this->onlineCheckoutSnapshot();
-
-        if ($snapshot === [] || $snapshot !== $current || ($eventId !== null && $snapshot['event_id'] !== $eventId)) {
-            throw ValidationException::withMessages(['payment' => 'The reviewed payment source changed. Refresh before continuing.']);
-        }
-
-        return $snapshot['attempt_id'];
-    }
-
-    public function onlinePaymentHistory(): Collection
-    {
-        abort_unless($this->actor()->hasRole(User::StaffRoleAccounting), 403);
-        $account = $this->getRecord()->termAccount;
-
-        return OperationalEvent::query()->where('integration', OperationalEvent::IntegrationPayMongo)
-            ->whereIn('channel', [OperationalEvent::ChannelProviderApi, OperationalEvent::ChannelWebhook])
-            ->where(function (Builder $query) use ($account): void {
-                $query->where(fn (Builder $query): Builder => $query->where('related_record_type', PaymentAttempt::class)->whereIn('related_record_id', $account?->paymentAttempts()->pluck('id') ?? []))
-                    ->orWhere(fn (Builder $query): Builder => $query->where('related_record_type', Payment::class)->whereIn('related_record_id', $account?->payments()->pluck('id') ?? []));
-            })->latest('occurred_at')->get();
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    private function decideRecoveredOnlinePayment(array $data, bool $confirm): void
-    {
-        DB::transaction(function () use ($data, $confirm): void {
-            $attemptId = $this->assertReviewedOnlineCheckout((int) $data['event_id']);
-            PaymentAttempt::query()->whereKey($attemptId)->lockForUpdate()->firstOrFail();
-            $event = $this->selectedRecoveredOnlineEvent();
-            abort_unless($event !== null && $event->id === (int) $data['event_id'], 404);
-            OperationalEvent::query()->whereKey($event->id)->lockForUpdate()->firstOrFail();
-            if ($this->onlineCheckoutSnapshot() !== $this->reviewedOnlineCheckout) {
-                throw ValidationException::withMessages(['payment' => 'The reviewed payment source changed. Refresh before deciding.']);
-            }
-            $service = app(PayMongoCheckoutRecoveryService::class);
-            if ($confirm) {
-                $service->confirm($event->id, null, $this->actor());
-            } else {
-                $service->reject($event->id, (string) $data['reason'], $this->actor());
-            }
-        });
-    }
-
-    /** @return array<string, mixed> */
-    public function onlinePaymentViewData(): array
-    {
-        $attempt = $this->selectedOnlineAttempt();
-        $event = $this->selectedRecoveredOnlineEvent();
-        $payment = data_get($event?->payload, 'payment', []);
-        $payment = is_array($payment) ? $payment : [];
-        $sourceCurrent = false;
-        if ($attempt !== null) {
-            try {
-                $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($this->getRecord()->termAccount);
-                $stored = $attempt->obligations->map(fn ($target): array => ['id' => (int) $target->assessment_obligation_id,
-                    'sequence' => (int) $target->sequence, 'amount' => $target->amount])->all();
-                $expected = collect($snapshot['obligations'])->map(fn (array $target): array => ['id' => $target['id'], 'sequence' => $target['sequence'], 'amount' => $target['amount']])->all();
-                $sourceCurrent = $snapshot['assessment_id'] === $attempt->assessment_id && $snapshot['assessment_version'] === $attempt->assessment_version
-                    && hash_equals($snapshot['checksum'], (string) $attempt->snapshot_checksum) && $stored === $expected;
-            } catch (PaymentAttemptSnapshotException) {
-                $sourceCurrent = false;
-            }
-        }
-        $resultMatches = $event !== null && $attempt !== null && $attempt->provider === 'paymongo'
-            && in_array($attempt->status, PaymentAttempt::ActiveStatuses, true)
-            && data_get($event->payload, 'checkout_session_id') === $attempt->provider_checkout_id
-            && data_get($event->payload, 'reference_number') === $attempt->internal_reference
-            && data_get($event->payload, 'payment_count') === 1 && filled($payment['id'] ?? null)
-            && ($payment['status'] ?? null) === 'paid' && is_int($payment['amount_centavos'] ?? null)
-            && $payment['amount_centavos'] === app(DecimalMoney::class)->toCents($attempt->amount)
-            && ($payment['currency'] ?? null) === 'PHP' && ($payment['livemode'] ?? null) === (bool) config('tala_integrations.payments.paymongo.livemode', false)
-            && filled($payment['payment_intent_id'] ?? null)
-            && ($attempt->provider_intent_id === null || $attempt->provider_intent_id === $payment['payment_intent_id'])
-            && ($payment['disputed'] ?? true) === false && ($payment['has_refunds'] ?? true) === false
-            && (($payment['paid_at'] ?? null) === null || is_int($payment['paid_at']));
-
-        return ['case' => $this->getRecord(), 'attempt' => $attempt, 'onlineEvent' => $event, 'providerPayment' => $payment,
-            'sourceCurrent' => $sourceCurrent, 'resultMatches' => $resultMatches, 'canConfirm' => $sourceCurrent && $resultMatches,
-            'canRetrieve' => $this->canRetrieveSelectedCheckout(), 'onlineEvents' => $this->recoveredOnlineEvents(),
-            'onlineAttempts' => $this->getRecord()->termAccount?->paymentAttempts()->whereIn('status', PaymentAttempt::ActiveStatuses)->latest('id')->get() ?? collect(),
-            'currentTargets' => collect($this->accountingViewData()['position']['obligations'] ?? [])->whereIn('id', $attempt?->obligations->pluck('assessment_obligation_id') ?? [])];
-    }
-
     private function latestSubmittedEvidence(): ?PaymentEvidenceVersion
     {
         return $this->getRecord()->termAccount?->paymentEvidenceVersions()
@@ -3963,12 +3761,17 @@ class ViewEnrollment extends ViewRecord
     public function selectedPaymentProof(): ?PaymentEvidenceVersion
     {
         abort_unless($this->actor()->hasRole(User::StaffRoleAccounting), 403);
-        $proofs = $this->getRecord()->termAccount?->paymentEvidenceVersions();
-        if ($this->paymentProofId !== null) {
-            return $proofs?->where('state', PaymentEvidenceVersion::StateSubmitted)->find($this->paymentProofId);
+        $cacheKey = 'payment_proof:'.($this->getRecord()->termAccount?->id ?? 0).':'.($this->paymentProofId ?? 'latest');
+        if (array_key_exists($cacheKey, $this->accountingMemo)) {
+            return $this->accountingMemo[$cacheKey];
         }
 
-        return $proofs?->where('state', PaymentEvidenceVersion::StateSubmitted)->latest('submitted_at')->latest('id')->first();
+        $proofs = $this->getRecord()->termAccount?->paymentEvidenceVersions();
+        if ($this->paymentProofId !== null) {
+            return $this->accountingMemo[$cacheKey] = $proofs?->where('state', PaymentEvidenceVersion::StateSubmitted)->find($this->paymentProofId);
+        }
+
+        return $this->accountingMemo[$cacheKey] = $proofs?->where('state', PaymentEvidenceVersion::StateSubmitted)->latest('submitted_at')->latest('id')->first();
     }
 
     private function selectedProofField(): Hidden
@@ -3978,8 +3781,9 @@ class ViewEnrollment extends ViewRecord
 
     private function boundSubmittedProof(int $proofId): PaymentEvidenceVersion
     {
+        $this->accountingMemo = [];
         if ($this->selectedPaymentProof()?->id !== $proofId) {
-            throw ValidationException::withMessages(['evidence_id' => 'This proof is no longer selected or awaiting review. Refresh the account.']);
+            throw ValidationException::withMessages(['evidence_id' => 'This receipt is no longer selected or awaiting review. Refresh the account.']);
         }
 
         return $this->getRecord()->termAccount->paymentEvidenceVersions()->where('state', PaymentEvidenceVersion::StateSubmitted)->findOrFail($proofId);
@@ -4020,6 +3824,7 @@ class ViewEnrollment extends ViewRecord
         }
 
         return ['proof' => $proof, 'case' => $this->getRecord(), 'targets' => $targets,
+            'targetBalance' => $sourceCurrent ? $money->fromCents($targets->sum(fn (array $row): int => $money->toCents($row['available_balance']))) : null,
             'sourceCurrent' => $sourceCurrent, 'allocation' => $allocation, 'allocationError' => $allocationError,
             'pendingProofs' => $context['account']?->paymentEvidenceVersions->where('state', PaymentEvidenceVersion::StateSubmitted)->sortByDesc('submitted_at') ?? collect()];
     }
@@ -4067,6 +3872,6 @@ class ViewEnrollment extends ViewRecord
 
     private function failure(string $title, Throwable $exception): void
     {
-        Notification::make()->title($title)->body($exception->getMessage())->danger()->send();
+        SafeUserNotification::sendError($title, $exception);
     }
 }

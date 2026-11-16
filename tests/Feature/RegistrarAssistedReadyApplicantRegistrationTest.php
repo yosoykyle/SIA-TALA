@@ -211,7 +211,7 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
             ])
             ->callMountedAction()
             ->assertHasNoActionErrors()
-            ->assertNotified('Allowed learners saved');
+            ->assertNotified('Allowed students saved');
 
         $term->refresh();
         $this->assertSame('StandardContinuing', $term->registration_applicability);

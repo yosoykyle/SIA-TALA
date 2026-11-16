@@ -231,12 +231,12 @@ class StudentHubPriorityResolver
         return [
             'tier' => 'Payment Pending or Rejected',
             'student_reason' => match ($paymentStatus) {
-                PaymentEvidenceVersion::StateRejected => 'Your last payment evidence was rejected.',
-                default => 'Your payment evidence is under review.',
+                PaymentEvidenceVersion::StateRejected => 'Your last submitted receipt was rejected.',
+                default => 'Your submitted receipt is under review.',
             },
             'required_action' => match ($paymentStatus) {
-                PaymentEvidenceVersion::StateRejected => 'Submit replacement payment evidence for review.',
-                default => 'No action is needed while the Accounting Office reviews your evidence.',
+                PaymentEvidenceVersion::StateRejected => 'Submit a replacement receipt for review.',
+                default => 'No action is needed while the Accounting Office reviews your receipt.',
             },
             'office_to_contact' => 'Accounting Office',
         ];
@@ -288,7 +288,7 @@ class StudentHubPriorityResolver
                 'Current Published Timetable source' => 'Your Registration Proposal must be reconciled with the current Published Timetable.',
                 'Complete current placement' => 'Your confirmed Registration Proposal still needs complete section placement.',
                 'Accounting clearance' => 'Your exact-Term assessment or payment requirement is not yet cleared.',
-                'Authoritative learner identity' => 'Your Registration Case needs an authoritative learner identity review.',
+                'Authoritative learner identity' => 'Your Registration Case needs an identity review by the Registrar.',
                 default => 'Your Registration Case requires office review.',
             },
             'required_action' => null,

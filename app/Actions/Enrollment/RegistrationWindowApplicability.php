@@ -14,7 +14,7 @@ class RegistrationWindowApplicability
     /** @return array<string, string> */
     public static function options(): array
     {
-        return ['AllEligible' => 'All eligible learners', 'ReadyApplicants' => 'Ready applicants', 'StandardContinuing' => 'Continuing students: standard subjects', 'AdvisedContinuing' => 'Continuing students: advised subjects'];
+        return ['AllEligible' => 'All eligible students', 'ReadyApplicants' => 'Ready applicants', 'StandardContinuing' => 'Continuing students: standard subjects', 'AdvisedContinuing' => 'Continuing students: advised subjects'];
     }
 
     public function permits(Term $term, string $selectionBasis, bool $isApplicant): bool
@@ -31,7 +31,7 @@ class RegistrationWindowApplicability
     public function assertPermitted(Term $term, string $selectionBasis, bool $isApplicant): void
     {
         if (! $this->permits($term, $selectionBasis, $isApplicant)) {
-            throw ValidationException::withMessages(['term' => 'The published enrollment window does not currently apply to this learner. Registrar can confirm the permitted enrollment date.']);
+            throw ValidationException::withMessages(['term' => 'The published enrollment window does not currently apply to this student or applicant. Registrar can confirm the permitted enrollment date.']);
         }
     }
 
@@ -41,7 +41,7 @@ class RegistrationWindowApplicability
             throw new AuthorizationException('Only Registrar may record enrollment window applicability.');
         }
         if (! array_key_exists($applicability, self::options())) {
-            throw ValidationException::withMessages(['applicability' => 'Choose which learners may enroll during this period.']);
+            throw ValidationException::withMessages(['applicability' => 'Choose which students and applicants may enroll during this period.']);
         }
 
         return DB::transaction(function () use ($term, $actor, $applicability, $authorityReference): Term {

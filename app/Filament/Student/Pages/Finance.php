@@ -3,16 +3,17 @@
 namespace App\Filament\Student\Pages;
 
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
+use App\Actions\Finance\SchoolPaymentChannels;
 use App\Actions\Finance\StudentTermAccountPresenter;
 use App\Actions\Finance\SubmitPaymentEvidence;
 use App\Actions\Finance\TermAccountProjection;
-use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
-use App\Actions\Integrations\Payments\PaymentCheckoutException;
-use App\Models\PaymentAttempt;
+use App\Actions\StudentLifecycle\LifecycleAccountingReview;
+use App\Models\Enrollment;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\StudentProfile;
 use App\Models\TermAccount;
 use App\Models\User;
+use App\Support\SafeUserNotification;
 use App\Support\StudentPaymentActions;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -60,22 +61,6 @@ class Finance extends Page
         $this->showHistory = $view === 'history';
         $this->pastAccountId = $accountId !== null ? (int) $accountId : null;
         $this->refreshFinance();
-
-        if (request()->query('checkout') === 'success') {
-            Notification::make()
-                ->title('Payment confirmation pending')
-                ->body('Your balance changes only after the payment is verified.')
-                ->info()
-                ->send();
-        }
-
-        if (request()->query('checkout') === 'cancelled') {
-            Notification::make()
-                ->title('Checkout cancelled — no payment was recorded from this return')
-                ->body('You can use manual payment evidence or try online checkout again when no attempt is pending.')
-                ->warning()
-                ->send();
-        }
     }
 
     public function refreshFinance(): void
@@ -105,19 +90,32 @@ class Finance extends Page
             ])->findOrFail($this->pastAccountId);
         }
         ($finance['assessment'] ?? null)?->loadMissing('lines');
+        $reviewCase = ($this->showHistory ? $pastAccount : $account)?->enrollment;
+
+        $howToPayDisplay = $finance['how_to_pay_display'] ?? app(SchoolPaymentChannels::class)->forDisplay();
+        $hasEnabledDigitalPaymentChannels = (bool) ($finance['has_enabled_digital_channels'] ?? ($howToPayDisplay['hasEnabledDigitalChannels'] ?? false));
 
         return [
             'pastAccounts' => $pastAccounts,
+            'unavailableAccountReviews' => $account === null && ! $this->showHistory
+                ? Enrollment::query()->where('credential_user_id', $actor->id)->whereDoesntHave('termAccount')->with('term')->get()
+                    ->map(fn (Enrollment $case): array => [
+                        'id' => $case->id, 'term' => $case->term?->label ?? 'Term unavailable',
+                        'status' => app(LifecycleAccountingReview::class)->safeStatus($case),
+                    ])->filter(fn (array $review): bool => $review['status']['pending'] + $review['status']['reviewed'] > 0)
+                : collect(),
+            'studentChangeReviewStatus' => $reviewCase !== null ? app(LifecycleAccountingReview::class)->safeStatus($reviewCase) : null,
             'pastAccount' => $pastAccount,
             'accountData' => $finance,
+            'howToPayDisplay' => $howToPayDisplay,
+            'whereToPayDisplay' => $howToPayDisplay,
+            'hasEnabledDigitalPaymentChannels' => $hasEnabledDigitalPaymentChannels,
             'requirement' => $account !== null ? app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($account->enrollment) : null,
             'position' => $account !== null ? app(TermAccountProjection::class)->forAccount($account) : null,
             'evidence' => $account?->paymentEvidenceVersions ?? collect(),
             'payments' => $account?->payments ?? collect(),
             'assessmentLines' => ($finance['assessment'] ?? null)?->lines ?? collect(),
             'latestEvidence' => $account?->paymentEvidenceVersions->first(),
-            'activeAttempt' => $account !== null ? PaymentAttempt::query()->where('term_account_id', $account->id)
-                ->whereIn('status', PaymentAttempt::ActiveStatuses)->latest('id')->first() : null,
         ];
     }
 
@@ -142,55 +140,20 @@ class Finance extends Page
         return [];
     }
 
-    public function payExactCurrentDueAction(): Action
+    public function statementAction(): Action
     {
         return $this->financeActions()[0];
     }
 
-    public function statementAction(): Action
-    {
-        return $this->financeActions()[1];
-    }
-
     public function submitEvidenceAction(): Action
     {
-        return $this->financeActions()[2];
+        return $this->financeActions()[1];
     }
 
     /** @return list<Action> */
     private function financeActions(): array
     {
         return [
-            StudentPaymentActions::online(
-                Action::make('payExactCurrentDue')->label('Pay online')->icon('heroicon-o-credit-card')->color('primary'),
-                fn (): array => $this->finance['checkout'],
-            )
-                ->visible(fn (): bool => $this->hasPayableObligations())
-                ->disabled(fn (): bool => data_get($this->finance, 'checkout.enabled') !== true)
-                ->tooltip(fn (): ?string => data_get($this->finance, 'checkout.enabled') === true
-                    ? null
-                    : (string) data_get($this->finance, 'checkout.reason'))
-                ->action(function (): void {
-                    $actor = auth()->user();
-                    abort_unless($actor instanceof User, 403);
-
-                    try {
-                        $result = app(CreatePaymentCheckoutSession::class)->create(
-                            actor: $actor,
-                            successUrl: self::getUrl(['checkout' => 'success']),
-                            cancelUrl: self::getUrl(['checkout' => 'cancelled']),
-                            metadata: ['source' => 'student_finance'],
-                        );
-                        $this->redirect($result['checkout_url'], navigate: false);
-                    } catch (PaymentCheckoutException $exception) {
-                        Notification::make()
-                            ->title('Online checkout is unavailable')
-                            ->body($exception->getMessage().' Manual payment evidence remains available.')
-                            ->warning()
-                            ->send();
-                        $this->finance = app(StudentTermAccountPresenter::class)->forUser($actor);
-                    }
-                }),
             Action::make('statement')
                 ->label('View statement')
                 ->icon('heroicon-o-document-text')
@@ -198,12 +161,15 @@ class Finance extends Page
                 ->openUrlInNewTab()
                 ->visible(fn (): bool => ! $this->showHistory && ($this->finance['available'] ?? false) === true)
                 ->color('gray'),
-            StudentPaymentActions::proof(Action::make('submitEvidence'))
+            StudentPaymentActions::submitReceiptAction(Action::make('submitEvidence'))
                 ->label(fn (): string => data_get($this->finance, 'state.latest_evidence_state') === PaymentEvidenceVersion::StateRejected
-                    ? 'Upload corrected proof' : 'Submit payment proof')
+                    ? 'Upload corrected receipt' : 'Submit receipt')
                 ->icon('heroicon-o-arrow-up-tray')
+                ->color('primary')
                 ->visible(fn (): bool => $this->hasPayableObligations()
-                    && data_get($this->finance, 'account.enrollment.studentProfile.lifecycle_status') !== StudentProfile::LifecycleCompleted)
+                    && data_get($this->finance, 'account.enrollment.studentProfile.lifecycle_status') !== StudentProfile::LifecycleCompleted
+                    && app(SchoolPaymentChannels::class)->hasEnabledDigitalChannels())
+                ->authorize(fn (): bool => app(SchoolPaymentChannels::class)->hasEnabledDigitalChannels())
                 ->action(function (array $data): void {
                     $actor = auth()->user();
                     abort_unless($actor instanceof User, 403);
@@ -216,14 +182,27 @@ class Finance extends Page
                         $targets = collect($position['obligations'])
                             ->filter(fn (array $obligation): bool => $obligation['is_due'] && (float) $obligation['available_balance'] > 0)
                             ->pluck('id')->all();
+                        $resolvedChannel = StudentPaymentActions::resolveSubmissionChannel($data);
                         app(SubmitPaymentEvidence::class)->execute(
-                            $account, $actor, $file, (string) $data['claimed_amount'], $data['channel'],
-                            $data['paid_at'], $data['payment_reference'] ?? null, $targets,
+                            $account,
+                            $actor,
+                            $file,
+                            (string) $data['claimed_amount'],
+                            $resolvedChannel['channel'],
+                            $data['paid_at'],
+                            $data['payment_reference'] ?? null,
+                            $targets,
+                            $resolvedChannel['snapshot'],
                         );
                         $this->refreshFinance();
-                        Notification::make()->title('Evidence submitted for Accounting review')->body('Submission posts no payment.')->success()->send();
+                        Notification::make()->title('Receipt submitted for Accounting review')->body('Submission posts no payment.')->success()->send();
                     } catch (Throwable $exception) {
-                        Notification::make()->title('Payment evidence was not submitted')->body($exception->getMessage())->danger()->persistent()->send();
+                        SafeUserNotification::sendError(
+                            'Receipt was not submitted',
+                            $exception,
+                            'Your receipt could not be saved. No payment was posted. Check your file and details, then try again.',
+                            persistent: true,
+                        );
                     }
                 }),
         ];

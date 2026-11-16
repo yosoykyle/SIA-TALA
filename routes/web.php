@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Pages\Auth\AccountSecurity;
 use App\Http\Controllers\AdmissionApplicationAcknowledgmentController;
 use App\Http\Controllers\AdmissionEvidenceDownloadController;
 use App\Http\Controllers\CorPrintController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\UnofficialStudentRecordController;
 use App\Http\Controllers\WorkspaceContextController;
 use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use Filament\Facades\Filament;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', PublicGatewayController::class)->name('home');
@@ -47,14 +49,27 @@ Route::get('/staff-email-change/{change}', StaffEmailChangeController::class)
     ->name('staff-email-changes.verify');
 
 Route::middleware('auth')->group(function (): void {
+    Route::get('/account/profile-photo', [StudentProfilePhotoController::class, 'forAccount'])
+        ->name('account.profile-photo');
     Route::get('/student/profile-photo', StudentProfilePhotoController::class)
         ->name('student.profile-photo');
+    Route::get('/staff/student-profiles/{studentProfile}/profile-photo', [StudentProfilePhotoController::class, 'forStudentProfile'])
+        ->whereNumber('studentProfile')
+        ->name('admin.student-profiles.photo');
     Route::get('/staff/grade-rosters/{roster}/students/{row}/profile-photo', [StudentProfilePhotoController::class, 'forRoster'])
         ->whereNumber('row')->name('grade-rosters.student-photo');
     Route::get('/workspace-chooser', [WorkspaceContextController::class, 'show'])->name('workspace-chooser');
     Route::post('/workspace-chooser', [WorkspaceContextController::class, 'store'])
         ->name('workspace-chooser.select');
 });
+
+foreach (['admin', 'student', 'applicant'] as $panelId) {
+    Route::get("/{$panelId}/account-security", function () use ($panelId): RedirectResponse {
+        $query = request()->getQueryString();
+
+        return redirect(AccountSecurity::getUrl(panel: $panelId).($query ? '?'.$query : ''));
+    })->name("legacy.{$panelId}.account-security");
+}
 
 Route::post('/session/continue', [SessionActivityController::class, 'continue'])
     ->middleware(['auth', EnforceCanonicalSessionPolicy::class])

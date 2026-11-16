@@ -14,6 +14,7 @@
             </ul>
         @endif
     @else
+        @include('filament.student.pages.finance-student-changes')
         @php
             $statementAssessment = $pastAccount->assessments->firstWhere('state', \App\Models\Assessment::StateActive) ?? $pastAccount->assessments->first();
             $earlierAssessments = $pastAccount->assessments->reject(fn ($assessment) => $assessment->is($statementAssessment));
@@ -31,7 +32,7 @@
             @forelse ($pastAccount->payments as $payment)
                 <article class="student-finance-past-record">
                     <div class="student-finance-history-record-heading"><h4>{{ $payment->state === \App\Models\Payment::StatePosted ? 'Verified payment' : 'Payment reversal' }}</h4><strong>{{ $money($payment->amount) }}</strong></div>
-                    <p>{{ $payment->channelLabel() }} · {{ $date($payment->state === \App\Models\Payment::StateReversal ? ($payment->external_refund_at ?? $payment->paid_at) : $payment->paid_at) }}</p>
+                    <p>{{ $payment->channelDetailLabel() }} · {{ $date($payment->state === \App\Models\Payment::StateReversal ? ($payment->external_refund_at ?? $payment->paid_at) : $payment->paid_at) }}</p>
                     @if ($payment->state === \App\Models\Payment::StatePosted)<x-filament::link :href="route('finance.payments.acknowledgement', $payment)" target="_blank" rel="noopener">View payment record</x-filament::link>@endif
                 </article>
             @empty<p>No verified payment is recorded for this term.</p>@endforelse

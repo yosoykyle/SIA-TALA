@@ -132,7 +132,7 @@ class TimetableRevisionImpactGuard
         $expectedCaseIds = collect($locked->impact_snapshot['affected_registration_case_ids'] ?? [])->map(fn (mixed $id): int => (int) $id)->sort()->values();
         $currentCaseIds = collect($this->affectedCaseIds($locked->impact_snapshot['changed_section_ids'] ?? []))->sort()->values();
         if ($expectedCaseIds->all() !== $currentCaseIds->all()) {
-            throw ValidationException::withMessages(['revision' => 'Clinic 4 placement impacts changed after preparation. Prepare a fresh revision preview.']);
+            throw ValidationException::withMessages(['revision' => 'Enrollment registration placement impacts changed after preparation. Prepare a fresh revision preview.']);
         }
 
         $sourceReference = $this->sourceReference($locked);
@@ -152,7 +152,7 @@ class TimetableRevisionImpactGuard
         });
         if ($unresolved->isNotEmpty()) {
             throw ValidationException::withMessages([
-                'revision' => 'Resolve every affected Clinic 4 placement or official-registration review before publishing this timetable revision.',
+                'revision' => 'Resolve every affected enrollment registration placement or official-registration review before publishing this timetable revision.',
             ]);
         }
 

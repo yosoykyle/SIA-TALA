@@ -77,8 +77,8 @@ final class TAL96D5BStateCoverageMatrix
             ],
             'payment' => [
                 'persona' => 'DIT-1A-001 and DIT-1A-002',
-                'disposition' => 'human_gate',
-                'evidence' => 'Prepared pending and failed attempts exercise recovery projections; this does not claim PayMongo provider acceptance, which remains separately authorized.',
+                'disposition' => 'fixture_record',
+                'evidence' => 'Verified manual payments and Accounting-confirmed postings use TermAccount and PaymentEvidenceVersion workflows.',
                 'represented' => true,
             ],
             'scheduling' => [

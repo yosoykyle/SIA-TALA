@@ -10,10 +10,9 @@ use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
+use App\Actions\Finance\SchoolPaymentChannels;
 use App\Actions\Finance\SubmitPaymentEvidence;
 use App\Actions\Finance\TermAccountProjection;
-use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
-use App\Actions\Integrations\Payments\PayMongoCheckoutReadinessService;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment as EnrollmentRecord;
@@ -22,6 +21,7 @@ use App\Models\RegistrationProposalVersion;
 use App\Models\Term;
 use App\Models\User;
 use App\Support\RegistrationSchedulePresentation;
+use App\Support\SafeUserNotification;
 use App\Support\StudentPaymentActions;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -174,7 +174,7 @@ class Enrollment extends Page
                         throw ValidationException::withMessages(['case' => 'This enrollment changed after you opened this form. Close it and review the current enrollment.']);
                     }
                     app(CancelRegistrationCase::class)->execute($case, $this->actor(), 'Cancelled by the learner.', $this->reviewedCaseVersion);
-                    Notification::make()->title('Registration case cancelled')->body('Temporary seats were released. Your case and financial history remain.')->success()->send();
+                    Notification::make()->title('Registration case cancelled')->body('Temporary seat reservations were released. Your case and financial history remain.')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Registration was not cancelled', $exception);
                 }
@@ -183,14 +183,16 @@ class Enrollment extends Page
 
     public function submitPaymentEvidenceAction(): Action
     {
-        return StudentPaymentActions::proof(Action::make('submitPaymentEvidence')->label('Submit payment proof')->icon('heroicon-o-arrow-up-tray'))
+        return StudentPaymentActions::submitReceiptAction(Action::make('submitPaymentEvidence')->label('Submit receipt')->icon('heroicon-o-arrow-up-tray')->color('primary'))
             ->visible(function (): bool {
                 $case = $this->currentEnrollment();
 
-                return $case?->canonical_outcome === EnrollmentRecord::OutcomeInProgress
+                return app(SchoolPaymentChannels::class)->hasEnabledDigitalChannels()
+                    && $case?->canonical_outcome === EnrollmentRecord::OutcomeInProgress
                     && $case->currentProposalVersion?->confirmation !== null
                     && app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case)['state'] === 'ActionNeeded';
             })
+            ->authorize(fn (): bool => app(SchoolPaymentChannels::class)->hasEnabledDigitalChannels())
             ->action(function (array $data): void {
                 $case = $this->currentEnrollment();
                 $file = $data['evidence'] ?? null;
@@ -198,35 +200,21 @@ class Enrollment extends Page
                 try {
                     $position = app(TermAccountProjection::class)->forAccount($case->termAccount);
                     $targets = collect($position['obligations'])->where('required_for_enrollment', true)->pluck('id')->all();
+                    $resolvedChannel = StudentPaymentActions::resolveSubmissionChannel($data);
                     app(SubmitPaymentEvidence::class)->execute(
-                        $case->termAccount, $this->actor(), $file, (string) $data['claimed_amount'],
-                        $data['channel'], $data['paid_at'], $data['payment_reference'] ?? null, $targets,
+                        $case->termAccount,
+                        $this->actor(),
+                        $file,
+                        (string) $data['claimed_amount'],
+                        $resolvedChannel['channel'],
+                        $data['paid_at'],
+                        $data['payment_reference'] ?? null,
+                        $targets,
+                        $resolvedChannel['snapshot'],
                     );
-                    Notification::make()->title('Evidence submitted for Accounting review')->body('No payment is posted by submission. You can review the current evidence below.')->success()->send();
+                    Notification::make()->title('Receipt submitted for Accounting review')->body('No payment is posted by submission. You can review your submitted receipt below.')->success()->send();
                 } catch (Throwable $exception) {
-                    $this->failure('Payment evidence was not submitted', $exception);
-                }
-            });
-    }
-
-    public function payExactCurrentDueAction(): Action
-    {
-        return StudentPaymentActions::online(
-            Action::make('payExactCurrentDue')->label('Pay online')->icon('heroicon-o-credit-card'),
-            fn (): array => $this->checkout(),
-        )
-            ->visible(fn (): bool => $this->currentEnrollment()?->canonical_outcome === EnrollmentRecord::OutcomeInProgress
-                && $this->currentEnrollment()?->currentProposalVersion?->confirmation !== null)
-            ->disabled(fn (): bool => $this->checkout()['enabled'] !== true)
-            ->action(function (): void {
-                try {
-                    $result = app(CreatePaymentCheckoutSession::class)->create(
-                        actor: $this->actor(), successUrl: static::getUrl(['checkout' => 'success']),
-                        cancelUrl: static::getUrl(['checkout' => 'cancelled']), metadata: ['source' => 'learner_enrollment'],
-                    );
-                    $this->redirect($result['checkout_url'], navigate: false);
-                } catch (Throwable $exception) {
-                    $this->failure('Online payment is unavailable', $exception);
+                    $this->failure('Receipt was not submitted', $exception);
                 }
             });
     }
@@ -258,6 +246,10 @@ class Enrollment extends Page
         $requirement = ! $official && $case !== null ? app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case) : null;
         $assessment = isset($position['assessment_id']) ? Assessment::query()->with(['lines', 'obligations'])->find($position['assessment_id']) : null;
 
+        $paymentChannelsClient = app(SchoolPaymentChannels::class);
+        $howToPayDisplay = ! $official ? $paymentChannelsClient->forDisplay() : null;
+        $hasEnabledDigitalPaymentChannels = ! $official && (bool) ($howToPayDisplay['hasEnabledDigitalChannels'] ?? false);
+
         return [
             'entryContext' => $context, 'enrollment' => $case, 'proposal' => $proposal,
             'academicGuidance' => $context['student_profile'] !== null
@@ -266,7 +258,10 @@ class Enrollment extends Page
             'preparedForConfirmation' => ! $official && $this->preparedForConfirmation(),
             'paymentRequirement' => $requirement, 'accountPosition' => $position, 'assessment' => $assessment,
             'schedulePresentation' => ! $official ? $this->schedulePresentation($proposal, $case) : null,
-            'checkout' => ! $official ? $this->checkout() : null,
+            'paymentChannels' => ! $official ? $paymentChannelsClient->enabledChannels() : [],
+            'howToPayDisplay' => $howToPayDisplay,
+            'whereToPayDisplay' => $howToPayDisplay,
+            'hasEnabledDigitalPaymentChannels' => $hasEnabledDigitalPaymentChannels,
             'registeredSubjects' => $official ? $case->courseEnrollments()
                 ->where('is_current', true)->where('status', CourseEnrollment::StatusActive)
                 ->with(['termOffering.curriculumEntry.courseSpecification.course', 'section'])->get() : collect(),
@@ -290,15 +285,6 @@ class Enrollment extends Page
             'currentProposalVersion.items.reservation', 'currentProposalVersion.confirmation',
             'currentProposalVersion.timetableVersion.scheduleRun', 'termAccount.latestPaymentEvidenceVersion', 'currentCorVersion.timetableVersion.scheduleRun',
         ]);
-    }
-
-    /** @return array<string, mixed> */
-    protected function checkout(): array
-    {
-        $account = $this->currentEnrollment()?->termAccount;
-
-        return $account !== null ? app(PayMongoCheckoutReadinessService::class)->for($this->actor(), $account)
-            : ['enabled' => false, 'reason' => 'Online payment is unavailable until Accounting records a current assessment.', 'amount' => null, 'obligations' => []];
     }
 
     /** @return array<string, mixed>|null */
@@ -336,6 +322,6 @@ class Enrollment extends Page
 
     protected function failure(string $title, Throwable $exception): void
     {
-        Notification::make()->title($title)->body($exception->getMessage())->danger()->persistent()->send();
+        SafeUserNotification::sendError($title, $exception, persistent: true);
     }
 }

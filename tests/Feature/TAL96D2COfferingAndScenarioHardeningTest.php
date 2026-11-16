@@ -29,7 +29,6 @@ use App\Models\GraduationSnapshot;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use App\Models\Program;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -452,7 +451,6 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
             Enrollment::query()->delete();
             Assessment::query()->delete();
             LedgerEntry::query()->delete();
-            PaymentAttempt::query()->delete();
             Payment::query()->delete();
             StudentProfile::query()->delete();
             CurriculumEntry::query()->delete();

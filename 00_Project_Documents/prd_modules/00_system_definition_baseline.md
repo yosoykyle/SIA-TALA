@@ -127,7 +127,7 @@ Every material capability, role action, official output, external/manual result,
 - External judgments such as discipline, readmission, overload, program shifting, document authenticity, transfer credit, late adjustment, and graduation clearance normally remain with the responsible office. TALA records the authorized result, authority, evidence reference, effective dates, and direct system effects.
 - TALA does not add generic approval engines, universal override records, configurable state machines, policy DSLs, or workflow builders without a later verified need.
 - Existing code and schema remain implementation evidence until reconciled within an authorized vertical slice.
-- CP-SAT is the principal intelligent capability. PayMongo is an optional exact-due payment integration and cannot block the core school journey.
+- CP-SAT is the principal intelligent capability. Payment verification is manual-first across school-configured channels (multi-account `Bank Transfer`, multi-account `E-Wallets` replacing standalone GCash, and `Cash (Campus Cashier)`) with digital-only receipt uploads (`Submit receipt`), direct Accounting/Cashier onsite recording, and Official Receipt (OR) mapping.
 
 ## 3. Shared Operating Contract and Cross-Role Presentation
 
@@ -147,9 +147,9 @@ Approved workspace map:
 
 - **Public:** institutional information, FAQ/notices, application entry, and sign-in
 - **Applicant:** Home, Application, and contextual Requirements
-- **Student:** Home, Enrollment, Academics, Finance, and Profile
+- **Student:** Home (Overview), Enrollment, Academics, and Finance (Fees and payments), with contextual **Student details** (`/student/student-profile`, reached from **Profile** quick actions) and account-menu **Profile** (`/student/account-profile`)
 - **Registrar:** Admissions; Catalog & Curricula; Term Planning; Students & Enrollment; Grades & Completion
-- **Accounting:** Student Accounts with its work overview, Accounts and Payment Exceptions, including contextual TOR restrictions; Fee Plans for setup
+- **Accounting:** Student Accounts with its work overview (`Review receipts`), Accounts, Receipts, Payment Exceptions, and Student status changes, including contextual TOR restrictions; Fee Plans and Payment channels for multi-account digital and campus cashier setup
 - **Faculty:** Schedule & Availability, with My Schedule and My Availability sibling tasks; Grade Rosters
 - **Academic Head:** read-only Academic Oversight for understanding academic readiness, inspecting source-owned exceptions, and tracing calendar, curriculum, timetable, grade/progress, lifecycle and completion evidence to its responsible office. The landing surface prioritizes relevant findings and direct domain drill-ins rather than the Registrar's preparation sequence. Institutional approval remains outside TALA where the owning PRD specifies it; inspection grants no producer action.
 - **System Administrator:** Users & Access; Public Content; System Health; Governance & Audit
@@ -167,7 +167,7 @@ There is no miscellaneous central Settings product. Setup belongs to its domain 
 - **Variable source records:** approved dates, programs, curricula, rooms, faculty hard unavailability, offerings, capacities, fee plans, and versioned requirement checklists
 - **Protected institutional policy:** verified grading policy, scale, authorities, drop effects, and other approved rules
 - **Fixed safeguards:** authorization, prerequisites, conflict prevention, audit history, privacy, and payment idempotency
-- **Environment-managed integrations:** SMTP, solver credentials, and PayMongo secrets
+- **Environment-managed integrations:** SMTP and solver credentials
 - **Recorded external decisions:** overload, late adjustment, transfer credit, discipline, shifting, and externally approved funding coverage effects
 
 Every configurable item must identify its owner, scope, effective date, and consuming action. A variable record without a real consumer is removed.
@@ -185,7 +185,7 @@ Readiness results use:
 - Degraded integration
 - Passed
 
-Failed items show the responsible owner, evidence/source link, and next action. Successful checks use a concise summary with accessible source detail. Missing SMTP never reverses an academic or financial transaction. PayMongo failure disables only optional checkout. Solver failure never changes an already published timetable.
+Failed items show the responsible owner, evidence/source link, and next action. Successful checks use a concise summary with accessible source detail. Missing SMTP never reverses an academic or financial transaction. Solver failure never changes an already published timetable.
 
 **Setup order and unavailable actions.** For an authorized user, an applicable action blocked by incomplete setup remains discoverable with a persistent plain-language reason, the missing source, its responsible owner and the exact remedy that enables it. Show a source link only when that user may access it; otherwise show safe office/contact guidance. Do not rely on a disabled-button tooltip. Useful Draft entry and independent work remain available. Actions forbidden by authorization remain undisclosed where disclosure would expose protected information. Server-side guards enforce the same prerequisites even when the UI is bypassed.
 
@@ -197,7 +197,7 @@ Failed items show the responsible owner, evidence/source link, and next action. 
 | Timetable generation/publication | Approved active curriculum and exact Term calendar → confirmed classes → complete Faculty/room/meeting inputs → valid candidate → recorded external sign-off/publication | Generate or publish with the named missing/current source; Registrar owns setup and publication, Faculty owns their availability declaration. Draft setup remains usable. PRD 03 owns each check. |
 | Enrollment | Exact-Term window and eligible identity/results → current proposed subjects/classes → learner confirmation and valid placement → current Accounting assessment/clearance → Registrar finalization | Only the consuming checkpoint/action; Registrar owns academic/placement sources, Accounting owns assessment/clearance. Readiness or payment is never official enrollment. PRD 04 owns atomic finalization. |
 | Grade release and later registration | Official membership/assigned Faculty/open entry window → complete submitted roster → Registrar release → current academic evaluation | Submit/release with missing or stale rows/source; designated Faculty or Registrar owns the remedy. Unreleased prerequisites exclude only dependent courses; eligible remainder stays usable. PRD 05 owns results. |
-| Finance and transcript output | Confirmed registration → valid fixed plan or eligible exact individual assessment → verified account effects; TOR separately needs releasable history, request, signatory/template and current output-scoped restrictions | Accounting owns missing assessment/payment evidence; Registrar owns transcript sources. Graduation is not a universal TOR prerequisite. PayMongo failure disables only checkout. PRDs 05–06 own the checks. |
+| Finance and transcript output | Confirmed registration → valid fixed plan or eligible exact individual assessment → verified account effects; TOR separately needs releasable history, request, signatory/template and current output-scoped restrictions | Accounting owns missing assessment/payment evidence; Registrar owns transcript sources. Graduation is not a universal TOR prerequisite. PRDs 05–06 own the checks. |
 
 The owning PRD matrices define each dependency's exact validity, correction and recovery. Complete the prerequisites for the consuming action; keep independent work available.
 
@@ -238,7 +238,7 @@ The module-level ownership is:
 
 Every message uses its owning record plus recipient identity as the idempotency source. Grade-release email contains no grade values or attachment—only a release notice and secure portal link.
 
-No email is sent for ordinary saves, navigation, successful or failed sign-in attempts, solver failure, internal queue movement, export, payment-proof submission/rejection, checkout return, payment exception creation, TOR clearance, reversal, System Health change, routine calculation/readiness checks, or recurring reminders. Delivery failure is logged and retried without rolling back institutional state. Templates remain code-defined; there is no template editor.
+No email is sent for ordinary saves, navigation, successful or failed sign-in attempts, solver failure, internal queue movement, export, receipt submission/rejection, payment exception creation, TOR clearance, reversal, System Health change, routine calculation/readiness checks, or recurring reminders. Delivery failure is logged and retried without rolling back institutional state. Templates remain code-defined; there is no template editor.
 
 ### 3.4 Operational views, contextual exports, and public content
 
@@ -268,7 +268,7 @@ The complete product remains lean because every normally expected SIS capability
 | Lifecycle and completion | PRD 05; curriculum evaluation, progress, lifecycle, completion, and conferral records | Student Academics, Registrar workbench, Academic Oversight | Pending source, authorized decision, superseding result, authority-gated external requirement | Retained |
 | TOR | PRD 05 fixed TALA Standard TOR authority plus PRD 06 output-scoped restriction authority | Registrar preview, issuance, and history | Missing source/certification data or clearance; output failure; void/replacement | Retained within the approved external boundary |
 | Accounts and assessments | PRD 06; Fee Plan, Authorized Individual Assessment, and Term Account | Fee Plans, Student Accounts, Student Finance | Unavailable/stale assessment, append-only correction | Retained |
-| Coverage and payments | PRD 06; Approved Coverage, evidence, verified posting, and PayMongo attempt | Account detail, Payment Exceptions, learner Finance | Rejection, mismatch, pending webhook, reversal, supersession | Retained |
+| Coverage and payments | PRD 06; Approved Coverage, manual receipt submission (digital channels only), direct onsite/cashier recording, verified posting, and OR mapping | Accounting Payment channels settings, Account detail, Review receipts / Payment Exceptions, Student Finance | Rejection, discrepancy, reversal, supersession | Retained |
 | Official outputs and contextual exports | Owning PRDs; current approved prints and submission receipt, retained historical acknowledgment artifacts and existing contextual extracts | Authenticated print/read-only surfaces and authorized contextual CSV actions | No partial artifact, explicit version/state, formula-safe CSV, output-access audit | Retained |
 | Privacy, audit, and retention | PRDs 01–06 and Architecture | Private evidence, Governance & Audit, contextual history | Non-disclosing failure; automatic disposal is outside the MVP | Retained |
 | Operations and integrations | Architecture and PRD 06 | System Health and locally evidenced projections | Unknown/Not checked by TALA, degraded service, safe continuity | Retained |
@@ -314,7 +314,7 @@ A field must have an exact actor/purpose, collection stage, authoritative source
 | Foreign, cross-enrollee, second-degree, non-degree, special, and refresher admissions | Not established for MVP | Registrar external intake | Category-specific institutional rules | Authorized result only if later consumed | None in accepted FirstYear/Transferee journey | Invented fields and rules create false eligibility | No speculative intake workflow | Excluded | Servitech selects a category and supplies its exact journey and requirements |
 | Parent/guardian portal or unrestricted academic-record access | No accepted college journey | Student and institution under applicable privacy/consent rules | Approved consent and privacy authority | Under-18 admission contact only | No independent portal need is established | Unauthorised disclosure risk | Guardian contact only when the applicant is under 18 | Excluded | Approved consent model, role, purpose, permissions, and revocation journey |
 | Scholarship eligibility, application, ranking, renewal, and disbursement | May occur | Scholarship/provider and Accounting processes | External funding authority | `ApprovedCoverage` on one Assessment/obligation | Learner must see the approved account effect | A scholarship module would invent eligibility and money movement | Append-only Approved Coverage | Excluded operationally | Approved administration scope beyond recording coverage |
-| Cashiering, registered invoices, official receipts, ledger, budgeting, procurement, refunds, penalties, allocations, and collections | Yes outside TALA | Accounting and registered financial procedures | Accounting and applicable financial/tax authority | Assessment, verified payment, coverage, correction, non-tax outputs | Learner needs current term-account position | TALA could falsely become accounting or tax authority | Bounded Term Account companion | Excluded | Applicable authority and separately approved product expansion |
+| Cashiering, registered invoices, official receipts, ledger, budgeting, procurement, refunds, penalties, allocations, and collections | Yes outside TALA | Accounting and registered financial procedures | Accounting and applicable financial/tax authority | Assessment, verified payment, coverage, correction, non-tax outputs | Students and applicants need current term-account position | TALA could falsely become accounting or tax authority | Bounded Term Account companion | Excluded | Applicable authority and separately approved product expansion |
 | COE, COG, Good Moral, certified copies, Form 137/138 issuance, Honorable Dismissal, and other requested-record fulfillment | Present manually | Registrar and responsible institutional office | Institution-approved document procedure | Identity, enrollment, academic, and lifecycle source records | Staff must be able to locate trustworthy source facts | A hidden document catalog would be speculative | Retain authoritative source records only | External | Exact approved template, owner, fee/clearance, fulfillment, and acceptance process |
 | Physical Student ID/card production and replacement | May occur | Registrar/Student Affairs and external production process | Institutional identity-card procedure | Official Student identity and number | Source identity must be trustworthy | Card production would add unrelated logistics | Official identity and Student number | External | Approved digital/physical ID journey, security design, and owner |
 | Transcript request, signatures, seals, CAV, claiming, delivery, diploma, and ceremony | Yes | Registrar and external certification/fulfillment processes | Institutional and regulator documentary authority | Request reference, clearance, source snapshot, certification, issuance history | TALA must protect the academic source and issuance state | Recreating fulfillment risks false official authority | Existing bounded TOR contract | External | Institution-approved digital workflow and exact documentary authority |
@@ -382,7 +382,7 @@ Released history supports eligible current and former Students' records. Complet
 
 [PRD 06](06_accounts_official_outputs_operations_assurance.md) owns Accounting's fixed Fee Plans or eligible exact authorized individual assessments, continuous Term Accounts, approved coverage, verified payment effects, action-scoped financial projections, non-tax outputs, contextual exports and truthful local health/audit views. One assessment presentation retains these distinct source records; no broad migration or discretionary fee engine follows from consolidation.
 
-The minimum outcome is a source-backed account position and clearance for the action it satisfies. No fee amount is inferred, no pending browser return proves payment, and no payment or coverage event silently revokes enrollment. Refund execution, tax invoicing, cash movement, provider operations, retention decisions and disaster restoration remain external. Prospective infrastructure requirements belong to Architecture and remain distinct from capstone implementation acceptance.
+The minimum outcome is a source-backed account position and clearance for the action it satisfies. No fee amount is inferred, no unverified receipt submission proves payment, and no payment or coverage event silently revokes enrollment. Refund execution, tax invoicing, cash movement, retention decisions and disaster restoration remain external. Prospective infrastructure requirements belong to Architecture and remain distinct from capstone implementation acceptance.
 
 ## 10. Canonical PRD and UI Contract
 
@@ -417,7 +417,7 @@ Every primary user-visible capability has an explicit information/action/state/a
 3. Academic authority, timetable readiness/failure, publication, and revision
 4. Registration, assessment/coverage, official enrollment, Student activation, and COR
 5. Grade submission/release, INC/correction, completion, and TOR
-6. Fee Plan/assessment, payment evidence or PayMongo, account outputs, and reversal
+6. Fee Plan/assessment, digital-only manual receipt submission or onsite/cashier recording, OR mapping, account outputs, and reversal
 7. System Health, Governance & Audit, output access, and the explicit no-automatic-disposal boundary
 
 Impeccable establishes the task-specific composition and tests useful alternatives when a design decision warrants comparison. Research relevant capabilities, supported customization and demos through Laravel Boost and official installed-version documentation. Choose the smallest suitable implementation across native configuration, installed compatible components and focused TALA-owned extensions. Keep required decision facts visible and justify material choices by workflow, usability, accessibility, security and maintenance. A new dependency requires separate approval. A month calendar may supplement dated exceptions as a read-only view; it cannot replace the Term Setup workbench.
@@ -459,8 +459,8 @@ No public HTTP API is added. The shared vocabulary below names logical responsib
 | Clinic 4 → Clinic 5 | Official registrations, roster membership, adjustments, drops | Official registration/change versions; material change invalidates pending roster review | Maintain a duplicate roster-membership source |
 | Clinic 5 → Clinic 4 | `OfficialCourseResultProjection`, `AcademicEnrollmentEffect`, lifecycle facts | Released/confirmed versions only; every initial release, INC resolution, or correction recomputes affected cases; a pending decision blocks only the affected action | Use draft grades, treat an exception as course satisfaction, or silently change a Registration Case |
 | Clinic 6 → Clinic 4 | `EnrollmentPaymentRequirementProjection` | Term Account/Assessment version, assessment basis, exact proposal/change source, separate payment/coverage amounts and references, satisfaction basis, authority, and as-of time; `Unavailable` blocks finalization and cost-increasing change but never an authorized removal/drop | Recalculate finance, determine funding eligibility, invent a fee/refund/penalty, require lifetime zero balance, or apply a global hold |
-| Clinic 6 → Clinic 5 | Output-scoped Accounting restriction projection | Exact learner/output scope and current source; an active restriction pauses only that output, without separate per-request approval | Operate a global credential hold, infer clearance from unavailable sources, or edit payment evidence |
-| Clinics 4/5 → Clinic 6 | Registration/account and output-request references | Same learner, term, RegistrationCase or request identity | Copy academic records or turn Clinic 6 into enrollment/TOR workflow |
+| Clinic 6 → Clinic 5 | Output-scoped Accounting restriction projection | Exact student/output scope and current source; an active restriction pauses only that output, without separate per-request approval | Operate a global credential hold, infer clearance from unavailable sources, or edit payment evidence |
+| Clinics 4/5 → Clinic 6 | Registration/account and output-request references | Same student or applicant, term, RegistrationCase or request identity | Copy academic records or turn Clinic 6 into enrollment/TOR workflow |
 
 ### 10.2 Official-output ownership
 
@@ -520,7 +520,7 @@ Ordinary operational data is never treated as an unresolved product decision. Ne
 
 ### 11.3 Coordinated synthetic Servitech institution
 
-All PRD acceptance data uses one coordinated, wholly synthetic institution. Personal identities use `example.test`; no real learner, credential, payment, wallet, or provider identifier is copied.
+All PRD acceptance data uses one coordinated, wholly synthetic institution. Personal identities use `example.test`; no real learner, credential, payment, wallet, or external bank/receipt identifier is copied.
 
 | Dimension | Coordinated baseline |
 |---|---|
@@ -548,9 +548,9 @@ Confidentiality restrictions and the absence of direct client contact do not reo
 | 3 — Academic authority to published timetable | Authorized Registrar Staff access; PRD 03 academic authority, Term, offering, resource, and solver/publication boundaries. Delivery after Slice 2 is a solo-capacity order, not a blanket dependency | Synthetic curricula, Term calendars, Faculty, rooms, cohorts, Class Offerings, commitments, solver outcomes, sign-off authority, and publication versions |
 | 4 — Registration to Official Enrollment and COR | Ready Applicant projection from Slice 2; applicable active academic authority and published timetable from Slice 3; current Clinic 6 assessment/payment-readiness projections for the selected case | Synthetic Registration Cases, proposals, placement/capacity facts, assessment or coverage/payment results, Registrar authority, and COR sources |
 | 5 — Official roster to released Student Academics | Official Enrollment and roster projections from Slice 4; applicable academic authority from Slice 3 | Fixed PRD 05 result/INC rules plus synthetic Faculty, rosters, grade events, corrections, lifecycle authority, curriculum evaluation, and completion cases |
-| 6 — Completion, TOR, accounts, outputs, and assurance | Only the Slice 4–5 records consumed by the relevant completion/TOR subjourney; other subjourneys use dependencies proven when derived | Synthetic Fee Plans, assessments, coverage, payments, clearances, signatory/output inputs, degraded-service evidence, and backup/restore result records. Provider credentials, procurement, and real recovery operations remain production gates, not capstone implementation-acceptance gates |
+| 6 — Completion, TOR, accounts, outputs, and assurance | Only the Slice 4–5 records consumed by the relevant completion/TOR subjourney; other subjourneys use dependencies proven when derived | Synthetic Fee Plans, assessments, coverage, payments, clearances, signatory/output inputs, degraded-service evidence, and backup/restore result records. External SMTP/solver credentials, procurement, and real recovery operations remain production gates, not capstone implementation-acceptance gates |
 
-Missing or stale runtime authority may block only the action that consumes it. It does not justify incomplete code, a placeholder journey, fabricated success, or deferral from the current accepted scope. A real production installation remains responsible for entering and approving its own dates, people, amounts, authorities, provider accounts, custody, and operational evidence before enabling the affected live action.
+Missing or stale runtime authority may block only the action that consumes it. It does not justify incomplete code, a placeholder journey, fabricated success, or deferral from the current accepted scope. A real production installation remains responsible for entering and approving its own dates, people, amounts, authorities, SMTP/cloud-solver accounts, custody, and operational evidence before enabling the affected live action.
 
 ### 11.4 Shared Authority-Control Annex
 
@@ -565,7 +565,7 @@ This annex supplies the normalized controls used by PRDs 01–06. An owning PRD 
 | Academic authority and timetable | PRD 03; Registrar, with external institutional authority where required | Program, Course Revision, Curriculum Version, Calendar Package, Class Offering, Published Timetable Version | Consume immutable effective versions | Edit source authority or treat a candidate as published |
 | Registration and official enrollment | PRD 04; Registrar | Registration Case, proposal version, placement/reservation, official enrollment, COR version | Consume source-owned readiness projections | Recreate admissions, curriculum, grades, or finance authority |
 | Academic record and completion | PRD 05; Faculty submits and Registrar releases/records | Official roster results, corrections, curriculum evaluation, lifecycle, completion, conferral, TOR snapshot | Consume released projections | Use draft grades or overwrite released history |
-| Accounts and assurance | PRD 06; Accounting and System Administrator within their bounded roles | Fee Plan/Assessment, Term Account events, payment/coverage evidence, output clearance, local health/audit evidence | Consume action-specific clearance and safe status | Create global holds, cashiering, tax documents, or provider controls |
+| Accounts and assurance | PRD 06; Accounting and System Administrator within their bounded roles | Fee Plan/Assessment, Term Account events, payment/coverage evidence, output clearance, local health/audit evidence | Consume action-specific clearance and safe status | Create global holds, tax documents, or payment-gateway controls |
 
 #### Matrix 2 — Common record lifecycle and state transition rules
 
@@ -583,9 +583,9 @@ Exactly one active mutable draft or pending request exists per logical scope unl
 
 | Role | Material authority | Restricted visibility |
 |---|---|---|
-| Applicant/Student/alumnus | Create or submit only their authorized self-service records; confirm/cancel only within the owning window; read their safe projections and outputs | No other person's records, private Staff notes, provider payloads, internal security facts, or source evidence beyond safe labels |
+| Applicant/Student/alumnus | Create or submit only their authorized self-service records; confirm/cancel only within the owning window; read their safe projections and outputs | No other person's records, private Staff notes, internal security facts, or source evidence beyond safe labels |
 | Faculty | Maintain own availability; submit assigned complete rosters; view own official schedules and assigned learners | No admissions, finance, account security, other Faculty records, or Registrar release/correction authority |
-| Registrar | Own admissions decisions, academic setup, timetable publication, enrollment finalization, academic release, lifecycle/completion, and bounded external-result recording | No password/MFA secrets, private payment instruments, payment verification, or provider control |
+| Registrar | Own admissions decisions, academic setup, timetable publication, enrollment finalization, academic release, lifecycle/completion, and bounded external-result recording | No password/MFA secrets, private payment evidence, payment verification, or accounting controls |
 | Accounting | Own Fee Plans, exact assessments, coverage, payment verification/correction, bounded output clearance, and contextual exports | No academic decision, grade, admissions decision, role administration, or private evidence outside Accounting purpose |
 | Academic Head | Read-only oversight and attributable source drill-in | No producer-owned mutation, publication, grade release, enrollment finalization, or finance action |
 | System Administrator | Own credential/Staff-access controls, bounded public content, local System Health, and read-only Governance & Audit | No academic, admissions, enrollment, or accounting decision by virtue of administrator role |
@@ -623,7 +623,7 @@ Every readiness projection names its source, owner, effective version or as-of t
 | Email | Trim; compare lowercase; valid address; maximum 254 characters; case-insensitive uniqueness per credential account |
 | Name part | 1–100 Unicode letters/marks plus spaces, apostrophes, periods, and hyphens; middle name optional; suffix separate and maximum 20 characters |
 | Internal code | Trimmed 1–64 characters; letters, numbers, spaces, hyphen, underscore, slash, period, and colon only; unique within its explicitly defined owning scope |
-| External authority/source reference | Plain text, trimmed 1–255 characters when required by its owning action; accept legitimate Unicode and punctuation. Show what source is expected and an appropriate example. One source may support multiple records, so no generic uniqueness rule applies. A provider transaction reference, LRN or other identifier keeps its own defined format/idempotency boundary. Render safely and escape export text. |
+| External authority/source reference | Plain text, trimmed 1–255 characters when required by its owning action; accept legitimate Unicode and punctuation. Show what source is expected and an appropriate example. One source may support multiple records, so no generic uniqueness rule applies. An external payment, bank, or Official Receipt reference, LRN, or other identifier keeps its own defined format/idempotency boundary. Render safely and escape export text. |
 | Title/label | Title maximum 160 characters; short label maximum 120 |
 | Administrative reason | Required for rejection, correction, reversal and authority-backed exceptions; 10–1,000 characters. An owning PRD may use an attributable fixed result for routine successful verification/clearance without a separate narrative. Actor, time and current source are still required. |
 | Safe learner explanation | 1–500 characters; no internal notes, secrets, private evidence, or unsupported accusation |
@@ -651,7 +651,7 @@ The dialog shows the exact record/version, actor/authority, resulting state, dow
 | Situation | Limit | Exhaustion or deadline effect | Recovery |
 |---|---|---|---|
 | Ordinary draft, correction, resubmission, or authorized reissue | No arbitrary lifetime numeric cap | State/window/authority may close the action | Authorized extension, reopening, late authority, successor, or external decision |
-| Active correction request, matching pending checkout, schedule run, or mutable successor draft | One per logical action/scope | New duplicate is blocked; existing record is shown | Resolve/close existing action first |
+| Active correction request, schedule run, or mutable successor draft | One per logical action/scope | New duplicate is blocked; existing record is shown | Resolve/close existing action first |
 | Business deadline | Governing window | Closes affected self-service only; never auto-rejects, fails, grades, deletes, or penalizes | Owning PRD's authorized late/reopen/extension path |
 | Login or MFA failure | Five failed attempts per normalized account/IP per minute | Wait until the window resets; no permanent automatic lock | Retry after window or use authorized recovery |
 | Verification/password-reset resend | One outbound message per 60 seconds; token expires after 60 minutes | Existing valid token remains governed by its expiry | Resend after throttle window |
@@ -722,7 +722,7 @@ This matrix is the final traceability contract for later journey-complete vertic
 | Pending prerequisite to next-term outcome | Individually Advised case, exact approved credit/equivalency or overload/late-adjustment authority, learner confirmation, initial release/INC/correction, pre/post-finalization review, open Adjustment, closed Adjustment with/without late authority | No released `P` or fabricated satisfaction; unrelated courses remain usable; capacity/finance/roster/schedule/COR effects occur only through an authorized guarded transaction |
 | Lifecycle and withdrawal | Leave, full withdrawal, return, transfer, shift, conferral and current-term effects | Seats, rosters, schedule, COR and account review remain synchronized with append-only history |
 | Completion and TOR | Completion readiness, current Clinic 6 output-scoped restrictions, TALA Standard TOR preview/issuance, void/replacement/supersession | Only Registrar confirmation creates issuance; physical certification remains external; consumers cannot edit finance or source academic facts |
-| Account, coverage, and payment | Fixed Fee Plan and authorized-individual-assessment readiness, Approved Coverage application/supersession/reversal, mixed satisfaction, unavailable source, adjustment/drop review, manual evidence, exact-due checkout, under/mismatch, duplicate and missing/late webhook, reversal | Browser return never posts; coverage is not payment or eligibility processing; one posting and one email; no silent cap, fee fallback, invented refund/penalty, or global hold |
+| Account, coverage, and payment | Fixed Fee Plan and authorized-individual-assessment readiness, Approved Coverage application/supersession/reversal, mixed satisfaction, unavailable source, adjustment/drop review, multi-account `Bank Transfer` and `E-Wallets` (replacing standalone GCash) alongside `Cash (Campus Cashier)`, **How to pay** instructions, digital-only receipt uploads (`Submit receipt`, shared `<x-document-viewer>` preview), onsite/cashier recording (including pre-student Applicants), inline Official Receipt (OR) mapping, under/mismatch, reversal | Unverified receipt never posts; digital uploads are blocked when onsite-only; coverage is not payment or eligibility processing; one posting and one email; no silent cap, fee fallback, invented refund/penalty, or global hold |
 | Outputs, export, health and retention | COR/timetable/unofficial record/TOR/SOA/acknowledgment, two finance CSVs, one current per-Class-Offering roster CSV, purpose audit, degraded services, explicit no-automatic-disposal boundary | No partial official-looking output; roster export never expands beyond one authorized current class or includes grade/contact/finance data; unknown external fact is not healthy; no hidden reporting, retention, or compliance engine |
 | Shared UI and failure | 1366 desktop, 360/390 mobile, keyboard/screen reader, 200% zoom/reflow, print, empty/loading/stale/inaccessible/concurrency/failure | Owning source, as-of time, responsible role and safe recovery remain visible without color-only meaning |
 

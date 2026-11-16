@@ -80,6 +80,12 @@ class PublishFeePlan
     {
         try {
             $this->assertStructure($plan);
+            $current = FeePlan::query()->where('program_id', $plan->program_id)
+                ->where('term_id', $plan->term_id)->where('state', FeePlan::StatePublished)
+                ->whereKeyNot($plan->id)->first();
+            if ($current !== null && (int) $plan->supersedes_fee_plan_id !== (int) $current->id) {
+                return 'A current fee plan already exists. Open it and create a successor draft before publishing.';
+            }
 
             return null;
         } catch (ValidationException $exception) {

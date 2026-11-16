@@ -15,6 +15,7 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Auth\MultiFactor\Pages\SetUpRequiredMultiFactorAuthentication;
 use Filament\Enums\GlobalSearchPosition;
 use Filament\Panel;
 use Filament\Support\Colors\Color;
@@ -103,12 +104,12 @@ class TalaPanelTheme
                 url('/'.$panel->getPath().'/logout*'),
                 url('/'.$panel->getPath().'/password-reset*'),
                 url('/'.$panel->getPath().'/email-verification*'),
-                url('/'.$panel->getPath().'/account-security*'),
+                url('/'.$panel->getPath().'/account-profile*'),
             ])
             ->viteTheme('resources/css/filament/tala/theme.css')
             ->brandLogo(fn (): View => self::brand($panel))
             ->brandLogoHeight('auto')
-            ->favicon(asset('talalogo.png'))
+            ->favicon(asset('images/brand/servitech-crest-outlined-192.webp'))
             ->colors(['primary' => Color::generatePalette('#2F7D3B'), 'gray' => Color::Zinc, 'info' => Color::generatePalette('#0C53C1')])
             ->maxContentWidth(Width::Full)
             ->unsavedChangesAlerts()
@@ -128,14 +129,15 @@ class TalaPanelTheme
                         $nextTick(() => {
                             const trigger = mobile
                                 ? document.querySelector('.fi-layout-sidebar-toggle-btn, .fi-topbar-open-sidebar-btn')
-                                : $el.closest('.fi-user-menu')?.querySelector('.fi-user-menu-trigger');
+                                : ($el.closest('.fi-user-menu')?.querySelector('.fi-user-menu-trigger') ?? document.querySelector('.fi-user-menu-trigger'));
                             trigger?.focus({ preventScroll: true });
                             $dispatch('open-modal', { id: 'tala-sign-out' });
                         });
                         JS),
                 'profile' => fn (Action $action): Action => $action
-                    ->label('Account security')
-                    ->icon('heroicon-o-shield-check'),
+                    ->label('Profile')
+                    ->icon('heroicon-o-user')
+                    ->visible(fn (): bool => ! self::isMandatoryMfaSetupRoute()),
             ])
             ->topbar(false)
             ->globalSearch(WorkspaceNavigationSearchProvider::class, position: GlobalSearchPosition::Sidebar)
@@ -160,16 +162,20 @@ class TalaPanelTheme
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): HtmlString => new HtmlString(
                 self::isApplicantPanel($panel) ? '' : '<div class="tala-mobile-workspace-identity">'.self::brand($panel)->render().'</div>',
             ))
-            ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_START, fn (array $scopes): View => view('filament.components.auth-main-start', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
+            ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_START, fn (array $scopes): View => view('filament.components.auth-main-start', [
+                'usesAuthDesigner' => self::usesAuthDesigner($scopes),
+                'isMandatoryMfaSetup' => self::isMandatoryMfaSetup($scopes),
+            ]))
             ->renderHook(PanelsRenderHook::SIDEBAR_NAV_START, fn (): HtmlString => new HtmlString(
                 self::isApplicantPanel($panel) ? '' : '<p class="tala-workspace-context">'.e(self::workspaceContext($panel)).'</p>',
             ))
             ->renderHook(PanelsRenderHook::SIDEBAR_NAV_START, fn (): View => view('filament.components.workspace-search'))
-            ->renderHook(PanelsRenderHook::SIDEBAR_FOOTER, fn (): HtmlString => self::attribution($panel, '<div class="tala-sidebar-attribution">%s</div>'))
-            ->renderHook(PanelsRenderHook::CONTENT_END, fn (): HtmlString => self::attribution($panel, '<footer class="tala-mobile-attribution">%s</footer>'))
-            ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_END, fn (array $scopes): View => view('filament.components.auth-main-end', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))
+            ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_END, fn (array $scopes): View => view('filament.components.auth-main-end', [
+                'usesAuthDesigner' => self::usesAuthDesigner($scopes),
+            ]))
             ->renderHook(PanelsRenderHook::SIMPLE_PAGE_END, fn (array $scopes): View => view('filament.components.auth-recovery-links', [
                 'usesAuthDesigner' => self::usesAuthDesigner($scopes),
+                'isMandatoryMfaSetup' => self::isMandatoryMfaSetup($scopes),
                 'showRecoveryLinks' => ! in_array(ApplicantEmailVerification::class, $scopes, true),
             ]))
             ->renderHook(PanelsRenderHook::SIDEBAR_LOGO_AFTER, fn (): HtmlString => new HtmlString(
@@ -183,16 +189,6 @@ class TalaPanelTheme
         return view('components.tala-panel-brand', [
             'workspace' => $panel->getBrandName(),
         ]);
-    }
-
-    /** Secondary attribution is limited to anonymous non-Applicant account-entry pages. */
-    private static function attribution(Panel $panel, string $wrapper): HtmlString
-    {
-        if (self::isApplicantPanel($panel) || $panel->auth()->check()) {
-            return new HtmlString('');
-        }
-
-        return new HtmlString(sprintf($wrapper, view('components.tala-panel-brand', ['placement' => 'attribution'])->render()));
     }
 
     private static function isApplicantPanel(Panel $panel): bool
@@ -235,6 +231,21 @@ class TalaPanelTheme
         $label = User::staffRoleOptions()[$selected ?? ''] ?? null;
 
         return $label !== null ? $label.' workspace' : 'Choose a workspace';
+    }
+
+    public static function isMandatoryMfaSetupRoute(): bool
+    {
+        return request()->routeIs('filament.*.auth.multi-factor-authentication.set-up-required');
+    }
+
+    /** @param array<class-string> $scopes */
+    private static function isMandatoryMfaSetup(array $scopes): bool
+    {
+        return self::isMandatoryMfaSetupRoute()
+            || collect($scopes)->contains(
+                fn (string $scope): bool => $scope === SetUpRequiredMultiFactorAuthentication::class
+                    || is_subclass_of($scope, SetUpRequiredMultiFactorAuthentication::class),
+            );
     }
 
     /** @param array<class-string> $scopes */
