@@ -1,5 +1,5 @@
 @assets
-    <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
 @endassets
 <div class="registrar-case">
     <div class="registrar-case-identity">
@@ -24,7 +24,7 @@
                 @endif
                 @if ($canReserve){{ $this->getAction('prepareProposal', isMounting: false)->link()->color('gray') }}@endif
             @else
-                <p>{{ $paymentReview ? 'A payment needs Accounting review. The enrollment requirement remains open until the review records a verified payment or approved coverage.' : 'The student confirmed these subjects. Accounting reviews the enrollment payment or approved coverage before Registrar can finalize.' }}</p>
+                <p>{{ $paymentReview ? 'Submitted receipt needs Accounting review. The enrollment requirement remains open until Accounting records a verified payment or approved coverage.' : 'The student confirmed these subjects. Enrollment clears once Accounting verifies a submitted receipt, Campus Cashier/Accounting records an onsite payment, or approved coverage meets the requirement; Registrar then finalizes enrollment.' }}</p>
             @endif
             @if ($reservationDeadline)
                 <p class="registrar-case-meta">Seats held until {{ \App\Support\DisplayDateTime::format($reservationDeadline) }} · {{ config('app.display_timezone') }}</p>
@@ -32,11 +32,13 @@
             @if ($progressView === 'assessment-recovery')
                 <x-workflow-handoff current-owner="Accounting" current-task="Review charges" next-owner="Registrar" next-task="Continue enrollment review" current-icon="heroicon-o-banknotes" next-icon="heroicon-o-clipboard-document-check" />
             @elseif ($progressView !== 'placement-recovery' && $paymentReview)
-                <x-workflow-handoff current-owner="Accounting" current-task="Review payment" next-owner="Registrar" next-task="Review enrollment clearance" current-icon="heroicon-o-banknotes" next-icon="heroicon-o-clipboard-document-check" />
+                <x-workflow-handoff current-owner="Accounting" current-task="Review payment" next-owner="Registrar" next-task="Finalize enrollment" current-icon="heroicon-o-banknotes" next-icon="heroicon-o-clipboard-document-check" />
             @endif
         </div>
         @if ($progressView === 'placement-recovery')
             {{ $this->getAction($canReserve ? 'placeProposal' : 'prepareProposal', isMounting: false) }}
+        @elseif ($progressView === 'payment-waiting')
+            <x-filament::button wire:click="$refresh" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh status</x-filament::button>
         @endif
     </section>
     <div class="registrar-case-progress-grid">
@@ -60,7 +62,7 @@
                     @if ((float) $requirement['payment_applied'] > 0)<div><dt>Verified payment applied</dt><dd>PHP {{ number_format((float) $requirement['payment_applied'], 2) }}</dd></div>@endif
                     @if ((float) $requirement['coverage_applied'] > 0)<div><dt>Approved coverage applied</dt><dd>PHP {{ number_format((float) $requirement['coverage_applied'], 2) }}</dd></div>@endif
                 </dl>
-                <p class="registrar-case-meta">Accounting reviews payments and approved coverage.@if ($requirement['later_obligation']) Later term payments remain separate.@endif</p>
+                <p class="registrar-case-meta">Accounting verifies submitted receipts and Cashier/Accounting records onsite payments; Registrar finalizes enrollment once cleared.@if ($requirement['later_obligation']) Later term payments remain separate.@endif</p>
             @endif
         </section>
     </div>

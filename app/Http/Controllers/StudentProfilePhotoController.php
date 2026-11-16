@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Grades\CurrentClassRosterOutput;
 use App\Models\GradeRoster;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -21,6 +22,27 @@ class StudentProfilePhotoController extends Controller
             && $actor->canAuthenticate() && $actor->hasAccessibleStudentProfile(), 403);
 
         return $this->photo($actor);
+    }
+
+    public function forAccount(Request $request): Response
+    {
+        $actor = $request->user();
+        abort_unless($actor instanceof User && $actor->canAuthenticate(), 403);
+        if ($actor->hasRole('student') && ! $actor->hasAccessibleStudentProfile()) {
+            abort(403);
+        }
+
+        return $this->photo($actor);
+    }
+
+    public function forStudentProfile(Request $request, StudentProfile $studentProfile): Response
+    {
+        $actor = $request->user();
+        abort_unless($actor instanceof User && $actor->canAuthenticate() && $actor->can('view', $studentProfile), 403);
+        $student = $studentProfile->user;
+        abort_unless($student instanceof User, 404);
+
+        return $this->photo($student);
     }
 
     public function forRoster(Request $request, GradeRoster $roster, int $row): Response

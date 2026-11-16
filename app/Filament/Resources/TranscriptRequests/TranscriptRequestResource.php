@@ -19,7 +19,7 @@ class TranscriptRequestResource extends Resource
 {
     protected static ?string $model = TranscriptRequest::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedShieldExclamation;
 
     protected static ?string $modelLabel = 'TOR request';
 

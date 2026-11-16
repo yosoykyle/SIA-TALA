@@ -19,22 +19,27 @@ class TermAccountProjection
     /**
      * @return array{state:string,current_due:string,remaining_balance:string,assessment_id:?int,payment_applied:string,coverage_applied:string,next_obligation:?array<string,mixed>,as_of:string,obligations:list<array<string,mixed>>}
      */
-    public function forAccount(TermAccount $account, ?CarbonImmutable $asOf = null): array
+    public function forAccount(TermAccount $account, ?CarbonImmutable $asOf = null, bool $useLoadedRelations = false): array
     {
         $asOf ??= CarbonImmutable::now(config('app.timezone'));
-        $assessment = Assessment::query()
-            ->with(['obligations.paymentAllocations.payment', 'obligations.coverages'])
-            ->where('term_account_id', $account->id)
-            ->where('state', Assessment::StateActive)
-            ->latest('version')
-            ->first();
+        $assessment = ($useLoadedRelations && $account->relationLoaded('assessments'))
+            ? $account->assessments->where('state', Assessment::StateActive)->sortByDesc('version')->first()
+            : Assessment::query()
+                ->with(['obligations.paymentAllocations.payment', 'obligations.coverages'])
+                ->where('term_account_id', $account->id)
+                ->where('state', Assessment::StateActive)
+                ->latest('version')
+                ->first();
 
         if (! $assessment instanceof Assessment) {
             return ['state' => 'Unavailable', 'reason' => 'Accounting must assess the current reserved proposal.', 'current_due' => null, 'remaining_balance' => null, 'assessment_id' => null, 'payment_applied' => '0.00', 'coverage_applied' => '0.00', 'next_obligation' => null, 'as_of' => $asOf->toIso8601String(), 'obligations' => [], 'reconciliation_required' => false, 'retained_payment' => '0.00', 'retained_coverage' => '0.00'];
         }
 
-        $retained = $this->retainedEffects($account, $assessment, $asOf);
-        $revalidation = AssessmentEffectRevalidation::query()->where('assessment_id', $assessment->id)->latest('version')->first();
+        $assessment->loadMissing(['obligations.paymentAllocations.payment', 'obligations.coverages']);
+        $retained = $this->retainedEffects($account, $assessment, $asOf, $useLoadedRelations);
+        $revalidation = $retained !== []
+            ? AssessmentEffectRevalidation::query()->where('assessment_id', $assessment->id)->latest('version')->first()
+            : null;
         $mapping = collect($revalidation?->obligation_mapping ?? [])->keyBy('source_obligation_id');
         $currentIds = $assessment->obligations->pluck('id');
         $reconciliationRequired = collect($retained)->contains(fn (array $source): bool => ! $mapping->has($source['id'])
@@ -42,7 +47,9 @@ class TermAccountProjection
             || $source['payment'] > $this->money->toCents($mapping->get($source['id'])['payment_amount'] ?? '0.00')
             || $source['committed_coverage'] > $this->money->toCents($mapping->get($source['id'])['coverage_amount'] ?? '0.00'));
         $invalid = $assessment->obligations->isEmpty() || $reconciliationRequired;
-        $enrollment = $account->enrollment()->first();
+        $enrollment = ($useLoadedRelations && $account->relationLoaded('enrollment'))
+            ? $account->enrollment
+            : $account->enrollment()->first();
         if ($enrollment?->canonical_outcome === Enrollment::OutcomeInProgress
             && (int) $assessment->source_proposal_version_id !== (int) $enrollment->current_proposal_version_id) {
             $invalid = true;
@@ -129,8 +136,17 @@ class TermAccountProjection
     }
 
     /** @return list<array{id:int,code:string,label:string,payment:int,coverage:int,committed_coverage:int}> */
-    public function retainedEffects(TermAccount $account, Assessment $assessment, ?CarbonImmutable $asOf = null): array
+    public function retainedEffects(TermAccount $account, Assessment $assessment, ?CarbonImmutable $asOf = null, bool $useLoadedRelations = false): array
     {
+        if ((int) $assessment->version <= 1) {
+            return [];
+        }
+
+        if ($useLoadedRelations && $account->relationLoaded('assessments')
+            && $account->assessments->where('id', '!=', $assessment->id)->where('version', '<', $assessment->version)->isEmpty()) {
+            return [];
+        }
+
         $asOf ??= CarbonImmutable::now(config('app.timezone'));
 
         return AssessmentObligation::query()

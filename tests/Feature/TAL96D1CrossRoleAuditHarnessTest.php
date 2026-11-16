@@ -42,7 +42,7 @@ final class TAL96D1CrossRoleAuditHarnessTest extends TestCase
         $this->assertSame(47, StudentProfile::query()->count());
         $this->assertSame(54, SchedulingDemand::query()->count());
 
-        foreach (['schedule_runs', 'section_meetings', 'enrollments', 'assessments', 'ledger_entries', 'payments', 'payment_attempts', 'webhook_calls'] as $table) {
+        foreach (['schedule_runs', 'section_meetings', 'enrollments', 'assessments', 'ledger_entries', 'payments'] as $table) {
             $this->assertSame(0, DB::table($table)->count(), $table);
         }
 

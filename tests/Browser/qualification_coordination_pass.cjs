@@ -1754,8 +1754,6 @@ async function loginUser(page, email, password = 'password', mfaSecret = 'JBSWY3
         const p4 = '00_Project_Documents/prd_modules/04_current_term_registration_official_enrollment.md';
         const t4_journey = 'tests/Feature/Enrollment/RegistrationToOfficialEnrollmentJourneyTest.php';
         const c4_journey = 'Tests\\Feature\\Enrollment\\RegistrationToOfficialEnrollmentJourneyTest';
-        const t4_mongo = 'tests/Feature/Finance/ExactDuePayMongoJourneyTest.php';
-        const c4_mongo = 'Tests\\Feature\\Finance\\ExactDuePayMongoJourneyTest';
         const t4_finance = 'tests/Feature/Finance/TermAccountToVerifiedManualPaymentJourneyTest.php';
         const c4_finance = 'Tests\\Feature\\Finance\\TermAccountToVerifiedManualPaymentJourneyTest';
         const t4_bench = 'tests/Feature/Finance/StudentAccountsWorkbenchAcceptanceTest.php';
@@ -1922,11 +1920,11 @@ async function loginUser(page, email, password = 'password', mfaSecret = 'JBSWY3
             "Verified");
 
         addRow(4, 37, 20,
-            "Checkout creation uses the immutable exact-current-due snapshot; browser return, failed checkout, missing/late webhook, duplicates, mismatch, stale source, and reversal recover without false posting or duplication.",
-            p4, t4_mongo, c4_mongo, "test_checkout_commits_one_exact_due_snapshot_before_the_provider_call",
-            "php artisan test --filter=test_checkout_commits_one_exact_due_snapshot_before_the_provider_call",
+            "Manual payment verification allocates one verified payment across open term obligations, posts auditable ledger rows, and recovers cleanly from rejections without false posting or duplication.",
+            p4, t4_finance, c4_finance, "test_manual_payment_allocates_one_payment_across_multiple_targets_and_posts_auditable_ledger_rows",
+            "php artisan test --filter=test_manual_payment_allocates_one_payment_across_multiple_targets_and_posts_auditable_ledger_rows",
             "tests/Browser/artifacts/screenshots/coordination/slice4_accounting_student_accounts_1366x768_system.png",
-            "Binds payment gateway checkouts to immutable obligation snapshots; guarantees idempotent webhook processing and duplicate payment suppression.",
+            "Binds manual payment verification to exact obligation allocations; guarantees idempotent posting and auditable ledger rows.",
             "Verified");
 
         addRow(4, 37, 21,

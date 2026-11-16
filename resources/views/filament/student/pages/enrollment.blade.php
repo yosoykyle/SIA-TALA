@@ -14,9 +14,15 @@
         $hasExpiredPlacement = ($proposal?->items->contains(fn ($item) => $item->reservation?->status !== \App\Models\EnrollmentSeatReservation::StatusActive || ($item->reservation?->deadline !== null && $item->reservation->deadline->isPast())) ?? false)
             || ($readiness !== null && ! ($readiness['placement'] ?? true));
         $money = fn ($value) => $value === null ? 'Not yet posted' : 'PHP '.number_format((float) $value, 2);
+        $resolvedHowToPayDisplay = is_array($howToPayDisplay ?? null) ? $howToPayDisplay : ($whereToPayDisplay ?? null);
+        $hasElectronicChannels = is_bool($hasEnabledDigitalPaymentChannels ?? null)
+            ? $hasEnabledDigitalPaymentChannels
+            : (is_array($resolvedHowToPayDisplay)
+                ? (bool) ($resolvedHowToPayDisplay['hasEnabledDigitalChannels'] ?? ! empty($resolvedHowToPayDisplay['electronicChannels'] ?? []))
+                : collect($paymentChannels ?? [])->contains(fn ($channel): bool => is_array($channel) && in_array($channel['key'] ?? null, ['bank_transfer', 'e_wallets', 'gcash'], true)));
     @endphp
     <div class="learner-enrollment student-registration">
-        <div wire:loading class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300" role="status">
+        <div wire:loading class="flex items-center gap-2 text-sm" style="color: var(--tala-muted);" role="status">
             <x-filament::loading-indicator class="h-4 w-4" /> Updating enrollment details…
         </div>
         @if ($enrollment !== null && ($academicGuidance['needs_attention'] ?? false))
@@ -60,32 +66,44 @@
                             <p>The Registrar is preparing your subjects and schedule. You can confirm when your classes and fees are ready.</p>
                             <p>No action is needed from you yet.</p>
                         @elseif ($latestEvidence?->state === \App\Models\PaymentEvidenceVersion::StateSubmitted)
-                            <h2 id="enrollment-task-heading">Payment proof awaiting review</h2>
+                            <h2 id="enrollment-task-heading">Submitted receipt awaiting review</h2>
                             <p>Accounting is reviewing your {{ $money($latestEvidence->claimed_amount) }} receipt. Your balance changes after verification.</p>
                         @elseif (($paymentRequirement['state'] ?? 'Unavailable') === 'Unavailable')
                             <h2 id="enrollment-task-heading">Accounting needs to review your fees</h2>
                             <p>Your enrollment payment amount is unavailable. Contact Accounting before paying.</p>
                         @else
                             <h2 id="enrollment-task-heading">Complete your enrollment payment</h2>
-                            <p>Your subjects are confirmed. Pay {{ $money($paymentRequirement['balance'] ?? null) }} to meet the enrollment requirement.</p>
-                            <p>The Registrar completes official enrollment after your payment and records are checked.</p>
+                            @if ($hasElectronicChannels)
+                                <p>Your subjects are confirmed. Pay {{ $money($paymentRequirement['balance'] ?? null) }} through a school payment channel below or onsite at the Campus Cashier.</p>
+                                <p>If you paid by bank transfer or e-wallet, submit your receipt for Accounting review. Onsite Cashier payments are recorded directly: no receipt upload needed. The Registrar completes official enrollment after your payment and records are checked.</p>
+                            @else
+                                <p>Your subjects are confirmed. Pay {{ $money($paymentRequirement['balance'] ?? null) }} onsite at the Campus Cashier below: electronic transfer channels are currently unavailable.</p>
+                                <p>Onsite Cashier payments are recorded directly: no receipt upload needed. The Registrar completes official enrollment after your payment and records are checked.</p>
+                            @endif
                         @endif
                         @if (($readiness['shortages'] ?? []) !== [])
                             <ul class="student-registration-shortages">@foreach ($readiness['shortages'] as $shortage)<li><strong>{{ $shortage['course'] }} · {{ $shortage['section'] }}</strong><p>{{ $shortage['recovery'] }} Contact {{ $shortage['owner'] }}.</p></li>@endforeach</ul>
                         @endif
                         @if ($confirmed && $latestEvidence)
-                            <div class="student-enrollment-receipt"><p><strong>{{ $latestEvidence->original_name }}</strong><br>{{ str($latestEvidence->state)->headline() }} · {{ $money($latestEvidence->claimed_amount) }}<br>Submitted {{ $latestEvidence->submitted_at?->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}</p>@if ($latestEvidence->review_note)<p>{{ $latestEvidence->review_note }}</p>@endif<x-payment-proof-viewer :proof="$latestEvidence" label="View submitted proof" /></div>
+                            <div class="student-enrollment-receipt"><p><strong>{{ $latestEvidence->original_name }}</strong><br>{{ str($latestEvidence->state)->headline() }} · {{ $money($latestEvidence->claimed_amount) }}<br>Submitted {{ $latestEvidence->submitted_at?->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}</p>@if ($latestEvidence->review_note)<p>{{ $latestEvidence->review_note }}</p>@endif<x-payment-proof-viewer :proof="$latestEvidence" label="View receipt" /></div>
                         @endif
                         <div class="student-finance-actions">
-                            @if ($confirmed && ($paymentRequirement['state'] ?? '') === 'ActionNeeded' && $latestEvidence?->state !== \App\Models\PaymentEvidenceVersion::StateSubmitted)
-                                {{ $this->submitPaymentEvidenceAction }} {{ $this->payExactCurrentDueAction->outlined() }}
+                            @if ($confirmed && ($paymentRequirement['state'] ?? '') === 'ActionNeeded' && $latestEvidence?->state !== \App\Models\PaymentEvidenceVersion::StateSubmitted && $hasElectronicChannels)
+                                {{ $this->submitPaymentEvidenceAction->color('primary') }}
                             @endif
                             <x-filament::button wire:click="$refresh" color="gray" icon="heroicon-o-arrow-path">Refresh enrollment</x-filament::button>
                         </div>
-                        @if ($confirmed && ! ($checkout['enabled'] ?? false) && $latestEvidence?->state !== \App\Models\PaymentEvidenceVersion::StateSubmitted && ! empty($checkout['reason']))<p class="student-enrollment-payment-help">{{ $checkout['reason'] }}</p>@endif
                     </section>
                     @include('filament.student.pages.enrollment-fees')
                 </div>
+                @if ($confirmed && ($paymentRequirement['state'] ?? '') === 'ActionNeeded' && $latestEvidence?->state !== \App\Models\PaymentEvidenceVersion::StateSubmitted)
+                    @include('filament.student.pages.how-to-pay', [
+                        'display' => $resolvedHowToPayDisplay,
+                        'channels' => $paymentChannels ?? [],
+                        'variant' => 'page',
+                        'surface' => 'enrollment',
+                    ])
+                @endif
                 @if ($proposal && $proposal->items->isNotEmpty())
                     @include('filament.student.pages.enrollment-subjects', ['preparing' => ! $confirmed, 'subjectsHeading' => $confirmed ? 'Confirmed subjects' : 'Proposed subjects'])
                     @if ($schedulePresentation && $schedulePresentation['meetings'] !== [])

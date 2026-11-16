@@ -4,12 +4,10 @@ namespace App\Actions\SystemAdministration;
 
 use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
 use App\Models\OperationalEvent;
-use App\Models\PaymentAttempt;
 use App\Models\ScheduleGenerationRun;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -36,7 +34,6 @@ class SystemHealthPresenter
             'captured_at' => $capturedAt->toIso8601String(),
             'rows' => collect([
                 $this->mailStatus(),
-                $this->payMongoStatus(),
                 $this->solverStatus(),
                 $this->queueStatus(),
                 $this->applicationStatus($capturedAt),
@@ -129,47 +126,6 @@ class SystemHealthPresenter
         }
 
         return $this->row('mail', $service, self::NotRecentlyChecked, 'Local configuration exists, but no accepted successful mail event is recorded.', $evidenceSource, $latest?->occurred_at, $responsibleOwner, 'Send one bounded self-test to the signed-in administrator.', $technicalDetails);
-    }
-
-    /** @return array{key:string,service:string,status:string,evidence:string,evidence_source:string,as_of:string,responsible_owner:string,next_action:string,technical_details:string} */
-    private function payMongoStatus(): array
-    {
-        $driver = (string) config('tala_integrations.payments.driver');
-        $configured = $driver === 'paymongo'
-            && filled(config('tala_integrations.payments.paymongo.public_key'))
-            && filled(config('tala_integrations.payments.paymongo.secret_key'))
-            && filled(config('tala_integrations.payments.paymongo.webhook_signature'))
-            && Route::has('webhooks.paymongo');
-
-        $latest = OperationalEvent::query()
-            ->where('event_domain', OperationalEvent::DomainIntegration)
-            ->where('integration', OperationalEvent::IntegrationPayMongo)
-            ->latest('occurred_at')
-            ->latest('id')
-            ->first();
-        $activeAttempts = PaymentAttempt::query()->whereIn('status', PaymentAttempt::ActiveStatuses)->count();
-
-        if ($driver !== 'paymongo') {
-            return $this->row('paymongo', 'PayMongo', self::NotRecentlyChecked, 'PayMongo is not the selected local payment driver.', 'config(tala_integrations.payments.driver)', null, 'Accounting / System Administrator', 'Select and configure PayMongo only during an authorized provider activation.', "Driver: {$driver}");
-        }
-
-        $evidenceSource = 'operational_events and payment_attempts';
-        $responsibleOwner = 'Accounting';
-        $technicalDetails = 'Driver: paymongo, Webhook: '.(Route::has('webhooks.paymongo') ? 'registered' : 'missing');
-
-        if (! $configured) {
-            return $this->row('paymongo', 'PayMongo', self::Unavailable, 'Required local PayMongo configuration or webhook route is incomplete.', $evidenceSource, null, $responsibleOwner, 'Correct local test-mode configuration before provider acceptance.', $technicalDetails);
-        }
-
-        if ($activeAttempts > 0 || in_array($latest?->status, [OperationalEvent::StatusFailed, OperationalEvent::StatusReviewRequired], true)) {
-            return $this->row('paymongo', 'PayMongo', self::NeedsAttention, "{$activeAttempts} payment attempt(s) require posting or recovery review.", $evidenceSource, $latest?->occurred_at, $responsibleOwner, 'Open Student Accounts and resolve the recorded payment exception.', $technicalDetails);
-        }
-
-        if ($latest instanceof OperationalEvent && $latest->status === OperationalEvent::StatusProcessed) {
-            return $this->row('paymongo', 'PayMongo', self::Available, 'A signed local webhook event was accepted and no active exception remains.', $evidenceSource, $latest->occurred_at, $responsibleOwner, 'No action is required; provider-dashboard state remains separately unknown.', $technicalDetails);
-        }
-
-        return $this->row('paymongo', 'PayMongo', self::NotRecentlyChecked, 'Local configuration exists, but no accepted signed webhook evidence is recorded.', $evidenceSource, null, $responsibleOwner, 'Run test-mode provider acceptance only under separate authorization.', $technicalDetails);
     }
 
     /** @return array{key:string,service:string,status:string,evidence:string,evidence_source:string,as_of:string,responsible_owner:string,next_action:string,technical_details:string} */

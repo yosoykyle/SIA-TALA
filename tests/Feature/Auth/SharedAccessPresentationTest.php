@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\PendingEmailChange;
 use App\Models\StaffInvitation;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Filament\Panel;
@@ -26,7 +28,7 @@ class SharedAccessPresentationTest extends TestCase
 
         $this->assertStringContainsString('Servitech', $panel->getBrandLogo()->render());
         $this->assertStringNotContainsString('Applicant Workspace', (string) FilamentView::renderHook(PanelsRenderHook::SIDEBAR_NAV_START));
-        $this->assertStringContainsString('servitech-crest.webp', (string) FilamentView::renderHook(PanelsRenderHook::CONTENT_BEFORE));
+        $this->assertStringContainsString('servitech-crest-outlined-192.webp', (string) FilamentView::renderHook(PanelsRenderHook::CONTENT_BEFORE));
         foreach ([PanelsRenderHook::SIDEBAR_FOOTER, PanelsRenderHook::CONTENT_END, PanelsRenderHook::SIMPLE_PAGE_END] as $hook) {
             $this->assertStringNotContainsString('Powered by TALA', (string) FilamentView::renderHook($hook));
         }
@@ -79,7 +81,7 @@ class SharedAccessPresentationTest extends TestCase
         $panel = $this->bootPanel($panelId);
 
         $this->assertStringContainsString($context, (string) FilamentView::renderHook(PanelsRenderHook::SIDEBAR_NAV_START));
-        $this->assertStringContainsString('servitech-crest.webp', $panel->getBrandLogo()->render());
+        $this->assertStringContainsString('servitech-crest-outlined-192.webp', $panel->getBrandLogo()->render());
         $this->assertStringNotContainsString('Shared Account', (string) FilamentView::renderHook(PanelsRenderHook::CONTENT_START));
         foreach ([PanelsRenderHook::SIDEBAR_FOOTER, PanelsRenderHook::CONTENT_END, PanelsRenderHook::SIMPLE_PAGE_END] as $hook) {
             $this->assertStringNotContainsString('Powered by TALA', (string) FilamentView::renderHook($hook));
@@ -150,9 +152,66 @@ class SharedAccessPresentationTest extends TestCase
         $view->assertSee('Test Access — Servitech Institute Asia Inc.')
             ->assertDontSee('Powered by TALA')
             ->assertSee('Servitech Institute Asia home')
-            ->assertSee('alt="" aria-hidden="true" class="tala-brand__crest"', false)
+            ->assertSee('alt="" aria-hidden="true" class="tala-brand__crest tala-crest-outlined"', false)
             ->assertSee('Servitech Institute Asia')
             ->assertDontSee('alt="Servitech Institute Asia"', false);
+    }
+
+    public function test_authorized_workspace_name_covers_staff_workspace_subpaths_and_chooser(): void
+    {
+        Role::findOrCreate(User::StaffRoleRegistrar, 'web');
+        Role::findOrCreate('student', 'web');
+
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+
+        $this->assertSame('Staff Workspace', $registrar->authorizedWorkspaceName());
+
+        $dualRole = User::factory()->create(['status' => User::StatusActive]);
+        $dualRole->assignRole(['student', User::StaffRoleRegistrar]);
+        StudentProfile::factory()->create(['user_id' => $dualRole->id]);
+
+        $this->assertSame('workspace chooser', $dualRole->authorizedWorkspaceName());
+
+        $this->actingAs($registrar);
+        $this->view('errors.403')
+            ->assertSee('Return to Staff Workspace')
+            ->assertSee('Use another account');
+
+        $this->view('errors.419')
+            ->assertSee('Sign in again')
+            ->assertSee('Back to home');
+    }
+
+    public function test_invalid_staff_email_change_link_redirects_to_staff_login_with_visible_status_alert(): void
+    {
+        $staff = User::factory()->create(['status' => User::StatusActive]);
+        $change = PendingEmailChange::query()->create([
+            'user_id' => $staff->id,
+            'new_email' => 'updated-staff@example.test',
+            'token_digest' => hash('sha256', 'valid-token'),
+            'expires_at' => now()->subMinute(),
+        ]);
+
+        $response = $this->get(route('staff-email-changes.verify', ['change' => $change, 'token' => 'valid-token']));
+
+        $response->assertRedirect(route('filament.admin.auth.login'))
+            ->assertSessionHas('status');
+
+        $this->get(route('filament.admin.auth.login'))
+            ->assertOk()
+            ->assertSee('tala-access-alert--info', false);
+    }
+
+    public function test_applicant_verification_countdown_uses_accessible_light_and_dark_contrast_classes(): void
+    {
+        $this->view('filament.applicant.components.verification-countdown', [
+            'expiresAtMilliseconds' => now()->addMinutes(30)->getTimestampMs(),
+            'initialClock' => '30:00',
+        ])->assertDontSee(' text-gray-300', false)
+            ->assertDontSee(' text-gray-400', false)
+            ->assertSee('text-gray-700 dark:text-gray-200', false)
+            ->assertSee('text-gray-600 dark:text-gray-300', false);
     }
 
     private function bootPanel(string $panelId): Panel

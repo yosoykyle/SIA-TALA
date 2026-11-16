@@ -96,10 +96,6 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     public function system_health_projects_only_canonical_statuses_and_keeps_external_facts_unknown(): void
     {
         Config::set('mail.default', 'array');
-        Config::set('tala_integrations.payments.driver', 'paymongo');
-        Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_must_not_render');
-        Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_must_not_render');
-        Config::set('tala_integrations.payments.paymongo.webhook_signature', 'whsec_must_not_render');
 
         $capture = app(SystemHealthPresenter::class)->capture();
         $rows = collect($capture['rows']);
@@ -122,9 +118,6 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
 
         $this->assertStringContainsString('Not checked by TALA', $html);
         $this->assertStringContainsString('planning target, not achieved evidence', $html);
-        $this->assertStringNotContainsString('pk_test_must_not_render', $html);
-        $this->assertStringNotContainsString('sk_test_must_not_render', $html);
-        $this->assertStringNotContainsString('whsec_must_not_render', $html);
     }
 
     #[Test]
@@ -769,30 +762,30 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     {
         $projection = app(GovernanceEvidenceProjection::class);
 
-        // 1. PayMongo events: explicit allowlist vs arbitrary paymongo_%
-        $unsupportedPayMongoEvent = OperationalEvent::query()->create([
+        // 1. Operational events: explicit allowlist vs arbitrary solver_%
+        $unsupportedSolverEvent = OperationalEvent::query()->create([
             'event_domain' => OperationalEvent::DomainIntegration,
-            'integration' => OperationalEvent::IntegrationPayMongo,
-            'channel' => 'webhook',
-            'direction' => OperationalEvent::DirectionInbound,
-            'event_type' => 'paymongo_arbitrary_unsupported_probe',
+            'integration' => OperationalEvent::IntegrationSchedulingSolver,
+            'channel' => 'http',
+            'direction' => OperationalEvent::DirectionOutbound,
+            'event_type' => 'solver_arbitrary_unsupported_probe',
             'status' => OperationalEvent::StatusProcessed,
             'occurred_at' => now(),
         ]);
 
-        $supportedPayMongoEvent = OperationalEvent::query()->create([
+        $supportedSolverEvent = OperationalEvent::query()->create([
             'event_domain' => OperationalEvent::DomainIntegration,
-            'integration' => OperationalEvent::IntegrationPayMongo,
-            'channel' => 'webhook',
-            'direction' => OperationalEvent::DirectionInbound,
-            'event_type' => 'payment.paid',
+            'integration' => OperationalEvent::IntegrationSchedulingSolver,
+            'channel' => 'http',
+            'direction' => OperationalEvent::DirectionOutbound,
+            'event_type' => 'solver_dispatch_attempt',
             'status' => OperationalEvent::StatusProcessed,
             'occurred_at' => now(),
         ]);
 
         $systemEvents = $projection->query(GovernanceEvidenceProjection::SystemEvents)->get();
-        $this->assertFalse($systemEvents->contains('reference_id', "operational:{$unsupportedPayMongoEvent->id}"));
-        $this->assertTrue($systemEvents->contains('reference_id', "operational:{$supportedPayMongoEvent->id}"));
+        $this->assertFalse($systemEvents->contains('reference_id', "operational:{$unsupportedSolverEvent->id}"));
+        $this->assertTrue($systemEvents->contains('reference_id', "operational:{$supportedSolverEvent->id}"));
 
         // 2. payment_evidence_accessed excluded from institutional changes
         $admin = $this->staff(User::StaffRoleSystemSuperAdmin);

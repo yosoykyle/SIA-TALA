@@ -336,7 +336,7 @@ final class TAL70CorOutputTest extends TestCase
         $fixture = $this->officialCorFixture();
 
         $this->get(route('cor.print', $fixture['enrollment']))
-            ->assertRedirect(route('filament.student.auth.login'));
+            ->assertRedirect(route('public.sign-in'));
     }
 
     /**

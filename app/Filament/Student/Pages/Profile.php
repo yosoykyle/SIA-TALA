@@ -2,22 +2,17 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Actions\Authentication\ManageUserProfilePhoto;
 use App\Actions\StudentHub\StudentStudyContext;
 use App\Models\StudentProfile;
 use App\Models\User;
 use DateTimeInterface;
 use Filament\Actions\Action;
-use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Pages\PageConfiguration;
 use Filament\Panel;
 use Filament\Support\Enums\Width;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\ValidationException;
 
 class Profile extends Page
 {
@@ -25,9 +20,9 @@ class Profile extends Page
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user';
 
-    protected static ?string $navigationLabel = 'My profile';
+    protected static ?string $navigationLabel = 'Student details';
 
-    protected static ?string $title = 'My profile';
+    protected static ?string $title = 'Student details';
 
     protected string $view = 'filament.student.pages.profile';
 
@@ -44,13 +39,13 @@ class Profile extends Page
 
     public static function getLabel(): string
     {
-        return static::$title ?? 'My profile';
+        return static::$title ?? 'Student details';
     }
 
     /** @return array<string|int, string> */
     public function getBreadcrumbs(): array
     {
-        return [Dashboard::getUrl(panel: 'student') => 'Overview', 'My profile'];
+        return [Dashboard::getUrl(panel: 'student') => 'Overview', 'Student details'];
     }
 
     public static function getRelativeRouteName(Panel $panel): string
@@ -158,40 +153,13 @@ class Profile extends Page
                 && auth()->user()->hasRole('student') && auth()->user()->canAuthenticate()
                 && auth()->user()->hasAccessibleStudentProfile())
             ->schema([
-                FileUpload::make('photo')->label('Profile photo')->image()->storeFiles(false)
-                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])->maxSize(2048)->required()
-                    ->helperText('JPG, PNG or WebP · up to 2 MB. Your photo stays private.'),
+                ManageUserProfilePhoto::fileUploadField(),
             ])
             ->action(function (array $data): void {
                 $actor = auth()->user();
                 abort_unless($actor instanceof User && $actor->hasRole('student')
                     && $actor->canAuthenticate() && $actor->hasAccessibleStudentProfile(), 403);
-                Validator::make($data, ['photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048']])->validate();
-                /** @var UploadedFile $photo */
-                $photo = $data['photo'];
-                $prefix = 'profile-photos/'.$actor->id.'/';
-                $path = $photo->store($prefix, ['disk' => 'local', 'visibility' => 'private']);
-                if ($path === false || ! Storage::disk('local')->exists($path)) {
-                    throw ValidationException::withMessages(['photo' => 'Unable to save your photo. Try again.']);
-                }
-
-                try {
-                    $oldPath = DB::transaction(function () use ($actor, $path): ?string {
-                        $locked = User::query()->whereKey($actor->id)->lockForUpdate()->firstOrFail();
-                        $previous = $locked->avatar_path;
-                        $locked->forceFill(['avatar_path' => $path])->save();
-
-                        return $previous;
-                    });
-                } catch (\Throwable $exception) {
-                    Storage::disk('local')->delete($path);
-                    throw $exception;
-                }
-
-                if (is_string($oldPath) && str_starts_with($oldPath, $prefix) && ! str_contains($oldPath, '../')) {
-                    Storage::disk('local')->delete($oldPath);
-                }
-                $actor->refresh();
+                app(ManageUserProfilePhoto::class)->upload($actor, $data['photo'] ?? null);
                 Notification::make()->title('Profile photo updated')->success()->send();
             });
     }

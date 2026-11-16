@@ -277,7 +277,7 @@ const canonicalViewports = [
                     return links.some(l => {
                         const href = l.getAttribute('href') || '';
                         const text = l.innerText || '';
-                        return href.includes('account-security') || text.includes('Account Security');
+                        return href.includes('account-profile') || href.includes('account-security') || text.includes('Account Profile') || text.includes('Account Security');
                     });
                 });
 

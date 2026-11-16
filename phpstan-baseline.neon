@@ -5,9 +5,3 @@ parameters:
 			identifier: instanceof.alwaysTrue
 			count: 1
 			path: app/Actions/Fortify/UpdateUserProfileInformation.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>term_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Actions/Integrations/Payments/PayMongoWebhookProcessor.php

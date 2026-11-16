@@ -30,6 +30,18 @@ class SystemSetting extends Model
             'operational_status' => self::OperationalStatusOperational, 'owner' => 'Registrar',
             'runtime_consumer' => 'TranscriptSignatory supplies versioned certification inputs to new TOR previews and issuance.',
         ],
+        'payment_channels' => [
+            'label' => 'Approved payment channels',
+            'category' => 'Finance & tuition',
+            'description' => 'School-approved payment instructions shown to students and applicants for manual or onsite tuition payments.',
+            'value_type' => self::ValueTypeJson,
+            'editable' => false,
+            'default' => null,
+            'helper' => 'Managed by Accounting. Updates keep versioned history and immediately govern student and applicant payment instructions.',
+            'operational_status' => self::OperationalStatusOperational,
+            'owner' => 'Accounting',
+            'runtime_consumer' => 'SchoolPaymentChannels supplies active bank transfer, e-wallet, and campus cashier instructions to student and applicant payment flows.',
+        ],
         'maintenance_mode' => [
             'label' => 'Maintenance Mode',
             'category' => 'Maintenance',

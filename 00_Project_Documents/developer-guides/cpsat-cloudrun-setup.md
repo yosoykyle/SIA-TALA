@@ -1,6 +1,6 @@
 # Developer Guide: CP-SAT Scheduling Solver & Google Cloud Run Setup
 
-This guide covers authorized live integration with the **TALA CP-SAT Scheduling Solver** on **Google Cloud Run**, plus cloud administration and integration verification. Ordinary local development starts with the local solver stub, mock payments and log mail described in [README](../../README.md) and [CONTRIBUTING](../../CONTRIBUTING.md#3-add-integration-credentials-only-when-needed).
+This guide covers authorized live integration with the **TALA CP-SAT Scheduling Solver** on **Google Cloud Run**, plus cloud administration and integration verification. Ordinary local development starts with the local solver stub and log mail described in [README](../../README.md) and [CONTRIBUTING](../../CONTRIBUTING.md#3-add-integration-credentials-only-when-needed).
 
 ---
 

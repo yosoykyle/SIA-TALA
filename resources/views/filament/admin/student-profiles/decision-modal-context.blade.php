@@ -11,7 +11,7 @@
     $studentName = collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ');
     $initials = mb_strtoupper(mb_substr((string) $student->first_name, 0, 1) . mb_substr((string) $student->last_name, 0, 1));
     $programName = $student->program?->name ?? 'No program assigned';
-    $photoUrl = $student->user?->getFilamentAvatarUrl();
+    $photoUrl = $student->adminPhotoUrl();
 
     $hasScopeSelection = filled($termScope);
     $isAllTerms = ($termScope === 'all');

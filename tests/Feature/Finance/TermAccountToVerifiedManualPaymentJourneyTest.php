@@ -12,6 +12,7 @@ use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\CreateFeePlanDraft;
 use App\Actions\Finance\CreateSuccessorFeePlan;
 use App\Actions\Finance\IndividualAssessmentSources;
+use App\Actions\Finance\PaymentPostedNotificationService;
 use App\Actions\Finance\PublishFeePlan;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
@@ -19,18 +20,13 @@ use App\Actions\Finance\RevalidateAssessmentEffects;
 use App\Actions\Finance\ReverseApprovedCoverage;
 use App\Actions\Finance\ReversePaymentPosting;
 use App\Actions\Finance\ReviewPaymentEvidence;
+use App\Actions\Finance\SchoolPaymentChannels;
 use App\Actions\Finance\SubmitPaymentEvidence;
 use App\Actions\Finance\TermAccountProjection;
-use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
-use App\Actions\Integrations\Payments\PaymentGateway;
-use App\Actions\Integrations\Payments\PaymentPostedNotificationService;
-use App\Actions\Integrations\Payments\PayMongoCheckoutRecoveryService;
-use App\Actions\Integrations\Payments\PayMongoReconciliationService;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
+use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Student\Pages\Dashboard as StudentDashboard;
-use App\Filament\Student\Pages\Enrollment as StudentEnrollment;
 use App\Filament\Student\Pages\Finance as StudentFinance;
-use App\Jobs\ProcessPayMongoWebhookCall;
 use App\Mail\PaymentPostedMail;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
@@ -54,7 +50,6 @@ use App\Models\OperationalEvent;
 use App\Models\OutputAccessLog;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
-use App\Models\PaymentAttempt;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
@@ -77,9 +72,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -433,6 +426,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     {
         Storage::fake('local');
         $fixture = $this->accountFixture();
+        $this->enableDigitalChannels($fixture['accounting']);
         $first = app(SubmitPaymentEvidence::class)->execute(
             $fixture['account'], $fixture['learner'], UploadedFile::fake()->image('proof.png'),
             '2500.00', 'gcash_manual', now()->subMinute(), 'SYN-GCASH-PRIVATE-001',
@@ -454,6 +448,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     {
         Storage::fake('local');
         $fixture = $this->accountFixture();
+        $this->enableDigitalChannels($fixture['accounting']);
         $positionBefore = app(TermAccountProjection::class)->forAccount($fixture['account']);
 
         foreach ([
@@ -492,6 +487,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     {
         Storage::fake('local');
         $fixture = $this->accountFixture();
+        $this->enableDigitalChannels($fixture['accounting']);
         $proof = app(SubmitPaymentEvidence::class)->execute(
             $fixture['account'], $fixture['learner'], UploadedFile::fake()->image('private-receipt.png'),
             '2500.00', 'bank_transfer', now()->subMinute(), null,
@@ -649,19 +645,19 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     public function test_legacy_finance_routes_and_generic_reports_are_unreachable_while_manual_payment_remains_visible(): void
     {
         $fixture = $this->accountFixture();
+        $this->enableDigitalChannels($fixture['accounting']);
         Role::query()->firstOrCreate(['name' => 'student', 'guard_name' => 'web']);
         $fixture['learner']->assignRole('student');
         $profile = StudentProfile::factory()->create(['user_id' => $fixture['learner']->id]);
         $fixture['account']->enrollment->update(['student_profile_id' => $profile->id]);
 
         $this->assertFalse(Route::has('finance.billing-slip'));
-        $this->assertFalse(Route::has('filament.admin.pages.paymongo-reconciliation'));
         $this->assertFileDoesNotExist(app_path('Actions/Reports/OperationalReportService.php'));
 
         $this->actingAs($fixture['learner'])
             ->get(route('filament.student.pages.finance'))
             ->assertOk()
-            ->assertSee('Submit payment proof')
+            ->assertSee('Submit receipt')
             ->assertDontSee('Billing Slip')
             ->assertDontSee('Financial Accommodation');
     }
@@ -692,6 +688,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     {
         Storage::fake('local');
         $fixture = $this->accountFixture();
+        $this->enableDigitalChannels($fixture['accounting']);
         $receipt = UploadedFile::fake()->image('same-receipt.png');
         $first = app(SubmitPaymentEvidence::class)->execute($fixture['account'], $fixture['learner'], $receipt, '1000.00', 'bank_transfer', now(), 'SYN-DUPLICATE');
         $second = app(SubmitPaymentEvidence::class)->execute($fixture['account'], $fixture['learner'], $receipt, '1000.00', 'bank_transfer', now(), 'SYN-DUPLICATE');
@@ -713,6 +710,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         Storage::fake('local');
         $firstFixture = $this->accountFixture();
         $secondFixture = $this->accountFixture();
+        $this->enableDigitalChannels($firstFixture['accounting']);
         $receipt = UploadedFile::fake()->image('shared-receipt.png');
 
         $first = app(SubmitPaymentEvidence::class)->execute($firstFixture['account'], $firstFixture['learner'], $receipt, '1000.00', 'bank_transfer', now(), 'SYN-FIRST-ACCOUNT');
@@ -824,6 +822,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     {
         Storage::fake('local');
         $fixture = $this->accountFixture();
+        $this->enableDigitalChannels($fixture['accounting']);
         Role::findOrCreate('student', 'web');
         $fixture['learner']->assignRole('student');
         $profile = StudentProfile::factory()->create(['user_id' => $fixture['learner']->id]);
@@ -843,7 +842,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
                 'evidence' => UploadedFile::fake()->image('later-payment.jpg'),
                 'claimed_amount' => '18000.00', 'channel' => 'bank_transfer',
                 'paid_at' => '2026-10-16 20:09', 'payment_reference' => 'SYN-LATER-DUE',
-            ])->assertHasNoActionErrors()->assertNotified('Evidence submitted for Accounting review');
+            ])->assertHasNoActionErrors()->assertNotified('Receipt submitted for Accounting review');
 
         $evidence = $fixture['account']->paymentEvidenceVersions()->sole();
         $this->assertSame([$fixture['obligations'][1]->id], array_column($evidence->obligation_snapshot, 'id'));
@@ -946,7 +945,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $reconciliation = $this->reconciliationFixture();
         $beforePayments = Payment::query()->count();
         $page = Livewire::actingAs($reconciliation['accounting'])->test(ViewEnrollment::class, ['record' => $reconciliation['account']->enrollment_id, 'enrollmentView' => 'account'])
-            ->assertSee('Reconcile retained payment and coverage')->assertSee('Retained verified payment')
+            ->assertSee('Match earlier payments and coverage')->assertSee('Earlier payments')
             ->assertDontSee('No payment due now')->assertDontSee('Remaining term fees')->assertDontSee('Five finalization checkpoints');
         $page->mountAction('reconcileAssessmentEffects')->assertMountedActionModalSee('Apply to');
         $page->unmountAction();
@@ -954,7 +953,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $unavailable = $this->accountFixture();
         $unavailable['assessment']->update(['state' => Assessment::StateSuperseded]);
         Livewire::actingAs($unavailable['accounting'])->test(ViewEnrollment::class, ['record' => $unavailable['account']->enrollment_id, 'enrollmentView' => 'account'])
-            ->assertSee('Account balance unavailable')->assertSee('Recorded charges')->assertSee('Account history')
+            ->assertSee('No active charges recorded yet')->assertSee('Recorded charges')->assertSee('Account history')
             ->assertDontSee('No payment due now')->assertDontSee('Five finalization checkpoints');
 
         $ended = $this->accountFixture();
@@ -1385,6 +1384,29 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $this->assertSame(0, StudentProfile::query()->where('user_id', $case->credential_user_id)->count());
     }
 
+    public function test_unassessed_enrollment_fee_plans_link_carries_term_and_program_filters(): void
+    {
+        [$case, $proposal, $accounting] = $this->unassessedAdvisedApplicantFixture();
+        $programId = $proposal->curriculumVersion->program_id;
+        $expectedUrl = FeePlanResource::getUrl('index', [
+            'filters' => [
+                'term' => ['value' => $case->term_id],
+                'program' => ['value' => $programId],
+            ],
+        ]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $page = Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $case->id])
+            ->assertSee('Published Fee Plan needed')
+            ->assertSee('Open Fee Plans')
+            ->assertSee($expectedUrl);
+
+        $this->assertSame('accounting-unassessed', $page->instance()->focusedAccountingView());
+        parse_str((string) parse_url($expectedUrl, PHP_URL_QUERY), $query);
+        $this->assertSame((string) $case->term_id, (string) data_get($query, 'filters.term.value'));
+        $this->assertSame((string) $programId, (string) data_get($query, 'filters.program.value'));
+    }
+
     public function test_mounted_individual_assessment_form_preserves_reviewed_source_and_requires_explicit_zero_authority(): void
     {
         [$case, $proposal, $accounting, $registrar, $section] = $this->unassessedAdvisedApplicantFixture();
@@ -1510,6 +1532,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-08-26 09:00:00', 'Asia/Manila'));
         Storage::fake('local');
         $fixture = $this->accountFixture();
+        $this->enableDigitalChannels($fixture['accounting']);
         $fixture['learner']->assignRole(Role::findOrCreate('student', 'web'));
         $profile = StudentProfile::factory()->create(['user_id' => $fixture['learner']->id]);
         $fixture['account']->enrollment->update(['student_profile_id' => $profile->id]);
@@ -1528,10 +1551,10 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $this->assertSame(0, $fixture['account']->paymentEvidenceVersions()->count());
         $proof = app(SubmitPaymentEvidence::class)->execute($fixture['account'], $fixture['learner'],
             UploadedFile::fake()->image('private-proof.png'), '12000.00', 'bank_transfer', now()->subHour(), 'SYN-FINANCE-PROOF');
-        $page->call('refreshFinance')->assertSee('Payment proof awaiting review')->assertSee('PHP 48,000.00')
+        $page->call('refreshFinance')->assertSee('Submitted receipt awaiting review')->assertSee('PHP 48,000.00')
             ->assertSee(route('finance.payment-evidence.download', $proof));
         app(ReviewPaymentEvidence::class)->reject($proof, $fixture['accounting'], 'Replace the unreadable receipt <script>unsafe()</script>');
-        $page->call('refreshFinance')->assertSee('Payment proof needs correction')->assertSee('Upload corrected proof')
+        $page->call('refreshFinance')->assertSee('Submitted receipt needs correction')->assertSee('Upload corrected receipt')
             ->assertSee('Replace the unreadable receipt <script>unsafe()</script>')->assertDontSeeHtml('<script>unsafe()</script>');
         app(RecordApprovedCoverage::class)->execute($fixture['account'], $fixture['obligations'][0], [
             'category' => ApprovedCoverage::CategoryScholarship, 'safe_source_description' => 'Recorded study grant',
@@ -1539,9 +1562,9 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
             'effective_date' => today()->toDateString(), 'amount' => '12000.00',
         ], $fixture['accounting']);
         $page->call('refreshFinance')->assertSee('No payment due today')->assertSee('Satisfied')
-            ->assertDontSee('Payment proof needs correction')->assertDontSeeHtml('>Paid<')
+            ->assertDontSee('Submitted receipt needs correction')->assertDontSeeHtml('>Paid<')
             ->assertSee('Recorded study grant')->assertSee('Rejected')->assertSee('Submitted receipts')
-            ->assertActionHidden('submitEvidence')->assertActionHidden('payExactCurrentDue');
+            ->assertActionHidden('submitEvidence');
         $this->assertSame($beforePayments, Payment::query()->count());
         $this->assertSame(PaymentEvidenceVersion::StateRejected, $proof->fresh()->state);
     }
@@ -1550,6 +1573,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     {
         Storage::fake('local');
         $fixture = $this->accountFixture();
+        $this->enableDigitalChannels($fixture['accounting']);
         $fixture['learner']->assignRole(Role::findOrCreate('student', 'web'));
         $profile = StudentProfile::factory()->create(['user_id' => $fixture['learner']->id]);
         $fixture['account']->enrollment->update(['student_profile_id' => $profile->id]);
@@ -1561,14 +1585,14 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         );
 
         Livewire::actingAs($fixture['learner'])->test(StudentDashboard::class)
-            ->assertSee('Your payment proof is under review')->assertSee('PHP 12,000.00')
+            ->assertSee('Your submitted receipt is under review')->assertSee('PHP 12,000.00')
             ->assertSee('No action is needed while it is reviewed.')
-            ->assertDontSee('Your last payment evidence was rejected.');
+            ->assertDontSee('Your last submitted receipt was rejected.');
 
         app(ReviewPaymentEvidence::class)->reject($proof, $fixture['accounting'], 'Please send a readable receipt.');
         Livewire::test(StudentDashboard::class)
-            ->assertSee('Your last payment evidence was rejected.')
-            ->assertSee('Submit replacement payment evidence for review.')
+            ->assertSee('Your last submitted receipt was rejected.')
+            ->assertSee('Submit a replacement receipt for review.')
             ->assertDontSee('No action is needed while it is reviewed.');
 
         $this->assertSame(PaymentEvidenceVersion::StateRejected, $proof->fresh()->state);
@@ -1597,81 +1621,6 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         }
     }
 
-    public function test_student_payment_modals_show_only_current_owned_checkout_targets_without_starting_payment(): void
-    {
-        Http::preventStrayRequests();
-        config([
-            'tala_integrations.payments.driver' => 'paymongo',
-            'tala_integrations.payments.paymongo.secret_key' => 'synthetic-preview-key',
-            'tala_integrations.payments.paymongo.webhook_signature' => 'synthetic-preview-signature',
-            'queue.default' => 'database',
-        ]);
-        $fixture = $this->accountFixture();
-        $fixture['learner']->assignRole(Role::findOrCreate('student', 'web'));
-        $profile = StudentProfile::factory()->create(['user_id' => $fixture['learner']->id]);
-        $case = $fixture['account']->enrollment;
-        $proposal = RegistrationProposalVersion::factory()->create([
-            'enrollment_id' => $case->id, 'state' => RegistrationProposalVersion::StateConfirmed,
-        ]);
-        RegistrationProposalConfirmation::factory()->create([
-            'registration_proposal_version_id' => $proposal->id, 'learner_user_id' => $fixture['learner']->id,
-        ]);
-        $case->update(['student_profile_id' => $profile->id, 'current_proposal_version_id' => $proposal->id]);
-        $fixture['assessment']->update(['source_proposal_version_id' => $proposal->id]);
-        $beforeAttempts = PaymentAttempt::query()->count();
-        $beforePayments = Payment::query()->count();
-        Filament::setCurrentPanel(Filament::getPanel('student'));
-
-        foreach ([[StudentEnrollment::class, 'submitPaymentEvidence'], [StudentFinance::class, 'submitEvidence']] as [$pageClass, $proofAction]) {
-            $page = Livewire::actingAs($fixture['learner'])->test($pageClass)
-                ->mountAction($proofAction)->assertActionMounted($proofAction)
-                ->assertActionDataSet(['claimed_amount' => null, 'payment_reference' => null]);
-            $page->unmountAction()->mountAction('payExactCurrentDue')->assertActionMounted('payExactCurrentDue')
-                ->assertMountedActionModalSee('PHP 12,000.00')
-                ->assertMountedActionModalSee('Enrollment obligation')
-                ->assertMountedActionModalDontSee('Midterm obligation')
-                ->assertMountedActionModalDontSee('Final obligation')
-                ->assertMountedActionModalDontSee('PHP 48,000.00');
-            $page->unmountAction();
-        }
-
-        $this->assertSame($beforeAttempts, PaymentAttempt::query()->count());
-        $this->assertSame($beforePayments, Payment::query()->count());
-        $this->assertSame(0, $fixture['account']->paymentEvidenceVersions()->count());
-        Http::assertNothingSent();
-    }
-
-    public function test_student_finance_review_required_keeps_online_checkout_blocked_and_money_unchanged(): void
-    {
-        $fixture = $this->accountFixture();
-        $fixture['learner']->assignRole(Role::findOrCreate('student', 'web'));
-        $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($fixture['account']);
-        $attempt = PaymentAttempt::query()->create([
-            'assessment_id' => $snapshot['assessment_id'], 'term_account_id' => $fixture['account']->id,
-            'assessment_version' => $snapshot['assessment_version'], 'snapshot_created_at' => $snapshot['created_at'],
-            'snapshot_checksum' => $snapshot['checksum'], 'internal_reference' => 'SYN-FINANCE-REVIEW-REQUIRED',
-            'provider' => 'mock', 'channel' => 'paymongo', 'amount' => $snapshot['amount'], 'currency' => 'PHP',
-            'status' => PaymentAttempt::StatusReviewRequired,
-        ]);
-        $before = app(TermAccountProjection::class)->forAccount($fixture['account']);
-        Filament::setCurrentPanel(Filament::getPanel('student'));
-
-        Livewire::actingAs($fixture['learner'])->test(StudentFinance::class)
-            ->assertSee('Online payment needs Accounting review')->assertSee('Refresh status')
-            ->assertSee('Wait for their review before paying again.')->assertDontSee('Payment Exception')
-            ->assertActionDisabled('payExactCurrentDue')->assertActionVisible('submitEvidence');
-        $this->assertSame($before, app(TermAccountProjection::class)->forAccount($fixture['account']));
-        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
-        $this->assertSame(0, $fixture['account']->payments()->count());
-        $attempt->update(['status' => PaymentAttempt::StatusPending]);
-        Livewire::actingAs($fixture['learner'])->test(StudentFinance::class)
-            ->assertSee('Payment confirmation pending')->assertSee('Refresh the status after completing payment with the provider.')
-            ->assertActionDisabled('payExactCurrentDue')->assertActionVisible('submitEvidence');
-        $this->assertSame($before, app(TermAccountProjection::class)->forAccount($fixture['account']));
-        $this->assertSame(0, $fixture['account']->payments()->count());
-
-    }
-
     public function test_student_finance_unavailable_and_foreign_sources_never_become_zero_balance_or_owned_history(): void
     {
         $fixture = $this->accountFixture();
@@ -1685,7 +1634,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         Livewire::actingAs($fixture['learner'])->test(StudentFinance::class)
             ->assertSee('Account information unavailable')->assertDontSee('No payment due today')
             ->assertDontSee('Amount due now')->assertDontSee('FOREIGN-PRIVATE-PROOF.pdf')
-            ->assertActionHidden('statement')->assertActionHidden('submitEvidence')->assertActionHidden('payExactCurrentDue');
+            ->assertActionHidden('statement')->assertActionHidden('submitEvidence');
         $this->actingAs($fixture['learner'])->get(route('finance.payment-evidence.download', $foreign))->assertForbidden();
     }
 
@@ -1693,6 +1642,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     {
         Storage::fake('local');
         $past = $this->accountFixture();
+        $this->enableDigitalChannels($past['accounting']);
         $past['learner']->assignRole(Role::findOrCreate('student', 'web'));
         $past['account']->term->update(['label' => 'Past synthetic term']);
         $proof = app(SubmitPaymentEvidence::class)->execute($past['account'], $past['learner'],
@@ -1716,22 +1666,22 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
 
         Livewire::withQueryParams(['view' => 'history'])->actingAs($past['learner'])->test(StudentFinance::class)
             ->assertSee('Past synthetic term')->assertDontSee('Current synthetic term')
-            ->assertActionHidden('submitEvidence')->assertActionHidden('payExactCurrentDue');
+            ->assertActionHidden('submitEvidence');
         $history = Livewire::withQueryParams(['view' => 'history', 'account' => (string) $past['account']->id])
             ->actingAs($past['learner'])->test(StudentFinance::class)
             ->assertSee('past-private-proof.png')->assertSee('Past note <script>unsafe()</script>')
             ->assertDontSeeHtml('<script>unsafe()</script>')->assertDontSee('current-private-proof.png')
             ->assertSee(route('finance.statement', $past['assessment']))
             ->assertSee(route('finance.payment-evidence.download', $proof))
-            ->assertActionHidden('statement')->assertActionHidden('submitEvidence')->assertActionHidden('payExactCurrentDue');
+            ->assertActionHidden('statement')->assertActionHidden('submitEvidence');
         $this->assertSame($current['account']->id, $history->get('finance')['account']->id);
         $profile = StudentProfile::factory()->create(['user_id' => $past['learner']->id, 'lifecycle_status' => StudentProfile::LifecycleCompleted]);
         $current['account']->enrollment->update(['student_profile_id' => $profile->id]);
         Livewire::withQueryParams([])->actingAs($past['learner'])->test(StudentFinance::class)
-            ->assertActionHidden('submitEvidence')->assertActionDisabled('payExactCurrentDue')->assertActionVisible('statement');
+            ->assertActionHidden('submitEvidence')->assertActionVisible('statement');
         Livewire::withQueryParams(['view' => 'history', 'account' => (string) $past['account']->id])
             ->actingAs($past['learner'])->test(StudentFinance::class)->assertSee('past-private-proof.png')
-            ->assertActionHidden('submitEvidence')->assertActionHidden('payExactCurrentDue');
+            ->assertActionHidden('submitEvidence');
     }
 
     public function test_past_finance_selection_rejects_foreign_missing_and_invalid_ids_without_disclosure(): void
@@ -1777,15 +1727,15 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $second = $this->evidence($fixture, [...$attributes, 'version' => 2, 'original_name' => 'second-receipt.pdf']);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->set('paymentProofId', $first->id)->assertSee('Review payment proof')->assertSee('first-receipt.pdf')
-            ->assertSee('Submitted payment proofs')->assertSee('second-receipt.pdf')
+            ->set('paymentProofId', $first->id)->assertSee('Compare submitted receipt')->assertSee('first-receipt.pdf')
+            ->assertSee('Submitted receipts')->assertSee('second-receipt.pdf')
             ->mountAction('verifyPaymentEvidence')->assertMountedActionModalSee('Record verified payment')
             ->setActionData(['actual_verified_amount' => '16000.25', 'external_check_reference' => 'BANK-CHECK-SELECTED']);
         $preview = $page->instance()->paymentProofViewData('16000.25');
         $this->assertSame([['label' => 'Enrollment obligation', 'applied' => '12000.00', 'remaining' => '0.00'],
             ['label' => 'Midterm obligation', 'applied' => '4000.25', 'remaining' => '13999.75']], $preview['allocation']);
         $this->assertSame(0, Payment::query()->where('term_account_id', $fixture['account']->id)->count());
-        $page->callMountedAction()->assertHasNoActionErrors()->assertNotified('Payment evidence verified');
+        $page->callMountedAction()->assertHasNoActionErrors()->assertNotified('Payment receipt verified');
         $payment = Payment::query()->where('payment_evidence_version_id', $first->id)->firstOrFail();
         $this->assertSame('16000.25', $payment->amount);
         $this->assertSame(['12000.00', '4000.25'], $payment->allocations->sortBy('sequence')->pluck('amount')->all());
@@ -1804,12 +1754,12 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
             ->setActionData(['actual_verified_amount' => '0', 'external_check_reference' => ''])
             ->callMountedAction()->assertHasActionErrors(['actual_verified_amount' => 'min', 'external_check_reference' => 'required']);
         $page->setActionData(['actual_verified_amount' => '12000.01', 'external_check_reference' => 'BANK-EXCESS'])
-            ->callMountedAction()->assertNotified('Evidence was not verified');
+            ->callMountedAction()->assertNotified('Receipt was not verified');
         $this->assertNotNull($page->instance()->paymentProofViewData('12000.01')['allocationError']);
         $page->mountAction('verifyPaymentEvidence');
         $fixture['assessment']->update(['state' => Assessment::StateSuperseded]);
         $page->setActionData(['actual_verified_amount' => '100', 'external_check_reference' => 'BANK-STALE'])
-            ->callMountedAction()->assertNotified('Evidence was not verified');
+            ->callMountedAction()->assertNotified('Receipt was not verified');
         $this->assertFalse($page->instance()->paymentProofViewData('100')['sourceCurrent']);
         $this->assertSame(PaymentEvidenceVersion::StateSubmitted, $proof->fresh()->state);
         $this->assertSame(0, Payment::query()->where('term_account_id', $fixture['account']->id)->count());
@@ -1826,7 +1776,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
             ->mountAction('rejectPaymentEvidence')->callMountedAction()->assertHasActionErrors(['safe_reason' => 'required'])
             ->setActionData(['safe_reason' => 'The bank could not confirm this reference. Upload the corrected receipt.'])
-            ->callMountedAction()->assertHasNoActionErrors()->assertNotified('Payment evidence rejected');
+            ->callMountedAction()->assertHasNoActionErrors()->assertNotified('Payment receipt rejected');
         $this->assertSame(PaymentEvidenceVersion::StateRejected, $proof->fresh()->state);
         $this->assertSame('The bank could not confirm this reference. Upload the corrected receipt.', $proof->fresh()->review_note);
         $this->assertSame($before, app(TermAccountProjection::class)->forAccount($fixture['account']->fresh()));
@@ -1854,333 +1804,6 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $this->assertSame(0, Payment::query()->where('term_account_id', $fixture['account']->id)->count());
     }
 
-    public function test_online_source_review_does_not_offer_recovery_without_provider_evidence(): void
-    {
-        $fixture = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['provider' => 'mock', 'provider_checkout_id' => null, 'status' => PaymentAttempt::StatusReviewRequired]);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->assertSee('Online payment needs source review')->assertSee('Accounting owns the next step')
-            ->assertActionHidden('retrievePayMongoCheckout')->assertActionHidden('confirmRecoveredPayMongo')->assertActionHidden('rejectRecoveredPayMongo');
-        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
-        $this->assertSame(0, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
-    }
-
-    public function test_selected_online_retrieval_refuses_foreign_or_changed_checkout_before_calling_provider_recovery(): void
-    {
-        $fixture = $this->accountFixture();
-        $foreign = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture);
-        $other = $this->onlineAttempt($foreign);
-        $gateway = $this->mock(PaymentGateway::class);
-        $gateway->shouldNotReceive('retrieveCheckoutSession');
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id]);
-        $attempt->update(['provider_checkout_id' => 'cs_changed_after_dialog']);
-        $page->callAction('retrievePayMongoCheckout');
-        $this->assertSame(PaymentAttempt::StatusPending, $attempt->fresh()->status);
-        $this->assertSame(PaymentAttempt::StatusPending, $other->fresh()->status);
-        $this->assertSame(0, Payment::query()->whereIn('payment_attempt_id', [$attempt->id, $other->id])->count());
-    }
-
-    public function test_selected_recovered_confirmation_shows_exact_effect_and_posts_once_through_canonical_service(): void
-    {
-        Mail::fake();
-        config()->set('tala_integrations.payments.paymongo.livemode', false);
-        $fixture = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->recoveredOnlineEvent($attempt);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->assertSee('Review recovered payment')->mountAction('confirmRecoveredPayMongo')
-            ->assertMountedActionModalSee('PHP 12,000.00 applied')->assertMountedActionModalSee('PHP 0.00 remaining')
-            ->assertDontSee('Accounting decision basis');
-        $page->callMountedAction()->assertHasNoActionErrors()->assertNotified('Recovered PayMongo payment posted');
-        $payment = Payment::query()->where('payment_attempt_id', $attempt->id)->sole();
-        $this->assertSame('12000.00', $payment->amount);
-        $this->assertSame('12000.00', $payment->allocations->sole()->amount);
-        $this->assertSame(PaymentAttempt::StatusConfirmed, $attempt->fresh()->status);
-        $retry = app(PayMongoCheckoutRecoveryService::class)->confirm($event->id, 'Repeat the same confirmed source.', $fixture['accounting']);
-        $this->assertSame($payment->id, $retry['payment_id']);
-        $this->assertSame('duplicate', $retry['status']);
-        $this->assertNull($payment->ledgerEntry);
-        $this->assertSame(1, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
-        $this->assertSame(1, $payment->allocations()->count());
-        Mail::assertQueued(PaymentPostedMail::class, 1);
-    }
-
-    public function test_selected_recovered_decision_refuses_foreign_event_and_changed_result_without_money_or_attempt_changes(): void
-    {
-        $fixture = $this->accountFixture();
-        $foreign = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $other = $this->onlineAttempt($foreign, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->recoveredOnlineEvent($attempt);
-        $foreignEvent = $this->recoveredOnlineEvent($other);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->mountAction('rejectRecoveredPayMongo')->setActionData(['event_id' => $foreignEvent->id, 'reason' => 'Foreign selected event must be refused.'])
-            ->callMountedAction()->assertHasActionErrors(['event_id']);
-        $payload = $event->payload;
-        data_set($payload, 'payment.amount_centavos', 1);
-        $event->update(['payload' => $payload]);
-        $page->setActionData(['event_id' => $event->id, 'reason' => 'Reviewed external result cannot be used after its source changes.'])->callMountedAction()->assertNotified('Recovered evidence was not rejected');
-        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
-        $this->assertSame(PaymentAttempt::StatusReviewRequired, $other->fresh()->status);
-        $this->assertSame(OperationalEvent::StatusReviewRequired, $event->fresh()->status);
-        $this->assertSame(0, Payment::query()->whereIn('payment_attempt_id', [$attempt->id, $other->id])->count());
-    }
-
-    public function test_recovered_mismatch_or_stale_account_cannot_confirm_and_rejection_preserves_reason_without_payment(): void
-    {
-        $fixture = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->recoveredOnlineEvent($attempt);
-        $payload = $event->payload;
-        data_set($payload, 'payment.amount_centavos', 1);
-        $event->update(['payload' => $payload]);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->assertActionDisabled('confirmRecoveredPayMongo')->assertSee('The provider result does not exactly match this checkout.');
-        $fixture['assessment']->update(['state' => Assessment::StateSuperseded]);
-        $page->refresh()->assertActionDisabled('confirmRecoveredPayMongo')->assertSee('The current assessment or unpaid targets changed.')
-            ->mountAction('rejectRecoveredPayMongo')->setActionData(['reason' => 'The provider amount differs from the captured payment.'])
-            ->callMountedAction()->assertHasNoActionErrors()->assertNotified('Recovered evidence rejected');
-        $this->assertSame(PaymentAttempt::StatusFailed, $attempt->fresh()->status);
-        $this->assertSame(OperationalEvent::StatusProcessed, $event->fresh()->status);
-        $this->assertSame(0, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
-        $page->set('enrollmentView', 'history')->assertSee('The provider amount differs from the captured payment.');
-    }
-
-    public function test_student_recovered_retry_returns_the_same_posting_and_keeps_legacy_ledger_and_email_once(): void
-    {
-        Mail::fake();
-        config()->set('tala_integrations.payments.paymongo.livemode', false);
-        $fixture = $this->accountFixture();
-        $profile = StudentProfile::factory()->for($fixture['learner'])->create();
-        $fixture['account']->enrollment->update(['student_profile_id' => $profile->id]);
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->recoveredOnlineEvent($attempt);
-        $service = app(PayMongoCheckoutRecoveryService::class);
-        $first = $service->confirm($event->id, 'Matched Student checkout and payment targets.', $fixture['accounting']);
-        $second = $service->confirm($event->id, 'Retried the exact same Student confirmation.', $fixture['accounting']);
-        $this->assertSame($first['payment_id'], $second['payment_id']);
-        $this->assertSame('duplicate', $second['status']);
-        $payment = Payment::query()->where('payment_attempt_id', $attempt->id)->sole();
-        $this->assertNotNull($payment->ledgerEntry);
-        $this->assertSame(1, $payment->allocations()->count());
-        $this->assertSame('12000.00', $payment->amount);
-        Mail::assertQueued(PaymentPostedMail::class, 1);
-    }
-
-    public function test_recovered_retry_refuses_changed_reference_targets_or_foreign_payment_without_new_effects(): void
-    {
-        Mail::fake();
-        config()->set('tala_integrations.payments.paymongo.livemode', false);
-        $fixture = $this->accountFixture();
-        $foreign = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $other = $this->onlineAttempt($foreign, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->recoveredOnlineEvent($attempt);
-        $foreignEvent = $this->recoveredOnlineEvent($other);
-        $service = app(PayMongoCheckoutRecoveryService::class);
-        $posted = $service->confirm($event->id, 'Confirmed the exact original source.', $fixture['accounting']);
-        $otherPosted = $service->confirm($foreignEvent->id, 'Confirmed the separate owning account.', $foreign['accounting']);
-        $originalReference = $attempt->internal_reference;
-        $attempt->update(['internal_reference' => 'CHANGED-REFERENCE']);
-        try {
-            $service->confirm($event->id, 'Retry changed checkout reference.', $fixture['accounting']);
-            $this->fail('Changed checkout reference must be refused.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('does not exactly match', $exception->getMessage());
-        }
-        $attempt->update(['internal_reference' => $originalReference]);
-        $target = $attempt->obligations->sole();
-        $target->update(['amount' => '1.00']);
-        try {
-            $service->confirm($event->id, 'Retry changed captured allocation.', $fixture['accounting']);
-            $this->fail('Changed captured target must be refused.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('captured payment targets', $exception->getMessage());
-        }
-        $target->update(['amount' => $attempt->amount]);
-        $event->refresh()->update(['related_record_id' => $otherPosted['payment_id']]);
-        try {
-            $service->confirm($event->id, 'Retry foreign linked posting.', $fixture['accounting']);
-            $this->fail('Foreign linked payment must be refused.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('original payment', $exception->getMessage());
-        }
-        $this->assertSame(2, Payment::query()->whereIn('payment_attempt_id', [$attempt->id, $other->id])->count());
-        $this->assertSame('12000.00', Payment::query()->findOrFail($posted['payment_id'])->amount);
-        $this->assertSame('12000.00', Payment::query()->findOrFail($otherPosted['payment_id'])->amount);
-        $this->assertSame(2, PaymentAllocation::query()->whereIn('payment_id', [$posted['payment_id'], $otherPosted['payment_id']])->count());
-        Mail::assertQueued(PaymentPostedMail::class, 2);
-    }
-
-    /** @param array<string, mixed> $fixture @param array<string, mixed> $attributes */
-    private function onlineAttempt(array $fixture, array $attributes = []): PaymentAttempt
-    {
-        $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($fixture['account']);
-        $attempt = PaymentAttempt::query()->create(['term_account_id' => $fixture['account']->id, 'assessment_id' => $fixture['assessment']->id,
-            'student_profile_id' => $fixture['account']->enrollment->student_profile_id, 'assessment_version' => $fixture['assessment']->version, 'snapshot_created_at' => $snapshot['created_at'],
-            'snapshot_checksum' => $snapshot['checksum'], 'channel' => 'paymongo', 'provider' => 'paymongo',
-            'internal_reference' => 'SYN-ONLINE-TEST-'.$fixture['account']->id, 'provider_checkout_id' => 'cs_test_'.$fixture['account']->id,
-            'amount' => $snapshot['amount'], 'currency' => 'PHP', 'status' => PaymentAttempt::StatusPending, ...$attributes]);
-        foreach ($snapshot['obligations'] as $target) {
-            $attempt->obligations()->create(['assessment_obligation_id' => $target['id'], 'sequence' => $target['sequence'], 'amount' => $target['amount']]);
-        }
-
-        return $attempt;
-    }
-
-    private function recoveredOnlineEvent(PaymentAttempt $attempt): OperationalEvent
-    {
-        return OperationalEvent::factory()->create(['event_domain' => OperationalEvent::DomainIntegration, 'integration' => OperationalEvent::IntegrationPayMongo,
-            'channel' => OperationalEvent::ChannelProviderApi, 'event_type' => 'checkout_session.payment.recovered', 'status' => OperationalEvent::StatusReviewRequired,
-            'related_record_type' => PaymentAttempt::class, 'related_record_id' => $attempt->id,
-            'diagnostics' => ['reason' => 'recovered_paid_without_webhook'],
-            'payload' => ['checkout_session_id' => $attempt->provider_checkout_id, 'reference_number' => $attempt->internal_reference, 'payment_count' => 1,
-                'payment' => ['id' => 'pay_test_'.$attempt->id, 'status' => 'paid', 'amount_centavos' => (int) round((float) $attempt->amount * 100),
-                    'currency' => 'PHP', 'livemode' => false, 'payment_intent_id' => 'pi_test_'.$attempt->id, 'disputed' => false, 'has_refunds' => false, 'paid_at' => now()->timestamp]]]);
-    }
-
-    public function test_registrar_cannot_mount_contextual_provider_actions_even_with_legacy_payment_permission(): void
-    {
-        $fixture = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->recoveredOnlineEvent($attempt);
-        Role::query()->firstOrCreate(['name' => User::StaffRoleRegistrar, 'guard_name' => 'web']);
-        $registrar = User::factory()->create(['status' => User::StatusActive]);
-        $registrar->assignRole(User::StaffRoleRegistrar);
-        $permission = Permission::query()->firstOrCreate(['name' => 'process-payments', 'guard_name' => 'web']);
-        $registrar->givePermissionTo($permission);
-        $this->assertTrue($registrar->canProcessPayments());
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $page = Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id]);
-        foreach (['retrievePayMongoCheckout', 'confirmRecoveredPayMongo', 'rejectRecoveredPayMongo', 'retryPayMongoEvent', 'linkUnknownPayMongoEvent', 'confirmPayMongoException', 'rejectPayMongoException'] as $action) {
-            $this->assertFalse($page->instance()->getAction($action, isMounting: false)->isAuthorized());
-            $page->mountAction($action)->assertActionNotMounted($action);
-        }
-        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
-        $this->assertSame(OperationalEvent::StatusReviewRequired, $event->fresh()->status);
-        $this->assertSame(0, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
-    }
-
-    public function test_webhook_claim_is_not_verified_money_or_an_available_acknowledgement(): void
-    {
-        $fixture = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->webhookReviewEvent($attempt);
-        $claim = Payment::findOrFail($event->related_record_id);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->assertSee('Review online payment')->assertSee('Unverified claim')->assertActionVisible('confirmPayMongoException')
-            ->set('enrollmentView', 'account')->assertDontSee('Open acknowledgment')->assertActionHidden('reversePaymentPosting')
-            ->set('enrollmentView', 'history')->assertSee('Unverified claim')->assertDontSee('Open acknowledgment');
-        $this->actingAs($fixture['accounting'])->get(route('finance.payments.acknowledgement', $claim))->assertForbidden();
-        $this->assertSame('under_review', $claim->fresh()->evidence_status);
-        $this->assertSame(0, $claim->allocations()->count());
-        $this->assertSame('12000.00', app(TermAccountProjection::class)->forAccount($fixture['account'])['current_due']);
-    }
-
-    public function test_webhook_bound_decision_refuses_foreign_and_changed_source_without_changing_claims(): void
-    {
-        $fixture = $this->accountFixture();
-        $foreign = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->webhookReviewEvent($attempt);
-        $other = $this->webhookReviewEvent($this->onlineAttempt($foreign, ['status' => PaymentAttempt::StatusReviewRequired]));
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id]);
-        $page->mountAction('confirmPayMongoException')->setActionData(['event_id' => $other->id, 'reason' => 'Checked the wrong account source.'])
-            ->callMountedAction()->assertHasActionErrors(['event_id']);
-        $page->unmountAction()->mountAction('confirmPayMongoException');
-        $event->update(['diagnostics' => [...$event->diagnostics, 'review_note' => 'Source changed after opening.']]);
-        $page->setActionData(['reason' => 'Checked the original account source.'])->callMountedAction()->assertHasActionErrors(['reviewed_source']);
-        $this->assertSame('under_review', Payment::findOrFail($event->related_record_id)->evidence_status);
-        $this->assertSame('under_review', Payment::findOrFail($other->related_record_id)->evidence_status);
-        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
-        $this->assertSame(0, PaymentAllocation::whereIn('payment_id', [$event->related_record_id, $other->related_record_id])->count());
-    }
-
-    public function test_webhook_amount_mismatch_can_only_be_rejected_with_retained_claim_history(): void
-    {
-        $fixture = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->webhookReviewEvent($attempt, 'amount_mismatch', 1199900);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->assertActionHidden('confirmPayMongoException')->assertSee('11,999.00')->assertSee('12,000.00')
-            ->mountAction('rejectPayMongoException')->setActionData(['reason' => 'Provider amount conflicts with the captured checkout.'])
-            ->callMountedAction()->assertHasNoActionErrors()->assertNotified('Payment result rejected');
-        $this->assertSame('rejected', Payment::findOrFail($event->related_record_id)->evidence_status);
-        $this->assertSame(PaymentAttempt::StatusFailed, $attempt->fresh()->status);
-        $this->assertSame(OperationalEvent::StatusProcessed, $event->fresh()->status);
-        $this->assertSame(0, PaymentAllocation::where('payment_id', $event->related_record_id)->count());
-    }
-
-    public function test_inline_webhook_retry_queues_the_original_failed_delivery_without_a_reason_field(): void
-    {
-        Queue::fake();
-        $fixture = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->webhookReviewEvent($attempt, 'processing_failed');
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id]);
-        $page->assertDontSee('retry reason')->callAction('retryPayMongoEvent')->assertHasNoErrors();
-        $this->assertSame(OperationalEvent::StatusPending, $event->fresh()->status);
-        Queue::assertPushed(ProcessPayMongoWebhookCall::class, 1);
-        $this->assertSame(0, Payment::where('payment_attempt_id', $attempt->id)->count());
-        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
-    }
-
-    public function test_unknown_webhook_links_only_the_selected_account_checkout_and_queues_without_posting(): void
-    {
-        Queue::fake();
-        $fixture = $this->accountFixture();
-        $foreign = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['provider_checkout_id' => null]);
-        $other = $this->onlineAttempt($foreign);
-        $event = $this->webhookReviewEvent($attempt, 'unknown_reference');
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id]);
-        $page->set('enrollmentView', 'webhook')->set('webhookEventId', $event->id)->set('onlineAttemptId', $other->id)->assertActionHidden('linkUnknownPayMongoEvent');
-        $page->set('onlineAttemptId', $attempt->id)->mountAction('linkUnknownPayMongoEvent')
-            ->setActionData(['reason' => 'Matched this checkout to the original account source.'])->callMountedAction()->assertHasNoActionErrors();
-        $this->assertSame(OperationalEvent::StatusPending, $event->fresh()->status);
-        $this->assertSame($attempt->id, $event->fresh()->related_record_id);
-        Queue::assertPushed(ProcessPayMongoWebhookCall::class, 1);
-        $this->assertSame(0, Payment::whereIn('payment_attempt_id', [$attempt->id, $other->id])->count());
-    }
-
-    public function test_webhook_choices_keep_compatible_coexisting_sources_and_exclude_foreign_or_conflicting_unlinked_sources(): void
-    {
-        $fixture = $this->accountFixture();
-        $foreign = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $linked = $this->webhookReviewEvent($attempt);
-        $compatible = $this->webhookReviewEvent($attempt, 'unknown_reference');
-        $foreignEvent = $this->webhookReviewEvent($this->onlineAttempt($foreign, ['provider_checkout_id' => null]), 'unknown_reference');
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->set('enrollmentView', 'webhook')->set('webhookEventId', $linked->id);
-        $choices = $page->instance()->webhookPaymentViewData()['webhookChoices']->pluck('id');
-        $this->assertCount(2, $choices);
-        $this->assertTrue($choices->contains($linked->id));
-        $this->assertTrue($choices->contains($compatible->id));
-        $this->assertFalse($choices->contains($foreignEvent->id));
-        $page->set('webhookEventId', $compatible->id)->assertActionVisible('linkUnknownPayMongoEvent');
-        $callId = data_get($compatible->diagnostics, 'webhook_call_id');
-        $raw = json_decode(DB::table('webhook_calls')->where('id', $callId)->value('payload'), true, flags: JSON_THROW_ON_ERROR);
-        data_set($raw, 'data.attributes.data.id', 'cs_conflicts_with_account_checkout');
-        DB::table('webhook_calls')->where('id', $callId)->update(['payload' => json_encode($raw, JSON_THROW_ON_ERROR)]);
-        $page->refresh()->assertActionHidden('linkUnknownPayMongoEvent')->mountAction('linkUnknownPayMongoEvent')->assertActionNotMounted('linkUnknownPayMongoEvent');
-        $this->assertSame([$linked->id], $page->instance()->webhookPaymentViewData()['webhookChoices']->pluck('id')->all());
-        $this->assertSame(OperationalEvent::StatusReviewRequired, $compatible->fresh()->status);
-        $this->assertSame(0, PaymentAllocation::where('payment_id', $linked->related_record_id)->count());
-    }
-
     public function test_registrar_fallback_keeps_enrollment_consequence_without_private_payment_details(): void
     {
         $fixture = $this->accountFixture();
@@ -2193,101 +1816,6 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
             ->assertSee('Registration certificate source unavailable')->assertSee('Registrar and the system administrator must review the recorded source.')
             ->assertDontSee('PRIVATE-BANK-REFERENCE')->assertDontSee('Inspect private evidence')->assertDontSee('Payment evidence and review targets');
-    }
-
-    public function test_confirmed_webhook_retry_reuses_pre_student_canonical_posting_without_a_ledger(): void
-    {
-        Mail::fake();
-        $fixture = $this->accountFixture();
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->webhookReviewEvent($attempt);
-        $service = app(PayMongoReconciliationService::class);
-        $first = $service->confirm($event->id, 'Matched the exact checkout and reference discrepancy.', $fixture['accounting']);
-        $second = $service->confirm($event->id, 'Retried the same original payment decision.', $fixture['accounting']);
-        $this->assertSame($first['payment_id'], $second['payment_id']);
-        $this->assertSame('duplicate', $second['status']);
-        $payment = Payment::findOrFail($first['payment_id']);
-        $this->assertNull($payment->ledgerEntry);
-        $this->assertSame(1, Payment::where('payment_attempt_id', $attempt->id)->count());
-        $this->assertSame(1, $payment->allocations()->count());
-        Mail::assertQueued(PaymentPostedMail::class, 1);
-    }
-
-    public function test_webhook_student_retry_and_changed_posted_source_keep_exact_original_effects(): void
-    {
-        Mail::fake();
-        $fixture = $this->accountFixture();
-        $profile = StudentProfile::factory()->for($fixture['learner'])->create();
-        $fixture['account']->enrollment->update(['student_profile_id' => $profile->id]);
-        $attempt = $this->onlineAttempt($fixture, ['status' => PaymentAttempt::StatusReviewRequired]);
-        $event = $this->webhookReviewEvent($attempt);
-        $service = app(PayMongoReconciliationService::class);
-        $posted = $service->confirm($event->id, 'Confirmed the exact Student payment source.', $fixture['accounting']);
-        $retry = $service->confirm($event->id, 'Retried the exact Student payment source.', $fixture['accounting']);
-        $this->assertSame($posted['payment_id'], $retry['payment_id']);
-        $payment = Payment::findOrFail($posted['payment_id']);
-        $this->assertNotNull($payment->ledgerEntry);
-        $reference = $attempt->internal_reference;
-        $attempt->update(['internal_reference' => 'ALTERED-AFTER-POSTING']);
-        try {
-            $service->confirm($event->id, 'Retry after the captured reference changed.', $fixture['accounting']);
-            $this->fail('Changed original reference must be refused.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('original payment', $exception->getMessage());
-        }
-        $attempt->update(['internal_reference' => $reference]);
-        $target = $attempt->obligations->sole();
-        $target->update(['amount' => '1.00']);
-        try {
-            $service->confirm($event->id, 'Retry after the captured target changed.', $fixture['accounting']);
-            $this->fail('Changed original allocation must be refused.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('captured payment targets', $exception->getMessage());
-        }
-        $target->update(['amount' => $attempt->amount]);
-        $callId = data_get($event->diagnostics, 'webhook_call_id');
-        $raw = DB::table('webhook_calls')->where('id', $callId)->value('payload');
-        $payload = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
-        data_set($payload, 'data.attributes.data.id', 'cs_changed_after_posting');
-        DB::table('webhook_calls')->where('id', $callId)->update(['payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
-        try {
-            $service->confirm($event->id, 'Retry changed original provider source.', $fixture['accounting']);
-            $this->fail('Changed original checkout must be refused.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('checkout ownership conflicts', $exception->getMessage());
-        }
-        DB::table('webhook_calls')->where('id', $callId)->update(['payload' => $raw]);
-        $foreign = $this->accountFixture();
-        $foreignClaim = Payment::factory()->create(['term_account_id' => $foreign['account']->id, 'payment_attempt_id' => $this->onlineAttempt($foreign)->id]);
-        $event->refresh()->update(['related_record_id' => $foreignClaim->id]);
-        try {
-            $service->confirm($event->id, 'Retry foreign event payment association.', $fixture['accounting']);
-            $this->fail('Foreign payment association must be refused.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('ownership conflicts', $exception->getMessage());
-        }
-        $this->assertSame('12000.00', $payment->fresh()->amount);
-        $this->assertSame(1, Payment::where('payment_attempt_id', $attempt->id)->count());
-        $this->assertSame(1, $payment->allocations()->count());
-        $this->assertSame(1, $payment->ledgerEntry()->count());
-        Mail::assertQueued(PaymentPostedMail::class, 1);
-    }
-
-    private function webhookReviewEvent(PaymentAttempt $attempt, string $reason = 'missing_tala_reference', int $amount = 1200000): OperationalEvent
-    {
-        config()->set('tala_integrations.payments.paymongo.livemode', false);
-        $payload = ['data' => ['id' => 'evt_webhook_test_'.$attempt->id.'_'.$reason, 'type' => 'event', 'attributes' => ['type' => 'checkout_session.payment.paid', 'livemode' => false,
-            'data' => ['id' => $attempt->provider_checkout_id ?? 'cs_unlinked_test_'.$attempt->id, 'type' => 'checkout_session',
-                'attributes' => ['status' => 'paid', 'amount_paid' => $amount, 'currency' => 'PHP', 'metadata' => ['term_account_id' => (string) $attempt->term_account_id, 'assessment_version' => (string) $attempt->assessment_version, 'snapshot_checksum' => $attempt->snapshot_checksum]]]]]];
-        $raw = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        $callId = DB::table('webhook_calls')->insertGetId(['name' => 'paymongo', 'url' => 'https://tala.test/api/webhooks/paymongo', 'headers' => '{}', 'payload' => $raw, 'created_at' => now(), 'updated_at' => now()]);
-        $claim = in_array($reason, ['missing_tala_reference', 'amount_mismatch'], true) ? Payment::factory()->create(['term_account_id' => $attempt->term_account_id, 'payment_attempt_id' => $attempt->id, 'student_profile_id' => null,
-            'amount' => number_format($amount / 100, 2, '.', ''), 'provider_reference' => 'paymongo:'.data_get($payload, 'data.attributes.data.id'), 'state' => Payment::StatePosted, 'evidence_status' => 'under_review', 'verified_at' => null, 'verified_by' => null]) : null;
-
-        return OperationalEvent::factory()->create(['event_domain' => OperationalEvent::DomainIntegration, 'integration' => OperationalEvent::IntegrationPayMongo, 'channel' => OperationalEvent::ChannelWebhook,
-            'external_id' => data_get($payload, 'data.id'), 'event_type' => 'checkout_session.payment.paid', 'status' => $reason === 'processing_failed' ? OperationalEvent::StatusFailed : OperationalEvent::StatusReviewRequired,
-            'related_record_type' => $reason === 'unknown_reference' ? null : ($claim ? Payment::class : PaymentAttempt::class), 'related_record_id' => $reason === 'unknown_reference' ? null : ($claim?->id ?? $attempt->id),
-            'diagnostics' => ['reason' => $reason, 'payload_sha256' => hash('sha256', $raw), 'webhook_call_id' => $callId], 'payload' => ['livemode' => false]]);
     }
 
     public function test_coverage_reversal_form_binds_one_source_or_offers_a_choice_and_refuses_stale_or_foreign_sources(): void
@@ -2335,21 +1863,20 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $this->assertSame(1, ApprovedCoverage::query()->where('state', ApprovedCoverage::StateApplied)->where('term_account_id', $fixture['account']->id)->count());
     }
 
-    public function test_refund_form_binds_the_exact_payment_and_provider_evidence_and_refuses_a_changed_payment(): void
+    public function test_refund_form_binds_the_exact_payment_and_refuses_a_foreign_or_changed_payment(): void
     {
         $fixture = $this->accountFixture();
+        $foreign = $this->accountFixture();
         $payment = $this->verifiedPayment($fixture, '3000.00', 'SYN-REFUND-FORM-1');
         $other = $this->verifiedPayment($fixture, '1000.00', 'SYN-REFUND-FORM-2', version: 2);
-        $ownEvent = $this->refundEvent($payment);
-        $otherEvent = $this->refundEvent($other);
+        $foreignPayment = $this->verifiedPayment($foreign, '1500.00', 'SYN-REFUND-FOREIGN');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->mountAction('reversePaymentPosting')->assertMountedActionModalSee(['Record a completed refund', 'Keep payment unchanged']);
+            ->mountAction('reversePaymentPosting')->assertMountedActionModalSee(['Record refund reversal', 'Keep payment unchanged']);
         $data = ['authority_reference' => 'SYN-REFUND-AUTH', 'safe_reason' => 'Completed external refund.', 'external_refund_reference' => 'SYN-EXT-REFUND-1',
             'refund_amount' => '1000.00', 'refunded_at' => now()->subMinute()->toDateTimeString()];
-        $page->setActionData($data + ['payment_id' => $payment->id, 'paymongo_event_id' => $otherEvent->id])->callMountedAction()->assertHasActionErrors(['paymongo_event_id']);
+        $page->setActionData($data + ['payment_id' => $foreignPayment->id])->callMountedAction()->assertHasActionErrors(['payment_id']);
         $this->assertSame(0, Payment::query()->where('state', Payment::StateReversal)->where('term_account_id', $fixture['account']->id)->count());
-        $this->assertSame(OperationalEvent::StatusReviewRequired, $ownEvent->fresh()->status);
 
         app(ReversePaymentPosting::class)->execute($payment, $fixture['accounting'], 'SYN-CHANGED-AUTH', 'Refunded elsewhere first.', 'SYN-CHANGED-REFUND', '2000.00', now()->subMinute());
         $page->setActionData($data + ['payment_id' => $payment->id])->callMountedAction()->assertNotified('Payment was not reversed');
@@ -2364,7 +1891,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $foreign = $this->accountFixture();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $page = Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['account']->enrollment_id])
-            ->mountAction('reconcileAssessmentEffects')->assertMountedActionModalSee(['Apply earlier payments and coverage', 'Keep for review', 'Enrollment obligation']);
+            ->mountAction('reconcileAssessmentEffects')->assertMountedActionModalSee(['Match earlier payments to current schedule', 'Keep for review', 'Enrollment obligation']);
         $valid = fn (array $rows): array => ['mapping' => $rows];
         $row = fn (int $sourceId, int $targetId): array => ['source_obligation_id' => $sourceId, 'target_obligation_id' => $targetId];
         $open = fn () => $page->call('unmountAction')->mountAction('reconcileAssessmentEffects');
@@ -2476,13 +2003,6 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         return app(ReviewPaymentEvidence::class)->verify($evidence, $fixture['accounting'], $amount, 'SYN-CHECK-'.$reference);
     }
 
-    private function refundEvent(Payment $payment): OperationalEvent
-    {
-        return OperationalEvent::factory()->create(['event_domain' => OperationalEvent::DomainIntegration, 'integration' => OperationalEvent::IntegrationPayMongo,
-            'channel' => OperationalEvent::ChannelWebhook, 'event_type' => 'payment.refunded', 'status' => OperationalEvent::StatusReviewRequired,
-            'related_record_type' => Payment::class, 'related_record_id' => $payment->id, 'diagnostics' => ['reason' => 'refund_or_reversal']]);
-    }
-
     /** @return array<string, mixed> */
     private function reconciliationFixture(): array
     {
@@ -2553,6 +2073,37 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         ];
 
         return compact('accounting', 'learner', 'account', 'assessment', 'obligations');
+    }
+
+    private function enableDigitalChannels(User $accounting): void
+    {
+        app(SchoolPaymentChannels::class)->update([
+            'bank_transfer' => [
+                'enabled' => true,
+                'accounts' => [
+                    [
+                        'bank_name' => 'Land Bank of the Philippines',
+                        'branch' => 'Talisay',
+                        'account_name' => 'TALA State University',
+                        'account_number' => '0011-2233-44',
+                    ],
+                ],
+            ],
+            'e_wallets' => [
+                'enabled' => true,
+                'accounts' => [
+                    [
+                        'provider' => 'GCash',
+                        'account_name' => 'TALA State University Cashier',
+                        'account_number' => '0917 123 4567',
+                    ],
+                ],
+            ],
+            'cash' => [
+                'enabled' => true,
+                'location' => 'Cashier Window 1, Administration Building',
+            ],
+        ], $accounting);
     }
 
     private function accounting(): User

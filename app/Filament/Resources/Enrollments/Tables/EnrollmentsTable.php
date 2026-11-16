@@ -52,7 +52,7 @@ class EnrollmentsTable
             ->defaultSort('updated_at', 'desc')
             ->columns($registrar ? [RecordView::make('filament.admin.enrollments.record-row')] : [
                 TextColumn::make('learner')
-                    ->label('Learner')
+                    ->label('Student or applicant')
                     ->state(fn (Enrollment $record): string => $record->credentialUser?->getFilamentName() ?? 'Identity unavailable')
                     ->description(fn (Enrollment $record): ?string => $record->studentProfile?->student_number
                         ?? $record->admissionApplication?->application_reference)
@@ -200,7 +200,7 @@ class EnrollmentsTable
                                     $recovery = 'Official result retained. Review the separate notification delivery status.';
                                 }
                             }
-                            $results[] = ['case' => $case->case_reference, 'learner' => $case->credentialUser?->getFilamentName() ?? 'Learner',
+                            $results[] = ['case' => $case->case_reference, 'learner' => $case->credentialUser?->getFilamentName() ?? 'Student',
                                 'result' => $result, 'recovery' => $recovery, 'url' => EnrollmentResource::getUrl('view', ['record' => $case])];
                         }
                         $livewire->finalizationResults = $results;

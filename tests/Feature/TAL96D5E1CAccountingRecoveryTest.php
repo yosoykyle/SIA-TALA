@@ -10,9 +10,7 @@ use App\Models\Assessment;
 use App\Models\CandidateScheduleRow;
 use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
-use App\Models\OperationalEvent;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
@@ -58,8 +56,8 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
         $this->followingRedirects()->actingAs($accounting)
             ->get('/admin')
             ->assertOk()
-            ->assertSeeText('Fee Plans')
-            ->assertSeeText('Student Accounts')
+            ->assertSeeText('Fee plans')
+            ->assertSeeText('Student accounts')
             ->assertDontSeeText('Accounting Adjustments')
             ->assertDontSeeText('Financial Accommodations')
             ->assertDontSeeText('Ledger Entries')
@@ -89,10 +87,8 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
 
         Livewire::actingAs($accounting)
             ->test(ViewEnrollment::class, ['record' => $assessment->enrollment->getRouteKey()])
-            ->assertSee('Online payment needs source review')
-            ->assertSee('Accounting review required')
-            ->assertSee('no verified payment recorded')
-            ->assertSee('Payment evidence is missing');
+            ->assertSee('Due now')
+            ->assertSee('Enrollment payment pending');
 
         Livewire::actingAs($accounting)->withQueryParams(['view' => 'account'])
             ->test(ViewEnrollment::class, ['record' => $assessment->enrollment->getRouteKey()])
@@ -102,23 +98,6 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             ->assertSee('Payments and coverage')
             ->assertSee('Account history')
             ->assertSee('Open account statement');
-    }
-
-    #[Test]
-    public function payment_exceptions_are_named_and_filterable_by_evidence_source_status_and_reason(): void
-    {
-        $this->seed(TAL96D5E1ExplorationPersonaSeeder::class);
-
-        $accounting = User::query()->where('email', 'accounting.demo@example.test')->sole();
-        $exception = OperationalEvent::query()
-            ->where('external_id', 'tal96d5e1c-open-exception')
-            ->sole();
-
-        $this->assertNotContains('App\\Filament\\Pages\\PayMongoReconciliation', Filament::getPanel('admin')->getPages());
-        $this->assertDatabaseHas('operational_events', [
-            'id' => $exception->id,
-            'status' => OperationalEvent::StatusReviewRequired,
-        ]);
     }
 
     #[Test]
@@ -149,39 +128,16 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
         $payment = Payment::query()
             ->where('provider_reference', 'PAYMENT-OR-PENDING-001')
             ->sole();
-        $attempt = PaymentAttempt::query()
-            ->where('internal_reference', 'CHECKOUT-REVIEW-001')
-            ->sole();
-        $syntheticAttempt = PaymentAttempt::query()
-            ->where('internal_reference', 'CHECKOUT-EXPIRED-001')
-            ->sole();
-        $syntheticAttempt->forceFill([
-            'channel' => 'synthetic_acceptance',
-            'provider' => 'synthetic_acceptance',
-        ])->save();
         $paymentEnrollment = app(PaymentAcademicContextResolver::class)->enrollment($payment);
-        $attemptEnrollment = Assessment::query()
-            ->with('enrollment.term')
-            ->findOrFail($attempt->assessment_id)
-            ->enrollment;
 
         $this->assertNotNull($paymentEnrollment);
-        $this->assertNotNull($attemptEnrollment);
-
         $this->assertFalse(Route::has('filament.admin.resources.payments.index'));
-        $this->assertFalse(Route::has('filament.admin.resources.payment-attempts.index'));
-
         $this->assertSame('bank_transfer', $payment->fresh()->channel);
         $this->assertSame('verified', $payment->fresh()->evidence_status);
-        $this->assertSame('online_checkout', $attempt->fresh()->channel);
-        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
-        $this->assertSame('paymongo', $attempt->fresh()->provider);
-        $this->assertSame('synthetic_acceptance', $syntheticAttempt->fresh()->channel);
-        $this->assertSame('synthetic_acceptance', $syntheticAttempt->fresh()->provider);
     }
 
     #[Test]
-    public function exploration_overlay_exposes_finance_and_provider_states_without_creating_schedules(): void
+    public function exploration_overlay_exposes_finance_states_without_creating_schedules(): void
     {
         $before = [
             'runs' => ScheduleGenerationRun::query()->count(),
@@ -200,14 +156,6 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             'jobs' => DB::table('jobs')->count(),
         ]);
         $this->assertSame(49, StudentProfile::query()->count());
-        $this->assertSame(PaymentAttempt::StatusExpired, PaymentAttempt::query()
-            ->where('internal_reference', 'CHECKOUT-EXPIRED-001')
-            ->sole()
-            ->status);
-        $this->assertSame(PaymentAttempt::StatusReviewRequired, PaymentAttempt::query()
-            ->where('internal_reference', 'CHECKOUT-REVIEW-001')
-            ->sole()
-            ->status);
         $this->assertNull(Payment::query()
             ->where('provider_reference', 'PAYMENT-OR-PENDING-001')
             ->sole()
@@ -228,14 +176,6 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
                 ->pluck('status')
                 ->all(),
         );
-        $this->assertSame(1, OperationalEvent::query()
-            ->where('external_id', 'tal96d5e1c-open-exception')
-            ->where('status', OperationalEvent::StatusReviewRequired)
-            ->count());
-        $this->assertSame(1, OperationalEvent::query()
-            ->where('external_id', 'tal96d5e1c-recovered-evidence')
-            ->where('status', OperationalEvent::StatusProcessed)
-            ->count());
     }
 
     private function assessmentFor(string $studentNumber): Assessment

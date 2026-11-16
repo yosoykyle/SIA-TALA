@@ -17,15 +17,20 @@ use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Filament\Auth\MultiFactor\Pages\SetUpRequiredMultiFactorAuthentication;
 use Filament\Auth\Notifications\NoticeOfEmailChangeRequest;
+use Filament\Auth\Notifications\ResetPassword as ResetPasswordNotification;
 use Filament\Auth\Notifications\VerifyEmailChange;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PragmaRX\Google2FAQRCode\Google2FA;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -101,6 +106,40 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         }
     }
 
+    public function test_mandatory_mfa_setup_renders_ambient_backdrop_and_omits_unreachable_menu_links_across_panels(): void
+    {
+        $multiRoleStaff = User::factory()->create();
+        $multiRoleStaff->assignRole([User::StaffRoleFaculty, 'student', 'applicant']);
+        StudentProfile::factory()->create(['user_id' => $multiRoleStaff->id]);
+        AdmissionApplication::factory()->create([
+            'user_id' => $multiRoleStaff->id,
+            'application_state' => AdmissionApplication::StateActionNeeded,
+        ]);
+
+        foreach ([
+            'admin' => User::StaffRoleFaculty,
+            'student' => 'student',
+            'applicant' => 'applicant',
+        ] as $panelId => $context) {
+            Filament::setCurrentPanel(Filament::getPanel($panelId));
+            $this->actingAs($multiRoleStaff)
+                ->withSession([WorkspaceContextResolver::SessionKey => $context])
+                ->get('/'.$panelId.'/multi-factor-authentication/set-up')
+                ->assertOk()
+                ->assertSee('tala-ambient', false)
+                ->assertSee('tala-ambient-glow--a', false)
+                ->assertSee('tala-ambient-glow--b', false)
+                ->assertSee('tala-ambient-trinket', false)
+                ->assertSee('Set up authenticator app')
+                ->assertSee('Set up an authenticator app and save your recovery codes before continuing.')
+                ->assertDontSee('adds an extra layer')
+                ->assertSee('Contact school support')
+                ->assertSee('Sign out')
+                ->assertDontSee('/'.$panelId.'/account-profile', false)
+                ->assertDontSee("Applicant's History");
+        }
+    }
+
     public function test_staff_can_open_the_two_step_authenticator_setup(): void
     {
         $staff = User::factory()->create();
@@ -110,9 +149,20 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
 
         $action = TestAction::make('setUpAppAuthentication')->schemaComponent('app', 'content');
 
-        Livewire::test(SetUpRequiredMultiFactorAuthentication::class)
+        $livewire = Livewire::test(SetUpRequiredMultiFactorAuthentication::class)
             ->mountAction($action)
             ->assertActionMounted($action);
+
+        $modalHtml = $livewire->getMountedActionModalHtml();
+        $this->assertStringContainsString('tala-mfa-modal', $modalHtml);
+        $this->assertStringContainsString('tala-mfa-setup-modal', $modalHtml);
+        $this->assertStringContainsString('tala-mfa-setup-qr-card', $modalHtml);
+        $this->assertStringContainsString('tala-mfa-setup-verify-col', $modalHtml);
+        $this->assertStringContainsString('tala-mfa-recovery-step', $modalHtml);
+        $this->assertStringContainsString('Set up two-factor authentication', $modalHtml);
+        $this->assertStringContainsString('Connect and verify', $modalHtml);
+        $this->assertStringContainsString('Save recovery codes', $modalHtml);
+        $this->assertStringContainsString('Current password', $modalHtml);
     }
 
     public function test_mfa_qr_code_normalization_removes_only_a_duplicate_svg_data_uri_layer(): void
@@ -392,32 +442,73 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
 
     public function test_account_security_is_reachable_from_every_workspace(): void
     {
+        $this->assertStringEndsWith('/applicant/account-profile', route('filament.applicant.auth.profile'));
+        $this->assertStringEndsWith('/student/account-profile', route('filament.student.auth.profile'));
+        $this->assertStringEndsWith('/admin/account-profile', route('filament.admin.auth.profile'));
+
         $applicant = User::factory()->create();
         $applicant->assignRole('applicant');
         $this->actingAs($applicant)
+            ->get('/applicant/account-security?source=legacy')
+            ->assertRedirect(AccountSecurity::getUrl(panel: 'applicant').'?source=legacy');
+        $this->actingAs($applicant)
             ->get(route('filament.applicant.auth.profile'))
             ->assertOk()
-            ->assertSee('Account Security');
+            ->assertSee('Profile')
+            ->assertSee('Upload photo')
+            ->assertSee('120 minutes of inactivity')
+            ->assertSee('Remember device')
+            ->assertSee('Optional at sign-in')
+            ->assertDontSee('Available workspaces')
+            ->assertDontSee('Staff identity')
+            ->assertSee('tala-profile-access-grid', false)
+            ->assertSee('tala-profile-access-item', false);
 
         $student = User::factory()->create();
         $student->assignRole('student');
         StudentProfile::factory()->create(['user_id' => $student->id]);
         $this->actingAs($student)
+            ->get('/student/account-security')
+            ->assertRedirect(AccountSecurity::getUrl(panel: 'student'));
+        $this->actingAs($student)
             ->get(route('filament.student.auth.profile'))
             ->assertOk()
-            ->assertSee('Account Security');
+            ->assertSee('Profile')
+            ->assertSee('Student details')
+            ->assertSee('/student/student-profile')
+            ->assertSee('Remember device')
+            ->assertSee('Optional at sign-in')
+            ->assertDontSee('Available workspaces')
+            ->assertDontSee('Password and security');
 
         $staff = User::factory()->create();
         $staff->assignRole(User::StaffRoleFaculty);
         $staff->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
         $staff->saveAppAuthenticationRecoveryCodes(['stored-code']);
         $this->actingAs($staff)
+            ->get('/admin/account-security')
+            ->assertRedirect(AccountSecurity::getUrl(panel: 'admin'));
+        $staffResponse = $this->actingAs($staff)
             ->get(route('filament.admin.auth.profile'))
             ->assertOk()
-            ->assertSee('Account Security')
-            ->assertSee('Staff-capable account email changes are managed by a System Administrator.')
+            ->assertSee('Profile')
+            ->assertSee('Staff account email changes are managed by a System Administrator.')
+            ->assertSee('Two-factor authentication (2FA)')
             ->assertSee('Access and sessions')
-            ->assertSee('30 minutes of inactivity');
+            ->assertSee('30 minutes of inactivity')
+            ->assertDontSee('Available workspaces')
+            ->assertDontSee('Remember device')
+            ->assertDontSee('Unavailable for Staff-capable accounts')
+            ->assertDontSee('Staff identity')
+            ->assertSee('tala-profile-mfa-section', false)
+            ->assertSee('tala-profile-mfa-box', false)
+            ->assertSee('tala-profile-access-grid', false)
+            ->assertSee('tala-profile-access-item', false);
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/class="[^"]*tala-profile-mfa-section[^"]*"[^>]*>.*?<section[^>]*class="[^"]*\bfi-secondary\b/s',
+            $staffResponse->getContent(),
+        );
     }
 
     public function test_unenrolled_applicant_account_security_omits_inapplicable_mfa_setup(): void
@@ -430,6 +521,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->assertOk()
             ->assertSee('Email and password')
             ->assertSee('Access and sessions')
+            ->assertSee('Remember device')
             ->assertDontSee('Authenticator app');
     }
 
@@ -446,8 +538,12 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->get(route('filament.applicant.auth.profile'))
             ->assertOk()
             ->assertSee('Authenticator app')
-            ->assertSee('Staff identity')
-            ->assertSee('Staff-capable account email changes are managed by a System Administrator.');
+            ->assertSee('Available workspaces')
+            ->assertSee('30 minutes of inactivity')
+            ->assertDontSee('Staff identity')
+            ->assertDontSee('Remember device')
+            ->assertDontSee('Unavailable for Staff-capable accounts')
+            ->assertSee('Staff account email changes are managed by a System Administrator.');
     }
 
     public function test_enrolled_applicant_retains_native_mfa_management(): void
@@ -688,5 +784,522 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $this->assertTrue($provider->verifyRecoveryCode('recovery-a-code', $userA->fresh()));
         $this->assertCount(1, $userB->fresh()->getAppAuthenticationRecoveryCodes());
         $this->assertTrue($provider->verifyRecoveryCode('recovery-b-code', $userB->fresh()));
+    }
+
+    public function test_profile_page_manages_account_photo_and_applicant_name_fallback(): void
+    {
+        Storage::fake('local');
+
+        $applicantWithoutApplication = User::factory()->create([
+            'first_name' => null,
+            'middle_name' => null,
+            'last_name' => null,
+            'name' => '',
+        ]);
+        $applicantWithoutApplication->assignRole('applicant');
+        $this->assertSame('Applicant account', $applicantWithoutApplication->getFilamentName());
+
+        $applicant = User::factory()->create([
+            'first_name' => null,
+            'middle_name' => null,
+            'last_name' => null,
+            'name' => '',
+        ]);
+        $applicant->assignRole('applicant');
+        AdmissionApplication::factory()->create([
+            'user_id' => $applicant->id,
+            'first_name' => 'Elena',
+            'last_name' => 'Navarro',
+        ]);
+        $this->assertSame('Elena Navarro', $applicant->fresh()->getFilamentName());
+
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $this->actingAs($applicant);
+
+        $page = Livewire::test(AccountSecurity::class)
+            ->assertSee('Elena Navarro')
+            ->assertSee('Upload photo')
+            ->callAction('changePhoto', [
+                'photo' => UploadedFile::fake()->image('applicant.png', 200, 200),
+            ])
+            ->assertHasNoActionErrors();
+
+        $savedPath = $applicant->fresh()->avatar_path;
+        $this->assertNotNull($savedPath);
+        $this->assertStringStartsWith('profile-photos/'.$applicant->id.'/', $savedPath);
+        Storage::disk('local')->assertExists($savedPath);
+
+        $page->assertSee('Change photo')
+            ->assertSee('Remove photo')
+            ->callAction('removePhoto')
+            ->assertHasNoActionErrors();
+
+        $this->assertNull($applicant->fresh()->avatar_path);
+        Storage::disk('local')->assertMissing($savedPath);
+    }
+
+    #[DataProvider('accountProfilePanelsAndRoles')]
+    public function test_profile_orders_visible_current_password_before_new_password_and_updates_password_safely(string $panelId, string $role): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['api.pwnedpasswords.com/*' => Http::response('', 200)]);
+
+        $user = User::factory()->create([
+            'password' => Hash::make('original passphrase 2026'),
+            'remember_token' => 'initial-remember-token',
+        ]);
+        $user->assignRole($role);
+
+        if ($role === 'student') {
+            StudentProfile::factory()->for($user)->create();
+        }
+
+        DB::table('sessions')->insert([
+            'id' => 'other-device-session-'.$user->id,
+            'user_id' => $user->id,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'OtherBrowser',
+            'payload' => '',
+            'last_activity' => now()->timestamp,
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel($panelId));
+        $this->actingAs($user);
+        session()->put(WorkspaceContextResolver::SessionKey, $role);
+
+        $expectedHelper = $user->isStaffCapable()
+            ? 'Required to change your password.'
+            : 'Required to change your password or sign-in email.';
+
+        $forgotAction = TestAction::make('forgotPassword')->schemaComponent('currentPassword', 'form');
+
+        $page = Livewire::test(AccountSecurity::class)
+            ->assertSee($expectedHelper)
+            ->assertDontSee('For security, please confirm your password to continue.')
+            ->assertActionVisible($forgotAction);
+
+        $html = $page->html();
+        $emailPosition = strpos($html, 'Verified sign-in email');
+        $currentPosition = strpos($html, 'Current password');
+        $newPosition = strpos($html, 'New password');
+        $confirmPosition = strpos($html, 'Confirm new password');
+
+        $this->assertNotFalse($emailPosition);
+        $this->assertNotFalse($currentPosition);
+        $this->assertNotFalse($newPosition);
+        $this->assertNotFalse($confirmPosition);
+        $this->assertTrue($emailPosition < $currentPosition && $currentPosition < $newPosition && $newPosition < $confirmPosition);
+
+        $page->fillForm([
+            'currentPassword' => 'wrong current passphrase',
+            'password' => 'replacement passphrase 2026',
+            'passwordConfirmation' => 'replacement passphrase 2026',
+        ])
+            ->call('save')
+            ->assertHasFormErrors(['currentPassword']);
+
+        $this->assertTrue(Hash::check('original passphrase 2026', $user->fresh()->password));
+        $this->assertDatabaseHas('sessions', ['id' => 'other-device-session-'.$user->id]);
+
+        $page->fillForm([
+            'currentPassword' => 'original passphrase 2026',
+            'password' => 'replacement passphrase 2026',
+            'passwordConfirmation' => 'replacement passphrase 2026',
+        ])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertSet('data.currentPassword', null)
+            ->assertSet('data.password', null)
+            ->assertSet('data.passwordConfirmation', null);
+
+        $freshUser = $user->fresh();
+        $this->assertTrue(Hash::check('replacement passphrase 2026', $freshUser->password));
+        $this->assertNotSame('initial-remember-token', $freshUser->remember_token);
+        $this->assertDatabaseMissing('sessions', ['id' => 'other-device-session-'.$user->id]);
+        $this->assertDatabaseHas('activity_log', [
+            'subject_type' => User::class,
+            'subject_id' => $user->id,
+            'causer_type' => User::class,
+            'causer_id' => $user->id,
+            'event' => 'password_changed',
+        ]);
+        $this->assertAuthenticatedAs($user);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function accountProfilePanelsAndRoles(): array
+    {
+        return [
+            'applicant panel' => ['applicant', 'applicant'],
+            'student panel' => ['student', 'student'],
+            'admin faculty' => ['admin', User::StaffRoleFaculty],
+            'admin registrar' => ['admin', User::StaffRoleRegistrar],
+            'admin accounting' => ['admin', User::StaffRoleAccounting],
+            'admin academic-head' => ['admin', User::StaffRoleAcademicHead],
+            'admin system-super-admin' => ['admin', User::StaffRoleSystemSuperAdmin],
+        ];
+    }
+
+    public function test_profile_unchanged_and_email_only_saves_keep_other_sessions_and_clear_current_password(): void
+    {
+        Notification::fake();
+
+        $applicant = User::factory()->create([
+            'email' => 'unchanged-or-email@example.test',
+            'password' => Hash::make('original passphrase 2026'),
+            'remember_token' => 'stable-remember-token',
+        ]);
+        $applicant->assignRole('applicant');
+
+        DB::table('sessions')->insert([
+            'id' => 'applicant-second-session-'.$applicant->id,
+            'user_id' => $applicant->id,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'OtherBrowser',
+            'payload' => '',
+            'last_activity' => now()->timestamp,
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $this->actingAs($applicant);
+        session()->put(WorkspaceContextResolver::SessionKey, 'applicant');
+
+        $emptyProfile = Livewire::test(AccountSecurity::class);
+        $emptyProfile
+            ->assertSeeHtml('<fieldset')
+            ->assertSeeHtml('tala-profile-password-box')
+            ->assertSeeInOrder([
+                'Change password',
+                'Current password',
+                'New password',
+                'Confirm new password',
+                'Cancel',
+                'Save changes',
+            ])
+            ->call('save')
+            ->assertHasFormErrors(['password']);
+
+        Livewire::test(AccountSecurity::class)
+            ->fillForm([
+                'currentPassword' => 'original passphrase 2026',
+            ])
+            ->call('save')
+            ->assertHasFormErrors(['password']);
+
+        Livewire::test(AccountSecurity::class)
+            ->fillForm([
+                'passwordConfirmation' => 'different passphrase 2026',
+            ])
+            ->call('save')
+            ->assertHasFormErrors(['password']);
+
+        Livewire::test(AccountSecurity::class)
+            ->fillForm([
+                'currentPassword' => 'original passphrase 2026',
+                'password' => 'original passphrase 2026',
+                'passwordConfirmation' => 'original passphrase 2026',
+            ])
+            ->call('save')
+            ->assertHasFormErrors(['password']);
+
+        Livewire::test(AccountSecurity::class)
+            ->fillForm([
+                'email' => 'abandoned-edit@example.test',
+                'currentPassword' => 'wrong',
+                'password' => 'short',
+            ])
+            ->call('save')
+            ->assertHasFormErrors(['password'])
+            ->assertNotNotified()
+            ->callAction(TestAction::make('cancelChanges')->schemaComponent('form-actions', 'content'))
+            ->assertHasNoFormErrors()
+            ->assertFormSet([
+                'email' => 'unchanged-or-email@example.test',
+                'currentPassword' => null,
+                'password' => null,
+                'passwordConfirmation' => null,
+            ]);
+
+        Livewire::test(AccountSecurity::class)
+            ->fillForm([
+                'email' => 'successor-only@example.test',
+                'currentPassword' => 'original passphrase 2026',
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertSet('data.currentPassword', null);
+
+        $freshApplicant = $applicant->fresh();
+        $this->assertSame('stable-remember-token', $freshApplicant->remember_token);
+        $this->assertTrue(Hash::check('original passphrase 2026', $freshApplicant->password));
+        $this->assertDatabaseHas('sessions', ['id' => 'applicant-second-session-'.$applicant->id]);
+        $this->assertDatabaseMissing('activity_log', [
+            'subject_type' => User::class,
+            'subject_id' => $applicant->id,
+            'event' => 'password_changed',
+        ]);
+        Notification::assertSentTo($applicant, NoticeOfEmailChangeRequest::class);
+        Notification::assertSentOnDemand(VerifyEmailChange::class);
+    }
+
+    public function test_profile_forgot_password_action_sends_reset_link_to_verified_email_only_and_enforces_rate_limit(): void
+    {
+        Notification::fake();
+
+        $accounting = User::factory()->create([
+            'email' => 'accounting-recovery@example.test',
+            'password' => Hash::make('original passphrase 2026'),
+        ]);
+        $accounting->assignRole(User::StaffRoleAccounting);
+        $accounting->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $accounting->saveAppAuthenticationRecoveryCodes(['stored-code']);
+        $accounting->acknowledgeRecoveryCodeStorage();
+
+        $otherUser = User::factory()->create(['email' => 'bystander@example.test']);
+        $otherUser->assignRole(User::StaffRoleFaculty);
+
+        $rateLimitKey = 'tala-authenticated-password-recovery:'.sha1('admin|'.(string) $accounting->getKey());
+        RateLimiter::clear($rateLimitKey);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($accounting);
+        session()->put(WorkspaceContextResolver::SessionKey, User::StaffRoleAccounting);
+
+        $forgotAction = TestAction::make('forgotPassword')->schemaComponent('currentPassword', 'form');
+
+        $page = Livewire::test(AccountSecurity::class)
+            ->mountAction($forgotAction)
+            ->assertSee($accounting->email)
+            ->callMountedAction()
+            ->assertHasNoActionErrors()
+            ->assertNotified('Check your email for account recovery');
+
+        Notification::assertSentToTimes($accounting, ResetPasswordNotification::class, 1);
+        Notification::assertNotSentTo($otherUser, ResetPasswordNotification::class);
+        $notification = Notification::sent($accounting, ResetPasswordNotification::class)->sole();
+        $this->assertStringContainsString('/admin/password-reset/reset', $notification->url);
+        $this->assertTrue(Hash::check('original passphrase 2026', $accounting->fresh()->password));
+        $this->assertSame(['stored-code'], $accounting->fresh()->getAppAuthenticationRecoveryCodes());
+        $this->assertAuthenticatedAs($accounting);
+
+        $page->callAction($forgotAction)
+            ->assertNotified('Please wait before requesting another link');
+
+        Notification::assertSentToTimes($accounting, ResetPasswordNotification::class, 1);
+
+        RateLimiter::clear($rateLimitKey);
+        RateLimiter::hit($rateLimitKey, 60);
+        RateLimiter::hit($rateLimitKey, 60);
+
+        $page->callAction($forgotAction)
+            ->assertNotified('Please wait before requesting another link');
+
+        Notification::assertSentToTimes($accounting, ResetPasswordNotification::class, 1);
+    }
+
+    public function test_recovery_code_regeneration_uses_current_password_only_and_shows_role_guidance(): void
+    {
+        $applicant = User::factory()->create([
+            'email' => 'applicant-recovery-codes@example.test',
+            'password' => 'applicant passphrase 2026',
+        ]);
+        $applicant->assignRole('applicant');
+        $applicant->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $applicant->saveAppAuthenticationRecoveryCodes(['stored-code-alpha', 'stored-code-beta']);
+        $applicant->acknowledgeRecoveryCodeStorage();
+
+        Filament::setCurrentPanel('applicant');
+        Filament::bootCurrentPanel();
+        $this->actingAs($applicant);
+
+        $regenerateAction = TestAction::make('regenerateAppAuthenticationRecoveryCodes')->schemaComponent('app', 'content');
+
+        $applicantModal = Livewire::test(AccountSecurity::class)
+            ->assertSee('Turn off')
+            ->assertDontSee('System Administrator')
+            ->mountAction($regenerateAction)
+            ->assertMountedActionModalSee('Turn off')
+            ->assertMountedActionModalDontSee('Enter the 6-digit code from the authenticator app');
+
+        $this->assertStringContainsString('tala-mfa-modal', $applicantModal->getMountedActionModalHtml());
+
+        $applicantModal
+            ->call('unmountAction', false)
+            ->callAction($regenerateAction, [
+                'password' => 'wrong passphrase 2026',
+            ])
+            ->assertHasActionErrors(['password']);
+
+        $this->assertSame(['stored-code-alpha', 'stored-code-beta'], $applicant->fresh()->getAppAuthenticationRecoveryCodes());
+
+        $applicantRegenerated = Livewire::test(AccountSecurity::class)
+            ->callAction($regenerateAction, [
+                'password' => 'applicant passphrase 2026',
+            ])
+            ->assertHasNoActionErrors();
+
+        $regeneratedCodes = $applicant->fresh()->getAppAuthenticationRecoveryCodes();
+        $this->assertNotEmpty($regeneratedCodes);
+        $this->assertNotSame(['stored-code-alpha', 'stored-code-beta'], $regeneratedCodes);
+
+        $showNewCodesAction = TestAction::make('showNewRecoveryCodes');
+        $showNewCodesModalHtml = $applicantRegenerated
+            ->assertActionMounted($showNewCodesAction)
+            ->getMountedActionModalHtml();
+
+        $this->assertRenderedRecoveryCodesModalMatchesHashes($showNewCodesModalHtml, $regeneratedCodes);
+
+        $staff = User::factory()->create([
+            'email' => 'staff-recovery-codes@example.test',
+            'password' => 'staff passphrase 2026',
+        ]);
+        $staff->assignRole(User::StaffRoleAccounting);
+        $staff->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $staff->saveAppAuthenticationRecoveryCodes(['staff-code-alpha']);
+        $staff->acknowledgeRecoveryCodeStorage();
+
+        Filament::setCurrentPanel('admin');
+        Filament::bootCurrentPanel();
+        $this->actingAs($staff);
+
+        $staffRegenerated = Livewire::test(AccountSecurity::class)
+            ->callAction($regenerateAction, [
+                'password' => 'staff passphrase 2026',
+            ])
+            ->assertHasNoActionErrors();
+
+        $regeneratedStaffCodes = $staff->fresh()->getAppAuthenticationRecoveryCodes();
+        $this->assertNotEmpty($regeneratedStaffCodes);
+        $this->assertNotSame(['staff-code-alpha'], $regeneratedStaffCodes);
+
+        $staffShowNewCodesHtml = $staffRegenerated
+            ->assertActionMounted($showNewCodesAction)
+            ->getMountedActionModalHtml();
+
+        $this->assertRenderedRecoveryCodesModalMatchesHashes($staffShowNewCodesHtml, $regeneratedStaffCodes);
+    }
+
+    public function test_mfa_modal_forgot_password_dispatches_reset_link_without_bypassing_password_or_mfa(): void
+    {
+        Notification::fake();
+
+        $staff = User::factory()->create([
+            'email' => 'staff-mfa-recovery@example.test',
+            'password' => Hash::make('original passphrase 2026'),
+        ]);
+        $staff->assignRole(User::StaffRoleRegistrar);
+        $staff->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $staff->saveAppAuthenticationRecoveryCodes(['stored-code']);
+        $staff->acknowledgeRecoveryCodeStorage();
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->actingAs($staff);
+        session()->put(WorkspaceContextResolver::SessionKey, User::StaffRoleRegistrar);
+
+        $regenerateAction = TestAction::make('regenerateAppAuthenticationRecoveryCodes')->schemaComponent('app', 'content');
+        $modalForgotAction = TestAction::make('forgotPassword')->schemaComponent('password', 'mountedActionSchema0');
+
+        $profile = Livewire::test(AccountSecurity::class)
+            ->assertSee('System Administrator')
+            ->assertSee('reset two-factor authentication')
+            ->assertDontSee('reset MFA')
+            ->assertDontSee('after identity verification')
+            ->mountAction($regenerateAction)
+            ->assertMountedActionModalSee('System Administrator')
+            ->assertMountedActionModalSee('reset two-factor authentication')
+            ->assertMountedActionModalDontSee('reset MFA')
+            ->assertMountedActionModalDontSee('after identity verification')
+            ->assertMountedActionModalDontSee('Enter the 6-digit code from the authenticator app')
+            ->assertActionVisible($modalForgotAction)
+            ->mountAction($modalForgotAction)
+            ->assertMountedActionModalSee([
+                $staff->email,
+                'does not turn off two-factor authentication',
+            ])
+            ->call('unmountAction', false)
+            ->assertActionMounted($regenerateAction);
+
+        Notification::assertNothingSent();
+
+        $profile->mountAction($modalForgotAction)
+            ->callMountedAction()
+            ->assertHasNoActionErrors()
+            ->assertNotified('Check your email for account recovery')
+            ->assertActionNotMounted($regenerateAction);
+
+        Notification::assertSentToTimes($staff, ResetPasswordNotification::class, 1);
+        $this->assertSame(['stored-code'], $staff->fresh()->getAppAuthenticationRecoveryCodes());
+        $this->assertAuthenticatedAs($staff);
+
+        // Required MFA setup wizard also exposes the confirmation action on its password field.
+        $unenrolledStaff = User::factory()->create(['email' => 'unenrolled-mfa-recovery@example.test']);
+        $unenrolledStaff->assignRole(User::StaffRoleFaculty);
+
+        $this->actingAs($unenrolledStaff);
+        session()->put(WorkspaceContextResolver::SessionKey, User::StaffRoleFaculty);
+
+        $setUpAction = TestAction::make('setUpAppAuthentication')->schemaComponent('app', 'content');
+
+        Livewire::test(SetUpRequiredMultiFactorAuthentication::class)
+            ->mountAction($setUpAction)
+            ->assertActionVisible($modalForgotAction)
+            ->callAction($modalForgotAction)
+            ->assertHasNoActionErrors()
+            ->assertNotified('Check your email for account recovery')
+            ->assertActionNotMounted($setUpAction);
+
+        Notification::assertSentToTimes($unenrolledStaff, ResetPasswordNotification::class, 1);
+        $this->assertNull($unenrolledStaff->fresh()->getAppAuthenticationSecret());
+
+        // Enrolled learners also retain the confirmation action inside the disable-MFA modal.
+        $applicant = User::factory()->create(['email' => 'applicant-mfa-recovery@example.test']);
+        $applicant->assignRole('applicant');
+        $applicant->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $applicant->saveAppAuthenticationRecoveryCodes(['applicant-code']);
+        $applicant->acknowledgeRecoveryCodeStorage();
+
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $this->actingAs($applicant);
+        session()->put(WorkspaceContextResolver::SessionKey, 'applicant');
+
+        $disableAction = TestAction::make('disableAppAuthentication')->schemaComponent('app', 'content');
+
+        $disableProfile = Livewire::test(AccountSecurity::class)
+            ->mountAction($disableAction)
+            ->assertActionVisible($modalForgotAction);
+
+        $this->assertStringContainsString('tala-mfa-modal', $disableProfile->getMountedActionModalHtml());
+
+        $disableProfile
+            ->callAction($modalForgotAction)
+            ->assertHasNoActionErrors()
+            ->assertNotified('Check your email for account recovery')
+            ->assertActionNotMounted($disableAction);
+
+        Notification::assertSentToTimes($applicant, ResetPasswordNotification::class, 1);
+        $this->assertNotNull($applicant->fresh()->getAppAuthenticationSecret());
+    }
+
+    /**
+     * Assert the chained recovery-code modal uses shared MFA shell styling and displays plaintext codes matching the stored hashes.
+     *
+     * @param  list<string>  $hashedCodes
+     */
+    private function assertRenderedRecoveryCodesModalMatchesHashes(string $modalHtml, array $hashedCodes): void
+    {
+        $this->assertStringContainsString('tala-mfa-modal', $modalHtml);
+        $this->assertStringContainsString('tala-mfa-recovery-step', $modalHtml);
+
+        preg_match('/<div class="tala-mfa-recovery-step">.*?<ul[^>]*fi-sc-unordered-list[^>]*>(.*?)<\/ul>/s', $modalHtml, $listMatch);
+        $this->assertNotEmpty($listMatch);
+
+        preg_match_all('/<li[^>]*>\s*<span[^>]*>\s*([^\s<]+)\s*<\/span>\s*<\/li>/s', $listMatch[1], $codeMatches);
+        $displayedCodes = $codeMatches[1];
+
+        $this->assertCount(count($hashedCodes), $displayedCodes);
+
+        foreach ($displayedCodes as $index => $plainCode) {
+            $this->assertTrue(Hash::check($plainCode, $hashedCodes[$index]));
+        }
     }
 }

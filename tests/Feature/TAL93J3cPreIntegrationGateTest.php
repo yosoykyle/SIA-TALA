@@ -117,8 +117,8 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermPlanningCluster', 'TermOverview', 'TermCalendar', 'TermClasses', 'TermClassProposal', 'TermResources', 'TermTimetable', 'TermResource', 'TranscriptRequestResource',
             ]],
             'accounting' => ['role' => User::StaffRoleAccounting, 'allowed' => [
-                'StaffEntry', 'EnrollmentResource', 'FeePlanResource', 'StudentLifecycleChangeResource',
-                'StudentProfileResource', 'TranscriptRequestResource',
+                'StaffEntry', 'EnrollmentResource', 'FeePlanResource', 'PaymentChannels',
+                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TranscriptRequestResource',
             ]],
             'faculty' => ['role' => User::StaffRoleFaculty, 'allowed' => [
                 'CalendarEventResource', 'StaffEntry', 'FacultyGradeRoster', 'FacultyQualificationResource',
@@ -238,6 +238,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'CompletionAndTor',
             'SystemHealth',
             'GovernanceAudit',
+            'PaymentChannels',
             'Admissions',
             'PublicContent',
             'TermPlanningCluster',

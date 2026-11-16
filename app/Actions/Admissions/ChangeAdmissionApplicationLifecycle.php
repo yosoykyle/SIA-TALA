@@ -161,7 +161,7 @@ class ChangeAdmissionApplicationLifecycle
     {
         if ($this->readiness->registrationHasStarted($application)) {
             throw ValidationException::withMessages([
-                'registration' => 'Clinic 4 registration has started; withdrawal or reopening must stop.',
+                'registration' => 'Enrollment registration has started; withdrawal or reopening must stop.',
             ]);
         }
     }

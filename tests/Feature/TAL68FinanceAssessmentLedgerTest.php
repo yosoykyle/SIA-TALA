@@ -267,7 +267,6 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $this->assertFalse(Gate::forUser($accounting)->allows('update', $historical));
         $this->assertFalse(Gate::forUser($accounting)->allows('delete', $historical));
         $this->assertSame(0, $case->termAccount->payments()->count());
-        $this->assertSame(0, $case->termAccount->paymentAttempts()->count());
     }
 
     public function test_registrar_views_current_finance_summary_without_accounting_mutation_actions(): void
@@ -408,6 +407,22 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $this->assertSame($oldCharges, $predecessor->fresh('charges')->charges->map->only(['code', 'label', 'amount'])->all());
         $this->assertSame($source, $assessment->fresh()->getAttributes());
         $this->assertSame(1, $case->termAccount->assessments()->count());
+    }
+
+    public function test_an_unrelated_draft_shows_the_current_plan_blocker_before_publication(): void
+    {
+        [$case, $predecessor, $assessment] = $this->fixedAssessment();
+        $actor = $this->staff(User::StaffRoleAccounting);
+        $draft = app(CreateSuccessorFeePlan::class)->execute($predecessor, $actor);
+        $draft->update(['supersedes_fee_plan_id' => null]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($actor)->test(ViewFeePlan::class, ['record' => $draft->id])
+            ->assertSee('A current fee plan already exists')
+            ->assertActionDisabled('publish');
+        $this->assertSame(FeePlan::StatePublished, $predecessor->fresh()->state);
+        $this->assertSame($predecessor->id, $assessment->fresh()->fee_plan_id);
+        $this->assertSame(FeePlan::StateDraft, $draft->fresh()->state);
     }
 
     public function test_mounted_zero_enrollment_payment_publication_requires_separate_institutional_approval(): void
@@ -573,6 +588,165 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
                 $this->assertNull($plan->fresh()->published_at);
             }
         }
+    }
+
+    public function test_list_fee_plans_gates_multi_term_browse_until_scoped_and_preserves_clean_filter_reset(): void
+    {
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $activeTerm = Term::factory()->create(['state' => Term::StateActive, 'label' => 'Gate Active Term']);
+        $closedTerm = Term::factory()->create(['state' => Term::StateClosed, 'label' => 'Gate Closed Term']);
+        $program = Program::factory()->create(['name' => 'BS Gate Verification']);
+        $publishedPlan = app(PublishFeePlan::class)->execute(
+            $this->draftPlan($accounting, $program, $activeTerm),
+            $accounting,
+            'SYN-FEEPLAN-GATE-PUBLISHED',
+            CarbonImmutable::now(),
+        );
+        $draftPlan = $this->draftPlan($accounting, $program, $closedTerm);
+
+        $gatedPage = Livewire::actingAs($accounting)->test(ListFeePlans::class)
+            ->assertSee('Choose a term or program')
+            ->assertSee('tala-gate-attention', false)
+            ->assertSeeInOrder(['Draft fee plans', '1'])
+            ->assertSee('Open Gate Active Term')
+            ->assertSee('Show all terms')
+            ->assertActionHidden('showAllTerms')
+            ->assertActionHidden('changeTerm')
+            ->assertActionDoesNotExist('clearFilters')
+            ->assertActionVisible('createDraft')
+            ->assertCanNotSeeTableRecords([$publishedPlan, $draftPlan]);
+        $this->assertTrue($gatedPage->instance()->feePlanGateActive());
+
+        $gatedPage->call('showDraftFeePlans')
+            ->assertDontSee('Choose a term or program')
+            ->assertCanSeeTableRecords([$draftPlan])
+            ->assertCanNotSeeTableRecords([$publishedPlan]);
+
+        $gatedPage->callAction('changeTerm')
+            ->assertSee('Choose a term or program')
+            ->assertCanNotSeeTableRecords([$publishedPlan, $draftPlan]);
+        $this->assertTrue($gatedPage->instance()->feePlanGateActive());
+
+        $gatedPage->call('selectFeePlanTerm', $activeTerm->id)
+            ->assertDontSee('Choose a term or program')
+            ->assertSee('Draft fee plans outside this view')
+            ->assertSee('Gate Active Term')
+            ->assertActionVisible('showAllTerms')
+            ->assertActionVisible('changeTerm')
+            ->assertActionVisible('createDraft')
+            ->assertDontSee('<h2>Fee plans</h2>', false)
+            ->assertSee('fee-plans-col-program', false)
+            ->assertSee('fee-plans-col-status', false)
+            ->assertSee('fee-plans-col-money', false)
+            ->assertSee('1 draft outside this view.')
+            ->assertSee('Review drafts')
+            ->assertCanSeeTableRecords([$publishedPlan])
+            ->assertCanNotSeeTableRecords([$draftPlan]);
+
+        $gatedPage->filterTable('program', $program->id)
+            ->assertActionDoesNotExist('clearFilters')
+            ->call('clearFeePlanFilters')
+            ->assertSet('scope', 'all')
+            ->assertActionHidden('showAllTerms')
+            ->assertCanSeeTableRecords([$publishedPlan, $draftPlan]);
+
+        $gatedPage->call('selectFeePlanTerm', $activeTerm->id)
+            ->callAction('showAllTerms')
+            ->assertSet('scope', 'all')
+            ->assertActionHidden('showAllTerms')
+            ->assertCanSeeTableRecords([$publishedPlan, $draftPlan]);
+
+        $gatedPage->filterTable('state', FeePlan::StateDraft)
+            ->assertCanNotSeeTableRecords([$publishedPlan]);
+
+        $gatedPage->filterTable('state', null)
+            ->filterTable('term', null)
+            ->assertSet('scope', 'all')
+            ->assertDontSee('Choose a term or program')
+            ->assertCanSeeTableRecords([$publishedPlan, $draftPlan]);
+
+        Livewire::actingAs($accounting)
+            ->withQueryParams(['filters' => ['term' => ['value' => (string) $closedTerm->id]]])
+            ->test(ListFeePlans::class)
+            ->assertDontSee('Choose a term or program')
+            ->assertCanSeeTableRecords([$draftPlan])
+            ->assertCanNotSeeTableRecords([$publishedPlan]);
+
+        Livewire::actingAs($accounting)
+            ->withQueryParams(['search' => 'SYN-FEEPLAN-GATE-PUBLISHED'])
+            ->test(ListFeePlans::class)
+            ->assertDontSee('Choose a term or program')
+            ->assertActionDoesNotExist('clearFilters')
+            ->assertCanSeeTableRecords([$publishedPlan])
+            ->assertCanNotSeeTableRecords([$draftPlan]);
+
+        $unrecordedDatePlan = FeePlan::factory()->create([
+            'state' => FeePlan::StatePublished,
+            'authority_date' => null,
+            'created_by' => $accounting->id,
+        ]);
+        Livewire::actingAs($accounting)
+            ->test(ViewFeePlan::class, ['record' => $unrecordedDatePlan->id])
+            ->assertSee('Fee plan summary')
+            ->assertSee('Total charges')
+            ->assertSee('Enrollment payment')
+            ->assertSee('Payment schedule')
+            ->assertSee('Approval')
+            ->assertSee('Plan versions')
+            ->assertSee('Not recorded')
+            ->assertSee('aria-current="page"', false);
+    }
+
+    public function test_view_fee_plan_hides_internal_fee_codes_from_accountants(): void
+    {
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $draft = app(CreateFeePlanDraft::class)->execute(
+            Program::factory()->create(),
+            Term::factory()->create(),
+            [[
+                'code' => 'CHG-INTERNAL-CODE',
+                'label' => 'Tuition fee',
+                'category' => 'tuition_and_fees',
+                'amount' => '1500.00',
+            ]],
+            $accounting,
+            [
+                [
+                    'code' => 'PAY-ENROLLMENT-CODE',
+                    'label' => 'Enrollment payment',
+                    'purpose' => 'Enrollment',
+                    'amount' => '500.00',
+                    'due_at' => '2026-10-01 12:00:00',
+                    'required_for_enrollment' => true,
+                ],
+                [
+                    'code' => 'PAY-LATER-CODE',
+                    'label' => 'Second installment',
+                    'purpose' => 'TermPayment',
+                    'amount' => '1000.00',
+                    'due_at' => '2026-11-01 12:00:00',
+                    'required_for_enrollment' => false,
+                ],
+            ],
+        );
+        $published = app(PublishFeePlan::class)->execute($draft, $accounting, 'SYN-HIDE-CODES-AUTH', CarbonImmutable::now());
+
+        Livewire::actingAs($accounting)
+            ->test(ViewFeePlan::class, ['record' => $published->id])
+            ->assertSee('Tuition fee')
+            ->assertSee('Tuition and fees')
+            ->assertSee('Enrollment payment')
+            ->assertSee('Second installment')
+            ->assertSee('Required for enrollment')
+            ->assertSee('Approval')
+            ->assertSee('Plan versions')
+            ->assertDontSee('Internal fee codes')
+            ->assertDontSee('Charge codes')
+            ->assertDontSee('Payment schedule codes')
+            ->assertDontSee('CHG-INTERNAL-CODE')
+            ->assertDontSee('PAY-ENROLLMENT-CODE')
+            ->assertDontSee('PAY-LATER-CODE')
+            ->assertDontSee('TermPayment');
     }
 
     private function draftPlan(User $actor, ?Program $program = null, ?Term $term = null): FeePlan

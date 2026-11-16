@@ -45,26 +45,36 @@ class PaymentPolicy
 
     public function viewAcknowledgement(User $user, Payment $payment): bool
     {
-        $ledgerEntry = $payment->ledgerEntry;
-
-        if ($payment->evidence_status !== 'verified'
-            || ! $ledgerEntry instanceof LedgerEntry
-            || $ledgerEntry->state !== 'posted') {
+        if (! $this->isVerifiedPostedPayment($payment)) {
             return false;
         }
 
         return $user->hasRole(User::StaffRoleAccounting)
-            || $payment->studentProfile()->where('user_id', $user->id)->exists();
+            || $payment->studentProfile()->where('user_id', $user->id)->exists()
+            || $payment->termAccount()->where('credential_user_id', $user->id)->exists();
     }
 
     public function mapOfficialReceipt(User $user, Payment $payment): bool
     {
+        return $user->canProcessPayments()
+            && $this->isVerifiedPostedPayment($payment)
+            && blank($payment->or_number);
+    }
+
+    private function isVerifiedPostedPayment(Payment $payment): bool
+    {
+        if ($payment->evidence_status !== 'verified'
+            || ($payment->state !== null && $payment->state !== Payment::StatePosted)) {
+            return false;
+        }
+
         $ledgerEntry = $payment->ledgerEntry;
 
-        return $user->canProcessPayments()
-            && $payment->evidence_status === 'verified'
-            && $ledgerEntry instanceof LedgerEntry
-            && $ledgerEntry->state === 'posted'
-            && blank($payment->or_number);
+        if ($ledgerEntry instanceof LedgerEntry && $ledgerEntry->state === 'posted') {
+            return true;
+        }
+
+        return $payment->term_account_id !== null
+            && $payment->allocations()->exists();
     }
 }

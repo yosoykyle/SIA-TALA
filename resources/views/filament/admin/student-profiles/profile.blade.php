@@ -8,7 +8,7 @@
 @endphp
 <div class="tala-student-profile">
     <x-record-identity :name="$name" :number="$student->student_number" :program="$student->program?->name"
-        :initials="$initials" :photo-url="$student->user?->getFilamentAvatarUrl()" heading-level="h1">
+        :initials="$initials" :photo-url="$student->adminPhotoUrl()" heading-level="h1">
         <x-slot:supporting><p class="tala-profile-muted">{{ $student->curriculumVersion?->name ?? 'No curriculum recorded' }}</p></x-slot:supporting>
         <x-slot:actions><x-filament::badge :color="$student->lifecycle_status === \App\Models\StudentProfile::LifecycleActive ? 'success' : 'gray'">{{ \App\Models\StudentProfile::lifecycleStatusLabel($student->lifecycle_status) }} student</x-filament::badge></x-slot:actions>
     </x-record-identity>

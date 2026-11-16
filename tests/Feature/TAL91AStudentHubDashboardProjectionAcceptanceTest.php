@@ -4,17 +4,9 @@ namespace Tests\Feature;
 
 use App\Actions\StudentHub\StudentHubPriorityResolver;
 use App\Filament\Student\Widgets\StudentPriorityNoticeWidget;
-use App\Models\Assessment;
-use App\Models\AssessmentLine;
 use App\Models\Enrollment;
-use App\Models\FeeRule;
 use App\Models\Hold;
-use App\Models\LedgerEntry;
-use App\Models\PaymentAttempt;
-use App\Models\PaymentScheduleRow;
-use App\Models\Program;
 use App\Models\StudentProfile;
-use App\Models\Term;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -141,27 +133,6 @@ final class TAL91AStudentHubDashboardProjectionAcceptanceTest extends TestCase
     }
 
     #[Test]
-    public function retired_paymongo_attempt_does_not_override_canonical_registration_review(): void
-    {
-        $fixture = $this->financeFixture(paymentAttemptStatus: 'pending');
-        $profile = $fixture['profile'];
-
-        $this->createReadNotification($fixture['student']);
-        Hold::factory()->create([
-            'student_profile_id' => $profile->id,
-            'status' => Hold::StatusActive,
-            'hold_type' => Hold::TypeCorDownload,
-            'blocking_level' => Hold::BlockingCorPrint,
-        ]);
-
-        $result = app(StudentHubPriorityResolver::class)->resolve($profile);
-
-        $this->assertNotNull($result);
-        $this->assertSame('Pending Review', $result['tier']);
-        $this->assertSame('Registrar Office', $result['office_to_contact']);
-    }
-
-    #[Test]
     public function cor_blocked_hold_outranks_informational_notification(): void
     {
         $student = $this->studentUser();
@@ -255,94 +226,6 @@ final class TAL91AStudentHubDashboardProjectionAcceptanceTest extends TestCase
 
         $response = $this->get('/student');
         $response->assertOk();
-    }
-
-    /**
-     * @return array{profile: StudentProfile, student: User}
-     */
-    private function financeFixture(string $paymentAttemptStatus): array
-    {
-        $student = $this->studentUser();
-        $program = Program::factory()->create(['code' => 'BSBA-'.fake()->unique()->numerify('###')]);
-        $profile = StudentProfile::factory()->for($student)->for($program)->create([
-            'student_number' => 'SIA-2026-'.fake()->unique()->numerify('####'),
-        ]);
-        $term = Term::factory()->create(['label' => 'First Semester 2026-2027']);
-        $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
-            'status' => 'pending_payment',
-            'registered_at' => now()->subDay(),
-        ]);
-        $assessment = Assessment::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'version' => 1,
-            'state' => Assessment::StateActive,
-            'currency' => 'PHP',
-            'subtotal' => '9000.00',
-            'discount_total' => '0.00',
-            'total' => '9000.00',
-            'required_downpayment' => '2000.00',
-            'activated_at' => now(),
-        ]);
-        $feeRule = FeeRule::query()->create([
-            'code' => 'TUITION-'.fake()->unique()->numerify('###'),
-            'name' => 'Tuition Fee',
-            'ledger_category' => FeeRule::LedgerCategoryCharge,
-            'display_category' => FeeRule::DisplayCategoryTuition,
-            'program_id' => $program->id,
-            'term_id' => $term->id,
-            'calculation_type' => FeeRule::CalculationFixed,
-            'amount' => '9000.00',
-            'effective_from' => now()->toDateString(),
-            'is_active' => true,
-            'authority' => 'TAL-91A fixture',
-        ]);
-        $line = AssessmentLine::query()->create([
-            'assessment_id' => $assessment->id,
-            'fee_rule_id' => $feeRule->id,
-            'source_line_key' => 'tuition',
-            'description_snapshot' => 'Tuition Fee',
-            'quantity' => '1.0000',
-            'rate' => '9000.00',
-            'amount' => '9000.00',
-            'line_type' => 'tuition',
-        ]);
-        PaymentScheduleRow::query()->create([
-            'assessment_id' => $assessment->id,
-            'sequence' => 1,
-            'category' => PaymentScheduleRow::CategoryDownpayment,
-            'due_date' => now()->addWeek()->toDateString(),
-            'amount' => '2000.00',
-            'state' => PaymentScheduleRow::StateDue,
-        ]);
-        LedgerEntry::query()->create([
-            'student_profile_id' => $profile->id,
-            'term_id' => $term->id,
-            'enrollment_id' => $enrollment->id,
-            'direction' => LedgerEntry::DirectionCharge,
-            'category' => 'tuition',
-            'amount' => '9000.00',
-            'source_type' => AssessmentLine::class,
-            'source_id' => $line->id,
-            'description' => 'Tuition Fee',
-            'posted_at' => now()->subHour(),
-            'state' => 'posted',
-        ]);
-        PaymentAttempt::query()->create([
-            'assessment_id' => $assessment->id,
-            'student_profile_id' => $profile->id,
-            'channel' => 'paymongo',
-            'provider' => 'mock',
-            'internal_reference' => 'TALA-PAY-'.fake()->unique()->uuid(),
-            'amount' => '2000.00',
-            'currency' => 'PHP',
-            'status' => $paymentAttemptStatus,
-            'metadata' => ['note' => 'TAL-91A fixture'],
-        ]);
-
-        return [
-            'student' => $student,
-            'profile' => $profile,
-        ];
     }
 
     private function createUnreadNotification(User $user, string $title = 'Notice', string $body = 'You have a notice.'): DatabaseNotification

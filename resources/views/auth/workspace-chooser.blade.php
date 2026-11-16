@@ -3,7 +3,9 @@
             <p class="tala-access-muted mt-2">Only workspaces currently authorized for your account are shown.</p>
             <x-tala-context-entry-notice />
             @error('context')
-                <p class="tala-access-alert mt-4" role="alert">{{ $message }} Review the current choices or ask a System Administrator to check your access.</p>
+                <x-tala-access-alert variant="danger" class="mt-4" role="alert">
+                    <p>{{ $message }} Review the current choices or ask a System Administrator to check your access.</p>
+                </x-tala-access-alert>
             @enderror
             @if (!empty($contexts))
                 <div class="mt-6 grid gap-3 sm:grid-cols-2">

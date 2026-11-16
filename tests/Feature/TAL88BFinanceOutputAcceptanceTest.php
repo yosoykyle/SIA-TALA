@@ -14,7 +14,7 @@ use App\Models\FeeRule;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
-use App\Models\PaymentAttempt;
+use App\Models\PaymentEvidenceVersion;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
 use App\Models\StudentProfile;
@@ -98,9 +98,9 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
         $this->actingAs($fixture['student'])
             ->get(route('finance.payments.acknowledgement', $fixture['payment']))
             ->assertOk()
-            ->assertSee('PayMongo')
-            ->assertDontSee('PayMongo / PayMongo')
-            ->assertDontSee('paymongo / paymongo')
+            ->assertSee('Bank Transfer')
+            ->assertDontSee('Bank Transfer / Bank Transfer')
+            ->assertDontSee('bank_transfer / bank_transfer')
             ->assertSee('not an official receipt or tax document');
 
         $fixture['payment']->update([
@@ -111,8 +111,8 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
         $this->actingAs($fixture['student'])
             ->get(route('finance.payments.acknowledgement', $fixture['payment']))
             ->assertOk()
-            ->assertSee('Cash')
-            ->assertDontSee('Cash / Cash')
+            ->assertSee('Cash (Campus Cashier)')
+            ->assertDontSee('Cash (Campus Cashier) / Cash (Campus Cashier)')
             ->assertDontSee('cash / cash')
             ->assertSee('not an official receipt or tax document');
     }
@@ -135,16 +135,12 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
     public function test_student_finance_reports_payment_under_review_status(): void
     {
         $fixture = $this->financeFixture();
-        PaymentAttempt::query()->create([
-            'assessment_id' => $fixture['assessment']->id,
+        PaymentEvidenceVersion::factory()->create([
             'term_account_id' => $fixture['assessment']->term_account_id,
-            'student_profile_id' => $fixture['profile']->id,
-            'channel' => 'paymongo',
-            'provider' => 'mock',
-            'internal_reference' => 'TALA-PAY-'.fake()->unique()->uuid(),
-            'amount' => '2000.00',
-            'currency' => 'PHP',
-            'status' => 'under_review',
+            'assessment_id' => $fixture['assessment']->id,
+            'submitted_by' => $fixture['student']->id,
+            'state' => PaymentEvidenceVersion::StateSubmitted,
+            'claimed_amount' => '2000.00',
         ]);
 
         $finance = app(FinanceEvidenceService::class)->studentFinance($fixture['student']);
@@ -154,28 +150,32 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Online payment needs Accounting review')
-            ->assertSee('Submit payment proof');
+            ->assertSee('Submitted receipt awaiting review')
+            ->assertSee('View receipt');
     }
 
-    public function test_student_finance_reports_payment_rejected_when_latest_attempt_failed_without_posted_payment(): void
+    public function test_student_finance_reports_payment_rejected_when_latest_evidence_was_rejected_without_posted_payment(): void
     {
         $fixture = $this->financeFixture(['post_payment' => false]);
-        PaymentAttempt::query()->create([
+        PaymentEvidenceVersion::factory()->create([
+            'term_account_id' => $fixture['assessment']->term_account_id,
             'assessment_id' => $fixture['assessment']->id,
-            'student_profile_id' => $fixture['profile']->id,
-            'channel' => 'paymongo',
-            'provider' => 'mock',
-            'internal_reference' => 'TALA-PAY-'.fake()->unique()->uuid(),
-            'amount' => '2000.00',
-            'currency' => 'PHP',
-            'status' => 'failed',
+            'submitted_by' => $fixture['student']->id,
+            'state' => PaymentEvidenceVersion::StateRejected,
+            'claimed_amount' => '2000.00',
+            'reviewed_at' => now(),
+            'review_note' => 'Receipt image is unreadable.',
         ]);
 
         $finance = app(FinanceEvidenceService::class)->studentFinance($fixture['student']);
 
         $this->assertTrue($finance['available']);
         $this->assertSame('Payment Rejected', $finance['summary']['payment_status']);
+
+        Livewire::actingAs($fixture['student'])
+            ->test(Finance::class)
+            ->assertSee('Submitted receipt needs correction')
+            ->assertSee('Receipt image is unreadable.');
     }
 
     public function test_reversed_payment_acknowledgement_remains_reproducible_and_clearly_labelled(): void
@@ -298,8 +298,8 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
         ]);
         $payment = Payment::factory()->for($profile)->for($term)->create([
             'term_account_id' => $account->id,
-            'method' => 'paymongo',
-            'channel' => 'paymongo',
+            'method' => 'bank_transfer',
+            'channel' => 'bank_transfer',
             'amount' => '500.00',
             'evidence_status' => 'verified',
             'paid_at' => now()->subMinutes(30),
@@ -307,7 +307,7 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
             'state' => $postPayment ? Payment::StatePosted : 'Exception',
             'verification_basis' => $postPayment ? 'IndependentSourceCheck' : null,
             'external_check_reference' => $postPayment ? 'SYNTH-TAL88B-CHECK' : null,
-            'provider_reference' => 'pm_'.fake()->unique()->numerify('######'),
+            'provider_reference' => 'MANUAL-'.fake()->unique()->numerify('######'),
             'or_number' => null,
         ]);
 

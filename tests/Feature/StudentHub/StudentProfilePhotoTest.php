@@ -110,6 +110,49 @@ class StudentProfilePhotoTest extends TestCase
         $this->actingAs(User::factory()->create())->get(route('student.profile-photo'))->assertForbidden();
     }
 
+    public function test_staff_and_applicant_account_photos_are_served_privately_and_staff_can_view_student_profile_photos(): void
+    {
+        Storage::fake('local');
+
+        $staff = User::factory()->create(['status' => User::StatusActive]);
+        $staff->assignRole(Role::findOrCreate(User::StaffRoleAccounting, 'web'));
+        $staffPhotoPath = 'profile-photos/'.$staff->id.'/staff.png';
+        Storage::disk('local')->put($staffPhotoPath, UploadedFile::fake()->image('staff.png', 120, 120)->get());
+        $staff->forceFill(['avatar_path' => $staffPhotoPath])->save();
+
+        $this->actingAs($staff);
+        $this->assertStringContainsString('/account/profile-photo', (string) $staff->getFilamentAvatarUrl());
+        $this->get($staff->getFilamentAvatarUrl())
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        $profile = StudentProfile::factory()->create();
+        $profile->user->assignRole(Role::findOrCreate('student', 'web'));
+        $studentPhotoPath = 'profile-photos/'.$profile->user_id.'/student.png';
+        Storage::disk('local')->put($studentPhotoPath, UploadedFile::fake()->image('student.png', 120, 120)->get());
+        $profile->user->forceFill(['avatar_path' => $studentPhotoPath])->save();
+
+        $adminPhotoUrl = $profile->adminPhotoUrl();
+        $this->assertNotNull($adminPhotoUrl);
+
+        $this->actingAs($staff)
+            ->get($adminPhotoUrl)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        $applicant = User::factory()->create(['status' => User::StatusActive]);
+        $applicant->assignRole(Role::findOrCreate('applicant', 'web'));
+        $otherStudent = StudentProfile::factory()->create();
+        $otherStudent->user->assignRole(Role::findOrCreate('student', 'web'));
+        $this->actingAs($applicant)->get($adminPhotoUrl)->assertForbidden();
+        $this->actingAs($otherStudent->user)->get($adminPhotoUrl)->assertForbidden();
+
+        $staff->forceFill(['status' => User::StatusDisabled])->save();
+        $this->actingAs($staff)->get(route('account.profile-photo'))->assertForbidden();
+    }
+
     private function student(): StudentProfile
     {
         $profile = StudentProfile::factory()->create();

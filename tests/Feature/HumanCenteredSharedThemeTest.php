@@ -154,8 +154,9 @@ class HumanCenteredSharedThemeTest extends TestCase
     {
         $this->get('/'.$panelId.'/login')
             ->assertOk()
-            ->assertSee('images/brand/servitech-crest.webp', false)
-            ->assertSee('talalogo.png', false)
+            ->assertSee('images/brand/servitech-crest-outlined-192.webp', false)
+            ->assertDontSee('talalogo.png', false)
+            ->assertDontSee('Powered by TALA')
             ->assertSee('images/auth/admin.webp', false)
             ->assertSee('media-top', false)
             ->assertDontSee('fi-auth-layout no-media', false)
@@ -310,6 +311,30 @@ class HumanCenteredSharedThemeTest extends TestCase
         } finally {
             $this->app->usePublicPath($originalPublicPath);
         }
+    }
+
+    public function test_simple_layout_user_menu_and_ambient_backdrop_avoid_rectangular_button_shadow_and_reduce_motion(): void
+    {
+        $foundationCss = file_get_contents(public_path('css/tala-foundation.css'));
+        $themeCss = file_get_contents(resource_path('css/filament/tala/theme.css'));
+
+        $this->assertStringContainsString('.fi-sidebar .fi-user-menu-trigger', $foundationCss);
+        $this->assertStringNotContainsString("\n.fi-user-menu-trigger,", $foundationCss);
+        $this->assertStringContainsString('.fi-simple-layout-header .fi-user-menu-trigger', $themeCss);
+        $this->assertStringContainsString('border-radius: 9999px;', $themeCss);
+        $this->assertStringContainsString('.fi-simple-main::before', $themeCss);
+        $this->assertStringContainsString('.tala-ambient, .tala-ambient * { animation: none !important; }', $themeCss);
+    }
+
+    public function test_mfa_modals_pin_sunken_header_and_footer_within_dynamic_viewport_height(): void
+    {
+        $themeCss = file_get_contents(resource_path('css/filament/tala/theme.css'));
+
+        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*\{[^}]*max-block-size:\s*calc\(100dvh/s', $themeCss);
+        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*>\s*\.fi-modal-header\s*\{[^}]*background-color:\s*var\(--tala-surface-sunken\);/s', $themeCss);
+        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*>\s*\.fi-modal-footer,\s*\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s+\.fi-sc-wizard-footer\s*\{[^}]*background-color:\s*var\(--tala-surface-sunken\);/s', $themeCss);
+        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*>\s*\.fi-modal-content\s*\{[^}]*overflow-y:\s*auto;/s', $themeCss);
+        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s+\.fi-sc-wizard-step\.fi-active\s*\{[^}]*overflow-y:\s*auto;/s', $themeCss);
     }
 
     /** @return array<string, array{string}> */

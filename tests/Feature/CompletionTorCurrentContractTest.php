@@ -232,18 +232,26 @@ class CompletionTorCurrentContractTest extends TestCase
         $accounting = $this->staff(User::StaffRoleAccounting);
         $request = app(RecordTranscriptRequest::class)->execute($student, $registrar, 'EXT-UI-ACCOUNTING', '2028-07-01');
         $page = Livewire::actingAs($accounting)->test(ViewTranscriptRequest::class, ['record' => $request->id])
-            ->assertSuccessful()->assertActionVisible('recordRestriction')
+            ->assertSuccessful()
+            ->assertSee('Open')
+            ->assertSee('No active TOR restriction')
+            ->assertDontSee('Document inputs')
+            ->assertActionVisible('recordRestriction')
             ->assertActionHidden('resolveRestriction')->assertActionHidden('prepare')
             ->assertActionHidden('preview')->assertActionHidden('issue')
             ->assertActionDoesNotExist('recordClearance')
             ->callAction('recordRestriction', data: ['reason' => 'An actual Accounting TOR restriction'])
-            ->assertHasNoActionErrors()->assertNotified('TOR restriction recorded');
+            ->assertHasNoActionErrors()->assertNotified('TOR restriction recorded')
+            ->assertSee('Active TOR hold');
         $restriction = OfficialOutputRestriction::query()->where('student_profile_id', $student->id)->sole();
         $this->assertSame($accounting->id, $restriction->recorded_by);
         $this->assertNull($restriction->source_reference);
         $this->assertNull($restriction->resolved_at);
         $page->assertActionVisible('resolveRestriction')
-            ->callAction('resolveRestriction', data: ['restriction_id' => $restriction->id, 'resolution_reason' => 'Accounting verified that issuance is now allowed.'])
+            ->mountAction('resolveRestriction')
+            ->assertSchemaStateSet(['restriction_id' => $restriction->id], 'mountedActionSchema0')
+            ->setActionData(['resolution_reason' => 'Accounting verified that issuance is now allowed.'])
+            ->callMountedAction()
             ->assertHasNoActionErrors()->assertNotified('TOR restriction resolved')
             ->assertActionHidden('resolveRestriction');
         $resolved = $restriction->fresh();
@@ -254,7 +262,11 @@ class CompletionTorCurrentContractTest extends TestCase
         $this->assertSame(0, $request->clearances()->count());
 
         Livewire::actingAs($accounting)->test(ListTranscriptRequests::class)
-            ->assertSuccessful()->assertSee('TOR restrictions')->assertCanSeeTableRecords([$request]);
+            ->assertSuccessful()
+            ->assertSee('TOR restrictions')
+            ->assertSee('Open')
+            ->assertSee('No active TOR restriction')
+            ->assertCanSeeTableRecords([$request]);
     }
 
     #[Test]

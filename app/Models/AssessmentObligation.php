@@ -34,12 +34,6 @@ class AssessmentObligation extends Model
         return $this->hasMany(PaymentAllocation::class);
     }
 
-    /** @return HasMany<PaymentAttemptObligation, $this> */
-    public function paymentAttemptObligations(): HasMany
-    {
-        return $this->hasMany(PaymentAttemptObligation::class);
-    }
-
     /** @return HasMany<ApprovedCoverage, $this> */
     public function coverages(): HasMany
     {

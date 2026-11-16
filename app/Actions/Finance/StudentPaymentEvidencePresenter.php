@@ -3,28 +3,38 @@
 namespace App\Actions\Finance;
 
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
+use App\Models\PaymentEvidenceVersion;
 use Illuminate\Support\Collection;
 
 class StudentPaymentEvidencePresenter
 {
+    public function __construct(private readonly ?SchoolPaymentChannels $paymentChannels = null) {}
+
     /**
-     * @param  Collection<int, PaymentAttempt>  $attempts
      * @param  Collection<int, Payment>  $payments
      * @param  Collection<int, Payment>  $postedPayments
+     * @param  Collection<int, PaymentEvidenceVersion>|null  $evidenceVersions
      * @return array{headline:string,explanation:string,required_action:string,responsible_office:string,ledger_state:string,or_mapping_state:string}
      */
     public function present(
-        Collection $attempts,
         Collection $payments,
         Collection $postedPayments,
         bool $hasCurrentDue = false,
+        ?Collection $evidenceVersions = null,
+        ?bool $hasEnabledDigitalChannels = null,
     ): array {
+        $digitalUploadsEnabled = $hasEnabledDigitalChannels
+            ?? ($this->paymentChannels ?? app(SchoolPaymentChannels::class))->hasEnabledDigitalChannels();
+
+        $defaultRequiredAction = $digitalUploadsEnabled
+            ? 'Submit a receipt after paying via an approved channel, or pay directly at the Campus Cashier: Accounting records onsite payments directly.'
+            : 'Electronic receipt uploads are currently turned off. Pay directly at the Campus Cashier: Accounting records onsite payments directly.';
+
         $orMappingState = $this->orMappingState($postedPayments);
 
         if ($postedPayments->isNotEmpty()) {
             if ($hasCurrentDue) {
-                $requiredAction = 'Use Pay exact current due for the remaining amount.';
+                $requiredAction = $defaultRequiredAction;
 
                 if ($orMappingState === 'Pending OR Mapping') {
                     $requiredAction .= ' Accounting is also completing the pending OR mapping.';
@@ -42,7 +52,7 @@ class StudentPaymentEvidencePresenter
 
             return [
                 'headline' => 'Payment Posted',
-                'explanation' => 'A verified payment is recorded in your student ledger. This confirms posting, not issuance of an official receipt.',
+                'explanation' => 'A verified payment is recorded in your student ledger. This confirms posting, not issuance of an Official Receipt (OR).',
                 'required_action' => $orMappingState === 'Pending OR Mapping'
                     ? 'No new payment is needed. Accounting is completing OR mapping.'
                     : 'No action required. Keep your payment acknowledgement for reference.',
@@ -52,42 +62,37 @@ class StudentPaymentEvidencePresenter
             ];
         }
 
-        if ($payments->contains(fn (Payment $payment): bool => $payment->evidence_status === 'under_review')
-            || $attempts->contains(fn (PaymentAttempt $attempt): bool => $attempt->status === PaymentAttempt::StatusReviewRequired)) {
+        $hasSubmittedEvidence = $payments->contains(fn (Payment $payment): bool => $payment->evidence_status === 'under_review')
+            || ($evidenceVersions instanceof Collection
+                && $evidenceVersions->contains(fn (PaymentEvidenceVersion $version): bool => $version->state === PaymentEvidenceVersion::StateSubmitted));
+
+        if ($hasSubmittedEvidence) {
             return $this->notPosted(
                 headline: 'Payment Under Review',
-                explanation: 'Accounting is reviewing the submitted payment evidence before it can be posted to the ledger.',
+                explanation: 'Accounting is reviewing the submitted receipt before it can be posted to the ledger.',
                 requiredAction: 'Do not submit another payment. Contact Accounting only if they request supporting information.',
             );
         }
 
-        $latestAttempt = $attempts
-            ->sortByDesc(fn (PaymentAttempt $attempt): int => (int) $attempt->id)
-            ->first();
-        $status = $latestAttempt instanceof PaymentAttempt ? $latestAttempt->status : null;
+        $latestEvidence = $evidenceVersions instanceof Collection
+            ? $evidenceVersions->sortByDesc(fn (PaymentEvidenceVersion $version): int => (int) $version->version)->first()
+            : null;
+        $isRejected = ($latestEvidence instanceof PaymentEvidenceVersion && $latestEvidence->state === PaymentEvidenceVersion::StateRejected)
+            || $payments->contains(fn (Payment $payment): bool => $payment->evidence_status === 'rejected');
 
-        return match ($status) {
-            PaymentAttempt::StatusPending => $this->notPosted(
-                headline: 'Payment Pending',
-                explanation: 'The checkout was created, but no verified ledger posting has been recorded yet.',
-                requiredAction: 'Wait for payment confirmation. Do not repeat the checkout while this attempt is pending.',
-            ),
-            PaymentAttempt::StatusFailed => $this->notPosted(
+        if ($isRejected) {
+            return $this->notPosted(
                 headline: 'Payment Rejected',
-                explanation: 'The payment attempt did not produce acceptable evidence and was not posted to the ledger.',
-                requiredAction: 'Start a new checkout or contact Accounting if you believe the payment succeeded.',
-            ),
-            PaymentAttempt::StatusExpired, PaymentAttempt::StatusCancelled => $this->notPosted(
-                headline: 'Checkout Closed',
-                explanation: 'The checkout ended without a verified ledger posting.',
-                requiredAction: 'Start a new checkout when you are ready to pay.',
-            ),
-            default => $this->notPosted(
-                headline: 'No Payment Submitted',
-                explanation: 'No payment attempt or verified ledger posting is recorded for this assessment.',
-                requiredAction: 'Use Pay exact current due when you are ready to pay online, or submit manual evidence.',
-            ),
-        };
+                explanation: 'The submitted receipt could not be verified and was not posted to the ledger.',
+                requiredAction: $defaultRequiredAction,
+            );
+        }
+
+        return $this->notPosted(
+            headline: 'No Payment Submitted',
+            explanation: 'No submitted receipt or verified ledger posting is recorded for this assessment.',
+            requiredAction: $defaultRequiredAction,
+        );
     }
 
     /** @return array{headline:string,explanation:string,required_action:string,responsible_office:string,ledger_state:string,or_mapping_state:string} */

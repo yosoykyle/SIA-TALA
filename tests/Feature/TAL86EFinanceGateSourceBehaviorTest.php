@@ -10,7 +10,6 @@ use App\Models\Enrollment;
 use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -143,31 +142,6 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
         }
     }
 
-    public function test_pending_payment_attempt_does_not_clear_finance_gate(): void
-    {
-        $fixture = $this->activeAssessmentFixture();
-        $this->paymentAttempt($fixture, 'pending');
-
-        $clearance = $this->clearanceService()->clearIfEligible(
-            $fixture['enrollment'],
-            $fixture['profile'],
-            '5800.00',
-            null,
-            CarbonImmutable::parse('2026-07-01 09:00:00'),
-        );
-
-        $this->assertFalse($clearance['finance_cleared']);
-        $this->assertSame('none', $clearance['finance_clearance_source']);
-        $this->assertSame(0, Payment::query()
-            ->where('student_profile_id', $fixture['profile']->id)
-            ->where('term_id', $fixture['term']->id)
-            ->count());
-        $this->assertSame(0, LedgerEntry::query()
-            ->where('enrollment_id', $fixture['enrollment']->id)
-            ->where('direction', LedgerEntry::DirectionPayment)
-            ->count());
-    }
-
     public function test_under_review_payment_evidence_does_not_clear_finance_gate_without_ledger_posting(): void
     {
         $fixture = $this->activeAssessmentFixture();
@@ -175,13 +149,13 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
             ->for($fixture['profile'])
             ->for($fixture['term'])
             ->create([
-                'method' => 'paymongo',
-                'channel' => 'paymongo',
+                'method' => 'bank_transfer',
+                'channel' => 'bank_transfer',
                 'amount' => '1500.00',
                 'evidence_status' => 'under_review',
                 'paid_at' => now()->subHour(),
                 'verified_at' => null,
-                'provider_reference' => 'paymongo:under-review-86e',
+                'provider_reference' => 'MANUAL-UNDER-REVIEW-86E',
             ]);
 
         $clearance = $this->clearanceService()->clearIfEligible(
@@ -216,34 +190,6 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
         $this->assertNull($payment->fresh()->or_number);
         $this->assertTrue($clearance['finance_cleared']);
         $this->assertSame('posted_ledger_payment', $clearance['finance_clearance_source']);
-    }
-
-    public function test_checkout_success_return_is_not_authoritative_without_verified_webhook_evidence_and_posted_ledger_entry(): void
-    {
-        $fixture = $this->activeAssessmentFixture();
-        $this->paymentAttempt($fixture, PaymentAttempt::StatusPending, [
-            'return_status' => 'success',
-            'browser_returned_at' => '2026-07-01T09:00:00+08:00',
-        ]);
-
-        $clearance = $this->clearanceService()->clearIfEligible(
-            $fixture['enrollment'],
-            $fixture['profile'],
-            '5800.00',
-            null,
-            CarbonImmutable::parse('2026-07-01 09:00:00'),
-        );
-
-        $this->assertFalse($clearance['finance_cleared']);
-        $this->assertSame('none', $clearance['finance_clearance_source']);
-        $this->assertSame(0, Payment::query()
-            ->where('student_profile_id', $fixture['profile']->id)
-            ->where('term_id', $fixture['term']->id)
-            ->count());
-        $this->assertSame(0, LedgerEntry::query()
-            ->where('enrollment_id', $fixture['enrollment']->id)
-            ->where('direction', LedgerEntry::DirectionPayment)
-            ->count());
     }
 
     /**
@@ -314,13 +260,13 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
             ->for($fixture['profile'])
             ->for($fixture['term'])
             ->create([
-                'method' => 'paymongo',
-                'channel' => 'paymongo',
+                'method' => 'bank_transfer',
+                'channel' => 'bank_transfer',
                 'amount' => $amount,
                 'evidence_status' => 'verified',
                 'paid_at' => now()->subHour(),
                 'verified_at' => now()->subMinutes(50),
-                'provider_reference' => 'paymongo:verified-'.Str::lower((string) Str::uuid()),
+                'provider_reference' => 'MANUAL-VERIFIED-'.Str::lower((string) Str::uuid()),
                 'or_number' => $orNumber,
             ]);
 
@@ -368,29 +314,6 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
             'effective_from' => '2026-06-01',
             'expires_on' => '2026-08-01',
             ...$overrides,
-        ]);
-    }
-
-    /**
-     * @param  array{profile:StudentProfile,assessment:Assessment}  $fixture
-     * @param  array<string, mixed>  $metadata
-     */
-    private function paymentAttempt(array $fixture, string $status, array $metadata = []): PaymentAttempt
-    {
-        return PaymentAttempt::query()->create([
-            'assessment_id' => $fixture['assessment']->id,
-            'student_profile_id' => $fixture['profile']->id,
-            'channel' => 'paymongo',
-            'provider' => 'paymongo',
-            'internal_reference' => 'TALA-PAY-'.Str::upper((string) Str::uuid()),
-            'provider_checkout_id' => 'checkout_'.Str::lower((string) Str::uuid()),
-            'provider_intent_id' => null,
-            'amount' => '1500.00',
-            'currency' => 'PHP',
-            'status' => $status,
-            'expires_at' => now()->addHour(),
-            'paid_at' => null,
-            'metadata' => $metadata,
         ]);
     }
 

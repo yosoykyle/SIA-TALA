@@ -34,6 +34,7 @@ use App\Actions\Finance\PublishFeePlan;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
 use App\Actions\Finance\ReviewPaymentEvidence;
+use App\Actions\Finance\SchoolPaymentChannels;
 use App\Actions\Finance\SubmitPaymentEvidence;
 use App\Actions\Finance\UpdateFeePlanDraft;
 use App\Actions\StudentLifecycle\StudentLifecycleService;
@@ -171,7 +172,9 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
         Livewire::withQueryParams(['queue' => 'official_history'])->actingAs($this->staff(User::StaffRoleAccounting))
             ->test(RegistrarEnrollment::class, ['record' => $case->id])
-            ->assertActionHasUrl('backToAccounts', EnrollmentResource::getUrl('index'));
+            ->assertSee(e(EnrollmentResource::getUrl('index')), false)
+            ->assertSee(e(EnrollmentResource::getUrl('index', ['tab' => 'accounts'])), false)
+            ->assertDontSee('official_history');
 
         $this->assertSame($before, $case->fresh()->getAttributes());
     }
@@ -246,6 +249,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame(0, GradeRosterRow::query()->count());
 
         $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->enableDigitalChannels($accounting);
         $evidence = app(SubmitPaymentEvidence::class)->execute(
             $assessment->termAccount,
             $application->user,
@@ -318,7 +322,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->assertSee('Your enrollment is official')->assertSee('View enrollment')->assertSee('Class schedule');
         Livewire::actingAs($application->user->fresh())->test(Finance::class)
             ->assertSee('No payment due today')->assertSee('PHP 0.00')
-            ->assertActionHidden('submitEvidence')->assertActionHidden('payExactCurrentDue');
+            ->assertActionHidden('submitEvidence');
         Livewire::actingAs($application->user->fresh())->test(CorView::class)
             ->assertSee('Certificate of Registration')->assertSee('PHP 1,000.00');
 
@@ -1321,6 +1325,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         [$application, $term] = $this->readyApplicant();
         $this->publishedOffering($application, $term);
         $accounting = $this->staff(User::StaffRoleAccounting);
+        $this->enableDigitalChannels($accounting);
         $plan = $this->createFeePlanDraft($application->program, $term, [
             ['code' => 'ENROLLMENT', 'label' => 'Enrollment obligation', 'amount' => '1000.00'],
         ], $accounting);
@@ -1340,8 +1345,8 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
                 'payment_reference' => 'SYN-MANILA-TIME',
             ])
             ->assertHasNoActionErrors()
-            ->assertNotified('Evidence submitted for Accounting review')
-            ->assertSee('Payment proof awaiting review')->assertSee('View submitted proof')
+            ->assertNotified('Receipt submitted for Accounting review')
+            ->assertSee('Submitted receipt awaiting review')->assertSee('View receipt')
             ->assertDontSee('Complete your enrollment payment')->assertDontSee('Pay online');
 
         $evidence = $case->termAccount->paymentEvidenceVersions()->sole();
@@ -2386,6 +2391,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ],
             $accounting,
         );
+        $this->enableDigitalChannels($accounting);
         $evidence = app(SubmitPaymentEvidence::class)->execute(
             $assessment->termAccount,
             $application->user,
@@ -3487,7 +3493,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
         Livewire::actingAs($application->user->fresh())->test(ApplicantEnrollment::class)
             ->assertSee('Your part is complete')->assertSee('Registrar')
-            ->assertDontSee('Submit payment evidence')->assertDontSee('Pay online')->assertDontSee('Official enrollment');
+            ->assertDontSee('Submit receipt')->assertDontSee('Pay online')->assertDontSee('Official enrollment');
         $this->assertSame(Enrollment::OutcomeInProgress, $case->fresh()->canonical_outcome);
     }
 
@@ -4118,6 +4124,37 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $plan = $this->createFeePlanDraft($case->admissionApplication?->program ?? $case->studentProfile->program, $case->term, $charges, $accounting);
         $this->publishFeePlan($plan, $accounting, 'SYN-NO-PAYMENT-PLAN');
         app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+    }
+
+    private function enableDigitalChannels(User $accounting): void
+    {
+        app(SchoolPaymentChannels::class)->update([
+            'bank_transfer' => [
+                'enabled' => true,
+                'accounts' => [
+                    [
+                        'bank_name' => 'Land Bank of the Philippines',
+                        'branch' => 'Talisay',
+                        'account_name' => 'TALA State University',
+                        'account_number' => '0011-2233-44',
+                    ],
+                ],
+            ],
+            'e_wallets' => [
+                'enabled' => true,
+                'accounts' => [
+                    [
+                        'provider' => 'GCash',
+                        'account_name' => 'TALA State University Cashier',
+                        'account_number' => '0917 123 4567',
+                    ],
+                ],
+            ],
+            'cash' => [
+                'enabled' => true,
+                'location' => 'Cashier Window 1, Administration Building',
+            ],
+        ], $accounting);
     }
 
     private function staff(string $role): User

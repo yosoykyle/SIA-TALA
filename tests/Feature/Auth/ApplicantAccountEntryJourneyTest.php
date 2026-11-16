@@ -6,6 +6,7 @@ use App\Actions\Applicants\DispatchApplicantEmailVerification;
 use App\Actions\Fortify\CreateNewUser;
 use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
+use App\Filament\Pages\Auth\ContextualLogin;
 use App\Models\AdmissionCycle;
 use App\Models\ApplicantIntake;
 use App\Models\StudentProfile;
@@ -131,10 +132,13 @@ class ApplicantAccountEntryJourneyTest extends TestCase
     {
         $this->openAdmissions();
         $this->configureReadyApplicantEntry();
+        Http::fake(['api.pwnedpasswords.com/*' => Http::response('', 200)]);
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
 
         foreach ([
-            'too-short@example.test' => 'Aa1!aaa',
-            'too-long@example.test' => 'Aa1!'.str_repeat('a', 61),
+            'fourteen-chars@example.test' => str_repeat('a', 14),
+            'legacy-eight@example.test' => 'Valid1!x',
+            'too-long@example.test' => str_repeat('a', 65),
         ] as $email => $password) {
             try {
                 app(CreateNewUser::class)->create([
@@ -148,65 +152,114 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             } catch (ValidationException $exception) {
                 $this->assertArrayHasKey('password', $exception->errors());
             }
-        }
 
-        $this->assertDatabaseMissing('users', ['email' => 'too-short@example.test']);
-        $this->assertDatabaseMissing('users', ['email' => 'too-long@example.test']);
-    }
+            RateLimiter::clear('livewire-rate-limiter:'.sha1(RegisterApplicant::class.'|register|'.request()->ip()));
 
-    public function test_account_creation_requires_each_password_character_class(): void
-    {
-        $this->openAdmissions();
-        $this->configureReadyApplicantEntry();
-
-        foreach ([
-            'no-uppercase@example.test' => 'lowercase1!',
-            'no-lowercase@example.test' => 'UPPERCASE1!',
-            'no-number@example.test' => 'NoNumbers!',
-            'no-special@example.test' => 'NoSpecial1',
-        ] as $email => $password) {
-            try {
-                app(CreateNewUser::class)->create([
+            Livewire::test(RegisterApplicant::class)
+                ->fillForm([
                     'email' => $email,
                     'password' => $password,
                     'password_confirmation' => $password,
                     'privacy_acknowledged' => true,
-                ]);
-
-                $this->fail('Each password character class should be required.');
-            } catch (ValidationException $exception) {
-                $this->assertArrayHasKey('password', $exception->errors());
-            }
+                ])
+                ->call('register')
+                ->assertHasFormErrors(['password']);
 
             $this->assertDatabaseMissing('users', ['email' => $email]);
         }
     }
 
-    public function test_account_creation_accepts_an_eight_character_password_with_every_class(): void
+    public function test_account_creation_accepts_fifteen_to_sixty_four_character_passwords_without_composition_rules(): void
     {
         $this->openAdmissions();
         $this->configureReadyApplicantEntry();
+        Http::fake(['api.pwnedpasswords.com/*' => Http::response('', 200)]);
+        Notification::fake();
 
-        $applicant = app(CreateNewUser::class)->create([
-            'email' => 'eight-character@example.test',
-            'password' => 'Valid1!x',
-            'password_confirmation' => 'Valid1!x',
-            'privacy_acknowledged' => true,
-        ]);
+        foreach ([
+            'fifteen-chars@example.test' => 'abcdefghijklmno',
+            'passphrase-spaces@example.test' => 'simple synthetic passphrase',
+            'sixty-four-chars@example.test' => str_repeat('x', 64),
+        ] as $email => $password) {
+            $applicant = app(CreateNewUser::class)->create([
+                'email' => $email,
+                'password' => $password,
+                'password_confirmation' => $password,
+                'privacy_acknowledged' => true,
+            ]);
 
-        $this->assertTrue(Hash::check('Valid1!x', $applicant->password));
+            $this->assertTrue(Hash::check($password, $applicant->password));
+        }
+
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        Livewire::test(RegisterApplicant::class)
+            ->fillForm([
+                'email' => 'livewire-spaces@example.test',
+                'password' => 'simple synthetic passphrase',
+                'password_confirmation' => 'simple synthetic passphrase',
+                'privacy_acknowledged' => true,
+            ])
+            ->call('register')
+            ->assertHasNoFormErrors();
+
+        $livewireApplicant = User::query()->where('email', 'livewire-spaces@example.test')->sole();
+        $this->assertTrue(Hash::check('simple synthetic passphrase', $livewireApplicant->password));
     }
 
-    public function test_registration_password_checklist_updates_as_the_applicant_types(): void
+    public function test_legacy_short_password_credentials_still_authenticate_cleanly_at_login(): void
+    {
+        Role::findOrCreate('applicant', 'web');
+        $applicant = User::factory()->create([
+            'email' => 'legacy-login@example.test',
+            'password' => 'Valid1!x',
+            'status' => User::StatusActive,
+            'email_verified_at' => now(),
+        ]);
+        $applicant->assignRole('applicant');
+
+        $this->post('/login', [
+            'email' => $applicant->email,
+            'password' => 'Valid1!x',
+        ])->assertRedirect('/applicant');
+        $this->assertAuthenticatedAs($applicant);
+
+        auth()->logout();
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        Livewire::test(ContextualLogin::class)
+            ->set('data.email', $applicant->email)
+            ->set('data.password', 'Valid1!x')
+            ->call('authenticate')
+            ->assertHasNoErrors();
+
+        $this->assertAuthenticatedAs($applicant);
+    }
+
+    public function test_registration_password_length_guidance_updates_as_the_applicant_types(): void
     {
         $this->openAdmissions();
         $this->configureReadyApplicantEntry();
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
 
         Livewire::test(RegisterApplicant::class)
+            ->assertSee('Use 15–64 characters. Spaces and password-manager paste are allowed.')
+            ->assertSee('0 of 15–64 characters entered')
             ->assertSee('Not met')
-            ->fillForm(['password' => 'Valid1!x'])
-            ->assertDontSee('Not met');
+            ->assertDontSee('At least 8 characters')
+            ->assertDontSee('Uppercase letter')
+            ->assertDontSee('Lowercase letter')
+            ->assertDontSee('Number')
+            ->assertDontSee('Special character')
+            ->fillForm(['password' => 'too short'])
+            ->assertSee('9 of 15–64 characters entered (minimum 15)')
+            ->assertSee('Not met')
+            ->fillForm(['password' => 'simple synthetic passphrase'])
+            ->assertSee('27 of 15–64 characters entered (ready)')
+            ->assertDontSee('Not met')
+            ->fillForm(['password' => str_repeat('a', 65)])
+            ->assertSee('65 of 15–64 characters entered (maximum 64)')
+            ->assertSee('Not met');
     }
 
     public function test_duplicate_account_creation_uses_non_disclosing_feedback(): void

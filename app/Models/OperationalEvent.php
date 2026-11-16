@@ -7,6 +7,8 @@ use Database\Factories\OperationalEventFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property array<string, mixed>|null $diagnostics
@@ -29,8 +31,6 @@ class OperationalEvent extends Model
 
     public const IntegrationSchedulingSolver = 'SCHEDULING_SOLVER';
 
-    public const IntegrationPayMongo = 'PAYMONGO';
-
     public const IntegrationMail = 'mail';
 
     public const IntegrationBackup = 'BACKUP';
@@ -40,10 +40,6 @@ class OperationalEvent extends Model
     public const IntegrationAcademicRecords = 'academic_records';
 
     public const ChannelEmail = 'email';
-
-    public const ChannelWebhook = 'webhook';
-
-    public const ChannelProviderApi = 'provider_api';
 
     public const ChannelEvidenceIngest = 'evidence_ingest';
 
@@ -131,6 +127,8 @@ class OperationalEvent extends Model
 
     public const TypeLifecycleAccountingReview = 'lifecycle_accounting_review';
 
+    public const TypeLifecycleAccountingReviewResult = 'lifecycle_accounting_review_result';
+
     /** @return list<string> */
     public static function academicNotificationTypes(): array
     {
@@ -180,6 +178,35 @@ class OperationalEvent extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return BelongsTo<StudentLifecycleChange, $this> */
+    public function lifecycleReviewSource(): BelongsTo
+    {
+        return $this->belongsTo(StudentLifecycleChange::class, 'related_record_id');
+    }
+
+    /** @return HasMany<OperationalEvent, $this> */
+    public function lifecycleReviewResults(): HasMany
+    {
+        return $this->hasMany(self::class, 'related_record_id')
+            ->where('related_record_type', self::class)
+            ->where('event_domain', self::DomainOperations)
+            ->where('event_type', self::TypeLifecycleAccountingReviewResult);
+    }
+
+    /** @return HasOne<OperationalEvent, $this> */
+    public function latestLifecycleReviewResult(): HasOne
+    {
+        return $this->hasOne(self::class, 'related_record_id')
+            ->where('related_record_type', self::class)->where('event_domain', self::DomainOperations)
+            ->where('event_type', self::TypeLifecycleAccountingReviewResult)->latest('id');
+    }
+
+    /** @return BelongsTo<OperationalEvent, $this> */
+    public function lifecycleReview(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'related_record_id');
     }
 
     /** @return BelongsTo<ScheduleGenerationRun, $this> */

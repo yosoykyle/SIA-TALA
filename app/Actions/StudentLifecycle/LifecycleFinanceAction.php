@@ -10,7 +10,7 @@ class LifecycleFinanceAction
 {
     public function execute(StudentLifecycleChange $change, User $actor): ?OperationalEvent
     {
-        if ($change->enrollment_id === null) {
+        if ($change->enrollment_id === null || $change->state !== StudentLifecycleChange::StateApplied) {
             return null;
         }
 

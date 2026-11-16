@@ -51,7 +51,7 @@ class CanonicalFinanceOutputPresenter
             'has_current_assessment' => $position['assessment_id'] !== null,
             'activity' => $activity,
             'generated_at' => CarbonImmutable::now(config('app.timezone')),
-            'owner' => $assessment->enrollment?->studentProfile?->user?->getFilamentName() ?? $assessment->termAccount->credentialUser?->getFilamentName() ?? 'Learner account',
+            'owner' => $assessment->enrollment?->studentProfile?->user?->getFilamentName() ?? $assessment->termAccount->credentialUser?->getFilamentName() ?? 'Student or applicant account',
             'program' => $assessment->enrollment?->studentProfile?->program->code ?? 'Not assigned',
             'term' => $assessment->termAccount->term->label,
             'position' => $position,

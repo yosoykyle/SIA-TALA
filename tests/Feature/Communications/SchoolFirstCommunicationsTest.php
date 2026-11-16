@@ -183,10 +183,11 @@ class SchoolFirstCommunicationsTest extends TestCase
     {
         $view = $this->blade('<x-tala-panel-brand />');
 
-        $view->assertSee(asset('images/brand/servitech-crest.webp'), false)
-            ->assertSee('alt="" aria-hidden="true" class="tala-brand__crest"', false)
+        $view->assertSee(asset('images/brand/servitech-crest-outlined-192.webp'), false)
+            ->assertSee('alt="" aria-hidden="true" class="tala-brand__crest tala-crest-outlined"', false)
             ->assertDontSee('tala-brand__star', false)
             ->assertDontSee('Powered by TALA')
+            ->assertDontSee('talalogo.png', false)
             ->assertDontSee('alt="Servitech Institute Asia"', false);
 
         $document = new \DOMDocument;
@@ -194,10 +195,11 @@ class SchoolFirstCommunicationsTest extends TestCase
         $xpath = new \DOMXPath($document);
         $this->assertSame(1, $xpath->query('//span[@class="tala-brand__name"][normalize-space(.)="Servitech Institute Asia"]')->length);
 
-        $this->blade('<x-tala-panel-brand placement="attribution" />')
-            ->assertSee('Powered by TALA')
-            ->assertSee('alt="" aria-hidden="true" class="tala-brand__star"', false)
-            ->assertDontSee('tala-brand__crest', false);
+        $this->blade('<x-tala-panel-brand crest="plate" />')
+            ->assertSee(asset('images/brand/servitech-crest.webp'), false)
+            ->assertSee('tala-crest-plate', false)
+            ->assertDontSee('Powered by TALA')
+            ->assertDontSee('talalogo.png', false);
     }
 
     public function test_connection_mail_identity_is_configurable_with_sentinel_name(): void

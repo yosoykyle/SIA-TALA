@@ -5,8 +5,11 @@ namespace Tests\Feature\Finance;
 use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\TermAccountProjection;
+use App\Actions\StudentLifecycle\LifecycleAccountingReview;
 use App\Actions\StudentLifecycle\LifecycleFinanceAction;
+use App\Actions\StudentLifecycle\RecordLifecycleAccountingReview;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\Enrollments\Pages\AccountingAccountInspector;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
@@ -24,7 +27,6 @@ use App\Models\FinanceExport;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
-use App\Models\PaymentAttempt;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
 use App\Models\RegistrationProposalConfirmation;
@@ -66,15 +68,13 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         ]);
     }
 
-    public function test_accounting_workbench_discovers_separate_assessment_proof_and_provider_work_without_a_tor_approval_queue(): void
+    public function test_accounting_workbench_discovers_separate_assessment_and_proof_work_without_a_tor_approval_queue(): void
     {
         $accounting = $this->accounting();
         $ordinary = $this->accountFixture('ordinary@example.test');
         $proof = $this->accountFixture('proof@example.test');
         $assessment = $this->accountFixture('assessment@example.test');
         $assessment['assessment']->update(['state' => Assessment::StateSuperseded]);
-        $provider = $this->accountFixture('provider@example.test');
-        $failedEvent = $this->accountFixture('failed-event@example.test');
         $clearance = $this->accountFixture('clearance@example.test');
         PaymentEvidenceVersion::factory()->create([
             'term_account_id' => $proof['account']->id,
@@ -85,25 +85,6 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             'version' => 2,
             'state' => PaymentEvidenceVersion::StateRejected,
         ]);
-        foreach ([$provider, $failedEvent] as $index => $fixture) {
-            $attempt = PaymentAttempt::query()->create([
-                'assessment_id' => $fixture['assessment']->id,
-                'term_account_id' => $fixture['account']->id,
-                'student_profile_id' => $fixture['enrollment']->student_profile_id,
-                'assessment_version' => 1,
-                'provider' => 'paymongo', 'channel' => 'paymongo',
-                'internal_reference' => 'SYN-WORKBENCH-PROVIDER-'.$index,
-                'amount' => '12000.00', 'currency' => 'PHP',
-                'status' => $index === 0 ? PaymentAttempt::StatusReviewRequired : PaymentAttempt::StatusPending,
-            ]);
-            if ($index === 1) {
-                OperationalEvent::factory()->failed()->create([
-                    'integration' => OperationalEvent::IntegrationPayMongo,
-                    'related_record_type' => PaymentAttempt::class,
-                    'related_record_id' => $attempt->id,
-                ]);
-            }
-        }
         TranscriptRequest::factory()->create([
             'student_profile_id' => $clearance['enrollment']->student_profile_id,
             'external_request_reference' => 'TOR-SYNTH-WORKBENCH',
@@ -114,27 +95,35 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $component = Livewire::actingAs($accounting)
             ->test(ListEnrollments::class)
             ->assertSet('activeTab', 'overview')
+            ->assertSee('2 accounts need review')
+            ->assertSee('Across all active and prior terms')
+            ->assertSee('Open term accounts')
+            ->assertDontSee('Active term:')
+            ->assertSee('Review fee plans')
             ->assertSee('Review assessments')
-            ->assertSee('Review payment proof')
-            ->assertSee('Resolve online payments')
+            ->assertSee('Review receipts')
+            ->assertSee('Review changes')
+            ->assertSee('Find a student')
+            ->assertSee('All student accounts')
+            ->assertSee('TOR restrictions')
             ->assertDontSee('TOR Clearance');
 
-        $this->assertSame('Student accounts', $component->instance()->getTitle());
-        $this->assertSame(['assessment' => 1, 'proof' => 1, 'provider' => 2], $component->instance()->accountingWorkCounts());
+        $this->assertSame('Accounting overview', $component->instance()->getTitle());
+        $this->assertSame(['assessment' => 1, 'proof' => 1, 'student_changes' => 0], $component->instance()->accountingWorkCounts());
         $this->assertArrayNotHasKey('tor_clearance', $component->instance()->getTabs());
 
         $component
             ->set('activeTab', 'accounts')
-            ->assertCanSeeTableRecords([$ordinary['enrollment'], $proof['enrollment'], $assessment['enrollment'], $provider['enrollment'], $failedEvent['enrollment'], $clearance['enrollment']])
+            ->assertSee('Choose a term or student')
+            ->assertCanNotSeeTableRecords([$ordinary['enrollment'], $proof['enrollment'], $assessment['enrollment'], $clearance['enrollment']])
+            ->call('showAllAccountingTerms')
+            ->assertCanSeeTableRecords([$ordinary['enrollment'], $proof['enrollment'], $assessment['enrollment'], $clearance['enrollment']])
             ->set('activeTab', 'assessment_required')
             ->assertCanSeeTableRecords([$assessment['enrollment']])
             ->assertCanNotSeeTableRecords([$ordinary['enrollment'], $proof['enrollment'], $clearance['enrollment']])
             ->set('activeTab', 'payment_proof')
             ->assertCanSeeTableRecords([$proof['enrollment']])
-            ->assertCanNotSeeTableRecords([$ordinary['enrollment'], $provider['enrollment'], $failedEvent['enrollment'], $clearance['enrollment']])
-            ->set('activeTab', 'payment_exceptions')
-            ->assertCanSeeTableRecords([$provider['enrollment'], $failedEvent['enrollment']])
-            ->assertCanNotSeeTableRecords([$ordinary['enrollment'], $proof['enrollment'], $assessment['enrollment'], $clearance['enrollment']]);
+            ->assertCanNotSeeTableRecords([$ordinary['enrollment'], $assessment['enrollment'], $clearance['enrollment']]);
 
         $this->assertNotContains(
             'App\\Filament\\Resources\\Payments\\PaymentResource',
@@ -158,10 +147,154 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             ->set('activeTab', 'accounts')->searchTable('Santos Mira')
             ->assertCanSeeTableRecords([$fixture['enrollment']])
             ->assertCanNotSeeTableRecords([$other['enrollment']])
-            ->assertSee('No payment due now')->assertSee('Later term fees: PHP 12,000.00')
-            ->assertSee('Open account')
+            ->assertSee('No payment due now')->assertSeeInOrder(['Later fees', 'PHP 12,000.00'])
+            ->assertSee('Current work')
             ->searchTable('SYN-LATER-0123')->assertCanSeeTableRecords([$fixture['enrollment']])
             ->searchTable('unmatched student')->assertSee('No matching accounts');
+    }
+
+    public function test_filtered_queue_absence_does_not_claim_that_pending_work_is_clear(): void
+    {
+        $accounting = $this->accounting();
+        $fixture = $this->accountFixture('filter-recovery@example.test');
+        $otherTerm = Term::factory()->create();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($accounting)->test(ListEnrollments::class)
+            ->set('activeTab', 'accounts')
+            ->call('selectAccountingTerm', $fixture['enrollment']->term_id)
+            ->call('selectAccountingRecord', $fixture['enrollment']->id)
+            ->assertSet('selectedAccountingId', $fixture['enrollment']->id)
+            ->filterTable('term', $otherTerm->id)
+            ->assertCanNotSeeTableRecords([$fixture['enrollment']])
+            ->assertSee('No matching accounts')
+            ->assertSee('clear the search and filters')
+            ->assertSet('selectedAccountingId', null);
+    }
+
+    public function test_explicit_account_and_assessment_destinations_preserve_intent_when_payment_work_overlaps(): void
+    {
+        $accounting = $this->accounting();
+        $fixture = $this->accountFixture('overlapping-work@example.test');
+        PaymentEvidenceVersion::factory()->create([
+            'term_account_id' => $fixture['account']->id,
+            'assessment_id' => $fixture['assessment']->id,
+            'state' => PaymentEvidenceVersion::StateSubmitted,
+        ]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        foreach (['account' => 'accounting-account', 'assessment' => 'accounting-account', 'proof' => 'accounting-proof'] as $view => $expected) {
+            $page = Livewire::actingAs($accounting)->withQueryParams(['view' => $view, 'queue' => 'accounts', 'returnSearch' => 'Santos', 'returnFilters' => ['term' => ['value' => $fixture['term']->id]]])
+                ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id]);
+            $this->assertSame($expected, $page->instance()->focusedAccountingView());
+            $page->assertSee(e(EnrollmentResource::getUrl('index', ['tab' => 'accounts', 'search' => 'Santos', 'filters' => ['term' => ['value' => $fixture['term']->id]]])), false);
+            $this->assertSame(EnrollmentResource::getUrl('index', [
+                'tab' => 'accounts', 'account' => $fixture['enrollment']->id, 'search' => 'Santos',
+                'filters' => ['term' => ['value' => $fixture['term']->id]], 'view' => $view,
+            ]), $page->instance()->enrollmentUrl());
+        }
+    }
+
+    public function test_proof_comparison_keeps_exact_targets_and_workspace_choice_and_blocks_a_changed_source(): void
+    {
+        $accounting = $this->accounting();
+        $fixture = $this->accountFixture('proof-comparison@example.test');
+        $fixture['assessment']->update(['subtotal' => '12000.30', 'total' => '12000.30']);
+        $firstTarget = $fixture['assessment']->obligations()->sole();
+        $firstTarget->update(['amount' => '3000.10']);
+        $secondTarget = AssessmentObligation::factory()->create([
+            'assessment_id' => $fixture['assessment']->id, 'sequence' => 2, 'code' => 'LATER',
+            'label' => 'Later term payment', 'amount' => '9000.20', 'due_at' => now()->addMonth(),
+        ]);
+        $proof = PaymentEvidenceVersion::factory()->create([
+            'term_account_id' => $fixture['account']->id, 'assessment_id' => $fixture['assessment']->id,
+            'claimed_amount' => '1000.00', 'channel' => 'bank_transfer', 'paid_at' => now()->subMinute(),
+            'obligation_snapshot' => [['id' => $firstTarget->id, 'label' => $firstTarget->label], ['id' => $secondTarget->id, 'label' => $secondTarget->label]],
+        ]);
+        $other = PaymentEvidenceVersion::factory()->create([
+            'term_account_id' => $fixture['account']->id, 'assessment_id' => $fixture['assessment']->id, 'version' => 2,
+            'obligation_snapshot' => [['id' => $firstTarget->id, 'label' => $firstTarget->label]],
+        ]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $page = Livewire::actingAs($accounting)->test(AccountingAccountInspector::class, [
+            'record' => $fixture['enrollment']->id, 'returnQueue' => 'payment_proof',
+            'paymentProofId' => $proof->id, 'enrollmentView' => 'proof', 'returnSearch' => 'Santos',
+        ])->assertSee('Compare submitted receipt')->assertSee('On the submitted receipt')
+            ->assertSee('Current unpaid targets')->assertSee('PHP 12,000.30')
+            ->assertSee(e(EnrollmentResource::getUrl('index', [
+                'tab' => 'payment_proof', 'account' => $fixture['enrollment']->id,
+                'search' => 'Santos', 'proof' => $other->id, 'view' => 'proof',
+            ])), false);
+        $this->assertSame('12000.30', $page->instance()->paymentProofViewData()['targetBalance']);
+
+        $page->mountAction('verifyPaymentEvidence')->assertMountedActionModalSee('Record verified payment')
+            ->unmountAction()->assertHasNoActionErrors();
+        $fixture['assessment']->update(['state' => Assessment::StateSuperseded]);
+        $page->call('$refresh')->assertSee('Payment target changed');
+        $this->assertNull($page->instance()->paymentProofViewData()['targetBalance']);
+        $this->assertSame(PaymentEvidenceVersion::StateSubmitted, $proof->fresh()->state);
+        $this->assertSame(0, Payment::query()->where('term_account_id', $fixture['account']->id)->count());
+    }
+
+    public function test_current_work_keeps_overlapping_reviews_visible_across_work_filters(): void
+    {
+        $actor = $this->accounting();
+        $fixture = $this->accountFixture('unified-work@example.test');
+        PaymentEvidenceVersion::factory()->create([
+            'term_account_id' => $fixture['account']->id,
+            'assessment_id' => $fixture['assessment']->id,
+            'state' => PaymentEvidenceVersion::StateSubmitted,
+        ]);
+        $change = StudentLifecycleChange::factory()->create([
+            'enrollment_id' => $fixture['enrollment']->id,
+            'student_profile_id' => $fixture['enrollment']->student_profile_id,
+            'term_id' => $fixture['term']->id,
+            'state' => StudentLifecycleChange::StateApplied,
+        ]);
+        app(LifecycleFinanceAction::class)->execute($change, $actor);
+
+        foreach (['accounts' => 'overview', 'payment_proof' => 'proof', 'student_changes' => 'changes'] as $filter => $view) {
+            $page = Livewire::actingAs($actor)->withQueryParams(['tab' => $filter, 'account' => $fixture['enrollment']->id])
+                ->test(ListEnrollments::class)
+                ->assertDontSee('Account work filters')
+                ->assertSeeLivewire(AccountingAccountInspector::class);
+            $this->assertSame('Student accounts', $page->instance()->getTitle());
+
+            Livewire::actingAs($actor)->test(AccountingAccountInspector::class, [
+                'record' => $fixture['enrollment']->id, 'enrollmentView' => $view, 'returnQueue' => $filter,
+            ])->assertSee('Review student status changes')->assertSee('Compare submitted receipt')
+                ->assertSee('Charges and payment dates');
+        }
+
+        $page->set('activeTab', 'assessment_required')->assertSet('selectedAccountingId', null)
+            ->assertSee('No assessments waiting for review');
+        $this->assertNull($page->instance()->selectedAccountingRecord());
+        $this->assertSame(0, $fixture['account']->payments()->count());
+    }
+
+    public function test_completed_student_change_reviews_remain_reachable_in_account_history_with_correction_and_tor_context(): void
+    {
+        $actor = $this->accounting();
+        $fixture = $this->accountFixture('review-history-recovery@example.test');
+        $case = $fixture['enrollment'];
+        $change = StudentLifecycleChange::factory()->create([
+            'enrollment_id' => $case->id, 'student_profile_id' => $case->student_profile_id,
+            'term_id' => $case->term_id, 'state' => StudentLifecycleChange::StateApplied,
+        ]);
+        app(LifecycleFinanceAction::class)->execute($change, $actor);
+        $reviews = app(LifecycleAccountingReview::class);
+        $root = $reviews->forEnrollment($case)->firstOrFail();
+        app(RecordLifecycleAccountingReview::class)->execute($case, $actor, $reviews->snapshot($case, $root->id), [
+            'outcome' => LifecycleAccountingReview::NoAccountChange, 'reason' => 'Recorded review remains available after leaving pending work.',
+        ]);
+        TranscriptRequest::factory()->create(['student_profile_id' => $case->student_profile_id]);
+
+        Livewire::actingAs($actor)->test(AccountingAccountInspector::class, [
+            'record' => $case->id, 'enrollmentView' => 'history', 'returnQueue' => 'accounts',
+        ])->assertSee('Recorded review remains available after leaving pending work.')
+            ->assertSee('Correct review result')->assertSee('Review TOR restrictions');
+        $this->assertNotContains($case->id, $reviews->pendingEnrollmentIds());
     }
 
     public function test_current_account_separates_due_now_from_later_term_fees_and_hides_registrar_controls(): void
@@ -187,12 +320,12 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $component = Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id])
-            ->assertSee('PHP 3,000.00 due now')
-            ->assertSee('Later fees PHP 9,000.00')
+            ->assertSeeInOrder(['Due now', 'PHP 3,000.00'])
+            ->assertSeeInOrder(['Later fees', 'PHP 9,000.00'])
             ->assertSee('Enrollment payment pending')
             ->assertSee('Later term payment')
             ->assertSee('Account history')
-            ->assertSee(EnrollmentResource::getUrl('view', ['record' => $fixture['enrollment'], 'view' => 'history']), false)
+            ->assertSee(e(EnrollmentResource::getUrl('index', ['tab' => 'accounts', 'account' => $fixture['enrollment']->id, 'view' => 'history'])), false)
             ->assertDontSee('No payment due now')
             ->assertDontSee('Fully paid')
             ->assertDontSee('Print current COR')
@@ -203,7 +336,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $this->assertSame('accounting-account', $component->instance()->focusedAccountingView());
     }
 
-    public function test_account_shows_only_recent_exact_enrollment_lifecycle_sources_without_changing_its_financial_position(): void
+    public function test_account_opens_all_pending_exact_enrollment_changes_without_exposing_private_sources_or_changing_finance(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-11-02 10:00:00', 'Asia/Manila'));
         $accounting = $this->accounting();
@@ -242,17 +375,23 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $component = Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $case->id])
-            ->assertSee('Recent student changes')
+            ->assertSee('Student status changes')
+            ->assertSee('Pending student status changes')
+            ->assertSee('Record review result')
+            ->assertDontSee('PRIVATE-LIFECYCLE-REASON')
+            ->assertDontSee('PRIVATE-LIFECYCLE-REFERENCE');
+        $this->assertSame(6, $component->instance()->accountingViewData()['lifecycleStatus']['pending']);
+        $component = Livewire::actingAs($accounting)->withQueryParams(['view' => 'changes'])->test(ViewEnrollment::class, ['record' => $case->id])
+            ->assertSee('Pending student status changes')
             ->assertSee('Leave of Absence')
-            ->assertSee('Showing the five most recently recorded changes')
-            ->assertSee(StudentLifecycleChangeResource::getUrl('index', ['change' => $sources->last()->id]), false)
+            ->assertSee(e(StudentLifecycleChangeResource::getUrl('index', ['change' => $sources->last()->id, 'account' => $case->id, 'queue' => 'student_changes'])), false)
             ->assertDontSee(StudentLifecycleChangeResource::getUrl('index', ['change' => $eventless->id]), false)
             ->assertDontSee('PRIVATE-LIFECYCLE-REASON')
             ->assertDontSee('PRIVATE-LIFECYCLE-REFERENCE');
 
-        $context = $component->instance()->accountingViewData();
-        $this->assertSame($sources->reverse()->take(5)->pluck('id')->values()->all(), $context['lifecycleSources']->modelKeys());
-        $this->assertSame('ordinary', $context['reviewState']);
+        $context = $component->instance()->lifecycleReviewData();
+        $this->assertSame($sources->pluck('id')->all(), $context['pendingReviews']->getCollection()->pluck('related_record_id')->all());
+        $this->assertSame('ordinary', $component->instance()->accountingViewData()['reviewState']);
         $this->assertSame($before, app(TermAccountProjection::class)->forAccount($fixture['account']->fresh()));
         $this->assertSame($eventCount, OperationalEvent::query()->count());
         $this->assertSame('12000.00', $fixture['assessment']->fresh()->total);
@@ -264,8 +403,34 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             ->assertSee('PRIVATE-LIFECYCLE-REFERENCE')
             ->assertSee('Student accounts · Financial review')
             ->assertSee('Open student account')
-            ->assertSee(EnrollmentResource::getUrl('view', ['record' => $case]), false)
+            ->assertSee(e(EnrollmentResource::getUrl('index', ['tab' => 'student_changes', 'account' => $case->id, 'view' => 'changes'])), false)
             ->assertDontSee('Open full record');
+        Livewire::withQueryParams([]);
+    }
+
+    public function test_accounting_records_and_corrects_a_review_through_the_native_dialog_with_cancel_and_stale_recovery(): void
+    {
+        $accounting = $this->accounting();
+        $fixture = $this->accountFixture('review-dialog@example.test');
+        $case = $fixture['enrollment'];
+        $source = StudentLifecycleChange::factory()->create(['enrollment_id' => $case->id, 'student_profile_id' => $case->student_profile_id,
+            'term_id' => $case->term_id, 'state' => StudentLifecycleChange::StateApplied]);
+        $event = app(LifecycleFinanceAction::class)->execute($source, $accounting);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $component = Livewire::actingAs($accounting)->withQueryParams(['view' => 'changes'])->test(ViewEnrollment::class, ['record' => $case->id]);
+        $component->mountAction('recordLifecycleReview', ['review' => $event->id])->assertMountedActionModalSee('Review result')->unmountAction();
+        $this->assertSame(0, $event->lifecycleReviewResults()->count());
+        $component->callAction('recordLifecycleReview', ['outcome' => LifecycleAccountingReview::NoAccountChange, 'reason' => 'Private external review explanation.'], ['review' => $event->id])
+            ->assertHasNoActionErrors()->assertSee('No student status changes waiting for review')->assertSee('Private external review explanation.');
+        $this->assertSame(1, $event->lifecycleReviewResults()->count());
+        $component->mountAction('recordLifecycleReview', ['review' => $event->id])->assertMountedActionModalSee('Correct review result');
+        $latest = $event->lifecycleReviewResults()->latest('id')->first();
+        app(RecordLifecycleAccountingReview::class)->execute($case, $accounting,
+            app(LifecycleAccountingReview::class)->snapshot($case, $event->id), ['outcome' => LifecycleAccountingReview::Pending, 'reason' => 'A second reviewer reopened this change.']);
+        $component->setActionData(['outcome' => LifecycleAccountingReview::NoAccountChange, 'reason' => 'Stale correction.'])->callMountedAction()
+            ->assertHasErrors(['review'])->assertNotified('Review result was not recorded');
+        $this->assertSame(2, $event->lifecycleReviewResults()->count());
+        $this->assertSame('Private external review explanation.', $latest->fresh()->payload['reason']);
         Livewire::withQueryParams([]);
     }
 
@@ -317,7 +482,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id])
             ->assertSee('No payment due now')
             ->assertSee('Enrollment payment satisfied')
-            ->assertSee('Later fees PHP 9,000.00')
+            ->assertSeeInOrder(['Later fees', 'PHP 9,000.00'])
             ->assertSee('PHP 9,000.00 remaining')
             ->assertSee('Open acknowledgment')
             ->assertDontSee('Fully paid');
@@ -340,6 +505,36 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $this->assertSame('Account history', $history->instance()->getTitle());
     }
 
+    public function test_account_history_paginates_source_records_without_hiding_older_assessments(): void
+    {
+        $accounting = $this->accounting();
+        $fixture = $this->accountFixture('history-pagination@example.test');
+        PaymentEvidenceVersion::factory()->create(['term_account_id' => $fixture['account']->id, 'payment_reference' => 'RECEIPT-KEPT-WHILE-PAGING']);
+        PaymentEvidenceVersion::factory()->create(['payment_reference' => 'FOREIGN-HISTORY-SOURCE']);
+        foreach (range(2, 13) as $version) {
+            Assessment::factory()->create([
+                'term_account_id' => $fixture['account']->id,
+                'version' => $version,
+                'state' => Assessment::StateSuperseded,
+                'created_at' => now()->subDays($version),
+            ]);
+        }
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $history = Livewire::actingAs($accounting)->withQueryParams(['view' => 'history'])
+            ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id])
+            ->assertDontSee('Assessment version 13')->assertSee('RECEIPT-KEPT-WHILE-PAGING')->assertDontSee('FOREIGN-HISTORY-SOURCE')
+            ->assertDontSee('Export verified payments')->assertDontSee('View source details');
+        $this->assertSame(13, $history->instance()->accountingHistoryGroups()['assessment']['records']->total());
+        $this->assertCount(10, $history->instance()->accountingHistoryGroups()['assessment']['records']);
+
+        $history->call('gotoPage', 2, 'accountHistoryAssessmentPage')->assertSee('Assessment version 13')->assertSee('RECEIPT-KEPT-WHILE-PAGING');
+        $this->assertSame(1, $history->instance()->accountingHistoryGroups()['proof']['records']->currentPage());
+        $this->assertCount(3, $history->instance()->accountingHistoryGroups()['assessment']['records']);
+        $history->call('gotoPage', 100, 'accountHistoryAssessmentPage')->assertSee('Assessment version 13');
+        $this->assertSame(2, $history->instance()->accountingHistoryGroups()['assessment']['records']->currentPage());
+    }
+
     public function test_current_account_requires_available_enrollment_payment_authority(): void
     {
         $accounting = $this->accounting();
@@ -351,7 +546,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
 
         $this->assertSame('Unavailable', $component->instance()->accountingViewData()['requirement']['state']);
         $this->assertSame('unavailable', $component->instance()->accountingViewData()['reviewState']);
-        $component->assertSee('Account balance unavailable')
+        $component->assertSee('No active charges recorded yet')
             ->assertSee('this is not a zero or cleared balance')
             ->assertSee('Recorded charges')
             ->assertDontSee('No payment due now')
@@ -414,6 +609,25 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $this->assertSame(0, Payment::query()->whereIn('term_id', [$term->id])->count());
     }
 
+    public function test_selected_workspace_retains_ended_and_unavailable_account_sources_without_assuming_a_balance(): void
+    {
+        $actor = $this->accounting();
+        $fixture = $this->accountFixture('workspace-source-states@example.test');
+        $case = $fixture['enrollment'];
+        $case->update(['canonical_outcome' => Enrollment::OutcomeCancelledByRegistrar]);
+
+        Livewire::actingAs($actor)->test(AccountingAccountInspector::class, ['record' => $case->id])
+            ->assertSee('Registration ended')->assertSee('Review financial history')
+            ->assertSee('Recorded charges')->assertDontSee('No payment due now');
+
+        $case->update(['canonical_outcome' => Enrollment::OutcomeInProgress]);
+        $fixture['assessment']->update(['state' => Assessment::StateSuperseded]);
+        Livewire::actingAs($actor)->test(AccountingAccountInspector::class, ['record' => $case->id])
+            ->assertSee('No active charges recorded yet')->assertSee('Recorded charges')
+            ->assertSee('Current payment dates are unavailable')->assertDontSee('No payment due now');
+        $this->assertSame(0, $fixture['account']->payments()->count());
+    }
+
     public function test_coverage_form_excludes_committed_fees_from_new_coverage_but_preserves_same_fee_replacement(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-18 10:00:00', 'Asia/Manila'));
@@ -434,7 +648,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             ->assertMountedActionModalSee('The replacement remains on this fee.')
             ->setActionData([...$this->coverageData('REPLACEMENT-COVERAGE'), 'amount' => '12000.00'])
             ->callMountedAction()->assertHasNoActionErrors()->assertNotified('Approved coverage recorded')
-            ->assertRedirect(EnrollmentResource::getUrl('view', ['record' => $fixture['enrollment']]));
+            ->assertRedirect(EnrollmentResource::getUrl('index', ['tab' => 'accounts', 'account' => $fixture['enrollment']->id, 'view' => 'work']));
 
         $replacement = ApprovedCoverage::query()->where('authority_reference', 'REPLACEMENT-COVERAGE')->sole();
         $this->assertSame($obligation->id, $replacement->assessment_obligation_id);
@@ -464,7 +678,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $this->assertSame('1000.00', $coverage->amount);
         $this->assertSame('11000.00', app(TermAccountProjection::class)->forAccount($fixture['account'])['current_due']);
         Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id])
-            ->assertSee('PHP 11,000.00 due now')->assertSee('PHP 1,000.00 approved coverage');
+            ->assertSeeInOrder(['Due now', 'PHP 11,000.00'])->assertSee('PHP 1,000.00 approved coverage');
     }
 
     public function test_coverage_form_excludes_predecessors_from_superseded_assessments(): void
@@ -563,8 +777,8 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $lines = explode("\r\n", substr($contents, 3));
         $this->assertSame([
             'Account reference',
-            'Learner number',
-            'Learner name',
+            'Student / applicant number',
+            'Student / applicant name',
             'Program',
             'Term',
             'Assessed charges (PHP)',
@@ -636,8 +850,8 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
 
         $row = $this->accountStatusCsvRows($export)[0];
         $this->assertSame(array_map(fn (mixed $value): string => (string) $value, $preview['rows'][0]), $row);
-        $this->assertSame('Mira Santos', $row['Learner name']);
-        $this->assertSame('STU-POSITION', $row['Learner number']);
+        $this->assertSame('Mira Santos', $row['Student / applicant name']);
+        $this->assertSame('STU-POSITION', $row['Student / applicant number']);
         $this->assertSame('1', $preview['rows'][0]['Assessment version']);
         $this->assertSame('12000.00', $row['Assessed charges (PHP)']);
         $this->assertSame('1000.00', $row['Verified payments applied (PHP)']);
@@ -714,13 +928,13 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $export = $service->createAccountStatus($accounting, 'Review', $enrollments, []);
 
         $row = $this->accountStatusCsvRows($export)[0];
-        $this->assertSame('APP-EXPORT-IDENTITY', $row['Learner number']);
-        $this->assertSame("'=Mira Santos Jr.", $row['Learner name']);
+        $this->assertSame('APP-EXPORT-IDENTITY', $row['Student / applicant number']);
+        $this->assertSame("'=Mira Santos Jr.", $row['Student / applicant name']);
         $fixture['enrollment']->update(['admission_application_id' => null]);
         $export = $service->createAccountStatus($accounting, 'Review', $enrollments, []);
         $row = $this->accountStatusCsvRows($export)[0];
-        $this->assertSame('', $row['Learner number']);
-        $this->assertSame($fixture['learner']->fresh()->name, $row['Learner name']);
+        $this->assertSame('', $row['Student / applicant number']);
+        $this->assertSame($fixture['learner']->fresh()->name, $row['Student / applicant name']);
         $this->assertStringNotContainsString('private-identity@example.test', Storage::disk('local')->get($export->path));
     }
 
@@ -809,8 +1023,8 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $this->assertSame([
             'Payment reference',
             'Account reference',
-            'Learner number',
-            'Learner name',
+            'Student / applicant number',
+            'Student / applicant name',
             'Term',
             'Entry type',
             'Amount (PHP)',
@@ -867,7 +1081,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $this->assertSame(CreateContextualFinanceExport::AccountStatusPurpose, $export->purpose);
         $this->assertSame('MATCH-MODAL', $export->normalized_scope['search']);
         $this->assertSame(1, $export->normalized_scope['preparation_cases_excluded']);
-        $this->assertSame(['MATCH-MODAL-001'], array_column($this->accountStatusCsvRows($export), 'Learner number'));
+        $this->assertSame(['MATCH-MODAL-001'], array_column($this->accountStatusCsvRows($export), 'Student / applicant number'));
     }
 
     public function test_verified_payments_preview_and_csv_resolve_reversal_sources_outside_dates_and_keep_distinct_times(): void
@@ -916,7 +1130,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $this->assertSame('Independent Source Check', $raw['Verification basis']);
         $this->assertSame('••••5678', $raw['Masked external reference']);
         $row = $this->accountStatusCsvRows($export)[0];
-        $this->assertSame("'=APP-RECONCILE", $row['Learner number']);
+        $this->assertSame("'=APP-RECONCILE", $row['Student / applicant number']);
         $this->assertSame($raw['Verified at (Asia/Manila)'], $row['Verified at (Asia/Manila)']);
         $this->assertSame(CreateContextualFinanceExport::VerifiedPaymentsPurpose, $export->purpose);
         $this->assertStringNotContainsString('SECRET-BANK', Storage::disk('local')->get($export->path));

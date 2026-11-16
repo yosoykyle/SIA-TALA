@@ -1,4 +1,4 @@
-@extends('layouts.landing-bootstrap', ['title' => 'Servitech Institute Asia Inc. — Powered by TALA'])
+@extends('layouts.landing-bootstrap', ['title' => 'Servitech Institute Asia Inc.'])
 
 @section('content')
     <a class="tala-skip-link" href="#main-content">
@@ -19,14 +19,10 @@
         </div>
 
         <div class="container">
-            <a class="navbar-brand landing-brand" href="{{ url('/') }}" aria-label="Servitech Institute Asia Inc. Powered by TALA home">
+            <a class="navbar-brand landing-brand" href="{{ url('/') }}" aria-label="Servitech Institute Asia Inc. home">
                 <img src="{{ asset('images/brand/servitech-crest-outlined-192.webp') }}" alt="" aria-hidden="true" class="tala-crest-outlined landing-brand-crest" width="44" height="44" decoding="async">
                 <span class="landing-brand-text" data-navbar-contrast-target>
                     <span class="landing-brand-name">Servitech Institute Asia</span>
-                    <span class="landing-attribution">
-                        <img src="{{ asset('talalogo.png') }}" alt="" aria-hidden="true" class="landing-attribution-mark" width="14" height="14">
-                        <span>Powered by TALA</span>
-                    </span>
                 </span>
             </a>
 
@@ -503,7 +499,7 @@
         <div class="container">
             <div class="footer-layout">
                 <div class="footer-identity">
-                    <a class="footer-brand" href="{{ url('/') }}" aria-label="Servitech Institute Asia Inc. Powered by TALA home">
+                    <a class="footer-brand" href="{{ url('/') }}" aria-label="Servitech Institute Asia Inc. home">
                         <img src="{{ asset('images/brand/servitech-crest-outlined-192.webp') }}" alt="" aria-hidden="true" class="tala-crest-outlined footer-brand-crest" width="56" height="56" decoding="async" loading="lazy">
                         <span>Servitech Institute Asia Inc.</span>
                     </a>
@@ -543,10 +539,6 @@
             </div>
             <div class="footer-divider">
                 <p class="mb-0">&copy; {{ date('Y') }} Servitech Institute Asia (SIA)</p>
-                <p class="footer-attribution mb-0">
-                    <img src="{{ asset('talalogo.png') }}" alt="" aria-hidden="true" class="landing-attribution-mark" width="14" height="14">
-                    <span>Powered by TALA</span>
-                </p>
             </div>
         </div>
     </footer>

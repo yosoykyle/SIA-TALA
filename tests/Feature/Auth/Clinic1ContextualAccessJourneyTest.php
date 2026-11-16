@@ -340,4 +340,33 @@ class Clinic1ContextualAccessJourneyTest extends TestCase
             session('tala.context_entry_notice'),
         );
     }
+
+    public function test_unauthenticated_shared_auth_route_redirects_to_public_sign_in_without_setting_unavailable_entry_notice(): void
+    {
+        $this->get('/workspace-chooser')
+            ->assertRedirect(route('public.sign-in'));
+
+        $this->assertNull(session('tala.requested_context'));
+        $this->assertNull(session(WorkspaceContextResolver::EntryNoticeSessionKey));
+    }
+
+    public function test_unavailable_entry_notice_flashes_once_and_clears_after_following_request(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('student');
+        StudentProfile::factory()->create(['user_id' => $user->id]);
+
+        $this->actingAs($user);
+
+        $this->get('/admin/login?context=faculty')
+            ->assertRedirect('/student');
+
+        $this->get('/student')
+            ->assertOk()
+            ->assertSee('You are signed in. The selected entry is unavailable for this account. Use one of your authorized workspaces.');
+
+        $this->get('/student')
+            ->assertOk()
+            ->assertDontSee('You are signed in. The selected entry is unavailable for this account. Use one of your authorized workspaces.');
+    }
 }

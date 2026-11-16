@@ -53,13 +53,10 @@ class StudentPanelProvider extends PanelProvider
             ->profile(AccountSecurity::class, isSimple: false)
             ->userMenuItems([
                 'profile' => fn (Action $action): Action => $action
-                    ->label('My profile')
+                    ->label('Profile')
                     ->icon('heroicon-o-user')
-                    ->url(fn (): string => Profile::getUrl(panel: 'student')),
-                Action::make('accountSecurity')
-                    ->label('Password and security')
-                    ->icon('heroicon-o-shield-check')
-                    ->url(fn (): string => AccountSecurity::getUrl(panel: 'student')),
+                    ->url(fn (): string => AccountSecurity::getUrl(panel: 'student'))
+                    ->visible(fn (): bool => ! TalaPanelTheme::isMandatoryMfaSetupRoute()),
             ])
             ->multiFactorAuthentication(
                 TalaAppAuthentication::make()->recoverable(),

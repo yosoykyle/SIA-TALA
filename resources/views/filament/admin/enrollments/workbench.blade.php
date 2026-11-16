@@ -1,5 +1,5 @@
 @assets
-    <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
 @endassets
 @php($queueUrl = fn (string $key): string => \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('index', ['tab' => $key]))
 <div class="registrar-workbench tala-workspace-launcher">

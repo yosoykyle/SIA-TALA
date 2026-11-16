@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TranscriptRequests\Pages;
 
 use App\Filament\Pages\CompletionAndTor;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\TranscriptRequests\Concerns\InteractsWithTranscriptActions;
 use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Models\TranscriptRequest;
@@ -38,6 +39,15 @@ class ViewTranscriptRequest extends ViewRecord
             ];
         }
 
+        if (auth()->user()?->hasRole(User::StaffRoleAccounting)) {
+            return [
+                EnrollmentResource::getUrl('index') => 'Overview',
+                EnrollmentResource::getUrl('index', ['tab' => 'accounts']) => 'Student accounts',
+                TranscriptRequestResource::getUrl('index') => 'TOR restrictions',
+                'Request details',
+            ];
+        }
+
         return parent::getBreadcrumbs();
     }
 
@@ -51,6 +61,13 @@ class ViewTranscriptRequest extends ViewRecord
         $record = $this->getRecord();
         abort_unless($record instanceof TranscriptRequest, 404);
 
-        return $record;
+        return $record->loadMissing([
+            'studentProfile',
+            'clearances',
+            'events.recorder',
+            'snapshots.events',
+            'officialOutputRestrictions.recorder',
+            'officialOutputRestrictions.resolver',
+        ]);
     }
 }

@@ -51,7 +51,7 @@
                     @php($student = $selected->studentProfile)
                     @php($signatory = $this->torSignatory)
                     <div wire:key="tor-detail-{{ $selected->id }}" class="tala-tor-request-content">
-                        <x-record-identity :name="$student->last_name.', '.$student->first_name" :number="$student->student_number" :program="$student->program?->name" :photo-url="$student->user?->getFilamentAvatarUrl()" :initials="mb_substr($student->first_name,0,1).mb_substr($student->last_name,0,1)" />
+                        <x-record-identity :name="$student->last_name.', '.$student->first_name" :number="$student->student_number" :program="$student->program?->name" :photo-url="$student->adminPhotoUrl()" :initials="mb_substr($student->first_name,0,1).mb_substr($student->last_name,0,1)" />
                         <dl class="tala-tor-request-facts"><div><dt>Request</dt><dd>{{ $selected->external_request_reference }}</dd></div><div><dt>Received</dt><dd>{{ $selected->requested_on->format('M j, Y') }}</dd></div><div><dt>Due</dt><dd>{{ $selected->due_on->format('M j, Y') }}</dd></div></dl>
                         @if (! $detail['current'] && blank($signatory['name']) && blank($selected->signatory_name))
                             <div class="tala-tor-setup"><x-filament::icon icon="heroicon-o-exclamation-triangle" aria-hidden="true" /><div><h3>Set the name printed on the TOR</h3><p>Save the school-confirmed name and title once for future TORs.</p></div>{{ $this->getAction('setTorSignatory') }}</div>

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\FeePlans\Pages;
 
+use App\Actions\Finance\AccountingDisplay;
 use App\Actions\Finance\CreateSuccessorFeePlan;
 use App\Actions\Finance\PublishFeePlan;
 use App\Actions\Finance\UpdateFeePlanDraft;
@@ -17,17 +18,38 @@ use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
-use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section as SchemaSection;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\View as SchemaView;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ViewFeePlan extends ViewRecord
 {
     protected static string $resource = FeePlanResource::class;
+
+    private bool $draftReadinessResolved = false;
+
+    private ?string $draftReadinessCache = null;
+
+    public function draftReadiness(): ?string
+    {
+        $record = $this->getRecord();
+
+        if ($record->state !== FeePlan::StateDraft) {
+            return null;
+        }
+
+        if (! $this->draftReadinessResolved) {
+            $this->draftReadinessResolved = true;
+            $this->draftReadinessCache = app(PublishFeePlan::class)->readiness($record);
+        }
+
+        return $this->draftReadinessCache;
+    }
 
     public function getTitle(): string
     {
@@ -37,23 +59,26 @@ class ViewFeePlan extends ViewRecord
     public function getSubheading(): ?string
     {
         $plan = $this->getRecord();
-        $status = match ($plan->state) {
-            FeePlan::StatePublished => 'Current plan',
-            FeePlan::StateDraft => 'Draft',
-            default => 'Superseded plan',
-        };
+        $status = AccountingDisplay::feePlanStatusLabel($plan->state);
+        $termLabel = collect([$plan->term?->academicYear?->label, $plan->term?->label])->filter()->implode(' · ');
         $date = match ($plan->state) {
             FeePlan::StatePublished => $plan->published_at,
             FeePlan::StateDraft => $plan->created_at,
             default => $plan->updated_at,
         };
+        $dateLabel = $date !== null ? AccountingDisplay::dateTime($date, 'M j, Y') : 'Date unavailable';
 
-        return $plan->term?->label.' · '.$status.' · '.($date?->timezone(config('app.display_timezone'))->format('j M Y') ?? 'Date unavailable');
+        return collect([
+            $termLabel !== '' ? $termLabel : null,
+            'Version '.$plan->version,
+            $status,
+            $dateLabel,
+        ])->filter()->implode(' · ');
     }
 
     public function getBreadcrumbs(): array
     {
-        return [FeePlanResource::getUrl('index') => 'Fee Plans'];
+        return [FeePlanResource::getUrl('index') => 'Fee plans'];
     }
 
     private function reviewedPlanData(): array
@@ -88,14 +113,14 @@ class ViewFeePlan extends ViewRecord
         $record = parent::getRecord();
         abort_unless($record instanceof FeePlan, 404);
 
-        return $record;
+        return $record->loadMissing(['program', 'term.academicYear', 'charges', 'obligations', 'supersedes']);
     }
 
     protected function getHeaderActions(): array
     {
         return [
             Action::make('editDraft')
-                ->label('Edit draft')->color('gray')
+                ->label('Edit draft')->icon(Heroicon::PencilSquare)->color('gray')
                 ->visible(fn (): bool => $this->getRecord()->state === FeePlan::StateDraft || collect($this->mountedActions ?? [])->contains('name', 'editDraft'))
                 ->modalHeading('Edit draft')
                 ->modalDescription('Changes stay in this draft until it is approved and published.')->extraModalWindowAttributes(['autofocus' => true, 'tabindex' => '-1'])
@@ -116,12 +141,14 @@ class ViewFeePlan extends ViewRecord
                         Notification::make()->title('Draft was not saved')->body(collect($exception->errors())->flatten()->first())->danger()->send();
                         throw $exception;
                     }
+                    $this->draftReadinessResolved = false;
+                    $this->draftReadinessCache = null;
                     $this->redirect(FeePlanResource::getUrl('view', ['record' => $this->getRecord()]));
                 }),
             Action::make('publish')
-                ->label('Publish plan')
+                ->label('Publish plan')->icon(Heroicon::Check)
                 ->visible(fn (): bool => $this->getRecord()->state === FeePlan::StateDraft || collect($this->mountedActions ?? [])->contains('name', 'publish'))
-                ->disabled(fn (): bool => ! collect($this->mountedActions ?? [])->contains('name', 'publish') && app(PublishFeePlan::class)->readiness($this->getRecord()) !== null)
+                ->disabled(fn (): bool => ! collect($this->mountedActions ?? [])->contains('name', 'publish') && $this->draftReadiness() !== null)
                 ->modalHeading('Publish current draft')->modalDescription(null)->modalIcon(null)
                 ->modalWidth(Width::FourExtraLarge)->extraModalWindowAttributes(['autofocus' => true, 'tabindex' => '-1'])->stickyModalHeader()->stickyModalFooter()->modalFooterActionsAlignment(Alignment::End)->modalSubmitActionLabel('Publish plan')
                 ->fillForm(fn (): array => $this->reviewedPlanData())
@@ -129,15 +156,22 @@ class ViewFeePlan extends ViewRecord
                     Hidden::make('reviewed_content_fingerprint')->required(),
                     Hidden::make('reviewed_plan'),
                     SchemaView::make('filament.admin.fee-plans.publish-confirmation')->viewData(fn (Get $get): array => ['reviewed' => $get('reviewed_plan')]),
-                    Grid::make(2)->schema([
-                        TextInput::make('authority_reference')->label('Approval reference')->required()->maxLength(255),
-                        DatePicker::make('authority_date')->label('Approval date')->required(),
-                    ])->columnSpanFull(),
-                    TextInput::make('no_payment_required_authority_reference')->label('Zero-payment approval reference')
-                        ->helperText('Record the institutional approval for requiring no enrollment payment.')
-                        ->visible(fn (Get $get): bool => (float) ($get('reviewed_plan.enrollment_payment') ?? -1) === 0.0)
-                        ->required(fn (Get $get): bool => (float) ($get('reviewed_plan.enrollment_payment') ?? -1) === 0.0)
-                        ->maxLength(255),
+                    SchemaSection::make('Approval details')
+                        ->contained(false)
+                        ->extraAttributes(['class' => 'accounting-finance-form-section'])
+                        ->gridContainer()
+                        ->columns(['default' => 1, '@sm' => 2])
+                        ->schema([
+                            TextInput::make('authority_reference')->label('Approval reference')->required()->maxLength(255),
+                            DatePicker::make('authority_date')->label('Approval date')->required(),
+                            TextInput::make('no_payment_required_authority_reference')->label('Zero-payment approval reference')
+                                ->helperText('Record the institutional approval for requiring no enrollment payment.')
+                                ->visible(fn (Get $get): bool => (float) ($get('reviewed_plan.enrollment_payment') ?? -1) === 0.0)
+                                ->required(fn (Get $get): bool => (float) ($get('reviewed_plan.enrollment_payment') ?? -1) === 0.0)
+                                ->maxLength(255)
+                                ->columnSpanFull(),
+                        ])
+                        ->columnSpanFull(),
                 ])
                 ->action(function (array $data): void {
                     $actor = auth()->user();
@@ -151,10 +185,10 @@ class ViewFeePlan extends ViewRecord
                     $this->redirect(FeePlanResource::getUrl('view', ['record' => $this->getRecord()]));
                 }),
             Action::make('createSuccessor')
-                ->label('Create draft')
+                ->label('Create draft')->icon(Heroicon::OutlinedDocumentDuplicate)
                 ->visible(fn (): bool => $this->getRecord()->state === FeePlan::StatePublished || collect($this->mountedActions ?? [])->contains('name', 'createSuccessor'))
                 ->modalHeading('Create draft from current plan')->modalDescription(null)->modalIcon(null)
-                ->modalWidth(Width::TwoExtraLarge)->modalFooterActionsAlignment(Alignment::End)->modalSubmitActionLabel('Create draft')
+                ->modalWidth(Width::TwoExtraLarge)->stickyModalHeader()->stickyModalFooter()->modalFooterActionsAlignment(Alignment::End)->modalSubmitActionLabel('Create draft')
                 ->fillForm(fn (): array => $this->reviewedPlanData())
                 ->schema([
                     Hidden::make('reviewed_content_fingerprint')->required(),

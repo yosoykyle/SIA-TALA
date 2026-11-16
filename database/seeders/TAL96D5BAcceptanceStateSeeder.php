@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Actions\Finance\PaymentConfirmationService;
-use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
@@ -17,8 +16,6 @@ use App\Models\Enrollment;
 use App\Models\FeeRule;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
-use App\Models\PaymentAttemptObligation;
 use App\Models\Program;
 use App\Models\SchedulingDemand;
 use App\Models\StudentProfile;
@@ -42,7 +39,6 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
     public function __construct(
         private readonly TAL96D4BAcceptanceStateSeeder $gradeAndLifecycleStates,
         private readonly PaymentConfirmationService $paymentConfirmationService,
-        private readonly ExactDuePaymentSnapshotService $paymentSnapshot,
         private readonly CanonicalTalaSchedulingDataset $canonicalDataset,
     ) {}
 
@@ -75,17 +71,6 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             assessment: $clearedAssessment,
             amount: '2000.00',
             reference: 'PAYMENT-CLEARED-001',
-        );
-
-        $this->ensurePaymentAttemptCase(
-            assessment: $dueAssessment,
-            internalReference: 'CHECKOUT-FAILED-001',
-            status: 'failed',
-        );
-        $this->ensurePaymentAttemptCase(
-            assessment: $partialAssessment,
-            internalReference: 'CHECKOUT-PENDING-001',
-            status: 'pending',
         );
     }
 
@@ -524,60 +509,6 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         );
 
         return $assessment->refresh();
-    }
-
-    private function ensurePaymentAttemptCase(
-        Assessment $assessment,
-        string $internalReference,
-        string $status,
-    ): void {
-        $existing = PaymentAttempt::query()
-            ->where('internal_reference', $internalReference)
-            ->first();
-
-        if ($existing instanceof PaymentAttempt
-            && $existing->term_account_id !== null
-            && filled($existing->snapshot_checksum)
-            && $existing->obligations()->exists()) {
-            return;
-        }
-
-        $snapshot = $this->paymentSnapshot->forAccount($assessment->termAccount);
-        $attempt = PaymentAttempt::query()->updateOrCreate(
-            ['internal_reference' => $internalReference],
-            [
-                'assessment_id' => $assessment->id,
-                'term_account_id' => $snapshot['term_account_id'],
-                'student_profile_id' => $assessment->enrollment->student_profile_id,
-                'assessment_version' => $snapshot['assessment_version'],
-                'snapshot_created_at' => $snapshot['created_at'],
-                'snapshot_checksum' => $snapshot['checksum'],
-                'channel' => 'online',
-                'provider' => 'paymongo',
-                'provider_checkout_id' => null,
-                'provider_intent_id' => null,
-                'amount' => $snapshot['amount'],
-                'currency' => 'PHP',
-                'status' => $status,
-                'expires_at' => null,
-                'paid_at' => null,
-                'metadata' => [
-                    'purpose' => 'Presentation case for payment status and recovery guidance',
-                    'provider_evidence' => 'sandbox confirmation required',
-                ],
-            ],
-        );
-
-        $attempt->obligations()->delete();
-
-        foreach ($snapshot['obligations'] as $target) {
-            PaymentAttemptObligation::query()->create([
-                'payment_attempt_id' => $attempt->id,
-                'assessment_obligation_id' => $target['id'],
-                'sequence' => $target['sequence'],
-                'amount' => $target['amount'],
-            ]);
-        }
     }
 
     private function ensureManualPayment(Assessment $assessment, string $amount, string $reference): void

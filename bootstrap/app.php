@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Middleware\EnsureActiveStudentHubUser;
 use App\Http\Middleware\EnsureEnrollmentEditWindowOpen;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,7 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->redirectGuestsTo(fn (): string => route('filament.student.auth.login'));
+        $middleware->redirectGuestsTo(fn (): string => route('public.sign-in'));
 
         $middleware->trustProxies(
             at: '*',
@@ -28,7 +27,6 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'enrollment.edit.window' => EnsureEnrollmentEditWindowOpen::class,
-            'student.active' => EnsureActiveStudentHubUser::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

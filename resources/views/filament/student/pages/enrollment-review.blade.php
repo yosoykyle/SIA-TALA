@@ -2,7 +2,7 @@
     <div class="student-registration-heading">
         <div><h2>{{ $proposal->curriculumVersion?->program?->name ?? 'Program unavailable' }}</h2><p>{{ \App\Models\Term::typeOptions()[$enrollment->term?->type] ?? $enrollment->term?->label ?? 'Term unavailable' }} · School year {{ $enrollment->term?->academicYear?->label ?? 'unavailable' }}</p></div>
     </div>
-    @if ($reservationDeadline)<p class="student-review-deadline">Temporary seats reserved until {{ $reservationDeadline->timezone(config('app.display_timezone'))->format('F j, Y · g:i A') }} ({{ config('app.display_timezone') }}).</p>@endif
+    @if ($reservationDeadline)<p class="student-review-deadline">Temporary seat reservations are held until {{ $reservationDeadline->timezone(config('app.display_timezone'))->format('F j, Y · g:i A') }} ({{ config('app.display_timezone') }}).</p>@endif
     <div class="student-review-layout tala-task-surface">
         <div class="student-review-subjects">
             @include('filament.student.pages.enrollment-subjects', ['preparing' => false])

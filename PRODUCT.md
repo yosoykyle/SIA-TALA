@@ -36,7 +36,7 @@ This list describes the product. Delivery order, assignments and completion belo
 
 ## Operating context and boundaries
 
-Servitech is a Philippine higher education institution. Staff work mainly in desktop Filament panels; learner and Faculty tasks also need usable mobile views. TALA supports First, Second and Special Terms and source-bound school outputs.
+Servitech is a Philippine higher education institution. Staff work mainly in desktop Filament panels; Applicant, Student and Faculty tasks also need usable mobile views. TALA supports First, Second and Special Terms and source-bound school outputs.
 
 TALA records attributable office results. Office deliberation, detailed paper-document handling, raw grade calculations, institutional financial decisions and cash-refund execution remain with their responsible owners outside TALA. The owning PRDs preserve bounded restrictions and distinct admissions/payment/output clearances. Blanket login/service bans, a generic policy engine, an open seat marketplace and autonomous institutional decisions remain outside scope.
 
@@ -45,7 +45,7 @@ Unavailable school evidence is never invented. Qualified Philippine sources and 
 ## Product principles
 
 - Clear tasks: necessary facts and the permitted next action lead; secondary detail stays reachable.
-- Human authority: solvers and providers supply evidence; authorized school actors decide.
+- Human authority: solvers supply evidence; authorized school actors decide.
 - Safe transitions: consequential changes validate and complete atomically with capacity/conflict safeguards.
 - Auditable records: corrections retain attribution, history and immutable issued snapshots.
 - Truthful recovery: zero, missing, blocked, stale and unmeasured remain distinct, with an owner and usable remedy.
