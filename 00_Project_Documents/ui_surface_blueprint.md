@@ -593,6 +593,10 @@ Faculty receives **My Availability** and **My Schedule**. Academic Head receives
 
 ### Catalog & Curricula workbench
 
+Use the [REG-C01 surface brief](../.impeccable/surfaces/reg-c01.md) for composition. Lead with the selected Program, applicable authority/current curriculum, work remaining and a state-appropriate next action. Program selection shows the name with its supporting code and persists through related record, sheet, source and return navigation. Global record counts and a grid of module destinations do not substitute for this task. Required approval-source fields use PRD 03's plain labels; replace an ambiguous authority menu with named contextual actions.
+
+Registrar follows **choose Program → inspect applicable authority → prepare the grouped curriculum sheet manually or through CSV → resolve findings → review impact → activate**. Use one canonical sheet for sustained preparation and focused forms for bounded metadata/row corrections. Consolidate duplicate edit paths while preserving authorized deep-link recovery. Current work leads; meaningful source/version history remains discoverable in the same context. Applicable authority follows the source-date rule in PRD 03, so Active historical/future records never masquerade as current. Academic Head sees the permitted read-only facts and returns to Academic Oversight without gaining an approval step.
+
 The workbench provides these task groups, with current context, source blockers and the permitted next action readily visible:
 
 1. Program identity, authority, effective dates, status, and approved curriculum source.
@@ -610,6 +614,8 @@ The CSV action is `FocusedTALACustom`: a small preview/commit coordinator built 
 Before upload, the action shows **Download TALA curriculum template**, UTF-8/comma guidance, 5 MiB/5,000-row limits, and that import creates Drafts only. Missing, duplicate, reordered, unknown, or unsupported headers cannot be remapped. Preview records no academic authority and shows file summary/checksum, exact source row, normalized interpretation, current-source comparison, proposed Draft effect, errors, warnings, and filterable finding count. A finding links to its row/column and states how to correct the original template. Meeting components, modes, and room needs are completed later in the Draft workbench; the CSV offers no mini-language.
 
 **Create Draft records** appears only after zero blockers and acknowledged warnings. Formula-leading source text is a blocker. Its confirmation names the Program/Curriculum scope, proposed counts, source/checksum, all-or-nothing Draft effect, and that activation remains separate. Commit revalidates authorization and every source version. Failure states that no Draft was created and retains the preview for retry; a successful file/context cannot create duplicate Drafts. **Download findings** prefixes formula-leading generated text with one apostrophe, but that file cannot be re-imported. Preview always escapes and renders source text rather than markup. Upload, preview, findings download, and commit remain Registrar-only and never expose another Program's data.
+
+Academic Head's existing source-file access and authorized read-only review remain available; curriculum-import findings downloads remain Registrar-only, including direct action requests. This distinction does not revoke unrelated import access. Existing legacy batches, source files and posted results remain attributable under PRD 03's transition rule; unsupported unfinished previews explain recovery without implying successful Draft creation.
 
 ### Term Planning workspace
 
