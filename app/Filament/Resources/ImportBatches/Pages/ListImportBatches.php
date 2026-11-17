@@ -10,6 +10,7 @@ use App\Actions\Imports\CurriculumImportTemplate;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
 use App\Models\ImportBatch;
 use App\Models\User;
+use App\Support\SafeUserNotification;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
@@ -131,11 +132,11 @@ class ListImportBatches extends ListRecords
                 ->success()
                 ->send();
         } catch (Throwable $exception) {
-            Notification::make()
-                ->title('Import upload failed')
-                ->body($exception->getMessage())
-                ->danger()
-                ->send();
+            SafeUserNotification::sendError(
+                'Import upload failed',
+                $exception,
+                'The import file could not be processed. Check the template format and try again.',
+            );
         }
     }
 

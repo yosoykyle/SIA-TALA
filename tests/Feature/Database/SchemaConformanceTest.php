@@ -12,7 +12,7 @@ final class SchemaConformanceTest extends TestCase
         'activity_log', 'cache', 'cache_locks', 'failed_jobs', 'job_batches', 'jobs',
         'migrations', 'model_has_permissions', 'model_has_roles', 'notifications', 'passkeys',
         'password_reset_tokens', 'permissions', 'role_has_permissions', 'roles',
-        'sessions', 'users', 'webhook_calls',
+        'sessions', 'users',
     ];
 
     private const APPLICATION_TABLES = [
@@ -34,7 +34,7 @@ final class SchemaConformanceTest extends TestCase
         'graduation_snapshots', 'holds', 'identity_match_reviews', 'import_batches', 'inc_completion_submissions',
         'inc_deadline_amendments', 'late_grade_authorizations',
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
-        'payment_attempt_obligations', 'payment_attempts', 'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
+        'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
         'pending_email_changes',
         'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances', 'official_output_restrictions',
         'public_notices', 'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
@@ -68,9 +68,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(132, self::APPLICATION_TABLES);
-        $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(150, $actual);
+        $this->assertCount(130, self::APPLICATION_TABLES);
+        $this->assertCount(17, self::PLATFORM_TABLES);
+        $this->assertCount(147, $actual);
         $this->assertSame($expected, $actual);
     }
 
@@ -80,9 +80,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertColumns('candidate_schedule_rows', ['schedule_run_id', 'scheduling_demand_id', 'meeting_sequence']);
         $this->assertColumns('section_meetings', ['schedule_run_id', 'scheduling_demand_id', 'meeting_sequence', 'room_id']);
         $this->assertColumns('enrollment_exceptions', ['enrollment_id', 'student_profile_id', 'term_id', 'exception_type', 'enrollment_gate_result_id', 'target_term_offering_id']);
-        $this->assertColumns('payment_attempts', ['assessment_id', 'term_account_id', 'student_profile_id', 'assessment_version', 'snapshot_created_at', 'snapshot_checksum', 'internal_reference']);
-        $this->assertColumns('payment_attempt_obligations', ['payment_attempt_id', 'assessment_obligation_id', 'sequence', 'amount']);
-        $this->assertColumns('payments', ['payment_attempt_id', 'payment_evidence_version_id', 'reverses_payment_id', 'state', 'verification_basis', 'external_check_reference']);
+        $this->assertColumns('payment_evidence_versions', ['term_account_id', 'channel', 'channel_snapshot']);
+        $this->assertColumns('payments', ['payment_evidence_version_id', 'reverses_payment_id', 'state', 'verification_basis', 'external_check_reference', 'channel_snapshot']);
         $this->assertColumns('payment_allocations', ['payment_id', 'sequence', 'assessment_obligation_id']);
         $this->assertColumns('fee_plan_obligations', ['sequence', 'purpose', 'due_at']);
         $this->assertColumns('assessment_obligations', ['sequence', 'purpose', 'due_at']);
@@ -115,10 +114,6 @@ final class SchemaConformanceTest extends TestCase
         $this->assertForeignKey('student_schedule_bindings', 'section_meeting_id', 'section_meetings', 'RESTRICT');
         $this->assertForeignKey('enrollment_seat_reservations', 'section_id', 'sections', 'RESTRICT');
         $this->assertForeignKey('enrollment_exceptions', 'enrollment_gate_result_id', 'enrollment_gate_results', 'RESTRICT');
-        $this->assertForeignKey('payments', 'payment_attempt_id', 'payment_attempts', 'RESTRICT');
-        $this->assertForeignKey('payment_attempts', 'term_account_id', 'term_accounts', 'RESTRICT');
-        $this->assertForeignKey('payment_attempt_obligations', 'payment_attempt_id', 'payment_attempts', 'RESTRICT');
-        $this->assertForeignKey('payment_attempt_obligations', 'assessment_obligation_id', 'assessment_obligations', 'RESTRICT');
         $this->assertForeignKey('payment_allocations', 'payment_id', 'payments', 'RESTRICT');
         $this->assertForeignKey('approved_coverages', 'supersedes_coverage_id', 'approved_coverages', 'RESTRICT');
         $this->assertForeignKey('official_output_restrictions', 'student_profile_id', 'student_profiles', 'RESTRICT');
@@ -150,9 +145,6 @@ final class SchemaConformanceTest extends TestCase
         $this->assertUniqueIndex('payments', ['payment_evidence_version_id']);
         $this->assertIndex('payments', ['reverses_payment_id']);
         $this->assertUniqueIndex('payments', ['term_account_id', 'external_refund_reference']);
-        $this->assertUniqueIndex('payment_attempts', ['active_term_account_id']);
-        $this->assertUniqueIndex('payment_attempt_obligations', ['payment_attempt_id', 'assessment_obligation_id']);
-        $this->assertUniqueIndex('payment_attempt_obligations', ['payment_attempt_id', 'sequence']);
         $this->assertUniqueIndex('public_notices', ['previous_version_id']);
         $this->assertUniqueIndex('faq_entries', ['previous_version_id']);
 
@@ -160,8 +152,6 @@ final class SchemaConformanceTest extends TestCase
             ['fee_rules', 'rate', 12, 2],
             ['assessments', 'total', 12, 2],
             ['assessment_lines', 'amount', 12, 2],
-            ['payment_attempts', 'amount', 12, 2],
-            ['payment_attempt_obligations', 'amount', 12, 2],
             ['payments', 'amount', 12, 2],
             ['payment_allocations', 'amount', 12, 2],
             ['ledger_entries', 'amount', 12, 2],
@@ -176,7 +166,7 @@ final class SchemaConformanceTest extends TestCase
         }
 
         $checks = collect(DB::select("SELECT constraint_name FROM information_schema.table_constraints WHERE constraint_schema = DATABASE() AND constraint_type = 'CHECK'"))->pluck('CONSTRAINT_NAME');
-        foreach (['checklist_items_owner_check', 'payment_schedule_owner_check', 'payment_allocations_target_check', 'payment_attempt_obligations_amount_check', 'payment_attempts_status_check'] as $check) {
+        foreach (['checklist_items_owner_check', 'payment_schedule_owner_check', 'payment_allocations_target_check'] as $check) {
             $this->assertTrue($checks->contains($check), "Missing check constraint $check");
         }
         $this->assertFalse($checks->contains('grade_rows_range_check'));

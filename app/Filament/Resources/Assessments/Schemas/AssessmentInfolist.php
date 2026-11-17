@@ -140,23 +140,6 @@ class AssessmentInfolist
                     ])
                     ->collapsible()
                     ->collapsed(),
-                Section::make('Payment Attempts')
-                    ->description('Checkout attempts are evidence states; they do not affect the balance until a verified payment is posted.')
-                    ->schema([
-                        RepeatableEntry::make('account_attempt_rows')
-                            ->hiddenLabel()
-                            ->state(fn (Assessment $record): mixed => self::account($record)['attempt_rows'])
-                            ->schema([
-                                TextEntry::make('reference')->label('Reference'),
-                                TextEntry::make('provider')->label('Provider'),
-                                TextEntry::make('status')->label('Status')->badge(),
-                                TextEntry::make('amount')->label('Amount'),
-                            ])
-                            ->columns(4)
-                            ->columnSpanFull(),
-                    ])
-                    ->collapsible()
-                    ->collapsed(),
                 Section::make('Payments and OR Reconciliation')
                     ->description('Only verified payments with posted account activity are listed. An acknowledgement is not an official receipt.')
                     ->schema([

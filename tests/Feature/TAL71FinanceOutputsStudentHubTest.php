@@ -3,8 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Finance\FinanceEvidenceService;
-use App\Actions\Integrations\Payments\MockPaymentGateway;
-use App\Actions\Integrations\Payments\PaymentGateway;
+use App\Actions\Finance\SchoolPaymentChannels;
 use App\Filament\Student\Pages\Finance;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
@@ -15,7 +14,6 @@ use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
-use App\Models\PaymentAttempt;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
 use App\Models\StudentProfile;
@@ -46,16 +44,12 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
         foreach (['student', User::StaffRoleAccounting] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
-
-        $this->app->instance(PaymentGateway::class, new MockPaymentGateway(
-            providerName: 'mock',
-            checkoutBaseUrl: 'https://mock-payments.test/checkout',
-        ));
     }
 
     public function test_student_finance_page_shows_ledger_derived_finance_and_available_outputs(): void
     {
         $fixture = $this->financeFixture();
+        $this->enableDigitalChannels();
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
@@ -63,8 +57,8 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->assertSee('Tuition obligation')
             ->assertSee('Amount due now')
             ->assertSee('PHP 8,500.00')
-            ->assertSee('Online payment is unavailable.')
-            ->assertSee('Submit payment proof');
+            ->assertDontSee('Online payment is unavailable.')
+            ->assertSee('Submit receipt');
     }
 
     public function test_finance_outputs_are_authenticated_owned_and_logged(): void
@@ -170,15 +164,17 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_paymongo_checkout_is_not_active_and_manual_payment_remains_available(): void
+    public function test_manual_payment_remains_available_without_online_checkout(): void
     {
-        $fixture = $this->financeFixture(['include_review_attempt' => false]);
+        $fixture = $this->financeFixture();
+        $this->enableDigitalChannels();
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Online payment is unavailable.')
-            ->assertSee('Submit payment proof');
-        $this->assertSame(0, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count());
+            ->assertDontSee('Pay exact current due')
+            ->assertDontSee('Online payment is unavailable.')
+            ->assertSee('How to pay')
+            ->assertSee('Submit receipt');
     }
 
     public function test_student_hub_replaces_old_finance_placeholder_routes(): void
@@ -287,8 +283,8 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
         ]);
         $payment = Payment::factory()->for($profile)->for($term)->create([
             'term_account_id' => $account->id,
-            'method' => 'paymongo',
-            'channel' => 'paymongo',
+            'method' => 'bank_transfer',
+            'channel' => 'bank_transfer',
             'amount' => $overrides['ledger_payment_amount'] ?? '500.00',
             'evidence_status' => 'verified',
             'paid_at' => now()->subMinutes(30),
@@ -296,7 +292,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             'state' => Payment::StatePosted,
             'verification_basis' => 'IndependentSourceCheck',
             'external_check_reference' => 'SYNTH-TAL71-CHECK',
-            'provider_reference' => 'pm_'.fake()->unique()->numerify('######'),
+            'provider_reference' => 'MANUAL-'.fake()->unique()->numerify('######'),
             'or_number' => null,
         ]);
         PaymentAllocation::factory()->create([
@@ -320,19 +316,6 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             'posted_at' => now()->subMinutes(10),
             'state' => 'posted',
         ]);
-        if (($overrides['include_review_attempt'] ?? true) === true) {
-            PaymentAttempt::query()->create([
-                'assessment_id' => $assessment->id,
-                'student_profile_id' => $profile->id,
-                'channel' => 'paymongo',
-                'provider' => 'mock',
-                'internal_reference' => 'TALA-PAY-'.fake()->unique()->uuid(),
-                'amount' => '2000.00',
-                'currency' => 'PHP',
-                'status' => 'under_review',
-                'metadata' => ['note' => 'Fixture review state'],
-            ]);
-        }
         FinancialAccommodation::query()->create([
             'student_profile_id' => $profile->id,
             'term_id' => $term->id,
@@ -358,6 +341,26 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             'schedule' => $schedule,
             'payment' => $payment,
         ];
+    }
+
+    private function enableDigitalChannels(): void
+    {
+        $accounting = User::factory()->create(['status' => User::StatusActive]);
+        $accounting->assignRole(User::StaffRoleAccounting);
+
+        app(SchoolPaymentChannels::class)->update([
+            'bank_transfer' => [
+                'enabled' => true,
+                'accounts' => [[
+                    'id' => 'bank-tal71-1',
+                    'bank_name' => 'Land Bank of the Philippines',
+                    'account_name' => 'TALA State College',
+                    'account_number' => '0012-3456-78',
+                ]],
+            ],
+            'e_wallets' => ['enabled' => false, 'accounts' => []],
+            'cash' => ['enabled' => true, 'location' => 'Campus Cashier Window'],
+        ], $accounting, 'Enable bank transfer for student hub finance tests');
     }
 
     private function studentUser(): User

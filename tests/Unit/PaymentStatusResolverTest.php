@@ -5,10 +5,9 @@ namespace Tests\Unit;
 use App\Actions\Finance\PaymentStatusResolver;
 use App\Models\Assessment;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
+use App\Models\PaymentEvidenceVersion;
 use App\Models\PaymentScheduleRow;
 use App\Support\DecimalMoney;
-use Illuminate\Support\Collection;
 use PHPUnit\Framework\TestCase;
 
 final class PaymentStatusResolverTest extends TestCase
@@ -36,49 +35,39 @@ final class PaymentStatusResolverTest extends TestCase
         $this->assertSame(PaymentStatusResolver::StatusFullPaid, $status);
     }
 
-    public function test_payment_under_review_from_attempt_takes_priority_over_pending(): void
-    {
-        $attempts = $this->attempts([
-            ['id' => 1, 'status' => 'pending'],
-            ['id' => 2, 'status' => 'under_review'],
-        ]);
-
-        $status = $this->resolver->resolve(new Assessment, '9000.00', '0.00', $attempts, collect(), collect());
-
-        $this->assertSame(PaymentStatusResolver::StatusPaymentUnderReview, $status);
-    }
-
     public function test_payment_under_review_from_payment_evidence(): void
     {
         $payments = collect([new Payment(['evidence_status' => 'under_review'])]);
 
-        $status = $this->resolver->resolve(new Assessment, '9000.00', '0.00', collect(), $payments, collect());
+        $status = $this->resolver->resolve(new Assessment, '9000.00', '0.00', $payments, collect());
 
         $this->assertSame(PaymentStatusResolver::StatusPaymentUnderReview, $status);
     }
 
-    public function test_payment_pending_when_only_a_pending_attempt_exists(): void
+    public function test_payment_under_review_from_submitted_evidence_version(): void
     {
-        $attempts = $this->attempts([['id' => 1, 'status' => 'pending']]);
-
-        $status = $this->resolver->resolve(new Assessment, '9000.00', '0.00', $attempts, collect(), collect());
-
-        $this->assertSame(PaymentStatusResolver::StatusPaymentPending, $status);
-    }
-
-    public function test_payment_rejected_when_latest_attempt_failed_and_nothing_posted(): void
-    {
-        $attempts = $this->attempts([
-            ['id' => 1, 'status' => 'pending'],
-            ['id' => 5, 'status' => 'failed'],
+        $evidenceVersions = collect([
+            new PaymentEvidenceVersion(['version' => 1, 'state' => PaymentEvidenceVersion::StateRejected]),
+            new PaymentEvidenceVersion(['version' => 2, 'state' => PaymentEvidenceVersion::StateSubmitted]),
         ]);
 
-        $status = $this->resolver->resolve(new Assessment, '9000.00', '0.00', $attempts, collect(), collect());
+        $status = $this->resolver->resolve(new Assessment, '9000.00', '0.00', collect(), collect(), $evidenceVersions);
+
+        $this->assertSame(PaymentStatusResolver::StatusPaymentUnderReview, $status);
+    }
+
+    public function test_payment_rejected_when_latest_evidence_version_is_rejected_and_nothing_posted(): void
+    {
+        $evidenceVersions = collect([
+            new PaymentEvidenceVersion(['version' => 1, 'state' => PaymentEvidenceVersion::StateRejected]),
+        ]);
+
+        $status = $this->resolver->resolve(new Assessment, '9000.00', '0.00', collect(), collect(), $evidenceVersions);
 
         $this->assertSame(PaymentStatusResolver::StatusPaymentRejected, $status);
     }
 
-    public function test_unpaid_when_nothing_posted_and_no_relevant_attempts(): void
+    public function test_unpaid_when_nothing_posted_and_no_evidence(): void
     {
         $status = $this->resolver->resolve(new Assessment, '9000.00', '0.00', collect(), collect(), collect());
 
@@ -91,7 +80,7 @@ final class PaymentStatusResolverTest extends TestCase
             new PaymentScheduleRow(['state' => PaymentScheduleRow::StateDue]),
         ]);
 
-        $status = $this->resolver->resolve(new Assessment, '7000.00', '2000.00', collect(), collect(), $schedule);
+        $status = $this->resolver->resolve(new Assessment, '7000.00', '2000.00', collect(), $schedule, collect());
 
         $this->assertSame(PaymentStatusResolver::StatusInstallment, $status);
     }
@@ -102,34 +91,22 @@ final class PaymentStatusResolverTest extends TestCase
             new PaymentScheduleRow(['state' => 'paid']),
         ]);
 
-        $status = $this->resolver->resolve(new Assessment, '7000.00', '2000.00', collect(), collect(), $schedule);
+        $status = $this->resolver->resolve(new Assessment, '7000.00', '2000.00', collect(), $schedule, collect());
 
         $this->assertSame(PaymentStatusResolver::StatusPartiallyPaid, $status);
     }
 
-    public function test_failed_attempt_does_not_override_posted_progress(): void
+    public function test_rejected_evidence_does_not_override_posted_progress(): void
     {
-        $attempts = $this->attempts([['id' => 3, 'status' => 'failed']]);
+        $evidenceVersions = collect([
+            new PaymentEvidenceVersion(['version' => 1, 'state' => PaymentEvidenceVersion::StateRejected]),
+        ]);
         $schedule = collect([
             new PaymentScheduleRow(['state' => PaymentScheduleRow::StateDue]),
         ]);
 
-        $status = $this->resolver->resolve(new Assessment, '7000.00', '2000.00', $attempts, collect(), $schedule);
+        $status = $this->resolver->resolve(new Assessment, '7000.00', '2000.00', collect(), $schedule, $evidenceVersions);
 
         $this->assertSame(PaymentStatusResolver::StatusInstallment, $status);
-    }
-
-    /**
-     * @param  list<array{id:int,status:string}>  $rows
-     * @return Collection<int, PaymentAttempt>
-     */
-    private function attempts(array $rows): Collection
-    {
-        return collect($rows)->map(function (array $row): PaymentAttempt {
-            $attempt = new PaymentAttempt(['status' => $row['status']]);
-            $attempt->id = $row['id'];
-
-            return $attempt;
-        });
     }
 }

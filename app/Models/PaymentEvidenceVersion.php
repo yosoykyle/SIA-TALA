@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Actions\Finance\AccountingDisplay;
 use Database\Factories\PaymentEvidenceVersionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property array<string, mixed>|null $channel_snapshot
+ */
 class PaymentEvidenceVersion extends Model
 {
     /** @use HasFactory<PaymentEvidenceVersionFactory> */
@@ -24,7 +28,7 @@ class PaymentEvidenceVersion extends Model
 
     protected $fillable = [
         'term_account_id', 'assessment_id', 'obligation_snapshot', 'supersedes_version_id', 'version', 'state', 'disk', 'path',
-        'original_name', 'mime_type', 'size_bytes', 'checksum', 'claimed_amount', 'channel', 'paid_at',
+        'original_name', 'mime_type', 'size_bytes', 'checksum', 'claimed_amount', 'channel', 'channel_snapshot', 'paid_at',
         'payment_reference', 'possible_duplicate', 'submitted_by', 'submitted_at', 'source', 'reviewed_by',
         'reviewed_at', 'review_note', 'external_check_reference', 'actual_verified_amount',
     ];
@@ -32,10 +36,23 @@ class PaymentEvidenceVersion extends Model
     protected function casts(): array
     {
         return [
-            'version' => 'integer', 'obligation_snapshot' => 'array', 'size_bytes' => 'integer', 'claimed_amount' => 'decimal:2',
+            'version' => 'integer', 'obligation_snapshot' => 'array', 'channel_snapshot' => 'array', 'size_bytes' => 'integer', 'claimed_amount' => 'decimal:2',
             'actual_verified_amount' => 'decimal:2', 'possible_duplicate' => 'boolean',
             'paid_at' => 'datetime', 'submitted_at' => 'datetime', 'reviewed_at' => 'datetime',
         ];
+    }
+
+    public function channelLabel(): string
+    {
+        return AccountingDisplay::channelLabel($this->channel);
+    }
+
+    public function channelDetailLabel(): string
+    {
+        return AccountingDisplay::channelDetailLabel(
+            $this->channel,
+            is_array($this->channel_snapshot) ? $this->channel_snapshot : null,
+        );
     }
 
     /** @return BelongsTo<TermAccount, $this> */

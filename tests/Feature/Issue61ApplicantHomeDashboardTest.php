@@ -199,7 +199,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
 
         $this->actingAs($applicant)
             ->get(Dashboard::getUrl(panel: 'applicant'))
-            ->assertSeeInOrder(['Account security', "Applicant's History", 'Sign out']);
+            ->assertSeeInOrder(['Profile', "Applicant's History", 'Sign out']);
     }
 
     public function test_registrar_sidebar_is_flat_and_the_admissions_dashboard_shows_queue_cards_with_counts(): void

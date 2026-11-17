@@ -7,7 +7,7 @@
     </div>
     @if ($proposal->items->isNotEmpty())
         <div class="student-academic-table-wrap" role="region" aria-label="{{ $subjectsHeading }} and classes" tabindex="0">
-            <table class="student-academic-table">
+            <table class="tala-data-table student-academic-table">
                 <thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Units</th></tr></thead>
                 <tbody>
                     @foreach ($proposal->items as $item)

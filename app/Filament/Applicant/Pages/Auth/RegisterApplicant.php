@@ -122,18 +122,28 @@ class RegisterApplicant extends Register
     }
 
     /**
-     * Mirrors applicantPasswordRules() so the live checklist agrees with the server-side validation.
+     * Evaluates the live 15–64 character length guidance against the unified password policy.
      *
-     * @return list<array{label: string, met: bool}>
+     * @return array{length: int, met: bool, too_long: bool, label: string}
      */
-    private function passwordRequirementChecks(string $password): array
+    private function passwordLengthCheck(string $password): array
     {
+        $length = mb_strlen($password);
+        $met = $length >= 15 && $length <= 64;
+        $tooLong = $length > 64;
+
+        $label = match (true) {
+            $length === 0 => '0 of 15–64 characters entered',
+            $tooLong => "{$length} of 15–64 characters entered (maximum 64)",
+            $met => "{$length} of 15–64 characters entered (ready)",
+            default => "{$length} of 15–64 characters entered (minimum 15)",
+        };
+
         return [
-            ['label' => 'At least 8 characters', 'met' => mb_strlen($password) >= 8],
-            ['label' => 'Uppercase letter', 'met' => preg_match('/\p{Lu}/u', $password) === 1],
-            ['label' => 'Lowercase letter', 'met' => preg_match('/\p{Ll}/u', $password) === 1],
-            ['label' => 'Number', 'met' => preg_match('/\pN/u', $password) === 1],
-            ['label' => 'Special character', 'met' => preg_match('/\p{Z}|\p{S}|\p{P}/u', $password) === 1],
+            'length' => $length,
+            'met' => $met,
+            'too_long' => $tooLong,
+            'label' => $label,
         ];
     }
 
@@ -163,7 +173,7 @@ class RegisterApplicant extends Register
                 ->password()
                 ->revealable(filament()->arePasswordsRevealable())
                 ->required()
-                ->rules($this->applicantPasswordRules())
+                ->rules($this->passwordRules())
                 ->live(debounce: 300)
                 ->showAllValidationMessages()
                 ->autocomplete('new-password')
@@ -171,7 +181,7 @@ class RegisterApplicant extends Register
             Placeholder::make('password_requirements')
                 ->hiddenLabel()
                 ->content(fn (Get $get): View => view('filament.applicant.components.password-requirements', [
-                    'checks' => $this->passwordRequirementChecks((string) $get('password')),
+                    'check' => $this->passwordLengthCheck((string) $get('password')),
                 ])),
             TextInput::make('password_confirmation')
                 ->label('Confirm password')

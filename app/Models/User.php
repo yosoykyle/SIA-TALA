@@ -117,10 +117,14 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
 
     public function authorizedWorkspaceName(): ?string
     {
-        return match ($this->authorizedWorkspacePath()) {
-            '/admin' => 'Staff Workspace',
-            '/student' => 'Student Hub',
-            '/applicant' => 'your application',
+        $path = $this->authorizedWorkspacePath();
+
+        return match (true) {
+            $path === null => null,
+            $path === '/workspace-chooser' => 'workspace chooser',
+            $path === '/student' || str_starts_with($path, '/student/') => 'Student Hub',
+            $path === '/applicant' || str_starts_with($path, '/applicant/') => 'your application',
+            $path === '/admin' || str_starts_with($path, '/admin/') => 'Staff Workspace',
             default => null,
         };
     }
@@ -381,16 +385,34 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
 
     public function getFilamentName(): string
     {
-        return filled($this->name) ? (string) $this->name : 'Applicant account';
+        if (filled($this->name)) {
+            return (string) $this->name;
+        }
+
+        if ($this->hasAssignedRole('applicant')) {
+            $application = $this->currentAdmissionApplication;
+            $applicantName = trim(implode(' ', array_filter([$application?->first_name, $application?->last_name], filled(...))));
+            if ($applicantName !== '') {
+                return $applicantName;
+            }
+        }
+
+        return 'Applicant account';
     }
 
     public function getFilamentAvatarUrl(): ?string
     {
-        if (auth()->id() !== $this->getKey() || ! $this->hasRole('student') || blank($this->avatar_path)) {
+        if (auth()->id() !== $this->getKey() || blank($this->avatar_path)) {
             return null;
         }
 
-        return route('student.profile-photo', ['photo' => hash('sha256', $this->avatar_path)]);
+        $params = ['photo' => hash('sha256', $this->avatar_path)];
+
+        if ($this->hasRole('student')) {
+            return route('student.profile-photo', $params);
+        }
+
+        return route('account.profile-photo', $params);
     }
 
     public function getEmailForVerification(): string
@@ -548,5 +570,45 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
         } catch (PermissionDoesNotExist) {
             return false;
         }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusOptions(): array
+    {
+        return [
+            self::StatusInvitationPending => 'Invitation pending',
+            self::StatusVerificationRequired => 'Verification required',
+            self::StatusActive => 'Active',
+            self::StatusInactive => 'Inactive',
+            self::StatusArchived => 'Archived',
+            self::StatusDisabled => 'Disabled',
+            self::StatusApplicantPending => 'Pending',
+            self::StatusApplicantActionRequired => 'Action required',
+            self::StatusApplicantForEvaluation => 'For evaluation',
+            self::StatusApplicantApproved => 'Approved',
+            self::StatusApplicantWithdrawn => 'Withdrawn',
+        ];
+    }
+
+    public static function statusLabel(?string $status): string
+    {
+        if ($status === null || $status === '') {
+            return 'Unknown';
+        }
+
+        return self::statusOptions()[$status] ?? str($status)->headline()->toString();
+    }
+
+    public static function statusColor(?string $status): string
+    {
+        return match ($status) {
+            self::StatusActive, self::StatusApplicantApproved => 'success',
+            self::StatusInvitationPending, self::StatusVerificationRequired, self::StatusApplicantActionRequired, self::StatusApplicantPending => 'warning',
+            self::StatusApplicantForEvaluation => 'info',
+            self::StatusDisabled, self::StatusApplicantWithdrawn => 'danger',
+            default => 'gray',
+        };
     }
 }

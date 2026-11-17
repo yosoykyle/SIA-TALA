@@ -248,6 +248,7 @@ class StudentLifecycleService
             ]);
             $locked->update(['state' => StudentLifecycleChange::StateApplied]);
             $this->recordAudit($locked, $actor, 'program_shift_applied');
+            $this->finance->execute($locked, $actor);
             $this->notifications->recordLifecycleAfterCommit($locked);
 
             return $locked->refresh();

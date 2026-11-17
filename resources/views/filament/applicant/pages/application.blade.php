@@ -53,8 +53,8 @@
         <div x-show="! failed">
         @if ($this->saveStatus === 'failed')
             <x-filament::callout color="warning" icon="heroicon-o-exclamation-triangle">
+                <x-slot name="heading">Your changes could not be completed</x-slot>
                 <x-slot name="description">
-                    <p class="fi-callout-heading">Your changes could not be completed</p>
                     <p>{{ $this->saveStatusMessage }}</p>
                 </x-slot>
             </x-filament::callout>
@@ -62,15 +62,15 @@
             @include('filament.applicant.components.correction-request', ['correctionSteps' => $this->correctionSteps()])
         @elseif ($this->isSubmittedEdit())
             <x-filament::callout color="info" icon="heroicon-m-pencil-square">
+                <x-slot name="heading">You can update this application</x-slot>
                 <x-slot name="description">
-                    <p class="fi-callout-heading">You can update this application</p>
                     <p>Submit the complete update before Registrar review starts. Your last submission stays unchanged until the update succeeds.</p>
                 </x-slot>
             </x-filament::callout>
         @elseif (! $this->admissionsAreOpen())
             <x-filament::callout color="warning" icon="heroicon-m-lock-closed">
+                <x-slot name="heading">This draft is read-only</x-slot>
                 <x-slot name="description">
-                    <p class="fi-callout-heading">This draft is read-only</p>
                     <p>This intake is no longer open. You can view or discard your draft. Contact the Registrar if you need intake guidance.</p>
                 </x-slot>
             </x-filament::callout>
@@ -79,8 +79,8 @@
 
         <div x-cloak x-show="failed" role="alert">
             <x-filament::callout color="warning" icon="heroicon-m-exclamation-triangle">
+                <x-slot name="heading">Your progress could not be confirmed</x-slot>
                 <x-slot name="description">
-                    <p class="fi-callout-heading">Your progress could not be confirmed</p>
                     <p>Keep this page open so your entered answers remain available. Check the latest recorded status before trying again.</p>
                     <p class="mt-2"><a class="fi-link fi-color-primary" href="{{ $exitUrl }}" target="_blank" rel="noopener">Check current status<span class="fi-sr-only"> (opens in a new tab)</span></a></p>
                 </x-slot>

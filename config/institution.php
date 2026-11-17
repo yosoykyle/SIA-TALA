@@ -25,4 +25,34 @@ return [
         'map_url' => env('INSTITUTION_MAP_URL', 'https://www.google.com/maps?cid=781880921815418296&g_mp=CiVnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLkdldFBsYWNlEAMYASAF&hl=en&gl=PH&source=embed'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Default Payment Channels (v2 Multi-Account Shape)
+    |--------------------------------------------------------------------------
+    |
+    | Digital accounts stay disabled until Accounting enters verified school
+    | details. Examples belong in placeholders, never in saved form values.
+    |
+    */
+
+    'payment_channels' => [
+        'bank_transfer' => [
+            'enabled' => false,
+            'label' => 'Bank Transfer',
+            'accounts' => [],
+        ],
+        'e_wallets' => [
+            'enabled' => false,
+            'label' => 'E-Wallets',
+            'accounts' => [],
+        ],
+        'cash' => [
+            'enabled' => true,
+            'label' => 'Cash (Campus Cashier)',
+            'location' => 'Campus Cashier Window',
+            'hours' => 'Monday to Friday, 8:00 AM - 5:00 PM',
+            'instructions' => 'Pay directly at the Campus Cashier and keep your Official Receipt.',
+        ],
+    ],
+
 ];

@@ -43,59 +43,6 @@ body {
     text-decoration: none;
 }
 
-.brand img {
-    object-fit: contain;
-}
-
-.brand-crest-plate {
-    background-color: #ffffff;
-    border: 1px solid rgba(226, 232, 240, 0.9);
-    border-radius: 0.5rem;
-    padding: 4px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    flex-shrink: 0;
-    width: 58px;
-    height: 58px;
-}
-
-.brand img.brand-crest {
-    width: 48px;
-    height: 48px;
-    border-radius: 0;
-}
-
-.brand-text {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-}
-
-.brand-name {
-    font-family: var(--tala-font-heading, system-ui), sans-serif;
-    font-size: 1.125rem;
-    font-weight: 750;
-    line-height: 1.25;
-}
-
-.brand-attribution {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: #475569;
-    line-height: 1;
-}
-
-.brand img.brand-star {
-    width: 48px;
-    height: 48px;
-    border-radius: 22.37%;
-}
-
 .status-code {
     margin: 1.5rem 0 0.5rem;
     color: #1d4ed8;
@@ -339,8 +286,6 @@ h1 {
 .admission-recovery .primary-action { background-color: #2f7d3b; color: white; }
 .admission-recovery .status-code { color: #52525b; font-size: .75rem; letter-spacing: 0; font-weight: 400; }
 .admission-recovery .brand { margin-bottom: 2rem; }
-.error-attribution { display: flex; align-items: center; justify-content: center; gap: .5rem; margin-top: 2rem; color: var(--tala-muted); font-size: .75rem; }
-.error-attribution img { width: 48px; height: 48px; object-fit: contain; }
 .support-note a { display: inline-flex; align-items: center; min-height: 2.75rem; color: inherit; text-underline-offset: .2em; }
 .support-note a:focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 3px; }
 [hidden] { display: none !important; }
@@ -359,7 +304,6 @@ h1 {
     .admission-recovery { background: #09090b; color: #fafafa; }
     .admission-recovery .error-card, .admission-recovery .next-step { background: transparent; }
     .admission-recovery .status-code { color: #a1a1aa; }
-    .error-attribution { color: #cbd5e1; }
 }
 @media print, (forced-colors: active) {
     .admission-recovery::before, .admission-recovery::after { display: none !important; }

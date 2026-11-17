@@ -25,9 +25,7 @@ use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
-use App\Models\OperationalEvent;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\StudentProfile;
@@ -140,57 +138,10 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         $accounting = User::query()->where('email', 'accounting.demo@example.test')->sole();
         $dueAssessment = $this->activeAssessmentFor('DIT-1A-001');
         $partialAssessment = $this->activeAssessmentFor('DIT-1A-002');
-        $clearedAssessment = $this->activeAssessmentFor('DIT-2A-001');
-
-        $expiredAttempt = $this->ensurePaymentAttempt(
-            assessment: $dueAssessment,
-            reference: 'CHECKOUT-EXPIRED-001',
-            status: 'expired',
-            timestamp: CarbonImmutable::parse($term->starts_on)->addDays(3),
-        );
-        $reviewAttempt = $this->ensurePaymentAttempt(
-            assessment: $clearedAssessment,
-            reference: 'CHECKOUT-REVIEW-001',
-            status: 'under_review',
-            timestamp: CarbonImmutable::parse($term->starts_on)->addDays(4),
-        );
 
         $this->ensurePendingOfficialReceiptPayment($partialAssessment, $accounting);
         $this->ensureAccountingCorrections($dueAssessment, $accounting);
         $this->ensureFinancialAccommodations($dueAssessment, $partialAssessment, $accounting, $term);
-        $this->ensurePayMongoEvidenceStates($expiredAttempt, $reviewAttempt, $term);
-    }
-
-    private function ensurePaymentAttempt(
-        Assessment $assessment,
-        string $reference,
-        string $status,
-        CarbonImmutable $timestamp,
-    ): PaymentAttempt {
-        return PaymentAttempt::query()->updateOrCreate(
-            ['internal_reference' => $reference],
-            [
-                'assessment_id' => $assessment->id,
-                'term_account_id' => $assessment->term_account_id,
-                'student_profile_id' => $assessment->enrollment->student_profile_id,
-                'assessment_version' => $assessment->version,
-                'channel' => 'online_checkout',
-                'provider' => 'paymongo',
-                'provider_checkout_id' => null,
-                'provider_intent_id' => null,
-                'amount' => $assessment->required_downpayment,
-                'currency' => 'PHP',
-                'status' => $status,
-                'expires_at' => $status === 'expired' ? $timestamp : $timestamp->addDay(),
-                'paid_at' => null,
-                'metadata' => [
-                    'presentation_case' => 'payment_status_recovery',
-                    'purpose' => 'Accounting and PayMongo first-time exploration',
-                ],
-                'created_at' => $timestamp,
-                'updated_at' => $timestamp,
-            ],
-        );
     }
 
     private function ensurePendingOfficialReceiptPayment(Assessment $assessment, User $accounting): void
@@ -301,71 +252,6 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'status' => FinancialAccommodation::StatusExpired,
                 'effective_from' => CarbonImmutable::parse($term->starts_on)->subYear()->toDateString(),
                 'expires_on' => CarbonImmutable::parse($term->starts_on)->subMonth()->toDateString(),
-            ],
-        );
-    }
-
-    private function ensurePayMongoEvidenceStates(
-        PaymentAttempt $expiredAttempt,
-        PaymentAttempt $reviewAttempt,
-        Term $term,
-    ): void {
-        $timestamp = CarbonImmutable::parse($term->starts_on)->addDays(8);
-
-        OperationalEvent::query()->updateOrCreate(
-            [
-                'event_domain' => OperationalEvent::DomainIntegration,
-                'external_id' => 'tal96d5e1c-open-exception',
-            ],
-            [
-                'integration' => OperationalEvent::IntegrationPayMongo,
-                'channel' => OperationalEvent::ChannelWebhook,
-                'direction' => OperationalEvent::DirectionInbound,
-                'event_type' => 'payment.paid',
-                'event_version' => 'v1',
-                'status' => OperationalEvent::StatusReviewRequired,
-                'occurred_at' => $timestamp,
-                'processed_at' => null,
-                'failed_at' => null,
-                'related_record_type' => PaymentAttempt::class,
-                'related_record_id' => $reviewAttempt->id,
-                'diagnostics' => [
-                    'reason' => 'unknown_reference',
-                    'presentation_case' => 'payment_status_recovery',
-                ],
-                'payload' => [
-                    'livemode' => false,
-                    'redacted' => true,
-                ],
-            ],
-        );
-
-        OperationalEvent::query()->updateOrCreate(
-            [
-                'event_domain' => OperationalEvent::DomainIntegration,
-                'external_id' => 'tal96d5e1c-recovered-evidence',
-            ],
-            [
-                'integration' => OperationalEvent::IntegrationPayMongo,
-                'channel' => OperationalEvent::ChannelProviderApi,
-                'direction' => OperationalEvent::DirectionInbound,
-                'event_type' => 'checkout.recovered',
-                'event_version' => 'v1',
-                'status' => OperationalEvent::StatusProcessed,
-                'occurred_at' => $timestamp->addMinute(),
-                'processed_at' => $timestamp->addMinutes(2),
-                'failed_at' => null,
-                'related_record_type' => PaymentAttempt::class,
-                'related_record_id' => $expiredAttempt->id,
-                'diagnostics' => [
-                    'reason' => 'recovered_paid_without_webhook',
-                    'decision' => 'confirmed',
-                    'presentation_case' => 'payment_status_recovery',
-                ],
-                'payload' => [
-                    'livemode' => false,
-                    'redacted' => true,
-                ],
             ],
         );
     }

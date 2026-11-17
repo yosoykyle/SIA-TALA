@@ -1,12 +1,14 @@
 @php
     $student = $case->studentProfile;
-    $studentName = $student ? collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ') : ($case->credentialUser?->getFilamentName() ?? 'Student record');
-    $studentInitials = $student ? mb_substr($student->first_name, 0, 1).mb_substr($student->last_name, 0, 1) : null;
+    $studentName = $student
+        ? collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ')
+        : \App\Actions\Finance\AccountingDisplay::learnerName($case, 'Student record');
+    $studentInitials = \App\Actions\Finance\AccountingDisplay::learnerInitials($case);
     $historyActive = $this->enrollmentView === 'history';
 @endphp
-<x-record-identity :name="$studentName" :number="$student?->student_number ?? $case->case_reference"
-    :program="$student?->program?->name ?? $case->admissionApplication?->program?->name"
-    :initials="$studentInitials" :photo-url="$student?->user?->getFilamentAvatarUrl()" class="tala-enrollment-record-identity">
+<x-record-identity :name="$studentName" :number="\App\Actions\Finance\AccountingDisplay::learnerIdentifier($case)"
+    :program="\App\Actions\Finance\AccountingDisplay::learnerProgram($case, '') ?: null"
+    :initials="$studentInitials" :photo-url="$student?->adminPhotoUrl()" class="tala-enrollment-record-identity">
     @if ($student)
         <x-slot:actions><x-filament::badge :color="$student->lifecycle_status === \App\Models\StudentProfile::LifecycleActive ? 'success' : 'gray'">{{ \App\Models\StudentProfile::lifecycleStatusLabel($student->lifecycle_status) }} student</x-filament::badge></x-slot:actions>
     @endif

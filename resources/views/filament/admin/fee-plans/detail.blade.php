@@ -1,120 +1,195 @@
 @include('filament.admin.fee-plans.styles')
 @php
-    $money = fn ($amount) => number_format((float) $amount, 2);
-    $date = fn ($value) => $value?->timezone('Asia/Manila')->format('j M Y, g:i A');
     $draft = $plan->state === \App\Models\FeePlan::StateDraft;
-    $status = match ($plan->state) {
-        \App\Models\FeePlan::StatePublished => 'Current plan',
-        \App\Models\FeePlan::StateDraft => 'Draft',
-        default => 'Superseded plan',
-    };
+    $superseded = $plan->state === \App\Models\FeePlan::StateSuperseded;
+    $status = \App\Actions\Finance\AccountingDisplay::feePlanStatusLabel($plan->state);
+    $statusColor = \App\Actions\Finance\AccountingDisplay::feePlanStatusColor($plan->state);
+    $currentPlan = $versions->firstWhere('state', \App\Models\FeePlan::StatePublished);
+    $totalCharges = $plan->charges->sum('amount');
+    $enrollmentPayment = $plan->obligations->where('required_for_enrollment', true)->sum('amount');
+    $chargeCount = $plan->charges->count();
+    $paymentCount = $plan->obligations->count();
 @endphp
 <div class="accounting-fee-plan-detail">
-    <div class="accounting-fee-plan-intro">
-        <x-filament::badge :color="$draft ? 'warning' : ($plan->state === \App\Models\FeePlan::StatePublished ? 'success' : 'gray')">{{ $status }}</x-filament::badge>
-        <p>{{ $draft ? ($readiness ?? 'Ready for approval.') : ($plan->state === \App\Models\FeePlan::StateSuperseded ? 'Replaced by a newer plan. Existing assessments stay unchanged.' : 'Used for new charges. Existing assessments stay unchanged.') }}</p>
-    </div>
-    <div class="accounting-fee-plan-layout">
-        <section class="accounting-fee-plan-panel tala-task-surface" aria-labelledby="fee-plan-charges">
-            <h2 id="fee-plan-charges">Charges</h2>
-            <div class="accounting-fee-plan-total">
-                <span>Total term charges</span>
-                <strong>PHP {{ $money($plan->charges->sum('amount')) }}</strong>
+    <section class="accounting-fee-plan-summary tala-task-surface" aria-label="Fee plan summary">
+        <div class="accounting-fee-plan-summary__status">
+            <div class="accounting-fee-plan-summary__badges">
+                <x-filament::badge :color="$statusColor">{{ $status }}</x-filament::badge>
+                @if ($plan->supersedes)
+                    <span class="accounting-fee-plan-meta">Follows Version {{ $plan->supersedes->version }}</span>
+                @endif
             </div>
-            <div class="accounting-fee-plan-table-wrap">
-                <table>
-                    <thead><tr><th scope="col">Charge</th><th scope="col">Amount (PHP)</th></tr></thead>
+            @if ($draft && $readiness)
+                <p class="accounting-fee-plan-summary__message is-blocker">
+                    <x-filament::icon icon="heroicon-o-exclamation-triangle" aria-hidden="true" />
+                    <span>{{ $readiness }}</span>
+                </p>
+            @elseif ($draft)
+                <p class="accounting-fee-plan-summary__message is-ready">
+                    <x-filament::icon icon="heroicon-o-check-circle" aria-hidden="true" />
+                    <span>Ready for approval. Charges and payment dates balance.</span>
+                </p>
+            @elseif ($superseded)
+                <p class="accounting-fee-plan-summary__message">Replaced by a newer plan. Existing assessments stay unchanged.</p>
+            @else
+                <p class="accounting-fee-plan-summary__message">Current for new assessments in this program and term. Existing assessments stay unchanged.</p>
+            @endif
+            @if ($currentPlan && $currentPlan->id !== $plan->id)
+                <div class="accounting-fee-plan-summary__link">
+                    <x-filament::link icon="heroicon-m-arrow-right" icon-position="after" :href="\App\Filament\Resources\FeePlans\FeePlanResource::getUrl('view', ['record' => $currentPlan])">Open current plan</x-filament::link>
+                </div>
+            @endif
+        </div>
+        <dl class="accounting-fee-plan-summary__metrics">
+            <div>
+                <dt>Total charges</dt>
+                <dd>{{ \App\Actions\Finance\AccountingDisplay::money($totalCharges) }}</dd>
+            </div>
+            <div>
+                <dt>Enrollment payment</dt>
+                <dd>{{ \App\Actions\Finance\AccountingDisplay::money($enrollmentPayment) }}</dd>
+            </div>
+            <div>
+                <dt>Schedule</dt>
+                <dd>{{ $paymentCount }} {{ str('payment')->plural($paymentCount) }} · {{ $chargeCount }} {{ str('charge')->plural($chargeCount) }}</dd>
+            </div>
+        </dl>
+    </section>
+
+    <div class="accounting-fee-plan-workspace">
+        <div class="accounting-fee-plan-main">
+            <section class="accounting-fee-plan-panel tala-task-surface" aria-labelledby="fee-plan-charges">
+                <div class="accounting-fee-plan-panel__header">
+                    <h2 id="fee-plan-charges">Charges</h2>
+                    <span class="accounting-fee-plan-meta">{{ $chargeCount }} {{ str('item')->plural($chargeCount) }}</span>
+                </div>
+                <x-data-table label="Fee plan charges" class="accounting-fee-plan-table-wrap">
+                    <thead>
+                        <tr>
+                            <th scope="col">Charge</th>
+                            <th scope="col" class="tala-data-table-number">Amount</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         @forelse ($plan->charges as $charge)
-                            <tr><th scope="row">{{ $charge->label }}</th><td>{{ $money($charge->amount) }}</td></tr>
+                            <tr>
+                                <th scope="row">
+                                    {{ $charge->label }}
+                                    @if (filled($charge->category))
+                                        <span class="tala-data-table-secondary">{{ \Illuminate\Support\Str::of($charge->category)->headline()->lower()->ucfirst() }}</span>
+                                    @endif
+                                </th>
+                                <td class="tala-data-table-number">{{ \App\Actions\Finance\AccountingDisplay::money($charge->amount) }}</td>
+                            </tr>
                         @empty
-                            <tr><td colspan="2">No charges recorded. Edit the draft to add charges.</td></tr>
+                            <tr>
+                                <td colspan="2" class="accounting-fee-plan-table-empty">No charges recorded. Edit the draft to add charges.</td>
+                            </tr>
                         @endforelse
                     </tbody>
-                </table>
-            </div>
-        </section>
-        <section class="accounting-fee-plan-panel tala-task-surface" aria-labelledby="fee-plan-payments">
-            <div class="accounting-fee-plan-section-heading">
-                <h2 id="fee-plan-payments">Payment schedule</h2>
-                <p class="accounting-fee-plan-meta">Dates use Asia/Manila.</p>
-            </div>
-            <ol class="accounting-fee-plan-payments">
-                @forelse ($plan->obligations as $payment)
-                    @php($dueAt = $payment->due_at?->timezone('Asia/Manila'))
-                    <li @class(['is-enrollment-required' => $payment->required_for_enrollment])>
-                        <div class="accounting-fee-plan-date">
-                            @if ($dueAt)
-                                <time datetime="{{ $payment->due_at->toIso8601String() }}">
-                                    <span>{{ $dueAt->format('M') }}</span>
-                                    <strong>{{ $dueAt->format('j') }}</strong>
-                                    <span>{{ $dueAt->format('Y') }}</span>
-                                </time>
-                            @else
-                                <span class="accounting-fee-plan-date-missing">Date<br>not set</span>
-                            @endif
-                        </div>
-                        <div class="accounting-fee-plan-payment-description">
-                            <h3>{{ $payment->label }}</h3>
-                            @if ($payment->required_for_enrollment)
-                                <span class="accounting-fee-plan-required">Required for enrollment</span>
-                            @endif
-                            @if ($dueAt)
-                                <p>{{ $dueAt->format('j M Y, g:i A') }} · Asia/Manila</p>
-                            @else
-                                <p>Payment date not recorded.</p>
-                            @endif
-                        </div>
-                        <strong class="accounting-fee-plan-payment-amount">PHP {{ $money($payment->amount) }}</strong>
-                    </li>
-                @empty
-                    <li class="accounting-fee-plan-empty">{{ $draft ? 'No payment dates recorded. Edit the draft to add payments.' : 'No payment dates are recorded for this plan.' }}</li>
-                @endforelse
-            </ol>
-        </section>
-    </div>
-    <div class="accounting-fee-plan-support tala-task-surface">
-    @if (!$draft)
-        <section class="accounting-fee-plan-approval" aria-labelledby="fee-plan-approval">
-            <h2 id="fee-plan-approval"><x-filament::icon icon="heroicon-o-check-badge" aria-hidden="true" />Approval</h2>
-            <dl>
-                <div><dt>Approval reference</dt><dd>{{ $plan->authority_reference }}</dd></div>
-                <div><dt>Approved</dt><dd>{{ $plan->authority_date?->format('j M Y') }}</dd></div>
-                <div><dt>Published</dt><dd>{{ $date($plan->published_at) }} · Asia/Manila</dd></div>
-                @if (filled($plan->no_payment_required_authority_reference))
-                    <div><dt>Zero-payment approval</dt><dd>{{ $plan->no_payment_required_authority_reference }}</dd></div>
-                @endif
-            </dl>
-        </section>
-    @endif
-    <details class="accounting-fee-plan-source">
-        <summary>Source details and version history</summary>
-        <div class="accounting-fee-plan-source-content">
-        <h3>Charge sources</h3>
-        <dl>
-            @foreach ($plan->charges as $charge)
-                <div><dt>{{ $charge->label }}</dt><dd>{{ $charge->code }}@if (filled($charge->category)) · {{ $charge->category }}@endif</dd></div>
-            @endforeach
-        </dl>
-        <h3>Payment sources</h3>
-        <dl>
-            @foreach ($plan->obligations as $payment)
-                <div><dt>{{ $payment->label }}</dt><dd>{{ $payment->code }} · {{ $payment->purpose }}</dd></div>
-            @endforeach
-        </dl>
-        <h3>Versions for this program and term</h3>
-        <ul>
-            @foreach ($versions as $version)
-                <li>
-                    @if ($version->id === $plan->id)
-                        <span>Version {{ $version->version }} · {{ $version->state }} · This version</span>
-                    @else
-                        <a {{ \Filament\Support\generate_href_html(\App\Filament\Resources\FeePlans\FeePlanResource::getUrl('view', ['record' => $version])) }}>Version {{ $version->version }} · {{ $version->state }}</a>
+                    @if ($plan->charges->isNotEmpty())
+                        <tfoot>
+                            <tr class="accounting-fee-plan-table-total">
+                                <th scope="row">Total term charges</th>
+                                <td class="tala-data-table-number">{{ \App\Actions\Finance\AccountingDisplay::money($totalCharges) }}</td>
+                            </tr>
+                        </tfoot>
                     @endif
-                </li>
-            @endforeach
-        </ul>
+                </x-data-table>
+            </section>
+
+            <section class="accounting-fee-plan-panel tala-task-surface" aria-labelledby="fee-plan-payments">
+                <div class="accounting-fee-plan-panel__header">
+                    <h2 id="fee-plan-payments">Payment schedule</h2>
+                    <p class="accounting-fee-plan-meta">Dates use {{ config('app.display_timezone', 'Asia/Manila') }}</p>
+                </div>
+                <ol class="accounting-fee-plan-payments">
+                    @forelse ($plan->obligations as $payment)
+                        @php($dueAt = $payment->due_at?->timezone(config('app.display_timezone', 'Asia/Manila')))
+                        <li @class(['is-enrollment-required' => $payment->required_for_enrollment])>
+                            <div class="accounting-fee-plan-date">
+                                @if ($dueAt)
+                                    <time datetime="{{ $payment->due_at->toIso8601String() }}">
+                                        <span>{{ $dueAt->format('M') }}</span>
+                                        <strong>{{ $dueAt->format('j') }}</strong>
+                                    </time>
+                                @else
+                                    <span class="accounting-fee-plan-date-missing">TBD</span>
+                                @endif
+                            </div>
+                            <div class="accounting-fee-plan-payment-description">
+                                <div class="accounting-fee-plan-payment-title">
+                                    <h3>{{ $payment->label }}</h3>
+                                    @if ($payment->required_for_enrollment)
+                                        <span class="accounting-fee-plan-required">Required for enrollment</span>
+                                    @endif
+                                </div>
+                                @if ($dueAt)
+                                    <p>{{ \App\Actions\Finance\AccountingDisplay::dateTime($payment->due_at) }}</p>
+                                @else
+                                    <p>Payment date not recorded.</p>
+                                @endif
+                            </div>
+                            <strong class="accounting-fee-plan-payment-amount">{{ \App\Actions\Finance\AccountingDisplay::money($payment->amount) }}</strong>
+                        </li>
+                    @empty
+                        <li class="accounting-fee-plan-empty">{{ $draft ? 'No payment dates recorded. Edit the draft to add payments.' : 'No payment dates are recorded for this plan.' }}</li>
+                    @endforelse
+                </ol>
+            </section>
         </div>
-    </details>
+
+        <aside class="accounting-fee-plan-rail" aria-label="Approval and version history">
+            @if (! $draft)
+                <section class="accounting-fee-plan-panel accounting-fee-plan-approval tala-task-surface" aria-labelledby="fee-plan-approval">
+                    <h2 id="fee-plan-approval">Approval</h2>
+                    <dl class="accounting-fee-plan-kv">
+                        <div>
+                            <dt>Approval reference</dt>
+                            <dd>{{ $plan->authority_reference ?: 'Not recorded' }}</dd>
+                        </div>
+                        <div>
+                            <dt>Approved</dt>
+                            <dd>{{ \App\Actions\Finance\AccountingDisplay::dateTime($plan->authority_date, 'M j, Y') }}</dd>
+                        </div>
+                        <div>
+                            <dt>Published</dt>
+                            <dd>{{ $plan->published_at ? \App\Actions\Finance\AccountingDisplay::dateTime($plan->published_at).' · '.config('app.display_timezone', 'Asia/Manila') : 'Not recorded' }}</dd>
+                        </div>
+                        @if (filled($plan->no_payment_required_authority_reference))
+                            <div>
+                                <dt>Zero-payment approval</dt>
+                                <dd>{{ $plan->no_payment_required_authority_reference }}</dd>
+                            </div>
+                        @endif
+                    </dl>
+                </section>
+            @endif
+
+            <section class="accounting-fee-plan-panel tala-task-surface" aria-labelledby="fee-plan-versions-heading">
+                <div class="accounting-fee-plan-panel__header">
+                    <h2 id="fee-plan-versions-heading">Plan versions</h2>
+                    <span class="accounting-fee-plan-meta">{{ $versions->count() }} {{ str('version')->plural($versions->count()) }}</span>
+                </div>
+                <ul class="accounting-fee-plan-versions">
+                    @foreach ($versions as $version)
+                        @php($versionStatus = \App\Actions\Finance\AccountingDisplay::feePlanStatusLabel($version->state))
+                        <li @class(['is-current' => $version->id === $plan->id])>
+                            @if ($version->id === $plan->id)
+                                <span aria-current="page" class="accounting-fee-plan-version-current">
+                                    <strong>Version {{ $version->version }}</strong>
+                                    <span>{{ $versionStatus }} · This version</span>
+                                </span>
+                            @else
+                                <a {{ \Filament\Support\generate_href_html(\App\Filament\Resources\FeePlans\FeePlanResource::getUrl('view', ['record' => $version])) }}>
+                                    <strong>Version {{ $version->version }}</strong>
+                                    <span>{{ $versionStatus }}</span>
+                                </a>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            </section>
+        </aside>
     </div>
 </div>

@@ -18,9 +18,9 @@ class PaymentsTable
             ->modifyQueryUsing(fn ($query) => $query->with(['termAccount.credentialUser', 'term', 'verifier'])->withCount('allocations'))
             ->columns([
                 TextColumn::make('provider_reference')->label('Posting reference')->searchable(),
-                TextColumn::make('termAccount.credentialUser.email')->label('Learner credential')->searchable(),
+                TextColumn::make('termAccount.credentialUser.email')->label('Student credential')->searchable(),
                 TextColumn::make('term.label')->label('Term')->placeholder('Not recorded'),
-                TextColumn::make('channel')->formatStateUsing(fn (?string $state): string => str($state ?? 'unknown')->replace('_', ' ')->headline()->toString())->badge(),
+                TextColumn::make('channel')->formatStateUsing(fn (Payment $record): string => $record->channelDetailLabel())->badge(),
                 TextColumn::make('amount')->money('PHP')->sortable(),
                 TextColumn::make('state')->badge(),
                 TextColumn::make('allocations_count')->label('Obligation effects'),

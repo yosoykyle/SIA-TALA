@@ -23,7 +23,7 @@ class WorkspaceContextResolver
         session()->forget(self::EntryNoticeSessionKey);
 
         if ($requested !== null && ! array_key_exists($requested, $available)) {
-            session()->put(self::EntryNoticeSessionKey, 'You are signed in. The selected entry is unavailable for this account. Use one of your authorized workspaces.');
+            session()->flash(self::EntryNoticeSessionKey, 'You are signed in. The selected entry is unavailable for this account. Use one of your authorized workspaces.');
         }
     }
 

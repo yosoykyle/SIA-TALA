@@ -2,22 +2,21 @@
             <h1 id="activation-heading">Activate Staff access</h1>
 
             @if (! $isUsable)
-                <div class="tala-access-alert mt-5" role="alert">
-                    <p class="font-medium">This activation link is expired or no longer valid.</p>
-                    <p class="mt-1 text-sm">This link cannot activate access now. Ask a System Administrator to resend the invitation.</p>
-                </div>
+                <x-tala-access-alert variant="danger" title="This activation link is expired or no longer valid." class="mt-5" role="alert">
+                    <p>This link cannot activate access now. Ask a System Administrator to resend the invitation.</p>
+                </x-tala-access-alert>
             @else
                 <p class="tala-access-muted mt-2 text-sm">Create your own password. You will set up authenticator-app MFA next.</p>
 
                 @if ($errors->any())
-                    <div class="tala-access-alert mt-5" role="alert" aria-labelledby="activation-errors">
+                    <x-tala-access-alert variant="danger" class="mt-5" role="alert" aria-labelledby="activation-errors">
                         <p id="activation-errors" class="font-medium">Review the highlighted fields.</p>
                         <ul class="mt-2 list-disc pl-5 text-sm">
                             @foreach ($errors->all() as $error)
                                 <li>{{ $error }}</li>
                             @endforeach
                         </ul>
-                    </div>
+                    </x-tala-access-alert>
                 @endif
 
                 <form method="POST" action="{{ route('staff-invitations.accept', $invitation) }}" class="tala-access-form">

@@ -32,17 +32,12 @@
 .student-information summary:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
 .student-information-guidance{padding-block-start:1.5rem;font-size:.875rem;line-height:1.6;}
 @media(max-width:40rem){.student-information dl>div{grid-template-columns:1fr;gap:.25rem;}.student-information-section{padding-block:1.25rem;}}
-.student-finance-summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1.5rem;padding:1.5rem;margin-block:1.5rem;background:color-mix(in srgb,var(--tala-brand) 5%,var(--tala-surface));border:1px solid var(--tala-edge);border-radius:.75rem;}
+.student-finance-summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1.5rem;padding:1.5rem;margin-block:1.5rem;background:color-mix(in srgb,var(--tala-brand) 5%,var(--tala-surface));border:1px solid var(--tala-border);border-radius:.75rem;}
 .student-finance h2{font-size:1.25rem;font-weight:600;line-height:1.4;}
 .student-finance-summary .student-home-label{margin-block-start:.75rem;}
 .student-finance-section{margin-block-start:1.75rem;}
 .student-finance-section h2{margin-block-end:.75rem;}
-.student-finance-table-wrap{overflow-x:auto;border:1px solid var(--tala-edge);border-radius:.5rem;}
-.student-finance-table{inline-size:100%;border-collapse:collapse;text-align:start;font-size:.875rem;}
-.student-finance-table :is(th,td){padding:1rem;text-align:start;vertical-align:middle;border-block-end:1px solid var(--tala-edge);}
-.student-finance-table thead th{color:var(--tala-muted);font-weight:600;background:var(--tala-surface-sunken);}
-.student-finance-table tbody th{font-weight:500;}
-.student-finance-table tbody tr:last-child>*{border-block-end:0;}
+.student-finance-table-wrap{overflow-x:auto;border:1px solid var(--tala-border);border-radius:.5rem;}
 .student-finance-number{font-variant-numeric:tabular-nums;white-space:nowrap;}
 .student-finance-links{display:flex;flex-wrap:wrap;gap:.5rem 1rem;}
 .student-finance-secondary{display:block;color:var(--tala-muted);font-size:.875rem;line-height:1.6;}
@@ -64,10 +59,6 @@
 .student-academic-reading-grid>*,.student-academic-reading section{min-inline-size:0;}
 .student-academic-heading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.75rem;margin-block-end:1.25rem;}.student-academic-heading>p{font-size:.875rem;color:var(--tala-muted);font-variant-numeric:tabular-nums;}
 .student-academic-table-wrap{overflow-x:auto;min-inline-size:0;}
-.student-academic-table{inline-size:100%;border-collapse:collapse;text-align:start;font-size:.9375rem;}
-.student-academic-table :is(th,td){padding:1.25rem .5rem;text-align:start;border-block-end:1px solid var(--tala-edge);vertical-align:middle;line-height:1.5;}
-.student-academic-table thead th{color:var(--tala-muted);font-size:.8125rem;font-weight:500;padding-block:.5rem .75rem;}
-.student-academic-table tbody th{font-weight:600;}
 .student-academic-secondary{display:block;font-size:.8125rem;font-weight:400;line-height:1.5;color:var(--tala-muted);margin-block-start:.25rem;}
 .student-academic-number{font-variant-numeric:tabular-nums;white-space:nowrap;}
 .student-academic-note{font-size:.875rem;line-height:1.6;color:var(--tala-muted);padding-block-start:.75rem;max-inline-size:65ch;}
@@ -140,37 +131,256 @@
 .registrar-start-actions .fi-btn{inline-size:100%;min-block-size:2.75rem;justify-content:flex-start;}
 .registrar-progress-panel .registrar-work-row{min-block-size:3.5rem;}
 .registrar-progress-panel .registrar-work-icon{color:var(--tala-muted);}
-.accounting-workbench{display:grid;gap:1rem;color:var(--tala-text);}
-.accounting-work-queues{display:grid;grid-template-columns:minmax(15rem,.88fr) minmax(0,1fr);grid-template-rows:repeat(2,minmax(0,1fr));gap:1rem;align-items:stretch;}
-.accounting-queue{display:grid;grid-template-columns:3rem minmax(0,1fr);grid-template-rows:auto auto 1fr auto;column-gap:1rem;row-gap:.35rem;align-content:start;min-inline-size:0;padding:1.25rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;color:inherit;text-decoration:none;}
-.accounting-queue--lead{grid-row:span 2;display:flex;flex-direction:column;align-items:flex-start;gap:.5rem;padding:1.5rem;background:color-mix(in srgb,var(--tala-brand) 7%,var(--tala-surface));border-color:color-mix(in srgb,var(--tala-brand) 22%,var(--tala-edge));}
-.accounting-queue-icon{display:grid;place-items:center;inline-size:3rem;block-size:3rem;border-radius:.65rem;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));color:var(--tala-brand);}
-.accounting-queue-icon .fi-icon{inline-size:1.5rem;block-size:1.5rem;}
-.accounting-queue--provider .accounting-queue-icon{background:color-mix(in srgb,var(--warning-500,#f59e0b) 14%,var(--tala-surface));color:var(--warning-600,#b45309);}
-.dark .accounting-queue--provider .accounting-queue-icon{color:var(--warning-400,#fbbf24);}
-.accounting-queue-count{grid-column:2;grid-row:1;font-family:var(--tala-font-heading);font-size:max(1.875rem,var(--tala-type-value));line-height:1;font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;}
-.accounting-queue-title{grid-column:2;grid-row:2;font-family:var(--tala-font-heading);font-size:var(--tala-type-section);line-height:1.35;font-weight:var(--tala-weight-emphasis);}
-.accounting-queue-description{grid-column:2;grid-row:3;max-inline-size:48ch;font-size:var(--tala-type-caption);line-height:1.5;color:var(--tala-muted);}
-.accounting-queue--lead .accounting-queue-count{font-size:var(--tala-type-figure);line-height:.95;}
-.accounting-queue--lead .accounting-queue-title{font-size:max(1.375rem,var(--tala-type-section));}
-.accounting-queue--lead .accounting-queue-description{font-size:var(--tala-type-body);}
-.accounting-queue-action{grid-column:1/-1;grid-row:4;display:flex;justify-content:space-between;align-items:center;gap:.75rem;min-block-size:2.75rem;margin-block-start:.5rem;font-size:.9375rem;line-height:1.25;font-weight:var(--tala-weight-emphasis);}
-.accounting-queue--lead .accounting-queue-action{inline-size:100%;margin-block-start:auto;}
-.accounting-queue-action .fi-icon{inline-size:1rem;block-size:1rem;flex:none;color:var(--tala-muted);}
-.accounting-queue:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
-.accounting-workbench-note{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:.75rem 1.25rem;color:var(--tala-muted);font-size:.875rem;line-height:1.5;}
-.accounting-workbench-note p{display:inline-flex;align-items:center;gap:.5rem;}
-.accounting-workbench-note p{margin:0;}
-.accounting-workbench-note .fi-icon{inline-size:1rem;block-size:1rem;flex:none;}
-.accounting-search-panel{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;}
-.accounting-search-panel h2{font-family:var(--tala-font-heading);font-size:1.375rem;line-height:1.35;font-weight:var(--tala-weight-emphasis);letter-spacing:-.02em;}
-.accounting-finance-form-section .fi-section-header-heading{font-family:var(--tala-font-heading);font-size:1.25rem;line-height:1.35;font-weight:var(--tala-weight-emphasis);}
-.accounting-finance-form-section .fi-section-header-description{max-inline-size:72ch;font-size:.9375rem;line-height:1.55;color:var(--tala-muted);}
-.accounting-finance-form-section>.fi-section{padding-block:1.125rem;border-block-end:1px solid var(--tala-edge);}
+/* Accounting composes the shared record workspace; its selection and hover styles remain shared. */
+.accounting-collection{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
+.accounting-selected-workspace{gap:var(--tala-card-gap);}
+.accounting-collection .servitech-empty-collection{background:var(--tala-surface);border-radius:var(--tala-card-radius);box-shadow:var(--tala-material-raised);}
+.accounting-option-chevron{inline-size:1rem;block-size:1rem;color:var(--tala-muted);}
+.accounting-option-context{display:flex;align-items:start;gap:calc(var(--tala-card-gap)/2);font-size:var(--tala-type-caption);line-height:1.5;}
+.accounting-option-context>.fi-icon{inline-size:1rem;block-size:1rem;flex:none;margin-block-start:.125rem;}
+.accounting-document-context{display:grid;gap:calc(var(--tala-card-gap)/2);padding-block-start:var(--tala-card-gap);border-block-start:1px solid var(--tala-edge);}
+.accounting-document-context h2{font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);}
+.accounting-document-context p{font-size:var(--tala-type-caption);color:var(--tala-muted);}
+.accounting-document-context>.fi-link{justify-self:start;}
+.accounting-history-group .accounting-obligations h4{font-weight:var(--tala-weight-emphasis);}
+.accounting-source-details{display:grid;gap:calc(var(--tala-card-gap)/2);padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+.accounting-source-details h3{font-size:var(--tala-type-body);font-weight:var(--tala-weight-emphasis);}
+.accounting-current-task+.accounting-current-task{padding-block-start:calc(var(--tala-card-gap)*2);border-block-start:1px solid var(--tala-edge);}
+.accounting-selected-record{display:grid;gap:calc(var(--tala-card-gap)*2);container-type:inline-size;}
+.accounting-selected-record>.tala-navigation{justify-self:stretch;margin-inline:0;max-inline-size:100%;}
+.accounting-workspace-position{display:flex;flex-wrap:wrap;align-items:center;gap:var(--tala-card-gap);padding:var(--tala-card-gap);border:0;border-radius:var(--tala-card-radius);background:transparent;}
+.accounting-workspace-position>dl{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap);flex:1;min-inline-size:0;}
+.accounting-workspace-position>dl>div{min-inline-size:0;}
+.accounting-workspace-position dt{font-size:var(--tala-type-caption);color:var(--tala-muted);}
+.accounting-workspace-status{font-size:var(--tala-type-caption);color:var(--tala-muted);}
+.accounting-workspace-position dd{font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;color:var(--tala-brand-foreground);line-height:1.2;overflow-wrap:anywhere;}
+.accounting-account-context{display:grid;gap:var(--tala-card-gap);padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+.accounting-account-context .accounting-workspace-position{padding:0;}
+.accounting-account-context .accounting-financial-summary{padding-block-start:0;border-block-start:0;}
+.accounting-review-note{font-size:var(--tala-type-caption);color:var(--tala-muted);}
+.accounting-selected-record .accounting-lifecycle-reviews .accounting-obligations>div{padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+@container(min-width:28rem){.accounting-workspace-position>dl{grid-template-columns:repeat(2,minmax(0,1fr));}}
+.accounting-selected-record :is(.registrar-case,.accounting-workspace-review){display:grid;gap:var(--tala-card-gap);}
+.accounting-selected-record .accounting-workspace-review h2{font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);}
+.accounting-selected-record .accounting-workspace-review>p{font-size:var(--tala-type-body);color:var(--tala-muted);line-height:1.5;max-inline-size:65ch;}
+@container(max-width:32rem){
+    .accounting-selected-record .accounting-obligations>div{flex-direction:column;}
+    .accounting-workspace-position>.fi-btn{flex-basis:100%;}
+}
+.accounting-proof-comparison{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
+.accounting-proof-comparison>header{display:grid;gap:calc(var(--tala-card-gap)/2);}
+.accounting-proof-comparison>header h2,.accounting-financial-summary>h2{font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);line-height:1.3;}
+.accounting-proof-comparison>header p,.accounting-comparison-note{color:var(--tala-muted);font-size:var(--tala-type-body);line-height:1.5;}
+.accounting-source-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:calc(var(--tala-card-gap)*2);padding:calc(var(--tala-card-gap)*2);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface);}
+.accounting-selected-record .accounting-source-comparison{background:var(--tala-surface-sunken);}
+.accounting-selected-record .accounting-comparison-facts>div{background:var(--tala-surface);}
+.accounting-source-comparison>section{display:grid;align-content:start;gap:var(--tala-card-gap);min-inline-size:0;container-type:inline-size;}
+.accounting-source-comparison>section+section{border-inline-start:1px solid var(--tala-edge);padding-inline-start:calc(var(--tala-card-gap)*2);}
+.accounting-source-comparison h3{font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);line-height:1.3;}
+.accounting-comparison-amount{display:flex;flex-wrap:wrap;align-items:baseline;gap:calc(var(--tala-card-gap)/2);font-size:var(--tala-type-value);font-weight:var(--tala-weight-heading);color:var(--tala-brand-foreground);line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.accounting-comparison-amount>span{font-size:var(--tala-type-body);font-weight:400;color:var(--tala-text);white-space:nowrap;}
+.accounting-comparison-facts{display:grid;gap:calc(var(--tala-card-gap)/2);font-size:var(--tala-type-caption);line-height:1.5;}
+.accounting-comparison-facts>div{display:flex;flex-wrap:wrap;align-items:start;justify-content:space-between;gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);padding:calc(var(--tala-card-gap)/2);border-radius:calc(var(--tala-card-radius)/2);background:var(--tala-surface-sunken);min-inline-size:0;}
+.accounting-comparison-facts dt{flex:0 1 auto;color:var(--tala-muted);}
+.accounting-comparison-facts dd{flex:0 1 auto;min-inline-size:0;overflow-wrap:anywhere;text-align:end;font-variant-numeric:tabular-nums;}
+.accounting-source-comparison>section>.fi-modal{justify-self:start;}
+.accounting-comparison-actions{gap:var(--tala-card-gap);}
+.accounting-proof-comparison .accounting-proof-choices{margin:0;}
+.accounting-source-warning,.accounting-proof-warning,.tala-notice--warning{display:grid;gap:calc(var(--tala-card-gap)/2);padding:var(--tala-card-gap);border:1px solid var(--tala-status-warning-border);border-radius:var(--tala-card-radius);background:var(--tala-status-warning-bg);color:var(--tala-text);font-size:var(--tala-type-body);line-height:1.5;}
+.accounting-source-warning :is(h3,h4),.accounting-proof-warning :is(h3,h4),.tala-notice--warning :is(h3,h4){font-size:var(--tala-type-body);font-weight:var(--tala-weight-emphasis);}
+.accounting-collection .servitech-empty-collection>.tala-record-collection-controls{padding:var(--tala-card-gap);}
+.accounting-financial-summary{display:grid;gap:var(--tala-card-gap);padding-block-start:var(--tala-card-gap);border-block-start:1px solid var(--tala-edge);}
+.accounting-financial-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--tala-card-gap);min-inline-size:0;}
+.accounting-financial-summary-grid>section{display:grid;align-content:start;gap:calc(var(--tala-card-gap)/2);min-inline-size:0;}
+.accounting-financial-summary h3{font-size:var(--tala-type-body);font-weight:var(--tala-weight-emphasis);}
+.accounting-financial-summary .tala-data-table-scroll{min-inline-size:0;max-inline-size:100%;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface);}
+.accounting-financial-summary table{table-layout:fixed;}
+.accounting-financial-summary table :is(th,td){overflow-wrap:anywhere;font-size:var(--tala-type-caption);}
+.accounting-financial-summary table :is(th,td):last-child{inline-size:42%;}
+.accounting-financial-summary-source{display:flex;flex-wrap:wrap;align-items:start;justify-content:space-between;gap:var(--tala-card-gap);}
+.accounting-financial-summary-source > .fi-btn{margin-inline-start:auto;}
+.accounting-financial-summary-source p{flex:1 1 16rem;min-inline-size:0;color:var(--tala-muted);font-size:var(--tala-type-caption);overflow-wrap:anywhere;}
+@container(max-width:44rem){
+    .accounting-source-comparison,.accounting-financial-summary-grid{grid-template-columns:minmax(0,1fr);}
+    .accounting-source-comparison{padding:var(--tala-card-gap);gap:var(--tala-card-gap);}
+    .accounting-source-comparison>section+section{border-inline-start:0;padding-inline-start:0;border-block-start:1px solid var(--tala-edge);padding-block-start:var(--tala-card-gap);}
+}
+@container(max-width:24rem){
+    .accounting-comparison-facts>div{display:grid;gap:calc(var(--tala-card-gap)/2);}
+    .accounting-comparison-facts dd{text-align:start;}
+    .accounting-comparison-actions>.fi-btn{flex:1 1 auto;}
+    .accounting-financial-summary table{table-layout:auto;}
+    .accounting-financial-summary table :is(th,td):last-child{inline-size:auto;}
+}
+/* Accounting reuses workspace cards, figures and the Registrar student picker. */
+.accounting-workbench{display:grid;gap:var(--tala-card-gap);color:var(--tala-text);container-type:inline-size;}
+.accounting-workbench>section{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
+.accounting-workbench .accounting-workflow-caption{margin:0;}
+.accounting-overview-strip{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;gap:var(--tala-card-gap);padding:var(--tala-card-gap) calc(var(--tala-card-gap)*2);}
+.accounting-overview-strip--active{border-color:var(--tala-selected-edge);}
+.accounting-overview-strip__lead{display:flex;align-items:center;gap:var(--tala-card-gap);min-inline-size:0;}
+.accounting-overview-strip__lead>div{display:grid;gap:calc(var(--tala-card-gap)/2);min-inline-size:0;}
+.accounting-overview-strip__lead .tala-workspace-card__icon{inline-size:2.5rem;block-size:2.5rem;}
+.accounting-overview-strip__lead .tala-workspace-card__icon>.fi-icon{inline-size:1.375rem;block-size:1.375rem;}
+.accounting-overview-strip__lead h2{margin:0;font-family:var(--tala-font-heading);font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);line-height:1.25;color:var(--tala-text);overflow-wrap:anywhere;}
+.accounting-overview-strip__meta{margin:0;color:var(--tala-muted);font-size:var(--tala-type-caption);line-height:1.4;overflow-wrap:anywhere;}
+.accounting-overview-strip__metrics{display:flex;flex-wrap:wrap;align-items:center;gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);margin:0;min-inline-size:0;}
+.accounting-overview-strip__metrics>div{display:grid;gap:calc(var(--tala-card-gap)/2);padding-inline-start:var(--tala-card-gap);border-inline-start:1px solid var(--tala-edge-strong);min-inline-size:0;}
+.accounting-overview-strip__metrics>div:first-child{padding-inline-start:0;border-inline-start:0;}
+.accounting-overview-strip__metrics dt{font-size:var(--tala-type-caption);line-height:1.3;color:var(--tala-muted);white-space:normal;}
+.accounting-overview-strip__metrics dd{margin:0;font-family:var(--tala-font-heading);font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);line-height:1.15;font-variant-numeric:tabular-nums;color:var(--tala-text);}
+.accounting-overview-strip__metrics .is-pending dd{color:var(--tala-brand-foreground);}
+.accounting-overview-strip__metrics .is-warning dd{color:var(--tala-status-warning-fg);}
+.accounting-workbench .accounting-overview-strip__metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:0;margin:0;min-inline-size:0;background:var(--tala-surface-sunken);border:1px solid var(--tala-border);border-radius:var(--tala-card-radius);box-shadow:var(--tala-material-detail);padding:calc(var(--tala-card-gap)*0.75) var(--tala-card-gap);}
+.accounting-workbench .accounting-overview-strip__metrics>div{display:grid;align-content:center;gap:0.1875rem;padding-inline:var(--tala-card-gap);border-inline-start:1px solid var(--tala-edge-strong);min-inline-size:0;}
+.accounting-workbench .accounting-overview-strip__metrics>div:first-child{padding-inline-start:0;border-inline-start:0;}
+.accounting-workbench .accounting-overview-strip__metrics>div:last-child{padding-inline-end:0;}
+.accounting-workbench .accounting-overview-strip__metrics dt{font-size:0.75rem;font-weight:500;line-height:1.3;color:var(--tala-muted);white-space:normal;overflow-wrap:break-word;}
+.accounting-workbench .accounting-overview-strip__metrics dd{font-size:clamp(1.125rem,1rem + 0.35vw,1.375rem);font-weight:var(--tala-weight-heading);line-height:1.15;font-variant-numeric:tabular-nums;}
+.accounting-record-workspace{display:grid;gap:var(--tala-card-gap);min-inline-size:0;container-type:inline-size;}
+.accounting-record-workspace :is(.registrar-case,.registrar-case-grid,.registrar-history-grid,.accounting-obligations){gap:var(--tala-card-gap);}
+.accounting-record-workspace .tala-record-identity-person>div:last-child>p:has(+.accounting-identity-term){display:inline;margin-inline-end:var(--tala-card-gap);}
+.accounting-record-workspace .accounting-identity-term{display:inline;}
+.accounting-record-workspace .accounting-account-details .registrar-source-charges>div{padding-block:calc(var(--tala-card-gap)/2);}
+.accounting-account-highlights,.accounting-record-workspace .accounting-account-details{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap);}
+.accounting-charge-summary{padding:calc(var(--tala-card-gap)*2);min-inline-size:0;}
+.accounting-charge-summary .registrar-source-charges>div{padding-block:var(--tala-card-gap);}
+.accounting-record-workspace .accounting-charge-summary h2{font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);}
+.accounting-current-payment{display:flex;flex-direction:column;align-items:flex-start;gap:var(--tala-card-gap);padding:calc(var(--tala-card-gap)*2);background:var(--tala-brand-tint);color:var(--tala-on-brand-tint);}
+.accounting-current-payment .accounting-payment-kicker{display:flex;align-items:center;gap:var(--tala-card-gap);font-weight:var(--tala-weight-emphasis);}
+.accounting-current-payment .tala-workspace-card__icon{background:var(--tala-surface);color:var(--tala-brand-foreground);}
+.accounting-record-workspace .accounting-current-payment h2{font-size:var(--tala-type-value);font-weight:var(--tala-weight-heading);line-height:1.1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.accounting-current-payment>p{color:inherit;}
+.accounting-current-payment>dl{inline-size:100%;border-block-start:1px solid var(--tala-selected-edge);padding-block-start:var(--tala-card-gap);margin-block:0;}
+.accounting-current-payment>dl>div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);}
+.accounting-current-payment dd{margin:0;font-weight:var(--tala-weight-emphasis);font-variant-numeric:tabular-nums;}
+.accounting-current-payment>.fi-btn{min-block-size:2.75rem;margin-block-start:auto;}
+.accounting-record-workspace .accounting-recent-records{padding:calc(var(--tala-card-gap)*2);gap:var(--tala-card-gap);}
+.accounting-record-workspace .accounting-context-actions{gap:var(--tala-card-gap);}
+.accounting-record-workspace .accounting-proof-task{gap:var(--tala-card-gap);padding-block:var(--tala-card-gap);}
+.accounting-record-workspace .accounting-proof-history{margin-block-start:0;padding-block-start:var(--tala-card-gap);}
+.accounting-account-highlights:not(:has(>section)){display:none;}
+.accounting-history-heading{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--tala-card-gap);}
+.accounting-history-heading p{color:var(--tala-muted);margin-block-start:calc(var(--tala-card-gap)/2);}
+.accounting-history-ledger{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
+.accounting-history-group{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
+.accounting-history-group>.tala-data-table-scroll{border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface);}
+.accounting-history-ledger h2{font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);}
+.accounting-history-ledger h3{display:flex;align-items:center;gap:var(--tala-card-gap);font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);}
+.accounting-history-ledger h3>.fi-icon{inline-size:1.5rem;block-size:1.5rem;color:var(--tala-brand-foreground);flex:none;}
+.accounting-history-note{color:var(--tala-muted);font-size:var(--tala-type-body);}
+.accounting-history-table th:first-child{inline-size:20%;}
+.accounting-history-table th:last-child{inline-size:26%;}
+.accounting-history-record-title{display:block;font-weight:var(--tala-weight-emphasis);}
+.accounting-history-source{display:grid;gap:calc(var(--tala-card-gap)/2);font-weight:400;font-size:var(--tala-type-caption);color:var(--tala-muted);margin-block-start:calc(var(--tala-card-gap)/2);overflow-wrap:anywhere;}
+.accounting-history-source .registrar-source-charges>div{display:block;padding-block:calc(var(--tala-card-gap)/2);}
+.accounting-history-source .registrar-source-charges dt{color:var(--tala-muted);}
+.accounting-history-source .registrar-source-charges dd{color:var(--tala-text);font-weight:400;}
+.accounting-history-document{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--tala-card-gap);margin-block-start:var(--tala-card-gap);white-space:normal;}
+.accounting-history-document>.fi-btn{font-size:var(--tala-type-caption);}
+.accounting-history-corrections,.accounting-history-subjects{display:grid;gap:var(--tala-card-gap);}
+.accounting-history-corrections>p{color:var(--tala-muted);}
+@container(max-width:32rem){
+    .accounting-history-table :is(th:first-child,th:last-child){inline-size:auto;}
+    .accounting-history-document{justify-content:flex-start;}
+}
+.accounting-record-navigation{max-inline-size:100%;overflow-x:auto;}
+.accounting-record-navigation .fi-tabs-item{flex:none;}
+@container(min-width:52rem){
+    .accounting-record-workspace :is(.accounting-account-highlights,.accounting-account-details:has(>section+section)){grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);}
+}
+@container(max-width:28rem){
+    .accounting-current-payment{padding:var(--tala-card-gap);}
+    .accounting-current-payment>.fi-btn{inline-size:100%;}
+}
+.accounting-workbench .tala-workflow-step{padding:0;gap:0;overflow:hidden;box-shadow:var(--tala-material-raised);}
+.accounting-workbench .accounting-step-body{display:flex;flex:1;flex-direction:column;gap:0.375rem;min-inline-size:0;padding:var(--tala-card-gap);}
+.accounting-workbench .tala-workflow-step__head{justify-content:space-between;align-items:center;gap:var(--tala-card-gap);}
+.accounting-workbench .tala-workflow-step__head .tala-workspace-card__icon{inline-size:2rem;block-size:2rem;}
+.accounting-workbench .tala-workflow-step__head .tala-workspace-card__icon>.fi-icon{inline-size:1.125rem;block-size:1.125rem;}
+.accounting-workbench .tala-workflow-step--priority{background:var(--tala-brand-tint);border-color:var(--tala-selected-edge);color:var(--tala-on-brand-tint);}
+.accounting-workbench .tala-workflow-step--priority .tala-workspace-card__icon{background:var(--tala-surface);color:var(--tala-brand-foreground);}
+.accounting-workbench .tala-workflow-step--priority .tala-workspace-figure>strong{color:var(--tala-on-brand-tint);}
+.accounting-workbench .tala-workflow-step--active .tala-workspace-figure>strong{color:var(--tala-brand-foreground);}
+.accounting-workbench .tala-workflow-step--caught-up{background:var(--tala-surface);box-shadow:var(--tala-material-raised);border-color:var(--tala-edge);}
+.accounting-workbench .tala-workflow-step--caught-up .tala-workspace-card__icon{background:var(--tala-surface-sunken);color:var(--tala-muted);border:1px solid var(--tala-edge);}
+.accounting-workbench .tala-workflow-step--caught-up .tala-workspace-figure>strong{color:var(--tala-muted);}
+.accounting-workbench .tala-workflow-step__title{font-size:clamp(1rem,0.94rem + 0.2vw,1.125rem);line-height:1.25;overflow-wrap:break-word;text-wrap:balance;}
+.accounting-workbench .tala-workflow-step__desc{font-size:var(--tala-type-caption);line-height:1.35;text-wrap:pretty;}
+.accounting-workbench .tala-workflow-step__meta{margin:0;font-size:var(--tala-type-caption);line-height:1.35;text-wrap:pretty;}
+.accounting-workbench .tala-workflow-step__figure{gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);margin-block:calc(var(--tala-card-gap)/2);}
+.accounting-workbench .tala-workspace-figure{gap:calc(var(--tala-card-gap)/2);}
+.accounting-workbench .tala-workspace-figure>strong{font-size:var(--tala-type-value);line-height:1.05;font-variant-numeric:tabular-nums;}
+.accounting-workbench .tala-workspace-figure>span{padding-inline-start:calc(var(--tala-card-gap)/2);font-size:var(--tala-type-caption);line-height:1.3;max-inline-size:14ch;}
+.accounting-workbench .tala-workflow-step__action{display:flex;flex-direction:column;align-items:stretch;gap:calc(var(--tala-card-gap)/2);min-inline-size:0;margin-block-start:0;padding:0.5rem var(--tala-card-gap);background:var(--tala-surface-sunken);border-block-start:1px solid var(--tala-edge);}
+.accounting-workbench .tala-workflow-step--priority .tala-workflow-step__action{background:transparent;border-block-start-color:var(--tala-selected-edge);}
+.accounting-workbench .tala-workflow-step__action>.fi-btn{inline-size:100%;min-inline-size:0;max-inline-size:100%;min-block-size:2.25rem;padding-inline:calc(var(--tala-card-gap)/2);font-size:.875rem;line-height:1.25;justify-content:center;white-space:normal;text-align:center;}
+.accounting-workbench .tala-workflow-step .tala-workspace-text-link{display:inline-flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:.375rem;max-inline-size:100%;min-block-size:0;margin-block-start:0;padding-block:0.25rem;font-size:var(--tala-type-caption);line-height:1.35;white-space:normal;overflow-wrap:anywhere;}
+.accounting-workbench .tala-workflow-step--priority .tala-workspace-text-link{color:inherit;}
+.accounting-overview-tools{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
+.accounting-student-lookup{display:grid;align-items:center;gap:var(--tala-card-gap);padding:var(--tala-card-gap) calc(var(--tala-card-gap)*2);min-inline-size:0;}
+.accounting-student-lookup__label{display:inline-flex;align-items:center;gap:var(--tala-card-gap);margin:0;font-size:var(--tala-type-body);font-weight:var(--tala-weight-emphasis);color:var(--tala-text);min-inline-size:0;}
+.accounting-student-lookup__label .tala-workspace-card__icon{inline-size:2.25rem;block-size:2.25rem;}
+.accounting-student-lookup__label .tala-workspace-card__icon>.fi-icon{inline-size:1.25rem;block-size:1.25rem;}
+.accounting-student-lookup__row{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap);align-items:center;min-inline-size:0;}
+.accounting-student-lookup__field,.accounting-student-lookup__field .fi-input-wrp{min-inline-size:0;}
+.accounting-student-lookup__field .fi-input{font-size:var(--tala-type-body);}
+.accounting-student-lookup__submit{inline-size:100%;min-block-size:2.75rem;white-space:nowrap;}
+.accounting-records-launcher{display:grid;overflow:hidden;}
+.accounting-records-launcher .accounting-record-link{grid-template-columns:2.25rem minmax(0,1fr) auto 1rem;padding:var(--tala-card-gap) calc(var(--tala-card-gap)*2);}
+.accounting-record-count{display:inline-flex;align-items:center;justify-content:center;min-inline-size:2rem;padding:.125rem calc(var(--tala-card-gap)/2);border-radius:999px;background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);font-size:var(--tala-type-caption);font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;color:var(--tala-text);}
+.accounting-record-count.is-warning{background:var(--tala-status-warning-bg);border-color:var(--tala-status-warning-border);color:var(--tala-status-warning-fg);}
+@container(max-width:39.999rem){
+    .accounting-overview-strip{padding:var(--tala-card-gap) 1rem;}
+    .accounting-workbench .accounting-overview-strip__metrics{inline-size:100%;}
+    .accounting-workbench .tala-workflow-step .tala-workspace-text-link{min-block-size:2.75rem;}
+}
+@container(max-width:22.999rem){
+    .accounting-workbench .accounting-overview-strip__metrics{grid-template-columns:minmax(0,1fr);}
+    .accounting-workbench .accounting-overview-strip__metrics>div{display:flex;align-items:baseline;justify-content:space-between;gap:0.75rem;padding-inline:0;padding-block:0.5rem;border-inline-start:0;border-block-start:1px solid var(--tala-edge-strong);}
+    .accounting-workbench .accounting-overview-strip__metrics>div:first-child{padding-block-start:0;border-block-start:0;}
+    .accounting-workbench .accounting-overview-strip__metrics>div:last-child{padding-block-end:0;}
+}
+@container(min-width:30rem){
+    .accounting-student-lookup__row{grid-template-columns:minmax(0,1fr) auto;}
+    .accounting-student-lookup__submit{inline-size:auto;}
+}
+@container(min-width:34rem){
+    .accounting-workbench .tala-workflow-steps{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:auto;}
+    .accounting-workbench .tala-workflow-step{display:grid;grid-template-rows:subgrid;grid-row:span 2;}
+    .accounting-workbench .tala-workflow-step__desc{min-block-size:0;}
+}
+@container(min-width:40rem){
+    .accounting-overview-strip{grid-template-columns:minmax(0,1fr) auto;padding:var(--tala-card-gap) calc(var(--tala-card-gap)*2);}
+    .accounting-overview-strip__metrics{flex-wrap:nowrap;}
+}
+@container(min-width:44rem){
+    .accounting-student-lookup{grid-template-columns:auto minmax(0,1fr);}
+    .accounting-student-lookup__label{white-space:nowrap;}
+}
+@container(min-width:48rem){
+    .accounting-records-launcher{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .accounting-records-launcher .accounting-record-link+.accounting-record-link{border-block-start:0;border-inline-start:1px solid var(--tala-edge);}
+}
+@container(min-width:51.5rem){
+    .accounting-workbench .tala-workflow-steps{grid-template-columns:repeat(4,minmax(0,1fr));}
+    .accounting-workbench .tala-workflow-step__title{min-block-size:0;}
+}
+@media(pointer:coarse){
+    .accounting-workbench .tala-workflow-step .tala-workspace-text-link,.accounting-workbench .tala-workflow-step__action>.fi-btn{min-block-size:2.75rem;}
+}
+@media(forced-colors:active){
+    .accounting-overview-strip,.accounting-workbench .accounting-overview-strip__metrics,.accounting-workspace-position,.accounting-current-payment,.accounting-source-warning,.accounting-proof-warning,.tala-notice--warning,.accounting-review-task,.accounting-proof-choices,.accounting-fee-plan-versions>li>:is(a,span),.accounting-workbench .tala-workflow-step--caught-up,.accounting-workbench .tala-workflow-step__action{border:1px solid CanvasText;box-shadow:none;background:Canvas;color:CanvasText;}
+    .accounting-workbench .accounting-overview-strip__metrics>div{border-color:CanvasText;}
+    .accounting-proof-choices [aria-current="page"],.accounting-fee-plan-versions [aria-current="page"]{border:2px solid Highlight;outline:2px solid Highlight;}
+    .accounting-workbench .tala-workflow-step--priority .tala-workspace-text-link{color:LinkText;}
+    .accounting-record-count{border-color:CanvasText;color:CanvasText;background:Canvas;}
+}
+.accounting-finance-form-section .fi-section-header-heading{font-family:var(--tala-font-heading);font-size:var(--tala-type-section);line-height:1.35;font-weight:var(--tala-weight-emphasis);}
+.accounting-finance-form-section .fi-section-header-description{max-inline-size:72ch;font-size:var(--tala-type-body);line-height:1.55;color:var(--tala-muted);}
+.accounting-finance-form-section>.fi-section{padding-block:calc(var(--tala-card-gap)*2);border-block-end:1px solid var(--tala-edge);}
 .accounting-finance-form-section .fi-section-content-ctn{padding:0;}
-.accounting-finance-form-section .fi-fo-repeater-item-content{padding:.75rem;}
-.accounting-assessment-modal .accounting-assessment-context{padding:.75rem 1rem;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface-sunken);font-weight:var(--tala-weight-emphasis);line-height:1.5;}
-.accounting-assessment-modal .accounting-assessment-summary{padding-block:.75rem;border-block-start:1px solid var(--tala-edge);color:var(--tala-muted);font-size:.875rem;line-height:1.5;}
+.accounting-finance-form-section .fi-fo-repeater-item-content{padding:var(--tala-card-gap);}
 .registrar-records-entry{display:flex;justify-content:space-between;align-items:center;gap:1.5rem;}
 .registrar-records-entry .fi-btn{flex-shrink:0;min-block-size:2.75rem;}
 .registrar-enrollment-record{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(10rem,auto);gap:1.25rem;align-items:center;padding:.25rem 0;}
@@ -271,9 +481,6 @@
 .registrar-case-grid>section,.registrar-case-schedule{padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;min-inline-size:0;}
 .registrar-case-meta{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.5rem;}
 .registrar-case-task-actions{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;}
-.accounting-record-search{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.75rem 1rem;margin-block-start:1rem;align-items:center;}
-.accounting-record-search label{grid-column:1/-1;font-size:.875rem;color:var(--tala-muted);}
-@media(max-width:40rem){.accounting-record-search{grid-template-columns:minmax(0,1fr);}.accounting-record-search .fi-btn{inline-size:100%;min-block-size:2.75rem;}}
 .registrar-case-status{font-size:1.125rem;font-weight:600;line-height:1.5;margin-block:1.5rem .5rem;}
 @media(max-width:40rem){.registrar-case-task-actions{inline-size:100%;flex-direction:column;align-items:stretch;}.registrar-case-task-actions .fi-btn{inline-size:100%;min-block-size:2.75rem;}}
 .registrar-subject-table{inline-size:100%;border-collapse:collapse;text-align:start;margin-block-start:1rem;font-size:1rem;line-height:1.5;}
@@ -320,6 +527,7 @@
 .registrar-source-charges dd{font-variant-numeric:tabular-nums;white-space:nowrap;}
 .registrar-confirmation-context{font-size:1rem;line-height:1.5;}
 .registrar-confirmation-context>p+p{font-size:.875rem;color:var(--tala-muted);margin-block-start:.375rem;}
+@container(max-width:48rem){.registrar-case-grid,.registrar-history-grid{grid-template-columns:minmax(0,1fr);}.registrar-case-sources{padding-inline-start:0;padding-block-start:1.5rem;border-inline-start:0;border-block-start:1px solid var(--tala-edge-strong);}}
 @media(max-width:64rem){.registrar-case-grid,.registrar-history-grid{grid-template-columns:minmax(0,1fr);}.registrar-case-sources{padding-inline-start:0;padding-block-start:1.5rem;border-inline-start:0;border-block-start:1px solid var(--tala-edge-strong);}}
 @media(max-width:40rem){.registrar-enrollment-detail .fi-header-heading{font-size:1.75rem;}.registrar-case-waiting{padding:1.25rem;}.registrar-case-confirm .fi-btn{inline-size:100%;}.registrar-case-grid>section,.registrar-case-schedule{padding:1.25rem;}.registrar-subject-table{font-size:.875rem;}.registrar-subject-table :is(th,td){padding-inline:.375rem;}.registrar-subject-table th span{font-size:.8125rem;}.registrar-case-events>li{grid-template-columns:minmax(0,1fr);gap:.5rem;}.registrar-case-history-link{padding:1.25rem;}}
 @media(max-width:40rem){.registrar-case-current-subjects .registrar-subject-table{display:block;}.registrar-case-current-subjects .registrar-subject-table thead{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}.registrar-case-current-subjects .registrar-subject-table tbody{display:block;}.registrar-case-current-subjects .registrar-subject-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"subject subject" "section units" "actions actions";gap:.5rem 1rem;padding-block:1rem;border-block-end:1px solid var(--tala-edge);}.registrar-case-current-subjects .registrar-subject-table tbody tr>:first-child{grid-area:subject;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(2){grid-area:section;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(3){grid-area:units;text-align:end;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(4){grid-area:actions;}.registrar-case-current-subjects .registrar-subject-table :is(th,td){min-inline-size:0;padding:0;border:0;}.registrar-case-current-subjects .registrar-subject-table tr>*:last-child{padding:0;}.registrar-case-current-subjects .registrar-subject-mobile-label{display:block;font-size:.75rem;color:var(--tala-muted);font-weight:400;}.registrar-case-current-subjects .registrar-subject-actions{flex-direction:column;align-items:stretch;flex-wrap:nowrap;white-space:normal;padding-block-start:.25rem!important;}.registrar-case-current-subjects .registrar-subject-actions .fi-btn{inline-size:100%;justify-content:center;white-space:nowrap;}}
@@ -331,94 +539,65 @@
 .accounting-records-table .fi-ta-header-toolbar>div:has(>.fi-ta-search-field){flex:1;min-inline-size:0;}
 .accounting-records-table .fi-ta-search-field{flex:1 1 0;min-inline-size:0;max-inline-size:none;}
 .accounting-records-table .fi-ta-search-field .fi-input-wrp{inline-size:100%;}
-.accounting-account-record{display:grid;grid-template-columns:minmax(10rem,1fr) minmax(12rem,1.2fr) minmax(12rem,1.2fr) auto;gap:1.25rem;align-items:center;padding:1.25rem;}
-.accounting-assessment-sources>div{padding-block:1.25rem;}
+.accounting-assessment-sources>div{padding-block:var(--tala-card-gap);}
 .accounting-assessment-sources>div+div{border-block-start:1px solid var(--tala-edge);}
-.accounting-assessment-sources h3{font-size:1rem;font-weight:600;line-height:1.5;}
-.accounting-assessment-sources p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.5rem;}
-.accounting-assessment-sources .fi-btn{inline-size:100%;margin-block-start:1rem;min-block-size:2.75rem;white-space:normal;}
-.accounting-account-record>div{min-inline-size:0;overflow-wrap:anywhere;}
-.accounting-account-person h2{font-size:1.125rem;font-weight:600;line-height:1.5;}
-.accounting-account-person p,.accounting-account-program p+p,.accounting-account-status p{margin-block-start:.375rem;font-size:.875rem;line-height:1.5;color:var(--tala-muted);}
-.accounting-account-program p{line-height:1.5;}
+.accounting-assessment-sources h3{font-size:1rem;font-weight:var(--tala-weight-heading);line-height:1.5;}
+.accounting-assessment-sources p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:calc(var(--tala-card-gap)/2);}
+.accounting-assessment-sources .fi-btn{inline-size:100%;margin-block-start:var(--tala-card-gap);min-block-size:2.75rem;white-space:normal;}
+.accounting-account-status p{margin-block-start:calc(var(--tala-card-gap)/2);font-size:var(--tala-type-caption);line-height:1.5;color:var(--tala-muted);}
 .accounting-account-status .fi-badge{white-space:normal;}
-.accounting-account-record>.fi-btn{min-block-size:2.75rem;justify-self:end;}
-.accounting-records-table .fi-ta-empty-state{padding-block:2rem;}
-.accounting-plan-confirmation{display:grid;gap:1.25rem;color:var(--tala-text);font-size:1rem;line-height:1.5;}
-.accounting-plan-confirmation>div>p+p,.accounting-plan-reference{font-size:.875rem;color:var(--tala-muted);overflow-wrap:anywhere;}
-.accounting-plan-confirmation h3{font-size:1rem;font-weight:600;margin-block-end:.5rem;}
-.accounting-plan-confirmation dl>div{display:flex;justify-content:space-between;gap:1rem;padding-block:.75rem;border-block-start:1px solid var(--tala-edge);}
-.accounting-plan-confirmation dt span{display:block;font-size:.875rem;color:var(--tala-muted);margin-block-start:.25rem;}
-.accounting-plan-confirmation dd{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600;}
-.accounting-account-summary{padding:1.5rem;border:1px solid var(--tala-edge-strong);border-radius:.75rem;background:var(--tala-surface);}
-.accounting-account-summary h2{font-size:1.5rem;line-height:1.3;font-variant-numeric:tabular-nums;}
-.accounting-account-summary p{margin-block-start:.5rem;color:var(--tala-muted);}
-.accounting-obligations{margin-block-start:.5rem;}
-.accounting-obligations>div{display:flex;align-items:start;justify-content:space-between;gap:1.5rem;padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);}
-.accounting-obligations h3,.accounting-history-record h3{font-size:1rem;font-weight:600;line-height:1.5;}
-.accounting-obligations p,.accounting-recent-records p{font-size:.875rem;margin-block-start:.375rem;}
+.accounting-records-table .fi-ta-empty-state{padding-block:calc(var(--tala-card-gap)*2);}
+.accounting-plan-confirmation{display:grid;gap:var(--tala-card-gap);color:var(--tala-text);font-size:1rem;line-height:1.5;}
+.accounting-plan-confirmation>div>p+p,.accounting-plan-reference{font-size:var(--tala-type-caption);color:var(--tala-muted);overflow-wrap:anywhere;}
+.accounting-plan-confirmation h3{font-size:1rem;font-weight:var(--tala-weight-heading);margin-block-end:calc(var(--tala-card-gap)/2);}
+.accounting-plan-confirmation dl>div{display:flex;justify-content:space-between;gap:var(--tala-card-gap);padding-block:var(--tala-card-gap);border-block-start:1px solid var(--tala-edge);}
+.accounting-plan-confirmation dt span{display:block;font-size:var(--tala-type-caption);color:var(--tala-muted);margin-block-start:calc(var(--tala-card-gap)/2);}
+.accounting-plan-confirmation dd{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:var(--tala-weight-heading);}
+.accounting-obligations{margin-block-start:0;}
+.accounting-obligations>div{display:flex;align-items:start;justify-content:space-between;gap:var(--tala-card-gap);padding-block:var(--tala-card-gap);border-block-end:1px solid var(--tala-edge);}
+.accounting-obligations h3{font-size:1rem;font-weight:var(--tala-weight-heading);line-height:1.5;}
+.accounting-obligations p,.accounting-recent-records p{font-size:.875rem;margin-block-start:calc(var(--tala-card-gap)/2);}
 .accounting-obligations>div>div:first-child>p,.accounting-recent-records p{color:var(--tala-muted);}
 .accounting-obligation-balance{text-align:end;flex-shrink:0;font-variant-numeric:tabular-nums;}
 .accounting-obligation-balance .fi-badge{justify-self:end;}
-.accounting-context-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-block-start:1.25rem;}
+.accounting-context-actions{display:flex;flex-wrap:wrap;gap:var(--tala-card-gap);margin-block-start:0;}
 .accounting-context-actions .fi-btn{min-block-size:2.75rem;white-space:normal;}
-.accounting-recent-records{display:flex;justify-content:space-between;gap:1.5rem;align-items:center;padding:1.5rem;background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:.75rem;}
+.accounting-recent-records{display:flex;justify-content:space-between;gap:calc(var(--tala-card-gap)*2);align-items:center;padding:calc(var(--tala-card-gap)*2);background:var(--tala-surface);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);}
 .accounting-recent-records .fi-link{flex-shrink:0;}
-.accounting-account-history>div>section+section{margin-block-start:2rem;}
-.accounting-history-record{padding-block:1.25rem;border-block-end:1px solid var(--tala-edge);overflow-wrap:anywhere;}
-.accounting-history-record>p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.375rem;}
-.accounting-history-record .registrar-source-charges dd{white-space:normal;overflow-wrap:anywhere;}
-.accounting-history-record>.fi-link{margin-block-start:.75rem;}
-.accounting-export{display:grid;gap:1.25rem;color:var(--tala-text);font-size:.9375rem;line-height:1.5;min-inline-size:0;}
-.accounting-export-scope{display:grid;grid-template-columns:1fr 1fr 1.1fr;padding:1rem 1.25rem;gap:1.25rem;background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:.75rem;}
+.accounting-export{display:grid;gap:calc(var(--tala-card-gap)*2);color:var(--tala-text);font-size:var(--tala-type-body);line-height:1.5;min-inline-size:0;container-type:inline-size;}
+.accounting-export-scope{display:grid;grid-template-columns:1fr 1fr 1.1fr;padding:var(--tala-card-gap) calc(var(--tala-card-gap)*2);gap:var(--tala-card-gap) calc(var(--tala-card-gap)*2);background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);}
 .accounting-export-scope>div{min-inline-size:0;overflow-wrap:anywhere;}
-.accounting-export-scope>div+div{padding-inline-start:1.25rem;border-inline-start:1px solid var(--tala-edge-strong);}
+.accounting-export-scope>div+div{padding-inline-start:calc(var(--tala-card-gap)*2);border-inline-start:1px solid var(--tala-edge-strong);}
 .accounting-export-scope dt{font-weight:600;}
-.accounting-export-scope dd,.accounting-export-note,.accounting-export-columns p{font-size:.875rem;color:var(--tala-muted);margin-block-start:.375rem;}
-.accounting-export-table-wrap{max-inline-size:100%;overflow-x:auto;border:1px solid var(--tala-edge);border-radius:.75rem;}
+.accounting-export-scope dd,.accounting-export-note,.accounting-export-columns p{font-size:.875rem;color:var(--tala-muted);margin-block-start:calc(var(--tala-card-gap)/2);}
+.accounting-export-table-wrap{max-inline-size:100%;overflow-x:auto;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);}
 .accounting-export-table{inline-size:100%;border-collapse:collapse;text-align:start;font-size:.875rem;}
-.accounting-export-table :is(th,td){padding:1rem;vertical-align:top;text-align:start;border-block-end:1px solid var(--tala-edge);}
+.accounting-export-table :is(th,td){padding:var(--tala-card-gap);vertical-align:top;text-align:start;border-block-end:1px solid var(--tala-edge);}
 .accounting-export-table thead th{font-weight:500;color:var(--tala-muted);background:var(--tala-surface-sunken);}
 .accounting-export-table tbody th{font-weight:600;min-inline-size:13rem;}
-.accounting-export-table th span{display:block;font-weight:400;color:var(--tala-muted);margin-block-start:.25rem;}
+.accounting-export-table th span{display:block;font-weight:400;color:var(--tala-muted);margin-block-start:calc(var(--tala-card-gap)/2);}
 .accounting-export-table th .accounting-export-review{color:var(--tala-text);font-weight:500;}
 .accounting-export-table :is(th,td):nth-last-child(-n+3){text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .accounting-export-table tbody tr:last-child>*{border-block-end:0;}
-.accounting-export-columns{padding:.25rem 1rem;border:1px solid var(--tala-edge);border-radius:.75rem;}
-.accounting-export-columns summary{cursor:pointer;min-block-size:2.75rem;padding-block:.75rem;font-weight:500;}
-.accounting-export-columns ol{columns:2;list-style:decimal;padding-inline-start:1.25rem;margin-block:.5rem 1rem;font-size:.875rem;}
-.accounting-export-columns li{break-inside:avoid;padding-block:.25rem;}
-.accounting-export-columns p{margin-block-end:1rem;}
+.accounting-export-columns{padding:calc(var(--tala-card-gap)/2) var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);}
+.accounting-export-columns summary{cursor:pointer;min-block-size:2.75rem;padding-block:var(--tala-card-gap);font-weight:500;}
+.accounting-export-columns ol{columns:2;list-style:decimal;padding-inline-start:1.25rem;margin-block:calc(var(--tala-card-gap)/2) var(--tala-card-gap);font-size:.875rem;}
+.accounting-export-columns li{break-inside:avoid;padding-block:calc(var(--tala-card-gap)/2);}
+.accounting-export-columns p{margin-block-end:var(--tala-card-gap);}
 .accounting-export-mobile-preview{display:none;}
-.accounting-export-mobile-row{padding-block:1rem;border-block-end:1px solid var(--tala-edge);}
+.accounting-export-mobile-row{padding-block:var(--tala-card-gap);border-block-end:1px solid var(--tala-edge);}
 .accounting-export-mobile-row h3{font-size:1rem;font-weight:600;}
-.accounting-export-mobile-row>p{font-size:.875rem;color:var(--tala-muted);margin-block-start:.25rem;}
-.accounting-export-mobile-row dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin-block-start:1rem;}
-.accounting-export-mobile-row dt{font-size:.75rem;color:var(--tala-muted);}
-.accounting-export-mobile-row dd{font-size:.9375rem;font-variant-numeric:tabular-nums;margin-block-start:.25rem;overflow-wrap:anywhere;}
+.accounting-export-mobile-row>p{font-size:.875rem;color:var(--tala-muted);margin-block-start:calc(var(--tala-card-gap)/2);}
+.accounting-export-mobile-row dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--tala-card-gap);margin-block-start:var(--tala-card-gap);}
+.accounting-export-mobile-row dt{font-size:var(--tala-type-caption);color:var(--tala-muted);}
+.accounting-export-mobile-row dd{font-size:var(--tala-type-body);font-variant-numeric:tabular-nums;margin-block-start:calc(var(--tala-card-gap)/2);overflow-wrap:anywhere;}
+@container(max-width:38rem){.accounting-account-export-table,.accounting-export-scope .accounting-export-purpose,.accounting-export-scope .accounting-export-empty-search{display:none;}.accounting-export-mobile-preview{display:block;}}
 @media(max-width:40rem){.accounting-account-export-table,.accounting-export-scope .accounting-export-purpose,.accounting-export-scope .accounting-export-empty-search{display:none;}.accounting-export-mobile-preview{display:block;}}
-.accounting-export-identity{padding:1rem 1.25rem;background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:.75rem;color:var(--tala-text);line-height:1.5;overflow-wrap:anywhere;}
-.accounting-export-identity p+p{font-size:.875rem;color:var(--tala-muted);margin-block-start:.375rem;}
-.accounting-payment-export>h3{font-size:1.125rem;font-weight:600;}
-.accounting-payment-export-table tbody th{overflow-wrap:anywhere;}
-.accounting-payment-export-table tbody th span{max-inline-size:22rem;}
-.accounting-payment-export-table :is(th,td):nth-last-child(-n+3){text-align:start;white-space:normal;min-inline-size:9rem;}
-.accounting-payment-export-table :is(th,td):nth-child(2){text-align:end;white-space:nowrap;}
+.accounting-export-identity{padding:var(--tala-card-gap);background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);color:var(--tala-text);line-height:1.5;overflow-wrap:anywhere;}
+.accounting-export-identity p+p{font-size:.875rem;color:var(--tala-muted);margin-block-start:calc(var(--tala-card-gap)/2);}
+.accounting-payment-export>h3{font-size:var(--tala-type-section);font-weight:600;}
 .class-roster-export-table :is(th,td):nth-last-child(-n+3){text-align:start;white-space:normal;}
 .class-roster-export-table tbody th{min-inline-size:9rem;font-weight:500;font-variant-numeric:tabular-nums;}
-.accounting-fee-plan-record{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.75rem 1.5rem;align-items:center;padding:1.5rem;}
-.accounting-fee-plan-record>div,.accounting-fee-plan-identity{min-inline-size:0;overflow-wrap:anywhere;}
-.accounting-fee-plan-heading{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;}
-.accounting-fee-plan-record h2{font-family:var(--tala-font-heading);font-size:1.25rem;font-weight:var(--tala-weight-emphasis);line-height:1.35;letter-spacing:-.015em;}
-.accounting-fee-plan-record p{font-size:.875rem;line-height:1.5;margin-block-start:.3rem;}
-.accounting-fee-plan-meta,.accounting-fee-plan-readiness{color:var(--tala-muted);}
-.accounting-fee-plan-amounts{display:grid;grid-column:1;grid-template-columns:repeat(2,minmax(0,1fr));max-inline-size:38rem;}
-.accounting-fee-plan-amounts>div{min-inline-size:0;padding-inline:1rem;border-inline-start:1px solid var(--tala-edge);}
-.accounting-fee-plan-amounts>div:first-child{padding-inline-start:0;border-inline-start:0;}
-.accounting-fee-plan-amounts dt{font-size:.875rem;color:var(--tala-muted);}
-.accounting-fee-plan-amounts dd{font-family:var(--tala-font-heading);font-size:1.375rem;line-height:1.3;font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;margin-block-start:.25rem;white-space:nowrap;}
-.accounting-fee-plan-readiness{grid-column:1;font-size:.875rem;}
-.accounting-fee-plan-record>.fi-btn{grid-column:2;grid-row:1 / span 3;min-inline-size:13rem;min-block-size:2.75rem;justify-content:space-between;}
 .faculty-membership-context{display:flex;flex-wrap:wrap;align-items:center;gap:1.5rem;color:var(--tala-text);font-size:1rem;}
 .tala-faculty-membership-page .fi-header-heading{font-size:2rem;line-height:1.2;font-weight:700;letter-spacing:-.025em;}
 .faculty-membership-list{background:var(--tala-surface);padding:1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;}
@@ -563,90 +742,110 @@
 @media(max-width:40rem){.faculty-membership-context{gap:.75rem;}.faculty-membership-list thead{display:none;}.faculty-membership-list :is(table,tbody,tr,th,td){display:block;}.faculty-membership-list tr{padding-block:1rem;border-block-end:1px solid var(--tala-edge);}.faculty-membership-list :is(th,td){padding:.25rem 0;border:0;}.faculty-membership-list :is(th,td)::before{content:attr(data-label);display:block;color:var(--tala-muted);font-size:.8125rem;font-weight:400;}.faculty-membership-source dl{grid-template-columns:minmax(0,1fr);}}
 @media(max-width:40rem){.tala-faculty-membership-page .fi-header-heading{font-size:1.75rem;}.faculty-membership-list{padding:1.25rem;}}
 .accounting-fee-plan-detail{color:var(--tala-text);}
-.accounting-fee-plan-intro{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem 1rem;margin-block-end:1.5rem;}
-.accounting-fee-plan-intro>.fi-badge{flex:none;max-inline-size:100%;}
-.accounting-fee-plan-intro p{flex:1 1 28rem;min-inline-size:0;max-inline-size:75ch;color:var(--tala-muted);font-size:.9375rem;line-height:1.6;}
-.accounting-fee-plan-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1.5rem;align-items:stretch;}
-.accounting-fee-plan-panel{min-inline-size:0;padding:1.5rem;}
-.accounting-fee-plan-detail h2{font-size:1.375rem;font-weight:600;margin-block-end:1rem;line-height:1.35;}
-.accounting-fee-plan-section-heading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.5rem 1rem;}
-.accounting-fee-plan-section-heading h2{margin-block-end:0;}
-.accounting-fee-plan-meta{font-size:.875rem;color:var(--tala-muted);line-height:1.5;}
-.accounting-fee-plan-total{display:grid;gap:.25rem;margin-block-end:1.25rem;padding-block-end:1.25rem;border-block-end:1px solid var(--tala-edge);}
-.accounting-fee-plan-total span{font-size:.9375rem;line-height:1.5;color:var(--tala-muted);}
-.accounting-fee-plan-total strong{font-size:clamp(1.75rem,2.5vw,2.25rem);line-height:1.2;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
-.accounting-fee-plan-table-wrap{max-inline-size:100%;overflow-x:auto;}
-.accounting-fee-plan-detail table{inline-size:100%;border-collapse:collapse;text-align:start;}
-.accounting-fee-plan-detail :is(th,td){padding:.875rem .75rem;line-height:1.5;border-block-end:1px solid var(--tala-edge);overflow-wrap:anywhere;}
-.accounting-fee-plan-detail thead th{background:var(--tala-surface-sunken);font-size:.875rem;color:var(--tala-muted);font-weight:500;text-align:start;}
-.accounting-fee-plan-detail tbody th{font-weight:500;text-align:start;}
-.accounting-fee-plan-detail :is(th,td):last-child{text-align:end;white-space:nowrap;font-variant-numeric:tabular-nums;}
-.accounting-fee-plan-payments{display:grid;gap:.75rem;margin-block-start:1rem;padding:0;list-style:none;}
-.accounting-fee-plan-payments>li{display:grid;grid-template-columns:3.5rem minmax(0,1fr) auto;align-items:center;gap:.75rem 1rem;padding-block:1rem;border-block-start:1px solid var(--tala-edge);min-inline-size:0;}
-.accounting-fee-plan-payments>li.is-enrollment-required{padding-inline:1rem;border:1px solid var(--tala-selected-edge);border-radius:.625rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));}
-.accounting-fee-plan-date{display:grid;place-items:center;inline-size:3.5rem;min-block-size:4rem;overflow:hidden;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface-sunken);text-align:center;}
+.accounting-fee-plan-controls{margin:0;}
+.fee-plans-table .fi-ta-header-toolbar>div:first-child:empty{display:none;}
+.fee-plans-table .fee-plans-col-money{font-variant-numeric:tabular-nums;}
+.fee-plans-table .fi-ta-actions-cell .fi-btn{white-space:nowrap;}
+@container tala-main (min-width:44rem){
+    .fee-plans-table .fee-plans-col-program{min-inline-size:11rem;inline-size:32%;}
+    .fee-plans-table .fee-plans-col-status{inline-size:26%;max-inline-size:17rem;}
+    .fee-plans-table .fee-plans-col-status :is(.fi-ta-col-wrp,.fi-ta-text,.fi-ta-text-description){white-space:normal;overflow-wrap:anywhere;}
+    .fee-plans-table .fee-plans-col-status .fi-badge{inline-size:fit-content;white-space:nowrap;}
+    .fee-plans-table td.fee-plans-col-money,.fee-plans-table .fi-ta-actions-cell{inline-size:1%;white-space:nowrap;}
+    .fee-plans-table th.fee-plans-col-money{inline-size:1%;}
+}
+:where(.fi-page:has(.accounting-fee-plan-controls,.accounting-fee-plan-detail)) .fi-sc.fi-sc-has-gap{gap:var(--tala-card-gap);}
+.accounting-fee-plan-detail{display:grid;gap:var(--tala-card-gap);color:var(--tala-text);container-type:inline-size;min-inline-size:0;}
+.accounting-fee-plan-summary{display:grid;grid-template-columns:minmax(14rem,1fr) auto;align-items:center;gap:var(--tala-card-gap) calc(var(--tala-card-gap)*2);padding:calc(var(--tala-card-gap)*2);}
+.accounting-fee-plan-summary__status{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
+.accounting-fee-plan-summary__badges{display:flex;flex-wrap:wrap;align-items:center;gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);}
+.accounting-fee-plan-summary__message{display:flex;align-items:flex-start;gap:calc(var(--tala-card-gap)/2);margin:0;max-inline-size:62ch;font-size:var(--tala-type-body);line-height:1.55;color:var(--tala-muted);}
+.accounting-fee-plan-summary__message .fi-icon{inline-size:1.125rem;block-size:1.125rem;flex:none;margin-block-start:.1875rem;}
+.accounting-fee-plan-summary__message.is-ready{color:var(--tala-status-success-fg);font-weight:var(--tala-weight-emphasis);}
+.accounting-fee-plan-summary__message.is-blocker{color:var(--tala-status-warning-fg);font-weight:var(--tala-weight-emphasis);}
+.accounting-fee-plan-summary__link{justify-self:start;}
+.accounting-fee-plan-summary__metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--tala-card-gap) calc(var(--tala-card-gap)*1.5);margin:0;padding:var(--tala-card-gap) calc(var(--tala-card-gap)*2);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+.accounting-fee-plan-summary__metrics>div{display:grid;gap:calc(var(--tala-card-gap)/2);min-inline-size:0;}
+.accounting-fee-plan-summary__metrics dt{font-size:var(--tala-type-caption);line-height:1.4;color:var(--tala-muted);}
+.accounting-fee-plan-summary__metrics dd{margin:0;font-size:1rem;line-height:1.35;font-weight:var(--tala-weight-heading);color:var(--tala-text);font-variant-numeric:tabular-nums;overflow-wrap:break-word;}
+.accounting-fee-plan-workspace{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(19rem,1fr);align-items:start;gap:var(--tala-card-gap);}
+.accounting-fee-plan-main,.accounting-fee-plan-rail{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
+.accounting-fee-plan-panel{display:grid;gap:var(--tala-card-gap);min-inline-size:0;padding:calc(var(--tala-card-gap)*2);}
+.accounting-fee-plan-detail h2{margin:0;font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);line-height:1.35;overflow-wrap:anywhere;}
+.accounting-fee-plan-panel__header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);}
+.accounting-fee-plan-meta{margin:0;font-size:var(--tala-type-caption);color:var(--tala-muted);line-height:1.5;}
+.accounting-fee-plan-table-wrap{max-inline-size:100%;overflow-x:auto;border:1px solid var(--tala-edge);background:var(--tala-surface);border-radius:var(--tala-card-radius);}
+.accounting-fee-plan-table-empty{color:var(--tala-muted);font-size:var(--tala-type-body);line-height:1.6;}
+.accounting-fee-plan-table-total :is(th,td){background:var(--tala-surface-sunken);border-block-start:1px solid var(--tala-edge-strong);font-weight:var(--tala-weight-heading);color:var(--tala-text);font-variant-numeric:tabular-nums;}
+.accounting-fee-plan-payments{display:grid;gap:var(--tala-card-gap);margin:0;padding:0;list-style:none;}
+.accounting-fee-plan-payments>li{display:grid;grid-template-columns:3.25rem minmax(0,1fr) auto;align-items:center;gap:var(--tala-card-gap);padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);min-inline-size:0;}
+.accounting-fee-plan-payments>li.is-enrollment-required{border-color:var(--tala-selected-edge);background:var(--tala-brand-tint);color:var(--tala-on-brand-tint);}
+.accounting-fee-plan-payments>li.accounting-fee-plan-empty{grid-template-columns:minmax(0,1fr);color:var(--tala-muted);font-size:var(--tala-type-body);line-height:1.6;}
+.accounting-fee-plan-date{display:grid;place-items:center;inline-size:3.25rem;min-block-size:3.5rem;overflow:hidden;border:1px solid var(--tala-edge);border-radius:calc(var(--tala-card-radius)/2);background:var(--tala-surface);text-align:center;}
 .accounting-fee-plan-date time{display:grid;justify-items:center;inline-size:100%;font-variant-numeric:tabular-nums;line-height:1.15;}
-.accounting-fee-plan-date time span{font-size:.6875rem;color:var(--tala-muted);}
-.accounting-fee-plan-date time strong{font-size:1.375rem;line-height:1.15;font-weight:700;}
-.accounting-fee-plan-date-missing{padding:.375rem;font-size:.6875rem;line-height:1.3;color:var(--tala-muted);}
-.accounting-fee-plan-payment-description{min-inline-size:0;}
-.accounting-fee-plan-payment-description h3{font-size:1rem;font-weight:600;line-height:1.4;overflow-wrap:anywhere;}
-.accounting-fee-plan-payment-description p{color:var(--tala-muted);font-size:.8125rem;line-height:1.5;margin-block-start:.375rem;overflow-wrap:anywhere;}
-.accounting-fee-plan-required{display:inline-flex;align-items:center;margin-block-start:.375rem;padding:.125rem .5rem;border-radius:999px;background:color-mix(in srgb,var(--tala-brand) 10%,var(--tala-surface));color:var(--tala-text);font-size:.75rem;font-weight:600;line-height:1.5;}
-.accounting-fee-plan-payment-amount{justify-self:end;white-space:nowrap;font-size:1rem;line-height:1.35;font-weight:700;font-variant-numeric:tabular-nums;}
-.accounting-fee-plan-empty{grid-column:1/-1;color:var(--tala-muted);font-size:.9375rem;line-height:1.6;}
-.accounting-fee-plan-support{margin-block-start:1.5rem;min-inline-size:0;}
-.accounting-fee-plan-approval{padding:1.5rem;}
-.accounting-fee-plan-approval h2{display:flex;align-items:center;gap:.625rem;margin-block-end:1.25rem;font-size:1.125rem;}
-.accounting-fee-plan-approval h2 svg{inline-size:1.375rem;block-size:1.375rem;color:var(--tala-brand);flex:none;}
-.accounting-fee-plan-approval dl{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.7fr) minmax(0,1fr);gap:1rem 1.5rem;}
-.accounting-fee-plan-approval dt,.accounting-fee-plan-source dt,.accounting-fee-plan-form-totals dt{color:var(--tala-muted);font-size:.875rem;}
-.accounting-fee-plan-approval dd{margin-block-start:.375rem;overflow-wrap:anywhere;line-height:1.6;font-size:.9375rem;}
-.accounting-fee-plan-source{border-block-start:1px solid var(--tala-edge);}
-.accounting-fee-plan-source:first-child{border-block-start:0;}
-.accounting-fee-plan-source summary{cursor:pointer;min-block-size:2.75rem;padding:1rem 1.5rem;font-weight:600;border-radius:0 0 .75rem .75rem;}
-.accounting-fee-plan-source summary:hover{background:var(--tala-surface-sunken);}
-.accounting-fee-plan-source[open] summary{border-block-end:1px solid var(--tala-edge);border-radius:0;}
-.accounting-fee-plan-source-content{padding:0 1.5rem 1rem;}
-.accounting-fee-plan-source h3{font-size:.9375rem;font-weight:600;margin-block:1.5rem .5rem;}
-.accounting-fee-plan-source dl>div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem;padding-block:.75rem;border-block-end:1px solid var(--tala-edge);}
-.accounting-fee-plan-source dd{overflow-wrap:anywhere;}
-.accounting-fee-plan-source li{padding-block:.5rem;}
-.accounting-fee-plan-source a{text-decoration:underline;text-underline-offset:.2em;}
-.accounting-fee-plan-source :is(a,summary):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
-@media(forced-colors:active){.accounting-fee-plan-payments>li.is-enrollment-required{background:Canvas;border-color:Highlight;}.accounting-fee-plan-required{background:Canvas;color:CanvasText;border:1px solid Highlight;}.accounting-fee-plan-date{background:Canvas;color:CanvasText;border-color:CanvasText;}}
-.accounting-fee-plan-form-totals{padding:1.25rem 1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface-sunken);}
-.accounting-fee-plan-form-totals dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 2rem;}
-.accounting-fee-plan-form-totals dl>div{min-inline-size:0;}
-.accounting-fee-plan-form-totals dd{font-size:1.25rem;line-height:1.35;font-weight:var(--tala-weight-emphasis);margin-block-start:.375rem;font-variant-numeric:tabular-nums;}
-.accounting-fee-plan-form-totals p{margin-block-start:1rem;padding-block-start:.75rem;border-block-start:1px solid var(--tala-edge);font-size:.875rem;line-height:1.5;}
-@media(max-width:40rem){.accounting-fee-plan-form-totals{padding:1rem;}.accounting-fee-plan-form-totals dl{grid-template-columns:minmax(0,1fr);gap:.875rem;}}
-.accounting-fee-plan-confirmation h3{font-size:1.125rem;font-weight:600;line-height:1.5;}
-.accounting-fee-plan-confirmation p{margin-block-start:.75rem;line-height:1.6;overflow-wrap:anywhere;}
-.accounting-fee-plan-confirmation dl{margin-block:1.5rem;}
-.accounting-fee-plan-confirmation dl>div{display:flex;justify-content:space-between;gap:1rem;padding-block:.875rem;border-block-end:1px solid var(--tala-edge);}
-.accounting-fee-plan-confirmation dd{font-weight:600;font-variant-numeric:tabular-nums;}
-.accounting-fee-plan-publish h3:not(:first-child){margin-block-start:1.5rem;}
-.accounting-fee-plan-publish dt span{display:block;color:var(--tala-muted);font-size:.875rem;margin-block-start:.375rem;}
-.accounting-fee-plan-publish dd{white-space:nowrap;}
-@media(max-width:40rem){.accounting-fee-plan-publish dl>div{flex-wrap:wrap;}.accounting-fee-plan-publish dt{flex:1 1 11rem;}}
-.accounting-fee-plan-edit-context{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;}
-.accounting-fee-plan-edit-context dt{font-size:.875rem;color:var(--tala-muted);}
-.accounting-fee-plan-edit-context dd{line-height:1.6;margin-block-start:.5rem;overflow-wrap:anywhere;}
-@media(max-width:40rem){.accounting-fee-plan-edit-context{grid-template-columns:minmax(0,1fr);gap:1rem;}}
-@media(max-width:75rem){.accounting-fee-plan-layout{grid-template-columns:minmax(0,1fr);}.accounting-fee-plan-approval dl{grid-template-columns:minmax(0,1fr);}}
-@media(max-width:40rem){.accounting-fee-plan-intro{flex-wrap:wrap;}.accounting-fee-plan-panel{padding:1rem;}.accounting-fee-plan-detail :is(th,td){padding:.75rem .5rem;}.accounting-fee-plan-total strong{font-size:1.75rem;}.accounting-fee-plan-payments>li{grid-template-columns:3.25rem minmax(0,1fr);gap:.5rem .75rem;padding-block:.875rem;}.accounting-fee-plan-payments>li.is-enrollment-required{padding-inline:.75rem;}.accounting-fee-plan-date{inline-size:3.25rem;min-block-size:3.75rem;}.accounting-fee-plan-payment-amount{grid-column:2;justify-self:start;font-size:1rem;}.accounting-fee-plan-approval dl{grid-template-columns:minmax(0,1fr);gap:1rem;}.accounting-fee-plan-approval dl>div+div{padding:0;border:0;}}
-@media(max-width:75rem){.accounting-fee-plan-record{grid-template-columns:minmax(0,1fr) auto;}.accounting-fee-plan-record>.fi-btn{min-inline-size:11rem;}}
-@media(max-width:64rem){.accounting-work-queues{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;}.accounting-queue--lead{grid-row:auto;min-block-size:17rem;}.accounting-fee-plan-record{grid-template-columns:minmax(0,1fr);}.accounting-fee-plan-record>.fi-btn{grid-column:1;grid-row:auto;inline-size:100%;}}
-@media(max-width:40rem){.accounting-work-queues{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;}.accounting-queue--lead{grid-row:auto;min-block-size:0;}.accounting-queue{min-block-size:12rem;padding:1.25rem;}.accounting-queue--lead{min-block-size:19rem;padding:1.25rem;}.accounting-workbench-note{align-items:flex-start;flex-direction:column;}.accounting-search-panel{padding:1.25rem;}.accounting-search-panel h2{font-size:1.25rem;}.accounting-record-search{grid-template-columns:minmax(0,1fr);}.accounting-record-search .fi-btn{inline-size:100%;min-block-size:2.75rem;}.accounting-fee-plan-record{grid-template-columns:minmax(0,1fr);gap:1rem;padding:1.25rem;}.accounting-fee-plan-record>.fi-btn{grid-column:1;grid-row:auto;inline-size:100%;min-inline-size:0;}.accounting-fee-plan-amounts{grid-template-columns:minmax(0,1fr);gap:.75rem;max-inline-size:none;}.accounting-fee-plan-amounts>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:1rem;padding:0;border:0;}.accounting-fee-plan-amounts dd{margin:0;font-size:1.125rem;}}
-.accounting-export-notice,.accounting-export-empty{padding:1.25rem;border:1px solid var(--tala-edge-strong);border-radius:.75rem;background:var(--tala-surface-sunken);}
+.accounting-fee-plan-date time span{font-size:var(--tala-type-caption);font-weight:var(--tala-weight-emphasis);color:var(--tala-muted);}
+.accounting-fee-plan-date time strong{font-size:var(--tala-type-section);line-height:1.15;font-weight:var(--tala-weight-heading);color:var(--tala-text);}
+.accounting-fee-plan-date-missing{padding:calc(var(--tala-card-gap)/2);font-size:var(--tala-type-caption);line-height:1.3;color:var(--tala-muted);}
+.accounting-fee-plan-payment-description{display:grid;gap:calc(var(--tala-card-gap)/2);min-inline-size:0;}
+.accounting-fee-plan-payment-title{display:flex;flex-wrap:wrap;align-items:center;gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);min-inline-size:0;}
+.accounting-fee-plan-payment-description h3{margin:0;font-size:1rem;font-weight:var(--tala-weight-heading);line-height:1.4;overflow-wrap:anywhere;}
+.accounting-fee-plan-payment-description p{margin:0;color:var(--tala-muted);font-size:var(--tala-type-caption);line-height:1.5;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.accounting-fee-plan-payments>li.is-enrollment-required .accounting-fee-plan-payment-description p{color:inherit;}
+.accounting-fee-plan-required{display:inline-flex;align-items:center;padding:.125rem calc(var(--tala-card-gap)/2);border:1px solid var(--tala-selected-edge);border-radius:999px;background:var(--tala-surface);color:var(--tala-brand-foreground);font-size:var(--tala-type-caption);font-weight:var(--tala-weight-heading);line-height:1.5;}
+.accounting-fee-plan-payment-amount{justify-self:end;white-space:nowrap;font-size:1rem;line-height:1.35;font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;}
+.accounting-fee-plan-kv{display:grid;gap:var(--tala-card-gap);margin:0;}
+.accounting-fee-plan-kv>div{display:grid;gap:calc(var(--tala-card-gap)/2);padding-block-end:var(--tala-card-gap);border-block-end:1px solid var(--tala-edge);}
+.accounting-fee-plan-kv>div:last-child{padding-block-end:0;border-block-end:0;}
+.accounting-fee-plan-kv dt{font-size:var(--tala-type-caption);line-height:1.4;color:var(--tala-muted);}
+.accounting-fee-plan-kv dd{margin:0;font-size:var(--tala-type-body);line-height:1.5;color:var(--tala-text);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.accounting-fee-plan-versions{display:grid;gap:var(--tala-card-gap);margin:0;padding:0;list-style:none;}
+.accounting-fee-plan-versions>li>:is(a,span){display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--tala-card-gap);min-block-size:2.75rem;padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);color:var(--tala-text);font-size:.875rem;line-height:1.4;text-decoration:none;}
+.accounting-fee-plan-versions>li>:is(a,span)>span{font-size:var(--tala-type-caption);color:var(--tala-muted);}
+.accounting-fee-plan-versions>li>a:hover{background:var(--tala-surface);border-color:var(--tala-edge-strong);}
+.accounting-fee-plan-versions>li>a:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;}
+.accounting-fee-plan-versions [aria-current="page"],.accounting-fee-plan-versions .is-current>span{background:var(--tala-brand-tint);border-color:var(--tala-selected-edge);color:var(--tala-on-brand-tint);}
+.accounting-fee-plan-versions [aria-current="page"]>span,.accounting-fee-plan-versions .is-current>span>span{color:inherit;font-weight:var(--tala-weight-emphasis);}
+@media(forced-colors:active){.accounting-fee-plan-summary__metrics,.accounting-fee-plan-payments>li,.accounting-fee-plan-form-totals,.tala-live-totals,.tala-draft-totals,.accounting-fee-plan-confirmation__group,.tala-context-inset{background:Canvas;color:CanvasText;border-color:CanvasText;}.accounting-fee-plan-payments>li.is-enrollment-required{background:Canvas;color:CanvasText;border-color:Highlight;}.accounting-fee-plan-required{background:Canvas;color:CanvasText;border:1px solid Highlight;}.accounting-fee-plan-date{background:Canvas;color:CanvasText;border-color:CanvasText;}}
+:is(.accounting-fee-plan-form-totals,.tala-live-totals,.tala-draft-totals){padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+:is(.accounting-fee-plan-form-totals,.tala-live-totals,.tala-draft-totals) dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--tala-card-gap) calc(var(--tala-card-gap)*2);margin:0;}
+:is(.accounting-fee-plan-form-totals,.tala-live-totals,.tala-draft-totals) dl>div{display:grid;gap:calc(var(--tala-card-gap)/2);min-inline-size:0;}
+:is(.accounting-fee-plan-form-totals,.tala-live-totals,.tala-draft-totals) dt{font-size:var(--tala-type-caption);color:var(--tala-muted);}
+:is(.accounting-fee-plan-form-totals,.tala-live-totals,.tala-draft-totals) dd{font-size:var(--tala-type-section);line-height:1.35;font-weight:var(--tala-weight-heading);margin:0;font-variant-numeric:tabular-nums;}
+:is(.accounting-fee-plan-form-totals__status,.tala-live-totals__status,.tala-draft-totals__status){display:flex;align-items:flex-start;gap:calc(var(--tala-card-gap)/2);margin:var(--tala-card-gap) 0 0;padding-block-start:var(--tala-card-gap);border-block-start:1px solid var(--tala-edge);font-size:var(--tala-type-caption);line-height:1.5;}
+:is(.accounting-fee-plan-form-totals__status,.tala-live-totals__status,.tala-draft-totals__status) .fi-icon{inline-size:1.125rem;block-size:1.125rem;flex:none;margin-block-start:.125rem;}
+:is(.accounting-fee-plan-form-totals__status,.tala-live-totals__status,.tala-draft-totals__status).is-balanced{color:var(--tala-status-success-fg);font-weight:var(--tala-weight-emphasis);}
+:is(.accounting-fee-plan-form-totals__status,.tala-live-totals__status,.tala-draft-totals__status).is-unbalanced{color:var(--tala-status-warning-fg);font-weight:var(--tala-weight-emphasis);}
+.accounting-fee-plan-confirmation{display:grid;gap:var(--tala-card-gap);color:var(--tala-text);}
+.accounting-fee-plan-confirmation__header{display:grid;gap:calc(var(--tala-card-gap)/2);}
+.accounting-fee-plan-confirmation__header h3{margin:0;font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);line-height:1.4;}
+.accounting-fee-plan-confirmation__group{display:grid;gap:calc(var(--tala-card-gap)/2);padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+.accounting-fee-plan-confirmation__group-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);}
+.accounting-fee-plan-confirmation__group-head h4{margin:0;font-size:var(--tala-type-body);font-weight:var(--tala-weight-heading);color:var(--tala-text);}
+.accounting-fee-plan-confirmation dl{margin:0;}
+.accounting-fee-plan-confirmation dl>div{display:flex;justify-content:space-between;align-items:baseline;gap:var(--tala-card-gap);padding-block:calc(var(--tala-card-gap)/2);border-block-end:1px solid var(--tala-edge);}
+.accounting-fee-plan-confirmation dl>div:last-child{padding-block-end:0;border-block-end:0;}
+.accounting-fee-plan-confirmation dl>div.is-total{padding-block-start:var(--tala-card-gap);border-block-start:1px solid var(--tala-edge-strong);font-weight:var(--tala-weight-heading);}
+.accounting-fee-plan-confirmation dt{display:grid;gap:calc(var(--tala-card-gap)/2);min-inline-size:0;font-size:.875rem;line-height:1.45;color:var(--tala-muted);}
+.accounting-fee-plan-confirmation dl>div.is-total dt{color:var(--tala-text);}
+.accounting-fee-plan-confirmation dd{margin:0;font-weight:var(--tala-weight-emphasis);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--tala-text);}
+.accounting-fee-plan-confirmation__payment-title{display:inline-flex;flex-wrap:wrap;align-items:center;gap:calc(var(--tala-card-gap)/2);color:var(--tala-text);font-weight:var(--tala-weight-emphasis);}
+.accounting-fee-plan-confirmation__payment-date{font-size:var(--tala-type-caption);color:var(--tala-muted);font-variant-numeric:tabular-nums;}
+.accounting-fee-plan-confirmation__notes{display:grid;gap:calc(var(--tala-card-gap)/2);}
+.accounting-fee-plan-confirmation__notes p{margin:0;font-size:.875rem;line-height:1.55;color:var(--tala-text);overflow-wrap:anywhere;}
+.accounting-fee-plan-confirmation__notes p.accounting-fee-plan-meta{color:var(--tala-muted);}
+.accounting-fee-plan-publish dt span{display:block;}
+@container(max-width:51.999rem){.accounting-fee-plan-summary{grid-template-columns:minmax(0,1fr);}.accounting-fee-plan-workspace{grid-template-columns:minmax(0,1fr);}}
+@container(max-width:36rem){.accounting-fee-plan-summary,.accounting-fee-plan-panel{padding:var(--tala-card-gap);}.accounting-fee-plan-summary__metrics{grid-template-columns:minmax(0,1fr);padding:var(--tala-card-gap);}.accounting-fee-plan-summary__metrics :is(dt,dd){white-space:normal;}.accounting-fee-plan-detail :is(th,td){padding:var(--tala-card-gap) calc(var(--tala-card-gap)/2);}.accounting-fee-plan-payments>li{grid-template-columns:3rem minmax(0,1fr);gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);padding:var(--tala-card-gap);}.accounting-fee-plan-date{inline-size:3rem;min-block-size:3.25rem;}.accounting-fee-plan-payment-amount{grid-column:2;justify-self:start;}}
+@media(max-width:40rem){:is(.accounting-fee-plan-form-totals,.tala-live-totals,.tala-draft-totals) dl{grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap);}.accounting-fee-plan-confirmation dl>div,.accounting-fee-plan-publish dl>div{flex-wrap:wrap;gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);}.accounting-fee-plan-publish dt{flex:1 1 11rem;}}
+.accounting-export-notice,.accounting-export-empty{padding:var(--tala-card-gap) calc(var(--tala-card-gap)*2);border:1px solid var(--tala-edge-strong);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
 .accounting-export-empty h3{font-weight:600;}
-.accounting-export-empty p{color:var(--tala-muted);margin-block-start:.5rem;}
+.accounting-export-empty p{color:var(--tala-muted);margin-block-start:calc(var(--tala-card-gap)/2);}
 .accounting-export :is(summary,.accounting-export-table-wrap):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;}
-@media(max-width:40rem){.accounting-export-scope{grid-template-columns:minmax(0,1fr);gap:1rem;padding:1rem;}.accounting-export-scope>div+div{border-inline-start:0;border-block-start:1px solid var(--tala-edge);padding-inline-start:0;padding-block-start:1rem;}.accounting-export-table :is(th,td){padding:.75rem;}.accounting-export-columns ol{columns:1;}}
-@media(max-width:40rem){.accounting-account-summary{padding:1.25rem;}.accounting-obligations>div{gap:1rem;}.accounting-obligation-balance{flex-shrink:1;}.accounting-recent-records{flex-direction:column;align-items:start;padding:1.25rem;}.accounting-context-actions .fi-btn{inline-size:100%;}.accounting-plan-confirmation dl>div{gap:.75rem;}}
-@media(max-width:70rem){.accounting-account-record{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}.accounting-account-record>.fi-btn{justify-self:start;}}
-@media(max-width:40rem){.accounting-account-record{grid-template-columns:minmax(0,1fr);gap:1rem;padding:1.25rem;}.accounting-account-record>.fi-btn{inline-size:100%;}.accounting-records-table .fi-ta-header-toolbar>div:has(>.fi-ta-search-field){flex-basis:100%;}}
+@container(max-width:38rem){.accounting-export-scope{grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap);padding:var(--tala-card-gap);}.accounting-export-scope>div+div{border-inline-start:0;border-block-start:1px solid var(--tala-edge);padding-inline-start:0;padding-block-start:var(--tala-card-gap);}.accounting-export-table :is(th,td){padding:var(--tala-card-gap);}.accounting-export-columns ol{columns:1;}}
+@media(max-width:40rem){.accounting-export-scope{grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap);padding:var(--tala-card-gap);}.accounting-export-scope>div+div{border-inline-start:0;border-block-start:1px solid var(--tala-edge);padding-inline-start:0;padding-block-start:var(--tala-card-gap);}.accounting-export-table :is(th,td){padding:var(--tala-card-gap);}.accounting-export-columns ol{columns:1;}}
+@container(max-width:32rem){.accounting-obligations>div{gap:var(--tala-card-gap);}.accounting-obligation-balance{flex-shrink:1;}.accounting-recent-records{flex-direction:column;align-items:start;padding:var(--tala-card-gap);}.accounting-context-actions .fi-btn{inline-size:100%;}.accounting-plan-confirmation dl>div{gap:var(--tala-card-gap);}}
+@media(max-width:40rem){.accounting-obligations>div{gap:var(--tala-card-gap);}.accounting-obligation-balance{flex-shrink:1;}.accounting-recent-records{flex-direction:column;align-items:start;padding:var(--tala-card-gap);}.accounting-context-actions .fi-btn{inline-size:100%;}.accounting-plan-confirmation dl>div{gap:var(--tala-card-gap);}}
+@container tala-main (max-width:51.999rem){.accounting-records-table .fi-ta-header-toolbar>div:has(>.fi-ta-search-field){flex-basis:100%;}}
 
 .tala-head-enrollments-page .fi-header-heading{font-size:2rem;line-height:1.2;letter-spacing:-.025em;}
 .tala-head-enrollments-page .fi-header-subheading{max-inline-size:70ch;}
@@ -686,17 +885,17 @@
 .student-finance-workspace{display:grid;gap:var(--tala-card-gap,12px);min-inline-size:0;color:var(--tala-text);container-type:inline-size;}
 .student-finance-pair{display:grid;grid-template-columns:minmax(0,1fr);}
 .student-finance-pair>section{min-inline-size:0;}
-.student-finance-pair>section+section{border-block-start:1px solid var(--tala-edge);}
+.student-finance-pair>section+section{border-block-start:1px solid var(--tala-border);}
 @container(min-width:50rem){
     .student-finance-pair:has(>section+section){grid-template-columns:repeat(2,minmax(0,1fr));}
-    .student-finance-pair>section+section{border-block-start:0;border-inline-start:1px solid var(--tala-edge);}
+    .student-finance-pair>section+section{border-block-start:0;border-inline-start:1px solid var(--tala-border);}
 }
 .student-finance-task,.student-finance-position{min-inline-size:0;}
-.student-finance-pair:has(>.student-finance-task-review){border-color:var(--warning-600,#d97706);}
+.student-finance-pair:has(>.student-finance-task-review){border-color:var(--tala-status-warning-fg);}
 .student-finance-workspace h2{font-size:1.25rem;line-height:1.35;font-weight:600;letter-spacing:-.015em;}
 .student-finance-task>p{font-size:.9375rem;line-height:1.65;max-inline-size:65ch;margin-block:.75rem;overflow-wrap:anywhere;}
 .student-finance-actions{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem 1.25rem;margin-block-start:1.25rem;}
-.student-finance-position dl{margin-block-start:.5rem;}.student-finance-position dl>div{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;padding-block:.625rem;border-block-end:1px solid var(--tala-edge);}
+.student-finance-position dl{margin-block-start:.5rem;}.student-finance-position dl>div{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;padding-block:.625rem;border-block-end:1px solid var(--tala-edge-strong);}
 .student-finance-position dt{font-size:.8125rem;line-height:1.5;color:var(--tala-muted);}.student-finance-position dd{font-size:1.125rem;font-weight:600;font-variant-numeric:tabular-nums;text-align:end;white-space:nowrap;}
 .student-finance-workspace .student-finance-section{min-inline-size:0;}.student-finance-workspace .student-finance-table-wrap{max-inline-size:100%;}
 .student-finance-workspace article{font-size:.875rem;line-height:1.65;overflow-wrap:anywhere;}.student-finance-workspace h3{font-weight:600;font-size:.9375rem;}.student-finance-workspace article p{margin-block:.5rem;}
@@ -707,24 +906,29 @@
 
 
 
-.accounting-proof-task{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;padding-block:1.5rem 2rem;border-block-end:1px solid var(--tala-edge)}
-.accounting-proof-task h2{font-size:1.5rem;font-weight:600;line-height:1.3}.accounting-proof-task p{margin-block-start:.5rem;color:var(--tala-muted)}
-.accounting-proof-review .registrar-case-grid{margin-block-start:2rem}.accounting-proof-amount{font-size:1.75rem;font-weight:600;font-variant-numeric:tabular-nums;margin-block:1.25rem}.accounting-proof-amount span{font-size:.875rem;font-weight:400;color:var(--tala-muted)}
-.accounting-proof-choices{display:flex;flex-wrap:wrap;gap:1rem;padding-block:1.5rem;border-block-end:1px solid var(--tala-edge)}.accounting-proof-choices [aria-current=page]{text-decoration:underline;text-underline-offset:.25em}
-.accounting-proof-history{display:flex;justify-content:flex-end;margin-block-start:2rem;padding-block:1.5rem;border-block-start:1px solid var(--tala-edge)}
-.accounting-proof-context,.accounting-proof-allocation{font-size:.875rem;line-height:1.6;overflow-wrap:anywhere}.accounting-proof-context p+p{margin-block-start:.5rem}.accounting-proof-allocation{padding:1rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface-sunken)}.accounting-proof-allocation h3{font-weight:600;margin-block-end:.5rem}.accounting-proof-allocation>div+div{margin-block-start:.75rem}.accounting-proof-warning{margin-block-start:1rem;padding:.75rem;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface-sunken)}
+.accounting-proof-task{display:flex;align-items:center;justify-content:space-between;gap:calc(var(--tala-card-gap)*2);padding-block:calc(var(--tala-card-gap)*2);border-block-end:1px solid var(--tala-edge)}
+.accounting-proof-task h2{font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);line-height:1.3}.accounting-proof-task p{margin-block-start:calc(var(--tala-card-gap)/2);color:var(--tala-muted)}
+.accounting-proof-review .registrar-case-grid{margin-block-start:0}.accounting-proof-amount{font-size:var(--tala-type-value);font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;margin-block:calc(var(--tala-card-gap)*2)}.accounting-proof-amount span{font-size:.875rem;font-weight:400;color:var(--tala-muted)}
+.accounting-proof-choices{display:flex;flex-wrap:wrap;gap:calc(var(--tala-card-gap)/2);padding:calc(var(--tala-card-gap)/2);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);}
+.accounting-proof-choices :is(a,.fi-link){display:inline-flex;align-items:center;min-block-size:2.75rem;padding:calc(var(--tala-card-gap)/2) var(--tala-card-gap);border:1px solid transparent;border-radius:calc(var(--tala-card-radius)/2);color:var(--tala-muted);font-size:var(--tala-type-caption);font-weight:var(--tala-weight-emphasis);line-height:1.35;text-decoration:none;}
+.accounting-proof-choices :is(a,.fi-link):hover{color:var(--tala-text);background:color-mix(in srgb,var(--tala-surface) 60%,transparent);}
+.accounting-proof-choices [aria-current=page]{background:var(--tala-surface);color:var(--tala-brand-foreground);border-color:var(--tala-edge-strong);box-shadow:var(--tala-material-detail);text-decoration:none;}
+.accounting-proof-choices :is(a,.fi-link):focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;}
+.accounting-proof-history{display:flex;justify-content:flex-end;margin-block-start:0;padding-block:calc(var(--tala-card-gap)*2);border-block-start:1px solid var(--tala-edge)}
+.accounting-proof-context,.accounting-proof-allocation{font-size:.875rem;line-height:1.6;min-inline-size:0;overflow-wrap:anywhere}.accounting-proof-context p+p{margin-block-start:calc(var(--tala-card-gap)/2)}.accounting-proof-allocation{display:grid;gap:var(--tala-card-gap);padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken)}.accounting-proof-allocation h3{font-weight:var(--tala-weight-heading);margin-block-end:0}.accounting-proof-allocation>div+div{margin-block-start:0}
+@container(max-width:34rem){.accounting-proof-task{align-items:stretch;flex-direction:column}.accounting-proof-task .registrar-case-task-actions{align-items:stretch}.accounting-proof-task .fi-btn{flex:1}.accounting-proof-review .registrar-source-charges>div{align-items:flex-start;flex-wrap:wrap}.accounting-proof-review .registrar-source-charges dd{overflow-wrap:anywhere}.accounting-proof-history{justify-content:flex-start}}
 @media(max-width:40rem){.accounting-proof-task{align-items:stretch;flex-direction:column}.accounting-proof-task .registrar-case-task-actions{align-items:stretch}.accounting-proof-task .fi-btn{flex:1}.accounting-proof-review .registrar-source-charges>div{align-items:flex-start;flex-wrap:wrap}.accounting-proof-review .registrar-source-charges dd{overflow-wrap:anywhere}.accounting-proof-history{justify-content:flex-start}}
-.accounting-webhook-retry{display:grid;gap:.75rem;margin-block-start:1rem}.accounting-webhook-retry label{font-weight:600}.accounting-webhook-retry textarea{width:100%;min-height:6rem;border:1px solid var(--tala-edge);border-radius:.5rem;padding:.75rem;background:var(--tala-surface);font:inherit}.accounting-webhook-retry textarea:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px}.accounting-webhook-retry p{font-size:.8125rem;color:var(--tala-muted)}.accounting-webhook-retry .fi-btn{justify-self:start}
 
 .registrar-adjustment-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-block:1.4rem}.registrar-adjustment-comparison>div{padding:1rem;border:1px solid var(--tala-border,#d4d4d8);border-radius:.6rem;background:var(--tala-canvas,#f7f7f8)}.registrar-adjustment-comparison h3{font-size:.875rem}.registrar-adjustment-comparison p{overflow-wrap:anywhere}@media(max-width:640px){.registrar-adjustment-comparison{grid-template-columns:1fr}}
 
-.accounting-correction-context{display:grid;gap:.75rem;min-inline-size:0;}
+.accounting-correction-context{display:grid;gap:var(--tala-card-gap);min-inline-size:0;container-type:inline-size;}
 .accounting-correction-identity{font-size:.875rem;color:var(--tala-muted);overflow-wrap:anywhere;}
-.accounting-correction-facts{padding:1rem 1.25rem;background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:.75rem;display:grid;gap:.5rem;}
-.accounting-correction-facts>div{display:grid;grid-template-columns:minmax(8rem,12rem) minmax(0,1fr);gap:.25rem 1rem;font-size:.875rem;}
+.accounting-correction-facts{padding:var(--tala-card-gap);background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);display:grid;gap:calc(var(--tala-card-gap)/2);}
+.accounting-correction-facts>div{display:grid;grid-template-columns:minmax(8rem,12rem) minmax(0,1fr);gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap);font-size:.875rem;}
 .accounting-correction-facts dt{color:var(--tala-muted);}
-.accounting-correction-facts dd{overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
-.accounting-correction-unavailable,.accounting-correction-lead{padding:1rem 1.25rem;border:1px solid var(--tala-edge);border-radius:.75rem;font-size:.875rem;}
+.accounting-correction-facts dd{min-inline-size:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+.accounting-correction-unavailable,.accounting-correction-lead{padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);font-size:.875rem;}
+@container(max-width:30rem){.accounting-correction-facts>div{grid-template-columns:minmax(0,1fr);gap:0;}}
 @media(max-width:40rem){.accounting-correction-facts>div{grid-template-columns:minmax(0,1fr);gap:0;}}
 
 .learner-cancel-context ul{list-style:none;margin:.5rem 0 0;padding:0;display:grid;gap:.5rem;font-size:.9375rem;}
@@ -745,19 +949,19 @@
 .cor-versions a:hover{background:var(--tala-surface);}
 .cor-versions a:focus-visible{outline:2px solid var(--tala-primary,#2f7d3b);outline-offset:3px;}
 .cor-subject-meetings{font-size:.875rem;color:var(--tala-muted);}
-.accounting-current-account .registrar-case-grid .accounting-recent-records{flex-direction:column;align-items:flex-start;gap:1rem;}
+.accounting-current-account .registrar-case-grid .accounting-recent-records{flex-direction:column;align-items:flex-start;gap:var(--tala-card-gap);}
 @media(max-width:30rem){.cor-facts{grid-template-columns:repeat(2,minmax(0,1fr));}.cor-facts>div:last-child{grid-column:1/-1;}.cor-facts>div:last-child dd{font-size:1rem;}}
 
 /* Contextual Accounting review states. */
-.accounting-review-task{margin:0;padding:1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);box-shadow:var(--tala-material-raised)}
-.accounting-review-task h2{margin:0 0 .75rem;font-weight:600;line-height:1.35;text-wrap:balance}
-.accounting-review-task p{max-width:70ch;margin-block:.5rem 1rem;overflow-wrap:anywhere}
-.accounting-review-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;margin-block:1.25rem}
-.accounting-review-facts dt{font-size:.875rem;color:var(--gray-600,#52525c)}
-.accounting-review-facts dd{margin:.25rem 0 0;font-size:1.125rem;font-weight:600;font-variant-numeric:tabular-nums}
-
-.dark .accounting-review-facts dt{color:var(--gray-300,#d4d4d8)}
-@media(max-width:40rem){.accounting-review-task{padding:1.25rem}.accounting-review-facts{grid-template-columns:1fr;gap:1rem}.accounting-review-task .accounting-context-actions{align-items:stretch}.accounting-review-task .accounting-context-actions .fi-btn{max-width:100%;white-space:normal}}
+.accounting-review-task{display:grid;gap:var(--tala-card-gap);margin:0;}
+.accounting-review-task.tala-task-surface{padding:calc(var(--tala-card-gap)*2);box-shadow:var(--tala-material-raised);}
+.accounting-review-task h2{margin:0;font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);line-height:1.35;text-wrap:balance}
+.accounting-review-task p{max-inline-size:70ch;margin:0;overflow-wrap:anywhere}
+.accounting-review-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:calc(var(--tala-card-gap)*2);margin:0}
+.accounting-review-facts dt{font-size:var(--tala-type-caption);color:var(--tala-muted)}
+.accounting-review-facts dd{margin:calc(var(--tala-card-gap)/2) 0 0;min-inline-size:0;font-size:var(--tala-type-body);font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+@container(max-width:32rem){.accounting-review-task.tala-task-surface{padding:var(--tala-card-gap)}.accounting-review-facts{grid-template-columns:1fr;gap:var(--tala-card-gap)}.accounting-review-task .accounting-context-actions{align-items:stretch}.accounting-review-task .accounting-context-actions .fi-btn{max-inline-size:100%;white-space:normal}}
+@media(max-width:40rem){.accounting-review-task.tala-task-surface{padding:var(--tala-card-gap)}.accounting-review-facts{grid-template-columns:1fr;gap:var(--tala-card-gap)}.accounting-review-task .accounting-context-actions{align-items:stretch}.accounting-review-task .accounting-context-actions .fi-btn{max-inline-size:100%;white-space:normal}}
 
 /* Student identity, task summaries and readable supporting records. */
 
@@ -780,7 +984,7 @@
 .student-profile-page .tala-record-identity{padding:clamp(1rem,3cqi,2rem);border-radius:var(--tala-card-radius);}
 .student-profile-page .tala-record-identity-person{gap:clamp(.875rem,2.5cqi,1.75rem);}
 .student-profile-page .tala-record-identity-heading{display:flex;align-items:center;flex-wrap:wrap;gap:.375rem .875rem;}
-.student-profile-page .tala-record-identity h2{font-size:clamp(1.625rem,3.2cqi,2.75rem);font-weight:var(--tala-weight-emphasis);line-height:1.1;letter-spacing:-.025em;margin:0;}
+.student-profile-page .tala-record-identity :is(h1,h2){font-size:clamp(1.625rem,3.2cqi,2.75rem);font-weight:var(--tala-weight-emphasis);line-height:1.1;letter-spacing:-.025em;margin:0;}
 .student-profile-page .tala-record-identity p:first-of-type{font-size:1.0625rem;font-weight:var(--tala-weight-heading);margin-block-start:.375rem;}
 .student-profile-page .tala-record-identity-number-label{display:block;color:var(--tala-muted);font-size:.8125rem;font-weight:400;}
 .student-profile-page .tala-record-identity p:has(.tala-record-identity-number-label){margin-block-start:.75rem;font-variant-numeric:tabular-nums;font-weight:var(--tala-weight-heading);}
@@ -815,6 +1019,29 @@
 @container (max-width:26rem){
     .student-profile-page .tala-record-actions{flex-basis:100%;}
 }
+.tala-account-profile{max-inline-size:100%;min-inline-size:0;}
+.tala-account-profile .fi-sc.fi-grid,.tala-account-profile .tala-profile-access-grid{gap:var(--tala-card-gap);min-inline-size:0;}
+.tala-account-profile :is(.fi-sc.fi-grid,.tala-profile-access-grid)>.fi-grid-col{min-inline-size:0;}
+.tala-account-profile .fi-fo-field-label-ctn{flex-wrap:wrap;gap:.25rem .75rem;justify-content:space-between;align-items:baseline;}
+.tala-account-profile .tala-record-identity-person>div:last-child,.tala-account-profile .tala-record-identity p{min-inline-size:0;white-space:normal;overflow-wrap:anywhere;text-overflow:unset;overflow:visible;}
+.tala-account-profile :is(.tala-profile-credentials-section,.tala-profile-mfa-section,.tala-profile-access-section).fi-section,.tala-account-profile :is(.tala-profile-credentials-section,.tala-profile-mfa-section,.tala-profile-access-section) .fi-section{background-color:var(--tala-surface);box-shadow:var(--tala-material-raised);border-radius:var(--tala-card-radius);min-inline-size:0;}
+.tala-account-profile :is(.tala-profile-credentials-section.fi-section,.tala-profile-credentials-section .fi-section)>.fi-section-content-ctn{overflow:hidden;border-end-start-radius:var(--tala-card-radius);border-end-end-radius:var(--tala-card-radius);}
+.tala-account-profile :is(.tala-profile-credentials-section.fi-section,.tala-profile-credentials-section .fi-section):not(.fi-section-not-contained):not(.fi-divided)>.fi-section-content-ctn>.fi-section-content{padding:1.5rem 1.5rem 0;}
+.tala-account-profile .tala-profile-credentials-section .fi-sc-form .fi-sc-actions{margin-inline:-1.5rem;padding:1rem 1.5rem;border-block-start:1px solid var(--tala-edge);border-end-start-radius:var(--tala-card-radius);border-end-end-radius:var(--tala-card-radius);background-color:var(--tala-surface-sunken);}
+.tala-account-profile .tala-profile-credentials-section .fi-sc-form .fi-sc-actions .fi-ac.fi-align-end{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;gap:.75rem;}
+.tala-account-profile .tala-profile-mfa-section .fi-section-content{display:grid;gap:var(--tala-card-gap);}
+.tala-account-profile :is(.tala-profile-mfa-box,.tala-profile-password-box){min-inline-size:0;padding:var(--tala-card-gap) 1rem 1rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);color:var(--tala-text);overflow-wrap:anywhere;}
+.tala-account-profile .tala-profile-password-box{margin:0;}
+.tala-account-profile .tala-profile-password-box>legend{float:inline-start;inline-size:100%;margin:0 0 var(--tala-card-gap);padding:0;font-family:var(--tala-font-heading);font-size:var(--tala-type-body);font-weight:var(--tala-weight-emphasis);line-height:1.4;color:var(--tala-text);}
+.tala-account-profile .tala-profile-password-box>legend+*{clear:both;}
+.tala-account-profile :is(.tala-profile-mfa-box,.tala-profile-password-box) :is(.fi-fo-field,.fi-fo-field-label-ctn,.fi-sc-actions,.fi-ac){min-inline-size:0;}
+.tala-account-profile :is(.tala-profile-mfa-box,.tala-profile-password-box) :is(.fi-fo-field-wrp-helper-text,p){color:var(--tala-muted);font-size:var(--tala-type-caption);line-height:1.5;}
+.tala-account-profile .tala-profile-access-item{display:grid;gap:.25rem;min-inline-size:0;padding:var(--tala-card-gap) 1rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);color:var(--tala-text);overflow-wrap:anywhere;}
+.tala-account-profile .tala-profile-access-item .fi-in-entry-label{font-size:var(--tala-type-caption);line-height:1.4;color:var(--tala-muted);font-weight:500;}
+.tala-account-profile .tala-profile-access-item .fi-in-entry-content{min-inline-size:0;font-size:var(--tala-type-body);line-height:1.45;font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;color:var(--tala-text);overflow-wrap:anywhere;}
+@media (forced-colors:active){
+    .tala-account-profile :is(.tala-profile-mfa-box,.tala-profile-password-box,.tala-profile-access-item,.tala-profile-credentials-section .fi-sc-form .fi-sc-actions){background:Canvas;color:CanvasText;border-color:CanvasText;}
+}
 .student-profile-study-note{padding:1.25rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface));font-size:.9375rem;line-height:1.6;}
 .student-plan-intro{font-size:1rem;line-height:1.6;max-inline-size:65ch;margin-block:1rem 1.5rem;}
 .student-plan-status-future,.student-plan-status-future .fi-icon{color:var(--tala-muted);}
@@ -825,19 +1052,23 @@
 .student-receipt-row:last-child{border-block-end:0;}
 .student-receipt-row h3{font-size:1rem;font-weight:600;overflow-wrap:anywhere;}
 .student-receipt-row p{font-size:.875rem;line-height:1.6;color:var(--tala-muted);}
-.payment-proof-preview{background:var(--tala-canvas,var(--tala-surface));border-radius:.75rem;overflow:hidden;min-inline-size:0;}
-.payment-proof-preview iframe{inline-size:100%;block-size:62vh;min-block-size:20rem;border:0;}
-.payment-proof-preview img{display:block;max-inline-size:100%;max-block-size:none;block-size:auto;margin-inline:auto;object-fit:contain;}
+.payment-proof-preview img,.tala-document-preview img{display:block;max-inline-size:100%;max-block-size:none;block-size:auto;margin-inline:auto;object-fit:contain;}
 .student-registration-help-panel{padding:1.5rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 4%,var(--tala-surface));margin-block-start:1.5rem;}
 .student-registration-help-panel h2{font-size:1.25rem;font-weight:600;margin-block-end:.5rem;}
 .student-registration-help-panel p{font-size:.9375rem;line-height:1.6;max-inline-size:65ch;color:var(--tala-muted);}
 .student-registration-help-panel .student-finance-actions{margin-block-start:1rem;}
-@media(max-width:48rem){.student-overview-board{grid-template-columns:1fr;}.student-overview-board>section,.student-registration-help-panel{padding:1.25rem;}.student-receipt-row{align-items:flex-start;flex-direction:column;gap:.75rem;}.payment-proof-preview iframe{min-block-size:18rem;}.student-overview-links{gap:1rem;}}
+@media(max-width:48rem){.student-overview-board{grid-template-columns:1fr;}.student-overview-board>section,.student-registration-help-panel{padding:1.25rem;}.student-receipt-row{align-items:flex-start;flex-direction:column;gap:.75rem;}.student-overview-links{gap:1rem;}}
 
-.payment-proof-preview{padding:1rem;max-block-size:65vh;min-block-size:18rem;overflow:auto;overscroll-behavior:contain;}
+.payment-proof-preview,.tala-document-preview{background:var(--tala-canvas,var(--tala-surface));border:1px solid var(--tala-edge);border-radius:.75rem;padding:1rem;max-block-size:min(58dvh,38rem);min-block-size:12rem;min-inline-size:0;overflow:auto;overscroll-behavior:contain;}
+.payment-proof-preview:focus-visible,.tala-document-preview:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;}
+@media(max-width:48rem),(max-height:54rem){.payment-proof-preview,.tala-document-preview{padding:.75rem;max-block-size:min(52dvh,32rem);min-block-size:10rem;}}
+.tala-document-viewer-modal .fi-modal-window{max-block-size:calc(100dvh - 2rem);overflow-y:auto;overscroll-behavior:contain;}
+.tala-document-viewer-modal .fi-modal-header,.tala-document-viewer-modal .fi-modal-footer{background:var(--tala-overlay,var(--tala-surface));border-color:var(--tala-edge);}
+.tala-document-viewer-inline{display:grid;gap:.875rem;min-inline-size:0;}
+.tala-document-viewer__inline-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.75rem;}
 .payment-proof-pages{display:grid;gap:1rem;justify-items:center;inline-size:100%;min-inline-size:0;}
 .payment-proof-page{margin:0;max-inline-size:100%;min-inline-size:0;}
-.payment-proof-page canvas{display:block;max-inline-size:100%;block-size:auto;background:#fff;}
+.payment-proof-page canvas{display:block;max-inline-size:100%;block-size:auto;background:#fff;border:1px solid var(--tala-edge);}
 .payment-proof-page figcaption{font-size:.8125rem;line-height:1.5;color:var(--tala-muted);text-align:center;padding-block:.5rem;}
 .payment-proof-preview>[data-proof-status]{padding-block:1rem;font-size:.9375rem;line-height:1.6;color:var(--tala-muted);}
 .student-read-empty{display:grid;justify-items:start;gap:1rem;padding-block:1.5rem;color:var(--tala-text);}
@@ -850,11 +1081,6 @@
 .student-finance-installment .student-finance-number{font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
 
 @media(max-width:48rem){.student-overview-records{padding:1.25rem;}.student-overview-board h2,.student-review-home .student-home-schedule-heading h2{align-items:flex-start;gap:.75rem;}.student-overview-task-icon{inline-size:2.25rem;block-size:2.25rem;padding:.5rem;}}
-
-.student-checkout-confirmation{font-size:1rem;line-height:1.6;min-inline-size:0;}
-.student-checkout-amount{font-size:2rem;line-height:1.2;font-weight:700;font-variant-numeric:tabular-nums;margin-block:1.25rem;}
-.student-checkout-targets{margin-block:1.5rem;}
-.student-checkout-confirmation p{max-inline-size:65ch;}
 
 .student-finance-history{display:grid;gap:var(--tala-card-gap,12px);min-inline-size:0;}
 .student-finance-history>.fi-link{justify-self:start;}
@@ -989,29 +1215,21 @@
 .faculty-result-workspace :is(input,select,textarea){font-variant-numeric:tabular-nums;}
 @media(max-width:60rem){.faculty-result-footer{grid-template-columns:minmax(0,1fr);gap:1rem;}.faculty-result-footer-actions{justify-content:space-between;}}
 @media(max-width:47.99rem){.faculty-result-workspace .fi-icon-btn{min-inline-size:2.75rem;min-block-size:2.75rem;}.faculty-result-footer-actions{display:grid;grid-template-columns:minmax(0,1fr);inline-size:100%;}.faculty-result-footer-actions .fi-btn{inline-size:100%;}.faculty-result-save-state{max-inline-size:none;}}
-.accounting-awaiting-summary{padding:1.75rem;color:var(--tala-text)}
-.accounting-awaiting-summary h2{margin:0;font-size:1.5rem;line-height:1.25;font-weight:700}
-.accounting-awaiting-context{margin-block-end:1.75rem;line-height:1.6;overflow-wrap:anywhere}
-.accounting-awaiting-context>p:first-child{font-size:1.0625rem;font-weight:600}
-.accounting-awaiting-context>p+p{font-size:.9375rem;color:var(--tala-muted);margin-block-start:.25rem}
-.accounting-awaiting-message{display:flex;align-items:flex-start;gap:1rem;padding:1.25rem;border-radius:.75rem;background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface))}
-.accounting-awaiting-message p{margin-block-start:.5rem;max-inline-size:65ch;line-height:1.6}
-.accounting-awaiting-icon{inline-size:3rem;block-size:3rem;padding:.625rem;border-radius:50%;background:color-mix(in srgb,var(--tala-brand) 12%,var(--tala-surface));flex:none;color:var(--tala-brand-strong)}
-.accounting-awaiting-details{margin-block-start:1.5rem;padding-block-start:1rem;border-block-start:1px solid var(--tala-edge)}
-.accounting-awaiting-details>summary{padding-block:.5rem;font-weight:600}
-.accounting-awaiting-details dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.25rem 2rem;margin-block-start:1rem}
-.accounting-awaiting-details dl>div{min-inline-size:0}
-.accounting-awaiting-details dt{color:var(--tala-muted);font-size:.875rem;line-height:1.5;margin-block-end:.25rem}
-.accounting-awaiting-details dd{margin:0;overflow-wrap:anywhere;font-size:1rem;line-height:1.5;font-weight:600}
-.accounting-awaiting-details .accounting-awaiting-reference{grid-column:1/-1;padding-block-start:1rem;border-block-start:1px solid var(--tala-edge)}
-.accounting-awaiting-reference dd{font-weight:400;font-size:.9375rem;user-select:all}
+.accounting-awaiting-summary{display:grid;gap:var(--tala-card-gap);padding:calc(var(--tala-card-gap)*2);color:var(--tala-text)}
+.accounting-awaiting-summary h2{margin:0;font-size:var(--tala-type-section);line-height:1.25;font-weight:var(--tala-weight-heading)}
+.accounting-awaiting-message{display:flex;align-items:flex-start;gap:var(--tala-card-gap);padding:var(--tala-card-gap);border-radius:var(--tala-card-radius);background:color-mix(in srgb,var(--tala-brand) 6%,var(--tala-surface))}
+.accounting-awaiting-message p{margin-block-start:calc(var(--tala-card-gap)/2);max-inline-size:65ch;line-height:1.6}
+.accounting-awaiting-icon{inline-size:3rem;block-size:3rem;padding:calc(var(--tala-card-gap)/2);border-radius:50%;background:color-mix(in srgb,var(--tala-brand) 12%,var(--tala-surface));flex:none;color:var(--tala-brand-foreground)}
+.accounting-awaiting-reference{grid-column:1/-1;padding-block-start:var(--tala-card-gap);border-block-start:1px solid var(--tala-edge)}
+.accounting-awaiting-reference dd{font-weight:400;font-size:var(--tala-type-body);user-select:all}
 .registrar-case-waiting>.tala-workflow-handoff{margin-block-start:1.5rem}
 .registrar-case-waiting .tala-handoff-current{border:1px solid var(--tala-selected-edge)}
 .student-finance-task .tala-workflow-handoff{grid-template-columns:minmax(0,1fr);gap:2rem}
 .student-finance-task .tala-handoff-arrow{inset-inline-start:50%;inset-block-start:-1.75rem;transform:translateX(-50%) rotate(90deg)}
 .dark .accounting-awaiting-icon{color:var(--primary-200)}
-@media(max-width:40rem){.accounting-awaiting-summary{padding:1.25rem}.accounting-awaiting-message{padding:0;background:transparent;gap:.75rem}.accounting-awaiting-icon{inline-size:2.5rem;block-size:2.5rem;padding:.5rem}.accounting-awaiting-context{margin-block-end:1.5rem}.accounting-awaiting-details dl{grid-template-columns:1fr}}
-@media(forced-colors:active){.accounting-awaiting-summary{box-shadow:none;border:1px solid CanvasText}.accounting-awaiting-message{background:Canvas}.accounting-awaiting-icon{color:CanvasText}.accounting-awaiting-details{border-color:CanvasText}}
+@container(max-width:32rem){.accounting-awaiting-summary{padding:var(--tala-card-gap)}.accounting-awaiting-message{padding:0;background:transparent;gap:var(--tala-card-gap)}.accounting-awaiting-icon{inline-size:2.5rem;block-size:2.5rem;padding:calc(var(--tala-card-gap)/2)}}
+@media(max-width:40rem){.accounting-awaiting-summary{padding:var(--tala-card-gap)}.accounting-awaiting-message{padding:0;background:transparent;gap:var(--tala-card-gap)}.accounting-awaiting-icon{inline-size:2.5rem;block-size:2.5rem;padding:calc(var(--tala-card-gap)/2)}}
+@media(forced-colors:active){.accounting-awaiting-summary{box-shadow:none;border:1px solid CanvasText}.accounting-awaiting-message{background:Canvas}.accounting-awaiting-icon{color:CanvasText}}
 
 .student-home,.student-information{color:var(--tala-text);}
 
@@ -1037,7 +1255,7 @@
 .student-registration,.student-cor-record{color:var(--tala-text);}
 .student-registration-official h2,.student-academic-current h2,.student-cor-record h2,.student-finance-workspace h2{font-weight:700;}
 .student-registration-official .student-registration-links{gap:.75rem;}
-.student-registration-official .student-academic-table thead th,.student-academic-current .student-academic-table thead th{background:var(--tala-surface-sunken);padding:.75rem .5rem;font-weight:600;}
+.student-registration-official .student-academic-table thead th,.student-academic-current .student-academic-table thead th{padding:.75rem .5rem;font-weight:600;}
 .student-record-panel{padding:1.25rem;}
 .student-academic-current .student-academic-rail{padding:0;border:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;}
 .student-academic-current .student-academic-rail>section{padding:1.5rem;}
@@ -1046,7 +1264,7 @@
 .student-record-term>h2{margin:0;padding:1rem 1.25rem;background:var(--tala-surface-sunken);border-block-end:1px solid var(--tala-edge);font-size:1.0625rem;}
 .student-record-term>.student-academic-note{margin:0;padding:.875rem 1.25rem 0;}
 .student-record-term .student-academic-table-wrap{padding:0 1.25rem 1rem;}
-.student-record-term .student-academic-table thead th{background:transparent;padding:.75rem .5rem;font-weight:600;}
+.student-record-term .student-academic-table thead th{padding:.75rem .5rem;font-weight:600;}
 .student-record-term .student-academic-table :is(th,td){padding:.875rem .5rem;}
 .student-academic-current .student-academic-rail h2{font-size:1.25rem;}
 .student-academic-current .student-academic-rail .fi-btn{margin-block-start:1rem;white-space:normal;}
@@ -1229,7 +1447,7 @@
 .student-academic-ledger{font-size:.875rem;}
 .student-mobile-subject-meta{display:none;}
 .student-academic-workspace .student-academic-ledger :is(th,td){padding:.5rem .875rem;}
-.student-academic-workspace .student-academic-ledger thead th{background:var(--tala-surface-sunken);font-weight:600;}
+.student-academic-workspace .student-academic-ledger thead th{font-weight:600;}
 .student-academic-ledger :is(th,td):first-child{inline-size:52%;}
 .student-academic-ledger tbody td:last-child{font-weight:600;}
 .student-academic-ledger .student-subject-selected>*{background:var(--tala-brand-tint);}
@@ -1329,7 +1547,7 @@
 .student-tile-fill :is(.student-tile-kicker,.student-tile-meta){color:var(--tala-on-brand);opacity:.88;}
 .student-tile-tint{background:var(--tala-brand-tint);border-color:var(--tala-selected-edge);color:var(--tala-on-brand-tint);}
 .student-tile-tint :is(.student-tile-kicker,.student-tile-meta){color:var(--tala-on-brand-tint);opacity:.85;}
-.student-tile-attention{background:color-mix(in srgb,var(--warning-500,#f59e0b) 14%,var(--tala-surface));border-color:color-mix(in srgb,var(--warning-600,#d97706) 35%,transparent);}
+.student-tile-attention{background:color-mix(in srgb,var(--warning-500,#f59e0b) 14%,var(--tala-surface));border-color:var(--tala-status-warning-border);}
 .student-tile-attention .student-tile-kicker{color:var(--warning-800,#92400e);}
 .dark .student-tile-attention .student-tile-kicker{color:var(--warning-200,#fde68a);}
 .student-tile-split{display:flex;align-items:center;gap:1rem;}
@@ -1393,7 +1611,7 @@
 .student-record-card{padding:1.25rem;min-inline-size:0;}
 .student-registration-official .student-academic-table,.student-cor-record .student-academic-table{font-size:.875rem;}
 .student-registration-official .student-academic-table :is(th,td),.student-cor-record .student-academic-table :is(th,td){padding:.5rem .875rem;}
-.student-cor-record .student-academic-table thead th{background:var(--tala-surface-sunken);font-weight:600;white-space:nowrap;}
+.student-cor-record .student-academic-table thead th{font-weight:600;white-space:nowrap;}
 .student-cor-record .cor-subject-meetings p{margin:0;}
 .student-registration-official .student-registration-help{border:0;padding-block-start:.5rem;}
 .student-registration-official .student-registration-links{margin-block-start:1rem;}
@@ -1422,7 +1640,7 @@
 .student-fee-breakdown{list-style:none;margin:.75rem 0 0;padding:0;display:grid;gap:.875rem;}
 .student-fee-breakdown li>div:first-child{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.75rem;align-items:baseline;font-size:.9375rem;overflow-wrap:anywhere;}
 .student-fee-breakdown strong{text-align:end;font-variant-numeric:tabular-nums;}
-.student-fee-breakdown .student-fee-total{padding-block-start:.75rem;border-block-start:1px solid var(--tala-edge);font-weight:700;}
+.student-fee-breakdown .student-fee-total{padding-block-start:.75rem;border-block-start:1px solid var(--tala-edge-strong);font-weight:700;}
 
 /* Status card: identity and actions on one row, facts as one even strip below. Certificate page: subjects beside fees. */
 .student-status-card{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:.875rem 1.5rem;}
@@ -1702,7 +1920,6 @@
 .student-record-context span{padding-inline-start:1rem;border-inline-start:1px solid var(--tala-selected-edge);}
 .student-record-empty.tala-task-surface{padding:.5rem;}
 .student-record-empty>.servitech-empty-state{inline-size:100%;}
-.student-record-empty .servitech-empty-state .fi-empty-state-heading{font-size:clamp(1.5rem,2.4vw,2rem);line-height:1.2;font-weight:700;color:var(--tala-brand-foreground);text-wrap:balance;}
 .student-record-empty .servitech-empty-state .fi-empty-state-description{font-size:1rem;line-height:1.55;}
 .student-record-empty .servitech-empty-state .fi-empty-state-footer{margin-block-start:1.25rem;}
 .student-record-empty .servitech-empty-state__art{max-inline-size:15rem;}
@@ -1727,3 +1944,322 @@
 .student-school-change-target{outline:1px solid var(--tala-selected-edge);outline-offset:.25rem;border-radius:var(--tala-card-radius);background:var(--tala-brand-tint);}
 .student-school-change-unavailable{list-style:none;padding-block:.75rem;color:var(--tala-muted);font-size:.9375rem;}
 @media(max-width:40rem){.student-record-context{align-items:flex-start;flex-direction:column;}.student-record-context span{padding:0;border:0;}.student-record-empty .servitech-empty-state__art{max-inline-size:9rem;}.student-record-empty .servitech-empty-state__layout{gap:.25rem;}#school-record-changes .tala-record-timeline-item h3{font-size:1rem;}}
+
+/* Payment channels configuration page (Option A: Asymmetric workbench + live learner preview) */
+.payment-channels-page{display:grid;gap:var(--tala-card-gap);color:var(--tala-text);caret-color:var(--tala-brand-foreground);accent-color:var(--tala-brand-foreground);container-type:inline-size;}
+.payment-channels-page .fi-input-wrp :is(input,select,textarea):focus{outline:none;}
+.payment-channels-page .fi-input-wrp:has(:focus-visible){outline:2px solid var(--tala-focus);outline-offset:2px;}
+.payment-channels-page :is(button,a,[role="switch"]):focus-visible{outline:2px solid var(--tala-focus);outline-offset:2px;}
+.accounting-overview-strip.payment-channels-summary{grid-template-columns:minmax(0,1fr);padding:0.75rem 1rem;border-color:var(--tala-border);box-shadow:var(--tala-material-raised);}
+.payment-channels-summary h2,.payment-channels-summary p{overflow-wrap:anywhere;min-inline-size:0;}
+.payment-channels-summary .accounting-overview-strip__lead{max-inline-size:75ch;}
+.payment-channels-summary .accounting-overview-strip__lead>div{gap:0.1875rem;}
+.payment-channels-summary .accounting-overview-strip__lead .tala-workspace-card__icon{inline-size:2rem;block-size:2rem;}
+.payment-channels-summary .accounting-overview-strip__lead .tala-workspace-card__icon>.fi-icon{inline-size:1.125rem;block-size:1.125rem;}
+#payment-channels-summary-heading{font-size:0.9375rem;font-weight:600;line-height:1.25;text-wrap:pretty;}
+.payment-channels-summary .accounting-overview-strip__meta{font-size:0.8125rem;line-height:1.35;text-wrap:pretty;}
+.payment-channels-summary__heading-row{display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;min-inline-size:0;}
+.payment-channels-summary.accounting-overview-strip--active{border-color:var(--tala-selected-edge);}
+.payment-channels-summary--draft{border-color:var(--tala-status-warning-border);}
+.payment-channels-summary--draft .tala-workspace-card__icon{background:var(--tala-status-warning-bg);color:var(--tala-status-warning-fg);}
+.payment-channels-summary--warning{background:var(--tala-status-warning-bg);border-color:var(--tala-status-warning-border);color:var(--tala-status-warning-fg);}
+.payment-channels-summary--warning .tala-workspace-card__icon{background:var(--tala-surface);color:var(--tala-status-warning-fg);}
+.payment-channels-summary--warning .accounting-overview-strip__meta{color:inherit;}
+.payment-channels-summary__saved{margin:0;font-size:var(--tala-type-caption);line-height:1.4;color:var(--tala-muted);}
+.payment-channels-workbench{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:var(--tala-card-gap);min-inline-size:0;}
+.payment-channels-workbench__editor{min-inline-size:0;container-type:inline-size;}
+.payment-channels-workbench__editor .fi-sc.fi-sc-has-gap{gap:var(--tala-card-gap);}
+.fi-body .payment-channels-section>.fi-section{--tala-container-surface:var(--tala-surface);border-radius:var(--tala-card-radius);background:var(--tala-surface);--tw-ring-color:var(--tala-border);--tw-shadow:var(--tala-material-raised);}
+.payment-channels-section>.fi-section>.fi-section-header{align-items:center;gap:var(--tala-card-gap);padding:var(--tala-card-gap) 1rem;background:transparent;}
+.payment-channels-section>.fi-section>.fi-section-header>.fi-icon{inline-size:2.25rem;block-size:2.25rem;padding:.45rem;border-radius:50%;box-sizing:border-box;flex:none;transition:background-color .18s ease-out,color .18s ease-out;}
+.payment-channels-section>.fi-section>.fi-section-header .fi-section-header-heading{font-family:var(--tala-font-heading);font-size:var(--tala-type-section);font-weight:var(--tala-weight-emphasis);line-height:1.25;color:var(--tala-text);}
+.payment-channels-section>.fi-section>.fi-section-header .fi-section-header-description{font-size:var(--tala-type-caption);line-height:1.4;color:var(--tala-muted);max-inline-size:65ch;}
+.payment-channels-section>.fi-section>.fi-section-header>.fi-section-header-after-ctn{display:flex;align-items:center;gap:var(--tala-card-gap);margin-inline-start:auto;flex-shrink:0;}
+.payment-channels-section>.fi-section>.fi-section-header>.fi-section-header-after-ctn .fi-fo-field-wrp{margin:0;}
+.payment-channel-card--active>.fi-section.fi-section-has-header:not(.fi-collapsed)>.fi-section-content-ctn{border-color:var(--tala-edge-strong);background:var(--tala-surface-sunken);}
+.payment-channel-card--active>.fi-section>.fi-section-header>.fi-icon{background:var(--tala-brand-tint);color:var(--tala-on-brand-tint);}
+.payment-channel-card--active>.fi-section>.fi-section-content-ctn>.fi-section-content{padding:1rem;}
+.payment-channel-card--active>.fi-section>.fi-section-content-ctn>.fi-section-content>.fi-sc.fi-sc-has-gap{gap:0.875rem;}
+.payment-channel-card--collapsed>.fi-section>.fi-section-header>.fi-icon{background:var(--tala-surface);border:1px solid var(--tala-border);color:var(--tala-muted);}
+.payment-channel-card--collapsed>.fi-section>.fi-section-content-ctn{display:none;}
+.tala-tabular-input{font-variant-numeric:tabular-nums;}
+
+.payment-channels-workbench__rail{min-inline-size:0;}
+.payment-channels-preview-card{display:grid;background:var(--tala-surface);border:1px solid var(--tala-border);border-radius:var(--tala-card-radius);box-shadow:var(--tala-material-raised);overflow:clip;}
+.payment-channels-preview-card__head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem 0.75rem;padding:0.75rem 1rem;border-block-end:1px solid var(--tala-edge-strong);}
+.payment-channels-preview-card__head>.fi-badge{flex-shrink:0;white-space:nowrap;}
+.payment-channels-preview-card__title{display:flex;align-items:center;gap:0.5rem;flex:1 1 12rem;min-inline-size:0;}
+.payment-channels-preview-card__title h3{margin:0;font-family:var(--tala-font-heading);font-size:0.9375rem;font-weight:var(--tala-weight-emphasis);line-height:1.3;color:var(--tala-text);text-wrap:pretty;}
+.payment-channels-preview-card__icon{inline-size:2rem;block-size:2rem;background:var(--tala-surface-sunken);color:var(--tala-brand-foreground);border:1px solid var(--tala-border);}
+.payment-channels-preview-card__icon>.fi-icon{inline-size:1.125rem;block-size:1.125rem;}
+.payment-channels-preview-card__body{display:grid;gap:var(--tala-card-gap);padding:0.75rem;background:var(--tala-surface-sunken);}
+.payment-channels-preview-card__footer{display:grid;gap:0.625rem;padding:0.75rem 1rem;background:var(--tala-surface);border-block-start:1px solid var(--tala-edge-strong);}
+.payment-channels-reason-field{display:grid;gap:0.25rem;min-inline-size:0;}
+.payment-channels-reason-label{font-size:var(--tala-type-caption);font-weight:var(--tala-weight-emphasis);color:var(--tala-text);}
+.payment-channels-save-btn{inline-size:100%;min-block-size:2.5rem;justify-content:center;}
+.payment-channels-actions__note{margin:0;max-inline-size:65ch;font-size:0.75rem;line-height:1.4;color:var(--tala-muted);text-wrap:pretty;}
+
+/* Accounting left-rail weekly cashier schedule & Registrar holiday reference hints */
+.fi-body .payment-channels-subpanel>.fi-section{--tala-container-surface:var(--tala-surface);background:var(--tala-surface);border-radius:var(--tala-card-radius);--tw-ring-color:var(--tala-border);--tw-shadow:var(--tala-material-detail);}
+.fi-body .payment-channels-subpanel>.fi-section.fi-section-has-header:not(.fi-collapsed)>.fi-section-content-ctn{border-color:var(--tala-edge-strong);background:transparent;}
+.payment-channels-subpanel>.fi-section>.fi-section-header{align-items:center;gap:var(--tala-card-gap);padding:0.625rem 0.875rem;background:transparent;}
+.payment-channels-subpanel>.fi-section>.fi-section-header .fi-section-header-heading{font-family:var(--tala-font-heading);font-size:0.9375rem;font-weight:var(--tala-weight-emphasis);line-height:1.3;color:var(--tala-text);}
+.payment-channels-subpanel>.fi-section>.fi-section-header .fi-section-header-description{font-size:var(--tala-type-caption);line-height:1.4;color:var(--tala-muted);max-inline-size:65ch;}
+.payment-channels-subpanel>.fi-section>.fi-section-header>.fi-section-header-after-ctn{display:flex;align-items:center;gap:var(--tala-card-gap);margin-inline-start:auto;flex-shrink:0;}
+.payment-channels-subpanel>.fi-section>.fi-section-header>.fi-section-header-after-ctn .fi-btn{min-block-size:2rem;}
+.payment-channels-subpanel>.fi-section>.fi-section-content-ctn>.fi-section-content{padding:var(--tala-card-gap);}
+.payment-channels-subpanel>.fi-section>.fi-section-content-ctn>.fi-section-content>.fi-sc.fi-sc-has-gap{gap:var(--tala-card-gap);}
+.payment-channels-weekly-list{--tala-weekly-day-col:minmax(9.25rem,11rem);--tala-weekly-gap:0.5rem;display:grid;gap:0.375rem;min-inline-size:0;}
+.payment-channels-weekly-head{display:grid;grid-template-columns:var(--tala-weekly-day-col) minmax(0,1fr) minmax(0,1fr);align-items:center;gap:var(--tala-weekly-gap);padding:0 0.75rem 0.125rem;font-size:0.75rem;font-weight:var(--tala-weight-emphasis);letter-spacing:0.01em;color:var(--tala-muted);}
+.fi-sc-flex.payment-channels-weekly-row,.payment-channels-weekly-row{display:grid;grid-template-columns:var(--tala-weekly-day-col) minmax(0,1fr);align-items:center;gap:var(--tala-weekly-gap);min-block-size:2.75rem;padding:0.375rem 0.75rem;border:1px solid var(--tala-border);border-radius:calc(var(--tala-card-radius)*0.65);background:var(--tala-surface-sunken);box-shadow:var(--tala-inset-well);min-inline-size:0;}
+.payment-channels-weekly-row--closed{background:var(--tala-surface-sunken);border-style:dashed;border-color:var(--tala-border);box-shadow:none;color:var(--tala-muted);}
+.payment-channels-weekly-row .fi-fo-field{position:relative;gap:0.25rem;min-inline-size:0;}
+.payment-channels-weekly-row .fi-fo-field-label{font-weight:var(--tala-weight-emphasis);line-height:1.25;}
+.payment-channels-weekly-row__times>.fi-sc-grid{gap:var(--tala-weekly-gap);}
+.payment-channels-weekly-row .fi-input-wrp .fi-input{padding-block:0.375rem;font-size:0.875rem;line-height:1.25;}
+.payment-channels-weekly-row__closed-badge{justify-self:start;}
+.fi-body :is(.payment-channels-section,.payment-channels-exceptions-section) .fi-fo-repeater .fi-fo-repeater-item{--tala-container-surface:var(--tala-surface);border-radius:var(--tala-card-radius);background:var(--tala-surface);--tw-ring-color:var(--tala-border);--tw-shadow:var(--tala-material-detail);}
+.fi-body .payment-channels-exceptions-section .fi-fo-repeater .fi-fo-repeater-item{--tala-container-surface:var(--tala-surface-sunken);background:var(--tala-surface-sunken);--tw-shadow:var(--tala-inset-well);}
+.fi-body .payment-channels-subpanel .fi-input-wrp{background:var(--tala-surface);}
+.fi-body .payment-channels-exceptions-section .fi-fo-repeater-item .fi-input-wrp{background:var(--tala-surface);}
+.fi-body :is(.payment-channels-section,.payment-channels-exceptions-section) .fi-fo-repeater-item-has-header>.fi-fo-repeater-item-content{border-block-start-color:var(--tala-edge-strong);background:transparent;padding:var(--tala-card-gap);}
+.fi-body :is(.payment-channels-section,.payment-channels-exceptions-section) .fi-fo-repeater-actions{display:flex;flex-wrap:wrap;align-items:center;gap:0.625rem;}
+.fi-body :is(.payment-channels-section,.payment-channels-exceptions-section) .fi-fo-repeater-item-header{display:flex;align-items:center;gap:var(--tala-card-gap);padding:var(--tala-card-gap);overflow:visible;background:transparent;border-block-end:1px solid var(--tala-edge);}
+.fi-body :is(.payment-channels-section,.payment-channels-exceptions-section) .fi-fo-repeater-item-header-label{flex:1 1 auto;min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:normal;overflow-wrap:anywhere;color:var(--tala-text);font-size:var(--tala-type-caption);font-weight:var(--tala-weight-emphasis);}
+.fi-body :is(.payment-channels-section,.payment-channels-exceptions-section) :is(.fi-fo-repeater-item-header-start-actions,.fi-fo-repeater-item-header-end-actions){display:flex;align-items:center;gap:0.5rem;flex-shrink:0;}
+.fi-body :is(.payment-channels-section,.payment-channels-exceptions-section) .fi-fo-repeater-item-header .fi-icon-btn{margin:0;flex:none;}
+.fi-body :is(.payment-channels-section,.payment-channels-exceptions-section) .fi-fo-repeater-item-header-collapsible-actions{display:flex;align-items:center;}
+
+.payment-channels-hints{display:grid;gap:0.5rem;padding:0.75rem;border:1px solid var(--tala-border);border-radius:calc(var(--tala-card-radius)*0.75);background:var(--tala-surface);box-shadow:var(--tala-material-detail);min-inline-size:0;}
+.payment-channels-hints__head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:calc(var(--tala-card-gap)*0.5);}
+.payment-channels-hints__title{margin:0;font-family:var(--tala-font-heading);font-size:var(--tala-type-caption);font-weight:var(--tala-weight-emphasis);color:var(--tala-text);}
+.payment-channels-hints__sub{margin:0;font-size:0.75rem;line-height:1.45;color:var(--tala-muted);}
+.payment-channels-hints__list{list-style:none;margin:0;padding:0;display:grid;gap:0.375rem;}
+.payment-channels-hints__item{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem var(--tala-card-gap);padding:0.5rem 0.75rem;border:1px solid var(--tala-border);border-radius:calc(var(--tala-card-radius)*0.65);background:var(--tala-surface-sunken);min-inline-size:0;}
+.payment-channels-hints__meta{display:grid;gap:0.125rem;min-inline-size:0;font-size:0.8125rem;line-height:1.4;}
+.payment-channels-hints__meta strong{font-weight:var(--tala-weight-emphasis);color:var(--tala-text);overflow-wrap:anywhere;}
+.payment-channels-hints__meta span{color:var(--tala-muted);font-variant-numeric:tabular-nums;}
+.payment-channels-hints__action{flex-shrink:0;}
+
+/* Canonical cross-role "How to pay" component (Finance, Enrollment, Proof Modal, Accounting Preview) */
+.tala-how-to-pay,.tala-where-to-pay{container-type:inline-size;display:grid;gap:var(--tala-card-gap);min-inline-size:0;color:var(--tala-text);}
+.tala-how-to-pay--page,.tala-where-to-pay--page{padding:1.25rem;background:var(--tala-surface);border-color:var(--tala-border);box-shadow:var(--tala-material-raised);}
+.tala-how-to-pay--compact,.tala-where-to-pay--compact{gap:var(--tala-card-gap);padding:1rem;border-color:var(--tala-border);}
+.tala-how-to-pay--preview,.tala-where-to-pay--preview{gap:var(--tala-card-gap);}
+.tala-how-to-pay__header,.tala-where-to-pay__header{display:grid;gap:0.25rem;min-inline-size:0;}
+.tala-how-to-pay--page .student-record-heading,.tala-where-to-pay--page .student-record-heading{margin:0;font-family:var(--tala-font-heading);font-size:1.25rem;font-weight:var(--tala-weight-heading);line-height:1.3;letter-spacing:-0.015em;color:var(--tala-text);}
+.tala-how-to-pay__compact-heading,.tala-where-to-pay__compact-heading{display:flex;align-items:center;gap:0.5rem;margin:0;font-family:var(--tala-font-heading);font-size:0.9375rem;font-weight:var(--tala-weight-emphasis);line-height:1.35;color:var(--tala-text);}
+.tala-how-to-pay__compact-heading>.fi-icon,.tala-where-to-pay__compact-heading>.fi-icon{inline-size:1.125rem;block-size:1.125rem;color:var(--tala-brand-foreground);flex:none;}
+.tala-how-to-pay__lead,.tala-where-to-pay__lead{margin:0;max-inline-size:65ch;font-size:0.875rem;line-height:1.5;color:var(--tala-muted);text-wrap:pretty;}
+.tala-how-to-pay--compact .tala-how-to-pay__lead,.tala-where-to-pay--compact .tala-where-to-pay__lead{font-size:0.8125rem;}
+
+.tala-how-to-pay__groups{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
+.tala-how-to-pay__group{display:grid;gap:var(--tala-card-gap);min-inline-size:0;padding:0.875rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface);}
+.tala-how-to-pay__group .tala-channel-card.tala-channel-card--electronic{padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;}
+.tala-how-to-pay__accounts-grid--multi .tala-channel-card.tala-channel-card--electronic{padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);}
+.tala-channel-preview-empty{margin:0;padding:var(--tala-card-gap);border-radius:var(--tala-card-radius);background:var(--tala-surface-sunken);color:var(--tala-muted);font-size:var(--tala-type-caption);line-height:1.5;}
+.tala-how-to-pay--preview .tala-how-to-pay__group,.tala-how-to-pay--compact .tala-how-to-pay__group{padding:0.75rem;}
+.tala-how-to-pay__group-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem;min-inline-size:0;}
+.tala-how-to-pay__group-title{display:inline-flex;align-items:center;gap:0.4375rem;margin:0;font-family:var(--tala-font-heading);font-size:0.875rem;font-weight:var(--tala-weight-emphasis);line-height:1.3;color:var(--tala-text);}
+.tala-how-to-pay__group-title>.fi-icon{inline-size:1rem;block-size:1rem;color:var(--tala-brand-foreground);flex:none;}
+.tala-how-to-pay__group-count{display:inline-flex;align-items:center;padding:0.125rem 0.5rem;border-radius:999px;border:1px solid var(--tala-edge-strong);background:var(--tala-surface);color:var(--tala-muted);font-size:0.75rem;font-weight:500;line-height:1.25;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.tala-how-to-pay__accounts-grid,.tala-where-to-pay__electronic-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap);min-inline-size:0;}
+.tala-how-to-pay__accounts-grid--multi,.tala-where-to-pay__electronic-grid--two{align-items:stretch;}
+
+.tala-how-to-pay__cash-footer,.tala-where-to-pay__cash-footer{display:grid;gap:0.375rem;padding-block-start:var(--tala-card-gap);border-block-start:1px solid var(--tala-edge-strong);min-inline-size:0;}
+.tala-how-to-pay__cash-footer-meta,.tala-where-to-pay__cash-footer-meta{display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;min-inline-size:0;}
+.tala-how-to-pay__cash-footer-hours,.tala-where-to-pay__cash-footer-hours{font-size:0.8125rem;line-height:1.45;color:var(--tala-text);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.tala-how-to-pay__cash-footer-hours strong,.tala-where-to-pay__cash-footer-hours strong{font-weight:var(--tala-weight-emphasis);}
+.tala-how-to-pay__cash-footer-note,.tala-where-to-pay__cash-footer-note{margin:0;font-size:0.8125rem;line-height:1.45;color:var(--tala-muted);text-wrap:pretty;}
+
+.tala-channel-card{display:grid;align-content:start;gap:0.75rem;padding:1rem;border:1px solid var(--tala-border);border-radius:var(--tala-card-radius);background:var(--tala-surface);box-shadow:var(--tala-material-raised);min-inline-size:0;container-type:inline-size;}
+:is(.tala-how-to-pay--compact,.tala-how-to-pay--preview,.tala-where-to-pay--compact,.tala-where-to-pay--preview) .tala-channel-card{gap:0.75rem;padding:0.875rem;box-shadow:var(--tala-material-detail);}
+:is(.tala-how-to-pay__accounts-grid--multi,.tala-where-to-pay__electronic-grid--two) .tala-channel-card--electronic{display:flex;flex-direction:column;}
+.tala-channel-card__head{display:flex;flex-wrap:wrap;align-items:center;gap:0.625rem;min-inline-size:0;}
+.tala-channel-card--electronic>.tala-channel-card__head,.tala-channel-card--electronic>.tala-channel-card__instructions{grid-column:1 / -1;}
+.tala-channel-card__icon{inline-size:2.125rem;block-size:2.125rem;}
+.tala-channel-card__icon>.fi-icon{inline-size:1.125rem;block-size:1.125rem;}
+.tala-channel-card__icon--neutral{background:var(--tala-surface-sunken);border:1px solid var(--tala-border);color:var(--tala-text);}
+.tala-channel-card__heading-wrap{flex:1 1 7rem;min-inline-size:0;}
+:is(.tala-how-to-pay,.tala-where-to-pay) .tala-channel-card__title{margin:0;font-family:var(--tala-font-heading);font-size:1rem;font-weight:var(--tala-weight-emphasis);line-height:1.3;color:var(--tala-text);overflow-wrap:anywhere;}
+:is(.tala-how-to-pay--compact,.tala-where-to-pay--compact) .tala-channel-card__title{font-size:0.9375rem;}
+:is(.tala-how-to-pay--preview,.tala-where-to-pay--preview) .tala-channel-card__title{font-size:0.875rem;}
+.tala-channel-card__badges{display:flex;flex-wrap:wrap;align-items:center;gap:0.375rem;flex-shrink:0;}
+.tala-channel-card__mode-pill{display:inline-flex;align-items:center;padding:0.1875rem 0.5rem;border-radius:999px;border:1px solid var(--tala-edge-strong);background:var(--tala-surface-sunken);color:var(--tala-muted);font-size:0.75rem;font-weight:500;line-height:1.25;white-space:nowrap;}
+:is(.tala-how-to-pay--preview,.tala-where-to-pay--preview) .tala-channel-card__mode-pill{padding:0.125rem 0.4375rem;}
+
+.tala-channel-copy-tile{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem 0.75rem;padding:0.5rem 0.75rem;background:var(--tala-surface-sunken);border:1px solid var(--tala-border);border-radius:calc(var(--tala-card-radius)*0.75);min-inline-size:0;}
+.tala-channel-copy-tile__meta{display:grid;gap:0.125rem;min-inline-size:0;flex:1 1 9rem;}
+.tala-channel-copy-tile__label{font-size:0.75rem;font-weight:500;color:var(--tala-muted);line-height:1.3;}
+.tala-channel-copy-tile .tala-reference-value{font-size:0.9375rem;font-weight:var(--tala-weight-heading);color:var(--tala-text);font-variant-numeric:tabular-nums;letter-spacing:0.01em;user-select:all;overflow-wrap:anywhere;}
+:is(.tala-how-to-pay--page,.tala-where-to-pay--page) .tala-channel-copy-tile .tala-reference-value{font-size:1.0625rem;}
+:is(.tala-how-to-pay,.tala-where-to-pay) .tala-channel-copy-tile .tala-reference-value--empty{font-weight:500;font-size:0.875rem;color:var(--tala-muted);user-select:none;}
+.tala-channel-facts__empty{color:var(--tala-muted);font-weight:400;}
+:is(.tala-how-to-pay,.tala-where-to-pay) .tala-copy-reference{display:inline-flex;align-items:center;justify-content:center;gap:0.375rem;min-block-size:2.125rem;padding:0.3125rem 0.75rem;font-size:0.8125rem;font-weight:var(--tala-weight-emphasis);white-space:nowrap;flex-shrink:0;transition:background-color 140ms ease-out,border-color 140ms ease-out,color 140ms ease-out;}
+:is(.tala-how-to-pay--page,.tala-where-to-pay--page) .tala-copy-reference{min-block-size:2.375rem;}
+:is(.tala-how-to-pay,.tala-where-to-pay) .tala-copy-reference>.fi-icon{inline-size:1rem;block-size:1rem;flex:none;}
+.tala-copy-reference[data-copied="true"]{background:var(--tala-brand-tint);border-color:var(--tala-selected-edge);color:var(--tala-on-brand-tint);}
+.tala-copy-reference[data-failed="true"]{background:var(--tala-status-warning-bg);border-color:var(--tala-status-warning-edge);color:var(--tala-status-warning-fg);}
+:is(.tala-how-to-pay,.tala-where-to-pay) .tala-reference-feedback{display:block;flex-basis:100%;font-size:0.75rem;font-weight:500;color:var(--tala-brand-foreground);min-block-size:0;}
+:is(.tala-how-to-pay,.tala-where-to-pay) .tala-reference-feedback:empty{display:none;}
+
+.tala-channel-meta-pair{display:grid;grid-template-columns:minmax(0,1fr);gap:0.5rem 0.75rem;margin:0;padding:0.125rem 0;min-inline-size:0;}
+.tala-channel-meta-pair>div{min-inline-size:0;}
+.tala-channel-meta-pair dt{margin:0;font-size:0.75rem;font-weight:500;color:var(--tala-muted);line-height:1.3;}
+.tala-channel-meta-pair dd{margin:0.125rem 0 0;font-size:0.8125rem;font-weight:600;color:var(--tala-text);line-height:1.4;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+:is(.tala-how-to-pay--page,.tala-where-to-pay--page) .tala-channel-meta-pair dd{font-size:0.875rem;}
+
+.tala-channel-card__footer{display:flex;flex-wrap:wrap;gap:0.375rem var(--tala-card-gap);padding-block-start:0.5rem;border-block-start:1px solid var(--tala-edge);font-size:0.75rem;color:var(--tala-muted);min-inline-size:0;}
+.tala-channel-card__footer>p{flex:1 1 16rem;min-inline-size:0;}
+:is(.tala-how-to-pay,.tala-where-to-pay) .tala-channel-card__instructions{margin:0;padding-block-start:0.5rem;border-block-start:1px solid var(--tala-edge);font-size:0.75rem;line-height:1.45;color:var(--tala-muted);overflow-wrap:anywhere;text-wrap:pretty;}
+:is(.tala-how-to-pay__accounts-grid--multi,.tala-where-to-pay__electronic-grid--two) .tala-channel-card--electronic>.tala-channel-card__instructions{margin-block-start:auto;}
+:is(.tala-how-to-pay,.tala-where-to-pay) .tala-channel-card__footer>.tala-channel-card__instructions{border-block-start:0;padding-block-start:0;}
+:is(.tala-how-to-pay,.tala-where-to-pay) .tala-channel-card__onsite-callout{margin:0;font-size:0.75rem;font-weight:400;line-height:1.45;color:var(--tala-muted);overflow-wrap:anywhere;text-wrap:pretty;}
+
+.tala-cashier-body{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;min-inline-size:0;align-items:start;}
+.tala-cashier-details{display:grid;gap:0.75rem;min-inline-size:0;}
+.tala-cashier-status{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.375rem var(--tala-card-gap);padding:0.75rem 0.875rem;border-radius:calc(var(--tala-card-radius)*0.75);border:1px solid var(--tala-edge);min-inline-size:0;}
+.tala-cashier-status--success{background:var(--tala-brand-tint);border-color:var(--tala-selected-edge);color:var(--tala-on-brand-tint);}
+.tala-cashier-status--warning{background:var(--tala-status-warning-bg);border-color:var(--tala-status-warning-border);color:var(--tala-status-warning-fg);}
+.tala-cashier-status--gray{background:transparent;border:0;padding:0.125rem 0.125rem 0.25rem;color:var(--tala-text);}
+.tala-cashier-status__kicker{display:inline-flex;align-items:center;gap:0.375rem;font-size:0.75rem;font-weight:600;line-height:1.3;letter-spacing:0.01em;}
+.tala-cashier-status__kicker>.fi-icon{inline-size:1rem;block-size:1rem;flex:none;}
+.tala-cashier-status--success .tala-cashier-status__kicker{color:var(--tala-brand-foreground);}
+.tala-cashier-status--gray .tala-cashier-status__kicker{color:var(--tala-muted);}
+.tala-cashier-status__detail{margin:0;font-family:var(--tala-font-heading);font-size:0.9375rem;font-weight:var(--tala-weight-heading);line-height:1.3;font-variant-numeric:tabular-nums;overflow-wrap:break-word;text-wrap:pretty;}
+.tala-where-to-pay--page .tala-cashier-status__detail{font-size:1.0625rem;}
+.tala-time-nowrap{white-space:nowrap;}
+
+.tala-cashier-facts-group{background:var(--tala-surface-sunken);border:1px solid var(--tala-border);border-radius:calc(var(--tala-card-radius)*0.75);margin:0;overflow:clip;min-inline-size:0;}
+.tala-cashier-facts-group__row{display:grid;gap:0.3125rem;padding:0.625rem 0.75rem;min-inline-size:0;}
+.tala-cashier-facts-group__row:not(:first-child){border-block-start:1px solid var(--tala-edge);}
+.tala-cashier-facts-group__row dt{display:inline-flex;align-items:center;gap:0.375rem;margin:0;font-size:0.75rem;font-weight:500;color:var(--tala-muted);line-height:1.3;}
+.tala-cashier-facts-group__row dt>.fi-icon{inline-size:0.9375rem;block-size:0.9375rem;color:var(--tala-muted);flex:none;}
+.tala-cashier-facts-group__row dd{margin:0;font-size:0.8125rem;font-weight:600;color:var(--tala-text);line-height:1.4;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+.tala-where-to-pay--page .tala-cashier-facts-group__row dd{font-size:0.875rem;}
+
+.tala-cashier-weekly-list{list-style:none;margin:0;padding:0;display:grid;gap:0.3125rem;min-inline-size:0;}
+.tala-cashier-weekly-row{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:0.25rem 0.75rem;font-size:0.8125rem;line-height:1.4;font-variant-numeric:tabular-nums;}
+.tala-cashier-weekly-row__days{font-weight:600;color:var(--tala-text);}
+.tala-cashier-weekly-row:is(.is-closed,.tala-cashier-weekly-row--closed) .tala-cashier-weekly-row__days{font-weight:500;color:var(--tala-muted);}
+.tala-cashier-weekly-row__hours{font-weight:600;color:var(--tala-text);white-space:nowrap;}
+.tala-cashier-weekly-row__closed{color:var(--tala-muted);font-size:0.75rem;font-weight:500;}
+
+/* Read-only Monthly Cashier Calendar */
+.tala-cashier-calendar-pane{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
+.tala-cashier-calendar{display:grid;gap:0.625rem;padding:0.875rem;border:1px solid var(--tala-border);border-radius:calc(var(--tala-card-radius)*0.85);background:var(--tala-surface-sunken);box-shadow:var(--tala-inset-well);min-inline-size:0;}
+.tala-cashier-calendar__bar{display:flex;align-items:center;justify-content:space-between;gap:0.5rem;min-inline-size:0;}
+.tala-cashier-calendar__month{font-family:var(--tala-font-heading);font-size:0.9375rem;font-weight:var(--tala-weight-heading);line-height:1.3;color:var(--tala-text);font-variant-numeric:tabular-nums;}
+.tala-cashier-calendar__nav-group{display:inline-flex;align-items:center;gap:0.375rem;flex-shrink:0;}
+.tala-cashier-calendar__nav{display:inline-grid;place-items:center;min-inline-size:2.25rem;min-block-size:2.25rem;padding:0;border:1px solid var(--tala-control-border);border-radius:0.375rem;background-color:var(--tala-surface);color:var(--tala-text);cursor:pointer;transition:background-color 120ms ease-out,border-color 120ms ease-out;}
+.tala-cashier-calendar__nav>.fi-icon{inline-size:1rem;block-size:1rem;}
+.tala-cashier-calendar__nav:hover:not(:disabled){background-color:var(--tala-surface-sunken);}
+.tala-cashier-calendar__nav:disabled{opacity:0.4;cursor:not-allowed;}
+.tala-cashier-calendar__nav:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;}
+
+.tala-cashier-calendar__weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0.1875rem;text-align:center;font-size:0.75rem;font-weight:var(--tala-weight-emphasis);line-height:1.3;color:var(--tala-muted);}
+.tala-cashier-calendar__grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0.1875rem;min-inline-size:0;}
+.tala-cashier-calendar__grid>div{min-inline-size:0;}
+.tala-cashier-calendar__day{position:relative;display:grid;place-items:center;align-content:center;gap:0.125rem;inline-size:100%;min-block-size:2.25rem;padding:0.1875rem 0.125rem;border:1px solid transparent;border-radius:0.375rem;font:inherit;font-size:0.8125rem;font-weight:500;line-height:1.1;font-variant-numeric:tabular-nums;transition:background-color 120ms ease-out,border-color 120ms ease-out,color 120ms ease-out;}
+.tala-where-to-pay--preview .tala-cashier-calendar__day{min-block-size:1.875rem;}
+button.tala-cashier-calendar__day{cursor:pointer;}
+button.tala-cashier-calendar__day:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;z-index:2;}
+.tala-cashier-calendar__day--open{background:var(--tala-brand-tint);border-color:color-mix(in srgb,var(--tala-brand-foreground) 42%,var(--tala-border));color:var(--tala-on-brand-tint);}
+.tala-cashier-calendar__day--open:hover{border-color:var(--tala-brand-foreground);}
+.tala-cashier-calendar__day--closed{background:color-mix(in srgb,var(--tala-surface-sunken) 65%,var(--tala-chrome));border-color:var(--tala-border);color:var(--tala-muted);}
+.tala-cashier-calendar__day--closed:hover{border-color:var(--tala-control-border);}
+.tala-cashier-calendar__day--custom{background:var(--tala-status-warning-bg);border-color:var(--tala-status-warning-border);color:var(--tala-status-warning-fg);}
+.tala-cashier-calendar__day--custom:hover{border-color:var(--tala-status-warning-icon);}
+.tala-cashier-calendar__day--holiday{background:color-mix(in srgb,var(--tala-surface-sunken) 65%,var(--tala-chrome));border:1px dashed var(--tala-border);color:var(--tala-muted);}
+.tala-cashier-calendar__day--holiday:hover{border-color:var(--tala-control-border);}
+.tala-cashier-calendar__day--outside{background:transparent;border-color:transparent;color:var(--tala-muted);opacity:0.4;}
+.tala-cashier-calendar__day.is-today{box-shadow:inset 0 0 0 2px var(--tala-brand-foreground);font-weight:var(--tala-weight-heading);}
+.tala-cashier-calendar__day.is-selected{outline:2px solid var(--tala-text);outline-offset:1px;z-index:1;}
+.tala-cashier-calendar__day.is-selected:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;z-index:2;}
+
+.tala-cashier-calendar__marker{display:block;flex:none;background:currentColor;}
+.tala-cashier-calendar__marker--custom_hours{inline-size:0.3125rem;block-size:0.3125rem;border-radius:50%;}
+.tala-cashier-calendar__marker--holiday{inline-size:0.5rem;block-size:0.125rem;border-radius:99px;}
+
+.tala-cashier-calendar__readout{display:flex;align-items:flex-start;gap:0.5rem;padding:0.5rem 0.625rem;border-radius:calc(var(--tala-card-radius)*0.65);background:var(--tala-surface);border:1px solid var(--tala-border);font-size:0.8125rem;line-height:1.4;color:var(--tala-text);min-inline-size:0;}
+.tala-cashier-calendar__readout-dot{inline-size:0.5rem;block-size:0.5rem;border-radius:50%;margin-block-start:0.3125rem;flex:none;background:var(--tala-muted);}
+.tala-cashier-calendar__readout-dot[data-state="open"]{background:var(--tala-brand-foreground);}
+.tala-cashier-calendar__readout-dot[data-state="custom_hours"]{background:var(--tala-status-warning-icon);}
+.tala-cashier-calendar__readout-text{min-inline-size:0;overflow-wrap:anywhere;}
+
+.tala-cashier-calendar__legend{display:flex;flex-wrap:wrap;align-items:center;gap:0.375rem 0.875rem;list-style:none;margin:0;padding:0;font-size:0.75rem;line-height:1.35;color:var(--tala-muted);}
+.tala-cashier-calendar__legend li{display:inline-flex;align-items:center;gap:0.375rem;}
+.tala-cashier-calendar__swatch{inline-size:0.75rem;block-size:0.75rem;border-radius:0.1875rem;border:1px solid var(--tala-border);flex:none;}
+.tala-cashier-calendar__swatch--open{background:var(--tala-brand-tint);border-color:var(--tala-brand-foreground);}
+.tala-cashier-calendar__swatch--modified{background:var(--tala-status-warning-bg);border-color:var(--tala-status-warning-fg);}
+.tala-cashier-calendar__swatch--closed{background:color-mix(in srgb,var(--tala-surface-sunken) 65%,var(--tala-chrome));border-color:var(--tala-control-border);}
+
+.tala-cashier-exceptions{display:grid;gap:0.375rem;padding:0.75rem 0.875rem;border:1px solid var(--tala-border);border-radius:calc(var(--tala-card-radius)*0.8);background:var(--tala-surface-sunken);min-inline-size:0;}
+.tala-cashier-exceptions__title{margin:0;font-size:0.75rem;font-weight:var(--tala-weight-emphasis);line-height:1.35;color:var(--tala-text);}
+.tala-cashier-exceptions__list{list-style:none;margin:0;padding:0;display:grid;gap:0.375rem;}
+.tala-cashier-exceptions__item{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:0.125rem 0.75rem;padding-block-start:0.375rem;border-block-start:1px solid var(--tala-edge-strong);font-size:0.75rem;line-height:1.4;}
+.tala-cashier-exceptions__item:first-child{padding-block-start:0;border-block-start:0;}
+.tala-cashier-exceptions__date{font-weight:var(--tala-weight-emphasis);color:var(--tala-text);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.tala-cashier-exceptions__meta{display:flex;flex-wrap:wrap;gap:0.25rem 0.5rem;color:var(--tala-muted);min-inline-size:0;overflow-wrap:anywhere;}
+.tala-cashier-exceptions__meta strong{font-weight:var(--tala-weight-emphasis);color:var(--tala-text);}
+
+@container(min-width:17rem){
+    .tala-channel-meta-pair--two{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@container(min-width:34rem){
+    :is(.tala-how-to-pay--compact,.tala-where-to-pay--compact) :is(.tala-how-to-pay__accounts-grid--multi,.tala-where-to-pay__electronic-grid--two){grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@container(min-width:38rem){
+    :is(.tala-how-to-pay--page,.tala-where-to-pay--page) :is(.tala-how-to-pay__accounts-grid--multi,.tala-where-to-pay__electronic-grid--two){grid-template-columns:repeat(auto-fit,minmax(17.5rem,1fr));}
+}
+@container(min-width:40rem){
+    .accounting-overview-strip.payment-channels-summary{grid-template-columns:minmax(0,1fr) auto;padding:0.75rem 1.25rem;}
+    .tala-how-to-pay--page,.tala-where-to-pay--page{padding:1.5rem;}
+}
+@container(min-width:42rem){
+    :is(.tala-how-to-pay--page,.tala-where-to-pay--page,.tala-how-to-pay--preview) :is(.tala-how-to-pay__accounts-grid:not(.tala-how-to-pay__accounts-grid--multi),.tala-where-to-pay__electronic-grid:not(.tala-where-to-pay__electronic-grid--two)) .tala-channel-card--electronic:has(.tala-channel-copy-tile):has(.tala-channel-meta-pair){grid-template-columns:minmax(16rem,1fr) minmax(0,1.1fr);align-items:center;}
+}
+@container(min-width:42rem){
+    :is(.tala-how-to-pay--page,.tala-where-to-pay--page,.tala-how-to-pay--preview) .tala-cashier-body--split{grid-template-columns:minmax(0,1fr) minmax(17.5rem,1fr);gap:calc(var(--tala-card-gap)*2);}
+}
+@container(min-width:34rem){
+    .payment-channels-weekly-row__times .fi-fo-field-label-col{position:absolute;inline-size:1px;block-size:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;}
+    .payment-channels-weekly-row__times .fi-fo-field{gap:0;}
+}
+@container(max-width:33.999rem){
+    .payment-channels-weekly-head{display:none;}
+    .fi-sc-flex.payment-channels-weekly-row,.payment-channels-weekly-row{grid-template-columns:minmax(0,1fr);}
+    .fi-sc-flex.payment-channels-weekly-row--closed,.payment-channels-weekly-row--closed{grid-template-columns:minmax(9rem,1fr) auto;}
+    :is(.payment-channels-section,.payment-channels-subpanel)>.fi-section>.fi-section-header{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;}
+    :is(.payment-channels-section,.payment-channels-subpanel)>.fi-section>.fi-section-header>.fi-section-header-after-ctn{grid-column:1 / -1;justify-self:start;margin-inline-start:0;}
+}
+@container(max-width:35.999rem){
+    .tala-how-to-pay--page,.tala-where-to-pay--page{padding:1rem;}
+    .tala-channel-card{padding:0.875rem;}
+    .tala-cashier-calendar{padding:0.75rem;}
+}
+@media(pointer:coarse){
+    :is(.tala-how-to-pay,.tala-where-to-pay) .tala-copy-reference,:is(.tala-how-to-pay--page,.tala-where-to-pay--page) .tala-copy-reference{min-block-size:2.75rem;}
+    .tala-cashier-calendar__nav{min-inline-size:2.75rem;min-block-size:2.75rem;}
+    .tala-cashier-calendar__day,:is(.tala-how-to-pay--preview,.tala-where-to-pay--preview) .tala-cashier-calendar__day{min-block-size:2.75rem;}
+}
+
+@container(min-width:51.5rem){
+    .payment-channels-workbench{grid-template-columns:minmax(28rem,1.35fr) clamp(20.5rem,38%,25.5rem);gap:1rem;}
+    .payment-channels-workbench__rail{--tala-companion-position:sticky;--tala-companion-limit:calc(100dvh - var(--tala-card-gap)*2);}
+}
+@media(prefers-reduced-motion:reduce){
+    .payment-channels-section>.fi-section>.fi-section-header>.fi-icon,.tala-cashier-calendar__nav,.tala-cashier-calendar__day{transition:none;}
+}
+
+@media(forced-colors:active){
+    .payment-channels-summary,.payment-channels-section>.fi-section,.payment-channels-subpanel>.fi-section,.payment-channels-preview-card,.payment-channels-preview-card__footer,.payment-channels-weekly-row,.payment-channels-section .fi-fo-repeater-item,.payment-channels-exceptions-section .fi-fo-repeater-item,.payment-channels-hints,.payment-channels-hints__item,.tala-how-to-pay--page,.tala-how-to-pay--compact,.tala-how-to-pay__group,.tala-how-to-pay__group-count,.tala-where-to-pay--page,.tala-where-to-pay--compact,.tala-channel-card,.tala-channel-card__mode-pill,.tala-channel-copy-tile,.tala-cashier-status--success,.tala-cashier-status--warning,.tala-cashier-facts-group,.tala-cashier-calendar,.tala-cashier-calendar__readout,.tala-cashier-exceptions,.payment-proof-preview,.tala-document-preview,.tala-copy-reference[data-copied="true"],.tala-copy-reference[data-failed="true"]{border:1px solid CanvasText;box-shadow:none;background:Canvas;color:CanvasText;}
+    .tala-cashier-facts-group__row,.tala-channel-card__instructions,.tala-channel-card__footer{border-color:CanvasText;}
+    .payment-channels-weekly-row--closed{border-style:dashed;}
+    .tala-cashier-calendar__readout-dot{background:CanvasText;border:1px solid CanvasText;}
+    .tala-cashier-calendar__nav{border:1px solid ButtonText;background:ButtonFace;color:ButtonText;}
+    .tala-cashier-calendar__day{border:1px solid ButtonText;background:ButtonFace;color:ButtonText;}
+    .tala-cashier-calendar__day.is-today{box-shadow:inset 0 0 0 2px CanvasText;}
+    .tala-cashier-calendar__day.is-selected{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight;outline:2px solid Highlight;outline-offset:1px;}
+    .tala-cashier-calendar__day--outside{opacity:0.6;border-color:transparent;}
+}

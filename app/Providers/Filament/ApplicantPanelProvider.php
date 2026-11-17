@@ -87,6 +87,7 @@ class ApplicantPanelProvider extends PanelProvider
                     ->label("Applicant's History")
                     ->icon(Heroicon::OutlinedClock)
                     ->url(fn (): string => ApplicationHistory::getUrl(panel: 'applicant'))
+                    ->visible(fn (): bool => ! TalaPanelTheme::isMandatoryMfaSetupRoute())
                     ->sort(0),
             ])
             ->discoverWidgets(in: app_path('Filament/Applicant/Widgets'), for: 'App\Filament\Applicant\Widgets')

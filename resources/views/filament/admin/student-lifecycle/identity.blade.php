@@ -3,7 +3,7 @@
         :name="trim($student->first_name . ' ' . $student->last_name)"
         :number="$student->student_number"
         :program="$student->program?->name"
-        :photo-url="$student->user?->getFilamentAvatarUrl()"
+        :photo-url="$student->adminPhotoUrl()"
         :initials="mb_strtoupper(mb_substr($student->first_name, 0, 1) . mb_substr($student->last_name, 0, 1))"
         class="tala-lifecycle-identity tala-record-identity--compact"
     >

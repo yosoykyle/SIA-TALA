@@ -189,9 +189,11 @@ class StudentHubTest extends TestCase
             'emergency_contact_phone' => '09171111111',
         ]);
 
+        $this->assertStringEndsWith('/student/student-profile', Profile::getUrl(panel: 'student'));
+
         Livewire::actingAs($student)
             ->test(Profile::class)
-            ->assertSee('My profile')
+            ->assertSee('Student details')
             ->assertSee('SIA-2026-8399')
             ->assertSee('For corrections, contact the Registrar.')
             ->assertDontSee('Save Contact Details');

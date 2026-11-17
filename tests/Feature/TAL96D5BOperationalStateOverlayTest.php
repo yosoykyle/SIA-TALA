@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\SystemAdministration\TAL96D5BStateCoverageMatrix;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
@@ -10,7 +9,6 @@ use App\Models\ChecklistItem;
 use App\Models\Enrollment;
 use App\Models\GradeRoster;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\SectionMeeting;
@@ -112,15 +110,6 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
         $this->assertSame(Assessment::StateActive, Assessment::query()->whereBelongsTo($clearedEnrollment)->sole()->state);
         $dueAssessment = Assessment::query()->whereBelongsTo($dueEnrollment)->sole();
         $this->assertNotNull($dueAssessment->termAccount);
-        $this->assertSame(
-            '2000.00',
-            app(ExactDuePaymentSnapshotService::class)->forAccount($dueAssessment->termAccount)['amount'],
-        );
-        $this->assertContains(
-            Payment::query()->where('student_profile_id', $dueEnrollment->student_profile_id)->count(),
-            [0, 1],
-            'The due persona may have one retained provider-gate payment after PayMongo acceptance.',
-        );
         $this->assertSame('1000.00', Payment::query()
             ->where('provider_reference', 'PAYMENT-PARTIAL-001')
             ->sole()
@@ -129,21 +118,6 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
             ->where('provider_reference', 'PAYMENT-CLEARED-001')
             ->sole()
             ->amount);
-        $failedAttempt = PaymentAttempt::query()
-            ->where('internal_reference', 'CHECKOUT-FAILED-001')
-            ->sole();
-        $pendingAttempt = PaymentAttempt::query()
-            ->where('internal_reference', 'CHECKOUT-PENDING-001')
-            ->sole();
-        $this->assertSame(PaymentAttempt::StatusFailed, $failedAttempt->status);
-        $this->assertSame(PaymentAttempt::StatusPending, $pendingAttempt->status);
-
-        foreach ([$failedAttempt, $pendingAttempt] as $attempt) {
-            $this->assertNotNull($attempt->term_account_id);
-            $this->assertNotNull($attempt->snapshot_created_at);
-            $this->assertNotNull($attempt->snapshot_checksum);
-            $this->assertTrue($attempt->obligations()->exists());
-        }
 
         $this->assertEqualsCanonicalizing(
             [
@@ -209,9 +183,9 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
         }
 
         $this->assertSame('human_gate', $report['state_families']['scheduling']['disposition']);
-        $this->assertSame('human_gate', $report['state_families']['payment']['disposition']);
+        $this->assertSame('fixture_record', $report['state_families']['payment']['disposition']);
         $this->assertStringContainsString(
-            'does not claim',
+            'PaymentEvidenceVersion',
             $report['state_families']['payment']['evidence'],
         );
     }
@@ -262,7 +236,6 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
             'enrollments' => Enrollment::query()->count(),
             'assessments' => Assessment::query()->count(),
             'payments' => Payment::query()->count(),
-            'payment_attempts' => PaymentAttempt::query()->count(),
             'grade_rosters' => GradeRoster::query()->count(),
             'lifecycle_changes' => StudentLifecycleChange::query()->count(),
             'applicant_intakes' => ApplicantIntake::query()->count(),

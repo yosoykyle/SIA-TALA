@@ -89,18 +89,16 @@ This is a **domain-organized layered monolith**, not a strict modular monolith. 
 The completed system combines:
 
 1. the Laravel/MySQL core;
-2. a separately deployable Python CP-SAT scheduling service;
-3. PayMongo for external payment acceptance and signed event evidence; and
-4. an SMTP provider for transactional email.
+2. a separately deployable Python CP-SAT scheduling service; and
+3. an SMTP provider for transactional email.
 
-The solver is separated because optimization has a different CPU, memory, runtime, and deployment profile from ordinary SIS requests. Payments and email remain external because TALA should not implement card processing, e-wallet networks, or mail delivery infrastructure.
+The solver is separated because optimization has a different CPU, memory, runtime, and deployment profile from ordinary SIS requests. Email remains external because TALA should not implement mail delivery infrastructure. Payment collection stays manual-first (multi-account `Bank Transfer`, multi-account `E-Wallets` replacing standalone `GCash`, and `Cash (Campus Cashier)`) with institutional channel configuration, digital-channel-only student/applicant receipt submission (viewed via `<x-document-viewer>`), direct Accounting/Cashier onsite recording, and inline Official Receipt (OR) mapping inside TALA.
 
 ### 3.3 Integration Style: Request/Response with Asynchronous Supporting Workflows
 
-Most user actions use ordinary browser-to-Laravel request/response processing and database transactions. Slow or externally triggered work uses queues and webhooks:
+Most user actions use ordinary browser-to-Laravel request/response processing and database transactions. Slow or externally triggered work uses queues:
 
 - schedule-solver dispatch is queued;
-- payment webhook processing is queued;
 - admissions submission, correction, decision, readiness, and withdrawal messages are queued;
 - schedule release and revision messages are queued; and
 - provider failures are recorded for controlled retry or review.
@@ -141,12 +139,12 @@ The selected design preserves a service boundary only where the runtime characte
 | Admissions and enrollment readiness | Admission Cycles, versioned requirement sets, applicant profiles, applications and snapshots, scoped corrections, preliminary evidence, decisions, identity-match reviews, Registrar-clearance history, and derived readiness | Registrar, Applicant Workspace, Clinic 4 registration queue |
 | Academic setup, class planning, and timetable publication | Program authority, immutable Course Revisions and Curriculum Versions with explicit `Recurring` or `ExternallyArranged` scheduling treatment and bounded external-competency requirements, typed Term Calendar Packages with informational Examination Period, Term Cohorts, Class Offerings, Faculty/room readiness, whole-term solver snapshots, candidates, Laravel validation, immutable Published Timetable Versions, and revisions | Registrar, Academic Head, Faculty, Clinic 4 enrollment and Student schedule/COR projections |
 | Current-term registration and enrollment | Registration Cases, proposal versions, eligibility effects, confirmations, reservations, shortages, official term/course registrations, adjustments, Course Drops, conditional Student activation, minimal Student profile/correction history, and COR versions | Registrar, Accounting, Faculty roster, Student Hub, Clinic 3 demand |
-| Accounts and payment evidence | Versioned fixed Program-and-Term Fee Plans, Assessment versions based on `PublishedFeePlan` or `AuthorizedIndividualAssessment`, continuous Term Accounts, private/manual evidence, exact-due payment attempts, verified postings, append-only adjustments/reversals, and bounded Clinic 4/5 projections | Accounting, Clinic 4 Enrollment Clearance, Clinic 5 output issuance, Student Finance, non-tax SOA |
+| Accounts and payment evidence | Versioned fixed Program-and-Term Fee Plans, Assessment versions based on `PublishedFeePlan` or `AuthorizedIndividualAssessment`, continuous Term Accounts, `Payment channels` institutional configuration (`SystemSetting` key `'payment_channels'` v2 multi-account `Bank Transfer` + `E-Wallets` + `Cash (Campus Cashier)` with legacy lazy normalization), digital-only submitted receipts (`channel_snapshot`, `<x-document-viewer>` preview), direct Accounting/Cashier onsite recording for Students and pre-student Applicants (`student_profile_id === null`), verified postings preserving historical channel codes, inline Official Receipt mapping (`MapOfficialReceiptToPayment`), append-only adjustments/reversals, and bounded Clinic 4/5 projections | Accounting, Clinic 4 Enrollment Clearance, Clinic 5 output issuance, Student Finance, non-tax SOA |
 | Teaching, academic record, lifecycle, and completion | Official Class Offering rosters, final-result events, append-only externally verified competency results, GWA/evaluation projections, factual curriculum position and authorized academic decisions, lifecycle events, completion/conferral, and transcript snapshots/issuance | Faculty, Registrar, Academic Head, Student Academics, Clinic 4 registration, Clinic 6 output clearance |
-| Learner workspaces | Applicant progress, student schedule, COR, Student Finance/SOA, grades, and contextual notices | Applicants, students, and read-only alumni |
+| Student and applicant workspaces | Applicant progress, student schedule, COR, Student Finance/SOA, grades, and contextual notices | Applicants, students, and read-only alumni |
 | Outputs, health, governance, and audit | Authorized contextual exports, output access, local integration/backup evidence, institutional changes, operational events, and retention readiness | Office owners and System Administrator |
 
-Domain rules belong in actions, services, policies, and models. Filament resources and pages orchestrate user interaction but are not the sole location of business rules. This keeps the same institutional rule reusable across staff actions, learner projections, jobs, commands, and tests.
+Domain rules belong in actions, services, policies, and models. Filament resources and pages orchestrate user interaction but are not the sole location of business rules. This keeps the same institutional rule reusable across staff actions, student and applicant projections, jobs, commands, and tests.
 
 ### 4.1 Admissions-to-Enrollment Boundary
 
@@ -195,7 +193,6 @@ flowchart TB
         Data["MySQL system of record<br/>institutional data + durable queue/cache tables"]
         Files["Private application files"]
         Worker["Supervised Laravel queue worker"]
-        Webhook["Signed webhook transport endpoint"]
 
         Web --> Domain
         Domain <--> Data
@@ -203,26 +200,21 @@ flowchart TB
         Domain -->|enqueue after commit| Data
         Worker <-->|consume jobs and read/write authoritative records| Data
         Worker -->|independently validated domain actions| Domain
-        Webhook -->|verify and persist transport evidence| Data
     end
 
     subgraph ProviderZone["External provider trust zones"]
         direction LR
         Solver["CP-SAT solver adapter<br/>typed candidate result"]
-        PayMongo["PayMongo hosted Checkout<br/>and signed webhooks"]
         SMTP["Transactional SMTP provider"]
     end
 
     Browser -->|authenticated or public HTTPS| Web
     Worker ---|audience-bound request and typed untrusted result| Solver
-    Web ---|server-side Checkout Session and hosted URL| PayMongo
-    Browser ---|hosted payment and informational return| PayMongo
-    Webhook ---|signed event from PayMongo| PayMongo
     Worker ---|queued transactional message| SMTP
     SMTP -.-|transactional message, never authoritative| Inbox
 ```
 
-This is a **logical runtime view**: it shows application responsibilities and authoritative data flow, not host placement or network routes. Section 12.1 shows the planned deployment and its traffic boundaries; the CP-SAT and hosted-payment sequences in Section 9 show ordering and failure behavior.
+This is a **logical runtime view**: it shows application responsibilities and authoritative data flow, not host placement or network routes. Section 12.1 shows the planned deployment and its traffic boundaries; the CP-SAT and manual payment verification sections in Section 9 show ordering and failure behavior.
 
 ### 5.1 Primary Request Flow
 
@@ -294,7 +286,7 @@ MongoDB can support transactions, but its document model would not remove the ne
 - A current-term full withdrawal or other lifecycle result synchronizes its authorized enrollment, seat, schedule, roster, COR, and Accounting-review effects without deleting released grades or inferring a financial outcome.
 - Degree conferral atomically records the immutable degree result, final curriculum-evaluation snapshot, and `Completed` lifecycle event after all authoritative readiness facts are revalidated.
 - Transcript snapshots are immutable. Issuance mistakes produce void/replacement links, while later legitimate academic corrections supersede rather than mutate an issued snapshot.
-- Manual verification and payment webhooks lock the current Assessment/obligation snapshot, record exact applied amounts by obligation, and use source/idempotency identifiers so duplicate delivery cannot post the same payment twice; reversal corrects those exact effects.
+- Manual receipt verification and direct Accounting/Cashier onsite recording lock the current Assessment/obligation snapshot, capture immutable `channel_snapshot` details when submitted/selected, record exact applied amounts by obligation, and use source/idempotency identifiers so duplicate submission or repeated recording cannot post the same payment twice; inline Official Receipt mapping (`MapOfficialReceiptToPayment`) attaches an OR number onto a verified posted payment lacking one without altering ledger amounts, and reversal corrects those exact effects.
 - External calls do not silently convert an unverified provider response into an official academic or finance record.
 
 ### 6.3 Auditability
@@ -304,8 +296,8 @@ Material changes retain actor, timestamp, affected record, and relevant before/a
 ### 6.4 Authority-hardening implementation boundaries
 
 - Server-side authorization, validation, current-state checks, effective-version checks, and producer-owned readiness are authoritative. Client state, hidden navigation, a disabled button, or a visual transition never proves permission.
-- Transactions and appropriate row locks protect final-active-System-Administrator checks, unique admissions submission/decision, capacity/reservation, timetable publication, enrollment finalization, complete-roster release, payment/coverage posting, lifecycle/conferral, and official-output issuance. Filament Actions are not transactional by default; the domain mutation owns the transaction/locks and revalidates every affected source before committing. A multi-class confirmation or provider reconciliation cannot leave partial institutional effects.
-- Immutable source references provide idempotency for cross-clinic projections, Student activation, enrollment finalization, emails, provider events, postings, and output generation. Retrying a completed action returns or projects the same result rather than duplicating it.
+- Transactions and appropriate row locks protect final-active-System-Administrator checks, unique admissions submission/decision, capacity/reservation, timetable publication, enrollment finalization, complete-roster release, payment/coverage/onsite posting and inline OR mapping, lifecycle/conferral, and official-output issuance. Filament Actions are not transactional by default; the domain mutation owns the transaction/locks and revalidates every affected source before committing. A multi-class confirmation or payment posting cannot leave partial institutional effects.
+- Immutable source references provide idempotency for cross-clinic projections, Student activation, enrollment finalization, emails, postings, and output generation. Retrying a completed action returns or projects the same result rather than duplicating it.
 - Material stale or concurrent submissions fail atomically and preserve safe uncommitted text where practical. Academic, financial, security, publication, and official-output records are never silently merged.
 - Private uploads implement PRD 00's shared evidence primitive: allowlisted PDF/JPEG/PNG, 10-MiB limit, server-detected MIME and matching file-format header, generated names, checksum, private storage and access audit. Every operation checks exact record/version/path ownership; private disks and authenticated routes alone do not authorize a client-supplied existing path. Use native Filament 5 path-tampering safeguards where their record binding fits, otherwise retain a focused domain-service ownership check. A new form cannot assume an existing record binding. An original client filename is escaped display metadata. Checksums/file headers establish byte/format facts and assert neither authenticity nor absence of malware.
 - Contextual exports re-run purpose- and row-scoped authorization. Filament export selection or table visibility alone is not proof that every row may be exported. Cells are formula-safe and output access is audited.
@@ -416,7 +408,6 @@ Record the accepted task-specific direction in `.impeccable/surfaces/`, derived 
 | User to record/action | Laravel policies and action-level authorization |
 | Laravel to MySQL | Private credentials, least-privilege database account, transactions, and constrained schema |
 | Laravel to Cloud Run | HTTPS and audience-bound Google identity token; private service invocation |
-| PayMongo to Laravel | Signature verification, provider-event persistence, idempotent queued processing |
 | Laravel to SMTP | Provider credentials stored outside source control; queued delivery and failure evidence |
 | Documents and exports | Private-by-default storage, authorized retrieval, logged output access |
 | Backup export to selected independent off-host repository | Transaction-consistent source, client-side encryption, TLS, repository-scoped credential, private storage, retained generations, and locally recorded integrity/outcome evidence |
@@ -424,7 +415,7 @@ Record the accepted task-specific direction in `.impeccable/surfaces/`, derived 
 
 Admissions evidence is private and versioned. Each retained upload records its authorized owner, requirement, content metadata, checksum, replacement relationship, and review result. Preliminary acceptance never becomes admission, Registrar enrollment clearance or official enrollment through a file-state shortcut. Paper-document receipt/review/custody/follow-up remains outside TALA; the current clearance and necessary successor history are the retained admissions-to-enrollment effect. LRN is masked outside authorized detail, cannot authenticate an account, and cannot be disclosed through candidate-match feedback.
 
-Payment evidence is likewise private and versioned. Learner submission is a claim, not a payment. Only authorized Accounting review of the actual external source or an exact valid signed provider event may create an immutable verified posting. Proof files, bank details, raw provider payloads, credentials, signatures, and internal review notes never appear in exports or broad audit views.
+Payment evidence is likewise private and versioned. Student or applicant receipt submission (`Submit receipt`, enabled only when digital `Bank Transfer` or `E-Wallets` channels are active) is a claim, not a payment. Only authorized Accounting verification of the actual external transfer/receipt or direct Accounting/Cashier onsite recording may create an immutable verified posting. Uploaded receipt files, school bank/e-wallet account details, and internal review notes never appear in exports or broad audit views, and in-system previews across Accounting, Enrollment, and Student Finance use the shared `<x-document-viewer>` modal.
 
 Secrets must be injected through protected runtime configuration and must never be committed, rendered in administrative diagnostics, or included in logs. Integration status pages may report whether a credential is configured but must not reveal its value.
 
@@ -565,90 +556,15 @@ The **August 19, 2026** Issue #22 activation evidence above supersedes the older
 
 Historical fixture, candidate-size, memory, status, validation, and scaling measurements remain bounded evidence in the archived [Representative Solver Evidence](archive/project-progress/TAL-96B2-Representative-Solver-Evidence.md) and [Cloud Run Capacity Benchmark](archive/project-progress/TAL-96B3-Cloud-Run-Capacity-Benchmark.md). Slice 3 reconciles solver code, Laravel integration, internal contract, formulation, schema, tests, fixtures, and deployable packaging. It reruns expensive capacity qualification only when local model-size, memory, runtime, or compatibility evidence invalidates the accepted profile; proportionate source-level acceptance still uses the coordinated Servitech workload.
 
-### 9.2 PayMongo
+### 9.2 Manual Payment Verification and Onsite Recording
 
-**Provider-Neutral Accounting and Implementation-Evidence Boundary:** Core accounting, fee plans, assessments, obligations, and payment verification are strictly provider-neutral institutional capabilities. TALA supports manual payment verification (bank, cash/teller receipts) independently of third-party gateways. The PayMongo webhook and hosted checkout integration is backed by implementation and automated test evidence (`tests/Feature/Finance/ExactDuePayMongoJourneyTest.php`, `tests/Feature/TAL95BPayMongoWebhookPipelineTest.php`), but live sandbox and production gateway endpoints are unverified in this session. Live merchant activation remains strictly owner-gated.
+**Provider-Neutral Accounting Boundary:** Core accounting, fee plans, assessments, obligations, payment channels, and payment verification are strictly institutional capabilities with no external payment-gateway or webhook dependency. Accounting configures and toggles active collection channels (`Bank Transfer` with 10 Philippine bank datalist presets accepting custom banks and validating 10–16 digit deposit account numbers allowing spaces and hyphens; `E-Wallets` with 8 Philippine e-wallet presets replacing standalone GCash and provider-aware validation; alongside `Cash (Campus Cashier)`) on the dedicated **Payment channels** page under **Accounting** navigation (`SystemSetting` key `'payment_channels'` v2 schema preserving legacy lazy normalization and zero generic `SystemSettingResource`). Both digital account lists start empty (`defaultItems(0)`) and toggling an empty channel on inserts one blank row without fabricated destination details.
 
-TALA creates checkout only for the exact positive current due of an authoritative Term Account in PHP. The browser redirect is informational; it is not payment proof. An exact signed PayMongo event is persisted and processed idempotently before TALA creates one immutable verified posting. Account, amount, currency, institutional/provider reference, and idempotency must match; mismatch, recovery, refund, chargeback, or reversal evidence enters Accounting review and never exposes the raw provider payload.
+Students and applicants view configured **How to pay** channel details on Student Finance, Enrollment payment panels, and the `Submit receipt` dialog. Receipt upload (`Submit receipt`) is strictly gated on enabled digital channels (`Bank Transfer` or `E-Wallets` via `SchoolPaymentChannels::hasEnabledDigitalChannels()`); when only `Cash (Campus Cashier)` is active, no receipt upload UI is shown and server-side submission enforces that electronic uploads are turned off. When digital channels are active, `Submit receipt` serves as the primary CTA for off-campus bank transfer or e-wallet submissions with destination `channel_snapshot` capture, duplicate-submission guards, and clear walk-in guidance that onsite payments are recorded directly by Cashier/Accounting without uploading receipt evidence. Submitted and verified files across Accounting, Enrollment, and Student Finance open inside the shared `<x-document-viewer>` modal component (wrapped by `<x-payment-proof-viewer>` for receipt defaults; `#80` Admissions attachment links remain outside this scope).
 
-If no signed event arrives, the local attempt remains `Pending`; elapsed time and browser return cannot confirm it. Accounting may check the actual provider/external source and use the same verified-external-payment path already authorized for manual evidence. The posting retains the attempt and external reference so a later matching signed event is an idempotent no-op and cannot create a second posting or email. TALA does not expose provider replay, settlement, refund, or control-panel operations.
+Student or applicant receipt submission is an unverified claim, not a posted payment. Authorized Accounting review verifies the submitted receipt against external transfer or receipt records before creating an immutable verified posting (`Recorded` / `Applied`) preserving historical channel codes (`bank_transfer`, `gcash_manual`, `e_wallet`, `cash`) and nullable `channel_snapshot`. For walk-in students and applicants, Accounting records `Cash (Campus Cashier)` payments directly inside Student Accounts (`ViewEnrollment`) for both enrolled Students and pre-student Applicants (`student_profile_id === null`), and can map Official Receipt (OR) numbers (`MapOfficialReceiptToPayment`) inline onto verified posted payments that were posted without an OR—cleanly advancing Finance readiness so the Registrar can `Finalize enrollment` without crossing Clinic 4/6 role boundaries.
 
-Refund-related account correction follows PRD 06's exact-result boundary. Validate the linked external evidence before applying a local correcting effect; reconciliation and that effect share one atomic commit. A pending/failed or partial refund never implies a completed full reversal. PayMongo dashboard/API refund capability is external transport capability, not permission for TALA to execute refunds.
-
-#### Authoritative Hosted-Payment Integration Sequence
-
-The following sequence is the authoritative target integration contract. Current checkout, signature-verification, transport-evidence, queue, and posting code corroborates parts of the path, but it remains implementation evidence until the future Clinic 6 reconciliation slice proves conformance with the authoritative Assessment and Term Account model.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Learner
-    participant Laravel as Laravel finance domain
-    participant DB as MySQL system of record
-    participant PayMongo as PayMongo hosted Checkout
-    participant Webhook as Signed webhook endpoint
-    participant Worker as Supervised queue worker
-    actor Accounting
-
-    Learner->>Laravel: Pay exact current due
-    Laravel->>DB: Read authoritative Assessment, Term Account, and current due
-    alt Source is unavailable, stale, zero, or a matching attempt is pending
-        Laravel-->>Learner: Disable checkout and show the safe next action
-    else Exact positive PHP amount is current
-        Laravel->>DB: Commit local Pending PaymentAttempt and reference
-        Laravel->>PayMongo: Create Checkout Session from backend for exact due
-        alt Provider is unavailable or session creation fails
-            PayMongo-->>Laravel: Error or unavailable response, with no usable session
-            Laravel->>DB: Record Failed attempt evidence and preserve the authoritative due
-            Laravel-->>Learner: Show checkout unavailable and the safe manual-evidence path
-        else Hosted Checkout Session is created
-            PayMongo-->>Laravel: Session ID and hosted checkout URL
-            Laravel-->>Learner: Redirect browser to hosted checkout
-            Learner->>PayMongo: Complete provider-hosted payment interaction
-            PayMongo-->>Learner: Redirect to success or cancel URL
-            Learner->>Laravel: Return to TALA
-            Laravel-->>Learner: Show Pending because redirect is not payment proof
-        end
-    end
-
-    PayMongo->>Webhook: Signed webhook delivery, normally checkout_session.payment.paid
-    Webhook->>Webhook: Verify raw-body signature, mode, and freshness
-    alt Invalid or stale signature
-        Webhook-->>PayMongo: Reject delivery
-        Note over Webhook,DB: No posting or trusted domain action
-    else Signature is valid
-        Webhook->>DB: Persist durable transport evidence by provider event ID
-        Webhook-->>PayMongo: Acknowledge promptly
-        alt Unsupported event
-            Webhook->>DB: Mark ignored with no payment effect
-        else Duplicate event or late event after external reconciliation
-            Webhook->>DB: Record delivery evidence and keep prior result unchanged
-            Note over Webhook,DB: No duplicate posting or verified-payment email
-        else Supported event requires processing
-            Webhook->>Worker: Dispatch processing after transport commit
-            Worker->>DB: Claim event and match attempt, source, amount, currency, and references
-            alt Processing fails before an authoritative posting
-                Worker->>DB: Record failure for bounded retry of the same event
-                Note over Worker,DB: No partial posting, and retries remain idempotent
-            else Source is stale or evidence is missing or mismatched
-                Worker->>DB: Mark ReviewRequired and create no posting
-                Accounting->>Laravel: Open payment exceptions
-                Laravel->>DB: Read current ReviewRequired evidence
-                Laravel-->>Accounting: Show bounded exception and reconciliation action
-            else Exact valid paid evidence matches current authority
-                Worker->>DB: Atomically create one immutable posting and refresh projections
-                Learner->>Laravel: Open or refresh Student Finance
-                Laravel->>DB: Read committed authoritative account projection
-                Laravel-->>Learner: Show Finance status from TALA records
-                Note over Worker,DB: One verified-payment email per authoritative posting, with no duplicate from a matching later event
-            end
-        end
-    end
-```
-
-PayMongo is selected because it provides locally relevant payment channels without TALA storing card or wallet credentials. The tradeoffs are transaction fees, provider availability, settlement rules, account verification, webhook operations, and vendor contract dependence.
-
-Official provider mechanics rechecked on **September 14, 2026**: [Hosted Checkout quick start](https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start), [webhook key concepts and signature boundary](https://docs.paymongo.com/docs/developer-tools-webhooks-key-concepts), and [webhook retry and idempotency guidance](https://docs.paymongo.com/docs/developer-tools-retry-logic). The [webhook resource](https://docs.paymongo.com/reference/webhook-resource) was checked on **August 13, 2026**. These sources define provider transport behavior only; they do not define TALA's authoritative Assessment, posting, retry, or Accounting-review policy.
+Account correction and refund-related reversal follow PRD 06's exact-result boundary: validate the external evidence or verified posting before applying an append-only correcting adjustment or reversal within one atomic transaction.
 
 ### 9.3 Transactional Email
 
@@ -698,8 +614,6 @@ DESIGN.md and the UI Surface Blueprint govern task-led composition within the au
 | Spatie Model States | Declared, but no active application reference establishes state-machine ownership. |
 
 These packages must be either connected to an approved responsibility or considered for removal in a separate dependency review. Keeping unused runtime packages increases upgrade work and supply-chain exposure. Removal is intentionally not performed as part of this architecture document.
-
-The PayMongo transport and signed webhook pipeline are application-owned. Previously declared Luigel PayMongo and Spatie Webhook Client dependencies were removed after live-reference and dependency audits proved that neither package owned an active runtime responsibility.
 
 ### 11.3 Frontend Runtime
 
@@ -841,7 +755,7 @@ flowchart LR
 
     subgraph Host["Planned Hostinger KVM 2 VPS — one failure domain"]
         Nginx["Nginx<br/>HTTPS and TLS entry"]
-        Laravel["PHP-FPM / Laravel<br/>Filament, Livewire, webhook route"]
+        Laravel["PHP-FPM / Laravel<br/>Filament and Livewire"]
         Database[("Private same-host MySQL<br/>records, sessions, queue, cache")]
         Files["Private application files"]
         Worker["Supervised Laravel queue worker"]
@@ -850,20 +764,16 @@ flowchart LR
     subgraph External["External services — reference mail in planned Hostinger account"]
         Identity["Google identity service<br/>audience-bound ID token"]
         Solver["IAM-private Cloud Run<br/>CP-SAT solver"]
-        PayMongo["PayMongo<br/>Checkout API, hosted page, webhooks"]
         Mail["Hostinger Business Email Starter<br/>reference SMTP sender"]
     end
 
     Browser -.->|DNS lookup| DNS
     DNS -.->|name resolves to host| Nginx
     Browser -->|user-facing HTTPS / TCP 443| Nginx
-    Nginx -->|local FastCGI; web and webhook requests| Laravel
+    Nginx -->|local FastCGI; web requests| Laravel
     Laravel <-->|same-host private access| Database
     Laravel <-->|authorized file access| Files
     Worker <-->|claim jobs; read and write records| Database
-    Laravel -->|outbound HTTPS Checkout Session API| PayMongo
-    Browser -->|HTTPS hosted checkout| PayMongo
-    PayMongo -->|inbound HTTPS signed webhook| Nginx
     Worker -->|obtain Google-signed ID token| Identity
     Worker <-->|authorized HTTPS solver request and response| Solver
     Worker -->|authenticated SMTP / STARTTLS TCP 587| Mail
@@ -877,9 +787,9 @@ flowchart LR
 | Dashed arrow | DNS name-resolution relationship only, not a web-request path. |
 | Framed group | Client/naming, reference-host, or external-service boundary; it does not assert provisioning. |
 
-After hosted Checkout, the browser returns to TALA through the normal HTTPS entry; that redirect is not payment proof. The webhook reaches a Laravel route through the same Nginx entry, where the application verifies the raw-body signature and durably records the event before queued processing. The queue worker is a separate supervised process on the same reference VPS, not an additional server. MySQL and private files are inside that VPS boundary; the diagram grants neither a public database route nor a public file store. The Cloud Run service is private by IAM authorization, while its invocation still uses an HTTPS service endpoint. Port 443 describes the selected HTTPS flows; port 587 describes the documented Hostinger reference SMTP submission option, not the local mail configuration or a mandatory port for every future provider. Same-host database and FastCGI details remain deployment-configurable, so no network port is assigned to them here.
+The queue worker is a separate supervised process on the same reference VPS, not an additional server. MySQL and private files are inside that VPS boundary; the diagram grants neither a public database route nor a public file store. The Cloud Run service is private by IAM authorization, while its invocation still uses an HTTPS service endpoint. Port 443 describes the selected HTTPS web entry; port 587 describes the documented Hostinger reference SMTP submission option, not the local mail configuration or a mandatory port for every future provider. Same-host database and FastCGI details remain deployment-configurable, so no network port is assigned to them here.
 
-Repository evidence checked on **September 14, 2026** provides a MySQL connection, database-backed sessions, queues, and cache, private local storage, a PayMongo Checkout/webhook implementation, and a Cloud Run client that obtains an audience-bound Google ID token from a configured service-account credential file. The example environment instead runs locally at `http://localhost` with loopback MySQL, log mail, mock payments, and the local solver stub. The repository does not contain the selected production Nginx/TLS, host firewall, or queue-supervisor configuration. Its `bootstrap/app.php` currently trusts forwarded proxy headers from `*`; deployment must reconcile that setting with actual Nginx forwarding and hostname/TLS configuration, set the production HTTPS application URL and secure-session-cookie policy, and prove the chosen entry path before exposure. The reference domain/DNS, Hostinger mailbox, and external-host credential custody remain unprovisioned or unproved production decisions, as described in Sections 8 and 9.
+Repository evidence checked on **September 14, 2026** provides a MySQL connection, database-backed sessions, queues, and cache, private local storage, and a Cloud Run client that obtains an audience-bound Google ID token from a configured service-account credential file. The example environment instead runs locally at `http://localhost` with loopback MySQL, log mail, and the local solver stub. The repository does not contain the selected production Nginx/TLS, host firewall, or queue-supervisor configuration. Its `bootstrap/app.php` currently trusts forwarded proxy headers from `*`; deployment must reconcile that setting with actual Nginx forwarding and hostname/TLS configuration, set the production HTTPS application URL and secure-session-cookie policy, and prove the chosen entry path before exposure. The reference domain/DNS, Hostinger mailbox, and external-host credential custody remain unprovisioned or unproved production decisions, as described in Sections 8 and 9.
 
 The project reference uses one Hostinger KVM 2 VPS as a lean self-managed starting point, not as a highly available or indefinitely scalable platform. Grouping the reference VPS, domain/DNS, and one automated-sender mailbox under one prospective institution-owned account simplifies handover and billing but concentrates provider and account risk. If adopted, the institution must control that owner account with MFA, delegated developer access, renewal and recovery ownership, and protected runtime credentials. Portable DNS records, provider-neutral SMTP, an independent encrypted off-host backup, and measured resource monitoring are required escape and operations paths, not proof of procurement or readiness. Cloud Run is selected for the intermittent, resource-intensive solver; its separate scaling trades host load for cold-start latency, usage-based cost, provider dependence, identity configuration, and retry-safe requests.
 
@@ -887,7 +797,7 @@ The project reference uses one Hostinger KVM 2 VPS as a lean self-managed starti
 
 ```mermaid
 flowchart TB
-    L7["L7 Application<br/>Service messages<br/>TALA: HTTP requests, PayMongo webhook, Cloud Run request, SMTP"]
+    L7["L7 Application<br/>Service messages<br/>TALA: HTTP requests, Cloud Run request, SMTP"]
     L6["L6 Presentation<br/>Representation and encryption<br/>TALA: HTML/JSON and TLS or STARTTLS"]
     L5["L5 Session — conceptual<br/>Interaction continuity<br/>TALA: authenticated browser cookie and Laravel DB session lifecycle"]
     L4["L4 Transport<br/>End-to-end delivery<br/>TALA: TCP 443 web entry; TCP 587 reference SMTP"]
@@ -933,7 +843,7 @@ Philippine privacy authority requires a proportionate continuity process coverin
 
 - The live MySQL database and private application storage are the sole authoritative operational source. Backups are time-bounded disaster-recovery copies and never remove, archive, or replace live `Completed`/alumni, academic, enrollment, account, or official-output records.
 - Hostinger's included weekly VPS backup and one controlled pre-change snapshot are the reference topology's supplemental infrastructure-recovery points. An independent copy must remain outside the primary Hostinger provider, failure, and owner-account boundary before real production.
-- One non-overlapping operating-system job creates a transaction-consistent export of authoritative application data, required private documents and reproducible official-output source files, plus a manifest containing backup time, application revision, migration state, and integrity evidence. Authoritative audit, payment, webhook, email-idempotency, and correction evidence are protected. Rebuildable caches and sessions, temporary exports, replaceable build files, Git-held source, and recovery secrets are excluded or rebuilt.
+- One non-overlapping operating-system job creates a transaction-consistent export of authoritative application data, required private documents and reproducible official-output source files, plus a manifest containing backup time, application revision, migration state, and integrity evidence. Authoritative audit, payment, email-idempotency, and correction evidence are protected. Rebuildable caches and sessions, temporary exports, replaceable build files, Git-held source, and recovery secrets are excluded or rebuilt.
 - The export is encrypted client-side before it leaves the host and is written to a private institution-owned off-host repository. The selected provider must support scoped credentials, integrity verification, recovery, institution-owned billing, and the institution's approved processor and international-transfer safeguards. Provider-side encryption is supplemental.
 - Cadence, retention, retry, alerting, integrity checks, and isolated-restore frequency are fixed in the deployment runbook against the approved recovery objectives and measured data volume; they are not TALA UI behavior.
 - Cloudflare R2 with a restic-compatible repository is the currently evaluated object-storage candidate. The client-owned ORICO enclosure with independent encrypted drives is an optional offline-copy candidate. Neither candidate is selected unless procurement, privacy, custody, capacity, and restore evidence support the final deployment decision.
@@ -945,7 +855,7 @@ Selecting a provider is not proof of recovery. Production still requires an impl
 
 The primary host receives only a repository-scoped credential. The client-side encryption/recovery key is not stored solely on that host, with its provider, or in the selected backup provider; controlled institutional recovery copies are required. No credential, personal-data payload, provider control, shell command, media command, or restore action appears in TALA. The existing System Health surface may show only safe locally recorded job outcome, latest verified generation/as-of time, overdue state, and next action; provider and physical-media state use plain not-recently-checked language and never appear healthy without separately imported approved evidence. Exact custody and evidence boundaries remain behind technical details.
 
-The implemented application boundary records external backup and isolated-restore results through `tala:operations:record-backup-evidence` and `tala:operations:record-restore-evidence`. Both commands accept one strictly allowlisted versioned JSON object, reuse `operational_events`, and perform no backup, restore, provider, media, or shell operation. Identical references are idempotent, conflicting reuse is rejected, corrections append and reference the superseded event, and event time—not ingestion order—determines the current projection. `SYS-003` reads this evidence alongside bounded local application, database, private-storage, queue, mail, PayMongo, and solver evidence; external facts remain `Unknown`. `SYS-004` projects allowlisted institutional changes, system events, and output-access evidence directly from their authoritative stores and provides the fixed privacy/retention boundary without a parallel audit store or generic report export.
+The implemented application boundary records external backup and isolated-restore results through `tala:operations:record-backup-evidence` and `tala:operations:record-restore-evidence`. Both commands accept one strictly allowlisted versioned JSON object, reuse `operational_events`, and perform no backup, restore, provider, media, or shell operation. Identical references are idempotent, conflicting reuse is rejected, corrections append and reference the superseded event, and event time—not ingestion order—determines the current projection. `SYS-003` reads this evidence alongside bounded local application, database, private-storage, queue, mail, and solver evidence; external facts remain `Unknown`. `SYS-004` projects allowlisted institutional changes, system events, and output-access evidence directly from their authoritative stores and provides the fixed privacy/retention boundary without a parallel audit store or generic report export.
 
 Recovery first provisions or validates clean infrastructure and restores the newest valid independent generation into isolation. A primary-host provider backup may accelerate infrastructure restoration, but newer independent authoritative data must then be reconciled. If the primary independent source is unavailable, the deployment runbook selects the next verified source, including an approved offline copy when one exists. Before authorized cutover, the custodian verifies the manifest, database, private files, authentication, and critical journeys; invalidates restored sessions; clears rebuildable caches; reconciles queued/integration work idempotently; and reapplies any externally recorded lawful disposition made after the selected generation.
 
@@ -962,8 +872,7 @@ Removable-media use, encryption, custody, and disposal must follow the instituti
 | Unavailable component | Required safe behavior |
 | --- | --- |
 | Cloud Run solver | A generation attempt fails visibly and may be retried; already published schedules remain authoritative and available. Authorized staff retain controlled manual scheduling as continuity. |
-| Queue worker | Queued solver, webhook, and email work waits durably while ordinary synchronous pages continue where safe. A production deployment must alert its assigned operator and support safe worker restart without duplicating idempotent effects; the current alert route and owner are not yet evidenced. |
-| PayMongo | New hosted checkout or confirmation may be unavailable. TALA must not infer payment from a redirect; verified prior records remain intact, and controlled manual evidence procedures provide continuity. |
+| Queue worker | Queued solver and email work waits durably while ordinary synchronous pages continue where safe. A production deployment must alert its assigned operator and support safe worker restart without duplicating idempotent effects; the current alert route and owner are not yet evidenced. |
 | Configured SMTP provider | The underlying institutional transaction remains valid. Delivery is retried or recorded as failed for operational follow-up. If measured volume, delivery, limit, or operational evidence requires a provider change, switch through protected SMTP configuration without rewriting the notification domain behavior. |
 | Domain or DNS provider | New name resolution or renewal failure can make web and mail entry unavailable. Keep institutional ownership, MFA, delegated access, renewal controls, current DNS records, and a documented transfer/recovery procedure; never treat email as the source of truth. |
 | Primary web host or MySQL | Web workspaces are unavailable. Recovery validates clean infrastructure and restores the newest valid independent generation in isolation. A provider backup may accelerate infrastructure recovery but is supplemental and must be reconciled with newer independent data. An approved offline copy is a fallback only when the deployment runbook includes one. Cutover requires manifest, data, private-file, authentication, critical-journey, queue/integration, session/cache, and post-backup-disposition reconciliation against the approved recovery objectives. |
@@ -1117,7 +1026,6 @@ Cost statements use these labels consistently:
 | **Project reference fixed-cost floor** | Dated Hostinger host/domain/one-mailbox arithmetic for architecture and comparison; not an institution-approved purchase or complete production TCO |
 | **Promotional / renewal** | A dated paid-upfront entry offer versus the project-reference renewal-equivalent basis |
 | **Usage-dependent** | Cloud Run, email beyond the reference provider's published limits, storage volume, retrieval, networking, logging, and overages |
-| **Transaction-dependent** | PayMongo fees driven by successful channel volume and actual merchant terms |
 | **Unquoted** | Operations/support, the final independent-backup selection, and other items with no approved quotation; R2 uses its published usage formula only in the candidate illustration |
 | **Comparator-only** | Commercial offer normalized to 500 learners; not TALA acceptance, population, or capacity evidence |
 | **VAT / tax** | Included only when the source expressly says so; otherwise excluded or subject to the actual invoice/tax treatment |
@@ -1176,13 +1084,10 @@ Scenario sources: [Hostinger Philippine VPS plans](https://www.hostinger.com/ph/
 | Google Cloud Run | Request, CPU, memory, and networking are usage-dependent, with published free-tier allowances aggregated by billing account and subject to eligibility and region | No fixed amount is claimed; actual metering, other project use, networking, logging, build/registry, tax, and overrun control determine cost |
 | Hostinger Business Email Starter | One mailbox; published limit of 1,000 inbound and 1,000 outbound messages per rolling 24 hours, subject to provider change | Renewal-equivalent fixed price is in the project reference baseline; before production adoption, measure peak volume and delivery, recheck hPanel limits, and compare an upgrade or provider-neutral SMTP alternative when evidence requires it |
 | Brevo or another SMTP candidate | No plan or price selected | Evaluated alternative only; obtain a current quotation and verify limits, deliverability, DNS, tax, ownership, and operational fit before any selection |
-| PayMongo GCash | 2.23% per successful transaction, exclusive of VAT | Variable; apply to measured channel volume |
-| PayMongo Maya | 1.79% per successful transaction, exclusive of VAT | Variable; apply to measured channel volume |
-| PayMongo domestic cards | 3.125% + ₱13.39 per successful transaction, exclusive of VAT | Variable; apply to measured card volume |
 | Cloudflare R2 Standard | First 10 GB-month free; US$0.015/GB-month thereafter; published monthly operation allowances; no direct-egress charge | Evaluated independent-backup candidate only; if selected, apply actual retained GB-month and operation usage, tax, and settlement FX and require institution-owned billing, processor/transfer approval, and current checkout verification |
 | Hostinger VPS daily backups | Official help depicts US$6/month and retains two recent daily plus two weekly points; hPanel checkout controls | Optional and not included in the project reference baseline; quote only for same-provider restore convenience in addition to, never instead of, the required independent off-provider backup |
 
-Variable-price sources: [Google Cloud Run](https://cloud.google.com/run/pricing), [Cloudflare R2 pricing](https://developers.cloudflare.com/r2/pricing/), [Hostinger VPS backups](https://www.hostinger.com/support/1583232-how-to-back-up-or-restore-a-vps-at-hostinger/), [Hostinger daily backups](https://www.hostinger.com/support/1665153-how-to-activate-daily-backups-in-hostinger/), [Hostinger Email limits](https://www.hostinger.com/support/4625828-parameters-and-limits-of-hostinger-email/), and [PayMongo](https://www.paymongo.com/pricing). Actual backup-provider use, optional daily-backup checkout, and alternate-SMTP costs remain procurement-time values rather than fixed promises.
+Variable-price sources: [Google Cloud Run](https://cloud.google.com/run/pricing), [Cloudflare R2 pricing](https://developers.cloudflare.com/r2/pricing/), [Hostinger VPS backups](https://www.hostinger.com/support/1583232-how-to-back-up-or-restore-a-vps-at-hostinger/), [Hostinger daily backups](https://www.hostinger.com/support/1665153-how-to-activate-daily-backups-in-hostinger/), and [Hostinger Email limits](https://www.hostinger.com/support/4625828-parameters-and-limits-of-hostinger-email/). Actual backup-provider use, optional daily-backup checkout, and alternate-SMTP costs remain procurement-time values rather than fixed promises.
 
 For request-based Cloud Run solver execution, the bounded compute estimate is
 
@@ -1196,17 +1101,6 @@ Estimated solver request cost =
 Historical request measurements and corrected cost proxies are preserved in the archived [Cloud Run Capacity Benchmark](archive/project-progress/TAL-96B3-Cloud-Run-Capacity-Benchmark.md). They are not an invoice, monthly forecast, promoted runtime, or current capacity promise. Procurement and implementation planning must use then-current regional rates and a freshly qualified PRD 03 workload.
 
 At the current 8-vCPU/16-GiB profile, one full 300-second solver request consumes 2,400 vCPU-seconds and 4,800 GiB-seconds before startup, probes, serialization, networking, logging, builds, registry use, tax, or other billing-account activity. Against the published free-tier quantities checked on **August 11, 2026**, the CPU and memory allowances are co-limiting at an idealized **75 such runs per month**. This is a usage illustration, not a free-cost promise or workload forecast; monthly provider metering controls.
-
-An illustrative payment-fee estimate must use the actual channel mix:
-
-```text
-Annual payment fee =
-    (GCash volume × 2.23%)
-  + (Maya volume × 1.79%)
-  + (card volume × 3.125%)
-  + (successful card transactions × ₱13.39)
-  + applicable VAT
-```
 
 The fixed-cost total deliberately excludes implementation labor, ongoing maintenance and support, data cleaning and migration, user training, institutional devices and connectivity, disaster-recovery labor, security review, monitoring products beyond the stated services, SMS, taxes, foreign-exchange spreads, storage/egress overages, payment disputes or refunds, and future capacity upgrades. These are real total-cost-of-ownership items and must be priced from the institution's staffing and procurement evidence before adoption.
 
@@ -1377,7 +1271,7 @@ Repository evidence can establish implemented behavior. It cannot, by itself, es
 <details>
 <summary>Read supporting Sources and References</summary>
 
-Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, and privacy sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated. The Cloud Run configuration and the provider/cost sources explicitly identified below were refreshed through **August 11, 2026**; OR-Tools outcome semantics and the PayMongo webhook resource were checked on **August 13, 2026**; and the Hostinger KVM 2 plan was rechecked on **August 13, 2026**. Cloud Run authentication and timeout mechanics, PayMongo hosted-checkout and webhook transport mechanics, and the Section 12 networking and OSI sources, including Hostinger's reference SMTP settings, were rechecked on **September 14, 2026**. Access dates establish only what the source or provider state showed then; they do not prove procurement, billing, operational ownership, or achieved TALA controls.
+Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, and privacy sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated. The Cloud Run configuration and the provider/cost sources explicitly identified below were refreshed through **August 11, 2026**; OR-Tools outcome semantics were checked on **August 13, 2026**; and the Hostinger KVM 2 plan was rechecked on **August 13, 2026**. Cloud Run authentication and timeout mechanics and the Section 12 networking and OSI sources, including Hostinger's reference SMTP settings, were rechecked on **September 14, 2026**. Access dates establish only what the source or provider state showed then; they do not prove procurement, billing, operational ownership, or achieved TALA controls.
 
 ### 18.1 Internal System Evidence
 
@@ -1448,7 +1342,6 @@ Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-r
 - Hostinger: [SMTP configuration](https://www.hostinger.com/support/1575756-how-to-get-email-account-configuration-details-for-hostinger-email/) and [domain mail setup](https://www.hostinger.com/support/8650765-set-up-a-domain-for-hostinger-email/) — `smtp.hostinger.com`, TLS/STARTTLS 587 or SSL 465; SMTP settings rechecked September 14, 2026, and domain-record readiness evidence checked August 11, 2026.
 - Google Cloud: [Cloud Run pricing and free-tier treatment](https://cloud.google.com/run/pricing) — checked August 11, 2026. Allowances and rates are usage/billing-account inputs, not an invoice or zero-cost commitment.
 - Brevo: [plan and email-limit documentation](https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans) — retained only as an alternative provider candidate reference; no Brevo plan or price is selected, and any future choice requires a fresh quotation and delivery/limit review.
-- PayMongo: [standard pricing](https://www.paymongo.com/pricing) — checked August 11, 2026 and explicitly stated by the provider as exclusive of VAT; actual fees remain transaction- and merchant-term-dependent.
 - Philippine Network Foundation: [`.edu.ph` requirements](https://services.ph.net/dns/requirements.html) — optional future registration requires government-recognition evidence and a current authorization letter from the institution's president or principal; this is not an initial-deployment gate or an accreditation claim.
 - ADAL Education Management System: [public module and plan pricing](https://www.adal-edu.com/) — checked August 11, 2026 for commercial-comparison normalization only.
 - Academe: [public SIS feature and pricing page](https://academe.ph/) — checked August 11, 2026 for commercial-comparison normalization only.

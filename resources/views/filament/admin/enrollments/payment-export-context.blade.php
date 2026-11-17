@@ -1,7 +1,7 @@
 @assets
     <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
 @endassets
-<div class="accounting-export-identity">
-    <p><strong>{{ $case->credentialUser?->getFilamentName() }}</strong> · {{ $case->studentProfile?->student_number ?? $case->admissionApplication?->application_reference }}</p>
-    <p>{{ $case->studentProfile?->program?->name ?? $case->admissionApplication?->program?->name }} · {{ $case->term?->label }}</p>
+<div class="tala-context-inset accounting-export-identity">
+    <p><strong>{{ \App\Actions\Finance\AccountingDisplay::learnerName($case) }}</strong> · {{ \App\Actions\Finance\AccountingDisplay::learnerIdentifier($case) }}</p>
+    <p>{{ \App\Actions\Finance\AccountingDisplay::learnerProgram($case, '') }} · {{ $case->term?->label }}</p>
 </div>

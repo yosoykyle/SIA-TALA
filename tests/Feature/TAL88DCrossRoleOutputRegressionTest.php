@@ -59,7 +59,7 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
         StudentProfile::factory()->for($otherStudent)->create();
 
         $this->get(route('cor.print', $fixture['enrollment']))
-            ->assertRedirect(route('filament.student.auth.login'));
+            ->assertRedirect(route('public.sign-in'));
 
         $this->actingAs($fixture['student'])
             ->get(route('cor.print', $fixture['enrollment']))
@@ -124,7 +124,7 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
 
         foreach ($this->financeOutputUrls($fixture) as $url) {
             $this->get($url)
-                ->assertRedirect(route('filament.student.auth.login'));
+                ->assertRedirect(route('public.sign-in'));
         }
 
         $this->actingAs($fixture['student'])
@@ -339,8 +339,8 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
 
         $payment = Payment::factory()->for($profile)->for($term)->create([
             'term_account_id' => $account->id,
-            'method' => 'paymongo',
-            'channel' => 'paymongo',
+            'method' => 'bank_transfer',
+            'channel' => 'bank_transfer',
             'amount' => '500.00',
             'evidence_status' => 'verified',
             'paid_at' => now()->subMinutes(30),
@@ -348,7 +348,7 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
             'state' => Payment::StatePosted,
             'verification_basis' => 'IndependentSourceCheck',
             'external_check_reference' => 'SYNTH-TAL88D-CHECK',
-            'provider_reference' => 'pm_'.fake()->unique()->numerify('######'),
+            'provider_reference' => 'MANUAL-'.fake()->unique()->numerify('######'),
             'or_number' => null,
         ]);
         PaymentAllocation::factory()->create([

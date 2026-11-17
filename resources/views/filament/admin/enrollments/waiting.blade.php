@@ -1,5 +1,5 @@
 @assets
-    <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
 @endassets
 @php
     $money = fn ($amount) => $amount === null ? 'Unavailable' : 'PHP '.number_format((float) $amount, 2);

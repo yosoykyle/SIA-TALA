@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\Finance\AccountingDisplay;
 use Database\Factories\PaymentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,12 +10,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 
 /**
  * @property Carbon|null $paid_at
  * @property Carbon|null $verified_at
  * @property Carbon|null $or_mapped_at
+ * @property array<string, mixed>|null $channel_snapshot
  */
 class Payment extends Model
 {
@@ -31,26 +32,30 @@ class Payment extends Model
     public static function manualConfirmationChannelOptions(): array
     {
         return [
-            'cash' => 'Cash',
-            'gcash_manual' => 'GCash Manual',
+            'cash' => 'Cash (Campus Cashier)',
+            'e_wallet' => 'E-Wallet',
+            'gcash_manual' => 'GCash',
             'bank_transfer' => 'Bank Transfer',
         ];
     }
 
     public function channelLabel(): string
     {
-        return match ($this->channel) {
-            'paymongo' => 'PayMongo',
-            'gcash_manual' => 'GCash Manual',
-            default => Str::of((string) $this->channel)->replace('_', ' ')->headline()->toString(),
-        };
+        return AccountingDisplay::channelLabel($this->channel);
+    }
+
+    public function channelDetailLabel(): string
+    {
+        return AccountingDisplay::channelDetailLabel(
+            $this->channel,
+            is_array($this->channel_snapshot) ? $this->channel_snapshot : null,
+        );
     }
 
     /**
      * @var list<string>
      */
     protected $fillable = [
-        'payment_attempt_id',
         'term_account_id',
         'payment_evidence_version_id',
         'evidence_checksum',
@@ -59,6 +64,7 @@ class Payment extends Model
         'term_id',
         'method',
         'channel',
+        'channel_snapshot',
         'amount',
         'currency',
         'evidence_status',
@@ -86,6 +92,7 @@ class Payment extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'channel_snapshot' => 'array',
             'paid_at' => 'datetime',
             'verified_at' => 'datetime',
             'or_mapped_at' => 'datetime',
@@ -114,11 +121,6 @@ class Payment extends Model
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
-    }
-
-    public function paymentAttempt(): BelongsTo
-    {
-        return $this->belongsTo(PaymentAttempt::class);
     }
 
     public function ledgerEntry(): HasOne

@@ -189,13 +189,13 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
             ->for($fixture['profile'])
             ->for($fixture['term'])
             ->create([
-                'method' => 'paymongo',
-                'channel' => 'paymongo',
+                'method' => 'bank_transfer',
+                'channel' => 'bank_transfer',
                 'amount' => '500.00',
                 'evidence_status' => 'under_review',
                 'paid_at' => now(),
                 'verified_at' => null,
-                'provider_reference' => 'paymongo:under-review-86b',
+                'provider_reference' => 'MANUAL-UNDER-REVIEW-86B',
             ]);
 
         $this->assertSame(0, LedgerEntry::query()
@@ -235,24 +235,24 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         $accounting = $this->staff(User::StaffRoleAccounting);
         $fixture = $this->activeAssessmentFixture();
         $mapped = $this->verifiedPostedPayment($fixture, [
-            'provider_reference' => 'paymongo:mapped-86b',
+            'provider_reference' => 'MANUAL-MAPPED-86B',
             'or_number' => 'OR-86B-TAKEN',
         ]);
         $unposted = Payment::factory()
             ->for($fixture['profile'])
             ->for($fixture['term'])
             ->create([
-                'method' => 'paymongo',
-                'channel' => 'paymongo',
+                'method' => 'bank_transfer',
+                'channel' => 'bank_transfer',
                 'amount' => '500.00',
                 'evidence_status' => 'verified',
                 'paid_at' => now(),
                 'verified_at' => now(),
-                'provider_reference' => 'paymongo:unposted-86b',
+                'provider_reference' => 'MANUAL-UNPOSTED-86B',
                 'or_number' => null,
             ]);
         $candidate = $this->verifiedPostedPayment($fixture, [
-            'provider_reference' => 'paymongo:candidate-86b',
+            'provider_reference' => 'MANUAL-CANDIDATE-86B',
         ]);
 
         $this->expectException(RuntimeException::class);
@@ -340,13 +340,13 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
             ->for($fixture['profile'])
             ->for($fixture['term'])
             ->create([
-                'method' => 'paymongo',
-                'channel' => 'paymongo',
+                'method' => 'bank_transfer',
+                'channel' => 'bank_transfer',
                 'amount' => '500.00',
                 'evidence_status' => 'verified',
                 'paid_at' => now()->subHour(),
                 'verified_at' => now()->subMinutes(50),
-                'provider_reference' => 'paymongo:verified-'.fake()->unique()->uuid(),
+                'provider_reference' => 'MANUAL-VERIFIED-'.fake()->unique()->uuid(),
                 'or_number' => null,
                 ...$overrides,
             ]);

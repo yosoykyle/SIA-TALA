@@ -133,14 +133,18 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertIsString($errorStyles);
         $this->assertIsString($filamentStyles);
         $this->assertIsString($provider);
-        $this->assertMatchesRegularExpression('/\.landing-attribution-mark\s*\{[^}]*border-radius: 22\.37%;/s', $landingStyles);
-        $this->assertGreaterThanOrEqual(2, substr_count(file_get_contents(resource_path('views/welcome.blade.php')), 'class="landing-attribution-mark"'));
         $landing = file_get_contents(resource_path('views/welcome.blade.php'));
+        $this->assertIsString($landing);
+        $this->assertStringNotContainsString('class="landing-attribution-mark"', $landing);
+        $this->assertStringNotContainsString('talalogo.png', $landing);
+        $this->assertStringNotContainsString('Powered by TALA', $landing);
+        $this->assertStringContainsString('servitech-crest-outlined-192.webp', $landing);
+        $this->assertStringContainsString('servitech-crest-outlined-320.webp', $landing);
         $this->assertStringContainsString('id="programs"', $landing);
         $this->assertStringNotContainsString('class="learner-journey row', $landing);
         $this->assertStringNotContainsString('aria-current="step"', $landing);
         $this->assertStringNotContainsString('role="progressbar"', $landing);
-        $this->assertStringContainsString('border-radius: 22.37%;', $errorStyles);
+        $this->assertStringContainsString('.brand', $errorStyles);
         $this->assertStringContainsString('.fi-logo', $filamentStyles);
         $this->assertStringNotContainsString("Css::make('tala-panel-brand'", $provider);
         $this->assertStringContainsString('tala-filament.css', file_get_contents(resource_path('css/filament/tala/theme.css')));
@@ -173,16 +177,14 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
             $this->assertInstanceOf(View::class, $logo);
             $markup = $logo->render();
 
-            $this->assertStringContainsString(asset('images/brand/servitech-crest.webp'), $markup);
+            $this->assertStringContainsString(asset('images/brand/servitech-crest-outlined-192.webp'), $markup);
+            $this->assertStringContainsString('tala-crest-outlined', $markup);
             $this->assertStringContainsString('Servitech Institute Asia', preg_replace('/\s+/', ' ', strip_tags($markup)));
             $this->assertStringNotContainsString('Powered by TALA', $markup);
+            $this->assertStringNotContainsString('talalogo.png', $markup);
             $this->assertStringContainsString('alt="" aria-hidden="true"', $markup);
             $this->assertStringNotContainsString('alt="Servitech Institute Asia"', $markup);
         }
-
-        $attribution = view('components.tala-panel-brand', ['placement' => 'attribution'])->render();
-        $this->assertStringContainsString(asset('talalogo.png'), $attribution);
-        $this->assertStringContainsString('Powered by TALA', $attribution);
 
         $this->assertSame(Color::generatePalette('#2F7D3B'), $admin->getColors()['primary']);
         $this->assertSame($admin->getColors()['primary'], $applicant->getColors()['primary']);

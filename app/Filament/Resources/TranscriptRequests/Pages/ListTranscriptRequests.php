@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TranscriptRequests\Pages;
 
 use App\Filament\Pages\CompletionAndTor;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Models\User;
 use Filament\Resources\Pages\ListRecords;
@@ -39,6 +40,14 @@ class ListTranscriptRequests extends ListRecords
             return [
                 CompletionAndTor::getUrl() => 'Completion & TOR',
                 'TOR requests',
+            ];
+        }
+
+        if (auth()->user()?->hasRole(User::StaffRoleAccounting)) {
+            return [
+                EnrollmentResource::getUrl('index') => 'Overview',
+                EnrollmentResource::getUrl('index', ['tab' => 'accounts']) => 'Student accounts',
+                'TOR restrictions',
             ];
         }
 

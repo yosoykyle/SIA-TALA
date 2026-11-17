@@ -27,7 +27,6 @@ use App\Models\FacultyTermLoadOverride;
 use App\Models\FeeRule;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use App\Models\Program;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -229,8 +228,6 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'assessments' => Assessment::query()->count(),
             'ledger_entries' => LedgerEntry::query()->count(),
             'payments' => Payment::query()->count(),
-            'payment_attempts' => PaymentAttempt::query()->count(),
-            'webhook_calls' => DB::table('webhook_calls')->count(),
         ];
 
         return [
@@ -1655,7 +1652,6 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             Enrollment::class,
             Assessment::class,
             LedgerEntry::class,
-            PaymentAttempt::class,
             Payment::class,
         ];
 
@@ -1665,7 +1661,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             }
         }
 
-        return DB::table('webhook_calls')->exists();
+        return false;
     }
 
     private function downstreamEvidenceIsEmpty(): bool
@@ -1675,9 +1671,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             && ! Enrollment::query()->exists()
             && ! Assessment::query()->exists()
             && ! LedgerEntry::query()->exists()
-            && ! PaymentAttempt::query()->exists()
-            && ! Payment::query()->exists()
-            && ! DB::table('webhook_calls')->exists();
+            && ! Payment::query()->exists();
     }
 
     private function expectedAcademicStanding(string $studentNumber): string

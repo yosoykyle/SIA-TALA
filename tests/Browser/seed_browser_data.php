@@ -655,8 +655,8 @@ $payment = Payment::firstOrCreate(
     [
         'student_profile_id' => $studentProfile->id,
         'term_id' => $term->id,
-        'method' => 'paymongo',
-        'channel' => 'paymongo',
+        'method' => 'bank_transfer',
+        'channel' => 'bank_transfer',
         'amount' => '2000.00',
         'evidence_status' => 'verified',
         'paid_at' => now()->subDay(),
@@ -664,7 +664,7 @@ $payment = Payment::firstOrCreate(
         'state' => Payment::StatePosted,
         'verification_basis' => 'IndependentSourceCheck',
         'external_check_reference' => 'SYNTH-CHECK-001',
-        'provider_reference' => 'pm_test_001',
+        'provider_reference' => 'MANUAL-TEST-001',
     ]
 );
 

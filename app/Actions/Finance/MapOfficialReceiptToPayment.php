@@ -40,15 +40,17 @@ class MapOfficialReceiptToPayment
 
         return DB::transaction(function () use ($payment, $actor, $trimmedOrNumber, $timestamp): Payment {
             $locked = Payment::query()
-                ->with('ledgerEntry')
+                ->with(['ledgerEntry', 'allocations'])
                 ->lockForUpdate()
                 ->findOrFail($payment->id);
 
             $ledgerEntry = $locked->ledgerEntry;
+            $hasPostedLedgerEntry = $ledgerEntry instanceof LedgerEntry && $ledgerEntry->state === 'posted';
+            $hasPostedAccountAllocation = $locked->term_account_id !== null && $locked->allocations->isNotEmpty();
 
             if ($locked->evidence_status !== 'verified'
-                || ! $ledgerEntry instanceof LedgerEntry
-                || $ledgerEntry->state !== 'posted') {
+                || ($locked->state !== null && $locked->state !== Payment::StatePosted)
+                || (! $hasPostedLedgerEntry && ! $hasPostedAccountAllocation)) {
                 throw new RuntimeException('Official Receipts can only be mapped to verified posted payment evidence.');
             }
 

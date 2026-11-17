@@ -147,6 +147,20 @@ class StudentProfile extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function adminPhotoUrl(): ?string
+    {
+        $avatarPath = $this->user?->avatar_path;
+
+        if (blank($avatarPath)) {
+            return null;
+        }
+
+        return route('admin.student-profiles.photo', [
+            'studentProfile' => $this,
+            'photo' => hash('sha256', $avatarPath),
+        ]);
+    }
+
     /** @return BelongsTo<Term, $this> */
     public function entryTerm(): BelongsTo
     {

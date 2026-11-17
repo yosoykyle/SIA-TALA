@@ -2,7 +2,6 @@
 
 namespace App\Actions\Finance;
 
-use App\Actions\Integrations\Payments\PaymentPostedNotificationService;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentEvidenceVersion;
@@ -26,7 +25,7 @@ class ReviewPaymentEvidence
     public function verify(PaymentEvidenceVersion $evidence, User $actor, string $actualVerifiedAmount, string $externalCheckReference): Payment
     {
         if (! $actor->canAuthenticate() || ! $actor->hasRole(User::StaffRoleAccounting)) {
-            throw new AuthorizationException('Only Accounting staff may review payment evidence.');
+            throw new AuthorizationException('Only Accounting staff may review submitted receipts.');
         }
 
         $created = false;
@@ -75,6 +74,7 @@ class ReviewPaymentEvidence
                     'term_id' => $account->term_id,
                     'method' => 'manual_evidence',
                     'channel' => $locked->channel,
+                    'channel_snapshot' => $locked->channel_snapshot,
                     'amount' => $normalizedAmount,
                     'currency' => 'PHP',
                     'evidence_status' => 'verified',
@@ -132,7 +132,7 @@ class ReviewPaymentEvidence
     public function reject(PaymentEvidenceVersion $evidence, User $actor, string $safeReason): PaymentEvidenceVersion
     {
         if (! $actor->canAuthenticate() || ! $actor->hasRole(User::StaffRoleAccounting)) {
-            throw new AuthorizationException('Only Accounting staff may review payment evidence.');
+            throw new AuthorizationException('Only Accounting staff may review submitted receipts.');
         }
 
         return DB::transaction(function () use ($evidence, $actor, $safeReason): PaymentEvidenceVersion {

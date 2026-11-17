@@ -15,42 +15,50 @@ class StaffEmailChangeController extends Controller
     {
         $token = (string) $request->query('token');
 
-        DB::transaction(function () use ($change, $token): void {
-            $locked = PendingEmailChange::query()->lockForUpdate()->findOrFail($change->id);
+        try {
+            DB::transaction(function () use ($change, $token): void {
+                $locked = PendingEmailChange::query()->lockForUpdate()->findOrFail($change->id);
 
-            if ($locked->verified_at !== null
-                || $locked->superseded_at !== null
-                || $locked->expires_at->isPast()
-                || ! hash_equals($locked->token_digest, hash('sha256', $token))) {
-                throw ValidationException::withMessages([
-                    'email' => 'This email-change link is expired or no longer valid.',
-                ]);
-            }
+                if ($locked->verified_at !== null
+                    || $locked->superseded_at !== null
+                    || $locked->expires_at->isPast()
+                    || ! hash_equals($locked->token_digest, hash('sha256', $token))) {
+                    throw ValidationException::withMessages([
+                        'email' => 'This email-change link is expired or no longer valid.',
+                    ]);
+                }
 
-            $user = User::query()->lockForUpdate()->findOrFail($locked->user_id);
+                $user = User::query()->lockForUpdate()->findOrFail($locked->user_id);
 
-            if (User::query()->where('email', $locked->new_email)->whereKeyNot($user->id)->exists()) {
-                throw ValidationException::withMessages([
-                    'email' => 'This email-change link is no longer valid. Ask a System Administrator to start again.',
-                ]);
-            }
+                if (User::query()->where('email', $locked->new_email)->whereKeyNot($user->id)->exists()) {
+                    throw ValidationException::withMessages([
+                        'email' => 'This email-change link is no longer valid. Ask a System Administrator to start again.',
+                    ]);
+                }
 
-            $oldDomain = str($user->email)->after('@')->toString();
-            $user->forceFill([
-                'email' => $locked->new_email,
-                'email_verified_at' => now(),
-            ])->save();
-            $locked->update(['verified_at' => now()]);
+                $oldDomain = str($user->email)->after('@')->toString();
+                $user->forceFill([
+                    'email' => $locked->new_email,
+                    'email_verified_at' => now(),
+                ])->save();
+                $locked->update(['verified_at' => now()]);
 
-            activity()
-                ->performedOn($user)
-                ->event('staff_email_changed')
-                ->withProperties([
-                    'old_email_domain' => $oldDomain,
-                    'new_email_domain' => str($locked->new_email)->after('@')->toString(),
-                ])
-                ->log('Staff sign-in email changed after successor verification');
-        });
+                activity()
+                    ->performedOn($user)
+                    ->event('staff_email_changed')
+                    ->withProperties([
+                        'old_email_domain' => $oldDomain,
+                        'new_email_domain' => str($locked->new_email)->after('@')->toString(),
+                    ])
+                    ->log('Staff sign-in email changed after successor verification');
+            });
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first()
+                ?? 'This email-change link is expired or no longer valid.';
+
+            return redirect()->route('filament.admin.auth.login')
+                ->with('status', $message);
+        }
 
         return redirect()->route('filament.admin.auth.login')
             ->with('status', 'The successor sign-in email was verified.');

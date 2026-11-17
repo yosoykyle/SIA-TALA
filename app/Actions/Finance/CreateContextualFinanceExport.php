@@ -27,13 +27,13 @@ class CreateContextualFinanceExport
     public const VerifiedPaymentsPurpose = 'Accounting verified-payment reconciliation';
 
     public const VerifiedPaymentsHeaders = [
-        'Payment reference', 'Account reference', 'Learner number', 'Learner name', 'Term', 'Entry type',
+        'Payment reference', 'Account reference', 'Student / applicant number', 'Student / applicant name', 'Term', 'Entry type',
         'Amount (PHP)', 'Channel', 'Masked external reference', 'Payment or refund at (Asia/Manila)',
         'Verified at (Asia/Manila)', 'Reverses payment reference', 'Verification basis',
     ];
 
     public const AccountStatusHeaders = [
-        'Account reference', 'Learner number', 'Learner name', 'Program', 'Term', 'Assessed charges (PHP)',
+        'Account reference', 'Student / applicant number', 'Student / applicant name', 'Program', 'Term', 'Assessed charges (PHP)',
         'Verified payments applied (PHP)', 'Approved coverage applied (PHP)', 'Due now (PHP)',
         'Later fees (PHP)', 'Remaining term fees (PHP)', 'Account status', 'Assessment version',
         'Assessment basis', 'Approval reference', 'As of (Asia/Manila)',
@@ -200,7 +200,7 @@ class CreateContextualFinanceExport
                 $payment->provider_reference ?? 'PAYMENT-'.$payment->id, 'TERM-ACCOUNT-'.$account->id,
                 $identity['number'], $identity['name'], $payment->term?->label ?? $account->term?->label,
                 $payment->state === Payment::StateReversal ? 'Reversal' : 'Verified payment',
-                $this->money->normalize($payment->amount), $payment->channelLabel(),
+                $this->money->normalize($payment->amount), $payment->channelDetailLabel(),
                 $this->mask($payment->external_check_reference ?? $payment->provider_reference),
                 $paidAt?->setTimezone('Asia/Manila')->toRfc3339String(),
                 $payment->verified_at?->setTimezone('Asia/Manila')->toRfc3339String(),

@@ -38,9 +38,12 @@ class UsersTable
                 TextColumn::make('email_verified_at')
                     ->label('Email verified')
                     ->formatStateUsing(fn ($state): string => $state ? 'Verified' : 'Pending')
-                    ->badge(),
+                    ->badge()
+                    ->color(fn ($state): string => $state ? 'success' : 'warning'),
                 TextColumn::make('status')
                     ->badge()
+                    ->formatStateUsing(fn (?string $state): string => User::statusLabel($state))
+                    ->color(fn (?string $state): string => User::statusColor($state))
                     ->searchable(),
                 TextColumn::make('roles.name')
                     ->label('Authorized workspaces')
@@ -54,7 +57,8 @@ class UsersTable
                 TextColumn::make('two_factor_confirmed_at')
                     ->label('MFA')
                     ->formatStateUsing(fn ($state): string => $state ? 'Enrolled' : 'Required')
-                    ->badge(),
+                    ->badge()
+                    ->color(fn ($state): string => $state ? 'success' : 'warning'),
                 TextColumn::make('last_successful_sign_in_at')
                     ->label('Last sign-in')
                     ->dateTime()

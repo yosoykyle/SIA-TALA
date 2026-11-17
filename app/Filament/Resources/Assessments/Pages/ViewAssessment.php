@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Assessments\Pages;
 
 use App\Actions\Finance\PaymentAllocationService;
 use App\Actions\Finance\PaymentConfirmationService;
+use App\Actions\Finance\SchoolPaymentChannels;
 use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\FinancialAccommodations\FinancialAccommodationResource;
@@ -13,6 +14,7 @@ use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\User;
+use App\Support\SafeUserNotification;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -25,7 +27,7 @@ use Filament\Resources\Pages\ViewRecord;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
-use RuntimeException;
+use Throwable;
 
 class ViewAssessment extends ViewRecord
 {
@@ -54,16 +56,36 @@ class ViewAssessment extends ViewRecord
                         ->options(Payment::manualConfirmationChannelOptions())
                         ->default('cash')
                         ->live()
+                        ->afterStateUpdated(fn (Set $set): mixed => $set('channel_account_id', null))
                         ->required(),
+                    Select::make('channel_account_id')
+                        ->label('School receiving account (optional)')
+                        ->options(fn (Get $get): array => app(SchoolPaymentChannels::class)->accountOptionsForGroup((string) ($get('channel') ?? '')))
+                        ->visible(fn (Get $get): bool => ($channel = (string) ($get('channel') ?? 'cash')) !== 'cash'
+                            && app(SchoolPaymentChannels::class)->accountOptionsForGroup($channel) !== [])
+                        ->placeholder('Choose the school account received on (optional)')
+                        ->helperText('Optional. Captures the specific bank or e-wallet account in the payment record.')
+                        ->live(),
                     TextInput::make('payment_reference')
                         ->label('Payment / Evidence Reference')
+                        ->helperText(function (Get $get): string {
+                            $channel = (string) ($get('channel') ?? 'cash');
+                            $snapshot = $channel !== 'cash'
+                                ? app(SchoolPaymentChannels::class)->resolveAccountSnapshot(
+                                    $channel,
+                                    filled($get('channel_account_id')) ? (string) $get('channel_account_id') : null,
+                                )
+                                : null;
+
+                            return SchoolPaymentChannels::referenceGuidance($channel, $snapshot['provider_or_bank'] ?? null)['hint'];
+                        })
                         ->required()
                         ->maxLength(255),
                     TextInput::make('or_number')
-                        ->label('OR Number')
+                        ->label('Official Receipt (OR) number')
                         ->helperText(fn (Get $get): string => $get('channel') === 'cash'
-                            ? 'Required for cash because the physical OR is issued at payment.'
-                            : 'Optional now. Accounting may map the physical OR later.')
+                            ? 'Required for cash because the physical Official Receipt (OR) is issued at payment.'
+                            : 'Optional now. Accounting may map the physical Official Receipt (OR) later.')
                         ->required(fn (Get $get): bool => $get('channel') === 'cash')
                         ->maxLength(255),
                     Repeater::make('allocations')
@@ -103,10 +125,18 @@ class ViewAssessment extends ViewRecord
                     }
 
                     try {
+                        $channel = (string) $data['channel'];
+                        $channelSnapshot = $channel !== 'cash'
+                            ? app(SchoolPaymentChannels::class)->resolveAccountSnapshot(
+                                $channel,
+                                filled($data['channel_account_id'] ?? null) ? (string) $data['channel_account_id'] : null,
+                            )
+                            : null;
+
                         app(PaymentConfirmationService::class)->confirmManualPayment(
                             enrollmentId: (int) $assessment->enrollment_id,
                             amount: (string) $data['amount'],
-                            channel: (string) $data['channel'],
+                            channel: $channel,
                             paymentReference: (string) $data['payment_reference'],
                             actor: $actor,
                             confirmedAt: CarbonImmutable::parse((string) $data['paid_at'], config('app.timezone')),
@@ -114,6 +144,7 @@ class ViewAssessment extends ViewRecord
                             orNumber: filled($data['or_number'] ?? null)
                                 ? (string) $data['or_number']
                                 : null,
+                            channelSnapshot: $channelSnapshot,
                         );
 
                         $this->record = $assessment->refresh();
@@ -122,12 +153,8 @@ class ViewAssessment extends ViewRecord
                             ->title('Manual payment recorded')
                             ->success()
                             ->send();
-                    } catch (RuntimeException $exception) {
-                        Notification::make()
-                            ->title('Manual payment was not recorded')
-                            ->body($exception->getMessage())
-                            ->danger()
-                            ->send();
+                    } catch (Throwable $exception) {
+                        SafeUserNotification::sendError('Manual payment was not recorded', $exception);
                     }
                 }),
             ActionGroup::make([
