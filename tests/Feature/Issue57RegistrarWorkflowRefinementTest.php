@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Admissions\SaveAdmissionApplication;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Applicant\Pages\Application as ApplicantApplication;
+use App\Filament\Clusters\Admissions;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
@@ -159,13 +160,13 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
         $this->assertSame(AdmissionApplicationResource::getUrl('index'), $url);
     }
 
-    public function test_staff_entry_redirects_registrar_to_admissions_queue(): void
+    public function test_staff_entry_redirects_registrar_to_admissions_dashboard(): void
     {
         $registrar = $this->createStaffUser(User::StaffRoleRegistrar);
 
         $response = $this->actingAs($registrar)->get('/admin');
 
-        $response->assertRedirect(AdmissionApplicationResource::getUrl('index'));
+        $response->assertRedirect(Admissions::getUrl());
     }
 
     public function test_staff_entry_redirects_registrar_with_application_param_to_record_view(): void
@@ -455,21 +456,21 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
         $response->assertForbidden();
     }
 
-    public function test_staff_entry_registrar_with_invalid_application_param_falls_back_to_admissions_queue(): void
+    public function test_staff_entry_registrar_with_invalid_application_param_falls_back_to_admissions_dashboard(): void
     {
         $registrar = $this->createStaffUser(User::StaffRoleRegistrar);
         $response = $this->actingAs($registrar)->get('/admin?application=99999999');
-        $response->assertRedirect(AdmissionApplicationResource::getUrl('index'));
+        $response->assertRedirect(Admissions::getUrl());
     }
 
-    public function test_staff_entry_noncanonical_application_deep_link_falls_back_to_queue(): void
+    public function test_staff_entry_noncanonical_application_deep_link_falls_back_to_dashboard(): void
     {
         $registrar = $this->createStaffUser(User::StaffRoleRegistrar);
         [$application] = $this->createDraftApplication();
         $application->update(['application_state' => null]);
 
         $this->actingAs($registrar)->get('/admin?application='.$application->id)
-            ->assertRedirect(AdmissionApplicationResource::getUrl('index'));
+            ->assertRedirect(Admissions::getUrl());
     }
 
     public function test_application_record_deep_link_rejects_unauthorized_staff_through_middleware(): void

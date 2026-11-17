@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Clusters\Admissions;
 use App\Filament\Components\AccessibleSidebar;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Models\ChecklistItem;
@@ -35,8 +36,28 @@ class WorkspaceNavigationSearchTest extends TestCase
             'Learner work' => ['Admissions', 'Students & Enrollment', 'Grades & Completion'],
             'Academic setup' => ['Catalog & Curricula', 'Term Planning'],
         ], $groups);
-        $this->assertSame('/admin/admissions/admission-applications', app(WorkspaceContextResolver::class)
+        $this->assertSame('/admin/admissions', app(WorkspaceContextResolver::class)
             ->destinationFor($user, User::StaffRoleRegistrar));
+    }
+
+    public function test_admissions_nav_item_is_marked_active_while_viewing_its_own_dashboard(): void
+    {
+        $user = $this->signIn(User::StaffRoleRegistrar, ['approve-documents']);
+        $user->forceFill(['email_verified_at' => now()])->save();
+        $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
+
+        $response = $this->get(Admissions::getUrl(panel: 'admin'))->assertOk();
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $xpath = new \DOMXPath($document);
+        $activeAdmissionsLabel = $xpath->query(
+            "//li[contains(concat(' ', normalize-space(@class), ' '), ' fi-active ')]"
+            ."//span[contains(@class, 'fi-sidebar-item-label')][contains(., 'Admissions')]",
+        );
+
+        $this->assertGreaterThan(0, $activeAdmissionsLabel->length, 'The Admissions sidebar item must be marked active while viewing its own dashboard.');
     }
 
     public function test_registrar_finds_essential_setup_and_catalog_destinations_without_private_records(): void

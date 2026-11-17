@@ -404,28 +404,6 @@
     width: 1rem;
 }
 
-/*
- * The sign-in page's own decorative shapes, reused in the sidebar nav's leftover space (#80).
- * A flex child (not absolutely positioned) so it only ever claims space the nav items don't
- * already need, and can never overlap the last nav item regardless of how many groups render.
- */
-.tala-sidebar-shapes {
-    flex: 1 1 auto;
-    min-block-size: 0;
-    inline-size: 100%;
-    pointer-events: none;
-    background-color: var(--tala-brand);
-    opacity: .24;
-    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-    -webkit-mask-position: center; mask-position: center;
-    -webkit-mask-size: contain; mask-size: contain;
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 220'%3E%3Ccircle cx='24' cy='20' r='7' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='136' cy='34' r='2.5'/%3E%3Ccircle cx='88' cy='14' r='2'/%3E%3Ccircle cx='58' cy='52' r='2.5'/%3E%3Ccircle cx='165' cy='70' r='6' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='12' cy='70' r='2'/%3E%3Ccircle cx='110' cy='95' r='2'/%3E%3Cpath d='M44 80c1 7 3 10 11 11-8 1-10 4-11 11-1-7-3-10-11-11 8-1 10-4 11-11Z'/%3E%3Cpath d='M132 88c1 7 3 10 11 11-8 1-10 4-11 11-1-7-3-10-11-11 8-1 10-4 11-11Z'/%3E%3Cpath d='M92 55c1 5 2 7 8 8-6 1-7 3-8 8-1-5-2-7-8-8 6-1 7-3 8-8Z'/%3E%3Cpath d='M25 105c1 5 2 7 8 8-6 1-7 3-8 8-1-5-2-7-8-8 6-1 7-3 8-8Z'/%3E%3Cpath d='M26 130l30-10-16 26-5-9Z'/%3E%3Cpath d='M148 145l24-8-13 21-4-7Z'/%3E%3Cpath d='M70 110l22-7-12 19-4-6Z'/%3E%3Cpath d='M92 148q16 8 0 16q-16-8 0-16' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M60 188q10 5 0 10q-10-5 0-10' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M150 195q12 6 0 12q-12-6 0-12' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='148' cy='190' r='2'/%3E%3Ccircle cx='18' cy='182' r='2.5'/%3E%3Ccircle cx='90' cy='200' r='2'/%3E%3Cpath d='M108 22h8m-4-4v8' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M158 108h7m-3.5-3.5v7' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M18 155h7m-3.5-3.5v7' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M128 165h6m-3-3v6' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 220'%3E%3Ccircle cx='24' cy='20' r='7' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='136' cy='34' r='2.5'/%3E%3Ccircle cx='88' cy='14' r='2'/%3E%3Ccircle cx='58' cy='52' r='2.5'/%3E%3Ccircle cx='165' cy='70' r='6' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='12' cy='70' r='2'/%3E%3Ccircle cx='110' cy='95' r='2'/%3E%3Cpath d='M44 80c1 7 3 10 11 11-8 1-10 4-11 11-1-7-3-10-11-11 8-1 10-4 11-11Z'/%3E%3Cpath d='M132 88c1 7 3 10 11 11-8 1-10 4-11 11-1-7-3-10-11-11 8-1 10-4 11-11Z'/%3E%3Cpath d='M92 55c1 5 2 7 8 8-6 1-7 3-8 8-1-5-2-7-8-8 6-1 7-3 8-8Z'/%3E%3Cpath d='M25 105c1 5 2 7 8 8-6 1-7 3-8 8-1-5-2-7-8-8 6-1 7-3 8-8Z'/%3E%3Cpath d='M26 130l30-10-16 26-5-9Z'/%3E%3Cpath d='M148 145l24-8-13 21-4-7Z'/%3E%3Cpath d='M70 110l22-7-12 19-4-6Z'/%3E%3Cpath d='M92 148q16 8 0 16q-16-8 0-16' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M60 188q10 5 0 10q-10-5 0-10' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M150 195q12 6 0 12q-12-6 0-12' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='148' cy='190' r='2'/%3E%3Ccircle cx='18' cy='182' r='2.5'/%3E%3Ccircle cx='90' cy='200' r='2'/%3E%3Cpath d='M108 22h8m-4-4v8' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M158 108h7m-3.5-3.5v7' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M18 155h7m-3.5-3.5v7' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M128 165h6m-3-3v6' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
-}
-@media (forced-colors: active) {
-    .tala-sidebar-shapes { display: none; }
-}
-
 .tala-access-page { margin: 0; background: var(--tala-canvas); color: var(--tala-text); font-family: var(--tala-font-body); line-height: 1.6; }
 .tala-access-main { display: grid; place-items: center; min-height: 100dvh; padding: 2rem 1rem; max-width: 36rem; margin-inline: auto; }
 .tala-access-main-wide { max-width: 48rem; }

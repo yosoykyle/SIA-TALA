@@ -2,8 +2,10 @@
 
 namespace App\Filament\Clusters;
 
+use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Queries\Admissions\AdmissionQueueCounts;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Clusters\Cluster;
 use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
@@ -47,6 +49,19 @@ class Admissions extends Cluster
         return [];
     }
 
+    /**
+     * Cluster::getNavigationItemActiveRoutePattern() only matches *child* routes nested under
+     * this cluster (its own route name + '.*'), since Filament assumes a cluster is never visited
+     * directly. This cluster doubles as its own dashboard page, so its exact route name must also
+     * count as active, or the "Admissions" sidebar item never lights up while viewing it (#80).
+     * The parent signature is `string` only, so a single wildcard with no separator before '*'
+     * is used instead of an array: it matches the bare route name and every dot-suffixed child.
+     */
+    public static function getNavigationItemActiveRoutePattern(): string
+    {
+        return static::getRouteName().'*';
+    }
+
     public function getTitle(): string
     {
         return 'Admissions';
@@ -60,6 +75,25 @@ class Admissions extends Cluster
     public function getBreadcrumbs(): array
     {
         return ['Admissions'];
+    }
+
+    /**
+     * Admission cycles is setup/management, not an application queue, so it doesn't belong in the
+     * "Other queues" card list (it has no count and isn't a status of any application) — it lives
+     * here instead, alongside the page title (#80).
+     *
+     * @return array<Action>
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('manageAdmissionCycles')
+                ->label('Admission cycles')
+                ->icon('heroicon-o-calendar-date-range')
+                ->color('gray')
+                ->outlined()
+                ->url(fn (): string => AdmissionCycleResource::getUrl()),
+        ];
     }
 
     /** @return array<string, mixed> */

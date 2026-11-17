@@ -45,7 +45,6 @@
                 <x-workspace-card compact :href="\App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications::getUrl(['tab' => \App\Queries\Admissions\AdmissionQueueCounts::WaitingForApplicant])" icon="heroicon-o-clock" label="Waiting for applicant" description="Corrections sent back; the applicant acts next." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::WaitingForApplicant]" />
                 <x-workspace-card compact :href="\App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications::getUrl(['tab' => \App\Queries\Admissions\AdmissionQueueCounts::ReadyForEnrollment])" icon="heroicon-o-check-circle" label="Ready for enrollment" description="Cleared applicants tracking toward official enrollment." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::ReadyForEnrollment]" />
                 <x-workspace-card compact :href="\App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications::getUrl(['tab' => \App\Queries\Admissions\AdmissionQueueCounts::Closed])" icon="heroicon-o-archive-box" label="Closed applications" description="Withdrawn or not admitted; terminal records only." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::Closed]" />
-                <x-workspace-card compact :href="\App\Filament\Resources\AdmissionCycles\AdmissionCycleResource::getUrl()" icon="heroicon-o-calendar-date-range" label="Admission cycles" description="Open, close and configure admission cycles." />
             </nav>
         </section>
     </div>

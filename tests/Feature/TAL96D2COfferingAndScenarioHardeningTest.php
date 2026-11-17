@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Scheduling\SectionDeliveryGroupService;
 use App\Actions\Scheduling\SectionPlanningService;
 use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
+use App\Filament\Clusters\Admissions;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\CurriculumVersions\Pages\ViewCurriculumVersion;
 use App\Filament\Widgets\RegistrarOperationalReadinessWidget;
@@ -188,7 +189,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
             ->assertSee('Not published');
 
         $this->get('/admin')
-            ->assertRedirect(AdmissionApplicationResource::getUrl(panel: 'admin'));
+            ->assertRedirect(Admissions::getUrl(panel: 'admin'));
         $this->get(AdmissionApplicationResource::getUrl(panel: 'admin'))
             ->assertOk()
             ->assertSee('Application queue');

@@ -223,7 +223,8 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $dashboard = $this->actingAs($registrar)
             ->get(Admissions::getUrl(panel: 'admin'))
             ->assertOk()
-            ->assertSeeInOrder(['Needs review', 'Registrar clearance', 'Other queues', 'Waiting for applicant', 'Ready for enrollment', 'Closed applications', 'Admission cycles'], false)
+            ->assertSeeInOrder(['Applications to review', 'Application clearance', 'Other queues', 'Waiting for applicant', 'Ready for enrollment', 'Closed applications'], false)
+            ->assertSee('Admission cycles')
             ->assertSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::NeedsReview], panel: 'admin'))
             ->assertSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::RegistrarClearance], panel: 'admin'));
         $this->assertStringContainsString('>'.$needsReview.'<', preg_replace('/\s+/', '', (string) $dashboard->getContent()));

@@ -180,9 +180,6 @@ class TalaPanelTheme
                 self::isApplicantPanel($panel) ? '' : '<p class="tala-workspace-context">'.e(self::workspaceContext($panel)).'</p>',
             ))
             ->renderHook(PanelsRenderHook::SIDEBAR_NAV_START, fn (): View => view('filament.components.workspace-search'))
-            ->renderHook(PanelsRenderHook::SIDEBAR_NAV_END, fn (): HtmlString => new HtmlString(
-                '<div class="tala-sidebar-shapes" aria-hidden="true"></div>',
-            ))
             ->renderHook(PanelsRenderHook::SIDEBAR_FOOTER, fn (): HtmlString => self::attribution($panel, '<div class="tala-sidebar-attribution">%s</div>'))
             ->renderHook(PanelsRenderHook::CONTENT_END, fn (): HtmlString => self::attribution($panel, '<footer class="tala-mobile-attribution">%s</footer>'))
             ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_END, fn (array $scopes): View => view('filament.components.auth-main-end', ['usesAuthDesigner' => self::usesAuthDesigner($scopes)]))

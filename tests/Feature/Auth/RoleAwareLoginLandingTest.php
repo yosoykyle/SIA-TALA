@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
+use App\Filament\Clusters\Admissions;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -83,7 +83,7 @@ class RoleAwareLoginLandingTest extends TestCase
                 'role' => User::StaffRoleRegistrar,
                 'status' => User::StatusActive,
                 'path' => '/admin',
-                'expectedText' => 'Application queue',
+                'expectedText' => 'Review applications and manage the admission cycle.',
             ],
             'applicant sees school-first Applicant home' => [
                 'role' => 'applicant',
@@ -111,7 +111,7 @@ class RoleAwareLoginLandingTest extends TestCase
 
         if ($role === User::StaffRoleRegistrar) {
             $this->actingAs($user)->get($path)
-                ->assertRedirect(AdmissionApplicationResource::getUrl(panel: 'admin'));
+                ->assertRedirect(Admissions::getUrl(panel: 'admin'));
         }
 
         $this->followingRedirects()->actingAs($user)

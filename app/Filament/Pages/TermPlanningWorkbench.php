@@ -26,6 +26,7 @@ use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Terms\TermResource;
+use App\Models\AcademicYear;
 use App\Models\CandidateScheduleRow;
 use App\Models\FacultyAvailabilityDeadline;
 use App\Models\FacultyAvailabilityDeclaration;
@@ -100,6 +101,8 @@ class TermPlanningWorkbench extends Page
     #[Url]
     #[Locked]
     public ?int $termId = null;
+
+    public ?int $academicYearId = null;
 
     #[Url]
     public bool $chooseTerm = false;
@@ -2201,31 +2204,84 @@ class TermPlanningWorkbench extends Page
     public function termSelection(Schema $schema): Schema
     {
 
+        if ($this->academicYearId === null && $this->termId !== null) {
+            $this->academicYearId = $this->selectedTerm()->academic_year_id;
+        }
+
         return $schema->components([
 
-            Select::make('termId')
+            Select::make('academicYearId')
 
-                ->label('Academic Year and Term')
+                ->label('Academic year')
 
-                ->hint(fn (): ?string => $this->termId !== null && ($term = $this->selectedTerm()) ? (Term::stateOptions()[$term->state] ?? $term->state).(auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? ' · Read-only · Registrar owns these records' : '') : null)
+                ->extraInputAttributes(['aria-label' => 'Academic year'])
 
-                ->extraInputAttributes(['aria-label' => 'Academic Year and Term'])
-
-                ->placeholder('Choose a Term')
+                ->placeholder('Choose an academic year')
 
                 ->selectablePlaceholder(false)
 
-                ->options(fn (): array => Term::query()->with('academicYear')->latest('starts_on')->get()
+                ->options(fn (): array => AcademicYear::query()->latest('starts_on')->pluck('label', 'id')->all())
+
+                ->searchable()
+                ->live()
+                ->afterStateUpdated(function (): void {
+                    $this->termId = null;
+                }),
+
+            Select::make('termId')
+
+                ->label('Term')
+
+                ->hint(fn (): ?string => $this->termId !== null && ($term = $this->selectedTerm()) ? (Term::stateOptions()[$term->state] ?? $term->state).(auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? ' · Read-only · Registrar owns these records' : '') : null)
+
+                ->extraInputAttributes(['aria-label' => 'Term'])
+
+                ->placeholder($this->academicYearId === null ? 'Choose an academic year first' : 'Choose a Term')
+
+                ->selectablePlaceholder(false)
+
+                ->disabled($this->academicYearId === null)
+
+                ->options(fn (): array => $this->academicYearId === null ? [] : Term::query()
+                    ->where('academic_year_id', $this->academicYearId)
+                    ->latest('starts_on')->get()
 
                     ->mapWithKeys(fn (Term $term): array => [$term->id => implode(' · ', array_unique(array_filter([
-                        $term->academicYear?->label,
                         Term::typeOptions()[$term->type] ?? $term->type,
                         $term->label,
                     ])))])->all())
 
                 ->searchable()
                 ->live()
-                ->afterStateUpdated(fn ($state) => $this->selectTerm((int) $state)),
+                ->afterStateUpdated(fn ($state) => filled($state) ? $this->selectTerm((int) $state) : null),
+
+        ]);
+
+    }
+
+    /**
+     * The Term Overview chooser's own academic-year filter: narrows the full Term list to one
+     * academic year at a time instead of listing every recorded year and Term at once (#80).
+     */
+    public function academicYearFilterSelection(Schema $schema): Schema
+    {
+
+        return $schema->components([
+
+            Select::make('academicYearId')
+
+                ->label('Academic year')
+
+                ->extraInputAttributes(['aria-label' => 'Academic year'])
+
+                ->placeholder('Choose an academic year')
+
+                ->selectablePlaceholder(false)
+
+                ->options(fn (): array => AcademicYear::query()->latest('starts_on')->pluck('label', 'id')->all())
+
+                ->searchable()
+                ->live(),
 
         ]);
 

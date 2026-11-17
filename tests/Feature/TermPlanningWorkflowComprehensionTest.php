@@ -94,7 +94,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         Livewire::withQueryParams(['termId' => $invalidTermId])->test($page)->assertNotFound();
     }
 
-    public function test_term_chooser_groups_and_exposes_every_term_when_there_are_more_than_six(): void
+    public function test_term_chooser_starts_empty_and_shows_only_the_chosen_academic_years_terms(): void
     {
         Role::findOrCreate(User::StaffRoleRegistrar, 'web');
         $registrar = User::factory()->create();
@@ -119,21 +119,35 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
 
         $chooser = Livewire::test(TermOverview::class);
 
-        $chooser->assertSee($recentYear->label)
-            ->assertSee('4 Terms')
+        // Nothing is listed until an academic year is chosen.
+        $chooser->assertSee('Choose an academic year')
+            ->assertSee($recentYear->label)
             ->assertSee($priorYear->label)
-            ->assertSee('3 Terms')
-            ->assertSee('Search by academic year or Term.')
+            ->assertDontSee('Term 1')
+            ->assertDontSee('Term 5');
+
+        $chooser->set('academicYearId', $recentYear->id)
+            ->assertSee('4 Terms')
             ->assertSee('First Semester')
             ->assertSee('Active')
             ->assertSeeHtml('<time datetime="2026-06-01">')
             ->assertSee('Jun 1, 2026')
-            ->assertSee('Dec 31, 2026');
-        foreach ($terms as $term) {
+            ->assertSee('Dec 31, 2026')
+            ->assertDontSee('3 Terms')
+            ->assertDontSee('Term 5');
+        foreach ($terms->take(4) as $term) {
             $chooser->assertSee($term->label);
         }
-        $chooser->assertSee('aria-label="Open Term: Term 7"', false)
-            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['termId' => $terms->last()->id])).'"');
+        $chooser->assertSee('aria-label="Open Term: Term 4"', false)
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['termId' => $terms->get(3)->id])).'"');
+
+        $chooser->set('academicYearId', $priorYear->id)
+            ->assertSee('3 Terms')
+            ->assertDontSee('4 Terms')
+            ->assertDontSee('Term 1');
+        foreach ($terms->slice(4) as $term) {
+            $chooser->assertSee($term->label);
+        }
     }
 
     public function test_empty_term_chooser_keeps_academic_head_read_only_and_points_to_registrar(): void
