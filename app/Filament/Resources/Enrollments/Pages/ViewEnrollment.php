@@ -464,7 +464,7 @@ class ViewEnrollment extends ViewRecord
                     $this->resetPage('reviewHistoryPage');
                     Notification::make()->title($data['outcome'] === LifecycleAccountingReview::Pending ? 'Review returned to pending' : 'Review result recorded')->success()->send();
                 } catch (ValidationException $exception) {
-                    SafeUserNotification::sendValidationError();
+                    SafeUserNotification::sendError('Review result was not recorded', $exception, persistent: true);
                     throw $exception;
                 } catch (Throwable $exception) {
                     SafeUserNotification::sendError(

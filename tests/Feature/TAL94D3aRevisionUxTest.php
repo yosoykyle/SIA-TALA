@@ -220,7 +220,8 @@ final class TAL94D3aRevisionUxTest extends TestCase
             'timetableFormat' => 'week',
         ])->test(TermTimetable::class);
 
-        $this->assertCount(10, $component->instance()->getTableRecords());
+        $this->assertSame(12, $component->instance()->getTableRecords()->total());
+        $this->assertCount(5, $component->instance()->getTableRecords());
         DB::enableQueryLog();
 
         try {

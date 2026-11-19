@@ -217,7 +217,7 @@ class HistoryNavigationTest extends TestCase
 
             'pageClass' => ViewGradeRoster::class,
 
-        ])->assertSee('1–10 of 11 students')->assertSee('Page 1 of 2');
+        ])->assertSee('1–5 of 11 students')->assertSee('Page 1 of 3');
 
         $pageName = $page->instance()->getTableRecords()->getPageName();
 
@@ -225,9 +225,15 @@ class HistoryNavigationTest extends TestCase
 
             ->call('gotoPage', 2, $pageName)
 
+            ->assertSee('6–10 of 11 students')
+
+            ->assertSee('Page 2 of 3')
+
+            ->call('gotoPage', 3, $pageName)
+
             ->assertSee('11–11 of 11 students')
 
-            ->assertSee('Page 2 of 2');
+            ->assertSee('Page 3 of 3');
 
     }
 

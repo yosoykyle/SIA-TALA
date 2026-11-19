@@ -106,9 +106,9 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     {
         return [
             'registrar' => ['role' => User::StaffRoleRegistrar, 'allowed' => [
-                'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
+                'AcademicCalendarWindowResource', 'AcademicYearResource',
                 'AdmissionApplicationResource', 'AdmissionCycleResource', 'Admissions', 'AssistedAdmissionApplication', 'CalendarEventResource',
-                'CatalogCurriculaWorkbench', 'ClassPlanning', 'CompletionAndTor', 'CourseResource', 'CurriculumVersionResource',
+                'CatalogCurriculaWorkbench', 'CompletionAndTor', 'CourseResource', 'CurriculumVersionResource',
                 'StaffEntry', 'DuplicateProfileResolutionResource', 'EnrollmentResource',
                 'FacultyQualificationResource', 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'GradesAndCompletion',
@@ -125,8 +125,8 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'FacultySchedule', 'GradeRosterResource', 'MyAvailability',
             ]],
             'academic head' => ['role' => User::StaffRoleAcademicHead, 'allowed' => [
-                'AcademicApprovals', 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
-                'CalendarEventResource', 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CompletionAndTor', 'CourseResource',
+                'AcademicApprovals', 'AcademicCalendarWindowResource', 'AcademicYearResource',
+                'CalendarEventResource', 'CatalogCurriculaWorkbench', 'CompletionAndTor', 'CourseResource',
                 'CurriculumVersionResource', 'StaffEntry', 'EnrollmentResource', 'FacultyQualificationResource',
                 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'ProgramResource', 'RoomResource',
@@ -173,8 +173,6 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         foreach ($manifest as &$entry) {
             $entry['allowed'] = array_values(array_diff($entry['allowed'], [
                 'StaffEntry',
-                'AcademicReadiness',
-                'ClassPlanning',
                 'TermClassProposal',
                 'TermPlanningWorkbench',
                 'TermResource',
@@ -230,8 +228,6 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'TermResources',
             'TermTimetable',
             'AcademicApprovals',
-            'AcademicReadiness',
-            'ClassPlanning',
             'FacultyGradeRoster',
             'MyAvailability',
             'FacultySchedule',

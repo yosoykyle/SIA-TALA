@@ -26,6 +26,7 @@ use App\Models\TermCalendarPackage;
 use App\Models\TermCohort;
 use App\Models\TermOffering;
 use App\Models\User;
+use App\Support\SafeUserNotification;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -514,7 +515,7 @@ class Issue58ClassPreparationTest extends TestCase
                 $this->assertSame(10, $section->fresh()->cohorts->sole()->pivot->expected_count);
             }
         } else {
-            $component->assertHasTableBulkActionErrors(['classes'])->assertNotified('Cannot confirm selected classes');
+            $component->assertHasTableBulkActionErrors(['classes'])->assertNotified(SafeUserNotification::ValidationErrorTitle);
             foreach ($sections as $section) {
                 $this->assertNull($section->fresh()->term_calendar_package_id);
                 $this->assertNull($section->fresh()->course_specification_id);
@@ -548,7 +549,7 @@ class Issue58ClassPreparationTest extends TestCase
         } else {
             $term->calendarPackages()->where('state', TermCalendarPackage::StateActive)->update(['authority_reference' => 'Changed approved authority']);
         }
-        $component->callMountedTableBulkAction()->assertHasTableBulkActionErrors(['classes'])->assertNotified('Cannot confirm selected classes');
+        $component->callMountedTableBulkAction()->assertHasTableBulkActionErrors(['classes'])->assertNotified(SafeUserNotification::ValidationErrorTitle);
         foreach ($sections as $section) {
             $this->assertNull($section->fresh()->term_calendar_package_id);
             $this->assertNull($section->fresh()->confirmed_at);

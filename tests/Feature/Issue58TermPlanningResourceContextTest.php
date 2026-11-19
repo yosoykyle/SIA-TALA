@@ -382,7 +382,7 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             ->assertSuccessful()
             ->assertSee('Edit load exception')
             ->assertSee('14 units (recorded snapshot)')
-            ->assertSee('Approval reference')
+            ->assertSee('Approval memo or reference')
             ->assertSee('Active exception')
             ->assertSee(FacultyTermLoadOverrideResource::getUrl('view', ['record' => $load, 'termId' => $term->id]));
     }

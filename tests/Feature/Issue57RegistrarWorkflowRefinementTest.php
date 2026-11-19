@@ -18,6 +18,7 @@ use App\Models\Term;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Wizard;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Validation\ValidationException;
@@ -184,14 +185,20 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
         $refMethod = new \ReflectionMethod($page, 'dateChangeSchema');
         $refMethod->setAccessible(true);
 
-        /** @var list<DateTimePicker> $schema */
+        /** @var list<mixed> $schema */
         $schema = $refMethod->invoke($page);
 
         $this->assertNotEmpty($schema);
-        $closesAtPicker = $schema[0];
-        $this->assertInstanceOf(DateTimePicker::class, $closesAtPicker);
-        $this->assertSame('Asia/Manila', $closesAtPicker->getTimezone());
-        $this->assertSame('M j, Y · g:i A', $closesAtPicker->getDisplayFormat());
+        $this->assertInstanceOf(Grid::class, $schema[0]);
+
+        $pickers = $schema[0]->getDefaultChildComponents();
+        $this->assertCount(2, $pickers);
+
+        foreach ($pickers as $picker) {
+            $this->assertInstanceOf(DateTimePicker::class, $picker);
+            $this->assertSame('Asia/Manila', $picker->getTimezone());
+            $this->assertSame('M j, Y · g:i A', $picker->getDisplayFormat());
+        }
     }
 
     public function test_admission_applications_table_has_closed_applications_tab(): void
@@ -345,7 +352,7 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
             ->set('data.first_name', 'Updated assisted name')
             ->set('data.assistance_authority_reference', 'REF-2026-TEST')
             ->set('data.assistance_evidence_reference', 'EVIDENCE-2026-TEST');
-        $page->assertSee('Application options')->assertSee('Save draft')
+        $page->assertSee('Save and exit')->assertSee('Save draft')
             ->assertSee('wire:submit="saveDraft"', false)
             ->assertFormFieldHidden('accuracy_declared')
             ->assertActionVisible('saveAndExit')
