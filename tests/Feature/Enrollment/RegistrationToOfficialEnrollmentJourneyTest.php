@@ -68,7 +68,6 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentException;
-use App\Models\EnrollmentGateResult;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\FeePlan;
 use App\Models\GradeOutcomeEvent;
@@ -92,7 +91,6 @@ use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermAccount;
 use App\Models\TermCalendarPackage;
@@ -207,7 +205,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $credited = CurriculumEntry::factory()->for($curriculum)->create(['year_level' => 'First Year', 'term_label' => 'Second Semester', 'term_type' => Term::TypeSecondSemester]);
             CourseRequirement::factory()->create([
                 'course_specification_id' => $section->termOffering->curriculumEntry->course_specification_id,
-                'related_course_id' => $credited->courseSpecification->course_id, 'accepts_transfer_credit' => true,
+                'related_course_id' => $credited->courseSpecification->course_id,
             ]);
         }
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
@@ -243,7 +241,6 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame($timetable->id, $proposal->published_timetable_version_id);
         $this->assertSame($curriculum->id, $proposal->curriculum_version_id);
         $this->assertSame(0, CourseEnrollment::query()->where('enrollment_id', $case->id)->count());
-        $this->assertSame(0, StudentScheduleBinding::query()->count());
         $this->assertSame(1, $proposal->items()->firstOrFail()->reservation()->count());
         $this->assertSame(0, GradeRoster::query()->where('section_id', $section->id)->count());
         $this->assertSame(0, GradeRosterRow::query()->count());
@@ -286,8 +283,6 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertTrue($application->user->fresh()->hasRole('student'));
         $this->assertTrue($application->user->fresh()->hasRole('applicant'));
         $this->assertSame(1, CourseEnrollment::query()->where('enrollment_id', $official->id)->where('is_current', true)->count());
-        $this->assertSame(0, EnrollmentGateResult::query()->where('enrollment_id', $official->id)->count());
-        $this->assertSame(0, StudentScheduleBinding::query()->count());
         $this->assertSame(1, $official->corVersions()->count());
         if ($credited !== null) {
             $this->assertContains((int) $credited->courseSpecification->course_id, app(RegistrationAcademicEligibilityQuery::class)->satisfiedCourseIds($official->studentProfile)->all());
@@ -513,7 +508,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $page = Livewire::actingAs($head)->test(RegistrarEnrollment::class, ['record' => $case->id])
             ->assertSee('Proposed subjects')->assertSee('Awaiting learner confirmation')
             ->assertSee('Recorded seat deadline')->assertSee($deadline)
-            ->assertSee('Registration proposal v'.$proposal->version.' · Published timetable v'.$timetable->version)
+            ->assertSee('Registration proposal · Published timetable')
             ->assertSee('Current placement source')->assertSee($item->course_title_snapshot)
             ->assertSee('These subjects are proposed and are not official registrations.')
             ->assertDontSee('Official class registrations')->assertDontSee('PHP')->assertDontSee('0.00')
@@ -1793,7 +1788,6 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             CourseRequirement::factory()->create([
                 'course_specification_id' => $section->termOffering->curriculumEntry->course_specification_id,
                 'related_course_id' => $creditedEntry->courseSpecification->course_id,
-                'minimum_grade' => '3.00', 'accepts_transfer_credit' => false,
             ]);
         }
         $case = app(StartRegistrationCase::class)->forContinuingStudent(
@@ -1857,7 +1851,6 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         [$section, $timetable] = $this->publishedOfferingForProgram($profile->program, $term, $profile->curriculumVersion);
         CourseRequirement::factory()->create([
             'course_specification_id' => $section->termOffering->curriculumEntry->course_specification_id,
-            'minimum_grade' => '3.0000',
         ]);
         $case = app(StartRegistrationCase::class)->forContinuingStudent(
             $profile,

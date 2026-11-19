@@ -22,7 +22,7 @@ class TermCalendarPackage extends Model
 
     protected $fillable = [
         'term_id', 'version', 'state', 'administrative_starts_on', 'administrative_ends_on',
-        'classes_start_on', 'classes_end_on', 'faculty_availability_due_at', 'authority_reference', 'authority_date',
+        'classes_start_on', 'classes_end_on', 'authority_reference', 'authority_date',
         'special_term_schedule_basis', 'recorded_by', 'activated_at', 'closed_at',
     ];
 
@@ -34,7 +34,6 @@ class TermCalendarPackage extends Model
             'administrative_ends_on' => 'date',
             'classes_start_on' => 'date',
             'classes_end_on' => 'date',
-            'faculty_availability_due_at' => 'datetime',
             'authority_date' => 'date',
             'activated_at' => 'datetime',
             'closed_at' => 'datetime',
@@ -73,8 +72,7 @@ class TermCalendarPackage extends Model
 
     public function facultyAvailabilityDueAt(): ?Carbon
     {
-        return FacultyAvailabilityDeadline::query()->where('term_id', $this->term_id)->latest('id')->first()?->due_at
-            ?? $this->faculty_availability_due_at;
+        return FacultyAvailabilityDeadline::query()->where('term_id', $this->term_id)->latest('id')->first()?->due_at;
     }
 
     public function coreSignature(): string
@@ -132,7 +130,6 @@ class TermCalendarPackage extends Model
             'administrative_ends_on' => $this->administrative_ends_on?->toDateString(),
             'classes_start_on' => $this->classes_start_on?->toDateString(),
             'classes_end_on' => $this->classes_end_on?->toDateString(),
-            'faculty_availability_due_at' => $this->faculty_availability_due_at?->toIso8601String(),
             'special_term_schedule_basis' => $this->special_term_schedule_basis,
             'windows' => $this->windows->sortBy('id')->map(fn ($w): array => [
                 'id' => $w->id,

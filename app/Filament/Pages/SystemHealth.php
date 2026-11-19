@@ -10,6 +10,7 @@ use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -35,6 +36,12 @@ class SystemHealth extends Page implements HasTable
     protected static ?string $slug = 'system-health';
 
     protected static ?string $title = 'System Health';
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [];
+    }
 
     protected string $view = 'filament.pages.system-health';
 
@@ -103,7 +110,8 @@ class SystemHealth extends Page implements HasTable
             ->stackedOnMobile()
             ->paginated(false)
             ->emptyStateHeading('No local evidence capture is available')
-            ->emptyStateDescription('Refresh the bounded local evidence. Provider and custody facts remain outside this page.');
+            ->emptyStateDescription('Refresh the bounded local evidence. Provider and custody facts remain outside this page.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
     /** @return list<Action> */
@@ -120,6 +128,9 @@ class SystemHealth extends Page implements HasTable
                 ->icon(Heroicon::OutlinedPaperAirplane)
                 ->requiresConfirmation()
                 ->modalHeading('Send one mail self-test')
+                ->modalWidth(Width::Large)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription('This synchronously checks the configured transport using only your signed-in address. It does not verify provider delivery or an SLA.')
                 ->modalSubmitActionLabel('Send self-test')
                 ->action(fn () => $this->sendTestEmail()),

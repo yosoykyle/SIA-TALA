@@ -7,7 +7,7 @@ use App\Filament\Pages\FacultySchedule;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
-use App\Filament\Resources\Payments\PaymentResource;
+use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\PublicNotices\PublicNoticeResource;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\SectionResource;
@@ -168,8 +168,8 @@ class RoleAccessMatrixTest extends TestCase
             'registrar cannot manage FAQs' => [
                 'role' => 'registrar', 'resource' => FaqEntryResource::class, 'expected' => false,
             ],
-            'accounting reaches payments' => [
-                'role' => 'accounting', 'resource' => PaymentResource::class, 'expected' => true,
+            'accounting reaches fee plans' => [
+                'role' => 'accounting', 'resource' => FeePlanResource::class, 'expected' => true,
             ],
             'accounting cannot reach section placement' => [
                 'role' => 'accounting', 'resource' => SectionResource::class, 'expected' => false,
@@ -186,8 +186,8 @@ class RoleAccessMatrixTest extends TestCase
             'faculty cannot reach section placement' => [
                 'role' => 'faculty', 'resource' => SectionResource::class, 'expected' => false,
             ],
-            'faculty cannot reach payments' => [
-                'role' => 'faculty', 'resource' => PaymentResource::class, 'expected' => false,
+            'faculty cannot reach fee plans' => [
+                'role' => 'faculty', 'resource' => FeePlanResource::class, 'expected' => false,
             ],
             'academic head reaches curriculum version' => [
                 'role' => 'academic-head', 'resource' => CurriculumVersionResource::class, 'expected' => true,

@@ -42,6 +42,9 @@ class AcademicYearsTable
                 EditAction::make(),
             ])
             ->toolbarActions([])
+            ->emptyStateHeading('No academic years recorded')
+            ->emptyStateDescription('Create an academic year to organize terms, offerings, and student intakes.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->defaultSort('starts_on', 'desc');
     }
 }

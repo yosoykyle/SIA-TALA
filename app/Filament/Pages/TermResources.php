@@ -20,6 +20,7 @@ use App\Support\PlanningTableRecords;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -136,8 +137,8 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                 'status' => $status,
                 'load' => $official ? $load.' / '.($limit ?? 'not recorded').' units' : 'Unassigned · limit '.($limit ?? 'not recorded').' units',
                 'load_source' => $overrides->has($faculty->id) ? 'Faculty-specific approved load' : 'Term teaching-load default',
-                'course_count' => $official ? $classes->pluck('courseRevision.course_id')->unique()->count().' courses · official v'.$official->version : 'No official assignments yet',
-                'evidence' => $declaration ? 'Declaration v'.$declaration->version.' · '.$declaration->declared_at?->format('M j, Y') : ($request ? 'Request '.strtolower($request->status).' · '.$request->occurred_at?->format('M j, Y') : 'No request sent for this calendar'),
+                'course_count' => $official ? $classes->pluck('courseRevision.course_id')->unique()->count().' courses · official schedule' : 'No official assignments yet',
+                'evidence' => $declaration ? 'Responded · '.$declaration->declared_at?->format('M j, Y') : ($request ? 'Request '.strtolower($request->status).' · '.$request->occurred_at?->format('M j, Y') : 'No request sent for this calendar'),
                 'availability' => $declaration === null ? null : ($declaration->declaration === FacultyAvailabilityDeclaration::DeclarationUnavailable ? 'Unavailable for the whole Term' : (empty($declaration->hard_unavailability) ? 'No weekly unavailable times' : collect($declaration->hard_unavailability)->map(fn (array $interval): string => (SectionMeeting::dayOptions()[(int) $interval['day_of_week']] ?? 'Unknown day').' '.CarbonImmutable::parse($interval['starts_at'])->format('g:i A').'–'.CarbonImmutable::parse($interval['ends_at'])->format('g:i A'))->implode('; '))),
                 'url' => FacultyQualificationResource::getUrl('index', ['termId' => $this->termId, 'filters' => ['faculty_user_id' => ['value' => $faculty->id]]]),
             ];
@@ -175,7 +176,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             TextColumn::make('evidence')->label('Source evidence')->wrap()->toggleable(isToggledHiddenByDefault: true),
         ])->filters([
             SelectFilter::make('faculty_scope')->label('Show faculty')->options(['term' => 'This Term', 'all' => 'All active faculty'])->default('term')->selectablePlaceholder(false)->visible(fn (): bool => $this->resourceView === 'faculty'),
-        ])->searchable()->paginationPageOptions([10, 25, 50])->defaultPaginationPageOption(10)->defaultSort('name')
+        ])->searchable()->defaultSort('name')
             ->headerActions([
                 Action::make('rooms')->label(fn (): string => auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? 'View room catalog' : 'Manage rooms')->icon('heroicon-o-building-office')->url(fn (): string => RoomResource::getUrl('index', ['termId' => $this->termId]))->color('gray')->visible(fn (): bool => $this->resourceView === 'rooms'),
             ])->recordActions([
@@ -183,6 +184,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                 Action::make('inspectRoom')->label('Room details')->icon('heroicon-o-eye')->button()->color('gray')->visible(fn (array $record): bool => $record['kind'] === 'Rooms')
                     ->authorize(fn (array $record): bool => RoomResource::canView($this->inspectionRoom($record)))
                     ->modalHeading(fn (array $record): string => ($room = $this->inspectionRoom($record))->code.' · '.$room->name)
+                    ->modalWidth(Width::ThreeExtraLarge)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->modalDescription(fn (): string => collect([$this->selectedTerm()->academicYear?->label, $this->selectedTerm()->label])->filter()->unique()->implode(' · ').' · Shared room catalog')
                     ->schema(fn (Schema $schema, array $record): Schema => RoomInfolist::configure($schema->record($this->inspectionRoom($record)), compact: true))
                     ->extraModalFooterActions(fn (array $record): array => [
@@ -192,7 +196,8 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     ])
 
                     ->modalSubmitAction(false)->modalCancelActionLabel('Close')->unsavedChangesAlert(false),
-            ])->emptyStateHeading(fn (): string => filled($this->getTableSearch())
+            ])->emptyState(view('filament.partials.collection-empty-state'))
+            ->emptyStateHeading(fn (): string => filled($this->getTableSearch())
                 ? ($this->resourceView === 'rooms' ? 'No matching rooms' : 'No matching faculty')
                 : ($this->resourceView === 'rooms' ? 'No active rooms recorded' : (($this->getTableFilterState('faculty_scope')['value'] ?? 'all') === 'term' ? 'No faculty linked to this Term' : 'No active faculty recorded')))
             ->emptyStateDescription(fn (): string => filled($this->getTableSearch())

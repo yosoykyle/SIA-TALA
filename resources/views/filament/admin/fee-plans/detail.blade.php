@@ -15,8 +15,10 @@
         <div class="accounting-fee-plan-summary__status">
             <div class="accounting-fee-plan-summary__badges">
                 <x-filament::badge :color="$statusColor">{{ $status }}</x-filament::badge>
-                @if ($plan->supersedes)
-                    <span class="accounting-fee-plan-meta">Follows Version {{ $plan->supersedes->version }}</span>
+                @if ($plan->published_at)
+                    <span class="accounting-fee-plan-meta">Last updated {{ \App\Actions\Finance\AccountingDisplay::dateTime($plan->published_at, 'M j, Y') }}</span>
+                @elseif ($plan->supersedes)
+                    <span class="accounting-fee-plan-meta">Updates current plan</span>
                 @endif
             </div>
             @if ($draft && $readiness)
@@ -105,7 +107,9 @@
                 </div>
                 <ol class="accounting-fee-plan-payments">
                     @forelse ($plan->obligations as $payment)
-                        @php($dueAt = $payment->due_at?->timezone(config('app.display_timezone', 'Asia/Manila')))
+                        @php
+                            $dueAt = $payment->due_at?->timezone(config('app.display_timezone', 'Asia/Manila'));
+                        @endphp
                         <li @class(['is-enrollment-required' => $payment->required_for_enrollment])>
                             <div class="accounting-fee-plan-date">
                                 @if ($dueAt)
@@ -139,23 +143,31 @@
             </section>
         </div>
 
-        <aside class="accounting-fee-plan-rail" aria-label="Approval and version history">
+        <aside class="accounting-fee-plan-rail" aria-label="Publication details and plan history">
             @if (! $draft)
                 <section class="accounting-fee-plan-panel accounting-fee-plan-approval tala-task-surface" aria-labelledby="fee-plan-approval">
-                    <h2 id="fee-plan-approval">Approval</h2>
+                    <h2 id="fee-plan-approval">Publication details</h2>
                     <dl class="accounting-fee-plan-kv">
                         <div>
-                            <dt>Approval reference</dt>
-                            <dd>{{ $plan->authority_reference ?: 'Not recorded' }}</dd>
+                            <dt>Published by</dt>
+                            <dd>{{ $plan->publisher?->getFilamentName() ?? 'Accounting' }}</dd>
                         </div>
                         <div>
-                            <dt>Approved</dt>
-                            <dd>{{ \App\Actions\Finance\AccountingDisplay::dateTime($plan->authority_date, 'M j, Y') }}</dd>
-                        </div>
-                        <div>
-                            <dt>Published</dt>
+                            <dt>Published on</dt>
                             <dd>{{ $plan->published_at ? \App\Actions\Finance\AccountingDisplay::dateTime($plan->published_at).' · '.config('app.display_timezone', 'Asia/Manila') : 'Not recorded' }}</dd>
                         </div>
+                        @if (filled($plan->authority_reference))
+                            <div>
+                                <dt>Approval note / memo</dt>
+                                <dd>{{ $plan->authority_reference }}</dd>
+                            </div>
+                        @endif
+                        @if ($plan->authority_date)
+                            <div>
+                                <dt>Approved on</dt>
+                                <dd>{{ \App\Actions\Finance\AccountingDisplay::dateTime($plan->authority_date, 'M j, Y') }}</dd>
+                            </div>
+                        @endif
                         @if (filled($plan->no_payment_required_authority_reference))
                             <div>
                                 <dt>Zero-payment approval</dt>
@@ -168,22 +180,40 @@
 
             <section class="accounting-fee-plan-panel tala-task-surface" aria-labelledby="fee-plan-versions-heading">
                 <div class="accounting-fee-plan-panel__header">
-                    <h2 id="fee-plan-versions-heading">Plan versions</h2>
-                    <span class="accounting-fee-plan-meta">{{ $versions->count() }} {{ str('version')->plural($versions->count()) }}</span>
+                    <h2 id="fee-plan-versions-heading">Plan history</h2>
+                    <span class="accounting-fee-plan-meta">{{ $versions->count() }} {{ str('entry')->plural($versions->count()) }}</span>
                 </div>
                 <ul class="accounting-fee-plan-versions">
                     @foreach ($versions as $version)
-                        @php($versionStatus = \App\Actions\Finance\AccountingDisplay::feePlanStatusLabel($version->state))
+                        @php
+                            $versionHeading = match ($version->state) {
+                                \App\Models\FeePlan::StatePublished => 'Current',
+                                \App\Models\FeePlan::StateDraft => 'Draft',
+                                default => 'Past',
+                            };
+                            $versionDate = $version->published_at
+                                ? 'Published '.\App\Actions\Finance\AccountingDisplay::dateTime($version->published_at, 'M j, Y')
+                                : ($version->updated_at ? 'Updated '.\App\Actions\Finance\AccountingDisplay::dateTime($version->updated_at, 'M j, Y') : null);
+                        @endphp
                         <li @class(['is-current' => $version->id === $plan->id])>
                             @if ($version->id === $plan->id)
-                                <span aria-current="page" class="accounting-fee-plan-version-current">
-                                    <strong>Version {{ $version->version }}</strong>
-                                    <span>{{ $versionStatus }} · This version</span>
-                                </span>
+                                <div aria-current="page" class="accounting-fee-plan-version-card accounting-fee-plan-version-current">
+                                    <div class="accounting-fee-plan-version-card__head">
+                                        <strong>{{ $versionHeading }}</strong>
+                                        <x-filament::badge size="sm" color="success">Viewing</x-filament::badge>
+                                    </div>
+                                    <p class="accounting-fee-plan-version-card__meta">{{ $versionDate ?? 'Saved' }}</p>
+                                </div>
                             @else
-                                <a {{ \Filament\Support\generate_href_html(\App\Filament\Resources\FeePlans\FeePlanResource::getUrl('view', ['record' => $version])) }}>
-                                    <strong>Version {{ $version->version }}</strong>
-                                    <span>{{ $versionStatus }}</span>
+                                <a class="accounting-fee-plan-version-card" {{ \Filament\Support\generate_href_html(\App\Filament\Resources\FeePlans\FeePlanResource::getUrl('view', ['record' => $version])) }}>
+                                    <div class="accounting-fee-plan-version-card__head">
+                                        <strong>{{ $versionHeading }}</strong>
+                                        <span class="accounting-fee-plan-version-card__open">
+                                            <span>Open</span>
+                                            <x-filament::icon icon="heroicon-m-chevron-right" />
+                                        </span>
+                                    </div>
+                                    <p class="accounting-fee-plan-version-card__meta">{{ $versionDate ?? 'Saved' }}</p>
                                 </a>
                             @endif
                         </li>

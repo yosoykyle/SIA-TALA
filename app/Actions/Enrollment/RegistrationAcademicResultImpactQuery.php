@@ -44,8 +44,6 @@ class RegistrationAcademicResultImpactQuery
                 ->where('related_course_id', $sourceCourseId)
                 ->where('state', CourseRequirement::StateActive)
                 ->whereIn('rule_type', [CourseRequirement::TypePrerequisite, CourseRequirement::TypeCorequisite])
-                ->where(fn ($query) => $query->whereNull('effective_from')->orWhere('effective_from', '<=', today()))
-                ->where(fn ($query) => $query->whereNull('effective_until')->orWhere('effective_until', '>=', today()))
                 ->exists();
     }
 }

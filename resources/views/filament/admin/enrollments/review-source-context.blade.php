@@ -15,7 +15,7 @@
         @endif
         <p>Recorded by {{ $review['event']->actor?->getFilamentName() ?? 'Source owner' }} &middot; {{ $review['event']->recorded_at?->format('M j, Y g:i A') }}</p>
     @elseif ($review['load'] === [])
-        <p>The current curriculum load is unavailable or changed. Prepare a successor proposal before recording approval.</p>
+        <p>The current curriculum load is unavailable or changed. Prepare an updated proposal before recording approval.</p>
     @else
         <p>Graduation candidate &middot; Proposed subjects</p>
         <p>{{ $review['load']['year_level'] ?? 'Unavailable' }} &middot; {{ $review['load']['term_label'] ?? 'Unavailable' }}</p>

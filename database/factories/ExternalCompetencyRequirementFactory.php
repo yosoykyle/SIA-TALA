@@ -26,8 +26,6 @@ class ExternalCompetencyRequirementFactory extends Factory
             'qualification_label' => fake()->words(3, true),
             'qualification_level' => 'Level 1',
             'treatment' => ExternalCompetencyRequirement::TreatmentTrackedOnly,
-            'authority_reference' => 'Synthetic external competency authority',
-            'authority_date' => today(),
             'state' => 'Draft',
             'recorded_by' => User::factory(),
             'recorded_at' => now(),

@@ -23,8 +23,8 @@
         <!-- Package Authority & Dates -->
         <div class="grid gap-3 sm:grid-cols-2">
             <div>
-                <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Package Version & Authority</span>
-                <p class="font-semibold text-slate-900 dark:text-white">v{{ $package->version }} · {{ $package->authority_reference ?? 'No authority reference' }}</p>
+                <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Calendar Draft & Approval</span>
+                <p class="font-semibold text-slate-900 dark:text-white">{{ $package->authority_reference ?: 'Registrar-recorded calendar' }}</p>
                 @if ($package->authority_date)
                     <p class="text-xs text-slate-500 dark:text-slate-400">Approved: {{ $package->authority_date->toDateString() }}</p>
                 @endif
@@ -94,7 +94,7 @@
             @endphp
             <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach ($recordedWindows as $w)
-                    <div class="rounded-md border border-slate-200 bg-white p-2.5 dark:border-white/10 dark:bg-gray-900">
+                    <div class="rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-gray-900">
                         <p class="font-medium text-slate-900 dark:text-white">{{ $typeLabels[$w->window_type] ?? $w->window_type }}</p>
                         <p class="text-xs text-slate-600 dark:text-slate-300">
                             {{ $w->opens_on?->toDateString() ?? 'Not set' }} to {{ $w->closes_on?->toDateString() ?? 'Not set' }}

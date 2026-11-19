@@ -1,6 +1,7 @@
 @import '../../../../vendor/filament/filament/resources/css/theme.css';
 @import '../../../../public/css/tala-foundation.css';
 @import '../../../../public/css/tala-filament.css';
+@import '../../../../public/css/tala-catalog.css';
 @import '../../tala-timetable.css';
 @import '../../tala-term-planning.css';
 
@@ -217,24 +218,61 @@
     }
 }
 
-.fi-body .fi-simple-layout .fi-simple-header { align-items: flex-start; text-align: start; margin-block-end: 0.25rem; }
-.fi-body .fi-simple-layout .fi-simple-header-heading {
+.fi-body :is(.fi-simple-layout, .fi-auth-layout) .fi-simple-header { align-items: flex-start; text-align: start; margin-block-end: 0.25rem; }
+.fi-body .fi-simple-layout:not(:has(.tala-auth-main)) .fi-simple-header-heading {
     color: var(--tala-brand-strong);
     font-size: clamp(1.375rem, 2.3vw, 1.75rem);
     font-weight: var(--tala-weight-heading);
     letter-spacing: -0.025em;
     line-height: 1.15;
+    text-align: start;
 }
-.dark .fi-body .fi-simple-layout .fi-simple-header-heading { color: var(--primary-300); }
-.fi-body .fi-simple-layout .fi-simple-header-subheading {
+.dark .fi-body .fi-simple-layout:not(:has(.tala-auth-main)) .fi-simple-header-heading { color: var(--primary-300); }
+.fi-body :is(.fi-simple-layout, .fi-auth-layout) .fi-simple-header-subheading {
     color: var(--tala-muted);
     font-size: 0.9375rem;
     line-height: 1.55;
+    text-align: start;
     text-wrap: pretty;
 }
 .tala-mfa-setup-support { margin-block-start: 0.25rem; }
 
 /* Ambient backdrop (reuses HTTP error dual moving radial glows + inactivity countdown SVG trinkets). */
+@property --ambient-green {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #2f7d3b;
+}
+@property --ambient-blue {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #1d4ed8;
+}
+@property --ambient-glow-low {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0.2;
+}
+@property --ambient-glow-mid {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0.28;
+}
+@property --ambient-glow-high {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0.36;
+}
+@property --ambient-wash-ay {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 100%;
+}
+@property --ambient-wash-by {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 100%;
+}
 .tala-ambient {
     --ambient-green: #2f7d3b;
     --ambient-blue: #1d4ed8;
@@ -248,15 +286,140 @@
     z-index: -2;
     pointer-events: none;
     overflow: clip;
+    transition:
+        --ambient-green 1.05s cubic-bezier(.22, 1, .36, 1),
+        --ambient-blue 1.05s cubic-bezier(.22, 1, .36, 1),
+        --ambient-glow-low .95s ease,
+        --ambient-glow-mid .95s ease,
+        --ambient-glow-high .95s ease;
+}
+.tala-ambient--auth {
+    --ambient-glow-low: .20;
+    --ambient-glow-mid: .28;
+    --ambient-glow-high: .36;
+    display: none;
 }
 .dark .tala-ambient {
     --ambient-green: #6acb7c;
     --ambient-blue: #6eb4ff;
-    --ambient-glow-low: .15;
+    --ambient-glow-low: .16;
     --ambient-glow-mid: .21;
     --ambient-glow-high: .27;
     --ambient-trinket-green-alpha: .36;
     --ambient-trinket-blue-alpha: .28;
+}
+.dark .tala-ambient--auth {
+    --ambient-glow-low: .22;
+    --ambient-glow-mid: .30;
+    --ambient-glow-high: .38;
+}
+/* 1. Zero-snap 2-phase transient auth error pulse (`peak` -> `settle` -> removed) via pure CSS transitions on top of uninterrupted drift keyframes. */
+.tala-ambient--auth[data-auth-error-pulse="peak"],
+.tala-ambient--auth[data-auth-error-pulse="settle"],
+.tala-ambient--auth[data-auth-error-pulse="true"] {
+    --ambient-green: #b4113f;
+    --ambient-blue: #a16207;
+    --ambient-glow-low: .30;
+    --ambient-glow-mid: .40;
+    --ambient-glow-high: .50;
+}
+.dark .tala-ambient--auth[data-auth-error-pulse="peak"],
+.dark .tala-ambient--auth[data-auth-error-pulse="settle"],
+.dark .tala-ambient--auth[data-auth-error-pulse="true"] {
+    --ambient-green: #fb7185;
+    --ambient-blue: #f59e0b;
+    --ambient-glow-low: .32;
+    --ambient-glow-mid: .42;
+    --ambient-glow-high: .52;
+}
+.tala-ambient--auth[data-auth-error-pulse="settle"] {
+    --ambient-glow-low: .23;
+    --ambient-glow-mid: .31;
+    --ambient-glow-high: .39;
+}
+.dark .tala-ambient--auth[data-auth-error-pulse="settle"] {
+    --ambient-glow-low: .25;
+    --ambient-glow-mid: .33;
+    --ambient-glow-high: .41;
+}
+/* 2. Active full-card processing / loading sweep (`[data-auth-state='loading']`). */
+.tala-ambient--auth[data-auth-state="loading"] {
+    --ambient-green: #15803d;
+    --ambient-blue: #2563eb;
+    --ambient-glow-low: .26;
+    --ambient-glow-mid: .35;
+    --ambient-glow-high: .44;
+}
+.dark .tala-ambient--auth[data-auth-state="loading"] {
+    --ambient-green: #4ade80;
+    --ambient-blue: #60a5fa;
+    --ambient-glow-low: .28;
+    --ambient-glow-mid: .37;
+    --ambient-glow-high: .46;
+}
+/* 3. Soft celebratory success bloom (`[data-auth-state='success']`). */
+.tala-ambient--auth[data-auth-state="success"] {
+    --ambient-green: #10b981;
+    --ambient-blue: #38bdf8;
+    --ambient-glow-low: .26;
+    --ambient-glow-mid: .35;
+    --ambient-glow-high: .44;
+}
+.dark .tala-ambient--auth[data-auth-state="success"] {
+    --ambient-green: #34d399;
+    --ambient-blue: #60a5fa;
+    --ambient-glow-low: .28;
+    --ambient-glow-mid: .37;
+    --ambient-glow-high: .46;
+}
+.tala-ambient-wash {
+    --ambient-wash-ay: 100%;
+    --ambient-wash-by: 100%;
+    position: absolute;
+    inset: -10%;
+    z-index: 0;
+    background:
+        radial-gradient(circle at 18% 22%, color-mix(in oklab, var(--ambient-green) 16%, transparent), transparent 55%),
+        radial-gradient(circle at 82% 78%, color-mix(in oklab, var(--ambient-blue) 14%, transparent), transparent 58%);
+    pointer-events: none;
+    scale: 1;
+    translate: 0 0;
+    rotate: 0deg;
+    transition:
+        inset .95s cubic-bezier(.22, 1, .36, 1),
+        --ambient-wash-ay 1.05s cubic-bezier(.22, 1, .36, 1),
+        --ambient-wash-by 1.05s cubic-bezier(.22, 1, .36, 1),
+        scale .85s cubic-bezier(.22, 1, .36, 1),
+        translate .85s cubic-bezier(.22, 1, .36, 1),
+        rotate .85s cubic-bezier(.22, 1, .36, 1),
+        opacity .85s ease;
+}
+.dark .tala-ambient-wash {
+    background:
+        radial-gradient(circle at 18% 22%, color-mix(in oklab, var(--ambient-green) 12%, transparent), transparent 55%),
+        radial-gradient(circle at 82% 78%, color-mix(in oklab, var(--ambient-blue) 11%, transparent), transparent 58%);
+}
+/* Auth ambient gradient stays anchored to the lower ~50–55% when idle, and expands smoothly across the entire card during loading. */
+.tala-ambient--auth .tala-ambient-edge {
+    display: none;
+}
+.tala-ambient--auth .tala-ambient-wash {
+    inset: 30% -12% -16% -12%;
+    background:
+        radial-gradient(ellipse 72% 74% at 22% var(--ambient-wash-ay), color-mix(in oklab, var(--ambient-green) 26%, transparent) 0%, color-mix(in oklab, var(--ambient-green) 12%, transparent) 46%, transparent 76%),
+        radial-gradient(ellipse 72% 74% at 78% var(--ambient-wash-by), color-mix(in oklab, var(--ambient-blue) 22%, transparent) 0%, color-mix(in oklab, var(--ambient-blue) 10%, transparent) 48%, transparent 78%),
+        radial-gradient(ellipse 58% 52% at 50% calc((var(--ambient-wash-ay) + var(--ambient-wash-by)) * .5), color-mix(in oklab, var(--ambient-green) 11%, color-mix(in oklab, var(--ambient-blue) 11%, transparent)) 0%, transparent 72%);
+}
+.dark .tala-ambient--auth .tala-ambient-wash {
+    background:
+        radial-gradient(ellipse 72% 74% at 22% var(--ambient-wash-ay), color-mix(in oklab, var(--ambient-green) 30%, transparent) 0%, color-mix(in oklab, var(--ambient-green) 14%, transparent) 46%, transparent 76%),
+        radial-gradient(ellipse 72% 74% at 78% var(--ambient-wash-by), color-mix(in oklab, var(--ambient-blue) 26%, transparent) 0%, color-mix(in oklab, var(--ambient-blue) 12%, transparent) 48%, transparent 78%),
+        radial-gradient(ellipse 58% 52% at 50% calc((var(--ambient-wash-ay) + var(--ambient-wash-by)) * .5), color-mix(in oklab, var(--ambient-green) 13%, color-mix(in oklab, var(--ambient-blue) 13%, transparent)) 0%, transparent 72%);
+}
+.tala-ambient--auth[data-auth-state="loading"] .tala-ambient-wash {
+    --ambient-wash-ay: 34%;
+    --ambient-wash-by: 66%;
+    inset: -28% -24% -28% -24%;
 }
 .tala-ambient-glow {
     position: absolute;
@@ -266,11 +429,52 @@
     border-radius: 50%;
     background: var(--ambient-green);
     opacity: var(--ambient-glow-mid);
-    filter: blur(68px);
+    filter: blur(64px);
+    scale: 1;
+    translate: 0 0;
+    rotate: 0deg;
+    transition:
+        inset-block-end .95s cubic-bezier(.22, 1, .36, 1),
+        inset-inline-start .95s cubic-bezier(.22, 1, .36, 1),
+        inset-inline-end .95s cubic-bezier(.22, 1, .36, 1),
+        block-size .95s cubic-bezier(.22, 1, .36, 1),
+        scale .85s cubic-bezier(.22, 1, .36, 1),
+        translate .85s cubic-bezier(.22, 1, .36, 1),
+        rotate .85s cubic-bezier(.22, 1, .36, 1),
+        opacity .85s ease;
 }
 .tala-ambient-glow--a { inset-block-start: -12rem; inset-inline-start: -12rem; }
 .tala-ambient-glow--b { background: var(--ambient-blue); inset-block-end: -14rem; inset-inline-end: -14rem; }
-.dark .tala-ambient-glow { filter: blur(76px); }
+.dark .tala-ambient-glow { filter: blur(72px); }
+.tala-ambient--auth .tala-ambient-glow {
+    inline-size: 42rem;
+    block-size: 32rem;
+    border-radius: 0;
+    filter: none;
+    background: radial-gradient(closest-side at 50% 50%, color-mix(in oklab, var(--ambient-green) 82%, transparent) 0%, color-mix(in oklab, var(--ambient-green) 36%, transparent) 38%, color-mix(in oklab, var(--ambient-blue) 10%, transparent) 64%, transparent 94%);
+}
+.tala-ambient--auth .tala-ambient-glow--a {
+    inset-block-start: auto;
+    inset-block-end: -10rem;
+    inset-inline-start: -8rem;
+}
+.tala-ambient--auth .tala-ambient-glow--b {
+    inset-block-start: auto;
+    inset-block-end: -11rem;
+    inset-inline-end: -8rem;
+    background: radial-gradient(closest-side at 50% 50%, color-mix(in oklab, var(--ambient-blue) 78%, transparent) 0%, color-mix(in oklab, var(--ambient-blue) 34%, transparent) 38%, color-mix(in oklab, var(--ambient-green) 10%, transparent) 64%, transparent 94%);
+}
+.tala-ambient--auth[data-auth-state="loading"] .tala-ambient-glow {
+    block-size: 40rem;
+}
+.tala-ambient--auth[data-auth-state="loading"] .tala-ambient-glow--a {
+    inset-block-end: 14%;
+    inset-inline-start: -6rem;
+}
+.tala-ambient--auth[data-auth-state="loading"] .tala-ambient-glow--b {
+    inset-block-end: -3rem;
+    inset-inline-end: -6rem;
+}
 .tala-ambient-edge {
     position: absolute;
     inset: 0;
@@ -280,25 +484,80 @@
 .tala-ambient-trinket {
     position: absolute;
     display: block;
-    inset-inline-start: var(--trinket-x, 10%);
-    inset-block-start: var(--trinket-y, 50%);
-    inline-size: var(--trinket-size, 1rem);
+    inset-inline-start: var(--x, var(--trinket-x, 10%));
+    inset-block-start: var(--y, var(--trinket-y, 50%));
+    inline-size: var(--size, var(--trinket-size, 1rem));
     color: var(--ambient-green);
-    opacity: var(--ambient-trinket-green-alpha);
+    opacity: min(.6, calc(var(--opacity, var(--trinket-opacity, var(--ambient-trinket-green-alpha))) * 1.24));
+    pointer-events: none;
+    transform-origin: center;
+    scale: 1;
+    translate: 0 0;
+    rotate: 0deg;
+    transition:
+        color .95s ease,
+        opacity .75s ease,
+        scale .68s cubic-bezier(.22, 1, .36, 1),
+        translate .68s cubic-bezier(.22, 1, .36, 1),
+        rotate .68s cubic-bezier(.22, 1, .36, 1);
 }
 .tala-ambient-trinket[data-tone="blue"] {
     color: var(--ambient-blue);
-    opacity: var(--ambient-trinket-blue-alpha);
+    opacity: min(.56, calc(var(--opacity, var(--trinket-opacity, var(--ambient-trinket-blue-alpha))) * 1.2));
 }
-.tala-ambient-trinket > * { display: block; inline-size: 100%; }
-.tala-ambient-trinket svg { fill: currentColor; overflow: visible; }
-.tala-ambient-line { fill: none; stroke: currentColor; stroke-width: 2.75; stroke-linecap: round; stroke-linejoin: round; }
-.tala-ambient-dot { display: block; aspect-ratio: 1; border-radius: 50%; background: currentColor; }
+.dark .tala-ambient-trinket {
+    opacity: min(.72, calc(var(--opacity, var(--trinket-opacity, var(--ambient-trinket-green-alpha))) * 1.48));
+}
+.dark .tala-ambient-trinket[data-tone="blue"] {
+    opacity: min(.68, calc(var(--opacity, var(--trinket-opacity, var(--ambient-trinket-blue-alpha))) * 1.44));
+}
+.tala-ambient-trinket > * {
+    display: block;
+    inline-size: 100%;
+    transform-origin: center;
+}
+.tala-ambient-trinket svg { display: block; inline-size: 100%; block-size: auto; fill: currentColor; overflow: visible; }
+.tala-ambient-line,
+.tala-ambient-trinket[data-shape="squiggle"] svg,
+.tala-ambient-trinket[data-shape="squiggle"] path,
+.tala-ambient-trinket[data-shape="arc"] svg,
+.tala-ambient-trinket[data-shape="arc"] path,
+.tala-ambient-trinket[data-shape="ring"] svg,
+.tala-ambient-trinket[data-shape="ring"] circle,
+.tala-ambient-trinket[data-shape="plus"] svg,
+.tala-ambient-trinket[data-shape="plus"] path {
+    fill: none !important;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.tala-ambient-dot {
+    display: block;
+    inline-size: 100%;
+    block-size: var(--size, var(--trinket-size, .625rem));
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: currentColor;
+}
 
+@keyframes tala-ambient-wash-drift {
+    0% { transform: translate3d(-2%, 0, 0) scale(1); opacity: .78; }
+    50% { transform: translate3d(2%, -1.5%, 0) scale(1.05); opacity: 1; }
+    100% { transform: translate3d(-1%, -.5%, 0) scale(1.02); opacity: .86; }
+}
+@keyframes tala-auth-glow-breathe-a {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(.96); opacity: var(--ambient-glow-low); }
+    50% { transform: translate3d(7rem, -1.75rem, 0) scale(1.12); opacity: var(--ambient-glow-high); }
+}
+@keyframes tala-auth-glow-breathe-b {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1.04); opacity: var(--ambient-glow-mid); }
+    50% { transform: translate3d(-7rem, -1.5rem, 0) scale(1.15); opacity: var(--ambient-glow-high); }
+}
 @keyframes tala-ambient-orbit-a {
     0% { transform: translate3d(0, 0, 0) scale(1); opacity: var(--ambient-glow-low); }
     25% { transform: translate3d(16rem, 2rem, 0) scale(1.18); opacity: var(--ambient-glow-high); }
-    50% { transform: translate3d(22rem, 15rem, 0) scale(1.26); opacity: var(--ambient-glow-mid); }
+    50% { transform: translate3d(22rem, 15rem, 0) scale(1.28); opacity: var(--ambient-glow-mid); }
     75% { transform: translate3d(5rem, 19rem, 0) scale(1.1); opacity: var(--ambient-glow-high); }
     100% { transform: translate3d(0, 0, 0) scale(1); opacity: var(--ambient-glow-low); }
 }
@@ -306,29 +565,140 @@
     0% { transform: translate3d(0, 0, 0) scale(1.05); opacity: var(--ambient-glow-mid); }
     25% { transform: translate3d(-6rem, -16rem, 0) scale(1.24); opacity: var(--ambient-glow-high); }
     50% { transform: translate3d(-21rem, -12rem, 0) scale(1.1); opacity: var(--ambient-glow-low); }
-    75% { transform: translate3d(-15rem, 3rem, 0) scale(1.28); opacity: var(--ambient-glow-high); }
+    75% { transform: translate3d(-15rem, 3rem, 0) scale(1.3); opacity: var(--ambient-glow-high); }
     100% { transform: translate3d(0, 0, 0) scale(1.05); opacity: var(--ambient-glow-mid); }
 }
-@keyframes tala-trinket-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -.5rem; } }
-@keyframes tala-trinket-sway { 0%, 100% { rotate: -6deg; } 50% { rotate: 6deg; } }
-@keyframes tala-trinket-twinkle { 0%, 100% { opacity: .62; scale: .92; } 50% { opacity: 1; scale: 1.1; } }
-@keyframes tala-trinket-turn { to { rotate: 360deg; } }
-@keyframes tala-trinket-glide { 0%, 100% { translate: 0 0; rotate: -4deg; } 50% { translate: 1.4rem -1.1rem; rotate: 6deg; } }
+/* Replicates the HTTP error page (.error-trinket*) motion curves, amplitudes, and alternate rhythm. */
+@keyframes tala-trinket-bob {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(0, -.55rem, 0); }
+}
+@keyframes tala-trinket-sway {
+    from { transform: rotate(-9deg); }
+    to { transform: rotate(9deg); }
+}
+@keyframes tala-trinket-twinkle {
+    from { transform: scale(.72); opacity: .45; }
+    to { transform: scale(1.08); opacity: 1; }
+}
+@keyframes tala-trinket-turn {
+    to { transform: rotate(360deg); }
+}
+@keyframes tala-trinket-glide {
+    from { transform: translate3d(-.2rem, .2rem, 0) rotate(-4deg); }
+    to { transform: translate3d(.35rem, -.45rem, 0) rotate(5deg); }
+}
+/* Zero-snap standalone transform rules for error peak -> settle -> idle (composites cleanly on top of ongoing `@keyframes` `transform`). */
+.tala-ambient--auth[data-auth-error-pulse="peak"] .tala-ambient-wash {
+    scale: 1.12 1.2;
+    translate: 0 -1.25rem;
+}
+.tala-ambient--auth[data-auth-error-pulse="settle"] .tala-ambient-wash {
+    scale: 1.03 1.06;
+    translate: 0 -.35rem;
+}
+.tala-ambient--auth[data-auth-error-pulse="peak"] .tala-ambient-glow {
+    scale: 1.22;
+    translate: 0 -1.75rem;
+}
+.tala-ambient--auth[data-auth-error-pulse="settle"] .tala-ambient-glow {
+    scale: 1.06;
+    translate: 0 -.45rem;
+}
+.tala-ambient--auth[data-auth-error-pulse="peak"] .tala-ambient-trinket {
+    scale: 1.28;
+    opacity: min(1, calc(var(--opacity, var(--trinket-opacity, .42)) * 1.6));
+}
+.tala-ambient--auth[data-auth-error-pulse="settle"] .tala-ambient-trinket {
+    scale: 1.06;
+    opacity: min(1, calc(var(--opacity, var(--trinket-opacity, .42)) * 1.25));
+}
+@keyframes tala-auth-error-wash-pulse {
+    0% { scale: 1; translate: 0 0; }
+    26% { scale: 1.12 1.2; translate: 0 -1.25rem; }
+    100% { scale: 1; translate: 0 0; }
+}
+@keyframes tala-auth-error-glow-pulse {
+    0% { scale: 1; translate: 0 0; }
+    28% { scale: 1.22; translate: 0 -1.75rem; }
+    100% { scale: 1; translate: 0 0; }
+}
+@keyframes tala-auth-error-trinket-pulse {
+    0% { scale: 1; }
+    30% { scale: 1.28; opacity: min(1, calc(var(--opacity, var(--trinket-opacity, .42)) * 1.6)); }
+    100% { scale: 1; }
+}
+@keyframes tala-auth-loading-wash-sweep {
+    0%, 100% { translate: 0% 0%; scale: 1.06 1.04; rotate: 0deg; opacity: .88; }
+    19% { translate: -4.5% -3.2%; scale: 1.16 1.04; rotate: -5deg; opacity: .96; }
+    41% { translate: 3.8% -5.4%; scale: 1.04 1.16; rotate: 4deg; opacity: .84; }
+    63% { translate: 5.2% 2.6%; scale: 1.14 1.05; rotate: 7deg; opacity: .98; }
+    83% { translate: -3.4% 4.1%; scale: 1.04 1.14; rotate: -4deg; opacity: .86; }
+}
+@keyframes tala-auth-loading-glow-a {
+    0%, 100% { translate: 0rem 0rem; scale: 1.02 .94; rotate: 0deg; opacity: var(--ambient-glow-mid); }
+    19% { translate: 9.5rem -7.5rem; scale: 1.16 .9; rotate: -9deg; opacity: var(--ambient-glow-high); }
+    41% { translate: 17.5rem -14.5rem; scale: .92 1.18; rotate: 8deg; opacity: var(--ambient-glow-mid); }
+    63% { translate: 4.5rem -17rem; scale: 1.14 .92; rotate: 12deg; opacity: var(--ambient-glow-high); }
+    83% { translate: -4.5rem -8.5rem; scale: .94 1.14; rotate: -6deg; opacity: var(--ambient-glow-low); }
+}
+@keyframes tala-auth-loading-glow-b {
+    0%, 100% { translate: 0rem 0rem; scale: .96 1.04; rotate: 0deg; opacity: var(--ambient-glow-mid); }
+    19% { translate: -11rem -12.5rem; scale: .92 1.18; rotate: 10deg; opacity: var(--ambient-glow-high); }
+    41% { translate: -18.5rem -5.5rem; scale: 1.18 .9; rotate: -8deg; opacity: var(--ambient-glow-low); }
+    63% { translate: -7.5rem -16.5rem; scale: .94 1.16; rotate: -11deg; opacity: var(--ambient-glow-high); }
+    83% { translate: 4.5rem -9.5rem; scale: 1.14 .92; rotate: 7deg; opacity: var(--ambient-glow-mid); }
+}
+@keyframes tala-auth-loading-trinket-hum {
+    0%, 100% { translate: 0 0; scale: 1; rotate: 0deg; }
+    23% { translate: -.2rem -.35rem; scale: 1.08 .96; rotate: -4deg; opacity: min(1, calc(var(--opacity, var(--trinket-opacity, .42)) * 1.28)); }
+    53% { translate: .25rem -.55rem; scale: .97 1.12; rotate: 5deg; opacity: min(1, calc(var(--opacity, var(--trinket-opacity, .42)) * 1.38)); }
+    79% { translate: -.15rem -.2rem; scale: 1.05 .98; rotate: -2deg; opacity: min(1, calc(var(--opacity, var(--trinket-opacity, .42)) * 1.18)); }
+}
+@keyframes tala-auth-success-wash-bloom {
+    0% { translate: 0 0; scale: 1; }
+    35% { translate: 0 -2.5rem; scale: 1.14 1.32; }
+    70% { translate: 0 -1.25rem; scale: 1.08 1.18; }
+    100% { translate: 0 0; scale: 1; }
+}
+@keyframes tala-auth-success-glow-dance {
+    0% { translate: 0 0; scale: 1; }
+    30% { translate: 9rem -3.5rem; scale: 1.28; }
+    65% { translate: -6rem -2rem; scale: 1.18; }
+    100% { translate: 0 0; scale: 1; }
+}
+@keyframes tala-auth-success-trinket-celebrate {
+    0% { translate: 0 0; scale: 1; rotate: 0deg; }
+    32% { translate: 0 -.85rem; scale: 1.36; rotate: 12deg; opacity: min(1, calc(var(--opacity, var(--trinket-opacity, .42)) * 1.75)); }
+    68% { translate: 0 -.35rem; scale: 1.14; rotate: -6deg; opacity: min(1, calc(var(--opacity, var(--trinket-opacity, .42)) * 1.35)); }
+    100% { translate: 0 0; scale: 1; rotate: 0deg; }
+}
 
 @media (prefers-reduced-motion: no-preference) {
+    .tala-ambient-wash { animation: tala-ambient-wash-drift 18s ease-in-out infinite alternate; }
     .tala-ambient-glow--a { animation: tala-ambient-orbit-a 37s ease-in-out infinite; }
     .tala-ambient-glow--b { animation: tala-ambient-orbit-b 53s ease-in-out infinite; }
-    .tala-ambient-trinket[data-motion="bob"] > * { animation: tala-trinket-bob var(--trinket-duration, 8s) ease-in-out var(--trinket-delay, 0s) infinite; }
-    .tala-ambient-trinket[data-motion="sway"] > * { animation: tala-trinket-sway var(--trinket-duration, 10s) ease-in-out var(--trinket-delay, 0s) infinite; }
-    .tala-ambient-trinket[data-motion="twinkle"] > * { animation: tala-trinket-twinkle var(--trinket-duration, 6s) ease-in-out var(--trinket-delay, 0s) infinite; }
-    .tala-ambient-trinket[data-motion="turn"] > * { animation: tala-trinket-turn var(--trinket-duration, 26s) linear var(--trinket-delay, 0s) infinite; }
-    .tala-ambient-trinket[data-motion="glide"] > * { animation: tala-trinket-glide var(--trinket-duration, 14s) ease-in-out var(--trinket-delay, 0s) infinite; }
+    .tala-ambient--auth .tala-ambient-glow--a { animation: tala-auth-glow-breathe-a 16s ease-in-out infinite; }
+    .tala-ambient--auth .tala-ambient-glow--b { animation: tala-auth-glow-breathe-b 22s ease-in-out -5s infinite; }
+    .tala-ambient--auth[data-auth-state="loading"] .tala-ambient-wash { animation: tala-ambient-wash-drift 18s ease-in-out infinite alternate, tala-auth-loading-wash-sweep 6.7s cubic-bezier(.45, .05, .55, .95) -1.9s infinite; }
+    .tala-ambient--auth[data-auth-state="loading"] .tala-ambient-glow--a { animation: tala-auth-glow-breathe-a 16s ease-in-out infinite, tala-auth-loading-glow-a 8.3s cubic-bezier(.45, .05, .55, .95) -4.3s infinite; }
+    .tala-ambient--auth[data-auth-state="loading"] .tala-ambient-glow--b { animation: tala-auth-glow-breathe-b 22s ease-in-out -5s infinite, tala-auth-loading-glow-b 10.7s cubic-bezier(.45, .05, .55, .95) -6.1s infinite; }
+    .tala-ambient--auth[data-auth-state="loading"] .tala-ambient-trinket { animation: tala-auth-loading-trinket-hum calc(var(--trinket-duration, 9s) * .65) cubic-bezier(.45, .05, .55, .95) var(--trinket-delay, -2.3s) infinite; }
+    .tala-ambient--auth[data-auth-state="success"] .tala-ambient-wash { animation: tala-ambient-wash-drift 18s ease-in-out infinite alternate, tala-auth-success-wash-bloom 2.2s cubic-bezier(.22, 1, .36, 1) 1; }
+    .tala-ambient--auth[data-auth-state="success"] .tala-ambient-glow--a { animation: tala-auth-glow-breathe-a 16s ease-in-out infinite, tala-auth-success-glow-dance 2.2s cubic-bezier(.22, 1, .36, 1) 1; }
+    .tala-ambient--auth[data-auth-state="success"] .tala-ambient-glow--b { animation: tala-auth-glow-breathe-b 22s ease-in-out -5s infinite, tala-auth-success-glow-dance 2.2s cubic-bezier(.22, 1, .36, 1) 1; }
+    .tala-ambient--auth[data-auth-state="success"] .tala-ambient-trinket { animation: tala-auth-success-trinket-celebrate 1.8s cubic-bezier(.22, 1, .36, 1) 1; }
+    .tala-ambient-trinket[data-motion="bob"] > * { animation: tala-trinket-bob calc(var(--trinket-duration, 8s) * .5) ease-in-out var(--trinket-delay, 0s) infinite alternate; }
+    .tala-ambient-trinket[data-motion="sway"] > * { animation: tala-trinket-sway calc(var(--trinket-duration, 10s) * .55) ease-in-out var(--trinket-delay, 0s) infinite alternate; }
+    .tala-ambient-trinket[data-motion="twinkle"] > * { animation: tala-trinket-twinkle calc(var(--trinket-duration, 6.8s) * .48) ease-in-out var(--trinket-delay, 0s) infinite alternate; }
+    .tala-ambient-trinket[data-motion="turn"] > * { animation: tala-trinket-turn var(--trinket-duration, 22s) linear var(--trinket-delay, 0s) infinite; }
+    .tala-ambient-trinket[data-motion="glide"] > * { animation: tala-trinket-glide calc(var(--trinket-duration, 14s) * .35) ease-in-out var(--trinket-delay, 0s) infinite alternate; }
 }
-@media (max-width: 52rem) {
+@media (max-width: 59.999rem) {
     .tala-ambient-trinket:not(.tala-ambient-trinket--edge) { display: none; }
 }
 @media print, (forced-colors: active) {
-    .tala-ambient { display: none; }
+    .tala-ambient { display: none !important; }
 }
 
 /* Shared MFA setup & recovery modal family: fits viewport height, pins sunken header & action bar, and scrolls only body content. */
@@ -500,59 +870,121 @@
     border-start-end-radius: var(--tala-card-radius);
     background: var(--tala-surface);
 }
-.tala-auth-main .media-top.has-media .fi-auth-form-container { margin-block: auto; position: relative; z-index: 1; }
-/* The recovery screens' spark, ring and paper-plane family stays outside the form's reading column. */
-@media (min-width: 60rem) and (forced-colors: none) {
-    .tala-auth-main .media-top.has-media .fi-auth-content-section::before,
-    .tala-auth-main .media-top.has-media .fi-auth-content-section::after {
-        content: '';
+.tala-auth-main .media-top.has-media .fi-auth-form-container { margin-block: auto; position: relative; z-index: 2; }
+/* Shared ambient backdrop on auth pages: moving radial glows + organic trinkets flank the form on wide screens and frame its top/bottom bands on narrow screens. */
+@media (forced-colors: none) {
+    .tala-auth-main:has(.media-top.has-media) > .tala-ambient--auth {
+        display: block;
         position: absolute;
+        z-index: 1;
+        inset-inline: 0;
+        inset-block-start: calc(clamp(8rem, 35svh, 24rem) - var(--tala-card-radius));
+        inset-block-end: 0;
+        border-start-start-radius: var(--tala-card-radius);
+        border-start-end-radius: var(--tala-card-radius);
         pointer-events: none;
-        inline-size: min(14vw, 12rem);
-        block-size: min(72%, 23rem);
-        inset-block-start: 12%;
-        inset-inline-start: 4%;
-        background: var(--primary-600);
-        opacity: .25;
-        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 360'%3E%3Ccircle cx='38' cy='72' r='13' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='128' cy='28' r='3'/%3E%3Cpath d='M124 170c1 10 5 14 15 15-10 1-14 5-15 15-1-10-5-14-15-15 10-1 14-5 15-15ZM35 277l44-14-24 38-7-13Z'/%3E%3C/svg%3E") center / contain no-repeat;
-    }
-    .tala-auth-main .media-top.has-media .fi-auth-content-section::after {
-        inset-inline-start: auto;
-        inset-inline-end: 5%;
-        inset-block-start: 18%;
-        inline-size: min(12vw, 10rem);
-        mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 360'%3E%3Cpath d='M110 25c2 13 7 18 20 20-13 2-18 7-20 20-2-13-7-18-20-20 13-2 18-7 20-20Z'/%3E%3Cg fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='38' cy='163' r='10'/%3E%3Cpath d='M95 263c10-18 20 18 30 0s20-18 30 0M59 302v16m-8-8h16'/%3E%3C/g%3E%3C/svg%3E");
-    }
-    .dark .tala-auth-main .media-top.has-media .fi-auth-content-section::before,
-    .dark .tala-auth-main .media-top.has-media .fi-auth-content-section::after {
-        background: var(--primary-400);
-        opacity: .3;
+        overflow: hidden;
     }
 }
-@media (min-width: 60rem) and (prefers-reduced-motion: no-preference) {
-    .tala-auth-main .media-top.has-media .fi-auth-content-section::before { animation: tala-auth-trinket-drift 12s ease-in-out infinite alternate; }
-    .tala-auth-main .media-top.has-media .fi-auth-content-section::after { animation: tala-auth-trinket-drift 15s ease-in-out -6s infinite alternate-reverse; }
+@media (max-width: 59.999rem) and (forced-colors: none) {
+    .tala-auth-main .media-top.has-media .fi-auth-content-section {
+        padding-block: clamp(3.25rem, 6.5svh, 4.25rem);
+    }
+    .tala-ambient--auth .tala-ambient-field {
+        max-inline-size: 32rem;
+        margin-inline: auto;
+    }
+    .tala-ambient-trinket--edge {
+        inset-inline-start: var(--mx, var(--trinket-mx, 10%));
+    }
+    .tala-ambient-trinket--edge[data-band="top"] {
+        inset-block-start: var(--my, var(--trinket-my, 1rem));
+        inset-block-end: auto;
+    }
+    .tala-ambient-trinket--edge[data-band="bottom"] {
+        inset-block-start: auto;
+        inset-block-end: var(--my, var(--trinket-my, 1rem));
+    }
 }
-@keyframes tala-auth-trinket-drift { from { translate: 0 -4px; } to { translate: 0 4px; } }
-.tala-auth-main .fi-simple-header-heading { color: var(--tala-brand-strong); }
-.dark .tala-auth-main .fi-simple-header-heading { color: var(--primary-400); }
+.fi-body :is(.tala-auth-main, .fi-auth-layout) .fi-simple-header-heading {
+    color: var(--tala-brand-strong);
+    font-size: clamp(2.125rem, 3.4vw, 2.625rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    text-align: start;
+}
+.dark .fi-body :is(.tala-auth-main, .fi-auth-layout) .fi-simple-header-heading { color: var(--primary-400); }
+.tala-auth-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: var(--tala-type-caption, 0.875rem);
+    font-weight: 600;
+    color: var(--tala-brand-foreground);
+    margin-block-end: 0.75rem;
+    min-block-size: 2.25rem;
+    border-radius: 0.375rem;
+    text-decoration: none;
+    align-self: flex-start;
+}
+.tala-auth-back-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+.tala-auth-back-link svg {
+    inline-size: 1.125rem;
+    block-size: 1.125rem;
+    flex: none;
+}
 .tala-auth-main .media-top.has-media button[type="submit"].fi-color-primary {
 
     font-weight: 700;
 }
 
+.fi-body:has(.tala-auth-main .media-top.has-media) {
+    position: relative;
+    --tala-auth-topbar-inset: clamp(0.875rem, 2.25vw, 1.5rem);
+    --tala-auth-switcher-height: 2.875rem;
+    --tala-auth-crest-size: clamp(2.875rem, 4vw, 3.5rem);
+    --tala-auth-topbar-height: var(--tala-auth-crest-size);
+}
+
+.fi-body:has(.tala-auth-main .media-top.has-media) .fi-auth-theme-switcher-wrapper {
+    --ad-theme-switcher-top: calc(var(--tala-auth-topbar-inset) + ((var(--tala-auth-topbar-height) - var(--tala-auth-switcher-height)) / 2)) !important;
+    --ad-theme-switcher-right: var(--tala-auth-topbar-inset) !important;
+    position: absolute !important;
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    block-size: var(--tala-auth-switcher-height);
+    padding: 0.25rem;
+    top: var(--ad-theme-switcher-top) !important;
+    right: var(--ad-theme-switcher-right) !important;
+    inset-block-start: var(--ad-theme-switcher-top) !important;
+    inset-inline-end: var(--ad-theme-switcher-right) !important;
+}
+
 @media (forced-colors: none) {
     .tala-auth-main:has(.media-top.has-media) > .tala-auth-school {
-        display: block;
+        display: flex;
+        align-items: center;
         position: absolute;
-        z-index: 1;
-        inset-block-start: clamp(0.875rem, 2vw, 1.5rem);
-        inset-inline-start: clamp(0.875rem, 2vw, 1.5rem);
+        z-index: 2;
+        inset-block-start: var(--tala-auth-topbar-inset, clamp(0.875rem, 2.25vw, 1.5rem));
+        inset-inline-start: var(--tala-auth-topbar-inset, clamp(0.875rem, 2.25vw, 1.5rem));
+        block-size: var(--tala-auth-topbar-height, clamp(2.875rem, 4vw, 3.5rem));
+        max-inline-size: calc(100% - (var(--tala-auth-topbar-inset, clamp(0.875rem, 2.25vw, 1.5rem)) * 2) - 8.5rem);
         color: var(--tala-on-brand);
     }
 
-    .tala-auth-school .tala-brand__name { color: inherit; font-size: clamp(1rem, 2.35vw, 1.5rem); line-height: 1.15; }
-    .tala-auth-school .tala-brand__crest { width: clamp(3rem, 7vw, 4.5rem); height: clamp(3rem, 7vw, 4.5rem); }
+    .tala-auth-school .tala-brand { gap: 0.5rem 0.625rem; }
+    .tala-auth-school .tala-brand__name { color: inherit; font-size: clamp(0.9375rem, 1.8vw, 1.25rem); line-height: 1.15; }
+    .tala-auth-school .tala-brand > .tala-brand__crest,
+    .tala-auth-school .tala-brand__crest {
+        width: var(--tala-auth-crest-size, clamp(2.875rem, 4vw, 3.5rem));
+        height: var(--tala-auth-crest-size, clamp(2.875rem, 4vw, 3.5rem));
+    }
     .tala-auth-school .tala-brand__school,
     .tala-auth-school .tala-brand__institution { display: block; }
     .tala-auth-main .media-top.has-media .fi-auth-media-overlay {
@@ -561,16 +993,121 @@
     }
     .tala-auth-main .media-top.has-media .fi-simple-header > .fi-logo { display: none; }
 }
-.tala-auth-recovery { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.25rem; }
+.tala-auth-recovery { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.25rem 1.25rem; }
+.fi-simple-page > .tala-auth-recovery:first-of-type { margin-block-start: 0.75rem; }
+.tala-auth-recovery + .tala-auth-recovery { margin-block-start: 0.125rem; }
 .tala-auth-recovery a { display: inline-flex; align-items: center; min-height: 2.75rem; }
 .tala-auth-recovery a > .fi-link-label { align-self: center; }
+.tala-auth-verify-card,
+.tala-verification-card {
+    background: var(--tala-surface-raised, var(--tala-surface));
+    border: 1px solid var(--tala-edge-strong, var(--tala-edge));
+    border-radius: var(--tala-card-radius, 0.75rem);
+    box-shadow: var(--tala-material-detail);
+    overflow: hidden;
+}
+.tala-auth-verify-card__body {
+    padding: var(--tala-card-pad, 1.25rem);
+    display: grid;
+    gap: 0.625rem;
+    color: var(--tala-text);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+}
+.tala-auth-verify-card__body > * { margin: 0 !important; }
+.tala-auth-verify-card__lead,
+.tala-verification-card__lead { color: var(--tala-text); font-size: 0.9375rem; font-weight: 500; line-height: 1.55; }
+.tala-auth-verify-card__timer,
+.tala-verification-card__timer { font-size: 1.0625rem; font-weight: 700; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.tala-auth-verify-card__note,
+.tala-verification-card__note,
+.tala-auth-verify-card__helper { color: var(--tala-muted); font-size: 0.875rem; line-height: 1.5; }
+.tala-auth-verify-card__body strong,
+.fi-simple-header-subheading strong {
+    color: var(--tala-text);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+.tala-verification-support { color: var(--tala-muted); font-size: 0.875rem; margin-block-start: -0.5rem; }
+.tala-verification-support a { color: var(--tala-link); font-weight: var(--tala-weight-emphasis); text-decoration: underline; text-underline-offset: 0.2em; }
+.tala-auth-verify-card__actions,
+.tala-auth-verify-card .tala-workspace-feature__action {
+    background: var(--tala-surface-sunken);
+    border-block-start: 1px solid var(--tala-edge);
+    padding: var(--tala-card-pad-compact, 1rem) var(--tala-card-pad, 1.25rem);
+    display: grid;
+    gap: 0.625rem;
+}
+.tala-auth-verify-card__actions form,
+.tala-auth-verify-card .tala-workspace-feature__action form { margin: 0; inline-size: 100%; }
+.tala-auth-verify-card__actions :is(.fi-btn, button, a.fi-btn),
+.tala-auth-verify-card .tala-workspace-feature__action :is(.fi-btn, button, a.fi-btn),
+.fi-auth-layout .fi-sc-actions.fi-width-full > .fi-ac,
+.fi-auth-layout .fi-sc-actions.fi-width-full .fi-btn { inline-size: 100%; justify-content: center; }
+.fi-body .fi-sc-form.tala-auth-mfa-card { gap: 0; }
+.tala-auth-mfa-card > .fi-sc:not(:has(.fi-sc-actions)) { padding: var(--tala-card-pad, 1.25rem); }
+.tala-auth-mfa-card > :is(.fi-sc:has(.fi-sc-actions), .fi-sc-actions) {
+    background: var(--tala-surface-sunken);
+    border-block-start: 1px solid var(--tala-edge);
+    padding: var(--tala-card-pad-compact, 1rem) var(--tala-card-pad, 1.25rem);
+    margin: 0;
+}
+.tala-auth-mfa-card .fi-sc-actions .fi-ac {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+    inline-size: 100%;
+}
+.tala-auth-mfa-card .fi-sc-actions .fi-btn { inline-size: 100%; justify-content: center; }
+.tala-auth-mfa-card .fi-one-time-code-input-ctn { justify-content: flex-start; max-inline-size: 100%; }
+@media (max-width: 28rem) {
+    .tala-auth-mfa-card .fi-sc-actions .fi-ac { grid-template-columns: minmax(0, 1fr); }
+}
 .fi-auth-layout.no-media { background: var(--tala-brand-strong); }
 .fi-auth-layout.no-media .fi-auth-form-container {
     background: var(--tala-surface);
     border-radius: 0.75rem;
     padding: 2rem;
 }
-.fi-auth-media-section { background: var(--tala-brand-strong); }
+.fi-auth-media-section { background: var(--tala-brand-strong); position: relative; overflow: hidden; isolation: isolate; }
+/* Auth banner crossfade slideshow: slides sit above the SSR photo and below the brand scrim, crest and theme switcher. */
+.fi-auth-media-section .fi-auth-media { position: relative; z-index: 0; }
+.tala-auth-slideshow {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+}
+.tala-auth-slideshow__slide {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+    object-position: center;
+    opacity: 0;
+    transform: scale(1);
+    transform-origin: 50% 40%;
+    transition: opacity 2.2s ease-in-out, transform 0s linear 2.2s;
+}
+.tala-auth-slideshow__slide.is-active {
+    opacity: 1;
+    transform: scale(1.04);
+    transition: opacity 2.2s ease-in-out, transform 14s ease-out;
+}
+.fi-auth-media-section .fi-auth-media-overlay { z-index: 2; }
+.fi-auth-media-section .fi-auth-media-content { z-index: 3; }
+@media (prefers-reduced-motion: reduce) {
+    .tala-auth-slideshow__slide,
+    .tala-auth-slideshow__slide.is-active {
+        transition: none !important;
+        transform: none !important;
+    }
+}
+@media (forced-colors: active) {
+    .tala-auth-slideshow { display: none; }
+}
 .fi-auth-layout.media-cover .fi-auth-content-section { max-width: 30rem; }
 .fi-auth-layout.media-cover .fi-auth-card { background: var(--tala-surface); }
 .fi-auth-layout .fi-auth-content-section { min-width: 0; }
@@ -582,11 +1119,12 @@
 .fi-auth-layout .fi-btn, .fi-simple-layout .fi-btn { min-height: 2.75rem; }
 
 .dark :is(.tala-term-planning-page, .tala-term-record-page, .tala-faculty-availability-page, .tala-academic-oversight-page) .fi-btn.fi-color-primary:not(.fi-outlined) {
-    background-color: var(--primary-800);
+    background-color: var(--primary-400);
+    color: var(--primary-950);
 }
 
 .dark :is(.tala-term-planning-page, .tala-term-record-page, .tala-faculty-availability-page, .tala-academic-oversight-page) .fi-btn.fi-color-primary:not(.fi-outlined):hover {
-    background-color: var(--primary-900);
+    background-color: var(--primary-300);
 }
 
 @media (min-width: 64rem) {
@@ -656,6 +1194,7 @@
         transition-duration: 0.01ms !important;
     }
     .tala-ambient, .tala-ambient * { animation: none !important; }
+    .tala-ambient, .tala-ambient * { transition: none !important; scale: 1 !important; translate: 0 0 !important; rotate: 0deg !important; }
 }
 
 @media (forced-colors: active) {
@@ -824,6 +1363,8 @@
 .fi-ta-header-toolbar > div {
     min-width: 0;
 }
+.fi-ta-header-toolbar > div:has(> .fi-ta-search-field) { display:flex; flex-wrap:nowrap; align-items:center; gap:var(--tala-card-gap); }
+.fi-ta-header-toolbar .fi-ta-search-field { flex:1 1 0; min-inline-size:0; inline-size:auto; }
 .fi-ta-header-toolbar .fi-ta-actions {
     flex-wrap: wrap;
     gap: 0.5rem;
@@ -841,6 +1382,23 @@
 
 :where(.fi-body:has(.fi-layout)) .fi-page-header-main-ctn {
     row-gap: var(--tala-card-gap);
+    padding-block: 1rem 1.25rem;
+}
+
+:where(.fi-body:has(.fi-layout)) :is(.fi-page-content, .fi-page-content > .fi-sc.fi-sc-has-gap, .fi-page.fi-page-has-sub-navigation .fi-page-main) {
+    gap: var(--tala-card-gap);
+}
+
+:where(.fi-body:has(.fi-layout)) .fi-header {
+    gap: 0.5rem 1.25rem;
+}
+
+:where(.fi-body:has(.fi-layout)) .fi-header .fi-breadcrumbs {
+    margin-block-end: 0.25rem;
+}
+
+:where(.fi-body:has(.fi-layout)) .fi-header-subheading {
+    margin-block-start: 0.25rem;
 }
 
 @media (min-width: 64rem) {
@@ -1012,8 +1570,8 @@
 
 @container tala-main (max-width: 51.999rem) {
     .fi-ta-header-toolbar { flex-wrap: wrap; align-items: flex-start; }
-    .fi-ta-header-toolbar > div:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; width: 100%; gap: 0.75rem; }
-    .fi-ta-header-toolbar .fi-ta-search-field { flex: 1 0 100%; width: 100%; }
+    .fi-ta-header-toolbar > div:last-child { display: flex; flex-wrap: nowrap; justify-content: flex-end; width: 100%; gap: var(--tala-card-gap); }
+    .fi-ta-header-toolbar .fi-ta-search-field { flex: 1 1 0; width: auto; min-inline-size: 0; }
     .fi-body:has(.fi-layout) .fi-header {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
@@ -1090,7 +1648,7 @@
 .tala-faculty-term-context { padding-block:.5rem; }
 .tala-faculty-context-heading { display:flex; align-items:start; justify-content:space-between; gap:.75rem; }
 .tala-faculty-term-control { flex:0 1 20rem; min-width:12rem; }
-.tala-faculty-examination-context { margin-block-start:.75rem; padding-inline-start:.75rem; border-inline-start:2px solid var(--tala-edge); }
+.tala-faculty-examination-context { margin-block-start:.75rem; padding-inline-start:.75rem; border-inline-start:1px solid var(--tala-edge); }
 .tala-faculty-workflow > .tala-navigation { margin-block-end:.25rem; }
 @media (max-width:40rem) { .tala-faculty-context-heading { flex-direction:column; } .tala-faculty-term-control { flex-basis:auto; width:100%; } }
 .tala-navigation.tala-navigation-stretch { inline-size:100%; margin-inline:0; }
@@ -1149,6 +1707,21 @@
         .fi-sidebar-open-collapse-sidebar-btn,
         .fi-sidebar-close-collapse-sidebar-btn
     ) > .fi-icon {
+        color: inherit;
+    }
+    .fi-body:has(.fi-layout) .fi-icon-btn.fi-layout-sidebar-toggle-btn {
+        background-color: var(--tala-surface);
+        border: 1px solid var(--tala-edge-strong);
+        border-radius: calc(var(--tala-card-radius) * 0.65);
+        box-shadow: var(--tala-material-detail);
+        color: var(--tala-text);
+    }
+    .fi-body:has(.fi-layout) .fi-icon-btn.fi-layout-sidebar-toggle-btn:is(:hover, :focus-visible) {
+        background-color: var(--tala-surface-sunken);
+        border-color: var(--tala-selected-edge);
+        color: var(--tala-text);
+    }
+    .fi-body:has(.fi-layout) .fi-icon-btn.fi-layout-sidebar-toggle-btn > .fi-icon {
         color: inherit;
     }
     .fi-body:has(.fi-layout) .fi-sidebar-item:not(.fi-active) > .fi-sidebar-item-btn:is(:hover, :focus-visible) {
@@ -1277,6 +1850,8 @@
     }
 
     .fi-body :is(.fi-section:not(.fi-section-not-contained):not(.fi-aside), .fi-ta-ctn, .fi-modal-window, .fi-simple-main, .tala-task-surface) .tala-task-surface {
+        background-color: var(--tala-surface-raised);
+        border-color: var(--tala-edge-strong);
         box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tala-material-detail);
     }
 
@@ -1287,7 +1862,15 @@
     }
 
     .fi-body .fi-input-wrp {
+        --tala-danger-border: var(--danger-600, #dc2626);
+        --tala-danger-tint: color-mix(in srgb, var(--danger-500, #ef4444) 16%, transparent);
         background-color: var(--tala-surface);
+        transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+    }
+
+    .dark .fi-body .fi-input-wrp {
+        --tala-danger-border: var(--danger-400, #f87171);
+        --tala-danger-tint: color-mix(in srgb, var(--danger-400, #f87171) 22%, transparent);
     }
 
     .fi-body .fi-input-wrp.fi-disabled {
@@ -1301,6 +1884,17 @@
     .fi-body .fi-input-wrp:not(.fi-disabled) {
         --tw-shadow: 0 0 #0000;
         --tw-inset-shadow: var(--tala-inset-well);
+    }
+
+    .fi-body .fi-input-wrp:is(.fi-invalid, :has(:is(input, textarea, select):is(:user-invalid, [aria-invalid="true"]))),
+    .fi-body .fi-input-wrp:not(.fi-disabled):is(.fi-invalid, :has(:is(input, textarea, select):is(:user-invalid, [aria-invalid="true"]))):not(:focus-within) {
+        --tw-ring-color: var(--tala-danger-border);
+        border-color: var(--tala-danger-border);
+    }
+
+    .fi-body .fi-input-wrp:not(.fi-disabled):is(.fi-invalid, :has(:is(input, textarea, select):is(:user-invalid, [aria-invalid="true"]))):focus-within {
+        --tw-ring-color: var(--tala-danger-border);
+        --tw-shadow: 0 0 0 3px var(--tala-danger-tint);
     }
 
     .fi-body .fi-tabs:not(.fi-contained) {
@@ -1336,7 +1930,16 @@
         backdrop-filter: none;
     }
 
+    .fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-header {
+        background-color: var(--tala-overlay);
+        border-block-end: 1px solid var(--tala-edge);
+        color: var(--tala-text);
+    }
 
+    .fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-footer {
+        background-color: color-mix(in srgb, var(--tala-surface-sunken) 45%, var(--tala-overlay));
+        border-block-start: 1px solid var(--tala-edge-strong);
+    }
 
     .fi-body .fi-no-notification:not(.fi-inline) {
         --tw-shadow: var(--tala-material-overlay);
@@ -1345,6 +1948,151 @@
 
     .fi-body .fi-no-notification:not(.fi-inline):not(.fi-color) { background-color: var(--tala-overlay); }
 
+}
+
+/* Canonical contained section padding across panels (preserves wizard, semester cards, and subpanels). */
+.fi-body .fi-section:not(.fi-section-not-contained):not(.fi-compact):not(.fi-aside):where(:not(.tala-semester-card, .fi-sc-wizard .fi-section, .payment-channels-subpanel > .fi-section)) > .fi-section-header {
+    padding: var(--tala-card-pad-compact) var(--tala-card-pad);
+}
+
+.fi-body .fi-section:not(.fi-section-not-contained):not(.fi-compact):not(.fi-divided):where(:not(.tala-semester-card, .fi-sc-wizard .fi-section, .payment-channels-subpanel > .fi-section)) > .fi-section-content-ctn > .fi-section-content,
+.fi-body .fi-section:not(.fi-section-not-contained):not(.fi-compact).fi-divided:where(:not(.tala-semester-card, .fi-sc-wizard .fi-section, .payment-channels-subpanel > .fi-section)) > .fi-section-content-ctn > .fi-section-content > * {
+    padding: var(--tala-card-pad);
+}
+
+.fi-body .fi-section:not(.fi-section-not-contained):not(.fi-compact):where(:not(.tala-semester-card, .fi-sc-wizard .fi-section, .payment-channels-subpanel > .fi-section)) > .fi-section-content-ctn > .fi-section-footer {
+    padding: var(--tala-card-pad-compact) var(--tala-card-pad);
+}
+
+/* System-wide modal architecture: true centering, viewport height containment, internal scrolling, and slide-over symmetry. */
+dialog::backdrop,
+.fi-modal > .fi-modal-close-overlay {
+    overscroll-behavior: contain;
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn {
+    grid-template-rows: 1fr auto 1fr;
+    align-items: safe center;
+    justify-items: center;
+    padding: clamp(0.75rem, 2.5dvh, 1.5rem) clamp(0.75rem, 2vw, 1.5rem);
+    overflow: hidden;
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) {
+    display: flex;
+    flex-direction: column;
+    inline-size: 100%;
+    max-block-size: calc(100dvh - clamp(1.5rem, 5dvh, 3rem) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+    overscroll-behavior: contain;
+    margin-block: auto;
+    padding: 0;
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal).fi-width-4xl {
+    max-inline-size: min(56rem, 100%);
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal).fi-width-5xl {
+    max-inline-size: min(62rem, 100%);
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal).fi-width-6xl {
+    max-inline-size: min(66rem, 100%);
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal):is(.fi-width-7xl, .fi-width-full, .fi-width-none) {
+    max-inline-size: min(68rem, 100%);
+}
+
+.fi-body .fi-modal:is(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn {
+    overflow: hidden;
+}
+
+.fi-body .fi-modal:is(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) {
+    display: flex;
+    flex-direction: column;
+    block-size: 100dvh;
+    max-block-size: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: contain;
+    padding: 0;
+}
+
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-header {
+    flex: none;
+    position: relative;
+    border-start-start-radius: inherit;
+    border-start-end-radius: inherit;
+    padding-block: var(--tala-modal-pad) calc(var(--tala-modal-pad) - 0.25rem);
+    padding-inline: var(--tala-modal-pad) 3.5rem;
+    color: var(--tala-text);
+}
+
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal):not(.fi-modal-window-has-content) > .fi-modal-header {
+    padding-block-end: var(--tala-modal-pad);
+}
+
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) .fi-modal-close-btn {
+    inset-block-start: calc(var(--tala-modal-pad) - 0.25rem);
+    inset-inline-end: var(--tala-modal-pad);
+}
+
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-content {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: auto;
+    padding: var(--tala-modal-pad);
+    container-type: inline-size;
+}
+
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal):not(.fi-modal-window-has-content) > .fi-modal-content {
+    display: none;
+}
+
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-footer {
+    flex: none;
+    margin-top: 0;
+    margin-block-start: 0;
+    border-end-start-radius: inherit;
+    border-end-end-radius: inherit;
+    padding: var(--tala-card-pad) var(--tala-modal-pad);
+}
+
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal):not(.fi-modal-window-has-content) > .fi-modal-footer {
+    margin-top: 0;
+    margin-block-start: 0;
+}
+
+.fi-body .fi-modal.fi-align-start > .fi-modal-window-ctn > .fi-modal-window.fi-modal-window-has-icon:not(.tala-mfa-modal) > .fi-modal-content {
+    padding: var(--tala-modal-pad);
+}
+
+.fi-body .fi-modal.fi-align-start > .fi-modal-window-ctn > .fi-modal-window.fi-modal-window-has-icon:not(.tala-mfa-modal) > :is(.fi-modal-footer, .fi-modal-footer.fi-align-center) {
+    padding: var(--tala-card-pad) var(--tala-modal-pad);
+    margin-top: 0;
+    margin-block-start: 0;
+}
+
+@media (max-width: 40rem) {
+    .fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-footer .fi-modal-footer-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.625rem;
+    }
+
+    .fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-footer .fi-modal-footer-actions > * {
+        max-inline-size: 100%;
+    }
+}
+
+@media (max-width: 28rem) {
+    .fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-footer.fi-align-end .fi-modal-footer-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
 }
 
 @media (forced-colors: none) and (min-width: 64rem) {
@@ -1662,7 +2410,7 @@ html:not(.dark) .fi-breadcrumbs-item-label,
 html:not(.dark) .fi-breadcrumbs-item-separator { color: var(--gray-600); }
 
 /* Truthful asynchronous work uses one shared panel and Filament's reduced-motion-aware indicator. */
-.tala-operation-status { display:flex; align-items:flex-start; gap:1rem; margin:1rem; padding:1.25rem; border-radius:.75rem; background:var(--tala-surface-sunken); color:var(--tala-text); box-shadow:var(--tala-material-detail); }
+.tala-operation-status { display:flex; align-items:flex-start; gap:1rem; margin:1rem; padding:var(--tala-card-pad); border-radius:.75rem; background:var(--tala-surface-sunken); color:var(--tala-text); box-shadow:var(--tala-material-detail); }
 .tala-operation-status > .fi-loading-indicator { flex:none; inline-size:1.5rem; block-size:1.5rem; color:var(--tala-brand-foreground); }
 .tala-operation-status h2 { font-size:1rem; line-height:1.5; font-weight:600; }
 .tala-operation-status p { margin-block-start:.375rem; line-height:1.5; }

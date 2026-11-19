@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Actions\Finance\EnrollmentFinanceClearanceService;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
@@ -359,7 +358,6 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
     {
         return new EnrollmentFinanceClearanceService(
             app(DecimalMoney::class),
-            app(StudentEnrollmentService::class),
         );
     }
 }

@@ -18,7 +18,7 @@
             {{ $slot }}
             <nav class="tala-access-help" aria-label="Access help">
                 <a href="{{ route('home') }}">Servitech Institute Asia home</a>
-                <a href="{{ route('home', ['modal' => 'support']) }}">Contact school support</a>
+                <a href="{{ route('home', ['modal' => 'support']) }}">Contact support</a>
             </nav>
         </section>
     </main>

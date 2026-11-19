@@ -55,8 +55,8 @@ final class AcademicProgressionServiceTest extends TestCase
             'curriculum_entry_id' => $target->id,
             'state' => TermOffering::StateScheduled,
         ]);
-        $this->requirement($target, $alternativeA, 'A', '2.50');
-        $this->requirement($target, $alternativeB, 'A', null, acceptsTransfer: true);
+        $this->requirement($target, $alternativeA, 'A');
+        $this->requirement($target, $alternativeB, 'A');
         $this->requirement($target, $requiredB, 'B');
         $this->grade($profile, $alternativeA, '3.00', GradeRosterRow::CategoryPassing);
         $this->grade($profile, $alternativeB, 'TC', GradeRosterRow::CategoryTransferCredit);
@@ -103,7 +103,6 @@ final class AcademicProgressionServiceTest extends TestCase
             'related_course_id' => $credited->courseSpecification->course_id,
             'rule_type' => CourseRequirement::TypePrerequisite,
             'group_key' => 'PREREQ',
-            'minimum_grade' => '3.00',
             'state' => CourseRequirement::StateActive,
         ]);
         CourseRequirement::factory()->create([
@@ -264,15 +263,13 @@ final class AcademicProgressionServiceTest extends TestCase
         ])->load('courseSpecification.course');
     }
 
-    private function requirement(CurriculumEntry $target, CurriculumEntry $related, string $group, ?string $minimum = null, bool $acceptsTransfer = false): void
+    private function requirement(CurriculumEntry $target, CurriculumEntry $related, string $group): void
     {
         CourseRequirement::factory()->create([
             'course_specification_id' => $target->course_specification_id,
             'related_course_id' => $related->courseSpecification->course_id,
             'rule_type' => CourseRequirement::TypePrerequisite,
             'group_key' => $group,
-            'minimum_grade' => $minimum,
-            'accepts_transfer_credit' => $acceptsTransfer,
             'state' => CourseRequirement::StateActive,
         ]);
     }

@@ -12,7 +12,6 @@ use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
-use App\Filament\Resources\StudentProfiles\Pages\EditStudentProfile;
 use App\Filament\Resources\StudentProfiles\Pages\ListStudentProfiles;
 use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelationManager;
@@ -29,11 +28,8 @@ use App\Models\Term;
 use App\Models\TermAccount;
 use App\Models\TermCohort;
 use BackedEnum;
-use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
@@ -68,28 +64,9 @@ class StudentProfileResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'student_number';
 
-    public static function form(Schema $schema): Schema
-    {
-        return $schema->components([
-            Section::make('Official Student Profile')->schema([
-                TextInput::make('student_number')->disabled(),
-                Select::make('entry_term_id')->label('Entry Term')->relationship('entryTerm', 'label')->disabled(),
-                TextInput::make('first_name')->disabled(),
-                TextInput::make('middle_name')->disabled(),
-                TextInput::make('last_name')->disabled(),
-                DatePicker::make('birth_date')->label('Date of Birth')->native(false)->displayFormat('M d, Y')->disabled(),
-                TextInput::make('prior_identifier')->label('LRN / Prior-Education Identifier')->disabled(),
-                Select::make('program_id')->relationship('program', 'name')->disabled(),
-                Select::make('curriculum_version_id')->relationship('curriculumVersion', 'name')->disabled(),
-                TextInput::make('email')->disabled(),
-                TextInput::make('phone')->disabled(),
-            ])->columns(2),
-        ]);
-    }
-
     public static function infolist(Schema $schema): Schema
     {
-        $academicContext = ($schema->getLivewire()->viewTab ?? \Filament\Support\original_request()->query('viewTab')) === 'academic-progress';
+        $academicContext = true;
         $sections = [
             'identity' => Section::make('Current Student Record')->collapsible($academicContext)->collapsed($academicContext)
                 ->description($academicContext ? null : 'The institution-confirmed identity, program, curriculum, and lifecycle state.')
@@ -303,7 +280,7 @@ class StudentProfileResource extends Resource
                             ->get()
                             ->map(fn (Assessment $assessment): array => [
                                 'term' => $assessment->enrollment?->term?->label,
-                                'version' => 'Version '.$assessment->version,
+                                'version' => $assessment->state === Assessment::StateActive ? 'Current assessment' : 'Earlier assessment',
                                 'status' => str($assessment->state)->headline()->toString(),
                                 'total' => 'PHP '.number_format((float) $assessment->total, 2),
                                 'source_url' => $assessment->enrollment !== null
@@ -382,6 +359,7 @@ class StudentProfileResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->extraAttributes(['class' => 'tala-data-table tala-profile-directory-table'])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
                 'program',
                 'curriculumVersion',
@@ -400,30 +378,35 @@ class StudentProfileResource extends Resource
                 },
             ]))
             ->columns([
-                TextColumn::make('student_number')->searchable()->sortable(),
+                TextColumn::make('student_number')->searchable()->sortable()->wrapHeader(),
                 TextColumn::make('last_name')->label('Student')->formatStateUsing(fn (StudentProfile $record): string => $record->last_name.', '.$record->first_name)->searchable(['last_name', 'first_name'])->sortable(),
-                TextColumn::make('program.name')->label('Current program')->searchable()->sortable(),
+                TextColumn::make('program.name')->label('Current program')->searchable()->sortable()->wrapHeader(),
                 TextColumn::make('curriculumVersion.name')->label('Curriculum')->sortable(),
                 TextColumn::make('current_term')
                     ->label('Current Term')
                     ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['term_label'] ?? 'No active-term enrollment')
-                    ->wrap(),
+                    ->wrap()
+                    ->wrapHeader(),
                 TextColumn::make('current_enrollment_status')
                     ->label('Enrollment Status')
                     ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['enrollment_status_label'] ?? 'Not started')
-                    ->badge(),
+                    ->badge()
+                    ->wrapHeader(),
                 TextColumn::make('current_enrollment_type')
                     ->label('Enrollment Type')
                     ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['enrollment_type_label'] ?? 'Not recorded')
-                    ->badge(),
+                    ->badge()
+                    ->wrapHeader(),
                 TextColumn::make('curriculum_level')
                     ->label('Curriculum Level')
-                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['curriculum_level_label'] ?? 'Not recorded'),
+                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['curriculum_level_label'] ?? 'Not recorded')
+                    ->wrapHeader(),
                 TextColumn::make('lifecycle_status')
                     ->label('Lifecycle Status')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state))
-                    ->sortable(),
+                    ->sortable()
+                    ->wrapHeader(),
                 TextColumn::make('academic_effect')
                     ->label('Enrollment Guidance')
                     ->state(function (StudentProfile $record): string {
@@ -432,6 +415,7 @@ class StudentProfileResource extends Resource
                         return $guidance['label'].' · '.$guidance['scope_label'];
                     })
                     ->wrap()
+                    ->wrapHeader()
                     ->badge(),
             ])->filters([
                 ...self::academicBrowsingFilters(),
@@ -463,9 +447,12 @@ class StudentProfileResource extends Resource
                 ]),
             ])
             ->recordUrl(fn (StudentProfile $record, HasTable $livewire): string => self::academicRecordUrl($record, $livewire))
-            ->recordActions([ViewAction::make()->url(fn (StudentProfile $record, HasTable $livewire): string => self::academicRecordUrl($record, $livewire)), EditAction::make()])
+            ->recordActions([ViewAction::make()->url(fn (StudentProfile $record, HasTable $livewire): string => self::academicRecordUrl($record, $livewire))])
             ->defaultSort('student_number')
-            ->stackedOnMobile();
+            ->stackedOnMobile()
+            ->emptyStateHeading('No student profiles found')
+            ->emptyStateDescription('Official student profiles appear here after enrollment, or clear search and filters.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
     public static function academicRecordUrl(StudentProfile $record, HasTable $livewire): string
@@ -641,7 +628,6 @@ class StudentProfileResource extends Resource
         return [
             'index' => ListStudentProfiles::route('/'),
             'view' => ViewStudentProfile::route('/{record}'),
-            'edit' => EditStudentProfile::route('/{record}/edit'),
         ];
     }
 }

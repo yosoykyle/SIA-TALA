@@ -113,7 +113,6 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         'admission_decisions',
         'student_profiles',
         'enrollments',
-        'enrollment_gate_results',
         'registration_case_events',
         'registration_identity_confirmation_versions',
         'registration_proposal_versions',
@@ -1518,7 +1517,6 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
         DB::table('enrollment_seat_reservations')->where('enrollment_id', $case->id)->delete();
         DB::table('registration_identity_confirmation_versions')->where('enrollment_id', $case->id)->delete();
         DB::table('registration_case_events')->where('enrollment_id', $case->id)->delete();
-        DB::table('enrollment_gate_results')->where('enrollment_id', $case->id)->delete();
         DB::table('enrollments')->where('id', $case->id)->delete();
     }
 

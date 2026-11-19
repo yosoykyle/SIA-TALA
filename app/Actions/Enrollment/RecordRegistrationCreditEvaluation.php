@@ -37,7 +37,8 @@ class RecordRegistrationCreditEvaluation
                 || ! ApplicationSubmissionVersion::query()->where('admission_application_id', $application->id)->whereKey($expectedSubmissionVersionId)->exists()
                 || (int) $application?->current_submission_version_id !== $expectedSubmissionVersionId
                 || ($latestId === null ? null : (int) $latestId) !== $expectedEvaluationId
-                || $curriculum?->state !== CurriculumVersion::StateActive || (int) $curriculum?->program_id !== (int) $application?->program_id) {
+                || ! in_array($curriculum?->state, [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded], true)
+                || (int) $curriculum?->program_id !== (int) $application?->program_id) {
                 throw ValidationException::withMessages(['evaluation' => 'The enrollment or evaluation changed. Reopen the academic evaluation.']);
             }
             $ids = array_map(fn ($id): int => (int) $id, $creditedCurriculumEntryIds);

@@ -2,13 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Scheduling\ClassPlanningWorkflow;
-use App\Actions\Scheduling\TermSchedulingReadinessService;
-use App\Filament\Pages\AcademicReadiness;
-use App\Filament\Pages\ClassPlanning;
-use App\Filament\Pages\TermPlanningWorkbench;
+use App\Filament\Pages\CatalogCurriculaWorkbench;
+use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermTimetable;
-use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\SchedulingDemands\Pages\ListSchedulingDemands;
 use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
@@ -20,8 +16,8 @@ use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
-use Mockery;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -50,50 +46,11 @@ final class TAL96D5E1B2CClassPlanningTest extends TestCase
     }
 
     #[Test]
-    public function legacy_class_planning_redirects_to_the_owning_term_workbench(): void
+    public function legacy_class_planning_and_academic_readiness_redirect_pages_are_retired(): void
     {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        Term::factory()->create([
-            'label' => 'Planning Test Term',
-            'state' => Term::StateActive,
-        ]);
-
-        $this->actingAs($registrar);
-
-        Livewire::test(ClassPlanning::class)
-            ->assertRedirect(TermPlanningWorkbench::getUrl(['viewTab' => 'classes']));
-
-        $this->assertSame('Class Planning', ClassPlanning::getNavigationLabel());
-        $this->assertFalse(ClassPlanning::shouldRegisterNavigation());
-    }
-
-    #[Test]
-    public function academic_readiness_remains_an_accessible_source(): void
-    {
-        $this->actingAs($this->staff(User::StaffRoleRegistrar));
-
-        Livewire::test(AcademicReadiness::class)
-            ->assertSuccessful();
-    }
-
-    #[Test]
-    public function workflow_presenter_reports_truthful_blockers_without_invoking_the_solver(): void
-    {
-        $term = Term::factory()->create([
-            'label' => 'Incomplete Planning Term',
-            'scheduling_days' => [],
-            'state' => Term::StateDraft,
-        ]);
-
-        $summary = app(ClassPlanningWorkflow::class)->present($term);
-
-        $this->assertFalse($summary['is_ready']);
-        $this->assertCount(6, $summary['stages']);
-        $this->assertSame('Prerequisites', $summary['stages'][0]['title']);
-        $this->assertSame('Blocked', $summary['stages'][0]['status']);
-        $this->assertSame('Complete academic and term setup', $summary['stages'][0]['action_label']);
-        $this->assertSame(0, $summary['counts']['schedule_runs']);
-        $this->assertSame(0, $summary['counts']['published_meetings']);
+        $this->assertFalse(Route::has('filament.admin.pages.class-planning'));
+        $this->assertFalse(Route::has('filament.admin.pages.academic-readiness'));
+        $this->assertFileDoesNotExist(app_path('Actions/Scheduling/ClassPlanningWorkflow.php'));
     }
 
     #[Test]
@@ -120,53 +77,23 @@ final class TAL96D5E1B2CClassPlanningTest extends TestCase
     }
 
     #[Test]
-    public function academic_head_can_review_class_planning_but_system_admin_cannot_open_it(): void
+    public function academic_head_can_review_term_planning_workbench_but_system_admin_cannot_open_it(): void
     {
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
         $systemAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-
-        Livewire::actingAs($academicHead)
-            ->test(ClassPlanning::class)
-            ->assertRedirect(TermPlanningWorkbench::getUrl(['viewTab' => 'classes']));
+        $term = Term::factory()->create(['state' => Term::StateActive]);
 
         $this->actingAs($academicHead)
-            ->get(ClassPlanning::getUrl())
-            ->assertRedirect(TermPlanningWorkbench::getUrl(['viewTab' => 'classes']));
+            ->get(TermClasses::getUrl(['termId' => $term->id]))
+            ->assertOk();
+
+        $this->actingAs($academicHead)
+            ->get(CatalogCurriculaWorkbench::getUrl())
+            ->assertOk();
 
         $this->actingAs($systemAdmin)
-            ->get(ClassPlanning::getUrl())
+            ->get(TermClasses::getUrl(['termId' => $term->id]))
             ->assertForbidden();
-    }
-
-    #[Test]
-    public function teaching_resources_action_opens_the_source_that_owns_the_current_blocker(): void
-    {
-        $term = Term::factory()->create([
-            'label' => 'Faculty Blocker Term',
-            'state' => Term::StateActive,
-        ]);
-        $readiness = Mockery::mock(TermSchedulingReadinessService::class);
-        $readiness->shouldReceive('evaluateTerm')
-            ->once()
-            ->with($term)
-            ->andReturn([
-                'is_ready' => false,
-                'missing_term_fields' => [],
-                'section_issues' => [],
-                'delivery_group_issues' => [],
-                'faculty_input_issues' => [[
-                    'missing_inputs' => ['active_faculty_qualification'],
-                ]],
-                'room_input_issues' => [],
-                'room_catalog_mode' => 'test',
-            ]);
-        $this->app->instance(TermSchedulingReadinessService::class, $readiness);
-
-        $summary = app(ClassPlanningWorkflow::class)->present($term);
-        $teachingResources = $summary['stages'][2];
-
-        $this->assertSame('Review faculty qualifications', $teachingResources['action_label']);
-        $this->assertSame(FacultyQualificationResource::getUrl('index'), $teachingResources['action_url']);
     }
 
     #[Test]

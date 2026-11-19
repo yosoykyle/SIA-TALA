@@ -295,7 +295,7 @@ class TAL89AGradesAcceptanceTest extends TestCase
             ->assertSee('No classes match your search or filters')
             ->assertDontSee('No class rosters yet')
             ->searchTable('No matching faculty')
-            ->callAction(TestAction::make('resetClassQueue')->table())
+            ->call('clearClassQueue')
             ->assertSet('tableSearch', '')
             ->assertSet('tableFilters.state.value', null)
             ->assertCanSeeTableRecords([$row->roster]);

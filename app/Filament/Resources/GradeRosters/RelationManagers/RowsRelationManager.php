@@ -82,8 +82,6 @@ class RowsRelationManager extends RelationManager
             ->defaultSort(fn (Builder $query): Builder => $query
                 ->when($this->initialResultId, fn (Builder $rows): Builder => $rows
                     ->orderByRaw('CASE WHEN grade_roster_rows.id = ? THEN 0 ELSE 1 END', [$this->initialResultId]))
-                ->orderBy('grade_roster_rows.id'))
-            ->defaultPaginationPageOption(10)
-            ->paginationPageOptions([10, 25, 50]);
+                ->orderBy('grade_roster_rows.id'));
     }
 }

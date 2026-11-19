@@ -87,6 +87,7 @@ class ScheduleGenerationRunsTable
             ->toolbarActions([])
             ->stackedOnMobile()
             ->emptyStateHeading('No generated timetables are recorded')
-            ->emptyStateDescription('Prepare the Term inputs, then generate a timetable from Timetable.');
+            ->emptyStateDescription('Prepare the Term inputs, then generate a timetable from Timetable.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 }

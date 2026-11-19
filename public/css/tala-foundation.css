@@ -8,11 +8,12 @@
     --tala-on-brand: #ffffff;
     --tala-link: #1e3a8a;
     --tala-accent: #facc15;
-    --tala-canvas: #f4f4f5;
+    --tala-canvas: #f1f3f5;
     --tala-chrome: #ececee;
     --tala-chrome-divider: #d4d4d8;
     --tala-surface: #ffffff;
-    --tala-surface-sunken: #f4f4f5;
+    --tala-surface-raised: #ffffff;
+    --tala-surface-sunken: #e9ecef;
     --tala-overlay: #ffffff;
     --tala-text: #18181b;
     --tala-muted: #52525c;
@@ -24,6 +25,10 @@
     --tala-selected-edge: color-mix(in srgb, var(--primary-600, #2f7d3b) 28%, transparent);
     --tala-card-radius: 0.625rem;
     --tala-card-gap: 0.75rem;
+    --tala-card-pad: 1rem;
+    --tala-card-pad-compact: 0.75rem;
+    --tala-modal-pad: 1.25rem;
+    --tala-section-gap: 1rem;
     --tala-shadow-surface: 0 1px 2px rgb(9 9 11 / 4%), 0 3px 8px -4px rgb(9 9 11 / 7%);
     --tala-shadow-detail: 0 1px 2px rgb(9 9 11 / 3%);
     --tala-shadow-overlay: 0 2px 4px rgb(9 9 11 / 6%), 0 12px 28px -6px rgb(9 9 11 / 16%), 0 24px 56px -16px rgb(9 9 11 / 18%);
@@ -56,19 +61,20 @@
 
 :root.dark,
 :root[data-bs-theme='dark'] {
-    --tala-canvas: #151619;
-    --tala-chrome: #202226;
+    --tala-canvas: #121417;
+    --tala-chrome: #181a1f;
     --tala-chrome-divider: rgb(255 255 255 / 8%);
-    --tala-surface: #2b2d32;
-    --tala-surface-sunken: #1b1d21;
-    --tala-overlay: #393c42;
+    --tala-surface: #23262c;
+    --tala-surface-raised: #2d313a;
+    --tala-surface-sunken: #1a1d22;
+    --tala-overlay: #272b33;
     --tala-text: #f5f6f7;
     --tala-muted: #c2c8cf;
     --tala-border: #5d636e;
     --tala-control-border: #a2acb9;
-    --tala-edge: rgb(255 255 255 / 16%);
-    --tala-edge-strong: rgb(255 255 255 / 22%);
-    --tala-rim: rgb(255 255 255 / 18%);
+    --tala-edge: rgb(255 255 255 / 12%);
+    --tala-edge-strong: rgb(255 255 255 / 20%);
+    --tala-rim: rgb(255 255 255 / 16%);
     --tala-selected-edge: color-mix(in srgb, var(--primary-400, #6acb7c) 35%, transparent);
     --tala-shadow-surface: 0 1px 2px rgb(0 0 0 / 25%), 0 8px 20px -10px rgb(0 0 0 / 30%);
     --tala-shadow-detail: 0 1px 2px rgb(0 0 0 / 15%);
@@ -108,7 +114,19 @@
 .tala-workspace-overview__context .fi-icon { inline-size:1.125rem; block-size:1.125rem; }
 .tala-workspace-overview__main { display:grid; align-items:start; min-inline-size:0; }
 .tala-workspace-preparation { overflow:hidden; }
-.tala-workspace-preparation > header { display:grid; gap:.5rem; padding:1.5rem; border-block-end:1px solid var(--tala-edge); }
+@media (max-width: 36rem) {
+    :root {
+        --tala-card-pad: 0.75rem;
+    }
+}
+
+@media (max-width: 40rem), (max-height: 46rem) {
+    :root {
+        --tala-modal-pad: 1rem;
+    }
+}
+
+.tala-workspace-preparation > header { display:grid; gap:.5rem; padding:var(--tala-card-pad); border-block-end:1px solid var(--tala-edge); }
 .tala-workspace-preparation nav { padding-inline:1.25rem; }
 .tala-workspace-preparation__row { display:grid; grid-template-columns:2rem minmax(0,1fr); gap:1rem; padding-block:1.5rem; }
 .tala-workspace-preparation__row + .tala-workspace-preparation__row { border-block-start:1px solid var(--tala-edge); }
@@ -122,8 +140,8 @@
 .tala-workspace-preparation__action { justify-self:start; }
 .tala-workspace-overview__link { color:var(--tala-link); text-decoration:underline; text-underline-offset:.2em; font-size:.875rem; }
 .tala-workspace-overview__aside { display:grid; min-inline-size:0; }
-.tala-workspace-overview__timetable, .tala-workspace-overview__record { display:grid; gap:1rem; padding:1.25rem; min-inline-size:0; }
-.tala-workspace-overview__result { display:grid; justify-items:center; gap:1rem; padding:1.5rem 1rem; border-radius:.5rem; background:var(--tala-surface-sunken); text-align:center; }
+.tala-workspace-overview__timetable, .tala-workspace-overview__record { display:grid; gap:1rem; padding:var(--tala-card-pad); min-inline-size:0; }
+.tala-workspace-overview__result { display:grid; justify-items:center; gap:1rem; padding:var(--tala-card-pad); border-radius:.5rem; background:var(--tala-surface-sunken); text-align:center; }
 .tala-workspace-overview__result > .fi-icon { inline-size:2.5rem; block-size:2.5rem; }
 .tala-workspace-overview__result > .fi-btn { inline-size:100%; }
 .tala-workspace-overview__result p { max-inline-size:40ch; }
@@ -134,8 +152,8 @@
 .tala-workspace-overview__record dt { color:var(--tala-muted); }
 .tala-workspace-overview__record dd { margin:0; overflow-wrap:anywhere; }
 .tala-workspace-coverage { min-inline-size:0; overflow:hidden; }
-.tala-workspace-coverage > header { display:grid; gap:.5rem; padding:1.25rem 1.25rem 0; }
-.tala-workspace-coverage__filters { display:flex; flex-wrap:wrap; align-items:end; gap:.75rem; padding:1.25rem; }
+.tala-workspace-coverage > header { display:grid; gap:.5rem; padding:var(--tala-card-pad) var(--tala-card-pad) 0; }
+.tala-workspace-coverage__filters { display:flex; flex-wrap:wrap; align-items:end; gap:.75rem; padding:var(--tala-card-pad); }
 .tala-workspace-coverage__filters > div { display:grid; gap:.375rem; flex:1 1 15rem; min-inline-size:0; }
 .tala-workspace-coverage__filters > div:nth-child(2) { flex:0 1 12rem; }
 .tala-workspace-coverage__filters label { font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
@@ -148,11 +166,11 @@
 .tala-workspace-coverage__table small { display:block; color:var(--tala-muted); font-size:.75rem; }
 .tala-workspace-coverage__table td { font-variant-numeric:tabular-nums; }
 .tala-workspace-coverage__action .fi-btn { white-space:nowrap; }
-.tala-workspace-coverage__pagination { display:grid; gap:.75rem; padding:1rem 1.25rem; border-block-start:1px solid var(--tala-edge); }
+.tala-workspace-coverage__pagination { display:grid; gap:.75rem; padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-start:1px solid var(--tala-edge); }
 .tala-workspace-coverage__pagination > nav:only-of-type { margin:0; }
 .tala-workspace-coverage__pagination > nav p { display:none; }
-.tala-workspace-coverage__empty { display:grid; justify-items:start; gap:.75rem; padding:1.5rem; border-block-start:1px solid var(--tala-edge); }
-.tala-workspace-overview .tala-workspace-coverage__note { padding:0 1.25rem 1.25rem; font-size:.75rem; }
+.tala-workspace-coverage__empty { display:grid; justify-items:start; gap:.75rem; padding:var(--tala-card-pad); border-block-start:1px solid var(--tala-edge); }
+.tala-workspace-overview .tala-workspace-coverage__note { padding:0 var(--tala-card-pad) var(--tala-card-pad); font-size:.75rem; }
 @container (min-width:58rem) {
     .tala-workspace-overview__main { grid-template-columns:minmax(0,1.6fr) minmax(19rem,1fr); }
     .tala-workspace-preparation__content { grid-template-columns:minmax(0,1fr) auto; }
@@ -174,7 +192,7 @@
     .tala-workspace-overview .fi-header { --tala-type-page:1.5rem; }
     .tala-workspace-overview .fi-header .fi-header-heading { font-size:1.5rem; }
     .tala-workspace-overview__aside { grid-template-columns:minmax(0,1fr); }
-    .tala-workspace-preparation > header { padding:1.25rem; }
+    .tala-workspace-preparation > header { padding:var(--tala-card-pad); }
     .tala-workspace-preparation__row { grid-template-columns:1.5rem minmax(0,1fr); gap:.75rem; padding-block:1.25rem; }
     .tala-workspace-preparation__row > .fi-icon { inline-size:1.5rem; block-size:1.5rem; }
     .tala-workspace-coverage__filters > div:nth-child(2) { flex:1 1 100%; }
@@ -184,28 +202,29 @@
 .tala-workspace-launcher { container-type: inline-size; color: var(--tala-text); }
 .tala-workspace-launcher__scope { margin-block-end: 1rem; color: var(--tala-muted); font-size: var(--tala-type-caption); }
 .tala-workspace-launcher__main, .tala-workspace-task-grid { display: grid; }
-.tala-workspace-launcher__main .tala-workspace-feature__body { display:grid; grid-template-columns:2.5rem minmax(0,1fr); align-content:start; align-items:center; gap:.75rem; padding:1.25rem; }
+.tala-workspace-launcher__main .tala-workspace-feature__body { display:grid; grid-template-columns:2.5rem minmax(0,1fr); align-content:start; align-items:center; gap:.75rem; padding:var(--tala-card-pad); }
 .tala-workspace-launcher__main .tala-workspace-feature__body :is(h2,h3) { font-size:var(--tala-type-section); }
 .tala-workspace-launcher__main .tala-workspace-feature__body > :not(.tala-workspace-card__icon):not(h2):not(h3) { grid-column:1 / -1; }
 .tala-workspace-launcher__main .tala-workspace-card__icon { inline-size:2.5rem; block-size:2.5rem; }
 .tala-workspace-launcher__main .tala-workspace-card__icon > .fi-icon { inline-size:1.5rem; block-size:1.5rem; }
 .tala-workspace-launcher__main .tala-workspace-figure > strong { font-size:var(--tala-type-value); }
 .tala-workspace-launcher__main .tala-workspace-feature__body > p { font-size:var(--tala-type-caption); }
-.tala-workspace-launcher__main .tala-workspace-feature__action { padding:1rem 1.25rem; }
+.tala-workspace-launcher__main .tala-workspace-feature__action { padding:var(--tala-card-pad-compact) var(--tala-card-pad); }
 .tala-workspace-launcher__main > .tala-workspace-feature { display:grid; grid-template-rows:subgrid; grid-row:span 2; row-gap:0; }
 .tala-workspace-launcher__main .tala-workspace-feature__action { display:flex; align-items:stretch; }
-.tala-workspace-feature { display: flex; flex-direction: column; min-inline-size: 0; overflow: hidden; }
+.tala-workspace-feature { display: flex; flex-direction: column; min-inline-size: 0; overflow: hidden; border: 1px solid var(--tala-selected-edge); }
+.tala-workspace-feature--neutral { border-color: var(--tala-edge); }
 .tala-workspace-feature__body {
     display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 1rem;
-    padding: 1.5rem; color: var(--tala-on-brand);
-    background: linear-gradient(135deg, var(--tala-brand), var(--tala-brand-strong));
-    box-shadow: var(--tala-rim-inset);
+    padding: var(--tala-card-pad); color: var(--tala-text);
+    background: var(--tala-surface);
 }
 .tala-workspace-feature__body :is(h2, h3) { font-size: var(--tala-type-card); font-weight: var(--tala-weight-heading); line-height: 1.25; text-wrap: balance; }
-.tala-workspace-feature__body > p { max-inline-size: 40ch; font-size: var(--tala-type-body); line-height: 1.6; text-wrap: pretty; }
-.tala-workspace-feature__body > .tala-workspace-card__note { color: inherit; font-size: var(--tala-type-caption); }
-.tala-workspace-feature__action { padding: 1.25rem 1.5rem; background: var(--tala-brand-tint); }
-.tala-workspace-feature__action > .fi-btn { inline-size: 100%; }
+.tala-workspace-feature__body > p { max-inline-size: 40ch; color: var(--tala-muted); font-size: var(--tala-type-body); line-height: 1.6; text-wrap: pretty; }
+.tala-workspace-feature__body > .tala-workspace-card__note { color: var(--tala-muted); font-size: var(--tala-type-caption); }
+.tala-workspace-feature .tala-workspace-figure > strong { color: var(--tala-brand-foreground); }
+.tala-workspace-feature__action { padding: var(--tala-card-pad-compact) var(--tala-card-pad); background: var(--tala-surface-sunken); border-block-start: 1px solid var(--tala-edge); }
+.tala-workspace-feature__action > .fi-btn { inline-size: 100%; justify-content: center; }
 .tala-workspace-feature--neutral .tala-workspace-feature__body { background: var(--tala-surface); color: var(--tala-text); }
 .tala-workspace-feature--neutral .tala-workspace-feature__body > p { color: var(--tala-muted); }
 .tala-workspace-feature--neutral .tala-workspace-figure > strong { color: var(--tala-brand-foreground); }
@@ -222,7 +241,7 @@
 .tala-workspace-text-link:focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 3px; }
 .tala-workspace-card {
     display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) 1rem; align-items: center;
-    gap: .75rem; min-inline-size: 0; padding: 1.25rem; color: var(--tala-text); text-decoration: none;
+    gap: .75rem; min-inline-size: 0; padding: var(--tala-card-pad); color: var(--tala-text); text-decoration: none;
 }
 .tala-workspace-card__content { display: grid; gap: .5rem; min-inline-size: 0; }
 .tala-workspace-card__title { font-size: var(--tala-type-caption); font-weight: var(--tala-weight-emphasis); line-height: 1.35; }
@@ -237,10 +256,10 @@
 .tala-workspace-card--compact .tala-workspace-card__icon { inline-size: 2.5rem; block-size: 2.5rem; align-self: start; }
 .tala-workspace-card--compact .tala-workspace-card__icon > .fi-icon { inline-size: 1.5rem; block-size: 1.5rem; }
 .tala-workspace-task-grid { margin-block-start: 1.25rem; }
-.tala-workspace-task-grid .tala-workspace-feature__body { display: grid; grid-template-columns: 3rem minmax(0, 1fr); align-content: start; gap: .75rem 1rem; padding: 1.25rem; }
+.tala-workspace-task-grid .tala-workspace-feature__body { display: grid; grid-template-columns: 3rem minmax(0, 1fr); align-content: start; gap: .75rem 1rem; padding: var(--tala-card-pad); }
 .tala-workspace-task-grid .tala-workspace-feature__body :is(h2, h3) { align-self: center; font-size: var(--tala-type-section); }
 .tala-workspace-task-grid .tala-workspace-feature__body > :not(.tala-workspace-card__icon):not(h2):not(h3) { grid-column: 1 / -1; }
-.tala-workspace-task-grid .tala-workspace-feature__action { padding: 1rem 1.25rem; background: var(--tala-surface-sunken); }
+.tala-workspace-task-grid .tala-workspace-feature__action { padding: var(--tala-card-pad-compact) var(--tala-card-pad); background: var(--tala-surface-sunken); }
 .tala-workspace-task-findings { display: grid; justify-items: start; gap: .35rem; color: var(--tala-muted); font-size: var(--tala-type-caption); }
 .tala-workspace-launcher__split > .registrar-records-entry { flex-wrap: wrap; gap: 1rem; }
 .tala-workspace-task-grid .tala-workspace-figure > strong { font-size: var(--tala-type-value); }
@@ -257,8 +276,9 @@
 }
 @media (forced-colors: active) {
     .tala-workspace-feature .tala-workspace-feature__body, .tala-workspace-feature__action, .tala-workspace-card__icon { background: Canvas; color: CanvasText; }
+    .tala-workspace-feature:not(.tala-workspace-feature--neutral) { outline: 2px solid Highlight; }
     .tala-workspace-card { color: LinkText; }
-    .tala-workspace-feature--neutral .tala-workspace-figure > strong, .tala-workspace-feature--neutral .tala-workspace-feature__body > p, .tala-workspace-card__description, .tala-workspace-card__note { color: CanvasText; }
+    .tala-workspace-feature .tala-workspace-figure > strong, .tala-workspace-feature .tala-workspace-feature__body > p, .tala-workspace-card__description, .tala-workspace-card__note { color: CanvasText; }
 }
 @media print {
     .tala-workspace-feature__body { background: white; color: black; }
@@ -381,7 +401,8 @@
 .tala-access-main-wide { max-width: 48rem; }
 .tala-access-card { width: 100%; min-width: 0; padding: clamp(1rem, 4vw, 2rem); border: 1px solid var(--tala-border); border-radius: 0.75rem; background: var(--tala-surface); overflow-wrap: anywhere; }
 .tala-task-surface { border: 1px solid var(--tala-edge); border-radius: var(--tala-card-radius); background: var(--tala-surface); }
-.tala-context-inset { display:grid; gap:calc(var(--tala-card-gap) / 2); min-inline-size:0; padding:var(--tala-card-gap); border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface-sunken); box-shadow:var(--tala-material-detail); }
+.tala-task-surface .tala-task-surface { background: var(--tala-surface-raised); border-color: var(--tala-edge-strong); }
+.tala-context-inset { display:grid; gap:calc(var(--tala-card-gap) / 2); min-inline-size:0; padding:var(--tala-card-pad-compact); border:1px solid var(--tala-edge-strong); border-radius:var(--tala-card-radius); background:var(--tala-surface-raised); box-shadow:var(--tala-material-detail); }
 .tala-context-inset--split { grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--tala-card-gap) calc(var(--tala-card-gap) * 2); margin:0; }
 .tala-context-inset--split > div { display:grid; gap:calc(var(--tala-card-gap) / 2); min-inline-size:0; }
 .tala-context-inset--split dt { font-size:var(--tala-type-caption); color:var(--tala-muted); }
@@ -479,9 +500,9 @@ html:not(.dark) :is(.tala-access-card h1, .tala-auth-main .fi-simple-header-head
     color: var(--danger-400, #f87171);
 }
 .tala-access-primary { display: block; width: 100%; min-height: 2.75rem; background: var(--tala-brand); color: var(--tala-on-brand); padding: 0.625rem 1rem; border-radius: 0.375rem; font-weight: 600; }
-.tala-workspace-choice { width: 100%; min-height: 5rem; border: 1px solid var(--tala-border); background: var(--tala-surface); padding: 1.25rem; border-radius: 0.5rem; text-align: start; }
+.tala-workspace-choice { width: 100%; min-height: 5rem; border: 1px solid var(--tala-border); background: var(--tala-surface); padding: var(--tala-card-pad); border-radius: 0.5rem; text-align: start; }
 .tala-workspace-choice:hover { border-color: var(--tala-link); }
-.tala-workspace-empty-panel { width: 100%; border: 1px solid var(--tala-border); background: var(--tala-canvas); border-radius: 0.5rem; padding: 1.5rem; box-sizing: border-box; }
+.tala-workspace-empty-panel { width: 100%; border: 1px solid var(--tala-border); background: var(--tala-canvas); border-radius: 0.5rem; padding: var(--tala-card-pad); box-sizing: border-box; }
 .tala-access-help { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-top: 1.5rem; }
 .tala-access-help a, .tala-access-text-button { display: inline-flex; align-items: center; min-height: 2.75rem; color: var(--tala-link); text-decoration: underline; text-underline-offset: 0.2em; }
 .tala-access-page :focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 3px; }
@@ -489,19 +510,20 @@ html:not(.dark) :is(.tala-access-card h1, .tala-auth-main .fi-simple-header-head
 @media (prefers-color-scheme: dark) {
     :root[data-tala-system-appearance] {
         color-scheme: dark;
-        --tala-canvas: #151619;
-        --tala-chrome: #202226;
+        --tala-canvas: #121417;
+        --tala-chrome: #181a1f;
         --tala-chrome-divider: rgb(255 255 255 / 8%);
-        --tala-surface: #2b2d32;
-        --tala-surface-sunken: #1b1d21;
-        --tala-overlay: #393c42;
+        --tala-surface: #23262c;
+        --tala-surface-raised: #2d313a;
+        --tala-surface-sunken: #1a1d22;
+        --tala-overlay: #272b33;
         --tala-text: #f5f6f7;
         --tala-muted: #c2c8cf;
         --tala-border: #5d636e;
         --tala-control-border: #a2acb9;
-        --tala-edge: rgb(255 255 255 / 16%);
-        --tala-edge-strong: rgb(255 255 255 / 22%);
-        --tala-rim: rgb(255 255 255 / 18%);
+        --tala-edge: rgb(255 255 255 / 12%);
+        --tala-edge-strong: rgb(255 255 255 / 20%);
+        --tala-rim: rgb(255 255 255 / 16%);
         --tala-selected-edge: color-mix(in srgb, var(--primary-400, #6acb7c) 35%, transparent);
         --tala-shadow-surface: 0 1px 2px rgb(0 0 0 / 25%), 0 8px 20px -10px rgb(0 0 0 / 30%);
         --tala-shadow-detail: 0 1px 2px rgb(0 0 0 / 15%);
@@ -525,6 +547,9 @@ html:not(.dark) :is(.tala-access-card h1, .tala-auth-main .fi-simple-header-head
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
+    }
+    .tala-ambient, .tala-ambient * {
+        animation: none !important;
     }
 }
 

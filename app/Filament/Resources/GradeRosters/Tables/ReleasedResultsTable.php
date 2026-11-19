@@ -23,6 +23,8 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Grid;
+use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Tables\Columns\Layout\Split;
 use Filament\Tables\Columns\Layout\Stack;
@@ -88,6 +90,9 @@ class ReleasedResultsTable
                 Action::make('releaseIncCompletion')
                     ->label('Release INC completion')
                     ->modalHeading('Review INC completion')
+                    ->modalWidth(Width::TwoExtraLarge)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->modalDescription('Release the Faculty completion result to the student. Academic averages and curriculum readiness will recalculate; affected active enrollment cases go to Registrar review. Subjects stay unchanged, and the original INC remains in history.')
                     ->modalSubmitActionLabel('Release INC completion')
                     ->visible(fn (GradeRosterRow $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar)
@@ -95,24 +100,26 @@ class ReleasedResultsTable
                     ->schema([
                         Hidden::make('expected_submission_id')->required()
                             ->default(fn (GradeRosterRow $record): ?int => self::submittedCompletion($record)?->id),
-                        TextEntry::make('completion_student')->label('Student')
-                            ->state(fn (GradeRosterRow $record): string => collect([
-                                $record->courseEnrollment?->enrollment?->studentProfile?->student_number,
-                                $record->courseEnrollment?->enrollment?->studentProfile?->last_name,
-                                $record->courseEnrollment?->enrollment?->studentProfile?->first_name,
-                            ])->filter()->implode(' · ')),
-                        TextEntry::make('completion_class')->label('Course and class')
-                            ->state(fn (GradeRosterRow $record): string => collect([
-                                $record->roster?->termOffering?->curriculumEntry?->courseSpecification?->title,
-                                $record->roster?->section?->code,
-                                $record->roster?->termOffering?->term?->label,
-                            ])->filter()->implode(' · ')),
-                        TextEntry::make('completion_result')->label('Official result after release')
-                            ->state(fn (GradeRosterRow $record): string => 'INC → '.self::submittedCompletion($record)?->proposed_result),
+                        Grid::make(['default' => 1, 'md' => 2])->schema([
+                            TextEntry::make('completion_student')->label('Student')
+                                ->state(fn (GradeRosterRow $record): string => collect([
+                                    $record->courseEnrollment?->enrollment?->studentProfile?->student_number,
+                                    $record->courseEnrollment?->enrollment?->studentProfile?->last_name,
+                                    $record->courseEnrollment?->enrollment?->studentProfile?->first_name,
+                                ])->filter()->implode(' · ')),
+                            TextEntry::make('completion_class')->label('Course and class')
+                                ->state(fn (GradeRosterRow $record): string => collect([
+                                    $record->roster?->termOffering?->curriculumEntry?->courseSpecification?->title,
+                                    $record->roster?->section?->code,
+                                    $record->roster?->termOffering?->term?->label,
+                                ])->filter()->implode(' · ')),
+                            TextEntry::make('completion_result')->label('Official result after release')
+                                ->state(fn (GradeRosterRow $record): string => 'INC → '.self::submittedCompletion($record)?->proposed_result),
+                            TextEntry::make('completion_submitted_at')->label('Faculty submitted (Asia/Manila)')
+                                ->state(fn (GradeRosterRow $record): ?string => self::submittedCompletion($record)?->submitted_at?->timezone('Asia/Manila')->format('M j, Y · g:i A')),
+                        ]),
                         TextEntry::make('completion_note')->label('Faculty completion note')
                             ->state(fn (GradeRosterRow $record): ?string => self::submittedCompletion($record)?->completion_note),
-                        TextEntry::make('completion_submitted_at')->label('Faculty submitted (Asia/Manila)')
-                            ->state(fn (GradeRosterRow $record): ?string => self::submittedCompletion($record)?->submitted_at?->timezone('Asia/Manila')->format('M j, Y · g:i A')),
                     ])
                     ->requiresConfirmation()
                     ->action(function (GradeRosterRow $record, array $data): void {
@@ -136,6 +143,9 @@ class ReleasedResultsTable
                 Action::make('returnIncCompletion')
                     ->label('Return completion for changes')->color('gray')
                     ->modalHeading('Return INC completion for changes')
+                    ->modalWidth(Width::TwoExtraLarge)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->modalDescription('Return the Faculty proposal with one explanation. The submitted result and its source history stay in the record. Faculty may submit a replacement only while the current INC deadline is open.')
                     ->modalSubmitActionLabel('Return completion for changes')
                     ->visible(fn (GradeRosterRow $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar)
@@ -167,6 +177,9 @@ class ReleasedResultsTable
                 Action::make('amendIncDeadline')
                     ->label('Change INC deadline')->color('gray')->button($includeClass)->icon('heroicon-o-calendar-days')
                     ->modalHeading(fn (GradeRosterRow $record): string => 'Change INC deadline · '.($record->courseEnrollment?->enrollment?->studentProfile?->student_number ?? 'Student result'))
+                    ->modalWidth(Width::TwoExtraLarge)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->modalDescription(fn (GradeRosterRow $record): ?string => ($inc = self::unresolvedInc($record)) ? 'Current deadline: '.app(IncDeadlineService::class)->currentDeadline($inc)->format('M j, Y').' (Asia/Manila). Choose the new deadline and explain the change. Your name and time are recorded; earlier deadlines remain in history.' : null)
                     ->modalSubmitActionLabel('Record deadline change')
                     ->visible(fn (GradeRosterRow $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar)
@@ -204,6 +217,9 @@ class ReleasedResultsTable
                     ->label('Record authorized correction')->color('gray')
                     ->button($includeClass)->icon('heroicon-o-pencil-square')
                     ->modalHeading(fn (GradeRosterRow $record): string => 'Record correction · '.($record->courseEnrollment?->enrollment?->studentProfile?->student_number ?? 'Student result'))
+                    ->modalWidth(Width::TwoExtraLarge)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->modalDescription(fn (GradeRosterRow $record): string => 'Current official result: '.$record->current_outcome_code.'. The corrected result becomes a new result. Your name, time and reason are recorded; the previous result stays in history.')
                     ->modalSubmitActionLabel('Record correction')
                     ->visible(fn (GradeRosterRow $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) && $record->released_at !== null)

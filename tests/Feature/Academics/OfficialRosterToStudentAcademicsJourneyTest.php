@@ -63,7 +63,6 @@ use App\Models\Section;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
-use App\Models\TermAverageLabel;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
@@ -451,8 +450,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             ->setActionData([
                 'outcome' => ExternalCompetencyResult::OutcomeCompetent,
                 'assessment_date' => today()->toDateString(), 'external_source' => 'Verified external assessor',
-                'evidence_reference' => 'PRIVATE-EXTERNAL-UI', 'authority_reference' => 'REG-EXTERNAL-UI',
-                'authority_date' => today()->toDateString(), 'credential_type' => 'NC',
+                'evidence_reference' => 'PRIVATE-EXTERNAL-UI', 'credential_type' => 'NC',
             ])
             ->callMountedAction()
             ->assertHasActionErrors(['credential_reference' => 'required_with'])
@@ -466,6 +464,8 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertSame($student->id, $result->student_profile_id);
         $this->assertSame($requirement->id, $result->external_competency_requirement_id);
         $this->assertSame('NC-UI-001', $result->credential_reference);
+        $this->assertNull($result->authority_reference);
+        $this->assertNull($result->authority_date);
         $this->assertSame($fixture['registrar']->id, $result->recorded_by);
     }
 
@@ -495,11 +495,10 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $page->setActionData([
             'outcome' => ExternalCompetencyResult::OutcomeCompetent,
             'assessment_date' => today()->toDateString(), 'external_source' => 'Verified external assessor',
-            'evidence_reference' => 'PRIVATE-STALE', 'authority_reference' => 'REG-STALE',
-            'authority_date' => today()->toDateString(),
+            'evidence_reference' => 'PRIVATE-STALE',
         ])->callMountedAction()->assertHasNoActionErrors()
             ->assertActionMounted('recordExternalCompetency')->assertNotified('Result was not recorded')
-            ->assertActionDataSet(['evidence_reference' => 'PRIVATE-STALE', 'authority_reference' => 'REG-STALE']);
+            ->assertActionDataSet(['evidence_reference' => 'PRIVATE-STALE']);
 
         $this->assertDatabaseCount('external_competency_results', 2);
         $this->assertTrue($successor->fresh()->is_current);
@@ -669,11 +668,6 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->travelTo(Carbon::parse('2026-10-26 12:00:00', 'Asia/Manila'));
         $first = $this->fixture(termEndsOn: '2025-05-31');
         $this->releaseResult($first, '5.00');
-        TermAverageLabel::query()->create([
-            'term_id' => $first['term']->id, 'label' => 'Legacy GPA',
-            'authority_reference' => 'HISTORICAL-LABEL', 'authority_date' => today(), 'recorded_by' => $first['registrar']->id,
-            'recorded_at' => now(), 'is_current' => true,
-        ]);
         $second = $this->fixture(student: $first['student'], termEndsOn: '2026-05-31');
         $this->releaseResult($second, '1.00');
         $missing = $this->fixture(term: $second['term'], student: $first['student']);
@@ -693,7 +687,6 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertStringContainsString($partial['reason'], $summary);
         $this->assertStringNotContainsString('GradesNotComplete', $summary);
         $this->assertSame('Term weighted average', app(TermWeightedAverageProjection::class)->forStudentAndTerm($first['student'], $first['term'])['label']);
-        $this->assertSame(1, TermAverageLabel::query()->where('term_id', $first['term']->id)->count());
 
         $this->releaseResult($missing, '4.00');
         $complete = app(CumulativeGwaProjection::class)->forStudent($first['student']);
@@ -1034,7 +1027,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             Carbon::parse('2026-10-28'), Carbon::parse('2026-10-29'), $fixture['registrar'],
         );
 
-        $this->assertSame('BOARD-CURRENT', $projection->forStudent($fixture['student'], $fixture['term'])['source']);
+        $this->assertSame('Current released academic and lifecycle records', $projection->forStudent($fixture['student'], $fixture['term'])['source']);
         $this->assertSame('Current approved restriction.', $first->fresh()->reason);
         $this->assertSame('2026-10-28', $successor->fresh()->effective_from->toDateString());
 
@@ -1076,7 +1069,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertSame('ACTIVE', $global->fresh()->state);
 
         $global->update(['state' => 'SUPERSEDED']);
-        $this->assertSame('BOARD-GENERAL', $projection->forStudent($fixture['student'], $unrelatedTerm)['source']);
+        $this->assertSame('Current released academic and lifecycle records', $projection->forStudent($fixture['student'], $unrelatedTerm)['source']);
         $this->assertSame('BOARD-TERM', $projection->forStudent($fixture['student'], $fixture['term'])['source']);
 
         $recorder->execute(

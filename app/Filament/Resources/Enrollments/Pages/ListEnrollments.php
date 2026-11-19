@@ -317,11 +317,6 @@ class ListEnrollments extends ListRecords
 
             return ['label' => $label.$extraSuffix, 'icon' => 'heroicon-o-clipboard-document-check'];
         }
-        if ($case->termAccount === null) {
-            return $case->canonical_outcome === Enrollment::OutcomeInProgress
-                ? ['label' => 'Waiting for Registrar', 'icon' => 'heroicon-o-clock']
-                : ['label' => 'Account source unavailable', 'icon' => 'heroicon-o-exclamation-triangle'];
-        }
         foreach ([
             'proof' => ['Receipts to review', 'heroicon-o-document-magnifying-glass'],
             'assessment' => ['Assessment review', 'heroicon-o-document-currency-dollar'],
@@ -329,6 +324,11 @@ class ListEnrollments extends ListRecords
             if ($matchingQueues->contains($kind)) {
                 return ['label' => $label.$extraSuffix, 'icon' => $icon];
             }
+        }
+        if ($case->termAccount === null) {
+            return $case->canonical_outcome === Enrollment::OutcomeInProgress
+                ? ['label' => 'Waiting for Registrar', 'icon' => 'heroicon-o-clock']
+                : ['label' => 'Account source unavailable', 'icon' => 'heroicon-o-exclamation-triangle'];
         }
 
         return ['label' => StudentAccountsTable::rowData($case, $this->activeTab)['status'], 'icon' => 'heroicon-o-banknotes'];
@@ -847,6 +847,14 @@ class ListEnrollments extends ListRecords
                 Action::make('exportAccountStatus')
                     ->label('Export account status')->color('gray')
                     ->icon('heroicon-o-arrow-down-tray')
+                    ->disabled(fn (): bool => $this->activeTab !== 'accounts'
+                        || $this->accountingTermGateActive()
+                        || ! (clone $this->getFilteredSortedTableQuery())->whereHas('termAccount')->exists())
+                    ->tooltip(fn (): ?string => ($this->activeTab === 'accounts'
+                        && ! $this->accountingTermGateActive()
+                        && ! (clone $this->getFilteredSortedTableQuery())->whereHas('termAccount')->exists())
+                        ? 'No term accounts match the current view.'
+                        : null)
                     ->modalHeading('Export account status')
                     ->modalDescription('Review the current account position before downloading.')
                     ->modalIcon(null)
@@ -950,6 +958,8 @@ class ListEnrollments extends ListRecords
             ->authorize(fn (): bool => $this->isRegistrar())
             ->modalHeading('Who can enroll during this period')
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalSubmitActionLabel('Save allowed students')
             ->modalCancelActionLabel('Keep current setting')
             ->modalDescription('Choose who may start enrollment during the published dates. The dates stay the same.')
@@ -1008,6 +1018,8 @@ class ListEnrollments extends ListRecords
             ->modalDescription($late ? 'Use an existing school approval for this student and term. This does not make enrollment official.' : 'Choose a student and term. You’ll review their subjects next.')
             ->modalSubmitActionLabel($late ? 'Start approved enrollment' : 'Start enrollment')
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
             ->authorize(fn (): bool => $this->isRegistrar())
             ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
@@ -1035,7 +1047,8 @@ class ListEnrollments extends ListRecords
                     ->required(),
                 ...($late ? [
                     TextInput::make('authority_reference')
-                        ->label('Late enrollment approval reference')
+                        ->label('Approval memo or reference')
+                        ->placeholder('e.g., Memo 2026-014 or approving office')
                         ->helperText('Use the actual school approval. Your name and the time are recorded automatically.')
                         ->required()
                         ->maxLength(255),

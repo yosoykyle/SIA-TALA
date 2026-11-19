@@ -186,7 +186,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             'Basic Macroeconomics',
             CourseSpecification::query()
                 ->whereBelongsTo(Course::query()->where('code', 'BME09')->sole())
-                ->whereBelongsTo($term, 'effectiveTerm')
+                ->where('revision_code', 'not like', '%-S1')
                 ->sole()
                 ->title,
         );
@@ -194,7 +194,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             'Art Appreciation',
             CourseSpecification::query()
                 ->whereBelongsTo(Course::query()->where('code', 'GE09')->sole())
-                ->whereBelongsTo($term, 'effectiveTerm')
+                ->where('revision_code', 'not like', '%-S1')
                 ->sole()
                 ->title,
         );
@@ -202,14 +202,14 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             '2.00',
             CourseSpecification::query()
                 ->whereBelongsTo(Course::query()->where('code', 'PE04')->sole())
-                ->whereBelongsTo($term, 'effectiveTerm')
+                ->where('revision_code', 'not like', '%-S1')
                 ->sole()
                 ->credit_units,
         );
 
         $nstpSpecifications = CourseSpecification::query()
             ->whereBelongsTo(Course::query()->where('code', 'NSTP02')->sole())
-            ->whereBelongsTo($term, 'effectiveTerm')
+            ->where('revision_code', 'not like', '%-S1')
             ->orderBy('credit_units')
             ->get();
         $this->assertSame(['2.00', '3.00'], $nstpSpecifications->pluck('credit_units')->all());
@@ -383,6 +383,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
         $specification = CourseSpecification::query()
             ->whereBelongsTo(Course::query()->where('code', 'BME09')->sole())
+            ->where('revision_code', 'not like', '%-S1')
             ->sole();
         $specification->update(['title' => 'Changed Acceptance Label']);
         $before = $this->baselineCounts();

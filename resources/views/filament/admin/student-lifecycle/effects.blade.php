@@ -42,8 +42,8 @@
                     </dd>
                 </div>
                 @endif
-                @if (count($preview['binding_ids']) || count($preview['reservation_ids']))
-                    <div><dt>Schedule and seats</dt><dd>{{ count($preview['binding_ids']) }} student assignments and {{ count($preview['reservation_ids']) }} reservations affected</dd></div>
+                @if (count($preview['reservation_ids'] ?? []))
+                    <div><dt>Seat reservations</dt><dd>{{ count($preview['reservation_ids']) }} reservations affected</dd></div>
                 @endif
                 @if ($preview['cor_available_before'] && ! $preview['cor_available_after'])
                     <div><dt>Enrollment record (COR)</dt><dd>Unavailable after this change.</dd></div>

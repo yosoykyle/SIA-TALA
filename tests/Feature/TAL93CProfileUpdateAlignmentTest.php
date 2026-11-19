@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\StudentProfiles\RecordStudentProfileCorrection;
-use App\Filament\Resources\StudentProfiles\Pages\EditStudentProfile;
+use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Student\Pages\Profile as StudentProfilePage;
 use App\Models\StudentProfile;
 use App\Models\StudentProfileEvent;
@@ -55,7 +55,7 @@ class TAL93CProfileUpdateAlignmentTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(EditStudentProfile::class, ['record' => $studentProfile->getRouteKey()])
+        Livewire::test(ViewStudentProfile::class, ['record' => $studentProfile->getRouteKey()])
             ->callAction('recordCorrection', data: [
                 'first_name' => 'Juan',
                 'middle_name' => $studentProfile->middle_name,

@@ -2,48 +2,50 @@
 <div class="accounting-fee-plan-confirmation accounting-fee-plan-publish">
     <div class="accounting-fee-plan-confirmation__header">
         <h3>{{ $reviewed['program'] }}</h3>
-        <p class="accounting-fee-plan-meta">{{ $reviewed['term'] }}@if (filled($reviewed['version'] ?? null)) · Version {{ $reviewed['version'] }}@endif</p>
+        <p class="accounting-fee-plan-meta">{{ $reviewed['term'] }}</p>
     </div>
 
-    <div class="accounting-fee-plan-confirmation__group">
-        <div class="accounting-fee-plan-confirmation__group-head">
-            <h4>Charges</h4>
-        </div>
-        <dl>
-            @foreach ($reviewed['charges'] as $charge)
-                <div>
-                    <dt>{{ $charge['label'] }}</dt>
-                    <dd>{{ \App\Actions\Finance\AccountingDisplay::money($charge['amount']) }}</dd>
-                </div>
-            @endforeach
-            <div class="is-total">
-                <dt>Total charges</dt>
-                <dd>{{ \App\Actions\Finance\AccountingDisplay::money($reviewed['total']) }}</dd>
+    <div class="accounting-plan-confirmation__grid">
+        <div class="accounting-fee-plan-confirmation__group">
+            <div class="accounting-fee-plan-confirmation__group-head">
+                <h4>Charges</h4>
             </div>
-        </dl>
-    </div>
-
-    <div class="accounting-fee-plan-confirmation__group">
-        <div class="accounting-fee-plan-confirmation__group-head">
-            <h4>Payment schedule</h4>
-            <span class="accounting-fee-plan-meta">Dates use {{ config('app.display_timezone', 'Asia/Manila') }}</span>
-        </div>
-        <dl>
-            @foreach ($reviewed['payments'] as $payment)
-                <div>
-                    <dt>
-                        <span class="accounting-fee-plan-confirmation__payment-title">
-                            {{ $payment['label'] }}
-                            @if ($payment['required_for_enrollment'])
-                                <span class="accounting-fee-plan-required">Required for enrollment</span>
-                            @endif
-                        </span>
-                        <span class="accounting-fee-plan-confirmation__payment-date">{{ \App\Actions\Finance\AccountingDisplay::dateTime($payment['due_at'] ?? null) }}</span>
-                    </dt>
-                    <dd>{{ \App\Actions\Finance\AccountingDisplay::money($payment['amount']) }}</dd>
+            <dl>
+                @foreach ($reviewed['charges'] as $charge)
+                    <div>
+                        <dt>{{ $charge['label'] }}</dt>
+                        <dd>{{ \App\Actions\Finance\AccountingDisplay::money($charge['amount']) }}</dd>
+                    </div>
+                @endforeach
+                <div class="is-total">
+                    <dt>Total charges</dt>
+                    <dd>{{ \App\Actions\Finance\AccountingDisplay::money($reviewed['total']) }}</dd>
                 </div>
-            @endforeach
-        </dl>
+            </dl>
+        </div>
+
+        <div class="accounting-fee-plan-confirmation__group">
+            <div class="accounting-fee-plan-confirmation__group-head">
+                <h4>Payment schedule</h4>
+                <span class="accounting-fee-plan-meta">Dates use {{ config('app.display_timezone', 'Asia/Manila') }}</span>
+            </div>
+            <dl>
+                @foreach ($reviewed['payments'] as $payment)
+                    <div>
+                        <dt>
+                            <span class="accounting-fee-plan-confirmation__payment-title">
+                                {{ $payment['label'] }}
+                                @if ($payment['required_for_enrollment'])
+                                    <span class="accounting-fee-plan-required">Required for enrollment</span>
+                                @endif
+                            </span>
+                            <span class="accounting-fee-plan-confirmation__payment-date">{{ \App\Actions\Finance\AccountingDisplay::dateTime($payment['due_at'] ?? null) }}</span>
+                        </dt>
+                        <dd>{{ \App\Actions\Finance\AccountingDisplay::money($payment['amount']) }}</dd>
+                    </div>
+                @endforeach
+            </dl>
+        </div>
     </div>
 
     <div class="accounting-fee-plan-confirmation__notes">

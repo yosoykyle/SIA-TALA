@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Database;
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -25,27 +26,27 @@ final class SchemaConformanceTest extends TestCase
         'checklist_items', 'completion_readiness_versions', 'cor_versions', 'course_components', 'course_drop_records', 'course_enrollments', 'course_requirements',
         'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
         'degree_conferrals', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_adjustments', 'enrollment_exceptions',
-        'enrollment_gate_results', 'enrollment_seat_reservations', 'enrollments',
+        'enrollment_seat_reservations', 'enrollments',
         'external_competency_requirements', 'external_competency_results',
         'faculty_qualifications', 'faculty_term_load_overrides', 'faq_entries', 'fee_rules',
         'faculty_availability_deadlines', 'faculty_availability_declarations', 'fee_plan_charges', 'fee_plan_obligations', 'fee_plans',
         'finance_exports', 'financial_accommodations', 'grade_outcome_events', 'grade_roster_returned_rows', 'grade_roster_rows',
         'grade_roster_version_rows', 'grade_roster_versions', 'grade_rosters', 'graduation_applications', 'graduation_review_batches', 'graduation_review_members',
-        'graduation_snapshots', 'holds', 'identity_match_reviews', 'import_batches', 'inc_completion_submissions',
+        'graduation_snapshots', 'holds', 'identity_match_reviews', 'inc_completion_submissions',
         'inc_deadline_amendments', 'late_grade_authorizations',
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
         'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
         'pending_email_changes',
-        'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances', 'official_output_restrictions',
-        'public_notices', 'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
+        'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances', 'official_output_restrictions',
+        'public_notices', 'published_timetable_meetings', 'published_timetable_versions',
         'registrar_enrollment_clearances', 'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_credit_evaluations', 'registration_identity_confirmation_versions', 'registration_late_authorities',
         'registration_proposal_confirmations', 'registration_proposal_items', 'registration_proposal_versions',
         'room_features', 'rooms', 'schedule_revision_events', 'schedule_runs',
         'scheduling_commitments', 'scheduling_demands', 'section_delivery_groups', 'section_meetings',
         'section_term_cohort', 'sections',
         'staff_access_profiles', 'staff_invitations',
-        'student_lifecycle_changes', 'student_number_sequences', 'student_profile_events', 'student_profiles', 'student_schedule_bindings',
-        'system_settings', 'term_accounts', 'term_average_labels', 'term_calendar_packages', 'term_calendar_windows', 'term_cohorts',
+        'student_lifecycle_changes', 'student_number_sequences', 'student_profile_events', 'student_profiles',
+        'system_settings', 'term_accounts', 'term_calendar_packages', 'term_calendar_windows', 'term_cohorts',
         'term_dated_exceptions', 'term_offerings', 'term_teaching_grid_rows', 'terms', 'transcript_issuance_events', 'transcript_requests', 'transcript_snapshots',
         'timetable_revisions',
     ];
@@ -68,9 +69,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(130, self::APPLICATION_TABLES);
+        $this->assertCount(124, self::APPLICATION_TABLES);
         $this->assertCount(17, self::PLATFORM_TABLES);
-        $this->assertCount(147, $actual);
+        $this->assertCount(141, $actual);
         $this->assertSame($expected, $actual);
     }
 
@@ -79,7 +80,7 @@ final class SchemaConformanceTest extends TestCase
         $this->assertColumns('scheduling_demands', ['term_offering_id', 'course_component_id', 'section_delivery_group_id', 'demand_key']);
         $this->assertColumns('candidate_schedule_rows', ['schedule_run_id', 'scheduling_demand_id', 'meeting_sequence']);
         $this->assertColumns('section_meetings', ['schedule_run_id', 'scheduling_demand_id', 'meeting_sequence', 'room_id']);
-        $this->assertColumns('enrollment_exceptions', ['enrollment_id', 'student_profile_id', 'term_id', 'exception_type', 'enrollment_gate_result_id', 'target_term_offering_id']);
+        $this->assertColumns('enrollment_exceptions', ['enrollment_id', 'student_profile_id', 'term_id', 'exception_type', 'target_term_offering_id']);
         $this->assertColumns('payment_evidence_versions', ['term_account_id', 'channel', 'channel_snapshot']);
         $this->assertColumns('payments', ['payment_evidence_version_id', 'reverses_payment_id', 'state', 'verification_basis', 'external_check_reference', 'channel_snapshot']);
         $this->assertColumns('payment_allocations', ['payment_id', 'sequence', 'assessment_obligation_id']);
@@ -105,15 +106,15 @@ final class SchemaConformanceTest extends TestCase
         $this->assertFalse(Schema::hasColumn('holds', 'type'));
         $this->assertFalse(Schema::hasColumn('holds', 'staff_reason'));
         $this->assertFalse(Schema::hasColumn('holds', 'student_reason'));
+        $this->assertFalse(Schema::hasColumn('enrollment_exceptions', 'enrollment_gate_result_id'));
+        $this->assertFalse(Schema::hasColumn('term_calendar_packages', 'faculty_availability_due_at'));
     }
 
     public function test_critical_foreign_keys_and_history_preserving_delete_rules_exist(): void
     {
         $this->assertForeignKey('candidate_schedule_rows', 'scheduling_demand_id', 'scheduling_demands', 'RESTRICT');
         $this->assertForeignKey('section_meetings', 'scheduling_demand_id', 'scheduling_demands', 'RESTRICT');
-        $this->assertForeignKey('student_schedule_bindings', 'section_meeting_id', 'section_meetings', 'RESTRICT');
         $this->assertForeignKey('enrollment_seat_reservations', 'section_id', 'sections', 'RESTRICT');
-        $this->assertForeignKey('enrollment_exceptions', 'enrollment_gate_result_id', 'enrollment_gate_results', 'RESTRICT');
         $this->assertForeignKey('payment_allocations', 'payment_id', 'payments', 'RESTRICT');
         $this->assertForeignKey('approved_coverages', 'supersedes_coverage_id', 'approved_coverages', 'RESTRICT');
         $this->assertForeignKey('official_output_restrictions', 'student_profile_id', 'student_profiles', 'RESTRICT');
@@ -170,6 +171,7 @@ final class SchemaConformanceTest extends TestCase
             $this->assertTrue($checks->contains($check), "Missing check constraint $check");
         }
         $this->assertFalse($checks->contains('grade_rows_range_check'));
+        $this->assertFalse($checks->contains('enrollment_exceptions_target_check'));
     }
 
     public function test_foundation_seeder_creates_the_canonical_roles_and_permissions(): void
@@ -182,6 +184,30 @@ final class SchemaConformanceTest extends TestCase
         $this->assertSame(13, DB::table('permissions')->count());
         $this->assertSame(13, DB::table('role_has_permissions')->count());
         $this->assertSame(0, DB::table('users')->count());
+    }
+
+    public function test_nullable_routine_authority_migration_rolls_back_and_reapplies_cleanly(): void
+    {
+        $migrationPath = 'database/migrations/2026_11_18_053000_make_routine_external_competency_and_requirement_set_authority_nullable.php';
+
+        $isNullable = fn (string $table, string $column): string => (string) DB::selectOne(
+            'SELECT is_nullable FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?',
+            [$table, $column],
+        )->IS_NULLABLE;
+
+        $this->assertSame('YES', $isNullable('external_competency_results', 'authority_reference'));
+        $this->assertSame('YES', $isNullable('external_competency_results', 'authority_date'));
+        $this->assertSame('YES', $isNullable('admission_requirement_sets', 'authority_reference'));
+
+        $this->assertSame(0, Artisan::call('migrate:rollback', ['--path' => $migrationPath, '--force' => true]));
+        $this->assertSame('NO', $isNullable('external_competency_results', 'authority_reference'));
+        $this->assertSame('NO', $isNullable('external_competency_results', 'authority_date'));
+        $this->assertSame('NO', $isNullable('admission_requirement_sets', 'authority_reference'));
+
+        $this->assertSame(0, Artisan::call('migrate', ['--path' => $migrationPath, '--force' => true]));
+        $this->assertSame('YES', $isNullable('external_competency_results', 'authority_reference'));
+        $this->assertSame('YES', $isNullable('external_competency_results', 'authority_date'));
+        $this->assertSame('YES', $isNullable('admission_requirement_sets', 'authority_reference'));
     }
 
     /** @param list<string> $columns */

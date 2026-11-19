@@ -49,7 +49,7 @@ trait EditsPublicContent
             throw new LogicException('Public Content editing requires a notice or FAQ record.');
         }
 
-        return parent::getSaveFormAction()->label($record->wasPublished() ? 'Save successor draft' : 'Save draft');
+        return parent::getSaveFormAction()->label($record->wasPublished() ? 'Save updated draft' : 'Save draft');
     }
 
     protected function getRedirectUrl(): ?string

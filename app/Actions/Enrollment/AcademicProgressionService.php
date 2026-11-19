@@ -2,6 +2,7 @@
 
 namespace App\Actions\Enrollment;
 
+use App\Models\AcademicDecision;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
@@ -155,6 +156,7 @@ class AcademicProgressionService
             $locked = StudentProfile::query()->lockForUpdate()->findOrFail($studentProfile->id);
             $previous = $locked->academic_standing;
             $locked->update(['academic_standing' => $standing]);
+            $this->syncAcademicDecisionForStanding($locked, $standing, $actor, $reason);
 
             DB::table('activity_log')->insert([
                 'log_name' => 'academic_progression',
@@ -171,6 +173,51 @@ class AcademicProgressionService
 
             return $locked->refresh();
         }, attempts: 3);
+    }
+
+    private function syncAcademicDecisionForStanding(StudentProfile $student, string $standing, User $actor, string $reason): void
+    {
+        $desiredEffect = match ($standing) {
+            StudentProfile::StandingMustRepeatYear => AcademicDecision::EffectBlocked,
+            StudentProfile::StandingProbationary,
+            StudentProfile::StandingDeficient,
+            StudentProfile::StandingBlockedByPrerequisite => AcademicDecision::EffectAdvisingRequired,
+            StudentProfile::StandingRegular,
+            StudentProfile::StandingCompletionCandidate,
+            StudentProfile::StandingGraduationCandidate => AcademicDecision::EffectAllowed,
+            default => null,
+        };
+
+        if ($desiredEffect === null) {
+            return;
+        }
+
+        $activeStudentWide = AcademicDecision::query()
+            ->where('student_profile_id', $student->id)
+            ->whereNull('term_id')
+            ->where('state', AcademicDecision::StateActive);
+
+        if ($desiredEffect === AcademicDecision::EffectAllowed
+            && ! (clone $activeStudentWide)->where('effect', '!=', AcademicDecision::EffectAllowed)->exists()) {
+            return;
+        }
+
+        $activeStudentWide->update(['state' => AcademicDecision::StateSuperseded]);
+
+        $schoolDate = today('Asia/Manila');
+        AcademicDecision::query()->create([
+            'student_profile_id' => $student->id,
+            'term_id' => null,
+            'effect' => $desiredEffect,
+            'authority_reference' => 'ACADEMIC-STANDING-CONFIRMED',
+            'authority_date' => $schoolDate,
+            'reason' => trim($reason),
+            'effective_from' => $schoolDate,
+            'effective_until' => null,
+            'state' => AcademicDecision::StateActive,
+            'recorded_by' => $actor->id,
+            'recorded_at' => now(),
+        ]);
     }
 
     /** @return list<string> */
@@ -357,14 +404,14 @@ class AcademicProgressionService
             }
 
             if ($row->current_outcome_code === 'TC') {
-                return $requirement->accepts_transfer_credit;
+                return true;
             }
 
-            return $this->numericOutcomeMeets($row, $requirement->minimum_grade);
+            return $this->numericOutcomeMeets($row);
         }
 
         return $credits->contains(fn (ProgramShiftCreditEntry $credit): bool => (int) $credit->source_course_id === (int) $requirement->related_course_id
-            && ($credit->numeric_grade === null || $this->numericGradeMeets((string) $credit->numeric_grade, $requirement->minimum_grade)));
+            && ($credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00));
     }
 
     private function requirementReason(CourseRequirement $requirement, Collection $rows): string
@@ -399,21 +446,12 @@ class AcademicProgressionService
         ];
     }
 
-    private function numericOutcomeMeets(GradeRosterRow $row, mixed $minimumGrade): bool
+    private function numericOutcomeMeets(GradeRosterRow $row): bool
     {
         return $row->released_at !== null
             && $row->current_outcome_category === GradeRosterRow::CategoryPassing
             && is_numeric($row->current_outcome_code)
-            && $this->numericGradeMeets((string) $row->current_outcome_code, $minimumGrade);
-    }
-
-    private function numericGradeMeets(string $grade, mixed $minimumGrade): bool
-    {
-        if ($minimumGrade === null) {
-            return true;
-        }
-
-        return (float) $grade <= (float) $minimumGrade;
+            && (float) $row->current_outcome_code <= 4.00;
     }
 
     private function completionSource(?GradeRosterRow $row, ?ProgramShiftCreditEntry $credit): ?array
@@ -430,7 +468,7 @@ class AcademicProgressionService
             return ['type' => 'external_transfer_credit', 'id' => (int) $row->id];
         }
 
-        return $this->numericOutcomeMeets($row, null) ? $this->rowSource($row) : null;
+        return $this->numericOutcomeMeets($row) ? $this->rowSource($row) : null;
     }
 
     private function isBackSubject(?GradeRosterRow $row, StudentProfile $studentProfile, int $courseId): bool

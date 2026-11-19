@@ -13,6 +13,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -69,6 +70,9 @@ class ListScheduleGenerationRuns extends ListRecords
                         ->helperText('Only ready Schedule Requirements are included. Generation is blocked while any requirement for the term still needs correction.'),
                 ])
                 ->modalHeading('Generate Timetable')
+                ->modalWidth(Width::TwoExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription('Captures the current ready requirements as one protected request, then sends it to the configured timetable generator. Nothing becomes official until Registrar review and publication.')
                 ->modalSubmitActionLabel('Generate Timetable')
                 ->action(function (array $data): void {

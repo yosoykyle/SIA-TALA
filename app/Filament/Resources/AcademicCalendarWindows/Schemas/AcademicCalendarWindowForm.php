@@ -42,7 +42,8 @@ class AcademicCalendarWindowForm
                         ->default(CalendarEvent::StateActive)
                         ->required(),
                     TextInput::make('authority')
-                        ->label('Authority / Reference')
+                        ->label('Approval memo or reference')
+                        ->placeholder('e.g., Memo 2026-014 or approving office')
                         ->maxLength(255)
                         ->required(),
                 ])

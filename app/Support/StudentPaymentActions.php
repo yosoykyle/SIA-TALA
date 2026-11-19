@@ -27,7 +27,7 @@ final class StudentPaymentActions
             ->modalDescription('Send your transfer receipt or screenshot for Accounting review. Your balance changes only after verification.')
             ->modalSubmitActionLabel('Submit receipt')
             ->modalCancelActionLabel('Cancel')
-            ->modalWidth(Width::ThreeExtraLarge)
+            ->modalWidth(Width::FourExtraLarge)
             ->modalAlignment(Alignment::Start)
             ->modalFooterActionsAlignment(Alignment::End)
             ->stickyModalHeader()->stickyModalFooter()

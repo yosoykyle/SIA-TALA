@@ -25,19 +25,18 @@ class CurriculumVersionPolicy
     public function update(User $user, CurriculumVersion $curriculumVersion): bool
     {
         return $this->canManage($user)
-            && $curriculumVersion->state === CurriculumVersion::StateDraft;
+            && $curriculumVersion->isEditableDraft();
     }
 
-    public function recordApproval(User $user, CurriculumVersion $curriculumVersion): bool
+    public function copy(User $user, CurriculumVersion $curriculumVersion): bool
     {
-        return $this->canManage($user)
-            && $curriculumVersion->state === CurriculumVersion::StateDraft;
+        return $this->canManage($user);
     }
 
     public function activate(User $user, CurriculumVersion $curriculumVersion): bool
     {
         return $this->canManage($user)
-            && $curriculumVersion->state === CurriculumVersion::StateRecordedApproved;
+            && $curriculumVersion->state === CurriculumVersion::StateDraft;
     }
 
     public function delete(User $user, CurriculumVersion $curriculumVersion): bool

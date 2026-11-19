@@ -11,7 +11,6 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
-use App\Models\ProgramAuthority;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Section;
@@ -91,7 +90,6 @@ final class PrepareTermClassProposal
                 $term->fresh()->only(['id', 'type', 'state', 'academic_year_id']), $package?->concurrencyToken(),
                 $entries->toArray(), $classes->toArray(), $cohorts->toArray(), $hasPublishedVersion, $publishedSectionIds,
                 $demandEvidence['ready_applicants'], $demandEvidence['unmet'],
-                ProgramAuthority::query()->whereIn('program_id', $entries->pluck('curriculumVersion.program_id'))->orderBy('id')->get()->toArray(),
             ], JSON_THROW_ON_ERROR))];
     }
 

@@ -26,7 +26,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -409,7 +408,7 @@ final class TAL91EStudentHubDisplayPriorityCompletionTest extends TestCase
     }
 
     /**
-     * @return array{student:User, profile:StudentProfile, program:Program, term:Term, enrollment:Enrollment, binding:StudentScheduleBinding}
+     * @return array{student:User, profile:StudentProfile, program:Program, term:Term, enrollment:Enrollment, binding:CourseEnrollment}
      */
     private function publishedScheduleFixture(): array
     {
@@ -434,7 +433,7 @@ final class TAL91EStudentHubDisplayPriorityCompletionTest extends TestCase
         Enrollment $enrollment,
         string $runStatus,
         string $meetingState,
-    ): StudentScheduleBinding {
+    ): CourseEnrollment {
         $curriculumEntry = CurriculumEntry::factory()
             ->for($enrollment->studentProfile->curriculumVersion ?? CurriculumVersion::factory()->for($program))
             ->create([
@@ -512,13 +511,7 @@ final class TAL91EStudentHubDisplayPriorityCompletionTest extends TestCase
             ]);
         }
 
-        return StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $courseEnrollment->id,
-            'section_meeting_id' => $meeting->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
-        ]);
+        return $courseEnrollment;
     }
 
     /**

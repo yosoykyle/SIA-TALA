@@ -83,13 +83,14 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
             ->assertMountedActionModalDontSee('Foreign program subject')
             ->assertMountedActionModalDontSee('Curriculum term for the normal unit load')
             ->setActionData(['section_ids' => $sections->pluck('id')->all()])->callMountedAction()
-            ->assertHasNoActionErrors()->assertNotified('Subjects saved for review')
+            ->assertHasNoActionErrors()->assertNotified('Subjects saved and seats reserved')
             ->assertRedirect(EnrollmentResource::getUrl('view', ['record' => $case]));
 
         $case->refresh();
         $this->assertNull($case->student_profile_id);
         $this->assertFalse($case->credentialUser->hasRole('student'));
         $this->assertSame(RegistrationProposalVersion::StateDraft, $case->currentProposalVersion->state);
+        $this->assertSame(2, $case->seatReservations()->where('status', EnrollmentSeatReservation::StatusActive)->count());
         $this->assertSame($sections->pluck('id')->sort()->values()->all(), $case->currentProposalVersion->items->pluck('section_id')->sort()->values()->all());
         $this->assertSame(0, $case->courseEnrollments()->count());
     }
@@ -142,7 +143,7 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
             ->setActionData([
                 'section_ids' => $sections->pluck('id')->all(),
                 'curriculum_position' => 'First Year|First Semester|'.Term::TypeFirstSemester,
-            ])->callMountedAction()->assertHasNoActionErrors()->assertNotified('Subjects saved for review');
+            ])->callMountedAction()->assertHasNoActionErrors()->assertNotified('Subjects saved and seats reserved');
 
         $this->assertSame('First Year', data_get($case->fresh()->currentProposalVersion->source_snapshot, 'unit_load.year_level'));
         $this->assertSame('9.00', data_get($case->fresh()->currentProposalVersion->source_snapshot, 'unit_load.normal_total'));
@@ -656,7 +657,7 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
 
         $late = Livewire::actingAs($registrar)->test(ListEnrollments::class)
             ->mountAction('startLateContinuingEnrollment')
-            ->assertMountedActionModalSee('Late enrollment approval reference')
+            ->assertMountedActionModalSee('Approval memo or reference')
             ->assertMountedActionModalDontSee('Enrollment timing')
             ->setActionData([...$data, 'start_method' => 'RegistrarAssisted', 'authority_reference' => ''])
             ->callMountedAction()->assertHasActionErrors(['authority_reference' => 'required']);
@@ -714,7 +715,7 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         $component = Livewire::actingAs($registrar)->test(ListEnrollments::class)
             ->mountAction('startContinuingEnrollment')
             ->assertMountedActionModalDontSee('Enrollment timing')
-            ->assertMountedActionModalDontSee('Late enrollment approval reference')
+            ->assertMountedActionModalDontSee('Approval memo or reference')
             ->assertMountedActionModalDontSee('Intake reference');
         $studentSelect = $component->instance()->getSchema($component->instance()->getMountedActionSchemaName())
             ->getComponent('student_profile_id');

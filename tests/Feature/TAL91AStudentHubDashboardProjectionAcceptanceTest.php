@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Actions\StudentHub\StudentHubPriorityResolver;
-use App\Filament\Student\Widgets\StudentPriorityNoticeWidget;
 use App\Models\Enrollment;
 use App\Models\Hold;
 use App\Models\StudentProfile;
@@ -13,7 +12,6 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -75,11 +73,11 @@ final class TAL91AStudentHubDashboardProjectionAcceptanceTest extends TestCase
     public function widget_hides_when_no_tier_is_actionable(): void
     {
         $student = $this->studentUser();
-        StudentProfile::factory()->create(['user_id' => $student->id]);
+        $profile = StudentProfile::factory()->create(['user_id' => $student->id]);
 
         $this->actingAs($student);
 
-        $this->assertFalse(StudentPriorityNoticeWidget::canView());
+        $this->assertNull(app(StudentHubPriorityResolver::class)->resolve($profile));
 
         $response = $this->get('/student');
         $response->assertOk();
@@ -193,7 +191,6 @@ final class TAL91AStudentHubDashboardProjectionAcceptanceTest extends TestCase
 
         $result = app(StudentHubPriorityResolver::class)->resolve($profile);
         $this->assertNull($result);
-        $this->assertFalse(StudentPriorityNoticeWidget::canView());
 
         $response = $this->get('/student');
         $response->assertOk();
@@ -217,12 +214,11 @@ final class TAL91AStudentHubDashboardProjectionAcceptanceTest extends TestCase
 
         $this->actingAs($student);
 
-        $this->assertTrue(StudentPriorityNoticeWidget::canView());
-
-        Livewire::test(StudentPriorityNoticeWidget::class)
-            ->assertSee('Enrollment Blocked')
-            ->assertSee($hold->student_message)
-            ->assertSee('Registrar Office');
+        $result = app(StudentHubPriorityResolver::class)->resolve($profile);
+        $this->assertNotNull($result);
+        $this->assertSame('Enrollment Blocked', $result['tier']);
+        $this->assertSame($hold->student_message, $result['student_reason']);
+        $this->assertSame('Registrar Office', $result['office_to_contact']);
 
         $response = $this->get('/student');
         $response->assertOk();

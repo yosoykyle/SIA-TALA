@@ -20,6 +20,7 @@ use App\Models\TermCalendarPackage;
 use App\Models\TermCohort;
 use App\Models\TermOffering;
 use App\Models\User;
+use App\Support\SafeUserNotification;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\CreateAction;
@@ -30,6 +31,7 @@ use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -133,17 +135,24 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     }),
                     TextColumn::make('classOfferings.code')->label('Linked classes')->listWithLineBreaks()->placeholder('No classes linked')
                         ->description(fn (TermCohort $record): string => $record->classOfferings->isEmpty() ? 'The Registrar links this student section when preparing classes.' : $record->classOfferings->count().' '.Str::plural('linked class', $record->classOfferings->count())),
-                ])->paginationPageOptions([10, 25, 50])->defaultPaginationPageOption(10)->defaultSort('reference')
+                ])->defaultSort('reference')
                 ->recordActionsColumnLabel('Actions')->recordActions([Action::make('linkedClasses')->label(fn (TermCohort $record): string => $record->classOfferings->isEmpty() ? 'Prepare classes' : 'View classes')->button()->color('gray')
                 ->unsavedChangesAlert(false)
                 ->url(fn (TermCohort $record): ?string => $record->classOfferings->isEmpty() ? TermClassProposal::getUrl(['termId' => $this->termId]) : null)
                 ->visible(fn (TermCohort $record): bool => $record->classOfferings->isEmpty() ? (bool) auth()->user()?->can('create', TermOffering::class) : true)
                 ->modalHeading(fn (TermCohort $record): string => $record->reference.' · linked classes')
+                ->modalWidth(Width::TwoExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->schema(fn (TermCohort $record): array => [RepeatableEntry::make('classes')->state($record->classOfferings)->schema([
                     TextEntry::make('code')->label('Class')->url(fn (Section $record): string => SectionResource::getUrl('view', ['record' => $record, 'termId' => $this->termId])),
                     TextEntry::make('title')->label('Course')->state(fn (Section $record): string => $record->courseRevision?->title ?? $record->termOffering?->curriculumEntry?->courseSpecification?->title ?? $record->code),
                 ])->columns(2)])
                 ->modalSubmitAction(false)->modalCancelActionLabel('Close')])
+                ->headerActions([
+                    $this->recordCohortAction()->visible(fn (): bool => ! ($this->getViewData()['readOnly'] ?? false)),
+                ])
+                ->emptyState(view('filament.partials.collection-empty-state'))
                 ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) ? 'No matching student sections' : 'No student sections recorded for this Term')
                 ->emptyStateDescription(fn (): string => filled($this->getTableSearch())
                     ? 'Try another name or clear the search.'
@@ -197,7 +206,6 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->query(fn (Builder $query, array $data) => $query->when($data['value'] ?? null, fn (Builder $query, mixed $value) => $query->whereIn('id', $this->coverageClassIds((int) $value, $this->getTableFilterState('year')['value'] ?? null)))),
                 SelectFilter::make('year')->label('Curriculum year')->options(fn (): array => collect($this->coverageRows())->pluck('year_level')->filter()->unique()->mapWithKeys(fn (string $year): array => [$year => $year])->all())
                     ->query(fn (Builder $query, array $data) => $query->when($data['value'] ?? null, fn (Builder $query, mixed $value) => $query->whereIn('id', $this->coverageClassIds(isset($this->getTableFilterState('program')['value']) ? (int) $this->getTableFilterState('program')['value'] : null, (string) $value)))),
-                SelectFilter::make('state')->label('Class lifecycle')->options(Section::stateOptions()),
                 Filter::make('needs_attention')->label('Needs preparation')->query(fn (Builder $query) => $query
                     ->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])
                     ->where(fn (Builder $query) => $query->whereNull('confirmed_at')
@@ -281,7 +289,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             }, attempts: 5);
                         } catch (ValidationException $exception) {
                             $messages = collect($exception->errors())->flatten()->all();
-                            Notification::make()->title('Cannot confirm selected classes')->body($messages[0] ?? 'Review the selected classes before continuing.')->danger()->persistent()->send();
+                            SafeUserNotification::sendValidationError();
                             throw ValidationException::withMessages([$schema->getStatePath().'.classes' => $messages]);
                         }
                         $this->classViewData = null;
@@ -291,6 +299,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ])
             ->headerActions([
                 Action::make('setUpYear')->label('Prepare classes')->icon('heroicon-o-plus')->url(fn (): string => TermClassProposal::getUrl(['termId' => $this->termId]))->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->can('create', TermOffering::class)),
+                $this->syncSchedulingDemandsAction(),
                 $this->addClassAction(),
             ])
             ->recordActions([
@@ -300,6 +309,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->visible(fn (Section $record): bool => $this->canPrepareClass($record) && $this->preparation($record) !== 'Needs active calendar source'),
                 $this->classDetailsAction('viewClass')->label('Details')->icon('heroicon-o-eye')->button()->color('gray'),
             ])->recordActionsColumnLabel('Actions')->defaultSort('code')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() ? 'No matching classes' : 'No classes recorded for this Term')
             ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount()
                 ? 'Try another subject or clear the search and filters.'
@@ -311,6 +321,9 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
         return CreateAction::make('addClass')->label('Add draft class')->icon('heroicon-o-plus')->color('gray')->model(Section::class)
             ->authorize(fn (): bool => (bool) auth()->user()?->can('create', Section::class))
             ->modalHeading('Add draft class')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalDescription('Record a class for an existing offered course. Prepare it and confirm its learners before timetable generation.')
             ->modalSubmitActionLabel('Add draft class')->createAnother(false)
             ->schema(fn (Schema $schema): Schema => SectionForm::configure($schema))
@@ -336,6 +349,9 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
     private function classDetailsAction(string $name): Action
     {
         return Action::make($name)->label('Class details')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalDescription(fn (): string => collect([$this->selectedTerm()->typeLabel(), $this->selectedTerm()->academicYear?->label])->filter()->unique()->implode(' · '))
             ->modalHeading(fn (Section $record): string => $record->courseRevision?->title ?? $record->termOffering?->curriculumEntry?->courseSpecification?->title ?? $record->code)
             ->schema(fn (Schema $schema): Schema => SectionInfolist::configure($schema, showCourseTitle: false))

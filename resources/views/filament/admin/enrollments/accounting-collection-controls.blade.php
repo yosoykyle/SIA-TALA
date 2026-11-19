@@ -2,7 +2,7 @@
     <x-slot:filters>
         <x-record-collection-filters :table="$this->getTable()" :form="$filters" wire:key="accounting-collection-filters-{{ $this->activeTab }}" />
     </x-slot:filters>
-    <x-slot:search><x-filament-tables::search-field label="Name or student number" placeholder="Name or number" /></x-slot:search>
+    <x-slot:search><x-filament-tables::search-field label="Name or student ID" placeholder="Name or ID" /></x-slot:search>
     @if ($selectedTerm !== null || $selectedProgram !== null)
         <div class="tala-record-collection-active-filters" aria-label="Account term and program scope">
             @if ($selectedTerm !== null)

@@ -17,14 +17,16 @@ class PublishAdmissionRequirementSet
     public function execute(
         AdmissionRequirementSet $requirementSet,
         User $actor,
-        string $authorityReference,
+        ?string $authorityReference = null,
         ?AdmissionRequirementSet $replaces = null,
     ): AdmissionRequirementSet {
         $this->authorize($actor);
-        $authorityReference = Validator::make(
-            ['authority_reference' => trim($authorityReference)],
-            ['authority_reference' => ['required', 'string', 'max:255']],
-        )->validate()['authority_reference'];
+        $authorityReference = filled($authorityReference)
+            ? Validator::make(
+                ['authority_reference' => trim((string) $authorityReference)],
+                ['authority_reference' => ['string', 'max:255']],
+            )->validate()['authority_reference']
+            : null;
 
         return DB::transaction(function () use (
             $requirementSet,
@@ -87,7 +89,7 @@ class PublishAdmissionRequirementSet
 
             $locked->forceFill([
                 'state' => AdmissionRequirementSet::StatePublished,
-                'authority_reference' => $authorityReference,
+                'authority_reference' => $authorityReference ?? $locked->authority_reference,
                 'published_by' => $actor->id,
                 'published_at' => $publishedAt,
             ])->save();

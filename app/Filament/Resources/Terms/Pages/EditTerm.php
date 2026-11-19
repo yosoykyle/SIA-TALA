@@ -83,7 +83,7 @@ class EditTerm extends EditRecord
             if ($term->hasActivatedCalendar()) {
                 foreach (['label', 'academic_year_id', 'type', 'starts_on', 'ends_on'] as $field) {
                     if (array_key_exists($field, $data) && (string) $data[$field] !== (string) $term->getRawOriginal($field)) {
-                        throw ValidationException::withMessages(['label' => 'This Term has activated calendar history. Retain its recorded identity and dates; record approved calendar successors in Term Planning.']);
+                        throw ValidationException::withMessages(['label' => 'This Term has activated calendar history. Retain its recorded identity and dates; record updated calendars in Term Planning.']);
                     }
                 }
             }

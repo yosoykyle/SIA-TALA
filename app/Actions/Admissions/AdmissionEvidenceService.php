@@ -52,7 +52,7 @@ class AdmissionEvidenceService
         bool $submittedCommit = false,
     ): DocumentEvidence {
         if ($this->disk === 'public' || config("filesystems.disks.{$this->disk}.visibility") === 'public') {
-            throw ValidationException::withMessages(['evidence' => 'Private upload storage is unavailable. Contact school support.']);
+            throw ValidationException::withMessages(['evidence' => 'Private upload storage is unavailable. Contact support.']);
         }
         $this->authorize($application, $actor);
         $this->validateFile($file);

@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\StudentHub\StudentDashboardService;
 use App\Filament\Student\Pages\Academics;
-use App\Filament\Student\Pages\HoldsView;
+use App\Filament\Student\Pages\Dashboard;
 use App\Models\Hold;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
@@ -58,13 +58,13 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
         [$studentA, $profileA] = $this->studentWithProfile();
         [, $profileB] = $this->studentWithProfile();
 
-        $holdA = $this->activeHold($profileA, Hold::TypeFinancial);
-        $holdB = $this->activeHold($profileB, Hold::TypeFinancial);
+        $holdA = $this->activeHold($profileA, Hold::TypeFinancial, 'Student A pending fee.');
+        $holdB = $this->activeHold($profileB, Hold::TypeFinancial, 'Student B private fee.');
 
         Livewire::actingAs($studentA)
-            ->test(HoldsView::class)
-            ->assertCanSeeTableRecords([$holdA])
-            ->assertCanNotSeeTableRecords([$holdB]);
+            ->test(Dashboard::class)
+            ->assertSee($holdA->studentFacingMessage())
+            ->assertDontSee($holdB->studentFacingMessage());
     }
 
     #[Test]
@@ -72,12 +72,13 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
     {
         [$student, $profile] = $this->studentWithProfile();
 
-        $active = $this->activeHold($profile, Hold::TypeFinancial);
+        $active = $this->activeHold($profile, Hold::TypeFinancial, 'Active hold message');
         $resolved = Hold::factory()->create([
             'student_profile_id' => $profile->id,
             'hold_type' => Hold::TypeFinancial,
             'blocking_level' => Hold::BlockingEnrollment,
             'status' => Hold::StatusResolved,
+            'student_message' => 'Resolved hold message',
             'effective_at' => now()->subDay(),
         ]);
         $waived = Hold::factory()->create([
@@ -85,6 +86,7 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
             'hold_type' => Hold::TypeFinancial,
             'blocking_level' => Hold::BlockingEnrollment,
             'status' => Hold::StatusWaived,
+            'student_message' => 'Waived hold message',
             'effective_at' => now()->subDay(),
         ]);
         $expired = Hold::factory()->create([
@@ -92,14 +94,17 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
             'hold_type' => Hold::TypeFinancial,
             'blocking_level' => Hold::BlockingEnrollment,
             'status' => Hold::StatusActive,
+            'student_message' => 'Expired hold message',
             'effective_at' => now()->subDays(10),
             'expires_at' => now()->subDay(),
         ]);
 
         Livewire::actingAs($student)
-            ->test(HoldsView::class)
-            ->assertCanSeeTableRecords([$active])
-            ->assertCanNotSeeTableRecords([$resolved, $waived, $expired]);
+            ->test(Dashboard::class)
+            ->assertSee($active->studentFacingMessage())
+            ->assertDontSee($resolved->studentFacingMessage())
+            ->assertDontSee($waived->studentFacingMessage())
+            ->assertDontSee($expired->studentFacingMessage());
     }
 
     #[Test]
@@ -111,11 +116,9 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
         $academicDeficit = $this->activeHold($profile, Hold::TypeAcademicDeficit);
         $documentary = $this->activeHold($profile, Hold::TypeDocumentary);
 
-        $component = Livewire::actingAs($student)->test(HoldsView::class);
-
-        $component->assertTableColumnStateSet('office_to_contact', 'Accounting Office', record: $financial);
-        $component->assertTableColumnStateSet('office_to_contact', 'Registrar Office', record: $academicDeficit);
-        $component->assertTableColumnStateSet('office_to_contact', 'Registrar Office', record: $documentary);
+        $this->assertSame('Accounting Office', $financial->studentFacingOfficeLabel());
+        $this->assertSame('Registrar Office', $academicDeficit->studentFacingOfficeLabel());
+        $this->assertSame('Registrar Office', $documentary->studentFacingOfficeLabel());
     }
 
     #[Test]
@@ -134,7 +137,8 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
         ]);
 
         Livewire::actingAs($student)
-            ->test(HoldsView::class)
+            ->test(Dashboard::class)
+            ->assertSee('Please settle your outstanding balance.')
             ->assertDontSee('TAL91D INTERNAL STAFF-ONLY REASON');
     }
 
@@ -203,7 +207,7 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
         return [$student, $profile];
     }
 
-    private function activeHold(StudentProfile $profile, string $holdType): Hold
+    private function activeHold(StudentProfile $profile, string $holdType, ?string $message = null): Hold
     {
         return Hold::factory()->create([
             'student_profile_id' => $profile->id,
@@ -211,6 +215,7 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
             'blocking_level' => Hold::BlockingEnrollment,
             'status' => Hold::StatusActive,
             'effective_at' => now()->subDay(),
+            ...($message !== null ? ['student_message' => $message] : []),
         ]);
     }
 }

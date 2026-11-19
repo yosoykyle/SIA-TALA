@@ -13,6 +13,7 @@ use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -111,7 +112,8 @@ class SchedulingDemandsTable
             ->toolbarActions([])
             ->stackedOnMobile()
             ->emptyStateHeading('No schedule requirements are recorded')
-            ->emptyStateDescription('Complete offerings, sections, delivery groups, rooms, and faculty inputs, then generate the term schedule requirements.');
+            ->emptyStateDescription('Complete offerings, sections, delivery groups, rooms, and faculty inputs, then generate the term schedule requirements.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
     private static function generateForTermAction(): Action
@@ -136,6 +138,9 @@ class SchedulingDemandsTable
             ])
             ->visible(fn (): bool => auth()->user()?->can('create', SchedulingDemand::class) ?? false)
             ->requiresConfirmation()
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->action(function (array $data, ListSchedulingDemands $livewire): void {
                 $actor = auth()->user();
 

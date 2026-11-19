@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\FaqEntries\Pages;
 
 use App\Actions\PublicContent\ManagePublicContent;
+use App\Filament\Clusters\PublicContent;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Models\FaqEntry;
 use Filament\Actions\Action;
@@ -12,6 +13,16 @@ use Illuminate\Database\Eloquent\Model;
 class CreateFaqEntry extends CreateRecord
 {
     protected static string $resource = FaqEntryResource::class;
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [
+            PublicContent::getUrl() => 'Public Content',
+            FaqEntryResource::getUrl('index') => 'FAQ',
+            'Add FAQ',
+        ];
+    }
 
     protected function handleRecordCreation(array $data): Model
     {

@@ -110,6 +110,8 @@ class Enrollment extends Page
         return Action::make('confirmProposal')->label('Confirm subjects')->icon('heroicon-o-check-circle')
             ->color('primary')->modal()->modalHeading('Confirm these subjects?')
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalIcon('heroicon-o-check-circle')
             ->modalContent(fn (): View => view('filament.student.pages.enrollment-confirmation', $this->getViewData()))
             ->modalCancelActionLabel('Keep reviewing')->modalSubmitActionLabel('Confirm subjects')
@@ -151,6 +153,8 @@ class Enrollment extends Page
         return Action::make('cancelRegistration')->label('Cancel enrollment')->button()->outlined()->color('danger')
             ->modalHeading('Cancel this enrollment?')
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalSubmitActionLabel('Cancel enrollment')->modalCancelActionLabel('Keep enrollment')
             ->modalSubmitAction(fn (Action $action): Action => $action->color('danger'))
             ->visible(fn (): bool => $this->currentEnrollment()?->canonical_outcome === EnrollmentRecord::OutcomeInProgress

@@ -33,7 +33,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -602,13 +601,6 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             'section_id' => $section->id,
             'published_timetable_version_id' => $timetable->id,
             'is_current' => true,
-        ]);
-        StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $courseEnrollment->id,
-            'section_meeting_id' => $meeting->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
         ]);
         $proposal = RegistrationProposalVersion::factory()->for($enrollment)->create([
             'state' => RegistrationProposalVersion::StateConfirmed,

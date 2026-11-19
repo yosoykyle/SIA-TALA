@@ -8,7 +8,7 @@
 
 /* Student profile composition; identity, handoff and controls use shared materials. */
 .tala-student-profile { display:grid; gap:1rem; min-inline-size:0; container:student-profile / inline-size; color:var(--tala-text); }
-.tala-student-profile .tala-record-identity { margin:0; padding:1.5rem; }
+.tala-student-profile .tala-record-identity { margin:0; padding:var(--tala-card-pad); }
 .tala-student-profile .tala-record-identity :is(h1,h2) { font-size:var(--tala-type-page); font-weight:var(--tala-weight-emphasis); line-height:1.2; margin:0; }
 .tala-student-profile .student-profile-columns { display:grid; grid-template-columns:minmax(0,1.22fr) minmax(0,1fr); gap:var(--tala-card-gap,1rem); align-items:start; }
 .tala-student-profile .tala-record-identity-person { min-inline-size:0; }
@@ -25,15 +25,15 @@
 .tala-profile-overview > .fi-section > .fi-section-content-ctn { display:flex; flex:1; flex-direction:column; }
 .tala-profile-overview > .fi-section .fi-section-footer { margin-block-start:auto; }
 .tala-profile-aside { display:grid; }
-.tala-profile-inset { display:grid; gap:.5rem; padding:1rem; background:var(--tala-surface-sunken); border:1px solid var(--tala-edge); border-radius:.5rem; }
+.tala-profile-inset { display:grid; gap:.5rem; padding:var(--tala-card-pad-compact); background:var(--tala-surface-sunken); border:1px solid var(--tala-edge); border-radius:.5rem; }
 .tala-student-profile .fi-section-content { display:flex; flex-direction:column; gap:1rem; }
 .tala-profile-view-intro h2 { font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); margin-block-end:.375rem; }
 .tala-enrollment-context { display:grid; gap:1rem; }
-.tala-enrollment-context__facts { display:grid; gap:1.25rem; padding:1.25rem; background:var(--tala-surface-sunken); border:1px solid var(--tala-edge); border-radius:.5rem; }
+.tala-enrollment-context__facts { display:grid; gap:1.25rem; padding:var(--tala-card-pad); background:var(--tala-surface-sunken); border:1px solid var(--tala-edge); border-radius:.5rem; }
 .tala-enrollment-context__facts > div { display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); align-items:start; gap:1rem; }
 .tala-enrollment-context__facts dt { font-size:.875rem; color:var(--tala-muted); }
 .tala-enrollment-context__facts dd { font-weight:var(--tala-weight-heading); overflow-wrap:anywhere; }
-.tala-profile-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr)); gap:1rem; padding:1rem; border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
+.tala-profile-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr)); gap:1rem; padding:var(--tala-card-pad-compact); border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
 .tala-profile-metrics dt { color:var(--tala-muted); font-size:.875rem; }
 .tala-profile-figure { font-size:var(--tala-type-page); line-height:1.3; font-weight:var(--tala-weight-emphasis); font-variant-numeric:tabular-nums; }
 .tala-profile-icon { inline-size:2rem; block-size:2rem; margin-block-end:.25rem; color:var(--tala-muted); }
@@ -61,7 +61,7 @@
     .tala-student-profile .student-profile-columns { grid-template-columns:minmax(0,1fr); }
     .tala-profile-action-row { align-items:start; flex-direction:column; }
     .tala-profile-context-action p { text-align:start; }
-    .tala-student-profile .tala-record-identity { padding:1rem; }
+    .tala-student-profile .tala-record-identity { padding:var(--tala-card-pad); }
 }
 @media(max-width:40rem) {
     .tala-student-profile .tala-record-identity .student-profile-avatar { inline-size:3.5rem; block-size:3.5rem; }
@@ -69,7 +69,7 @@
     .tala-student-profile .tala-record-identity > .tala-record-actions { margin-inline-start:4.5rem; }
     .tala-student-profile .tala-profile-tabs { flex-wrap:wrap; gap:.25rem; overflow:visible; inline-size:100%; }
     .tala-profile-tabs .fi-tabs-item { flex:1 0 auto; }
-    .tala-enrollment-context__facts { gap:1rem; padding:1rem; }
+    .tala-enrollment-context__facts { gap:1rem; padding:var(--tala-card-pad-compact); }
     .tala-profile-facts { grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:.625rem; }
     .tala-profile-action-row .tala-action-block { flex-shrink:1; }
 }
@@ -78,10 +78,10 @@
 .tala-profile-ledger { min-inline-size:0; border:1px solid var(--tala-border); border-radius:.75rem; background:var(--tala-surface); box-shadow:var(--tala-material-raised); overflow:clip; }
 .tala-profile-ledger h2 { font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); line-height:1.3; }
 .tala-profile-ledger h3 { font-weight:var(--tala-weight-heading); line-height:1.4; }
-.tala-profile-ledger__toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:1rem; padding:1.25rem; border-block-end:1px solid var(--tala-edge); }
+.tala-profile-ledger__toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:1rem; padding:var(--tala-card-pad); border-block-end:1px solid var(--tala-edge); }
 .tala-profile-ledger__toolbar > div:first-child { flex:1 1 15rem; }
 .tala-profile-control { display:grid; gap:.375rem; flex:0 1 16rem; min-inline-size:0; font-size:.875rem; font-weight:var(--tala-weight-heading); }
-.tala-profile-ledger__metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1.25rem; padding:1rem 1.25rem; background:var(--tala-surface-sunken); border-block-end:1px solid var(--tala-edge); font-size:.875rem; }
+.tala-profile-ledger__metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1.25rem; padding:var(--tala-card-pad-compact) var(--tala-card-pad); background:var(--tala-surface-sunken); border-block-end:1px solid var(--tala-edge); font-size:.875rem; }
 .tala-profile-ledger__metrics > * { display:grid; align-content:start; gap:.25rem; }
 .tala-profile-ledger__metrics > * + * { border-inline-start:1px solid var(--tala-edge); padding-inline-start:1.25rem; }
 .tala-profile-ledger__metrics .space-y-2 > * { margin-block:0; }
@@ -89,7 +89,7 @@
 .tala-profile-number { font-size:1.25rem; font-variant-numeric:tabular-nums; font-weight:var(--tala-weight-emphasis); }
 .tala-profile-ledger__body { display:grid; grid-template-columns:minmax(0,1fr) minmax(17rem,.45fr); align-items:start; }
 .tala-profile-collection { min-inline-size:0; }
-.tala-profile-ledger__context { display:grid; gap:1rem; padding:1.25rem; background:var(--tala-surface-sunken); border-inline-start:1px solid var(--tala-edge); font-size:.875rem; min-inline-size:0; }
+.tala-profile-ledger__context { display:grid; gap:1rem; padding:var(--tala-card-pad); background:var(--tala-surface-sunken); border-inline-start:1px solid var(--tala-edge); font-size:.875rem; min-inline-size:0; }
 .tala-profile-ledger__context .tala-workflow-handoff { margin:0; grid-template-columns:minmax(0,1fr); gap:.75rem; }
 .tala-profile-ledger__context .tala-workflow-handoff > li { padding:.75rem; gap:.625rem; }
 .tala-profile-ledger__context .tala-handoff-next .tala-handoff-arrow { display:none; }
@@ -98,7 +98,7 @@
 .tala-profile-context-facts { display:grid; gap:1rem; font-size:.875rem; }
 .tala-profile-context-facts dt { color:var(--tala-muted); margin-block-end:.25rem; }
 .tala-profile-context-facts dd { overflow-wrap:anywhere; }
-.tala-profile-results .tala-profile-row-selected { background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); box-shadow:inset .1875rem 0 var(--tala-brand); }
+.tala-profile-results .tala-profile-row-selected { background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); }
 .tala-profile-results .tala-profile-row-selected .tala-profile-muted { color:inherit; }
 .tala-profile-row-action { display:flex; flex-direction:column; text-align:start; gap:.25rem; inline-size:100%; cursor:pointer; padding-block:.25rem; border-radius:.25rem; }
 .tala-profile-row-action:focus-visible { outline:2px solid var(--tala-brand); outline-offset:.25rem; }
@@ -110,14 +110,14 @@
 .tala-profile-source-note { display:flex; gap:.5rem; align-items:start; color:var(--tala-muted); font-size:.875rem; padding:.5rem .25rem; }
 .tala-profile-source-note > .fi-icon { flex:none; inline-size:1.25rem; block-size:1.25rem; }
 .tala-profile-enrollment-body { display:grid; grid-template-columns:minmax(0,1fr) minmax(17rem,.45fr); }
-.tala-profile-enrollment-main { display:grid; gap:1rem; padding:1.25rem; align-content:start; }
+.tala-profile-enrollment-main { display:grid; gap:1rem; padding:var(--tala-card-pad); align-content:start; }
 .tala-enrollment-context--compact .tala-enrollment-context__facts { grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; padding:1rem; }
 .tala-enrollment-context--compact .tala-enrollment-context__facts > div { display:block; }
 .tala-enrollment-context--compact dt { margin-block-end:.375rem; }
-.tala-profile-ledger__support { padding:1.25rem; border-block-start:1px solid var(--tala-edge); }
+.tala-profile-ledger__support { padding:var(--tala-card-pad); border-block-start:1px solid var(--tala-edge); }
 .tala-profile-ledger__support .tala-workflow-handoff { margin:0; }
 .tala-profile-history-list { max-block-size:32rem; overflow:auto; }
-.tala-profile-history-row { display:grid; grid-template-columns:minmax(8rem,.7fr) minmax(10rem,1fr) auto auto; align-items:center; gap:1rem; padding:1rem 1.25rem; border-block-end:1px solid var(--tala-edge); font-size:.875rem; }
+.tala-profile-history-row { display:grid; grid-template-columns:minmax(8rem,.7fr) minmax(10rem,1fr) auto auto; align-items:center; gap:1rem; padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-end:1px solid var(--tala-edge); font-size:.875rem; }
 .tala-profile-history-date strong { font-weight:var(--tala-weight-heading); }
 @container student-profile (max-width:55rem) {
  .tala-profile-ledger__body,.tala-profile-enrollment-body { grid-template-columns:minmax(0,1fr); }
@@ -460,26 +460,26 @@
 
 .tala-record-browser, .tala-record-inspector { border:1px solid var(--tala-border); border-radius:var(--tala-card-radius); box-shadow:var(--tala-material-raised); overflow:clip; }
 .tala-record-browser { display:flex; flex-direction:column; min-inline-size:0; background:var(--tala-surface); }
-.tala-record-browser-header { display:grid; gap:var(--tala-card-gap); padding:calc(var(--tala-card-gap)*2); }
+.tala-record-browser-header { display:grid; gap:var(--tala-card-gap); padding:var(--tala-card-pad); }
 .tala-record-browser-header h2 { font-size:var(--tala-type-section); font-weight:var(--tala-weight-emphasis); }
 .tala-record-browser-header h2 span { margin-inline-start:calc(var(--tala-card-gap)/2); color:var(--tala-muted); font-weight:400; font-variant-numeric:tabular-nums; }
 .tala-record-browser-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--tala-card-gap); }
 .tala-record-browser-heading h2 { min-inline-size:0; }
 .tala-record-browser-header p, .tala-record-identity p, .tala-record-history p { color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
-.tala-record-list { flex:1; padding:0 var(--tala-card-gap) var(--tala-card-gap); margin:0; list-style:none; max-block-size:36rem; overflow:auto; scrollbar-gutter:stable; }
+.tala-record-list { flex:1; padding:0 var(--tala-card-gap) var(--tala-card-gap); margin:0; list-style:none; max-block-size:36rem; overflow:auto; scrollbar-gutter:auto; }
 .tala-record-list > li + li { margin-block-start:calc(var(--tala-card-gap)/2); }
 .tala-record-option { display:flex; align-items:center; justify-content:space-between; gap:var(--tala-card-gap); inline-size:100%; min-block-size:5rem; padding:var(--tala-card-gap); text-align:start; border:1px solid transparent; border-radius:calc(var(--tala-card-radius)/2); cursor:pointer; }
 .tala-record-option:hover { background:var(--tala-surface-sunken); }
 .tala-record-option:focus-visible { outline:3px solid var(--tala-focus); outline-offset:-3px; }
 .tala-record-collection-controls{container-type:inline-size;position:relative;z-index:2;display:grid;gap:var(--tala-card-gap);padding:var(--tala-card-gap);}
 .tala-record-collection-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--tala-card-gap);}
-.tala-record-collection-search{display:flex;align-items:center;gap:calc(var(--tala-card-gap) / 2);min-inline-size:0;}
-.tala-record-collection-search__field{flex:1 1 0;min-inline-size:0;}
+.tala-record-collection-search{display:flex;flex-wrap:wrap;align-items:center;gap:calc(var(--tala-card-gap) / 2);min-inline-size:0;}
+.tala-record-collection-search__field{flex:1 1 9.5rem;min-inline-size:9.5rem;}
 .tala-record-collection-search__field > .fi-ta-search-field{inline-size:100%;max-inline-size:none;}
-.tala-record-collection-search > .fi-dropdown{flex:none;}
+.tala-record-collection-search > .fi-dropdown{flex:0 0 auto;}
 .tala-record-collection-filters .fi-dropdown-panel{inline-size:min(20rem,100cqi);max-inline-size:calc(100vw - var(--tala-card-gap) * 2);}
 
-.tala-record-collection-filters .fi-ta-filters{display:grid;gap:var(--tala-card-gap);padding:calc(var(--tala-card-gap) * 2);}
+.tala-record-collection-filters .fi-ta-filters{display:grid;gap:var(--tala-card-gap);padding:var(--tala-card-pad);}
 .tala-record-collection-filters .fi-ta-filters-header{display:flex;align-items:center;justify-content:space-between;gap:var(--tala-card-gap);}
 .tala-record-collection-filters .fi-ta-filters-heading{font-size:var(--tala-type-body);font-weight:var(--tala-weight-emphasis);}
 
@@ -492,7 +492,7 @@
 @media(max-width:40rem){.tala-record-collection-search :is(.fi-input-wrp,.fi-btn){min-block-size:2.75rem;}}
 .tala-record-collection-notice{display:grid;gap:calc(var(--tala-card-gap) / 2);padding:var(--tala-card-gap);border-radius:calc(var(--tala-card-radius) / 2);background:var(--tala-surface-sunken);font-size:var(--tala-type-caption);}
 .tala-record-collection-notice > .fi-btn{justify-self:start;}
-.tala-record-collection-heading h2{font-size:var(--tala-type-section);line-height:1.25;font-weight:var(--tala-weight-heading);color:var(--tala-brand-foreground);text-wrap:balance;}
+.tala-record-collection-heading h2{font-size:var(--tala-type-section);line-height:1.25;font-weight:var(--tala-weight-heading);color:var(--tala-text);text-wrap:balance;}
 .tala-record-workspace--framed > .tala-record-browser:has(> .tala-record-collection-controls){padding-block-start:0;}
 .tala-record-workspace--framed .tala-record-collection-controls{padding:var(--tala-card-gap) var(--tala-record-collection-inset);}
 .tala-record-filter-form{padding:var(--tala-card-gap);}
@@ -507,14 +507,14 @@
 .tala-record-option-result { flex:none; text-align:end; border-inline-start:1px solid var(--tala-edge); padding-inline-start:var(--tala-card-gap); font-variant-numeric:tabular-nums; }
 .tala-record-option-result strong { font-size:1.25rem; }
 .tala-record-pagination { padding:var(--tala-card-gap); border-block-start:1px solid var(--tala-edge); }
-.tala-record-inspector { min-inline-size:0; min-block-size:30rem; padding:calc(var(--tala-card-gap)*2); background:var(--tala-surface); container-type:inline-size; }
-.tala-record-identity { display:flex; align-items:center; justify-content:space-between; gap:var(--tala-card-gap); flex-wrap:wrap; padding:var(--tala-card-gap); }
+.tala-record-inspector { min-inline-size:0; min-block-size:30rem; padding:var(--tala-card-pad); background:var(--tala-surface); container-type:inline-size; }
+.tala-record-identity { display:flex; align-items:center; justify-content:space-between; gap:var(--tala-card-gap); flex-wrap:wrap; padding:var(--tala-card-pad); }
 .tala-identity-surface{border:1px solid var(--tala-selected-edge);border-radius:var(--tala-card-radius);background:linear-gradient(110deg,var(--tala-surface) 15%,var(--tala-surface) 40%,color-mix(in srgb,var(--tala-brand) 9%,var(--tala-surface)) 100%);color:var(--tala-text);}
 @media(forced-colors:none){.dark .tala-identity-surface{background:linear-gradient(110deg,var(--tala-surface) 15%,var(--tala-surface) 40%,var(--tala-brand-tint) 100%);}}
 @media(forced-colors:active){.tala-identity-surface{background:Canvas;border-color:CanvasText;}}
 .tala-record-identity-person { display:flex; align-items:center; gap:var(--tala-card-gap); min-inline-size:0; flex:1 1 12rem; }
 .tala-record-identity-person > div:last-child { min-inline-size:0; overflow-wrap:anywhere; }
-.tala-record-footer { grid-column:1/-1; padding:calc(var(--tala-card-gap)*2); background:var(--tala-surface-sunken); border:1px solid var(--tala-border); border-radius:var(--tala-card-radius); box-shadow:var(--tala-material-raised); }
+.tala-record-footer { grid-column:1/-1; padding:var(--tala-card-pad); background:var(--tala-surface-sunken); border:1px solid var(--tala-border); border-radius:var(--tala-card-radius); box-shadow:var(--tala-material-raised); }
 .tala-inc-follow-up { margin-block:1.5rem; }
 .tala-record-inspector .tala-workflow-handoff { grid-template-columns:minmax(0,1fr); gap:2rem; }
 .tala-record-inspector .tala-handoff-arrow { inset-inline-start:50%; inset-block-start:-1.75rem; transform:translateX(-50%) rotate(90deg); }
@@ -557,7 +557,7 @@
 .tala-record-notifications { grid-column:1/-1; padding-block-start:1rem; border-block-start:1px solid var(--tala-edge); }
 .tala-record-notifications > header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; }
 .tala-record-notifications header p { margin-block-start:.375rem; max-inline-size:65ch; }
-.tala-record-events { list-style:none; padding:0; margin:.5rem 0 0; max-block-size:20rem; overflow:auto; scrollbar-gutter:stable; }
+.tala-record-events { list-style:none; padding:0; margin:.5rem 0 0; max-block-size:20rem; overflow:auto; scrollbar-gutter:auto; }
 .tala-record-events li { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:.5rem 1rem; padding-block:.75rem; }
 .tala-record-events li + li { border-block-start:1px solid var(--tala-edge); }
 .tala-record-events strong { font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
@@ -571,7 +571,7 @@
 @container (max-width:24rem) { .tala-record-facts { grid-template-columns:minmax(0,1fr); } }
 @media(max-width:47.99rem){.tala-record-reference-grid{grid-template-columns:minmax(0,1fr);}.tala-record-notifications .tala-record-events li{grid-template-columns:minmax(0,1fr) auto;}.tala-record-notifications time{grid-column:1/-1;text-align:start;}}
 .tala-record-history { margin-block-start:1rem; }
-.tala-record-empty { display:grid; justify-items:start; gap:.75rem; padding:1.5rem; line-height:1.5; }
+.tala-record-empty { display:grid; justify-items:start; gap:.75rem; padding:var(--tala-card-pad); line-height:1.5; }
 .tala-record-empty p { color:var(--tala-muted); font-size:.875rem; }
 @media (max-width: 47.99rem) {
     .tala-record-workspace { grid-template-columns:minmax(0,1fr); }
@@ -580,7 +580,7 @@
     .tala-record-result { align-items:flex-start; flex-wrap:wrap; }
 }
 /* Shared adaptive record workspace: a collection with local navigation and a flowing detail document. */
-.fi-page-header-main-ctn:has(.tala-record-workspace--framed) { padding-block-end:.75rem; row-gap:1.25rem; }
+.fi-page-header-main-ctn:has(.tala-record-workspace--framed) { padding-block-end:.75rem; row-gap:var(--tala-card-gap); }
 .tala-record-workspace--framed { --tala-record-collection-inset:.625rem; --tala-record-option-inset:1rem; --tala-record-pane-limit:min(54rem,80dvh); grid-template-columns:minmax(16rem,.6fr) minmax(0,1.4fr); align-items:start; border:0; border-radius:0; box-shadow:none; background:transparent; }
 .tala-supporting-details + .tala-record-workspace { margin-block-start:1rem; }
 .tala-record-toolbar { grid-column:1/-1; display:flex; align-items:center; flex-wrap:wrap; gap:1rem; padding:0; }
@@ -594,7 +594,7 @@
 .tala-record-workspace--framed .tala-record-list { flex:0 1 auto; min-block-size:0; max-block-size:min(36rem,65dvh); padding:.125rem var(--tala-record-collection-inset) .75rem; scrollbar-gutter:auto; overscroll-behavior:contain; }
 .tala-record-workspace--framed .tala-record-browser-header { flex:none; padding:.75rem var(--tala-record-collection-inset) 1rem; gap:.75rem; }
 .tala-record-detail { display:flex; flex-direction:column; grid-column:2; overflow:visible; }
-.tala-record-detail > .tala-record-inspector { flex:1 1 auto; min-block-size:0; border:0; border-radius:.75rem; box-shadow:none; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:1.25rem; container-type:inline-size; }
+.tala-record-detail > .tala-record-inspector { flex:1 1 auto; min-block-size:0; border:0; border-radius:.75rem; box-shadow:none; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:auto; padding:var(--tala-card-pad); container-type:inline-size; }
 .tala-record-detail:has(> .tala-record-footer) > .tala-record-inspector { border-end-start-radius:0; border-end-end-radius:0; }
 .tala-record-identity:has(.student-identity-art) { position:relative; overflow:hidden; }
 .tala-record-identity .student-identity-art { inline-size:32%; opacity:.35; }
@@ -603,7 +603,7 @@
 .tala-record-identity .student-profile-avatar img { inline-size:100%; block-size:100%; object-fit:cover; }
 .tala-record-workspace--framed .tala-record-identity h2 { font-size:var(--tala-type-card); margin:0 0 .375rem; }
 .tala-record-workspace--framed .tala-record-identity p + p { margin-block-start:.375rem; }
-.tala-record-workspace--framed .tala-record-result { margin:1rem 0; padding:1rem 1.25rem; border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
+.tala-record-workspace--framed .tala-record-result { margin:1rem 0; padding:var(--tala-card-pad); border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
 .tala-record-workspace--framed .tala-record-result > div > strong { font-size:2rem; }
 .tala-record-result--completion { display:grid; grid-template-columns:minmax(0,1fr); gap:1rem; }
 .tala-record-result--completion .tala-record-release-date { margin-block-start:.5rem; color:var(--tala-muted); font-size:.8125rem; }
@@ -621,7 +621,7 @@
 .tala-record-workspace--framed .tala-record-actions { margin-block:1rem; gap:.625rem; }
 .tala-record-workspace--framed .tala-record-actions > .fi-btn { flex:1 1 12rem; justify-content:center; }
 .tala-record-workspace--framed .tala-record-history { margin-block-start:1rem; padding-block-start:0; }
-.tala-record-detail > .tala-record-footer { padding:1rem 1.25rem; border:0; border-block-start:1px solid var(--tala-edge); border-radius:0 0 .75rem .75rem; box-shadow:none; background:var(--tala-surface-sunken); }
+.tala-record-detail > .tala-record-footer { padding:var(--tala-card-pad-compact) var(--tala-card-pad); border:0; border-block-start:1px solid var(--tala-edge); border-radius:0 0 .75rem .75rem; box-shadow:none; background:var(--tala-surface-sunken); }
 .tala-record-collection-footer { flex:none; max-inline-size:100%; border-radius:0 0 .75rem .75rem; padding:0; background:var(--tala-surface-sunken); overflow:hidden; }
 .tala-record-navigation,.tala-record-selection-navigation { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
 .tala-record-navigation { font-size:.8125rem; }
@@ -670,7 +670,7 @@
     .tala-record-detail > .tala-record-inspector { overflow:visible; scrollbar-gutter:auto; }
     .tala-record-workspace--framed .tala-record-list { max-block-size:none; }
     .tala-record-toolbar { align-items:stretch; }
-    .tala-record-detail > .tala-record-inspector { padding:1rem; }
+    .tala-record-detail > .tala-record-inspector { padding:var(--tala-card-pad-compact); }
     .tala-record-mobile-back { display:block; margin-block-end:1rem; }
     .tala-record-identity .student-identity-art { opacity:.15; }
     .tala-record-workspace[data-record-view='list'] > .tala-record-detail,
@@ -744,19 +744,21 @@
     outline: 3px solid var(--tala-focus);
     outline-offset: 3px;
 }
-/* Disclosures on a surface reveal the existing canvas tier; on the canvas they reveal a surface. */
-:is(.fi-section,.tala-task-surface,.tala-record-workspace,.faculty-result-editor) { --tala-disclosure-surface:var(--tala-canvas); }
+/* Disclosures on a surface reveal a sunken or raised surface tier, never raw canvas. */
+:is(.fi-section,.tala-task-surface,.tala-record-workspace,.faculty-result-editor) { --tala-disclosure-surface:var(--tala-surface-sunken); }
+:is(.fi-modal-window,.tala-surface-sunken) { --tala-disclosure-surface:var(--tala-surface-raised); }
 .tala-supporting-details__content {
     min-inline-size: 0;
     padding: var(--tala-card-gap);
+    border: 1px solid var(--tala-edge);
     border-radius: var(--tala-card-radius);
-    background: var(--tala-disclosure-surface,var(--tala-surface));
+    background: var(--tala-disclosure-surface,var(--tala-surface-sunken));
     color: var(--tala-text);
     line-height: 1.6;
     overflow-wrap: anywhere;
 }
-.tala-supporting-details--inset > .tala-supporting-details__content { background: var(--tala-canvas); }
-.tala-supporting-details__content .tala-supporting-details__content { background:var(--tala-surface); }
+.tala-supporting-details--inset > .tala-supporting-details__content { background: var(--tala-disclosure-surface,var(--tala-surface-sunken)); }
+.tala-supporting-details__content .tala-supporting-details__content { background:var(--tala-surface-raised); }
 .tala-supporting-details__content > * + * { margin-block-start: var(--tala-card-gap); }
 @media (forced-colors: active) {
     .tala-supporting-details__content { background: Canvas; border: 1px solid CanvasText; }
@@ -773,7 +775,7 @@
 .tala-scoped-directory .fi-ta-main { min-inline-size:0; overflow:hidden; border-radius:.75rem; background:var(--tala-surface); box-shadow:var(--tala-shadow-detail); border:1px solid var(--tala-border); container-type:inline-size; container-name:tala-directory-results; }
 .tala-scoped-directory .fi-ta-filters-before-content-ctn { background:var(--tala-surface); border:1px solid var(--tala-border); border-radius:.75rem; box-shadow:var(--tala-shadow-detail); }
 .fi-body .tala-scoped-directory .fi-ta-filters-before-content-ctn .fi-input-wrp { background-color:var(--tala-surface-sunken); }
-.tala-directory-heading { display:flex; align-items:flex-start; gap:.75rem; padding:1.25rem; border-block-end:1px solid var(--tala-border); }
+.tala-directory-heading { display:flex; align-items:flex-start; gap:.75rem; padding:var(--tala-card-pad); border-block-end:1px solid var(--tala-border); }
 .tala-directory-heading > .fi-icon { flex:none; inline-size:2rem; block-size:2rem; color:var(--tala-brand-foreground); }
 .tala-directory-heading h2 { color:var(--tala-text); font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); line-height:1.3; overflow-wrap:anywhere; }
 .tala-directory-heading p { margin-block-start:.375rem; color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
@@ -923,7 +925,7 @@
         display: none;
     }
     .tala-enrollment-decision-modal .tala-decision-context-col {
-        padding: 0.75rem 1rem;
+        padding: var(--tala-card-pad-compact) var(--tala-card-pad);
         gap: 0.75rem;
     }
     .tala-enrollment-decision-modal .fi-modal-footer-actions {
@@ -960,7 +962,7 @@
 }
 .tala-lifecycle-review-column { min-inline-size:0; border-block-start:1px solid var(--tala-edge); }
 .tala-lifecycle-review-column > .fi-sc { gap:0; }
-.tala-lifecycle-handoff-region { padding:1.25rem; border-block-start:1px solid var(--tala-edge); }
+.tala-lifecycle-handoff-region { padding:var(--tala-card-pad); border-block-start:1px solid var(--tala-edge); }
 .tala-lifecycle-handoff-region header p { margin-block-start:.375rem; color:var(--tala-muted); font-size:.875rem; }
 .tala-lifecycle-preserved { display:flex; align-items:center; gap:.625rem; font-size:.875rem; }
 .tala-lifecycle-preserved .fi-icon { flex:none; inline-size:1.125rem; block-size:1.125rem; color:var(--tala-brand-foreground); }
@@ -978,14 +980,14 @@
 .tala-record-identity--compact .tala-record-identity-person p:first-of-type { flex-basis:100%; }
 .tala-record-identity--compact .student-profile-avatar { inline-size:3rem; block-size:3rem; font-size:1rem; }
 .tala-record-identity--compact .tala-record-identity-person p { margin:0; font-size:.875rem; }
-.tala-lifecycle-form .fi-section-content { padding:1.25rem; gap:1rem; }
+.tala-lifecycle-form .fi-section-content { padding:var(--tala-card-pad); gap:1rem; }
 .tala-lifecycle-detail-heading { padding-block-start:1rem; border-block-start:1px solid var(--tala-edge); }
 .tala-lifecycle-identity-actions { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
 .tala-lifecycle-identity-actions > span { color: var(--tala-muted); font-size: .875rem; }
-.tala-lifecycle-effects { min-inline-size:0; padding:1.25rem; display:grid; gap:1rem; color:var(--tala-text); }
+.tala-lifecycle-effects { min-inline-size:0; padding:var(--tala-card-pad); display:grid; gap:1rem; color:var(--tala-text); }
 .tala-lifecycle-effects header p, .tala-lifecycle-effects p, .tala-lifecycle-effects dd { color: var(--tala-muted); }
 .tala-lifecycle-effects header p { margin-block-start: .375rem; }
-.tala-lifecycle-effect-inset, .tala-lifecycle-exception { background: var(--tala-surface-sunken); border: 1px solid var(--tala-edge); border-radius: .75rem; padding: 1rem; }
+.tala-lifecycle-effect-inset, .tala-lifecycle-exception { background: var(--tala-surface-sunken); border: 1px solid var(--tala-edge); border-radius: .75rem; padding: var(--tala-card-pad-compact); }
 .tala-lifecycle-effect-inset > p { margin-block-start: .5rem; }
 .tala-lifecycle-status-change { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-block: .75rem 1rem; }
 .tala-lifecycle-status-change svg { inline-size: 1.25rem; block-size: 1.25rem; flex: none; }
@@ -994,7 +996,7 @@
 .tala-lifecycle-effects-list dt { font-weight: 600; }
 .tala-lifecycle-effects-list dd { margin: 0; overflow-wrap: anywhere; }
 .tala-lifecycle-effects-list > .tala-record-fact { display:flex; gap:.375rem 1rem; padding:.875rem 1rem; }
-.tala-lifecycle-confirmation { padding:1rem 1.25rem; background:var(--tala-surface-sunken); border-block-start:1px solid var(--tala-edge); border-radius:0 0 .75rem .75rem; }
+.tala-lifecycle-confirmation { padding:var(--tala-card-pad-compact) var(--tala-card-pad); background:var(--tala-surface-sunken); border-block-start:1px solid var(--tala-edge); border-radius:0 0 .75rem .75rem; }
 .tala-lifecycle-confirmation > .fi-sc { align-items:center; gap:.75rem; grid-template-columns:minmax(0,1fr) auto auto; }
 .tala-lifecycle-confirmation .fi-fo-field { justify-self:end; row-gap:.25rem; }
 .tala-lifecycle-confirmation .fi-fo-field-label-col { row-gap:.25rem; }
@@ -1015,7 +1017,7 @@
 }
 @media (max-width: 47.999rem) {
     .tala-lifecycle-form .tala-choice-options { grid-template-columns:repeat(2,minmax(0,1fr)); }
-    .tala-lifecycle-effects { padding: 1rem; }
+    .tala-lifecycle-effects { padding: var(--tala-card-pad-compact); }
     .tala-lifecycle-effects-list > div { grid-template-columns: minmax(0, 1fr); gap: .25rem; }
     .tala-lifecycle-identity-actions { inline-size: 100%; justify-content: space-between; }
     .tala-lifecycle-confirmation > .fi-sc { grid-template-columns:minmax(0,1fr); }
@@ -1038,7 +1040,7 @@
 .tala-record-actions--grouped .fi-btn { min-block-size:2.5rem; }
 .tala-record-actions--grouped:not(:has(.fi-btn)) { display:none; }
 .tala-record-change-comparison { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:stretch; gap:.75rem; font-size:.875rem; }
-.tala-record-change-comparison > div { min-inline-size:0; padding:1rem; background:var(--tala-surface-sunken); border:1px solid var(--tala-edge); border-radius:.5rem; overflow-wrap:anywhere; }
+.tala-record-change-comparison > div { min-inline-size:0; padding:var(--tala-card-pad-compact); background:var(--tala-surface-sunken); border:1px solid var(--tala-edge); border-radius:.5rem; overflow-wrap:anywhere; }
 .tala-record-change-comparison > .fi-icon { inline-size:1.25rem; block-size:1.25rem; align-self:center; color:var(--tala-muted); }
 .tala-record-change-comparison .tala-record-change-label { margin:0 0 .5rem; font-size:.8125rem; color:var(--tala-muted); }
 .tala-record-change-comparison strong { display:block; font-weight:var(--tala-weight-emphasis); }
@@ -1063,7 +1065,7 @@
 
 /* Compact, paginated class objects; queries and actions remain native Filament. */
 .tala-class-worklist { container-type:inline-size; min-inline-size:0; color:var(--tala-text); }
-.tala-class-query { padding:1rem; border-radius:.75rem; }
+.tala-class-query { padding:var(--tala-card-pad); border-radius:.75rem; }
 .tala-class-query .fi-ta-search-field { min-inline-size:0; }
 .tala-class-query .fi-ta-cell-label { display:block; margin-block-end:.5rem; padding:0; font-size:.875rem; line-height:1.25rem; font-weight:var(--tala-weight-emphasis); }
 .tala-class-query .fi-input-wrp { inline-size:100%; }
@@ -1071,7 +1073,7 @@
 .tala-class-query + .tala-content-region { margin-block-start:var(--tala-card-gap); }
 .tala-class-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); list-style:none; padding:0; margin:0; }
 .tala-class-grid > li { display:flex; min-inline-size:0; }
-.tala-class-card { display:flex; flex-direction:column; gap:.625rem; inline-size:100%; min-inline-size:0; padding:1rem; border-radius:.75rem; }
+.tala-class-card { display:flex; flex-direction:column; gap:.625rem; inline-size:100%; min-inline-size:0; padding:var(--tala-card-pad); border-radius:.75rem; }
 .tala-class-card-heading { display:flex; align-items:start; flex-wrap:wrap; gap:.5rem .75rem; }
 .tala-class-card-heading > div { flex:1 1 10rem; min-inline-size:0; }
 .tala-class-card-heading h2 { font-size:1rem; font-weight:var(--tala-weight-emphasis); line-height:1.4; overflow-wrap:anywhere; }
@@ -1115,7 +1117,7 @@
 .tala-tor-request-facts dt { color:var(--tala-muted); margin-block-end:.375rem; }
 .tala-tor-request-facts dd { font-weight:var(--tala-weight-emphasis); overflow-wrap:anywhere; }
 .tala-tor-context-note,.tala-tor-preparation > p { font-size:.8125rem; line-height:1.5; color:var(--tala-muted); }
-.tala-tor-readiness { display:grid; gap:1rem; padding:1rem; border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
+.tala-tor-readiness { display:grid; gap:1rem; padding:var(--tala-card-pad-compact); border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
 .tala-tor-readiness > div { display:flex; align-items:start; gap:.625rem; min-inline-size:0; }
 .tala-tor-readiness .fi-icon { flex:none; inline-size:1.25rem; block-size:1.25rem; color:var(--tala-brand-foreground); }
 .tala-tor-readiness h3,.tala-tor-preparation h3 { font-weight:var(--tala-weight-emphasis); }
@@ -1140,7 +1142,7 @@
 .tala-tor-queue-row > span > span:first-child > strong { font-size:1rem; }
 .tala-tor-queue-row > span > span:nth-child(2) > strong { font-weight:400; }
 .tala-tor-queue-status { justify-self:end; text-align:end; font-weight:var(--tala-weight-emphasis); }
-.tala-tor-setup { display:flex; align-items:start; flex-wrap:wrap; gap:.75rem; padding:1rem; border:1px solid var(--tala-edge); border-radius:.75rem; background:var(--tala-surface-sunken); }
+.tala-tor-setup { display:flex; align-items:start; flex-wrap:wrap; gap:.75rem; padding:var(--tala-card-pad-compact); border:1px solid var(--tala-edge); border-radius:.75rem; background:var(--tala-surface-sunken); }
 .tala-tor-setup > .fi-icon { inline-size:1.25rem; block-size:1.25rem; flex:none; color:var(--tala-brand-foreground); }
 .tala-tor-setup > div { flex:1 1 12rem; min-inline-size:0; }
 .tala-tor-setup h3 { font-weight:var(--tala-weight-emphasis); }
@@ -1184,10 +1186,10 @@
 .tala-record-history-panel > header > div { min-inline-size:0; }
 .tala-record-history-panel > header > div > p { color:var(--tala-muted); font-size:.875rem; line-height:1.5; margin-block-start:.375rem; }
 .tala-record-history-panel > header h2 { font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); }
-.servitech-empty-state__footer { display:grid; gap:1rem; }
-.servitech-empty-state__actions { display:flex; flex-wrap:wrap; gap:.75rem; }
-.servitech-empty-state__note { color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
-.servitech-task-state { display:flex; align-items:flex-start; gap:1rem; padding:1.5rem; border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface); color:var(--tala-text); box-shadow:var(--tala-material-raised); min-inline-size:0; }
+.servitech-empty-state__footer { display:flex; flex-wrap:wrap; align-items:center; gap:.625rem .75rem; }
+.servitech-empty-state__actions { display:flex; flex-wrap:wrap; align-items:center; gap:.625rem .75rem; }
+.servitech-empty-state__note { margin:0; color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
+.servitech-task-state { display:flex; align-items:flex-start; gap:1rem; padding:var(--tala-card-pad); border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface); color:var(--tala-text); box-shadow:var(--tala-material-raised); min-inline-size:0; }
 .servitech-task-state__icon { display:grid; place-items:center; flex:none; inline-size:2.75rem; block-size:2.75rem; border-radius:50%; background:var(--tala-surface-sunken); color:var(--tala-brand-foreground); }
 .servitech-task-state__icon > .fi-icon { inline-size:1.5rem; block-size:1.5rem; }
 .servitech-task-state__body { display:grid; gap:.75rem; min-inline-size:0; }
@@ -1213,7 +1215,7 @@
 .tala-record-timeline-item .fi-btn { margin-block-start:.625rem; }
 .tala-record-history-empty { padding:1rem; }
 .tala-record-history-panel > .tala-profile-collection-footer { background:var(--tala-surface); border-block-start:1px solid var(--tala-edge); }
-.tala-graduation-status { display:grid; gap:1rem; padding:1rem; border:1px solid var(--tala-edge); border-radius:.75rem; background:var(--tala-surface-sunken); box-shadow:var(--tala-material-detail); }
+.tala-graduation-status { display:grid; gap:1rem; padding:var(--tala-card-pad-compact); border:1px solid var(--tala-edge); border-radius:.75rem; background:var(--tala-surface-sunken); box-shadow:var(--tala-material-detail); }
 .tala-graduation-status > header { display:flex; align-items:center; gap:.75rem; }
 .tala-graduation-status > header > .fi-icon { flex:none; inline-size:1.5rem; block-size:1.5rem; color:var(--tala-brand-foreground); }
 .tala-graduation-status h3 { font-size:1.125rem; font-weight:var(--tala-weight-heading); }
@@ -1227,27 +1229,41 @@
 
 
 /* Student ledger recipe, shared by semantic tables and native Filament tables. */
-.tala-data-table-scroll { min-inline-size:0; overflow-x:auto; }
-:is(table.tala-data-table,.tala-data-table .fi-ta-table) { inline-size:100%; border-collapse:collapse; text-align:start; font-size:var(--tala-type-body); }
-:is(table.tala-data-table,.tala-data-table .fi-ta-table) :is(th,td) { padding:var(--tala-card-gap); border-block-end:1px solid var(--tala-edge); vertical-align:top; line-height:1.5; text-align:start; }
-:is(table.tala-data-table,.tala-data-table .fi-ta-table) thead th { background:var(--tala-surface-sunken); color:var(--tala-muted); font-size:var(--tala-type-caption); font-weight:var(--tala-weight-emphasis); }
-.tala-data-table .fi-ta-table .fi-ta-cell { padding:var(--tala-card-gap); }
+.tala-data-table-scroll,
+.registrar-subject-table-wrap { min-inline-size:0; max-inline-size:100%; max-block-size:min(22rem, 48dvh); overflow:auto; overscroll-behavior:contain; scrollbar-gutter:auto; border:1px solid var(--tala-edge-strong); border-radius:var(--tala-card-radius); background:var(--tala-surface); }
+:is(table.tala-data-table,.tala-data-table .fi-ta-table,.tala-data-table-scroll > table) { inline-size:100%; border-collapse:collapse; text-align:start; font-size:.875rem; }
+:is(table.tala-data-table,.tala-data-table .fi-ta-table,.tala-data-table-scroll > table) :is(th,td) { padding:.75rem 1rem; border-block-end:1px solid var(--tala-edge); vertical-align:middle; line-height:1.45; text-align:start; }
+:is(table.tala-data-table,.tala-data-table .fi-ta-table,.tala-data-table-scroll > table) thead th { position:sticky; inset-block-start:0; z-index:1; background:var(--tala-surface-sunken); color:var(--tala-muted); font-size:.75rem; font-weight:600; }
+.fi-body .tala-data-table-scroll > table { margin-block-start:0; }
+.fi-body .tala-data-table-scroll > .registrar-subject-table :is(th, td):first-child { padding-inline-start:1rem; }
+.fi-body .tala-data-table-scroll > .registrar-subject-table :is(th, td):last-child { padding-inline-end:1rem; }
+.tala-data-table .fi-ta-table .fi-ta-cell { padding:.75rem 1rem; }
 .tala-data-table .fi-ta-text { padding:0; }
+.tala-data-table .fi-ta-header-heading { color:var(--tala-text); font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); }
 .tala-data-table .fi-ta-header-cell { text-transform:none; letter-spacing:normal; }
 .tala-data-table .fi-ta-header-cell-label { color:var(--tala-muted); }
 table.tala-data-table th { text-transform:none; letter-spacing:normal; }
 table.tala-data-table tbody th { font-size:inherit; color:var(--tala-text); background:transparent; font-weight:var(--tala-weight-emphasis); }
 :is(table.tala-data-table,.tala-data-table .fi-ta-table) tbody tr:last-child>* { border-block-end:0; }
 table.tala-data-table .tala-data-table-number { text-align:end; font-variant-numeric:tabular-nums; white-space:nowrap; }
-table.tala-data-table tbody tr:nth-child(even),.tala-data-table .fi-ta-row:nth-child(even):not(:hover):not(:has(input:checked)) { background:var(--tala-surface-sunken); }
-.tala-data-table-secondary { display:block; color:var(--tala-muted); font-size:var(--tala-type-caption); font-weight:400; margin-block-start:calc(var(--tala-card-gap)/2); }
+table.tala-data-table tbody tr:nth-child(even) { background:var(--tala-surface-sunken); }
+.tala-data-table .fi-ta-row:not(.fi-ta-group-header-row) { background:var(--tala-surface); }
+.tala-data-table .fi-ta-row.fi-striped:not(.fi-ta-group-header-row) { background:var(--tala-surface-sunken); }
+.tala-data-table .fi-ta-row:not(.fi-ta-group-header-row):hover { background:var(--tala-surface-sunken); }
+.tala-data-table-secondary { display:block; color:var(--tala-muted); font-size:.8125rem; line-height:1.45; font-weight:400; margin-block-start:.1875rem; }
 table.tala-data-table .tala-supporting-details { margin-block-start:calc(var(--tala-card-gap)/2); }
 table.tala-data-table .tala-supporting-details__content { min-inline-size:12rem; overflow-wrap:anywhere; }
 .tala-data-table .fi-ta-actions .fi-btn { white-space:nowrap; }
-.tala-data-table .fi-ta-text-item-description { color:var(--tala-muted); }
-@media(max-width:40rem) {
-    :is(table.tala-data-table,.tala-data-table .fi-ta-table) { font-size:var(--tala-type-caption); }
-    :is(table.tala-data-table,.tala-data-table .fi-ta-table) :is(th,td) { padding:var(--tala-card-gap); }
+.tala-data-table :is(.fi-ta-text-description,.fi-ta-text-item-description) { font-size:.8125rem; line-height:1.45; color:var(--tala-muted); margin-block-start:.1875rem; }
+@media(max-width:39.999rem) {
+    :is(table.tala-data-table,.tala-data-table .fi-ta-table) { font-size:.8125rem; }
+    :is(table.tala-data-table,.tala-data-table .fi-ta-table:not(.fi-ta-table-stacked-on-mobile)) :is(th,td) { padding:.625rem .75rem; }
+    .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) { padding:.75rem 1rem; border-block-end:1px solid var(--tala-edge); }
+    .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) > td.fi-ta-cell { padding:.25rem 0; border-block-end:0; }
+    .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) > td.fi-ta-cell:first-child { padding-block-start:0; }
+    .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) > td.fi-ta-cell > .fi-ta-cell-label { padding:0; margin-block-end:.125rem; font-size:.75rem; color:var(--tala-muted); }
+    .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) > td.fi-ta-cell .fi-ta-text:is(.fi-align-end,.fi-align-center) { align-items:flex-start; text-align:start; }
+    .tala-study-plan .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row > td.fi-ta-cell:has(.fi-ta-actions) { display:none; }
 }
 .tala-data-table-scroll:has(.tala-data-table--records) { container-type:inline-size; }
 table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
@@ -1261,22 +1277,45 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
     .tala-data-table--records .tala-data-table-mobile-label { display:block; font-size:var(--tala-type-caption); font-weight:400; color:var(--tala-muted); margin-block-end:calc(var(--tala-card-gap)/2); }
 }
 /* The existing two-tone action footer applies to native dialogs in every panel. */
-.fi-modal-window > .fi-modal-footer {
-    border-block-start:1px solid var(--tala-edge);
+.fi-modal-window:not(.tala-mfa-modal) > .fi-modal-header {
+    border-block-end:1px solid var(--tala-edge);
+    border-start-start-radius:inherit;
+    border-start-end-radius:inherit;
+    background-color:var(--tala-overlay);
+    padding-block:var(--tala-modal-pad) calc(var(--tala-modal-pad) - 0.25rem);
+    color:var(--tala-text);
+}
+.fi-modal-window:not(.tala-mfa-modal) > .fi-modal-footer {
+    border-block-start:1px solid var(--tala-edge-strong);
     border-end-start-radius:inherit;
     border-end-end-radius:inherit;
-    background-color:var(--tala-surface-sunken);
-    padding-block:1rem;
+    background-color:color-mix(in srgb, var(--tala-surface-sunken) 45%, var(--tala-overlay));
+    padding-block:var(--tala-card-pad);
+}
+.fi-modal-window:not(.tala-mfa-modal) > .fi-modal-content {
+    padding-block:var(--tala-modal-pad);
 }
 /* One optional illustration; native Filament owns text, icons and actions. */
-.servitech-empty-state { container: servitech-empty / inline-size; min-inline-size: 0; }
-.servitech-empty-state__layout { display: grid; align-items: center; gap: 1.5rem; }
+.servitech-empty-state { container: servitech-empty / inline-size; inline-size: 100%; min-inline-size: 0; }
+.servitech-empty-state__layout { display: grid; align-items: center; gap: var(--tala-card-gap, 1rem); }
 .servitech-empty-state .fi-empty-state-footer { display: flex; flex-wrap: wrap; gap: .75rem; }
-.servitech-empty-state .fi-empty-state-description { color: var(--tala-muted); }
-.servitech-empty-state--illustrated .fi-empty-state { padding: 1.5rem; }
+.servitech-empty-state .fi-empty-state-description { color: var(--tala-muted); margin: 0; }
 .fi-empty-state-heading { color:var(--tala-brand-foreground); font-weight:var(--tala-weight-heading); }
+.servitech-empty-state .fi-empty-state-heading { margin: 0; }
+.servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state { padding: var(--tala-card-pad-compact, 1rem) var(--tala-card-pad, 1.25rem); }
+:is(.tala-catalog-empty-card, .tala-semester-empty, .student-empty-card) > .servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state { padding: 0; }
+.servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-content { display: flex; align-items: flex-start; gap: .875rem; inline-size: 100%; max-inline-size: none; margin: 0; text-align: start; }
+.servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-icon-bg { margin: 0; flex: none; padding: .625rem; }
+.servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-text-ctn { flex: 1 1 auto; min-inline-size: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: .25rem; justify-items: start; align-content: center; text-align: start; }
+.servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-heading { font-size: .9375rem; line-height: 1.35; }
+.servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-description { margin-block-start: 0; font-size: .875rem; line-height: 1.45; max-inline-size: 68ch; }
+.servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-footer { margin-block-start: .5rem; }
+.servitech-empty-state--illustrated .fi-empty-state { padding: var(--tala-card-pad, 1.25rem); }
+:is(.tala-catalog-empty-card, .student-empty-card) > .servitech-empty-state--illustrated .fi-empty-state { padding: .25rem; }
+.servitech-empty-state--illustrated .fi-empty-state-content { max-inline-size: none; }
 .servitech-empty-state--illustrated .fi-empty-state-heading { font-size:clamp(1.5rem,2.4vw,2rem); line-height:1.2; text-wrap:balance; }
-.servitech-empty-state--illustrated .fi-empty-state-description { max-inline-size: 55ch; font-size: var(--tala-type-body); line-height: 1.5; color: var(--tala-muted); }
+.servitech-empty-state--illustrated .fi-empty-state-description { max-inline-size: 62ch; font-size: var(--tala-type-body); line-height: 1.5; color: var(--tala-muted); }
+.servitech-empty-state--illustrated .fi-empty-state-footer { margin-block-start: 1.125rem; }
 .servitech-empty-state__art { display: block; inline-size: 11rem; block-size: auto; max-inline-size: 100%; justify-self: center; pointer-events: none; user-select: none; }
 .servitech-empty-collection { container: servitech-collection / inline-size; }
 .servitech-empty-collection > .tala-record-browser-header { padding-inline: 0; border-block-end: 1px solid var(--tala-edge); margin-block-end: 1rem; }
@@ -1285,11 +1324,20 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
     .servitech-empty-collection .tala-record-browser-heading > .fi-ac,
     .servitech-empty-collection .tala-record-browser-heading .fi-btn { inline-size: 100%; }
 }
+@container servitech-empty (min-width: 32rem) {
+    .servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-content { align-items: center; gap: 1rem; }
+    .servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-text-ctn:has(> .fi-empty-state-footer) { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .25rem 1.25rem; }
+    .servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-text-ctn:has(> .fi-empty-state-footer) > .fi-empty-state-heading,
+    .servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-text-ctn:has(> .fi-empty-state-footer) > .fi-empty-state-description { grid-column: 1; }
+    .servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-text-ctn:has(> .fi-empty-state-footer) > .fi-empty-state-footer { grid-column: 2; grid-row: 1; align-self: center; justify-self: end; margin-block-start: 0; }
+    .servitech-empty-state:not(.servitech-empty-state--illustrated) .fi-empty-state-text-ctn:has(> .fi-empty-state-description):has(> .fi-empty-state-footer) > .fi-empty-state-footer { grid-row: 1 / span 2; }
+    .servitech-empty-state:not(.servitech-empty-state--illustrated) .servitech-empty-state__footer { justify-content: flex-end; }
+}
 @container servitech-empty (min-width: 36rem) {
-    .servitech-empty-state--illustrated .servitech-empty-state__layout { grid-template-columns: minmax(0, 1fr) minmax(12rem, 32%); gap: 2rem; padding-block: 1.5rem; }
+    .servitech-empty-state--illustrated .servitech-empty-state__layout { grid-template-columns: minmax(0, 1fr) minmax(11rem, 28%); gap: 1.5rem; padding-block: .25rem; }
     .servitech-empty-state--illustrated .fi-empty-state-content,
     .servitech-empty-state--illustrated .fi-empty-state-text-ctn { justify-items: start; text-align: start; margin-inline: 0; }
-    .servitech-empty-state__art { inline-size: 100%; max-inline-size: 20rem; }
+    .servitech-empty-state__art { inline-size: 100%; max-inline-size: 16rem; }
 }
 @media (forced-colors: active) {
     .servitech-empty-state__art { display: none; }
@@ -1313,10 +1361,10 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 @media (prefers-reduced-motion:no-preference) {
     .tala-gate-attention__item { transition:background-color 140ms ease; }
 }
-.tala-term-gate__urgent { display:grid; gap:var(--tala-card-gap); padding:var(--tala-card-gap) calc(var(--tala-card-gap)*2); border:1px solid var(--tala-status-warning-border); border-radius:var(--tala-card-radius); background:var(--tala-status-warning-bg); color:var(--tala-text); text-align:center; }
+.tala-term-gate__urgent { display:grid; gap:var(--tala-card-gap); padding:var(--tala-card-pad); border:1px solid var(--tala-status-warning-border); border-radius:var(--tala-card-radius); background:var(--tala-status-warning-bg); color:var(--tala-text); text-align:center; }
 .tala-term-gate__urgent-title { margin:0; font-size:.875rem; font-weight:var(--tala-weight-emphasis); }
 .tala-term-gate__urgent-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:var(--tala-card-gap); }
-.tala-term-gate__controls { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--tala-card-gap); padding:calc(var(--tala-card-gap)*2); border:1px solid var(--tala-edge-strong); border-radius:var(--tala-card-radius); background:var(--tala-surface); box-shadow:var(--tala-material-raised); }
+.tala-term-gate__controls { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--tala-card-gap); padding:var(--tala-card-pad); border:1px solid var(--tala-edge-strong); border-radius:var(--tala-card-radius); background:var(--tala-surface); box-shadow:var(--tala-material-raised); }
 .tala-term-gate__controls > * { min-inline-size:0; }
 .tala-term-gate__search { grid-column:1 / -1; }
 .tala-term-gate__actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:var(--tala-card-gap); }
@@ -1332,7 +1380,7 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-record-scope-bar { container:tala-scope-bar / inline-size; display:grid; grid-template-columns:minmax(0,1fr); gap:0; inline-size:100%; padding:0; border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface); box-shadow:var(--tala-material-raised); overflow:visible; }
 .tala-record-scope-bar > :first-child { border-start-start-radius:inherit; border-start-end-radius:inherit; }
 .tala-record-scope-bar > :last-child { border-end-start-radius:inherit; border-end-end-radius:inherit; }
-.tala-record-scope-bar__header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--tala-card-gap) calc(var(--tala-card-gap) * 2); inline-size:100%; padding:var(--tala-card-gap) calc(var(--tala-card-gap) * 2); }
+.tala-record-scope-bar__header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--tala-card-gap) calc(var(--tala-card-gap) * 2); inline-size:100%; padding:var(--tala-card-pad-compact) var(--tala-card-pad); }
 .tala-record-scope-bar__summary { display:flex; align-items:center; gap:var(--tala-card-gap); flex:1 1 20rem; min-inline-size:0; }
 .tala-record-scope-bar__icon-wrap { display:grid; place-items:center; inline-size:2.25rem; block-size:2.25rem; flex:none; border:1px solid var(--tala-selected-edge); border-radius:calc(var(--tala-card-radius) / 2); background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); }
 .tala-record-scope-bar__icon { inline-size:1.125rem; block-size:1.125rem; flex:none; color:currentColor; }
@@ -1341,9 +1389,9 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-record-scope-bar__meta { font-size:var(--tala-type-caption); line-height:1.45; color:var(--tala-muted); overflow-wrap:anywhere; }
 .tala-record-scope-bar__actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--tala-card-gap); margin-inline-start:auto; }
 .tala-record-scope-bar__actions .fi-btn { min-block-size:2.375rem; }
-.tala-record-scope-bar__body { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--tala-card-gap); inline-size:100%; padding:var(--tala-card-gap); background:var(--tala-surface); }
+.tala-record-scope-bar__body { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--tala-card-gap); inline-size:100%; padding:var(--tala-card-pad); background:var(--tala-surface); }
 .tala-record-scope-bar--with-header .tala-record-scope-bar__body { border-block-start:1px solid var(--tala-edge); }
-.tala-record-scope-bar__context { margin:0; padding:0 calc(var(--tala-card-gap) * 2) var(--tala-card-gap); color:var(--tala-muted); font-size:var(--tala-type-caption); line-height:1.4; }
+.tala-record-scope-bar__context { margin:0; padding:0 var(--tala-card-pad) var(--tala-card-pad-compact); color:var(--tala-muted); font-size:var(--tala-type-caption); line-height:1.4; }
 .tala-record-scope-bar__controls { display:flex; flex-wrap:wrap; align-items:end; gap:var(--tala-card-gap) calc(var(--tala-card-gap) * 2); inline-size:100%; min-inline-size:0; }
 .tala-record-scope-bar__controls > * { flex:1 1 12rem; min-inline-size:0; }
 .tala-record-scope-bar__controls .fi-fo-field-wrp { margin:0; }
@@ -1358,7 +1406,7 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 :is(.tala-term-gate,.tala-record-scope-bar,.tala-profile-control) .fi-select-input .fi-select-input-btn { block-size:2.375rem; min-block-size:2.375rem; padding-block:.375rem; }
 :is(.tala-term-gate,.tala-record-scope-bar,.tala-profile-control) .fi-select-input .fi-select-input-value-ctn { min-inline-size:0; overflow:hidden; text-wrap:nowrap; white-space:nowrap; text-overflow:ellipsis; word-break:normal; }
 :is(.tala-term-gate,.tala-record-scope-bar,.tala-profile-control) .fi-select-input .fi-select-input-value-ctn > span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.tala-record-scope-bar__notice { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--tala-card-gap) calc(var(--tala-card-gap) * 2); padding:var(--tala-card-gap) calc(var(--tala-card-gap) * 2); border-block-start:1px solid var(--tala-edge); background:var(--tala-surface); font-size:var(--tala-type-caption); line-height:1.5; color:var(--tala-muted); }
+.tala-record-scope-bar__notice { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--tala-card-gap) calc(var(--tala-card-gap) * 2); padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-start:1px solid var(--tala-edge); background:var(--tala-surface); font-size:var(--tala-type-caption); line-height:1.5; color:var(--tala-muted); }
 .tala-record-scope-bar__notice-text { display:inline-flex; align-items:center; gap:calc(var(--tala-card-gap) / 2); min-inline-size:0; }
 .tala-record-scope-bar__notice-text > .fi-icon { inline-size:1rem; block-size:1rem; flex:none; color:var(--tala-status-warning-icon); }
 .tala-record-scope-bar__notice-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--tala-card-gap); }
@@ -1368,25 +1416,29 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-table--gated :is(.fi-ta-header-toolbar,.fi-ta-filter-indicators,.fi-ta-content-ctn,.fi-ta-empty-state,.fi-pagination-ctn,.fi-ta-pagination) { display:none; }
 
 .tala-workflow-steps { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--tala-card-gap); list-style:none; margin:0; padding:0; }
-.tala-workflow-step { display:flex; flex-direction:column; gap:var(--tala-card-gap); min-inline-size:0; padding:calc(var(--tala-card-gap)*2); border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface); box-shadow:var(--tala-material-detail); color:var(--tala-text); }
-.tala-workflow-step--priority { background:var(--tala-brand-tint); border-color:var(--tala-selected-edge); color:var(--tala-on-brand-tint); }
+.tala-workflow-step { display:flex; flex-direction:column; gap:0; min-inline-size:0; padding:0; overflow:hidden; border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface); box-shadow:var(--tala-material-raised); color:var(--tala-text); }
+.tala-workflow-step--priority { border-color:var(--tala-selected-edge); }
+.tala-workflow-step__body { display:flex; flex:1; flex-direction:column; gap:.5rem; min-inline-size:0; padding:var(--tala-card-pad); }
 .tala-workflow-step__head { display:flex; align-items:center; justify-content:space-between; gap:var(--tala-card-gap); }
 .tala-workflow-step__num { display:inline-grid; place-items:center; min-inline-size:1.75rem; block-size:1.75rem; padding-inline:calc(var(--tala-card-gap)/2); border-radius:999px; border:1px solid var(--tala-edge-strong); background:var(--tala-surface-sunken); color:var(--tala-brand-foreground); font-size:var(--tala-type-caption); font-weight:var(--tala-weight-heading); font-variant-numeric:tabular-nums; }
-.tala-workflow-step--priority .tala-workflow-step__num { background:var(--tala-surface); border-color:transparent; }
+.tala-workflow-step--priority .tala-workflow-step__num { background:var(--tala-brand-tint); border-color:var(--tala-selected-edge); color:var(--tala-on-brand-tint); }
 .tala-workflow-step__icon { inline-size:1.25rem; block-size:1.25rem; color:var(--tala-brand-foreground); flex:none; }
 .tala-workflow-step__title { margin:0; font-size:var(--tala-type-card); font-weight:var(--tala-weight-heading); line-height:1.3; }
 .tala-workflow-step__desc { margin:0; font-size:.875rem; line-height:1.5; color:var(--tala-muted); }
 .tala-workflow-step__figure { display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--tala-card-gap) calc(var(--tala-card-gap)*2); margin-block:0; }
+.tala-workflow-step .tala-workspace-figure > strong { color:var(--tala-brand-foreground); }
 .tala-workflow-step__meta { margin:0; font-size:.8125rem; line-height:1.45; color:var(--tala-muted); }
-.tala-workflow-step--priority :is(.tala-workflow-step__desc,.tala-workflow-step__meta) { color:inherit; }
-.tala-workflow-step__action { display:flex; flex-wrap:wrap; gap:var(--tala-card-gap); margin-block-start:auto; padding-block-start:calc(var(--tala-card-gap)/2); }
-.tala-workflow-step__action > .fi-btn { min-block-size:2.75rem; }
+.tala-workflow-step__action { display:flex; flex-wrap:wrap; gap:var(--tala-card-gap); margin-block-start:auto; padding:var(--tala-card-pad-compact) var(--tala-card-pad); background:var(--tala-surface-sunken); border-block-start:1px solid var(--tala-edge); }
+.tala-workflow-step__action > .fi-btn { inline-size:100%; min-block-size:2.75rem; justify-content:center; white-space:nowrap; }
 
 @container tala-main (min-width:34rem) {
     .tala-workflow-steps { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+@container tala-main (min-width:48rem) {
+    .tala-workflow-steps--three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
 @container tala-main (min-width:56rem) {
-    .tala-workflow-steps { grid-template-columns:repeat(4,minmax(0,1fr)); }
+    .tala-workflow-steps:not(.tala-workflow-steps--three) { grid-template-columns:repeat(4,minmax(0,1fr)); }
 }
 @container tala-main (min-width:52rem) {
     .fi-header:has(.fi-header-actions-ctn) { align-items:flex-start; gap:1rem 1.5rem; }
@@ -1412,4 +1464,644 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
     .tala-gate-attention__item:focus-visible { outline:3px solid Highlight; }
     .tala-gate-attention__icon,.tala-gate-attention__chevron { color:CanvasText; }
     .tala-workflow-step--priority { outline:2px solid Highlight; }
+}
+
+/* Study plan sheet, Year filter tabs, and contextual subject inspector. */
+.tala-curriculum-sheet { display:grid; gap:var(--tala-card-gap); container-type:inline-size; min-inline-size:0; }
+.tala-curriculum-sheet > .fi-tabs,
+.tala-subject-editor-heading > .fi-tabs { justify-self:start; margin-inline:0; }
+.tala-study-plan-tabs-bar { padding:.625rem 1rem 0; border-block-end:1px solid var(--tala-edge); background:var(--tala-surface-sunken); overflow-x:auto; }
+.tala-study-plan-tabs-bar > .fi-tabs { border-block-end:0; margin:0; background:transparent; }
+.tala-subheading-item { display:inline-block; }
+.fi-ta-ctn:not(:has(.fi-ta-filter-indicators [wire\:click*="removeTableFilter"], .fi-ta-filter-indicators [wire\:click*="removeTableFilters"])) :is(
+    .fi-ta-filters-trigger-action-ctn,
+    .fi-ta-filters-dropdown .fi-dropdown-trigger,
+    .fi-ta-filters-modal .fi-modal-trigger
+) :is(.fi-btn-badge-ctn, .fi-icon-btn-badge-ctn),
+.fi-ta-ctn:not(:has(.fi-ta-filter-indicators [wire\:click*="removeTableFilter"], .fi-ta-filter-indicators [wire\:click*="removeTableFilters"])) .fi-ta-filters-header > div { display:none; }
+.tala-profile-directory-table .fi-ta-content-ctn { overflow-x:auto; max-inline-size:100%; }
+.tala-profile-directory-table .fi-ta-table :is(th, td),
+.tala-profile-directory-table .fi-ta-table :is(.fi-ta-cell, .fi-ta-header-cell) { padding:.5rem .5rem; white-space:normal; }
+.tala-profile-directory-table .fi-ta-header-cell-sort-btn { white-space:normal; text-align:start; line-height:1.25; }
+.fi-modal > .fi-modal-close-overlay { box-shadow:0 0 0 100vmax rgb(9 9 11 / 0.5); }
+.dark .fi-modal > .fi-modal-close-overlay { box-shadow:0 0 0 100vmax rgb(9 9 11 / 0.75); }
+/* Contextual sheet editing: full-width sheet at rest; on desktop the editor sits beside it. */
+.tala-record-workspace--sheet { --tala-record-pane-limit:none; grid-template-columns:minmax(0,1fr); gap:var(--tala-card-gap); align-items:start; }
+.tala-record-workspace--sheet > .tala-record-browser { grid-column:1; min-inline-size:0; max-block-size:none; padding:0; overflow:visible; }
+.tala-record-workspace--sheet > .tala-record-detail { grid-column:1; }
+.tala-record-workspace--sheet .tala-record-inspector { padding:var(--tala-card-pad); }
+@media(min-width:48rem) {
+    @container tala-main (min-width:54rem) {
+        .tala-record-workspace--sheet:has(> .tala-record-detail) { grid-template-columns:minmax(0,1.2fr) minmax(24rem,1fr); }
+        .tala-record-workspace--sheet > .tala-record-detail { grid-column:2; position:sticky; inset-block-start:var(--tala-card-gap); max-block-size:calc(100dvh - var(--tala-card-gap) * 2); }
+    }
+    @container tala-main (max-width:53.999rem) {
+        .tala-subject-editor-close { display:none; }
+    }
+}
+@media(max-width:47.99rem) {
+    .tala-subject-editor-close { display:none; }
+}
+.tala-record-workspace--sheet .fi-ta-ctn { border:0; border-radius:0; box-shadow:none; background:transparent; overflow:visible; }
+.tala-record-workspace--sheet .fi-ta-header-toolbar { padding:.75rem 1rem; overflow:visible; border-block-end:1px solid var(--tala-edge); }
+.tala-record-workspace--sheet .fi-ta-filters-trigger-action-ctn { padding-block:.125rem; padding-inline-end:.25rem; }
+.tala-record-workspace--sheet .fi-ta-table { table-layout:auto; inline-size:100%; }
+.tala-record-workspace--sheet :is(.fi-ta-text,.fi-ta-text-item,.fi-ta-cell) { min-inline-size:0; overflow-wrap:break-word; }
+.tala-record-workspace--sheet .tala-record-footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:var(--tala-card-gap); }
+.tala-subject-editor-heading { display:grid; gap:.625rem; margin-block-end:var(--tala-card-gap); padding-block-end:var(--tala-card-gap); border-block-end:1px solid var(--tala-edge); }
+.tala-subject-editor-heading__top { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem; }
+.tala-subject-editor-heading h2 { margin:0; font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); color:var(--tala-text); }
+.tala-subject-editor-heading__actions { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.tala-subject-editor-heading__meta { margin:0; color:var(--tala-text); font-size:.9375rem; }
+.tala-subject-editor-heading__hint { margin:0; color:var(--tala-muted); font-size:var(--tala-type-caption); line-height:1.45; }
+.tala-add-subjects-modal-body { display:grid; gap:var(--tala-card-gap); }
+.tala-add-subjects-modal-body > .fi-tabs { justify-self:stretch; inline-size:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin-inline:0; } .tala-add-subjects-modal-body > .fi-tabs .fi-tabs-item { inline-size:100%; justify-content:center; }
+.tala-add-subjects-modal-footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.75rem; inline-size:100%; }
+
+@container tala-main (min-width:38rem) {
+    .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-sheet, .tala-catalog-detail) .fi-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem 1.25rem; }
+    .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-sheet, .tala-catalog-detail) .fi-header > div:first-child:not(.fi-header-actions-ctn) { flex:1 1 16rem; min-inline-size:0; }
+    .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-sheet, .tala-catalog-detail) .fi-header-actions-ctn { width:auto; flex:0 1 auto; }
+    .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-sheet, .tala-catalog-detail) .fi-header-actions-ctn > .fi-ac { width:auto; justify-content:flex-end; }
+}
+
+.tala-data-table .fi-ta-group-header-row > .fi-ta-group-header-cell { padding:0 1rem; background:var(--tala-surface-sunken); border-block-start:2px solid var(--tala-edge-strong); border-block-end:1px solid var(--tala-edge-strong); }
+.tala-data-table .fi-ta-group-header-row:first-child > .fi-ta-group-header-cell { border-block-start:1px solid var(--tala-edge); }
+.tala-data-table .fi-ta-group-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; background:transparent; padding-block:.6875rem; }
+.tala-data-table .fi-ta-group-header > div:first-child { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; flex:1 1 auto; gap:.25rem .875rem; min-inline-size:0; }
+.tala-data-table .fi-ta-group-heading { color:var(--tala-text); font-size:.9375rem; font-weight:700; line-height:1.35; }
+.tala-data-table .fi-ta-group-description { margin:0; font-size:.8125rem; font-weight:var(--tala-weight-emphasis); color:var(--tala-muted); font-variant-numeric:tabular-nums; white-space:nowrap; }
+/* Structured semester ledger tables. */
+.tala-study-plan .fi-ta-text { min-inline-size:0; overflow-wrap:break-word; }
+.tala-study-plan .fi-ta-table:not(.fi-ta-table-stacked-on-mobile) th:nth-child(2),
+.tala-study-plan .fi-ta-table:not(.fi-ta-table-stacked-on-mobile) td:nth-child(2) { inline-size:5.5rem; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.tala-study-plan .fi-ta-table:not(.fi-ta-table-stacked-on-mobile) th:last-child,
+.tala-study-plan .fi-ta-table:not(.fi-ta-table-stacked-on-mobile) td:last-child { inline-size:3rem; }
+.tala-record-repeater .fi-fo-repeater-item { background:var(--tala-surface-sunken); }
+.tala-record-repeater .fi-fo-repeater-item-header { background:var(--tala-surface); border-start-start-radius:inherit; border-start-end-radius:inherit; border-block-end:1px solid var(--tala-edge); }
+.tala-record-repeater .fi-fo-repeater-item-content { background:transparent; }
+.fi-page-header-main-ctn:has(.tala-curriculum-sheet) { row-gap:var(--tala-card-gap); }
+.fi-page-content > [wire\:partial="action-modals"] { display:contents; }
+
+/* Shared Catalog & Curricula subject detail workspace. */
+.tala-catalog-detail { display:grid; gap:var(--tala-card-gap); color:var(--tala-text); container-type:inline-size; min-inline-size:0; }
+.tala-catalog-workspace { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(19rem,1fr); align-items:start; gap:var(--tala-card-gap); }
+.tala-catalog-rail { display:grid; gap:var(--tala-card-gap); min-inline-size:0; }
+.tala-catalog-panel { display:grid; gap:var(--tala-card-gap); min-inline-size:0; padding:var(--tala-card-pad); }
+.tala-catalog-panel h2 { margin:0; font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); line-height:1.35; overflow-wrap:break-word; }
+.tala-catalog-panel__header { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap); }
+.tala-catalog-meta { margin:0; font-size:var(--tala-type-caption); color:var(--tala-muted); line-height:1.5; }
+.tala-catalog-tile-list { display:grid; gap:calc(var(--tala-card-gap)*0.75); margin:0; padding:0; list-style:none; }
+.tala-catalog-tile { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--tala-card-gap); padding:var(--tala-card-pad-compact); border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface-sunken); min-inline-size:0; }
+.tala-catalog-tile.is-current { border-color:var(--tala-selected-edge); background:var(--tala-surface); color:var(--tala-text); }
+.tala-catalog-tile__body { display:grid; gap:.1875rem; min-inline-size:0; }
+.tala-catalog-tile__body strong { font-size:.9375rem; font-weight:var(--tala-weight-heading); line-height:1.35; overflow-wrap:break-word; }
+.tala-catalog-tile__body span { font-size:var(--tala-type-caption); color:var(--tala-muted); line-height:1.45; }
+.tala-catalog-tile.is-current .tala-catalog-tile__body span { color:inherit; }
+.tala-catalog-tile__actions { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.tala-catalog-kv-list { display:grid; gap:var(--tala-card-gap); margin:0; }
+.tala-catalog-kv-list > div { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap); padding-block-end:var(--tala-card-gap); border-block-end:1px solid var(--tala-edge); }
+.tala-catalog-kv-list > div:last-child { padding-block-end:0; border-block-end:0; }
+.tala-catalog-kv-list dt { font-size:var(--tala-type-caption); line-height:1.4; color:var(--tala-muted); }
+.tala-catalog-kv-list dd { margin:0; font-size:var(--tala-type-body); font-weight:var(--tala-weight-emphasis); line-height:1.5; color:var(--tala-text); font-variant-numeric:tabular-nums; text-align:end; overflow-wrap:break-word; }
+@container (max-width:56rem) {
+    .tala-catalog-workspace { grid-template-columns:minmax(0,1fr); }
+}
+@container (max-width:34rem) {
+    .tala-catalog-panel { padding:var(--tala-card-pad-compact); }
+    .tala-catalog-kv-list > div { flex-direction:column; gap:.25rem; }
+    .tala-catalog-kv-list dd { text-align:start; }
+}
+@media (forced-colors:active) {
+    .tala-catalog-tile { background:Canvas; color:CanvasText; border-color:CanvasText; }
+    .tala-catalog-tile.is-current { border:2px solid Highlight; }
+}
+
+/* Catalog & Curricula overview: shared .tala-workspace-feature coverage bar + segmented native Filament curricula table. */
+.tala-catalog-overview { container: catalog-overview / inline-size; display: grid; gap: var(--tala-section-gap, 1.25rem); }
+.tala-catalog-overview > .tala-workspace-launcher__main { gap: var(--tala-card-gap, 1rem); }
+.tala-catalog-curricula-section { display: grid; gap: var(--tala-card-gap, 1rem); min-inline-size: 0; }
+.tala-catalog-curricula-section > .fi-tabs.tala-segmented-tabs { justify-self: start; }
+
+.tala-visually-hidden { position:absolute; inline-size:1px; block-size:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+.tala-plan-warning { color:var(--tala-status-warning-fg); font-weight:var(--tala-weight-emphasis); }
+.tala-activation-impact { display:grid; gap:.875rem; }
+.tala-activation-impact__effects { display:grid; gap:.5rem; margin:0; padding-inline-start:1.125rem; list-style:disc; font-size:.875rem; line-height:1.5; color:var(--tala-text); }
+.tala-activation-impact__list { margin-block-start:.25rem; font-size:var(--tala-type-caption); }
+.tala-activation-impact__list > summary { cursor:pointer; color:var(--tala-brand-foreground); text-decoration:underline; text-underline-offset:.2em; }
+.tala-activation-impact__list ul { margin:.375rem 0 0; padding-inline-start:1rem; list-style:circle; }
+.tala-study-plan .fi-ta-header-toolbar > .fi-ta-actions:not(:has(*)) { display:none; }
+.tala-study-plan .fi-ta-header-toolbar > div:has(> .fi-ta-search-field) { flex:1 1 auto; display:flex; align-items:center; gap:.75rem; min-inline-size:0; }
+.tala-study-plan .fi-ta-header-toolbar .fi-ta-search-field { flex:1 1 auto; max-inline-size:36rem; }
+
+.tala-study-plan .fi-ta-row.is-selected:not(.fi-ta-group-header-row),
+.tala-study-plan .fi-ta-row.is-selected:not(.fi-ta-group-header-row):hover { background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); }
+.tala-subject-editor-heading__code { margin:.125rem 0 0; color:var(--tala-muted); font-size:var(--tala-type-caption); }
+.tala-subject-editor-facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(7rem,1fr)); gap:.5rem 1rem; margin:0; padding:var(--tala-card-pad-compact); border-radius:calc(var(--tala-card-radius) / 2); background:var(--tala-surface-sunken); }
+.tala-subject-editor-facts dt { font-size:var(--tala-type-caption); color:var(--tala-muted); }
+.tala-subject-editor-facts dd { margin:0; font-size:.875rem; color:var(--tala-text); overflow-wrap:break-word; }
+.tala-subject-editor-heading__links { display:flex; flex-wrap:wrap; align-items:baseline; gap:.5rem 1.25rem; }
+.tala-subject-editor-heading__links :is(a, button, .fi-link) { display:inline-flex; align-items:baseline; font-size:.875rem; line-height:1.4; }
+.tala-qualification-list { display:grid; gap:var(--tala-card-gap); }
+.tala-qualification { display:grid; gap:.625rem; padding:var(--tala-card-pad-compact); border:1px solid var(--tala-edge); border-radius:calc(var(--tala-card-radius) / 2); }
+.tala-qualification__body h3 { margin:0; font-size:.9375rem; font-weight:var(--tala-weight-heading); }
+.tala-qualification__body p { margin:.25rem 0 0; font-size:.875rem; color:var(--tala-text); }
+.tala-qualification-list__empty { color:var(--tala-muted); font-size:var(--tala-type-caption); }
+.tala-qualification__actions { display:flex; flex-wrap:wrap; gap:.5rem; }
+.tala-catalog-workspace:not(:has(> .tala-catalog-rail)) { grid-template-columns:minmax(0,1fr); }
+
+/* INC & Corrections card toolbar, Term Planning setup links, Enrollments hub hierarchy, and Applicant Home inline actions. */
+.tala-inc-card { border-radius:var(--tala-card-radius); overflow:visible; }
+.tala-inc-toolbar { padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-end:1px solid var(--tala-edge); background:var(--tala-surface-sunken); border-start-start-radius:inherit; border-start-end-radius:inherit; }
+.tala-inc-card > .tala-inc-workspace { padding:.75rem; }
+.tala-planning-setup-links { display:grid; gap:.75rem; }
+.tala-planning-setup-links > h2 { margin:0; color:var(--tala-text); font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); }
+.tala-planning-setup-links > .tala-planning-reveal { margin:0; }
+.oversight-welcome-main.servitech-journey-scene { overflow:hidden; }
+.registrar-workbench .tala-workspace-launcher__split > .tala-task-surface { display:flex; flex-direction:column; justify-content:space-between; border-color:var(--tala-edge); box-shadow:var(--tala-material-raised); }
+.registrar-workbench .registrar-records-entry { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:1rem; }
+.registrar-workbench .registrar-records-entry > div { flex:1 1 16rem; min-inline-size:0; }
+.registrar-workbench .registrar-records-entry > .fi-btn { flex:0 0 auto; min-block-size:2.5rem; }
+.tala-home-alert { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:1rem; padding:var(--tala-card-pad-compact) var(--tala-card-pad); border:1px solid var(--tala-status-warning-border); border-radius:var(--tala-card-radius); background:var(--tala-status-warning-bg); color:var(--tala-text); }
+.tala-home-alert h2 { margin:0; font-size:1rem; font-weight:var(--tala-weight-emphasis); }
+.tala-home-alert p { margin:.25rem 0 0; font-size:.875rem; color:var(--tala-muted); }
+.tala-home-card-footer { margin-block-start:1rem; padding-block-start:.875rem; border-block-start:1px solid var(--tala-edge); display:flex; justify-content:flex-start; }
+
+/* Fee plans table: eliminate dead mid-table gap and align prices directly beneath headers. */
+@container tala-main (min-width:44rem) {
+    .accounting-records-table.fee-plans-table .fee-plans-col-program { inline-size:32%; }
+    .accounting-records-table.fee-plans-table .fee-plans-col-status { inline-size:20%; max-inline-size:14rem; }
+    .accounting-records-table.fee-plans-table :is(th, td).fee-plans-col-money { inline-size:16%; text-align:start; white-space:nowrap; }
+    .accounting-records-table.fee-plans-table th.fee-plans-col-money > *,
+    .accounting-records-table.fee-plans-table td.fee-plans-col-money .fi-ta-text { justify-content:flex-start; text-align:start; }
+    .accounting-records-table.fee-plans-table .fi-ta-actions-cell { inline-size:16%; text-align:end; white-space:nowrap; }
+}
+
+/* Raised info surface hierarchy, modal form sections, and Fee Plan version cards. */
+@media (forced-colors: none) {
+    .fi-body :is(
+        .tala-context-inset,
+        .accounting-source-details,
+        .accounting-account-context,
+        .accounting-charge-summary,
+        .accounting-payment-dates,
+        .accounting-recent-records,
+        .accounting-source-comparison,
+        .accounting-fee-plan-summary__metrics,
+        .accounting-fee-plan-panel,
+        .accounting-fee-plan-confirmation__group,
+        .registrar-case-grid > section:not(.accounting-assessment-sources),
+        .tala-task-surface .tala-task-surface,
+        .tala-record-workspace [data-slot="inspector"] > .tala-task-surface,
+        .accounting-selected-record > .tala-task-surface,
+        .accounting-selected-record .tala-task-surface,
+        .payment-channels-preview-card,
+        .payment-channels-workbench__editor .fi-section
+    ) {
+        background-color: var(--tala-surface-raised);
+        border: 1px solid var(--tala-edge-strong);
+        box-shadow: var(--tala-material-detail);
+    }
+
+    .fi-body .registrar-case-preparation {
+        background-color: color-mix(in srgb, var(--tala-brand) 10%, var(--tala-surface-raised));
+        border: 1px solid var(--tala-selected-edge);
+        border-radius: var(--tala-card-radius);
+        box-shadow: var(--tala-material-detail);
+        padding: var(--tala-card-pad);
+    }
+
+    .fi-body :is(
+        .accounting-selected-record,
+        .accounting-source-comparison,
+        .accounting-account-details,
+        .accounting-export,
+        .registrar-case,
+        .registrar-case-grid,
+        .registrar-history-grid,
+        .registrar-workbench,
+        .registrar-workbench-grid,
+        .tala-record-workspace
+    ) {
+        gap: var(--tala-card-gap);
+    }
+
+    .fi-body .accounting-source-comparison {
+        padding: var(--tala-card-pad);
+    }
+
+    @media (min-width: 48.001rem) {
+        .fi-body .accounting-source-comparison > section + section {
+            padding-inline-start: var(--tala-card-pad);
+        }
+    }
+
+    .fi-body :is(
+        .accounting-charge-summary,
+        .accounting-record-workspace .accounting-recent-records,
+        .accounting-current-payment,
+        .accounting-fee-plan-summary,
+        .accounting-fee-plan-panel
+    ) {
+        padding: var(--tala-card-pad);
+    }
+
+    .fi-body .accounting-finance-form-section {
+        padding: var(--tala-card-pad-compact) var(--tala-card-pad);
+        border: 1px solid var(--tala-edge-strong);
+        border-radius: var(--tala-card-radius);
+        background-color: color-mix(in srgb, var(--tala-surface-sunken) 55%, var(--tala-overlay));
+    }
+
+    .fi-body .fi-modal-window .fi-fo-repeater-item {
+        background-color: var(--tala-surface-raised);
+        border: 1px solid var(--tala-edge-strong);
+        border-radius: var(--tala-card-radius);
+        box-shadow: var(--tala-material-detail);
+    }
+
+    .fi-body .fi-modal-window .fi-fo-repeater-item-header {
+        background-color: color-mix(in srgb, var(--tala-surface-sunken) 40%, var(--tala-surface-raised));
+        border-block-end: 1px solid var(--tala-edge);
+        padding: 0.5rem var(--tala-card-pad-compact);
+    }
+
+    .fi-body .fi-modal-window .fi-fo-repeater-item-content {
+        padding: var(--tala-card-pad-compact);
+    }
+    .fi-body select.fi-select-input {
+        -webkit-appearance: none;
+        appearance: none;
+    }
+    .fi-body select.fi-select-input::picker-icon {
+        display: none;
+    }
+}
+
+.accounting-fee-plan-versions > li > .accounting-fee-plan-version-card {
+    display: grid;
+    gap: 0.25rem;
+    padding: var(--tala-card-pad-compact);
+    border: 1px solid var(--tala-edge-strong);
+    border-radius: var(--tala-card-radius);
+    background-color: var(--tala-surface-sunken);
+    color: var(--tala-text);
+    text-decoration: none;
+    transition: background-color 140ms ease, border-color 140ms ease;
+}
+.accounting-fee-plan-versions > li > a.accounting-fee-plan-version-card:hover {
+    background-color: var(--tala-surface-raised);
+    border-color: var(--tala-control-border);
+}
+.accounting-fee-plan-versions > li.is-current > .accounting-fee-plan-version-card,
+.accounting-fee-plan-versions .accounting-fee-plan-version-current {
+    background-color: color-mix(in srgb, var(--tala-brand) 12%, var(--tala-surface-raised));
+    border-color: var(--tala-selected-edge);
+    box-shadow: var(--tala-material-detail);
+    color: var(--tala-text);
+}
+.accounting-fee-plan-version-card__head {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-inline-size: 0;
+}
+.accounting-fee-plan-version-card__head strong {
+    font-size: 0.9375rem;
+    font-weight: var(--tala-weight-heading);
+    color: var(--tala-text);
+}
+.accounting-fee-plan-version-card__head .fi-badge {
+    flex: none;
+    white-space: nowrap;
+}
+.accounting-fee-plan-version-card__meta {
+    margin: 0;
+    font-size: var(--tala-type-caption);
+    color: var(--tala-muted);
+    font-weight: 400;
+    line-height: 1.4;
+}
+.accounting-fee-plan-version-card__open {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: none;
+    white-space: nowrap;
+    font-size: var(--tala-type-caption);
+    font-weight: var(--tala-weight-emphasis);
+    color: var(--tala-brand-foreground);
+}
+.accounting-fee-plan-version-card__open .fi-icon {
+    inline-size: 1rem;
+    block-size: 1rem;
+}
+
+.accounting-unassessed-grid.registrar-case-grid {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+}
+.accounting-assessment-sources__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--tala-card-gap);
+    margin-block-start: var(--tala-card-gap);
+}
+@container (min-width: 28rem) {
+    .accounting-assessment-sources__grid:has(> article + article) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+.fi-body .accounting-assessment-source-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--tala-edge-strong);
+    border-radius: calc(var(--tala-card-radius) * 0.85);
+    background-color: var(--tala-surface-raised);
+    box-shadow: var(--tala-material-detail);
+    min-inline-size: 0;
+}
+.fi-body .accounting-assessment-source-card__body {
+    display: grid;
+    align-content: start;
+    gap: 0.375rem;
+    flex: 1 1 auto;
+    padding: var(--tala-card-pad);
+}
+.fi-body .accounting-assessment-source-card > .tala-workspace-feature__action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-block-start: auto;
+    padding: var(--tala-card-pad-compact) var(--tala-card-pad);
+    background: var(--tala-surface-sunken);
+    border-block-start: 1px solid var(--tala-edge);
+}
+.fi-body .accounting-assessment-source-card > .tala-workspace-feature__action .fi-btn {
+    margin-block-start: 0;
+}
+.fi-body .accounting-subjects-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    margin-block-end: 0.75rem;
+}
+.fi-body .accounting-subjects-head__lead {
+    display: grid;
+    gap: 0.125rem;
+    min-inline-size: 0;
+}
+.fi-body .accounting-subjects-head__lead h2 {
+    margin: 0;
+}
+.fi-body .accounting-subjects-head__count {
+    margin: 0;
+    font-size: var(--tala-type-caption);
+    color: var(--tala-muted);
+    font-variant-numeric: tabular-nums;
+}
+.fi-body .accounting-subjects-head__metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+}
+.fi-body .accounting-subjects-head__metrics > div {
+    display: grid;
+    gap: 0.125rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: calc(var(--tala-card-radius) * 0.65);
+    background: var(--tala-surface-sunken);
+}
+.fi-body .accounting-subjects-head__metrics dt {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--tala-muted);
+    line-height: 1.25;
+}
+.fi-body .accounting-subjects-head__metrics dd {
+    margin: 0;
+    font-size: var(--tala-type-caption);
+    font-weight: var(--tala-weight-emphasis);
+    color: var(--tala-text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+}
+.accounting-assessment-source-card h3 {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: var(--tala-weight-heading);
+    line-height: 1.35;
+}
+.accounting-assessment-source-card p {
+    margin: 0;
+    font-size: var(--tala-type-caption);
+    line-height: 1.45;
+    color: var(--tala-muted);
+}
+.accounting-assessment-source-card p.accounting-assessment-source-card__summary {
+    color: var(--tala-text);
+    font-weight: var(--tala-weight-emphasis);
+    font-variant-numeric: tabular-nums;
+}
+.accounting-assessment-source-card .fi-btn,
+.accounting-assessment-sources__grid .fi-btn,
+.registrar-case-task-actions .fi-btn {
+    margin-block-start: auto;
+    inline-size: 100%;
+    min-block-size: 2.75rem;
+    white-space: nowrap;
+}
+@media (max-width: 40rem) {
+    .accounting-assessment-source-card .fi-btn,
+    .accounting-assessment-sources__grid .fi-btn,
+    .registrar-case-task-actions .fi-btn {
+        white-space: normal;
+    }
+}
+
+.accounting-plan-confirmation__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--tala-card-gap);
+    align-items: start;
+}
+@container (min-width: 38rem) {
+    .accounting-plan-confirmation__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (min-width: 48rem) {
+    .accounting-plan-confirmation__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* System-wide canonical card padding overrides for shared enrollment, student, registrar, and accounting panels. */
+.fi-body :is(
+    .registrar-work-panel,
+    .registrar-start-panel,
+    .registrar-progress-panel,
+    .registrar-records-entry,
+    .student-home-payment,
+    .student-finance-summary,
+    .student-study-context,
+    .accounting-overview-strip:not(.payment-channels-summary),
+    .accounting-student-lookup,
+    .accounting-workbench .accounting-step-body,
+    .accounting-recent-records,
+    .tala-how-to-pay--page,
+    .tala-where-to-pay--page,
+    .tala-channel-card,
+    .registrar-case-waiting,
+    .registrar-case-progress-payment,
+    .registrar-case-closed .registrar-case-reopen,
+    .registrar-history-grid > section,
+    .registrar-history-grid > .registrar-case-sources
+) {
+    padding: var(--tala-card-pad);
+}
+
+.fi-body .accounting-overview-strip.payment-channels-summary,
+.fi-body :is(.payment-channels-preview-card__head, .payment-channels-preview-card__footer) {
+    padding: var(--tala-card-pad-compact) var(--tala-card-pad);
+}
+
+.fi-body .payment-channels-preview-card__body {
+    padding: var(--tala-card-pad-compact);
+}
+
+.fi-body :is(
+    .accounting-source-details,
+    .accounting-account-context,
+    .accounting-fee-plan-summary__metrics,
+    .accounting-fee-plan-confirmation__group,
+    .tala-how-to-pay--compact,
+    .tala-where-to-pay--compact,
+    .tala-how-to-pay__group
+),
+.fi-body :is(
+    .tala-how-to-pay--compact,
+    .tala-how-to-pay--preview,
+    .tala-where-to-pay--compact,
+    .tala-where-to-pay--preview
+) .tala-channel-card {
+    padding: var(--tala-card-pad-compact);
+}
+
+.fi-body .tala-how-to-pay__group .tala-channel-card.tala-channel-card--electronic {
+    padding: 0;
+}
+
+.fi-body .tala-how-to-pay__group .tala-how-to-pay__accounts-grid--multi .tala-channel-card.tala-channel-card--electronic {
+    padding: var(--tala-card-pad-compact);
+}
+
+/* Flatten Student accounts "Choose assessment source" so option cards align flush without triple-nested padding. */
+.fi-body .accounting-selected-record .registrar-case-grid > section {
+    padding: var(--tala-card-pad);
+}
+
+.fi-body :is(.accounting-selected-record, .registrar-case) .registrar-case-grid > section.accounting-assessment-sources {
+    display: grid;
+    gap: var(--tala-card-gap);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.fi-body :is(.accounting-selected-record, .registrar-case) .accounting-assessment-sources > h2 {
+    margin: 0;
+}
+
+.fi-body :is(.accounting-selected-record, .registrar-case) .accounting-assessment-sources > .accounting-assessment-sources__grid {
+    padding-block: 0;
+}
+
+.fi-body .student-record-workspace .student-record-term .student-academic-table-wrap.tala-data-table-scroll {
+    padding: 0;
+}
+
+.fi-body .tala-workspace-coverage__table.tala-data-table-scroll {
+    border: 0;
+    border-radius: 0;
+    max-block-size: none;
+}
+
+.fi-body .accounting-fee-plan-panel {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.fi-body .payment-channels-preview-only {
+    inline-size: 100%;
+    max-inline-size: 100%;
+}
+
+.fi-body .payment-channels-preview-card__footer {
+    background: var(--tala-surface-sunken);
+    border-block-start: 1px solid var(--tala-edge);
+}
+
+.fi-body .tala-channel-card__footer {
+    display: grid;
+    gap: 0.625rem;
+    padding-block-start: 0.75rem;
+    border-block-start: 1px solid var(--tala-edge);
+}
+
+.fi-body .tala-channel-card__footer .tala-channel-card__instructions {
+    margin: 0;
+    font-size: var(--tala-type-caption);
+    line-height: 1.5;
+    color: var(--tala-muted);
+}
+
+.fi-body .tala-channel-card__onsite-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: calc(var(--tala-card-radius) * 0.65);
+    background: var(--tala-surface-sunken);
+    font-size: var(--tala-type-caption);
+    line-height: 1.45;
+    color: var(--tala-text);
+}
+
+.fi-body .tala-channel-card__onsite-callout > .fi-icon {
+    inline-size: 1rem;
+    block-size: 1rem;
+    margin-block-start: 0.125rem;
+    flex-shrink: 0;
+    color: var(--tala-brand-foreground);
+}
+
+.fi-body .tala-account-profile :is(.tala-profile-credentials-section.fi-section, .tala-profile-credentials-section .fi-section):not(.fi-section-not-contained):not(.fi-divided) > .fi-section-content-ctn > .fi-section-content {
+    padding: var(--tala-card-pad);
+}
+
+.fi-body .tala-account-profile :is(.tala-profile-credentials-section.fi-section, .tala-profile-credentials-section .fi-section):not(.fi-section-not-contained):not(.fi-divided):has(.fi-sc-actions .fi-btn) > .fi-section-content-ctn > .fi-section-content {
+    padding: var(--tala-card-pad) var(--tala-card-pad) 0;
+}
+
+.fi-body .tala-account-profile .tala-profile-credentials-section .fi-sc-form .fi-sc-actions {
+    margin-inline: calc(var(--tala-card-pad) * -1);
+    padding: var(--tala-card-pad-compact) var(--tala-card-pad);
+}
+
+.fi-body .tala-account-profile .tala-profile-credentials-section .fi-sc-form .fi-sc-actions:not(:has(.fi-btn)) {
+    display: none;
 }

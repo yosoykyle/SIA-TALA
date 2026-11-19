@@ -132,7 +132,7 @@ final class TAL58TermOfferingsResourceFoundationTest extends TestCase
         $this->assertTrue($offering->courseSpecification()?->is($specification));
         $this->assertTrue($offering->course()?->is($course));
         $this->assertSame('3.00', $offering->courseSpecification()->credit_units);
-        $this->assertSame(3.0, $offering->courseSpecification()->totalWeeklyContactHours());
+        $this->assertSame(3.0, (float) $offering->courseSpecification()->components()->sum('weekly_contact_hours'));
         $this->assertTrue($offering->usesSpecialReason());
     }
 

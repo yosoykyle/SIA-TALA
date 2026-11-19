@@ -41,6 +41,13 @@ class AccountSecurity extends EditProfile
 
     protected string $view = 'filament.pages.profile';
 
+    public bool $editingCredentials = false;
+
+    public function startEditingCredentials(): void
+    {
+        $this->editingCredentials = true;
+    }
+
     public function content(Schema $schema): Schema
     {
         $user = $this->getUser();
@@ -53,7 +60,20 @@ class AccountSecurity extends EditProfile
         return $schema->components([
             Grid::make(['default' => 1, 'lg' => 12])->schema([
                 Section::make('Email and password')
-                    ->description('Manage your sign-in details. Confirm your current password when making a change.')
+                    ->description(fn (): string => $this->editingCredentials
+                        ? 'Confirm your current password when saving changes.'
+                        : 'Your sign-in identity and verified email address.')
+                    ->headerActions([
+                        Action::make('editCredentials')
+                            ->label(fn (): string => $this->getUser() instanceof User && $this->getUser()->isStaffCapable()
+                                ? 'Change password'
+                                : 'Update email or password')
+                            ->icon('heroicon-o-key')
+                            ->color('gray')
+                            ->size('sm')
+                            ->visible(fn (): bool => ! $this->editingCredentials)
+                            ->action(fn () => $this->startEditingCredentials()),
+                    ])
                     ->extraAttributes(['class' => 'tala-profile-credentials-section'])
                     ->schema([$this->getFormContentComponent()])
                     ->columnSpan(['default' => 1, 'lg' => 7]),
@@ -114,6 +134,8 @@ class AccountSecurity extends EditProfile
             ->color('gray')
             ->modalHeading('Profile photo')
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalDescription('Choose a photo for your account profile. Your photo stays private.')
             ->modalSubmitActionLabel('Save photo')
             ->authorize(function (): bool {
@@ -146,6 +168,9 @@ class AccountSecurity extends EditProfile
             ->icon('heroicon-o-trash')
             ->color('gray')
             ->requiresConfirmation()
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalHeading('Remove profile photo')
             ->modalDescription('Your account will return to showing your initials.')
             ->modalSubmitActionLabel('Remove photo')
@@ -242,8 +267,8 @@ class AccountSecurity extends EditProfile
     protected function getFormActions(): array
     {
         return [
-            $this->getCancelFormAction(),
-            $this->getSaveFormAction()->label('Save changes'),
+            $this->getCancelFormAction()->visible(fn (): bool => $this->editingCredentials),
+            $this->getSaveFormAction()->label('Save changes')->visible(fn (): bool => $this->editingCredentials),
         ];
     }
 
@@ -265,6 +290,7 @@ class AccountSecurity extends EditProfile
         $this->fillForm();
         $this->clearCredentialSecrets();
         $this->resetValidation();
+        $this->editingCredentials = false;
     }
 
     public function save(): void
@@ -289,6 +315,7 @@ class AccountSecurity extends EditProfile
         parent::save();
 
         $this->clearCredentialSecrets();
+        $this->editingCredentials = false;
     }
 
     /**
@@ -320,6 +347,7 @@ class AccountSecurity extends EditProfile
                 $this->getEmailFormComponent(),
                 Fieldset::make('Change password')
                     ->columns(1)
+                    ->visible(fn (): bool => $this->editingCredentials)
                     ->extraAttributes(['class' => 'tala-profile-password-box'])
                     ->schema([
                         $this->getCurrentPasswordFormComponent(),
@@ -349,10 +377,10 @@ class AccountSecurity extends EditProfile
         return $component
             ->label('Verified sign-in email')
             ->live(condition: false)
-            ->disabled(fn (): bool => $this->getUser() instanceof User && $this->getUser()->isStaffCapable())
+            ->disabled(fn (): bool => ! $this->editingCredentials || ($this->getUser() instanceof User && $this->getUser()->isStaffCapable()))
             ->helperText(fn (): string => $this->getUser() instanceof User && $this->getUser()->isStaffCapable()
                 ? 'Staff account email changes are managed by a System Administrator.'
-                : 'Your current email remains active until the successor address is verified.');
+                : 'Your current email remains active until the new address is verified.');
     }
 
     protected function getCurrentPasswordFormComponent(): TextInput

@@ -158,7 +158,10 @@ class Requirements extends Page implements HasTable
                     ->url(fn (AdmissionRequirement $record): ?string => ($row($record)['evidence'] ?? null) instanceof DocumentEvidence
                         ? route('admissions.evidence.download', ['evidence' => $row($record)['evidence']])
                         : null),
-            ]);
+            ])
+            ->emptyStateHeading('No preliminary review copies required')
+            ->emptyStateDescription('No preliminary review uploads apply to your submitted application.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
     /** @return array<int, array{requirement: AdmissionRequirement, evidence: ?DocumentEvidence, result: string, instruction: string, updated_at: mixed, action: string}> */

@@ -152,7 +152,6 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
             ...DB::table('enrollments')->pluck('status_reason')->filter(),
             ...DB::table('holds')->pluck('reason')->filter(),
             ...DB::table('accounting_adjustments')->pluck('reason')->filter(),
-            ...DB::table('curriculum_versions')->pluck('approval_reference')->filter(),
         ])->implode("\n");
 
         $this->assertDoesNotMatchRegularExpression(

@@ -14,7 +14,19 @@
         @php($checklist = $this->requirementChecklist($application))
         @php($announcements = $this->schoolAnnouncements())
         @php($support = $this->supportContact($application))
-        <div class="space-y-6">
+        @php($failedNotification = $this->failedNotification())
+        <div class="space-y-4">
+            @if ($failedNotification)
+                <section class="tala-notice--warning tala-home-alert" role="status" aria-labelledby="tala-failed-delivery-title">
+                    <div>
+                        <h2 id="tala-failed-delivery-title">Admissions email delivery failed</h2>
+                        <p>Your application status is unchanged, but the latest admissions email update could not be delivered.</p>
+                    </div>
+                    <div class="tala-home-alert__actions">
+                        {{ $this->resendFailedNotificationAction }}
+                    </div>
+                </section>
+            @endif
             <div class="tala-home">
                 <div class="tala-home__summary">
                     <x-filament::section class="tala-home-summary" icon="heroicon-o-document-text" icon-color="primary">
@@ -29,6 +41,11 @@
                                 <div><dt>Program</dt><dd>{{ $application->program ? \App\Models\Program::applicantName($application->program->name) : 'Program not selected' }}</dd></div>
                                 <div><dt>Student type</dt><dd>{{ \App\Models\AdmissionCycle::studentTypeLabel($application->application_path) }}</dd></div>
                             </dl>
+                            @if ($this->canWithdraw())
+                                <div class="tala-home-card-footer">
+                                    {{ $this->withdrawApplicationAction }}
+                                </div>
+                            @endif
                         @else
                             <div class="tala-home-status">
                                 <x-filament::badge color="gray">Not started</x-filament::badge>

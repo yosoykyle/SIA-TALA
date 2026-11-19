@@ -37,10 +37,10 @@
                         @endif
                     </div>
                 @else
-                    <p class="tala-availability-whole-term">Unavailable for the whole Term. Current official meetings remain unchanged until the Registrar publishes a validated successor.</p>
+                    <p class="tala-availability-whole-term">Unavailable for the whole Term. Current official meetings remain unchanged until the Registrar publishes an updated schedule.</p>
                 @endif
             @endif
-            @if ($hasPublishedImpact)<p role="status" class="mt-3 text-sm"><strong>Official timetable review required.</strong> Your latest answer conflicts with a current assignment. Registrar must publish a validated successor; current meetings remain official. <x-filament::link :href="\App\Filament\Pages\FacultySchedule::getUrl(['termId' => $term->id])">View official schedule</x-filament::link></p>@endif
+            @if ($hasPublishedImpact)<p role="status" class="mt-3 text-sm"><strong>Official timetable review required.</strong> Your latest answer conflicts with a current assignment. Registrar must publish an updated schedule; current meetings remain official. <x-filament::link :href="\App\Filament\Pages\FacultySchedule::getUrl(['termId' => $term->id])">View official schedule</x-filament::link></p>@endif
             @if ($availabilityRequested || $currentDeclaration)
                 <details class="mt-3 text-sm"><summary>Request details</summary>
 <div class="tala-planning-reveal"><p>{{ $availabilityDeadlineSource ?: 'Deadline source unavailable' }} · Registrar</p><p>Availability updates help the Registrar plan; current official meetings remain unchanged.</p>

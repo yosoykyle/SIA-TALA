@@ -14,6 +14,8 @@ use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
+use App\Models\StudentProfile;
+use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -36,6 +38,18 @@ class PrepareStandardRegistration
             || $enrollment->currentProposalVersion?->state === RegistrationProposalVersion::StateConfirmed) {
             return $enrollment;
         }
+        $enrollment->loadMissing(['studentProfile', 'term']);
+        if ($enrollment->studentProfile !== null
+            && $enrollment->term !== null
+            && $this->hasPartialSatisfiedPosition($enrollment->studentProfile, $enrollment->term)) {
+            $enrollment->update([
+                'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+                'status_reason' => 'Registrar advising is required for the remaining curriculum subjects in this Term.',
+            ]);
+
+            return $enrollment->refresh();
+        }
+
         try {
             $proposal = $enrollment->currentProposalVersion;
             if ($proposal === null) {
@@ -53,12 +67,58 @@ class PrepareStandardRegistration
         return $enrollment->refresh();
     }
 
+    public function hasPartialSatisfiedPosition(StudentProfile $profile, Term $term): bool
+    {
+        if ($profile->curriculum_version_id === null) {
+            return false;
+        }
+
+        $curriculum = CurriculumVersion::query()
+            ->whereKey($profile->curriculum_version_id)
+            ->where('program_id', $profile->program_id)
+            ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
+            ->first();
+
+        if (! $curriculum instanceof CurriculumVersion) {
+            return false;
+        }
+
+        $satisfied = $this->eligibility->satisfiedCourseIds($profile);
+
+        if ($satisfied->isEmpty()) {
+            return false;
+        }
+
+        $positions = CurriculumEntry::query()
+            ->with('courseSpecification')
+            ->where('curriculum_version_id', $curriculum->id)
+            ->where('term_type', $term->type)
+            ->orderBy('sequence')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn (CurriculumEntry $entry): string => $entry->year_level.':'.$entry->term_label.':'.$entry->term_type);
+
+        $firstUnsatisfied = $positions->first(
+            fn (Collection $group): bool => $group->contains(
+                fn (CurriculumEntry $entry): bool => ! $satisfied->contains($entry->courseSpecification?->course_id),
+            ),
+        );
+
+        return $firstUnsatisfied instanceof Collection
+            && $firstUnsatisfied->contains(
+                fn (CurriculumEntry $entry): bool => $satisfied->contains($entry->courseSpecification?->course_id),
+            );
+    }
+
     /** @return list<int> */
     public function sectionIds(Enrollment $enrollment): array
     {
         $enrollment->loadMissing(['admissionApplication', 'studentProfile', 'term']);
         $profile = $enrollment->studentProfile;
-        $curricula = CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)
+        $allowedStates = $profile !== null && $profile->curriculum_version_id !== null
+            ? [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded]
+            : [CurriculumVersion::StateActive];
+        $curricula = CurriculumVersion::query()->whereIn('state', $allowedStates)
             ->where('program_id', $profile?->program_id ?? $enrollment->admissionApplication?->program_id)
             ->when($profile !== null, fn ($query) => $query->whereKey($profile->curriculum_version_id))->get();
         if ($curricula->count() !== 1) {

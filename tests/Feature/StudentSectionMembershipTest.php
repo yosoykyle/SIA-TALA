@@ -311,7 +311,6 @@ class StudentSectionMembershipTest extends TestCase
             ->callAction('recordAcademicDecision', [
                 'student_profile_id' => $other->id,
                 'effect' => AcademicDecision::EffectAdvisingRequired,
-                'authority_reference' => 'REG-CONTEXT', 'authority_date' => today()->toDateString(),
                 'effective_from' => today()->toDateString(), 'reason' => 'Individual advising required.',
             ])->assertHasNoActionErrors();
         $this->assertSame($enrollment->student_profile_id, AcademicDecision::query()->sole()->student_profile_id);

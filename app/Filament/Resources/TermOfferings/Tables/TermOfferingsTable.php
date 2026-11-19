@@ -46,10 +46,6 @@ class TermOfferingsTable
             ])
             ->filters([
                 SelectFilter::make('term')->relationship('term', 'label'),
-                SelectFilter::make('category')->options([
-                    TermOffering::CategoryRegular => 'Regular',
-                    TermOffering::CategorySpecial => 'Special',
-                ]),
                 SelectFilter::make('state')->options([
                     TermOffering::StatePendingScheduling => 'Pending Scheduling',
                     TermOffering::StateScheduled => 'Scheduled',

@@ -2,8 +2,8 @@
     @assets<link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">@endassets
     @if ($termId === null)
         <section class="oversight-welcome" aria-labelledby="oversight-welcome-title">
-            <div class="oversight-welcome-main">
-                <x-heroicon-o-calendar-days aria-hidden="true" />
+            <div class="oversight-welcome-main servitech-journey-scene">
+                <x-servitech-journey-scenery />
                 <h2 id="oversight-welcome-title">Choose an academic term</h2>
                 <p>{{ $terms->isEmpty() ? 'No academic terms are recorded. The Registrar records term setup.' : 'Select an academic year and term to view its calendar, enrollment and class rosters.' }}</p>
                 <div class="oversight-welcome-picker">{{ $this->termSelection }}</div>
@@ -18,7 +18,7 @@
                         <x-filament::button tag="a" color="gray" :href="$area['url']">{{ $area['action'] }}</x-filament::button>
                     @endforeach
                     @if (\App\Filament\Resources\StudentProfiles\StudentProfileResource::canAccess())
-                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\StudentProfiles\StudentProfileResource::getUrl('index')">Student academic records</x-filament::button>
+                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\StudentProfiles\StudentProfileResource::getUrl('index', ['viewTab' => 'academic-progress'])">Student academic records</x-filament::button>
                     @endif
                 </nav>
             </div>
@@ -31,7 +31,7 @@
                 @if ($term)
                     <div class="oversight-calendar-state">
                         <span class="oversight-period-state{{ $calendarTimeline['enrollment_status'] === 'Enrollment period open' ? ' is-open' : '' }}">{{ $calendarTimeline['enrollment_status'] }}</span>
-                        @if ($timetable)<a {{ \Filament\Support\generate_href_html(\App\Filament\Pages\TermTimetable::getUrl(['termId' => $termId, 'selectedVersionId' => $timetable->id])) }}>Official timetable v{{ $timetable->version }} · {{ $timetable->meetings_count }} {{ str('meeting')->plural($timetable->meetings_count) }} <span aria-hidden="true">→</span></a>@else<span>No published timetable</span>@endif
+                        @if ($timetable)<a {{ \Filament\Support\generate_href_html(\App\Filament\Pages\TermTimetable::getUrl(['termId' => $termId, 'selectedVersionId' => $timetable->id])) }}>Official timetable · {{ $timetable->meetings_count }} {{ str('meeting')->plural($timetable->meetings_count) }} <span aria-hidden="true">→</span></a>@else<span>No published timetable</span>@endif
                     </div>
                 @endif
             </div>
@@ -59,7 +59,9 @@
                         </dl>
                     </div>
                 @else
-                    <div class="oversight-calendar-empty"><x-heroicon-o-calendar-days aria-hidden="true" /><h3>Calendar dates unavailable</h3><p>The Registrar records the approved calendar for this term.</p></div>
+                    <div class="oversight-calendar-empty">
+                        <x-servitech-empty-state illustrated heading="Calendar dates unavailable" description="The Registrar records the approved calendar for this term." heading-tag="h3" />
+                    </div>
                 @endif
                 <div class="oversight-planning-entry">
                     <div><h3>Term preparation</h3><p>Inspect classes, availability and timetable attempts.</p></div>
@@ -67,9 +69,9 @@
                 </div>
                 <x-supporting-details summary="Calendar source details" inset>
                     <dl class="oversight-source-grid">
-                        <div><dt>Teaching calendar</dt><dd>{{ $calendar ? 'Active version '.$calendar->version : 'No active calendar' }}</dd></div>
+                        <div><dt>Teaching calendar</dt><dd>{{ $calendar ? 'Active · Updated '.($calendar->updated_at ?? $calendar->created_at)?->timezone(config('app.display_timezone'))->format('M j, Y') : 'No active calendar' }}</dd></div>
                         <div><dt>Examination Period</dt><dd>{{ $examination['status'] === 'Available' ? $examination['opens_on']->format('M j, Y').' – '.$examination['closes_on']->format('M j, Y') : 'Examination Period unavailable' }} · Informational</dd></div>
-                        <div><dt>Calendar authority</dt><dd>{{ $examination['authority_reference'] ?: 'Not recorded' }}</dd></div>
+                        @if (filled($examination['authority_reference']))<div><dt>Approval note / memo</dt><dd>{{ $examination['authority_reference'] }}</dd></div>@endif
                         <div><dt>Source checked</dt><dd>{{ $examination['as_of']->format('j M Y, g:i A') }} · Asia/Manila</dd></div>
                     </dl>
                     <p>{{ $examination['message'] }}</p>
@@ -77,7 +79,9 @@
 
                 </x-supporting-details>
             @else
-                <div class="oversight-calendar-empty"><x-heroicon-o-calendar-days aria-hidden="true" /><h3>{{ $terms->isEmpty() ? 'No Terms recorded' : 'No exact Term is selected' }}</h3><p>{{ $terms->isEmpty() ? 'The Registrar records term setup.' : 'Choose a term above to see its calendar, enrollment and class rosters.' }}</p></div>
+                <div class="oversight-calendar-empty">
+                    <x-servitech-empty-state illustrated :heading="$terms->isEmpty() ? 'No Terms recorded' : 'No exact Term is selected'" :description="$terms->isEmpty() ? 'The Registrar records term setup.' : 'Choose a term above to see its calendar, enrollment and class rosters.'" heading-tag="h3" />
+                </div>
             @endif
         </section>
 
@@ -133,25 +137,27 @@
                     @endforeach
                 </ul>
             @else
-                <div class="oversight-no-findings"><x-heroicon-o-document-check aria-hidden="true" /><h3>No findings recorded</h3><p>Open a source below to inspect its current records.</p></div>
+                <div class="oversight-no-findings">
+                    <x-servitech-empty-state illustrated heading="No findings recorded" description="Open a source below to inspect its current records." heading-tag="h3" />
+                </div>
             @endif
         </section>
 
         <section class="oversight-panel oversight-authority tala-task-surface" aria-labelledby="oversight-authority-title">
-            <div class="oversight-panel-heading"><div class="oversight-heading-scope"><h2 id="oversight-authority-title">Academic Authority</h2><span class="oversight-scope oversight-scope-institution">Institution-wide</span></div><a {{ \Filament\Support\generate_href_html(\App\Filament\Pages\CatalogCurriculaWorkbench::getUrl(['oversightTermId' => $termId])) }}>Catalog & Curricula <span aria-hidden="true">→</span></a></div>
+            <div class="oversight-panel-heading"><div class="oversight-heading-scope"><h2 id="oversight-authority-title">Curricula</h2><span class="oversight-scope oversight-scope-institution">Institution-wide</span></div><a {{ \Filament\Support\generate_href_html(\App\Filament\Pages\CatalogCurriculaWorkbench::getUrl(['oversightTermId' => $termId])) }}>Catalog & Curricula <span aria-hidden="true">→</span></a></div>
             @if ($curriculumSummary['total'] > 0)
-                <div class="oversight-program-summary"><p><strong>{{ $curriculumSummary['ready'] }}</strong> of {{ $curriculumSummary['total'] }} {{ str('program')->plural($curriculumSummary['total']) }} ready for offerings</p><div class="oversight-distribution oversight-program-distribution" aria-hidden="true">@if ($curriculumSummary['ready'] > 0)<span class="oversight-segment-official" style="flex-grow:{{ $curriculumSummary['ready'] }}"></span>@endif @if ($curriculumSummary['total'] > $curriculumSummary['ready'])<span class="oversight-segment-closed" style="flex-grow:{{ $curriculumSummary['total'] - $curriculumSummary['ready'] }}"></span>@endif</div></div>
+                <div class="oversight-program-summary"><p><strong>{{ $curriculumSummary['ready'] }}</strong> of {{ $curriculumSummary['total'] }} {{ str('program')->plural($curriculumSummary['total']) }} with an active curriculum</p><div class="oversight-distribution oversight-program-distribution" aria-hidden="true">@if ($curriculumSummary['ready'] > 0)<span class="oversight-segment-official" style="flex-grow:{{ $curriculumSummary['ready'] }}"></span>@endif @if ($curriculumSummary['total'] > $curriculumSummary['ready'])<span class="oversight-segment-closed" style="flex-grow:{{ $curriculumSummary['total'] - $curriculumSummary['ready'] }}"></span>@endif</div></div>
                 <ul class="oversight-programs">
-                    @foreach ($authorityRows as $row)<li><div><a {{ \Filament\Support\generate_href_html($row['url']) }}>{{ $row['program']->name }}</a><small>{{ $row['program']->code }} · {{ $row['curriculum']?->version_code ?? 'No curriculum recorded' }}</small></div><x-filament::badge :color="$row['readiness']['color']">{{ $row['readiness']['status'] }}</x-filament::badge></li>@endforeach
+                    @foreach ($authorityRows as $row)<li><div><a {{ \Filament\Support\generate_href_html($row['url']) }}>{{ $row['program']->name }}</a><small>{{ $row['program']->code }} · {{ $row['curriculum']?->name ?? 'No curriculum yet' }}</small></div><x-filament::badge :color="$row['readiness']['color']">{{ $row['readiness']['status'] }}</x-filament::badge></li>@endforeach
                 </ul>
-            @else<p class="oversight-summary-note">No Programs recorded. Academic authority evidence is unavailable.</p>@endif
+            @else<p class="oversight-summary-note">No programs recorded yet.</p>@endif
         </section>
 
         <section class="oversight-panel oversight-lifecycle tala-task-surface" aria-labelledby="oversight-lifecycle-title">
             <div><h2 id="oversight-lifecycle-title">Lifecycle &amp; Completion</h2><p>Read-only records · these views use their own filters.</p></div>
             <nav aria-label="Lifecycle and academic record sources">
                 @foreach (collect($this->approvalAreas())->where('title', 'Lifecycle & Completion') as $area)<x-filament::button tag="a" color="gray" :href="$area['url']" icon="heroicon-o-document-text">{{ $area['action'] }}</x-filament::button>@endforeach
-                @if (\App\Filament\Resources\StudentProfiles\StudentProfileResource::canAccess())<x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\StudentProfiles\StudentProfileResource::getUrl('index', ['oversightTermId' => $termId])" icon="heroicon-o-user-group">Student academic records</x-filament::button>@endif
+                @if (\App\Filament\Resources\StudentProfiles\StudentProfileResource::canAccess())<x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\StudentProfiles\StudentProfileResource::getUrl('index', ['oversightTermId' => $termId, 'viewTab' => 'academic-progress'])" icon="heroicon-o-user-group">Student academic records</x-filament::button>@endif
             </nav>
         </section>
     </div>

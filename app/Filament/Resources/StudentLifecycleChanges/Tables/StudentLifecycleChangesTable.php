@@ -12,6 +12,7 @@ use App\Models\Term;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Notifications\Notification;
+use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -31,7 +32,6 @@ class StudentLifecycleChangesTable
             ]))
             ->view('filament.admin.student-lifecycle.workspace')
             ->deferFilters(false)
-            ->paginationPageOptions([10, 25, 50])
             ->columns([
                 TextColumn::make('studentProfile.student_number')
                     ->label('Student')
@@ -123,6 +123,9 @@ class StudentLifecycleChangesTable
                     ->label(fn (StudentLifecycleChange $record): string => $record->type === StudentLifecycleChange::TypeProgramShift ? 'Apply program shift' : 'Apply change')
                     ->authorize('apply')
                     ->requiresConfirmation()
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->disabled(fn (StudentLifecycleChange $record): bool => $record->isFutureDated() || ($record->type === StudentLifecycleChange::TypeProgramShift && (! $record->targetProgram || ! $record->targetCurriculumVersion)))
                     ->modalDescription(fn (StudentLifecycleChange $record): string => 'Apply '.(StudentLifecycleChange::typeOptions()[$record->type] ?? 'this change').' effective '.$record->effective_on->format('M j, Y').'. Current sources are rechecked. Released grades and earlier records remain. No automatic refund, enrollment or class placement is created.')
                     ->visible(fn (StudentLifecycleChange $record): bool => $record->isPendingChange())
@@ -140,6 +143,9 @@ class StudentLifecycleChangesTable
                     ->authorize('cancel')
                     ->color('danger')
                     ->requiresConfirmation()
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->modalDescription('Cancel this recorded approval before application. Current student facts and earlier records stay unchanged.')
                     ->visible(fn (StudentLifecycleChange $record): bool => $record->isPendingChange())
                     ->action(function (StudentLifecycleChange $record): void {

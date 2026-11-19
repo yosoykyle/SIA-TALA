@@ -24,7 +24,6 @@ class CurriculumVersionFactory extends Factory
             'name' => fake()->words(3, true),
             'effective_entry_term_id' => null,
             'state' => CurriculumVersion::StateDraft,
-            'approval_reference' => null,
             'approved_by' => null,
             'approved_at' => null,
         ];

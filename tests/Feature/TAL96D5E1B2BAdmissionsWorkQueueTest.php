@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Applicants\HandOverApprovedApplicant;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Models\AdmissionApplication;
 use App\Models\ApplicantIntake;
@@ -11,7 +10,6 @@ use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -70,13 +68,7 @@ class TAL96D5E1B2BAdmissionsWorkQueueTest extends TestCase
             'user_id' => $applicant->id,
         ]);
 
-        try {
-            app(HandOverApprovedApplicant::class)->execute($intake, $registrar);
-            $this->fail('The legacy handover path must remain retired.');
-        } catch (ValidationException $exception) {
-            $this->assertStringContainsString('Ready for Enrollment', $exception->getMessage());
-        }
-
+        $this->assertFileDoesNotExist(app_path('Actions/Applicants/HandOverApprovedApplicant.php'));
         $this->assertSame(0, StudentProfile::query()->where('applicant_intake_id', $intake->id)->count());
         $this->assertSame(0, Enrollment::query()->count());
     }

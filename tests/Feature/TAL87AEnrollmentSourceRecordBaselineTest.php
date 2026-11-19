@@ -2,28 +2,21 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Applicants\HandOverApprovedApplicant;
 use App\Actions\Enrollment\StartRegistrationCase;
-use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
-use App\Models\EnrollmentGateResult;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -68,19 +61,8 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
             'section_id',
             'status',
         ]));
-        $this->assertTrue(Schema::hasColumns('student_schedule_bindings', [
-            'course_enrollment_id',
-            'section_meeting_id',
-            'is_active',
-            'source',
-        ]));
-        $this->assertTrue(Schema::hasColumns('enrollment_gate_results', [
-            'enrollment_id',
-            'gate_type',
-            'result',
-            'source_type',
-            'source_id',
-        ]));
+        $this->assertFalse(Schema::hasTable('student_schedule_bindings'));
+        $this->assertFalse(Schema::hasTable('enrollment_gate_results'));
 
         foreach ([
             'section_id',
@@ -96,8 +78,8 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
         $this->assertFalse(method_exists(Enrollment::class, 'section'));
         $this->assertFalse(method_exists(Enrollment::class, 'sectionDeliveryGroup'));
         $this->assertFileDoesNotExist(app_path('Actions/Enrollment/EnrollmentSectioningService.php'));
-        $this->assertFalse(method_exists(StudentEnrollmentService::class, 'startFromApprovedApplicant'));
-        $this->assertFalse(method_exists(StudentEnrollmentService::class, 'startRegularEnrollment'));
+        $this->assertFileDoesNotExist(app_path('Actions/Enrollment/StudentEnrollmentService.php'));
+        $this->assertFileDoesNotExist(app_path('Actions/Applicants/HandOverApprovedApplicant.php'));
     }
 
     public function test_admission_cannot_start_enrollment_through_the_retired_handover_path(): void
@@ -111,19 +93,13 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
             'user_id' => $applicant->id,
         ]);
 
-        try {
-            app(HandOverApprovedApplicant::class)->execute($intake, $registrar);
-            $this->fail('Admission must stop at Ready for Enrollment.');
-        } catch (ValidationException $exception) {
-            $this->assertStringContainsString('Ready for Enrollment', $exception->getMessage());
-        }
+        $this->assertFalse(class_exists('App\\Actions\\Applicants\\HandOverApprovedApplicant'));
+        $this->assertFalse(class_exists('App\\Actions\\Enrollment\\StudentEnrollmentService'));
 
         $this->assertSame(0, Enrollment::query()->count());
         $this->assertSame(0, StudentProfile::query()->where('applicant_intake_id', $intake->id)->count());
         $this->assertSame(0, CourseEnrollment::query()->count());
         $this->assertSame(0, EnrollmentSeatReservation::query()->count());
-        $this->assertSame(0, StudentScheduleBinding::query()->count());
-        $this->assertSame(0, EnrollmentGateResult::query()->count());
         $this->assertSame(0, Assessment::query()->count());
         $this->assertSame(0, LedgerEntry::query()->count());
         $this->assertSame(0, Payment::query()->count());
@@ -148,59 +124,5 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
                 ->where('term_id', $term->id)
                 ->count());
         }
-    }
-
-    public function test_early_finance_handover_is_retired_without_changing_identity_or_roles(): void
-    {
-        $user = User::factory()->create([
-            'status' => User::StatusApplicantApproved,
-            'username' => 'applicant-login',
-        ]);
-        $user->assignRole('applicant');
-
-        $studentProfile = StudentProfile::factory()
-            ->for($user)
-            ->create(['student_number' => 'SIA-2026-8701']);
-        $enrollment = Enrollment::factory()
-            ->for($studentProfile)
-            ->create(['status' => 'pre_enrolled']);
-
-        try {
-            app(StudentEnrollmentService::class)->completeFinanceClearedHandover(
-                $enrollment,
-                clearedAt: CarbonImmutable::parse('2026-07-06 09:00:00'),
-            );
-            $this->fail('The retired early handover path was reachable.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('enrollment', $exception->errors());
-        }
-
-        $this->assertSame('applicant-login', $user->fresh()->username);
-        $this->assertSame(User::StatusApplicantApproved, $user->status);
-        $this->assertFalse($user->hasRole('student'));
-        $this->assertTrue($user->hasRole('applicant'));
-    }
-
-    public function test_cor_readiness_requires_canonical_outcome_and_immutable_cor_instead_of_schedule_bindings(): void
-    {
-        $user = User::factory()->create(['status' => User::StatusActive]);
-        $user->assignRole('student');
-
-        $studentProfile = StudentProfile::factory()->for($user)->create();
-        $studentProfile->setRelation('user', $user->refresh());
-
-        $binding = new StudentScheduleBinding(['is_active' => true]);
-        $courseEnrollment = new CourseEnrollment(['status' => CourseEnrollment::StatusActive]);
-        $courseEnrollment->setRelation('scheduleBindings', new EloquentCollection([$binding]));
-
-        $enrollment = new Enrollment(['status' => 'officially_enrolled']);
-        $enrollment->setRelation('studentProfile', $studentProfile);
-        $enrollment->setRelation('courseEnrollments', new EloquentCollection([$courseEnrollment]));
-
-        $readiness = app(StudentEnrollmentService::class)->corReadiness($enrollment);
-
-        $this->assertFalse($readiness['ready']);
-        $this->assertContains('enrollment_not_official', $readiness['blockers']);
-        $this->assertContains('cor_version_missing', $readiness['blockers']);
     }
 }

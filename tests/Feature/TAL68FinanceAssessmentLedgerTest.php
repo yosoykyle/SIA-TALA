@@ -8,12 +8,10 @@ use App\Actions\Finance\CreateFeePlanDraft;
 use App\Actions\Finance\CreateSuccessorFeePlan;
 use App\Actions\Finance\PublishFeePlan;
 use App\Actions\Finance\UpdateFeePlanDraft;
-use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\FeePlans\Pages\ListFeePlans;
 use App\Filament\Resources\FeePlans\Pages\ViewFeePlan;
-use App\Filament\Resources\FeeRules\FeeRuleResource;
 use App\Models\Assessment;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
@@ -133,8 +131,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $accounting = $this->staff(User::StaffRoleAccounting);
         $this->actingAs($accounting);
 
-        $this->assertFalse(FeeRuleResource::shouldRegisterNavigation());
-        $this->assertFalse(FeeRuleResource::canAccess());
+        $this->assertFalse(class_exists('App\Filament\Resources\FeeRules\FeeRuleResource'));
         $this->assertTrue(FeePlanResource::shouldRegisterNavigation());
     }
 
@@ -210,7 +207,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $this->actingAs($accounting);
 
         $this->assertTrue(FeePlanResource::shouldRegisterNavigation());
-        $this->assertFalse(FeeRuleResource::shouldRegisterNavigation());
+        $this->assertFalse(class_exists('App\\Filament\\Resources\\FeeRules\\FeeRuleResource'));
         $this->assertFalse(class_exists('App\\Filament\\Resources\\FeeTemplates\\FeeTemplateResource'));
     }
 
@@ -220,7 +217,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $faculty = $this->staff(User::StaffRoleFaculty);
         $this->assertFalse(Gate::forUser($faculty)->allows('create', FeePlan::class));
         $this->assertFalse(Gate::forUser($faculty)->allows('activate', $assessment));
-        $this->assertFalse(AssessmentResource::canAccess());
+        $this->assertFalse(class_exists('App\\Filament\\Resources\\Assessments\\AssessmentResource'));
         foreach ([fn () => app(PublishFeePlan::class)->execute($plan, $faculty, 'INVALID-AUTHORITY', CarbonImmutable::now()),
             fn () => app(CreateAssessmentFromPublishedFeePlan::class)->execute($case, $faculty)] as $operation) {
             try {
@@ -432,7 +429,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $plan->obligations()->where('sequence', 1)->firstOrFail()->update(['amount' => '0.00']);
         $plan->obligations()->where('sequence', 2)->firstOrFail()->update(['amount' => '100.00']);
         $component = Livewire::actingAs($actor)->test(ViewFeePlan::class, ['record' => $plan->id])->mountAction('publish')
-            ->assertMountedActionModalSee('Zero-payment approval reference')
+            ->assertMountedActionModalSee('Approval memo or reference for zero enrollment payment')
             ->setActionData(['authority_reference' => 'GENERAL-APPROVAL', 'authority_date' => '2026-10-18'])
             ->callMountedAction()->assertHasActionErrors(['no_payment_required_authority_reference' => 'required']);
         $this->assertSame(FeePlan::StateDraft, $plan->fresh()->state);
@@ -682,8 +679,10 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
 
         $unrecordedDatePlan = FeePlan::factory()->create([
             'state' => FeePlan::StatePublished,
+            'authority_reference' => null,
             'authority_date' => null,
             'created_by' => $accounting->id,
+            'published_by' => $accounting->id,
         ]);
         Livewire::actingAs($accounting)
             ->test(ViewFeePlan::class, ['record' => $unrecordedDatePlan->id])
@@ -691,10 +690,39 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
             ->assertSee('Total charges')
             ->assertSee('Enrollment payment')
             ->assertSee('Payment schedule')
-            ->assertSee('Approval')
-            ->assertSee('Plan versions')
-            ->assertSee('Not recorded')
+            ->assertSee('Publication details')
+            ->assertSee('Published by')
+            ->assertSee('Plan history')
+            ->assertDontSee('Approval note / memo')
             ->assertSee('aria-current="page"', false);
+    }
+
+    public function test_fee_plan_can_publish_without_external_approval_reference_and_records_publisher_automatically(): void
+    {
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $draft = $this->draftPlan($accounting);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($accounting)
+            ->test(ViewFeePlan::class, ['record' => $draft->id])
+            ->mountAction('publish')
+            ->assertMountedActionModalSee('Approval note or memo (optional)')
+            ->callMountedAction()
+            ->assertHasNoActionErrors();
+
+        $published = $draft->fresh();
+        $this->assertSame(FeePlan::StatePublished, $published->state);
+        $this->assertSame($accounting->id, $published->published_by);
+        $this->assertNotNull($published->published_at);
+        $this->assertNull($published->authority_reference);
+        $this->assertNull($published->authority_date);
+
+        Livewire::actingAs($accounting)
+            ->test(ViewFeePlan::class, ['record' => $published->id])
+            ->assertSee('Publication details')
+            ->assertSee($accounting->getFilamentName())
+            ->assertDontSee('Approval note / memo')
+            ->assertDontSee('Not recorded');
     }
 
     public function test_view_fee_plan_hides_internal_fee_codes_from_accountants(): void
@@ -738,8 +766,8 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
             ->assertSee('Enrollment payment')
             ->assertSee('Second installment')
             ->assertSee('Required for enrollment')
-            ->assertSee('Approval')
-            ->assertSee('Plan versions')
+            ->assertSee('Publication details')
+            ->assertSee('Plan history')
             ->assertDontSee('Internal fee codes')
             ->assertDontSee('Charge codes')
             ->assertDontSee('Payment schedule codes')

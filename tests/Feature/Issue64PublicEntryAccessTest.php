@@ -173,12 +173,12 @@ class Issue64PublicEntryAccessTest extends TestCase
     public function test_reset_requests_have_identical_feedback_and_cleared_fields_for_known_and_unknown_accounts(): void
     {
         Role::findOrCreate('applicant', 'web');
-        $user = User::factory()->create();
+        $user = User::factory()->create(['email' => 'known-applicant@example.test']);
         $user->assignRole('applicant');
         Notification::fake();
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
 
-        foreach ([$user->email, 'unknown-synthetic@example.test'] as $email) {
+        foreach (['  KNOWN-APPLICANT@example.test  ', 'unknown-synthetic@example.test'] as $email) {
             Livewire::test(RequestPasswordReset::class)
                 ->set('data.email', $email)
                 ->call('request')
@@ -192,6 +192,11 @@ class Issue64PublicEntryAccessTest extends TestCase
 
         Notification::assertSentToTimes($user, ResetPasswordNotification::class, 1);
         $this->assertDatabaseMissing('users', ['email' => 'unknown-synthetic@example.test']);
+
+        Livewire::test(RequestPasswordReset::class)
+            ->set('data.email', 'third-attempt@example.test')
+            ->call('request')
+            ->assertNotified('Please wait before requesting another link');
     }
 
     #[DataProvider('publicRecoveryRoles')]
@@ -530,6 +535,48 @@ class Issue64PublicEntryAccessTest extends TestCase
         $disabledUser->assignRole('applicant');
         $this->assertFalse($dispatcher->sendForAuthenticatedUser($disabledUser, Filament::getPanel('applicant')));
         Notification::assertNothingSent();
+    }
+
+    public function test_empty_or_malformed_auth_submissions_do_not_consume_rate_limit_attempts(): void
+    {
+        Role::findOrCreate('applicant', 'web');
+        $user = User::factory()->create([
+            'status' => User::StatusActive,
+            'password' => 'valid synthetic passphrase',
+        ]);
+        $user->assignRole('applicant');
+        Notification::fake();
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        for ($i = 0; $i < 6; $i++) {
+            Livewire::test(ContextualLogin::class)
+                ->set('data.email', '')
+                ->set('data.password', '')
+                ->call('authenticate')
+                ->assertHasErrors(['data.email', 'data.password']);
+        }
+
+        Livewire::test(ContextualLogin::class)
+            ->set('data.email', $user->email)
+            ->set('data.password', 'valid synthetic passphrase')
+            ->call('authenticate')
+            ->assertHasNoErrors();
+
+        $this->assertAuthenticatedAs($user);
+        auth()->logout();
+
+        for ($i = 0; $i < 3; $i++) {
+            Livewire::test(RequestPasswordReset::class)
+                ->set('data.email', 'not-an-email')
+                ->call('request')
+                ->assertHasErrors(['data.email']);
+        }
+
+        Livewire::test(RequestPasswordReset::class)
+            ->set('data.email', $user->email)
+            ->call('request')
+            ->assertHasNoErrors()
+            ->assertNotified('Check your email for account recovery');
     }
 
     private function openFor(Program $program): AdmissionCycle

@@ -2,16 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Scheduling\ClassPlanningWorkflow;
-use App\Filament\Pages\ClassPlanning;
-use App\Filament\Pages\TermPlanningWorkbench;
+use App\Filament\Pages\TermOverview;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
-use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
-use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
-use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
-use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\SectionMeeting;
@@ -48,7 +42,7 @@ final class TAL96D5E1D2TimetablingOperatingJourneyTest extends TestCase
     }
 
     #[Test]
-    public function class_planning_preserves_the_selected_term_across_operating_destinations(): void
+    public function term_planning_workbench_preserves_the_selected_term_across_classes_tab(): void
     {
         $registrar = $this->registrar();
         $term = Term::factory()->create([
@@ -56,30 +50,10 @@ final class TAL96D5E1D2TimetablingOperatingJourneyTest extends TestCase
             'state' => Term::StateActive,
         ]);
 
-        $offeringsUrl = TermOfferingResource::getUrl('index', [
-            'filters' => ['term' => ['value' => $term->id]],
-        ]);
-        $requirementsUrl = SchedulingDemandResource::getUrl('index', [
-            'filters' => ['term_id' => ['value' => $term->id]],
-        ]);
-        $runsUrl = ScheduleGenerationRunResource::getUrl('index', [
-            'filters' => ['term_id' => ['value' => $term->id]],
-        ]);
-        $publishedUrl = SectionMeetingResource::getUrl('index', [
-            'filters' => ['term_id' => ['value' => $term->id]],
-        ]);
-
-        Livewire::actingAs($registrar)->withQueryParams(['termId' => $term->id])
-            ->test(ClassPlanning::class)
-            ->assertRedirect(TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'classes']));
-
-        $stages = collect(app(ClassPlanningWorkflow::class)->present($term)['stages'])
-            ->keyBy('key');
-
-        $this->assertSame($offeringsUrl, $stages['offerings']['action_url']);
-        $this->assertSame($requirementsUrl, $stages['requirements']['action_url']);
-        $this->assertSame($runsUrl, $stages['generated']['action_url']);
-        $this->assertSame($publishedUrl, $stages['published']['action_url']);
+        $this->actingAs($registrar)
+            ->get(TermOverview::getUrl(['termId' => $term->id]))
+            ->assertOk()
+            ->assertSee('Selected Operating Term');
     }
 
     #[Test]
@@ -161,6 +135,8 @@ final class TAL96D5E1D2TimetablingOperatingJourneyTest extends TestCase
             'email_verified_at' => now(),
         ]);
         $registrar->assignRole(User::StaffRoleRegistrar);
+        $registrar->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $registrar->saveAppAuthenticationRecoveryCodes(['stored-code']);
 
         return $registrar;
     }

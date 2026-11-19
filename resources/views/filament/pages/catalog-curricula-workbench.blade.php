@@ -1,44 +1,79 @@
+@assets
+    <link rel="stylesheet" href="{{ asset('css/tala-catalog.css').'?v='.filemtime(public_path('css/tala-catalog.css')) }}">
+@endassets
+
 <x-filament-panels::page>
-    <div class="space-y-6">
-        <section aria-labelledby="catalog-summary" class="space-y-3">
-            <div>
-                <h2 id="catalog-summary" class="text-lg font-semibold text-gray-950 dark:text-white">Academic authority at a glance</h2>
-                <p class="text-sm text-gray-600 dark:text-gray-300">One connected entry point for program authority, course revisions, curricula, and import evidence.</p>
-            </div>
+    <x-filament-actions::modals />
 
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                @foreach ($summary as $item)
-                    <article class="tala-task-surface p-4">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-300">{{ $item['label'] }}</p>
-                        <p class="mt-1 text-3xl font-semibold text-gray-950 dark:text-white">{{ number_format($item['value']) }}</p>
-                        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ $item['detail'] }}</p>
-                    </article>
-                @endforeach
-            </div>
-        </section>
-
+    <div class="tala-workspace-launcher tala-catalog-overview">
         @if ($readOnly)
-            <div role="status" class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-400/30 dark:bg-blue-950/40 dark:text-blue-100">
-                Academic Head access is read-only. Registrar remains the recording and activation authority.
-            </div>
+            <x-tala-access-alert variant="info" title="Read-only oversight view">
+                <p>Academic Head access is read-only. Registrar remains the recording and activation authority.</p>
+            </x-tala-access-alert>
         @endif
 
-        <x-filament::section>
-            <x-slot name="heading">Programs and authority</x-slot>
-            <x-slot name="description">Search or filter the authoritative Program identity, current external authority, and immutable Curriculum Version history.</x-slot>
-            {{ $this->table }}
-        </x-filament::section>
+        <div class="tala-workspace-launcher__main" aria-label="Catalog coverage">
+            @foreach ($coverageCards as $card)
+                <x-workspace-card
+                    wire:key="coverage-{{ $card['key'] }}"
+                    :href="$card['url']"
+                    :icon="$card['icon']"
+                    :label="$card['label']"
+                    :figure="$card['count']"
+                    :figure-label="$card['figure_label']"
+                    :description="$card['summary']"
+                    :action="$card['action_label']"
+                    :action-color="$card['featured'] ? 'primary' : 'gray'"
+                    :featured="$card['featured']"
+                />
+            @endforeach
+        </div>
 
-        <section aria-labelledby="catalog-actions" class="space-y-3">
-            <h2 id="catalog-actions" class="text-lg font-semibold text-gray-950 dark:text-white">Catalog & Curricula workbench</h2>
-            <div class="grid gap-4 lg:grid-cols-2">
-                @foreach ($destinations as $destination)
-                    <a {{ \Filament\Support\generate_href_html($destination['url']) }} class="group tala-task-surface p-5 transition hover:border-primary-500 hover:ring-2 hover:ring-primary-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
-                        <span class="font-semibold text-gray-950 group-hover:text-primary-700 dark:text-white dark:group-hover:text-primary-300">{{ $destination['label'] }}</span>
-                        <span class="mt-1 block text-sm text-gray-600 dark:text-gray-300">{{ $destination['description'] }}</span>
-                    </a>
-                @endforeach
-            </div>
-        </section>
+        @if (! $hasPrograms)
+            @if ($readOnly)
+                <div class="tala-task-surface tala-catalog-empty-card">
+                    <x-servitech-empty-state
+                        illustrated
+                        heading="No programs recorded yet"
+                        description="Programs and study plans appear here once the Registrar creates them."
+                    />
+                </div>
+            @else
+                <div class="tala-task-surface tala-catalog-empty-card servitech-journey-scene tala-catalog-onboarding">
+                    <x-servitech-journey-scenery />
+                    <x-servitech-empty-state
+                        illustrated
+                        heading="Set up your first program"
+                        description="Add a degree or diploma program first, then build its study plan across years and semesters."
+                    >
+                        {{ $this->createProgramAction }}
+                        <x-filament::button tag="a" :href="$subjectsUrl" color="gray">Browse subjects</x-filament::button>
+                    </x-servitech-empty-state>
+                </div>
+            @endif
+        @else
+            <section class="tala-catalog-curricula-section" aria-label="Curricula overview">
+                @if (! $readOnly)
+                    <x-filament::tabs label="Curricula view" class="tala-segmented-tabs">
+                        <x-filament::tabs.item
+                            :active="$activeTab === 'draft'"
+                            :badge="$draftCurriculaCount"
+                            wire:click="switchTab('draft')"
+                        >
+                            Draft curricula
+                        </x-filament::tabs.item>
+                        <x-filament::tabs.item
+                            :active="$activeTab === 'active'"
+                            :badge="$activeCurriculaCount"
+                            wire:click="switchTab('active')"
+                        >
+                            Active curricula
+                        </x-filament::tabs.item>
+                    </x-filament::tabs>
+                @endif
+
+                {{ $this->table }}
+            </section>
+        @endif
     </div>
 </x-filament-panels::page>

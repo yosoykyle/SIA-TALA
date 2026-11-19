@@ -20,10 +20,10 @@ use App\Models\PreliminaryEvidenceReview;
 use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
+use App\Support\SafeUserNotification;
 use BackedEnum;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Field;
@@ -158,24 +158,26 @@ class Application extends Page
     protected function getHeaderActions(): array
     {
         return [
-            ActionGroup::make([
-                Action::make('saveAndExit')
-                    ->label('Save and exit')
-                    ->icon(Heroicon::OutlinedArrowRightOnRectangle)
-                    ->color('gray')
-                    ->visible(fn (): bool => ! $this->requiresCompleteSubmission())
-                    ->disabled(fn (): bool => ! $this->draftWorkIsAvailable())
-                    ->action(function (): void {
-                        $this->saveAndExit();
-                    }),
-            ])->label('Application options')->icon(Heroicon::OutlinedChevronDown)->button()->color('gray')
-                ->extraAttributes(['data-application-options' => true]),
+            Action::make('saveAndExit')
+                ->label('Save and exit')
+                ->icon(Heroicon::OutlinedArrowRightOnRectangle)
+                ->button()
+                ->color('gray')
+                ->extraAttributes(['data-application-options' => true])
+                ->visible(fn (): bool => ! $this->requiresCompleteSubmission())
+                ->disabled(fn (): bool => ! $this->draftWorkIsAvailable())
+                ->action(function (): void {
+                    $this->saveAndExit();
+                }),
             Action::make('discardDraft')
                 ->modalSubmitActionLabel('Discard draft')
                 ->label('Discard draft')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
                 ->requiresConfirmation()
+                ->modalWidth(Width::Large)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription('Only this unsubmitted draft and its temporary uploads will be removed. Submitted history is never deleted.')
                 ->visible(function (): bool {
                     $application = $this->currentApplication();
@@ -650,7 +652,7 @@ class Application extends Page
         try {
             if (! $this->draftWorkIsAvailable()) {
                 throw ValidationException::withMessages([$this->currentApplication()?->application_state === AdmissionApplication::StateSubmitted ? 'application_state' : 'admission_cycle_id' => $this->currentApplication()?->application_state === AdmissionApplication::StateSubmitted
-                    ? 'Registrar review started or the submitted source changed. Your current submitted version is unchanged. Keep entered work here, then open Home for the current instruction; only a named correction can reopen reviewed facts.'
+                    ? 'Registrar review started or your submitted application changed. Your current submission is unchanged. Keep entered work here, then open Home for the current instruction; only a named correction can reopen reviewed facts.'
                     : 'This application cycle is closed or cancelled. Inspect or discard the Draft, or contact the Registrar for an authorized extension.']);
             }
             $state = $this->form->getState();
@@ -675,11 +677,7 @@ class Application extends Page
             $this->saveStatusMessage = $factsSaved
                 ? 'Save incomplete. Some answers may have saved before a copy failed. Your entered work remains here; correct the identified item before continuing.'
                 : 'Draft could not be saved. Your entered work remains here; correct the identified item before continuing.';
-            Notification::make()
-                ->title('Draft could not be saved')
-                ->body($exception->validator->errors()->first())
-                ->danger()
-                ->send();
+            SafeUserNotification::sendValidationError();
         } catch (Throwable $exception) {
             report($exception);
             $recoveryLocation = $this->failureRecoveryLocation();
@@ -713,7 +711,7 @@ class Application extends Page
 
             if (! $this->draftWorkIsAvailable()) {
                 throw ValidationException::withMessages([$this->currentApplication()?->application_state === AdmissionApplication::StateSubmitted ? 'application_state' : 'admission_cycle_id' => $this->currentApplication()?->application_state === AdmissionApplication::StateSubmitted
-                    ? 'Registrar review started or the submitted source changed. Your current submitted version is unchanged. Keep entered work here, then open Home for the current instruction; only a named correction can reopen reviewed facts.'
+                    ? 'Registrar review started or your submitted application changed. Your current submission is unchanged. Keep entered work here, then open Home for the current instruction; only a named correction can reopen reviewed facts.'
                     : 'This application cycle is closed or cancelled. Inspect or discard the Draft, or contact the Registrar for an authorized extension.']);
             }
             $state = $this->form->getState();
@@ -739,7 +737,7 @@ class Application extends Page
             }
             Notification::make()
                 ->title('Application submitted')
-                ->body('Your stable Application reference and version-bound acknowledgment are now available.')
+                ->body('Your Application reference and submission receipt are now available.')
                 ->success()
                 ->send();
             $this->dispatch('draft-saved');
@@ -752,11 +750,7 @@ class Application extends Page
             $this->showValidationErrors($exception);
             $this->saveStatus = 'failed';
             $this->saveStatusMessage = $exception->validator->errors()->first();
-            Notification::make()
-                ->title('Application could not be submitted')
-                ->body($exception->validator->errors()->first())
-                ->danger()
-                ->send();
+            SafeUserNotification::sendValidationError();
         } catch (Throwable $exception) {
             report($exception);
             if ($this->redirectToRecordedSubmission(followUpFailed: true)) {
@@ -764,10 +758,10 @@ class Application extends Page
             }
 
             $this->saveStatus = 'failed';
-            $this->saveStatusMessage = 'TALA did not create a submitted version. Your persisted Application and evidence remain available; try again or contact the Registrar.';
+            $this->saveStatusMessage = 'TALA could not submit your application. Your saved Draft and documents remain available; try again or contact the Registrar.';
             Notification::make()
                 ->title('Application could not be submitted')
-                ->body('TALA did not create a submitted version. Your last persisted Draft and evidence remain available; try again or contact the Registrar.')
+                ->body('TALA could not submit your application. Your last saved Draft and documents remain available; try again or contact the Registrar.')
                 ->danger()
                 ->send();
         }
@@ -803,8 +797,8 @@ class Application extends Page
         $this->applicationResolved = true;
         $this->saveStatus = 'saved';
         $this->saveStatusMessage = $followUpFailed
-            ? 'Your Application was submitted. A follow-up step could not finish. Open Home to check your submitted version and notification status.'
-            : 'Your Application has a submitted version. Open Home to check its current status.';
+            ? 'Your Application was submitted. A follow-up step could not finish. Open Home to check your submission and notification status.'
+            : 'Your Application has been submitted. Open Home to check its current status.';
         $notification = Notification::make()->body($this->saveStatusMessage);
         if ($followUpFailed) {
             $notification->title('Application submitted; follow-up needs attention')->warning();

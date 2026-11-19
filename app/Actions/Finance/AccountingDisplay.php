@@ -60,8 +60,8 @@ class AccountingDisplay
     public static function assessmentBasisLabel(?string $basis): string
     {
         return match ($basis) {
-            'PublishedFeePlan' => 'Published Fee Plan',
-            'AuthorizedIndividualAssessment' => 'Individual assessment',
+            'PublishedFeePlan' => 'Standard fee plan',
+            'AuthorizedIndividualAssessment' => 'Custom assessment',
             null, '' => 'Not recorded',
             default => Str::headline($basis),
         };

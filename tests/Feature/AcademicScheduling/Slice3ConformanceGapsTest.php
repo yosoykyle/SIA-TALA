@@ -21,7 +21,6 @@ use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
-use App\Models\ResourceUnavailability;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingCommitment;
@@ -388,11 +387,6 @@ final class Slice3ConformanceGapsTest extends TestCase
             'ends_on' => '2026-08-24',
             'blocks_teaching' => true,
         ]);
-        ResourceUnavailability::factory()->create([
-            'term_id' => $fixture['term']->id,
-            'effective_on' => '2026-08-25',
-            'day_of_week' => null,
-        ]);
         $run = ScheduleGenerationRun::factory()->create([
             'term_id' => $fixture['term']->id,
             'input_snapshot' => [
@@ -409,7 +403,7 @@ final class Slice3ConformanceGapsTest extends TestCase
         $this->assertFalse(collect($snapshot['calendar_blocks'])->contains(
             fn (array $block): bool => in_array($block['event_type'] ?? null, ['SchedulingCommitment', 'DatedTeachingException'], true),
         ));
-        $this->assertCount(2, $snapshot['dated_exceptions']);
+        $this->assertCount(1, $snapshot['dated_exceptions']);
     }
 
     public function test_latest_faculty_declaration_projects_deterministic_hard_calendar_blocks(): void

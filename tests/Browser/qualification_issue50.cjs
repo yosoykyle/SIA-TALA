@@ -542,7 +542,6 @@ async function loginUser(page, email, password = 'password', mfaSecret = 'JBSWY3
                 'administrative_ends_on' => '2027-05-31',
                 'classes_start_on' => '2027-01-15',
                 'classes_end_on' => '2027-05-15',
-                'faculty_availability_due_at' => '2027-01-05 17:00:00',
                 'recorded_by' => $registrar->id,
             ]);
             foreach ([

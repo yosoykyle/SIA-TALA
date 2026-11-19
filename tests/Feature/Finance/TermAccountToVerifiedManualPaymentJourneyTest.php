@@ -67,6 +67,7 @@ use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -976,7 +977,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $fixture = $this->recordedCourseDropFixture();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id, 'enrollmentView' => 'account'])
-            ->assertSee('Review the Course Drop financial effect')->assertSee('Record individual assessment')
+            ->assertSee('Review the Course Drop financial effect')->assertSee('Custom assessment')
             ->assertSee('Recorded charges')->assertSee('Account history')->assertDontSee('Five finalization checkpoints');
         $this->assertSame(1, $fixture['enrollment']->corVersions()->count());
         $this->assertSame(1, $fixture['account']->assessments()->count());
@@ -1001,7 +1002,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $proposal->update(['state' => RegistrationProposalVersion::StateConfirmed]);
         RegistrationProposalConfirmation::factory()->for($proposal, 'proposalVersion')->create(['learner_user_id' => $fixture['learner']->id]);
         Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $case->id, 'enrollmentView' => 'account'])
-            ->assertSee('Review the confirmed registration change')->assertSee($replacement->code)->assertSee('Record individual assessment')
+            ->assertSee('Review the confirmed registration change')->assertSee($replacement->code)->assertSee('Custom assessment')
             ->assertDontSee('Five finalization checkpoints')->assertActionVisible('recordIndividualAssessment');
         $this->assertSame(1, $case->corVersions()->count());
         $this->assertSame(1, $fixture['account']->assessments()->count());
@@ -1397,7 +1398,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $page = Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $case->id])
-            ->assertSee('Published Fee Plan needed')
+            ->assertSee('No standard fee plan yet')
             ->assertSee('Open Fee Plans')
             ->assertSee($expectedUrl);
 
@@ -1453,6 +1454,45 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
 
         Livewire::actingAs($fixture['accounting'])->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id])
             ->assertActionHidden('recordIndividualAssessment');
+    }
+
+    public function test_individual_assessment_modal_can_load_from_published_fee_plan_and_match_enrollment_payment(): void
+    {
+        [$case, $proposal, $accounting] = $this->unassessedAdvisedApplicantFixture();
+        $plan = app(CreateFeePlanDraft::class)->execute(
+            $case->admissionApplication->program,
+            $case->term,
+            [
+                ['code' => 'TUITION', 'label' => 'Tuition fee', 'amount' => '4500.00'],
+                ['code' => 'MISC', 'label' => 'Miscellaneous fee', 'amount' => '1500.00'],
+            ],
+            $accounting,
+            [
+                ['code' => 'ENROLLMENT', 'label' => 'Enrollment payment', 'purpose' => 'Enrollment', 'amount' => '1500.00', 'due_at' => '2026-08-25 17:00:00', 'required_for_enrollment' => true],
+                ['code' => 'LATER-1', 'label' => 'Midterm payment', 'purpose' => 'TermPayment', 'amount' => '4500.00', 'due_at' => '2026-10-15 17:00:00', 'required_for_enrollment' => false],
+            ],
+        );
+        app(PublishFeePlan::class)->execute($plan, $accounting, 'SYN-PREFILL-PLAN', CarbonImmutable::parse('2026-08-20'));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $component = Livewire::actingAs($accounting)->test(ViewEnrollment::class, ['record' => $case->id])
+            ->mountAction('recordIndividualAssessment')
+            ->assertMountedActionModalSee('Individually Advised')
+            ->assertMountedActionModalSee('1 subject · 3 units')
+            ->callAction(TestAction::make('loadFromPublishedFeePlan')->schemaComponent(schema: 'mountedActionSchema0'));
+
+        $charges = array_values($component->get('mountedActions.0.data.charges') ?? []);
+        $this->assertCount(2, $charges);
+        $this->assertSame('Tuition fee', $charges[0]['label']);
+        $this->assertSame('4500.00', $charges[0]['amount']);
+        $this->assertSame('1500.00', $component->get('mountedActions.0.data.enrollment_payment.amount'));
+        $this->assertCount(1, $component->get('mountedActions.0.data.later_payments') ?? []);
+
+        $component
+            ->setActionData(['later_payments' => []])
+            ->callAction(TestAction::make('matchEnrollmentPaymentToCharges')->schemaComponent(schema: 'mountedActionSchema0'));
+
+        $this->assertSame(6000.0, (float) $component->get('mountedActions.0.data.enrollment_payment.amount'));
     }
 
     /** @return array{Enrollment,RegistrationProposalVersion,User,User,Section} */

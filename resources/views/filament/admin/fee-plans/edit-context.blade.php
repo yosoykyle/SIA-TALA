@@ -5,6 +5,6 @@
     </div>
     <div>
         <dt>Term</dt>
-        <dd>{{ $reviewed['term'] }}@if (filled($reviewed['version'] ?? null)) · Version {{ $reviewed['version'] }}@endif</dd>
+        <dd>{{ $reviewed['term'] }}</dd>
     </div>
 </dl>

@@ -211,12 +211,6 @@ class Enrollment extends Model
         return $this->hasMany(EnrollmentSeatReservation::class);
     }
 
-    /** @return HasMany<EnrollmentGateResult, $this> */
-    public function gateResults(): HasMany
-    {
-        return $this->hasMany(EnrollmentGateResult::class);
-    }
-
     /** @return HasMany<EnrollmentException, $this> */
     public function exceptions(): HasMany
     {

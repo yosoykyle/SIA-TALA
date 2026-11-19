@@ -7,12 +7,15 @@
         </div>
         @if ($revisionEvents->isNotEmpty())<p class="text-sm" role="status">Published changes affect your assignments. The schedule shows current official meetings. <a href="#faculty-published-changes" class="underline">View changes</a></p>@endif
         @if ($assignmentCount === 0)
-            <section class="tala-faculty-no-meetings" aria-labelledby="faculty-no-meetings-heading">
-                <x-heroicon-o-calendar-days aria-hidden="true" />
-                <h2 id="faculty-no-meetings-heading">No official meetings assigned in this Term</h2>
-                <p>Meetings appear here when the Registrar publishes your timetable.</p>
-                <x-filament::link :href="\App\Filament\Pages\MyAvailability::getUrl(['termId' => $term->id])">View My availability</x-filament::link>
-            </section>
+            <x-servitech-empty-state
+                illustrated
+                heading="No official meetings assigned in this Term"
+                description="Meetings appear here when the Registrar publishes your timetable."
+            >
+                <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\MyAvailability::getUrl(['termId' => $term->id])">
+                    View My availability
+                </x-filament::button>
+            </x-servitech-empty-state>
         @else
         <dl class="tala-faculty-schedule-figures" aria-label="Official teaching assignment summary">
             <div><dt>Classes</dt><dd>{{ $classCount }}</dd></div>

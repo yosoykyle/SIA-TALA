@@ -3,8 +3,6 @@
 namespace Tests\Feature;
 
 use App\Filament\Student\Pages\Profile;
-use App\Filament\Student\Widgets\ActiveHoldsWidget;
-use App\Filament\Student\Widgets\StudentProfileOverviewWidget;
 use App\Mail\PaymentPostedMail;
 use App\Mail\ScheduleReleasedMail;
 use App\Mail\ScheduleRevisionMail;
@@ -62,23 +60,11 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        Livewire::test(StudentProfileOverviewWidget::class)
-            ->assertSee('This is your official Student Profile status.')
-            ->assertSee('No recorded academic or lifecycle authority blocks ordinary curriculum placement.')
-            ->assertSee('No remaining Term balance is recorded.')
-            ->assertDontSee('Source #')
-            ->assertDontSee('blockers:');
-
         Livewire::test(Profile::class)
             ->assertSee('Your studies')
             ->assertSee('Current enrollment details become available after official enrollment.')
             ->assertSee('View enrollment')
             ->assertDontSee('IRREGULAR');
-
-        $holds = Livewire::test(ActiveHoldsWidget::class)->instance();
-
-        $this->assertInstanceOf(ActiveHoldsWidget::class, $holds);
-        $this->assertTrue($holds->getTable()->isStackedOnMobile());
     }
 
     #[Test]

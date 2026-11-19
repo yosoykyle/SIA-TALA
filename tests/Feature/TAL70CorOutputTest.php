@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Actions\Cor\BuildCorOutput;
 use App\Filament\Student\Pages\CorView;
-use App\Filament\Student\Pages\HoldsView;
 use App\Filament\Student\Pages\ScheduleView;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
@@ -30,7 +29,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -141,11 +139,6 @@ final class TAL70CorOutputTest extends TestCase
             ->first(fn ($action): bool => $action->getName() === 'printSchedule');
 
         $this->assertNotNull($schedulePrintAction);
-
-        $holdsPage = Livewire::actingAs($student)->test(HoldsView::class)->instance();
-
-        $this->assertInstanceOf(HoldsView::class, $holdsPage);
-        $this->assertTrue($holdsPage->getTable()->isStackedOnMobile());
     }
 
     public function test_student_sees_blocked_state_without_staff_only_hold_notes(): void
@@ -424,13 +417,6 @@ final class TAL70CorOutputTest extends TestCase
             'modality' => TermOffering::ModalityFaceToFace,
             'state' => SectionMeeting::StateActive,
             'published_at' => now(),
-        ]);
-        StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $courseEnrollment->id,
-            'section_meeting_id' => $meeting->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
         ]);
         $timetable = PublishedTimetableVersion::factory()->for($term)->create();
         PublishedTimetableMeeting::factory()->for($timetable, 'timetableVersion')->create([

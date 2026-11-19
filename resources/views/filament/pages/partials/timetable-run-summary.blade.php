@@ -4,13 +4,13 @@
         <x-tala-operation-status :run="$run" />
     @elseif ($wasPublished)
         <div class="tala-evidence-title"><x-filament::icon icon="heroicon-o-check-badge" /><div>
-            <h2>{{ $publishedVersion ? ($publishedVersion->state === 'Published' ? 'Official timetable' : 'Historical timetable').' · v'.$publishedVersion->version : 'Published timetable record' }}</h2>
+            <h2>{{ $publishedVersion ? ($publishedVersion->state === 'Published' ? 'Official timetable' : 'Historical timetable') : 'Published timetable record' }}</h2>
             <p class="tala-work-footnote">Published {{ \App\Support\DisplayDateTime::format($publishedVersion?->published_at ?? $run->published_at) }} · Asia/Manila · {{ $run->publisher?->name ?? 'Publisher not recorded' }}</p>
         </div></div>
-        <p>The issued timetable is separate from its generation record. Later approved changes preserve earlier versions.</p>
+        <p>The issued timetable is separate from its generation record. Later approved changes preserve earlier records in history.</p>
         <div class="tala-evidence-actions">
             <x-filament::button tag="a" color="primary" icon="heroicon-o-table-cells" :href="$this->termPlanningReturnUrl()">Open issued timetable</x-filament::button>
-            @if ($publishedVersion)<x-filament::button tag="a" color="gray" icon="heroicon-o-printer" :href="route('timetable.version.print', ['version' => $publishedVersion])" target="_blank">Print this version</x-filament::button>@endif
+            @if ($publishedVersion)<x-filament::button tag="a" color="gray" icon="heroicon-o-printer" :href="route('timetable.version.print', ['version' => $publishedVersion])" target="_blank">Print timetable</x-filament::button>@endif
         </div>
     @else
         <div class="tala-task-heading"><h2>Attempt #{{ $run->id }}</h2><x-filament::badge color="gray">{{ $run->candidate_state ? \Illuminate\Support\Str::headline($run->candidate_state) : (\App\Models\ScheduleGenerationRun::statusOptions()[$run->status] ?? $run->status) }} · Not official</x-filament::badge></div>

@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Actions\Authentication\TalaAppAuthentication;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
+use App\Filament\Pages\Auth\EmailVerificationPrompt;
 use App\Filament\Pages\Auth\RequestPasswordReset;
 use App\Filament\Pages\Auth\ResetPassword;
 use App\Filament\Student\Pages\Academics;
@@ -16,6 +17,8 @@ use App\Filament\Student\Pages\Profile;
 use App\Filament\Student\Pages\ScheduleView;
 use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use App\Http\Middleware\EnsureStaffMfaIsEnabled;
+use App\Models\User;
+use App\Support\NavigationBadgeCounts;
 use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
@@ -29,7 +32,9 @@ use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
+use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -48,7 +53,7 @@ class StudentPanelProvider extends PanelProvider
             ->path('student')
             ->login(ContextualLogin::class)
             ->passwordReset()
-            ->emailVerification()
+            ->emailVerification(EmailVerificationPrompt::class)
             ->emailChangeVerification()
             ->profile(AccountSecurity::class, isSimple: false)
             ->userMenuItems([
@@ -74,8 +79,18 @@ class StudentPanelProvider extends PanelProvider
                         ->usingPage(RequestPasswordReset::class)
                         ->usingResetPage(ResetPassword::class)
                     )
-                    ->emailVerification()
+                    ->emailVerification(fn (AuthPageConfig $config) => $config
+                        ->usingPage(EmailVerificationPrompt::class)
+                    )
                     ->themeToggle()
+            )
+            ->renderHook(
+                PanelsRenderHook::SIMPLE_PAGE_START,
+                fn (array $scopes): View => view('filament.components.auth-back-link', [
+                    'showBackToSignIn' => in_array(RequestPasswordReset::class, $scopes, true)
+                        || in_array(ResetPassword::class, $scopes, true)
+                        || request()->routeIs('filament.*.auth.password-reset.*', 'filament.applicant.auth.register'),
+                ]),
             )
             ->discoverResources(in: app_path('Filament/Student/Resources'), for: 'App\Filament\Student\Resources')
             ->discoverPages(in: app_path('Filament/Student/Pages'), for: 'App\Filament\Student\Pages')
@@ -83,12 +98,18 @@ class StudentPanelProvider extends PanelProvider
                 Dashboard::class,
                 Profile::class,
             ])
-            ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $builder->items([
-                $this->navigationItem(Dashboard::class, 'Overview'),
-                $this->enrollmentNavigationItem(),
-                $this->academicsNavigationItem(),
-                $this->financeNavigationItem(),
-            ]))
+            ->navigation(function (NavigationBuilder $builder): NavigationBuilder {
+                $badgeCounts = new NavigationBadgeCounts;
+                $user = auth()->user();
+                $user = $user instanceof User ? $user : null;
+
+                return $builder->items([
+                    $this->navigationItem(Dashboard::class, 'Overview'),
+                    $this->enrollmentNavigationItem($badgeCounts, $user),
+                    $this->academicsNavigationItem(),
+                    $this->financeNavigationItem($badgeCounts, $user),
+                ]);
+            })
             ->discoverWidgets(in: app_path('Filament/Student/Widgets'), for: 'App\Filament\Student\Widgets')
             ->widgets([
                 AccountWidget::class,
@@ -122,17 +143,19 @@ class StudentPanelProvider extends PanelProvider
             ->isActiveWhen(fn (): bool => original_request()->routeIs($component::getRouteName(Filament::getPanel('student'))));
     }
 
-    private function enrollmentNavigationItem(): NavigationItem
+    private function enrollmentNavigationItem(NavigationBadgeCounts $badgeCounts, ?User $user): NavigationItem
     {
         $panel = Filament::getPanel('student');
         $enrollmentRoute = Enrollment::getRouteName($panel);
         $corRoute = CorView::getRouteName($panel);
         $scheduleRoute = ScheduleView::getRouteName($panel);
         $inEnrollment = original_request()->routeIs($enrollmentRoute, $corRoute, $scheduleRoute);
+        $enrollmentBadge = fn (): ?string => ($count = $badgeCounts->studentEnrollmentActionCount($user)) > 0 ? (string) $count : null;
         $item = NavigationItem::make('Enrollment')
             ->key(Enrollment::class)
             ->icon(Enrollment::getNavigationIcon())
             ->url(fn (): string => Enrollment::getUrl(panel: 'student'))
+            ->badge($enrollmentBadge, 'warning')
             ->isActiveWhen(fn (): bool => $inEnrollment);
 
         if (! $inEnrollment) {
@@ -143,6 +166,7 @@ class StudentPanelProvider extends PanelProvider
             NavigationItem::make('Current registration')
                 ->icon('heroicon-o-clipboard-document-check')
                 ->url(fn (): string => Enrollment::getUrl(panel: 'student'))
+                ->badge($enrollmentBadge, 'warning')
                 ->isActiveWhen(fn (): bool => original_request()->routeIs($enrollmentRoute)),
             NavigationItem::make('Certificate (COR)')
                 ->icon('heroicon-o-document-text')
@@ -155,9 +179,11 @@ class StudentPanelProvider extends PanelProvider
         ]);
     }
 
-    private function financeNavigationItem(): NavigationItem
+    private function financeNavigationItem(NavigationBadgeCounts $badgeCounts, ?User $user): NavigationItem
     {
-        $item = $this->navigationItem(Finance::class, 'Fees and payments');
+        $financeBadge = fn (): ?string => ($count = $badgeCounts->studentFinanceActionCount($user)) > 0 ? (string) $count : null;
+        $item = $this->navigationItem(Finance::class, 'Fees and payments')
+            ->badge($financeBadge, 'warning');
         $inFinance = original_request()->routeIs(Finance::getRouteName(Filament::getPanel('student')));
 
         if (! $inFinance) {
@@ -170,6 +196,7 @@ class StudentPanelProvider extends PanelProvider
             NavigationItem::make('This term')
                 ->icon('heroicon-o-banknotes')
                 ->url(fn (): string => Finance::getUrl(panel: 'student'))
+                ->badge($financeBadge, 'warning')
                 ->isActiveWhen(fn (): bool => ! $showingHistory),
             NavigationItem::make('Past statements')
                 ->icon('heroicon-o-archive-box')

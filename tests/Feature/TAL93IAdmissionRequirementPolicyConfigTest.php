@@ -4,8 +4,6 @@ namespace Tests\Feature;
 
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
-use App\Filament\Resources\AdmissionRequirementPolicies\AdmissionRequirementPolicyResource;
-use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Filament\Facades\Filament;
@@ -29,8 +27,8 @@ final class TAL93IAdmissionRequirementPolicyConfigTest extends TestCase
     {
         $resources = Filament::getPanel('admin')->getResources();
 
-        $this->assertNotContains(ApplicantIntakeResource::class, $resources);
-        $this->assertNotContains(AdmissionRequirementPolicyResource::class, $resources);
+        $this->assertNotContains('App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource', $resources);
+        $this->assertNotContains('App\Filament\Resources\AdmissionRequirementPolicies\AdmissionRequirementPolicyResource', $resources);
         $this->assertFalse(Route::has('filament.admin.resources.applicant-intakes.index'));
         $this->assertFalse(Route::has('filament.admin.resources.admission-requirement-policies.index'));
     }

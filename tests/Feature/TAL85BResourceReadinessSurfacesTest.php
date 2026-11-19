@@ -11,7 +11,6 @@ use App\Filament\Resources\FacultyTermLoadOverrides\Pages\ListFacultyTermLoadOve
 use App\Filament\Resources\Rooms\Pages\CreateRoom;
 use App\Filament\Resources\Rooms\Pages\EditRoom;
 use App\Filament\Resources\Rooms\Pages\ListRooms;
-use App\Filament\Resources\Rooms\RelationManagers\FeaturesRelationManager;
 use App\Models\Course;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
@@ -111,12 +110,9 @@ final class TAL85BResourceReadinessSurfacesTest extends TestCase
             ->assertSee($room->building);
 
         Livewire::actingAs($registrar)
-            ->test(FeaturesRelationManager::class, [
-                'ownerRecord' => $room,
-                'pageClass' => EditRoom::class,
-            ])
-            ->assertTableColumnExists('feature_key')
-            ->assertCanSeeTableRecords([$feature]);
+            ->test(EditRoom::class, ['record' => $room->getRouteKey()])
+            ->assertFormFieldExists('features')
+            ->assertSee('Computers');
     }
 
     public function test_faculty_qualification_surface_uses_clean_mapping_fields_and_role_scoped_access(): void

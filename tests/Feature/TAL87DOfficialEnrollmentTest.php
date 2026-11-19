@@ -10,7 +10,6 @@ use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
-use App\Models\EnrollmentGateResult;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
@@ -21,7 +20,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -228,29 +226,6 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
     }
 
     #[Test]
-    public function persisted_generic_gate_results_do_not_authorize_canonical_finalization(): void
-    {
-        $fixture = $this->clearSourceGateFixture();
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-
-        EnrollmentGateResult::query()->create([
-            'enrollment_id' => $fixture['enrollment']->id, 'gate_type' => EnrollmentGateResult::GateFinalApproval,
-            'sequence' => 9, 'result' => EnrollmentGateResult::ResultPassed,
-            'responsible_office' => EnrollmentGateResult::ResponsibleOfficeRegistrar,
-            'checked_at' => now(), 'rule_version' => EnrollmentGateResult::RuleVersionTal87D,
-        ]);
-
-        try {
-            app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment']->fresh(), $registrar);
-            $this->fail('Persisted generic gates authorized canonical finalization.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('readiness', $exception->errors());
-        }
-
-        $this->assertNotSame(Enrollment::OutcomeOfficiallyEnrolled, $fixture['enrollment']->fresh()->canonical_outcome);
-    }
-
-    #[Test]
     public function non_registrar_cannot_record_official_enrollment(): void
     {
         $fixture = $this->clearSourceGateFixture();
@@ -263,28 +238,10 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
 
     private function sectionOccupancy(int $sectionId, int $termOfferingId): int
     {
-        $reservations = EnrollmentSeatReservation::query()
+        return EnrollmentSeatReservation::query()
             ->where('section_id', $sectionId)
             ->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())
             ->count();
-
-        $bindingSeats = StudentScheduleBinding::query()
-            ->where('is_active', true)
-            ->whereHas('sectionMeeting.schedulingDemand', function ($query) use ($sectionId, $termOfferingId): void {
-                $query
-                    ->where('term_offering_id', $termOfferingId)
-                    ->whereHas('sectionDeliveryGroup', fn ($groupQuery) => $groupQuery->where('section_id', $sectionId));
-            })
-            ->whereHas('courseEnrollment', fn ($query) => $query->where('term_offering_id', $termOfferingId))
-            ->whereDoesntHave('courseEnrollment.seatReservations', function ($query) use ($sectionId): void {
-                $query
-                    ->where('section_id', $sectionId)
-                    ->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses());
-            })
-            ->distinct()
-            ->count('course_enrollment_id');
-
-        return $reservations + $bindingSeats;
     }
 
     private function assertSessionNotification(string $title, string $body): void
@@ -473,13 +430,6 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
             'status' => EnrollmentSeatReservation::StatusPending,
             'reserved_at' => now(),
             'registrar_user_id' => $this->faculty->id,
-        ]);
-        StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $courseEnrollment->id,
-            'section_meeting_id' => $meeting->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
         ]);
 
         return ['offering' => $offering, 'section' => $section];

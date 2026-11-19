@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Actions\AcademicSetup\ActivateProgramAuthority;
 use App\Actions\Calendar\ActivateTermCalendarPackage;
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
@@ -21,7 +20,6 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\FacultyQualification;
 use App\Models\Program;
-use App\Models\ProgramAuthority;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -81,11 +79,6 @@ class Issue58TimetableExplorationSeeder extends Seeder
                 $year = AcademicYear::query()->where('label', '2026-2027')->first()
                     ?? AcademicYear::factory()->create(['label' => '2026-2027', 'starts_on' => '2026-06-01', 'ends_on' => '2027-05-31']);
                 $program = Program::factory()->create(['code' => $prefix, 'name' => 'Synthetic timetable review program', 'is_active' => true]);
-                $authority = ProgramAuthority::factory()->for($program)->create([
-                    'authority_reference' => $prefix.'-PROGRAM', 'curriculum_source_reference' => $prefix.'-CURRICULUM',
-                    'recorded_by' => $registrar->id,
-                ]);
-                app(ActivateProgramAuthority::class)->execute($authority, $registrar);
                 $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive]);
                 $faculty = [];
                 foreach (['Alex', 'Blair', 'Casey'] as $index => $name) {
@@ -113,7 +106,6 @@ class Issue58TimetableExplorationSeeder extends Seeder
                     $specification = CourseSpecification::factory()->for($course)->create([
                         'title' => $definition['title'], 'description' => 'Synthetic review data; not institutional curriculum authority.',
                         'revision_code' => $prefix.'-REV'.($index + 1), 'state' => CourseSpecification::StateActive,
-                        'authority_reference' => $prefix.'-COURSE'.($index + 1), 'effective_from' => '2026-06-01',
                         'credit_units' => $definition['hours'],
                     ]);
                     CourseComponent::factory()->for($specification)->create([
@@ -139,7 +131,7 @@ class Issue58TimetableExplorationSeeder extends Seeder
                 $this->classes($special, $specialCore, $program, $curriculum, $specifications, $definitions, $faculty, $registrar, $prefix.'-SPECIAL');
 
                 $draft = $this->term($year, $labels['draft'], Term::TypeSecondSemester);
-                TermCalendarPackage::factory()->for($draft)->create(['recorded_by' => $registrar->id, 'authority_reference' => '', 'faculty_availability_due_at' => null]);
+                TermCalendarPackage::factory()->for($draft)->create(['recorded_by' => $registrar->id, 'authority_reference' => '']);
 
                 return ['populated' => (int) $populated->id, 'core_only' => (int) $special->id, 'draft' => (int) $draft->id];
             });
@@ -175,7 +167,6 @@ class Issue58TimetableExplorationSeeder extends Seeder
         foreach ($versions as $version) {
             $package = TermCalendarPackage::factory()->for($term)->create([
                 'version' => $version, 'recorded_by' => $registrar->id,
-                'faculty_availability_due_at' => null,
                 'authority_reference' => $prefix.'-CALENDAR-V'.$version,
                 'special_term_schedule_basis' => $term->type === Term::TypeSpecialTerm ? 'Synthetic approved Special Term review basis.' : null,
             ]);

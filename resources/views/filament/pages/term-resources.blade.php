@@ -24,20 +24,21 @@
                 @endif
             @endif
             {{ $this->table }}
-            <details class="tala-planning-coverage">
-                <summary>{{ $resourceView === 'faculty' ? 'Teaching limits and unavailable times' : 'Recurring unavailable times' }}</summary>
-<div class="tala-planning-reveal">
-                @if ($resourceView === 'faculty')
-                    <div class="tala-planning-source-row"><div><strong>Default teaching limit</strong><p>{{ $term->default_max_units === null ? 'Not recorded' : $term->default_max_units.' units per teacher' }} · Faculty-specific limits take precedence.</p></div>@if (! $readOnly)<x-filament::button tag="a" color="gray" icon="heroicon-o-pencil-square" :href="\App\Filament\Resources\Terms\TermResource::getUrl('edit', ['record' => $term->id, 'viewTab' => 'resources', 'resourceView' => 'faculty'])">Edit default</x-filament::button>@endif</div>
-                    @if (\App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource::canViewAny())
-                        <div class="tala-planning-source-row"><div><strong>Faculty-specific teaching limits</strong><p>Review approved exceptions for this Term.</p></div><x-filament::button tag="a" color="gray" icon="heroicon-o-adjustments-horizontal" :href="\App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource::getUrl('index', ['termId' => $term->id])">Review exceptions</x-filament::button></div>
+            <section class="tala-planning-coverage tala-planning-setup-links" aria-labelledby="resource-setup-heading">
+                <h2 id="resource-setup-heading" class="text-base font-semibold">{{ $resourceView === 'faculty' ? 'Teaching limits and unavailable times' : 'Recurring unavailable times' }}</h2>
+                <div class="tala-planning-reveal">
+                    @if ($resourceView === 'faculty')
+                        <div class="tala-planning-source-row"><div><strong>Default teaching limit</strong><p>{{ $term->default_max_units === null ? 'Not recorded' : $term->default_max_units.' units per teacher' }} · Faculty-specific limits take precedence.</p></div>@if (! $readOnly)<x-filament::button tag="a" color="gray" icon="heroicon-o-pencil-square" :href="\App\Filament\Resources\Terms\TermResource::getUrl('edit', ['record' => $term->id, 'viewTab' => 'resources', 'resourceView' => 'faculty'])">Edit default</x-filament::button>@endif</div>
+                        @if (\App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource::canViewAny())
+                            <div class="tala-planning-source-row"><div><strong>Faculty-specific teaching limits</strong><p>Review approved exceptions for this Term.</p></div><x-filament::button tag="a" color="gray" icon="heroicon-o-adjustments-horizontal" :href="\App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource::getUrl('index', ['termId' => $term->id])">Review exceptions</x-filament::button></div>
+                        @endif
                     @endif
-                @endif
-                <div class="tala-planning-source-row"><div><strong>Weekly unavailable times</strong><p>{{ $resourceView === 'faculty' ? 'Recurring exclusions are separate from the Faculty reply and dated calendar exceptions.' : 'An active catalog entry does not mean a room is free at every time.' }}</p></div>@if (\App\Filament\Resources\CalendarEvents\CalendarEventResource::canViewAny() && ($resourceView === 'faculty' || ! $readOnly))<x-filament::button tag="a" color="gray" icon="heroicon-o-clock" :href="\App\Filament\Resources\CalendarEvents\CalendarEventResource::getUrl('index', ['termId' => $term->id, 'resourceView' => $resourceView])">Review unavailable times</x-filament::button>@endif</div>
-
-</div>
-</details>
+                    <div class="tala-planning-source-row"><div><strong>Weekly unavailable times</strong><p>{{ $resourceView === 'faculty' ? 'Recurring exclusions are separate from the Faculty reply and dated calendar exceptions.' : 'An active catalog entry does not mean a room is free at every time.' }}</p></div>@if (\App\Filament\Resources\CalendarEvents\CalendarEventResource::canViewAny() && ($resourceView === 'faculty' || ! $readOnly))<x-filament::button tag="a" color="gray" icon="heroicon-o-clock" :href="\App\Filament\Resources\CalendarEvents\CalendarEventResource::getUrl('index', ['termId' => $term->id, 'resourceView' => $resourceView])">Review unavailable times</x-filament::button>@endif</div>
+                </div>
+            </section>
         </section>
-    @else<p>Select a Term to review teaching availability and rooms.</p>@endif
+    @else
+        <x-servitech-empty-state illustrated heading="Select a Term" description="Select a Term to review teaching availability and rooms." />
+    @endif
     <x-filament-actions::modals />
 </x-filament-panels::page>

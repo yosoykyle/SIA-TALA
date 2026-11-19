@@ -9,9 +9,8 @@ use Caresome\FilamentAuthDesigner\Pages\Auth\EmailVerification;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Notifications\Notification;
-use Filament\Schemas\Components\Actions;
-use Filament\Schemas\Components\Text;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\RateLimiter;
@@ -23,7 +22,10 @@ class ApplicantEmailVerification extends EmailVerification
     {
         return Action::make('resendNotification')
             ->button()
-            ->label('Resend Verification Link')
+            ->color('primary')
+            ->icon(Heroicon::OutlinedEnvelope)
+            ->label('Resend verification link')
+            ->extraAttributes(['class' => 'w-full justify-center'])
             ->action(function (): void {
                 $applicant = $this->applicant();
                 $rateLimitKey = 'applicant-email-verification-resend:'.$applicant->id;
@@ -69,12 +71,23 @@ class ApplicantEmailVerification extends EmailVerification
         return 'Verify your account';
     }
 
+    public function getSubheading(): string|Htmlable|null
+    {
+        $email = trim((string) ($this->applicant()->email ?? ''));
+
+        if ($email !== '') {
+            return new HtmlString('We sent a verification link to <strong>'.e($email).'</strong>. Open the newest link to continue your application.');
+        }
+
+        return 'We sent a verification link to your email address. Open the newest link to continue your application.';
+    }
+
     public function content(Schema $schema): Schema
     {
         $supportUrl = app(ApplicantEntryReadinessService::class)->officialReferences()['support'];
         $supportLink = filled($supportUrl)
-            ? new HtmlString('Need help? <a class="underline" href="'.e((string) $supportUrl).'">Contact School Support &rarr;</a>')
-            : 'Need help? Contact School Support';
+            ? new HtmlString('<p class="tala-auth-recovery tala-verification-support"><span>Need help?</span> <a href="'.e((string) $supportUrl).'">Contact School Support &rarr;</a></p>')
+            : new HtmlString('<p class="tala-auth-recovery tala-verification-support">Need help? Contact School Support</p>');
 
         return $schema->components([
             Placeholder::make('verification_countdown')
@@ -86,12 +99,10 @@ class ApplicantEmailVerification extends EmailVerification
                     return view('filament.applicant.components.verification-countdown', [
                         'expiresAtMilliseconds' => $expiresAt?->getTimestampMs(),
                         'initialClock' => sprintf('%02d:%02d', intdiv($remainingSeconds, 60), $remainingSeconds % 60),
+                        'resendActionHtml' => new HtmlString($this->resendNotificationAction->toHtml()),
                     ]);
                 }),
-            Actions::make([
-                $this->resendNotificationAction(),
-            ]),
-            Text::make($supportLink),
+            $supportLink,
         ]);
     }
 

@@ -1,5 +1,5 @@
 <div class="tala-guidance">
-    <p><strong>Version {{ $record->version }} · {{ $record->publicationLabel() }}</strong></p>
+    <p><strong>{{ $record->publicationLabel() }}</strong>@if ($record->updated_at) · Updated {{ $record->updated_at->timezone('Asia/Manila')->format('M j, Y') }}@endif</p>
     <h3>{{ $record->title ?? $record->question }}</h3>
     <p class="tala-content-message">{{ $record->message ?? $record->answer }}</p>
     @if ($record instanceof \App\Models\PublicNotice && $record->link_url)
@@ -11,5 +11,5 @@
         <div><dt>Responsible owner</dt><dd>System Administration</dd></div>
         <div><dt>Display position</dt><dd>{{ $record->display_order ?? $record->sort_order }}</dd></div>
     </dl>
-    <p>Only the currently effective published version appears on the Public Gateway. Drafts stay private.</p>
+    <p>Only the currently active published entry appears on the Public Gateway. Drafts stay private.</p>
 </div>

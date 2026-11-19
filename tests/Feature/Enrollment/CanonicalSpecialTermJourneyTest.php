@@ -142,7 +142,6 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         ExternalCompetencyRequirement::factory()->create([
             'curriculum_version_id' => $curriculum->id,
             'qualification_label' => 'Synthetic graduation requirement',
-            'authority_reference' => 'SYNTHETIC COMPLETION AUTHORITY — TEST ONLY',
             'treatment' => ExternalCompetencyRequirement::TreatmentCompletionRequired,
             'state' => 'ACTIVE',
         ]);
@@ -150,7 +149,6 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
             'course_specification_id' => $dependentEntry->course_specification_id,
             'rule_type' => CourseRequirement::TypePrerequisite,
             'related_course_id' => $retakeEntry->courseSpecification->course_id,
-            'minimum_grade' => '3.00',
         ]);
         $plannedSection = $this->publishedSection($term, $plannedEntry, $faculty, 'CLS-ITE3-ST-A', TermOffering::CategoryRegular);
         $retakeSection = $this->publishedSection($term, $retakeEntry, $faculty, 'CLS-IT201-ST-R', TermOffering::CategorySpecial);

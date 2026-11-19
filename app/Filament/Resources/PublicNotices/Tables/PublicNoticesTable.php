@@ -15,7 +15,7 @@ class PublicNoticesTable
     {
         return $table
             ->columns([
-                TextColumn::make('title')->searchable()->wrap()->description(fn (PublicNotice $record): string => 'Version '.$record->version),
+                TextColumn::make('title')->searchable()->wrap()->description(fn (PublicNotice $record): ?string => $record->updated_at ? 'Updated '.$record->updated_at->timezone('Asia/Manila')->format('M j, Y') : null),
                 PublicContentActions::statusColumn(),
                 TextColumn::make('display_order')->label('Position')->sortable(),
                 TextColumn::make('visible_from')->label('From (Asia/Manila)')->dateTime()->placeholder('On publication'),
@@ -26,6 +26,7 @@ class PublicNoticesTable
             ->filters([SelectFilter::make('state')->options(['Draft' => 'Draft', 'Published' => 'Published (including scheduled / expired)', 'Unpublished' => 'Unpublished'])])
             ->recordActions(PublicContentActions::tableActions())
             ->emptyStateHeading('No notices in this view')
-            ->emptyStateDescription('System Administration can add a draft notice. Clear filters to see other saved versions.');
+            ->emptyStateDescription('System Administration can add a draft notice. Clear filters to see other saved notices.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 }

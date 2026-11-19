@@ -12,6 +12,15 @@ use Illuminate\Contracts\View\View;
  */
 class ApplicationHistory extends Dashboard
 {
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [
+            Dashboard::getUrl(panel: 'applicant') => 'Home',
+            $this->getTitle(),
+        ];
+    }
+
     protected static string $routePath = '/history';
 
     protected static ?string $slug = 'history';

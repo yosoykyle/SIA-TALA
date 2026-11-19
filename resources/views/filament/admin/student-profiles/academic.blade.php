@@ -24,8 +24,8 @@
         <div @class(['tala-profile-ledger__body', 'tala-content-region', 'tala-profile-ledger__body--short' => $results->total() <= 3]) wire:loading.attr="aria-busy" wire:target="academicTerm,academicSearch,selectAcademicResult,setAcademicPage">
             <x-content-progress label="Loading subject results" wire:loading.delay.short.block wire:target="academicTerm,academicSearch,selectAcademicResult,setAcademicPage" />
             <div class="tala-profile-collection">
-                <div class="tala-profile-table-wrap">
-                    <table class="tala-profile-table tala-profile-results">
+                <div class="tala-data-table-scroll tala-profile-table-wrap" role="region" aria-label="Released subject results" tabindex="0">
+                    <table class="tala-data-table tala-profile-table tala-profile-results">
                         <caption class="sr-only">Released subject results. Select a subject to see its context and next step.</caption>
                         <thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Final result</th></tr></thead>
                         <tbody>@foreach ($results as $result)
@@ -65,7 +65,7 @@
 @if ($curriculum && count($curriculum['required']))
     <section class="tala-profile-ledger" aria-label="Curriculum progress">
         <header class="tala-profile-ledger__toolbar"><div><h2>Curriculum progress</h2><p class="tala-profile-muted">{{ $curriculum['completed_units'] }} units completed or credited across terms.</p></div></header>
-        <div class="tala-profile-table-wrap"><table class="tala-profile-table"><thead><tr><th scope="col">Required subject</th><th scope="col">Status</th><th scope="col">Credited units</th></tr></thead><tbody>@foreach ($curriculum['required'] as $row)<tr><th scope="row">{{ $row['curriculum_entry']->courseSpecification?->course?->code }} &middot; {{ $row['curriculum_entry']->courseSpecification?->title }}</th><td>{{ str($row['status'])->headline() }}</td><td class="tala-profile-numeric">{{ $row['credited_units'] }}</td></tr>@endforeach</tbody></table></div>
+        <div class="tala-data-table-scroll tala-profile-table-wrap" role="region" aria-label="Required curriculum subjects" tabindex="0"><table class="tala-data-table tala-profile-table"><thead><tr><th scope="col">Required subject</th><th scope="col">Status</th><th scope="col">Credited units</th></tr></thead><tbody>@foreach ($curriculum['required'] as $row)<tr><th scope="row">{{ $row['curriculum_entry']->courseSpecification?->course?->code }} &middot; {{ $row['curriculum_entry']->courseSpecification?->title }}</th><td>{{ str($row['status'])->headline() }}</td><td class="tala-profile-numeric">{{ $row['credited_units'] }}</td></tr>@endforeach</tbody></table></div>
     </section>
 @else
     <p class="tala-profile-source-note"><x-filament::icon icon="heroicon-o-information-circle" />Curriculum progress unavailable. {{ $student->curriculumVersion ? 'This curriculum has no recorded subjects to evaluate.' : 'No curriculum is recorded for this student.' }}</p>

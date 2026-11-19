@@ -13,6 +13,7 @@ use Filament\Auth\Http\Responses\Contracts\LoginResponse;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Component;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\QueryException;
@@ -25,6 +26,21 @@ use LogicException;
 
 class ContextualLogin extends Login
 {
+    public function getFormContentComponent(): Component
+    {
+        return parent::getFormContentComponent()
+            ->extraAttributes(['novalidate' => true]);
+    }
+
+    public function getMultiFactorChallengeFormContentComponent(): Component
+    {
+        return parent::getMultiFactorChallengeFormContentComponent()
+            ->extraAttributes([
+                'novalidate' => true,
+                'class' => 'tala-auth-verify-card tala-auth-mfa-card',
+            ]);
+    }
+
     protected function getEmailFormComponent(): TextInput
     {
         $component = parent::getEmailFormComponent();
@@ -159,7 +175,12 @@ class ContextualLogin extends Login
     {
         session()->forget('url.intended');
 
-        $email = Str::lower(trim((string) ($this->data['email'] ?? '')));
+        if (is_string($this->data['email'] ?? null)) {
+            $this->data['email'] = Str::lower(trim($this->data['email']));
+        }
+
+        $validated = $this->form->getState();
+        $email = Str::lower(trim((string) ($validated['email'] ?? '')));
         $user = User::query()->where('email', $email)->first();
         $rateLimitingKey = 'tala-login:'.$email.'|'.request()->ip();
         $wasMultiFactorChallenge = filled($this->userUndertakingMultiFactorAuthentication);
