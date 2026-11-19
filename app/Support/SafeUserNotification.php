@@ -15,6 +15,30 @@ final class SafeUserNotification
 {
     public const DefaultFallback = 'Something went wrong while completing your request. Your data has not been changed. Try again or contact support.';
 
+    public const ValidationErrorTitle = 'Check the highlighted fields';
+
+    public const ValidationErrorBody = 'Fix the highlighted fields and try again.';
+
+    /**
+     * Send a reusable general validation toast when inline input errors are already displayed.
+     */
+    public static function sendValidationError(
+        string $title = self::ValidationErrorTitle,
+        string $body = self::ValidationErrorBody,
+        bool $persistent = false,
+    ): void {
+        $notification = Notification::make()
+            ->title($title)
+            ->body($body)
+            ->danger();
+
+        if ($persistent) {
+            $notification->persistent();
+        }
+
+        $notification->send();
+    }
+
     /**
      * Resolve a safe, user-facing failure message for UI notifications.
      * Unexpected system exceptions are reported and replaced with fallback copy.

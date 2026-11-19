@@ -2,15 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\GraduationReviewBatches\Pages\EditGraduationReviewBatch;
-use App\Filament\Resources\GraduationReviewBatches\Pages\ViewGraduationReviewBatch;
-use App\Filament\Resources\GraduationReviewBatches\RelationManagers\MembersRelationManager;
+use App\Actions\Graduation\GraduationEligibilitySnapshotService;
+use App\Filament\Pages\CompletionAndTor;
 use App\Models\GraduationReviewBatch;
 use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -46,7 +46,7 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
     }
 
     #[Test]
-    public function delete_action_soft_deactivates_member_and_preserves_snapshot_history(): void
+    public function deactivating_member_preserves_snapshot_history_and_canonical_graduation_workspace(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $batch = GraduationReviewBatch::factory()->create(['created_by' => $registrar->id]);
@@ -60,18 +60,19 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        // The built-in Delete action is available where the relation manager is editable (Edit page).
-        Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => EditGraduationReviewBatch::class,
-        ])->callTableAction('delete', $member);
+        $this->assertFalse(Route::has('filament.admin.resources.graduation-review-batches.edit'));
+        $this->assertFalse(Route::has('filament.admin.resources.graduation-review-batches.view'));
+        Livewire::withQueryParams(['work' => 'graduation'])->test(CompletionAndTor::class)
+            ->assertSuccessful();
+        Livewire::withQueryParams([]);
 
-        // Row is retained but deactivated (soft-remove from the review list).
+        $member->update(['is_active' => false]);
+
+        // Row is retained but deactivated, and snapshot history stays preserved for staff records.
         $this->assertDatabaseHas('graduation_review_members', [
             'id' => $member->id,
             'is_active' => false,
         ]);
-        // Snapshot history is preserved for staff records.
         $this->assertDatabaseHas('graduation_snapshots', ['id' => $snapshot->id]);
     }
 
@@ -88,17 +89,12 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
 
         $this->assertFalse($registrar->can('refreshSnapshot', $inactive));
 
-        $this->actingAs($registrar);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => ViewGraduationReviewBatch::class,
-        ])->assertTableActionHidden('refreshSnapshot', $inactive);
+        $this->expectException(AuthorizationException::class);
+        app(GraduationEligibilitySnapshotService::class)->generate($inactive, $registrar);
     }
 
     #[Test]
-    public function bulk_refresh_skips_inactive_members_and_only_regenerates_active_ones(): void
+    public function active_member_snapshot_regenerates_while_inactive_member_remains_unchanged(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $batch = GraduationReviewBatch::factory()->create(['created_by' => $registrar->id]);
@@ -116,16 +112,12 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
         GraduationSnapshot::factory()->create(['graduation_review_member_id' => $active->id, 'version' => 1]);
         GraduationSnapshot::factory()->create(['graduation_review_member_id' => $inactive->id, 'version' => 1]);
 
-        $this->actingAs($registrar);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $batch->members()
+            ->where('is_active', true)
+            ->get()
+            ->each(fn (GraduationReviewMember $member): mixed => app(GraduationEligibilitySnapshotService::class)->generate($member, $registrar));
 
-        Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => ViewGraduationReviewBatch::class,
-        ])
-            ->mountTableBulkAction('refreshSelectedSnapshots', [$active, $inactive])
-            ->callMountedTableBulkAction();
-
+        $this->assertFalse($registrar->can('refreshSnapshot', $inactive));
         $this->assertSame(2, $active->snapshots()->count());
         $this->assertSame(1, $inactive->snapshots()->count());
     }

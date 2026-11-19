@@ -12,7 +12,9 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Illuminate\Validation\ValidationException;
 
 trait HasClassPreparationActions
@@ -24,6 +26,9 @@ trait HasClassPreparationActions
             ->label('Add student section')
             ->modalHeading('Add student section')->modalSubmitActionLabel('Add student section')
             ->modalCancelActionLabel('Cancel')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar))
             ->modalDescription(fn (): string => $this->selectedTerm()->label.'. Choose the active curriculum and record this student section’s confirmed learners.')
             ->schema([
@@ -31,8 +36,10 @@ trait HasClassPreparationActions
                     ->options(fn (): array => CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)->with('program')->get()
                         ->mapWithKeys(fn (CurriculumVersion $curriculum): array => [$curriculum->id => $curriculum->program?->name.' · '.$curriculum->version_code])->all())
                     ->required()->searchable(),
-                TextInput::make('reference')->label('Student section reference')->required()->maxLength(64),
-                TextInput::make('confirmed_count')->label('Confirmed learners')->required()->integer()->minValue(1),
+                Grid::make(['default' => 1, 'md' => 2])->schema([
+                    TextInput::make('reference')->label('Student section reference')->required()->maxLength(64),
+                    TextInput::make('confirmed_count')->label('Confirmed learners')->required()->integer()->minValue(1),
+                ]),
             ])
             ->action(function (array $data, Schema $schema): void {
                 $actor = auth()->user();
@@ -55,6 +62,9 @@ trait HasClassPreparationActions
 
             ->label('Prepare class')
             ->modalHeading('Prepare class')->modalSubmitActionLabel('Save class preparation')->modalCancelActionLabel('Cancel')
+            ->modalWidth(Width::ThreeExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar))
             ->modalDescription('Review this class’s course and active teaching calendar, then confirm its linked student sections.')
             ->fillForm(fn (array $arguments, ?Section $record = null): array => ['section_id' => $record?->id ?? $arguments['sectionId'] ?? null, 'class_reference' => $record?->class_reference ?: $record?->code, 'source' => $record?->source, 'delivery_mode' => $record?->delivery_mode])
@@ -63,11 +73,13 @@ trait HasClassPreparationActions
                     ->options(fn (): array => Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $this->termId))
                         ->whereNull('confirmed_at')->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])->orderBy('code')->pluck('code', 'id')->all())
                     ->required()->searchable(),
-                TextInput::make('class_reference')->label('Stable class reference')->required()->maxLength(64),
-                Select::make('source')->options(Section::confirmableSourceOptions())->required(),
-                Select::make('delivery_mode')->label('Delivery mode')->options(TermOffering::modalityOptions())->required(),
-                TextInput::make('authority_reference')->label('Additional class authority reference')
-                    ->helperText('Required for an externally approved Additional class.')->maxLength(255),
+                Grid::make(['default' => 1, 'md' => 2])->schema([
+                    TextInput::make('class_reference')->label('Stable class reference')->required()->maxLength(64),
+                    Select::make('source')->options(Section::confirmableSourceOptions())->required(),
+                    Select::make('delivery_mode')->label('Delivery mode')->options(TermOffering::modalityOptions())->required(),
+                    TextInput::make('authority_reference')->label('Additional class authority reference')
+                        ->helperText('Required for an externally approved Additional class.')->maxLength(255),
+                ]),
             ])
             ->action(function (array $data, Schema $schema): void {
                 $actor = auth()->user();

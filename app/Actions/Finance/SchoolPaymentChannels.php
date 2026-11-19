@@ -495,6 +495,68 @@ class SchoolPaymentChannels
             throw new AuthorizationException('Only Accounting staff may configure school payment channels.');
         }
 
+        ['validated' => $validated] = $this->validatePayload($payload, $reason);
+
+        $encodedValue = json_encode($validated, JSON_THROW_ON_ERROR);
+        $cleanReason = $this->sanitizeNullableString($reason)
+            ?? 'Accounting updated school payment channel instructions.';
+
+        DB::transaction(function () use ($actor, $validated, $encodedValue, $cleanReason): void {
+            $previous = SystemSetting::query()
+                ->where('key', self::SettingKey)
+                ->where('scope_type', 'institution')
+                ->where('scope_id', 0)
+                ->orderByDesc('version')
+                ->lockForUpdate()
+                ->first();
+
+            if ($previous instanceof SystemSetting && is_string($previous->value) && $previous->value !== '') {
+                $previousValue = json_decode($previous->value, true);
+
+                if (is_array($previousValue) && $this->normalizeChannels($previousValue) === $validated) {
+                    return;
+                }
+            }
+
+            $now = now();
+
+            SystemSetting::query()
+                ->where('key', self::SettingKey)
+                ->where('scope_type', 'institution')
+                ->where('scope_id', 0)
+                ->where('status', 'Active')
+                ->update([
+                    'status' => 'Superseded',
+                    'effective_until' => $now,
+                ]);
+
+            (new SystemSetting)->forceFill([
+                'key' => self::SettingKey,
+                'scope_type' => 'institution',
+                'scope_id' => 0,
+                'value_type' => SystemSetting::ValueTypeJson,
+                'value' => $encodedValue,
+                'effective_from' => $now,
+                'version' => (int) ($previous?->version ?? 0) + 1,
+                'status' => 'Active',
+                'changed_by' => $actor->id,
+                'reason' => $cleanReason,
+            ])->save();
+        }, attempts: 3);
+
+        return $this->current();
+    }
+
+    /**
+     * Validate a payment-channel payload without persisting it.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{validated: array<string, mixed>, normalized: array<string, mixed>}
+     *
+     * @throws ValidationException
+     */
+    public function validatePayload(array $payload, ?string $reason = null): array
+    {
         Validator::make($payload + ['reason' => $reason], self::inputRules())->validate();
 
         $hasScheduleInPayload = is_array(data_get($payload, 'cash.schedule'));
@@ -524,15 +586,15 @@ class SchoolPaymentChannels
             'cash.hours' => ['nullable', 'string', 'max:160'],
             'cash.instructions' => ['nullable', 'string', 'max:500'],
         ], [
-            'bank_transfer.accounts.min' => 'Add at least one bank account when Bank Transfer is enabled.',
-            'bank_transfer.accounts.*.bank_name.required_if' => 'Bank name is required when Bank Transfer is enabled.',
-            'bank_transfer.accounts.*.account_name.required_if' => 'Account name is required when Bank Transfer is enabled.',
-            'bank_transfer.accounts.*.account_number.required_if' => 'Account number is required when Bank Transfer is enabled.',
-            'e_wallets.accounts.min' => 'Add at least one e-wallet account when E-Wallets are enabled.',
-            'e_wallets.accounts.*.provider.required_if' => 'E-wallet provider is required when E-Wallets are enabled.',
-            'e_wallets.accounts.*.account_name.required_if' => 'Account name is required when E-Wallets are enabled.',
-            'e_wallets.accounts.*.account_number.required_if' => 'Mobile or account number is required when E-Wallets are enabled.',
-            'cash.location.required_if' => 'Cashier location is required when Cash (Campus Cashier) is enabled.',
+            'bank_transfer.accounts.min' => 'Add at least one bank account, or turn off Bank Transfer.',
+            'bank_transfer.accounts.*.bank_name.required_if' => 'Enter the bank name.',
+            'bank_transfer.accounts.*.account_name.required_if' => 'Enter the account name.',
+            'bank_transfer.accounts.*.account_number.required_if' => 'Enter the account number.',
+            'e_wallets.accounts.min' => 'Add at least one e-wallet account, or turn off E-Wallets.',
+            'e_wallets.accounts.*.provider.required_if' => 'Enter the e-wallet provider (for example, GCash or Maya).',
+            'e_wallets.accounts.*.account_name.required_if' => 'Enter the account name.',
+            'e_wallets.accounts.*.account_number.required_if' => 'Enter the mobile or account number.',
+            'cash.location.required_if' => 'Enter the cashier window or room location.',
         ]);
 
         $errors = $validator->fails() ? $validator->errors()->toArray() : [];
@@ -586,54 +648,10 @@ class SchoolPaymentChannels
             $validated['cash']['hours'] = CashierSchedule::formatHoursSummary($validatedSchedule);
         }
 
-        $encodedValue = json_encode($validated, JSON_THROW_ON_ERROR);
-        $cleanReason = $this->sanitizeNullableString($reason)
-            ?? 'Accounting updated school payment channel instructions.';
-
-        DB::transaction(function () use ($actor, $validated, $encodedValue, $cleanReason): void {
-            $previous = SystemSetting::query()
-                ->where('key', self::SettingKey)
-                ->where('scope_type', 'institution')
-                ->where('scope_id', 0)
-                ->orderByDesc('version')
-                ->lockForUpdate()
-                ->first();
-
-            if ($previous instanceof SystemSetting && is_string($previous->value) && $previous->value !== '') {
-                $previousValue = json_decode($previous->value, true);
-
-                if (is_array($previousValue) && $this->normalizeChannels($previousValue) === $validated) {
-                    return;
-                }
-            }
-
-            $now = now();
-
-            SystemSetting::query()
-                ->where('key', self::SettingKey)
-                ->where('scope_type', 'institution')
-                ->where('scope_id', 0)
-                ->where('status', 'Active')
-                ->update([
-                    'status' => 'Superseded',
-                    'effective_until' => $now,
-                ]);
-
-            (new SystemSetting)->forceFill([
-                'key' => self::SettingKey,
-                'scope_type' => 'institution',
-                'scope_id' => 0,
-                'value_type' => SystemSetting::ValueTypeJson,
-                'value' => $encodedValue,
-                'effective_from' => $now,
-                'version' => (int) ($previous?->version ?? 0) + 1,
-                'status' => 'Active',
-                'changed_by' => $actor->id,
-                'reason' => $cleanReason,
-            ])->save();
-        }, attempts: 3);
-
-        return $this->current();
+        return [
+            'validated' => $validated,
+            'normalized' => $normalized,
+        ];
     }
 
     /** @return array<string, list<string>> */

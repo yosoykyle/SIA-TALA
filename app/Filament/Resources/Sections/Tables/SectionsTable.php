@@ -69,7 +69,8 @@ class SectionsTable
             ->toolbarActions([])
             ->stackedOnMobile()
             ->emptyStateHeading('No student sections are recorded')
-            ->emptyStateDescription('Build a course offering first, then add its classes and delivery groups.');
+            ->emptyStateDescription('Build a course offering first, then add its classes and delivery groups.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\FeePlans\Pages;
 
 use App\Actions\Finance\AccountingDisplay;
 use App\Actions\Finance\CreateFeePlanDraft;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\FeePlans\Schemas\FeePlanForm;
 use App\Models\FeePlan;
@@ -87,9 +88,13 @@ class ListFeePlans extends ListRecords
         return 'Create and publish approved charges and payment schedules for each program and term. Published plans supply standard student assessments.';
     }
 
+    /** @return array<string|int, string> */
     public function getBreadcrumbs(): array
     {
-        return [];
+        return [
+            EnrollmentResource::getUrl('index') => 'Overview',
+            'Fee plans',
+        ];
     }
 
     public function hasMultipleTerms(): bool

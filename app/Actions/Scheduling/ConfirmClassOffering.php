@@ -4,6 +4,7 @@ namespace App\Actions\Scheduling;
 
 use App\Models\CourseSpecification;
 use App\Models\CurriculumVersion;
+use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
@@ -17,6 +18,8 @@ use Illuminate\Validation\ValidationException;
 final class ConfirmClassOffering
 {
     /**
+     * Confirm a single class offering and synchronize term scheduling demands.
+     *
      * @param  array<int, int>  $cohortExpectedCounts
      */
     public function execute(
@@ -28,92 +31,10 @@ final class ConfirmClassOffering
         Gate::forUser($actor)->authorize('update', $section);
 
         return DB::transaction(function () use ($section, $actor, $cohortExpectedCounts, $additionalAuthorityReference): Section {
-            $locked = Section::query()->whereKey($section)->lockForUpdate()->firstOrFail();
-            Gate::forUser($actor)->authorize('update', $locked);
-            $locked->loadMissing(['calendarPackage.term', 'termOffering', 'courseRevision.course', 'cohorts']);
+            $confirmed = $this->confirmLocked($section, $actor, $cohortExpectedCounts, $additionalAuthorityReference);
+            $this->syncTermSchedulingDemands($actor, $confirmed->calendarPackage?->term ?? $confirmed->termOffering?->term);
 
-            if (in_array($locked->state, [Section::StateClosed, Section::StateCancelled], true)
-                || $locked->calendarPackage?->term?->state === Term::StateClosed
-                || ($locked->termOffering !== null && $locked->calendarPackage !== null
-                    && (int) $locked->termOffering->term_id !== (int) $locked->calendarPackage->term_id)) {
-                throw ValidationException::withMessages(['section' => 'Confirmation requires an available class in its exact open Term.']);
-            }
-
-            $active = $locked->calendarPackage ? TermCalendarPackage::query()->where('term_id', $locked->calendarPackage->term_id)->where('state', TermCalendarPackage::StateActive)->lockForUpdate()->first() : null;
-            if (! $active || ! $locked->calendarPackage->isActivatedCoreSource() || $locked->calendarPackage->coreSignature() !== $active->coreSignature()) {
-                throw ValidationException::withMessages(['calendar_package' => 'Class confirmation requires the active package for this exact Term.']);
-            }
-
-            if ($locked->courseRevision?->state !== CourseSpecification::StateActive) {
-                throw ValidationException::withMessages(['course_revision' => 'Class confirmation requires an active Course Revision.']);
-            }
-
-            if (! array_key_exists((string) $locked->source, Section::confirmableSourceOptions())) {
-                throw ValidationException::withMessages(['source' => 'A new Class Offering must be Regular or authority-backed Additional. Sharing is recorded through its cohort relationships.']);
-            }
-
-            if ($cohortExpectedCounts === []
-                || collect($cohortExpectedCounts)->contains(fn (int $count): bool => $count < 1)
-                || array_sum($cohortExpectedCounts) > (int) $locked->capacity) {
-                throw ValidationException::withMessages(['cohorts' => 'Confirmed cohort demand must be present and must not exceed the Class Offering capacity.']);
-            }
-
-            $cohortIds = collect(array_keys($cohortExpectedCounts))->map(fn (int|string $id): int => (int) $id)->values();
-            $cohorts = TermCohort::query()
-                ->with(['curriculumVersion.entries.courseSpecification'])
-                ->whereKey($cohortIds)
-                ->lockForUpdate()
-                ->get();
-
-            if ($cohorts->count() !== $cohortIds->unique()->count()) {
-                throw ValidationException::withMessages(['cohorts' => 'Every confirmed cohort must be an existing cohort for this exact Term.']);
-            }
-
-            foreach ($cohorts as $cohort) {
-                $curriculum = $cohort->curriculumVersion;
-                $courseRevision = $locked->courseRevision;
-                $belongsToExactTerm = (int) $cohort->term_id === (int) $locked->calendarPackage->term_id;
-                $hasConsistentProgram = (int) $curriculum->program_id === (int) $cohort->program_id;
-                $containsCourse = $curriculum->entries->contains(function ($entry) use ($courseRevision): bool {
-                    $entrySpecification = $entry->courseSpecification;
-
-                    return (int) $entry->course_specification_id === (int) $courseRevision->id
-                        || ($entrySpecification instanceof CourseSpecification
-                            && (int) $entrySpecification->course_id === (int) $courseRevision->course_id);
-                });
-
-                if (! $belongsToExactTerm
-                    || ! $hasConsistentProgram
-                    || $curriculum->state !== CurriculumVersion::StateActive
-                    || ! $containsCourse) {
-                    throw ValidationException::withMessages(['cohorts' => 'Each cohort must belong to this exact Term and an active, program-consistent curriculum containing the offered course.']);
-                }
-            }
-
-            if ($locked->source === Section::SourceAdditional && blank($additionalAuthorityReference ?? $locked->authority_reference)) {
-                throw ValidationException::withMessages(['authority_reference' => 'An Additional Class Offering requires its external authority reference.']);
-            }
-
-            if ($locked->confirmed_at !== null) {
-                $currentCounts = $locked->cohorts->pluck('pivot.expected_count', 'id')->all();
-                if ($currentCounts != $cohortExpectedCounts
-                    || ($additionalAuthorityReference !== null && $additionalAuthorityReference !== $locked->authority_reference)) {
-                    throw ValidationException::withMessages(['cohorts' => 'Confirmed class facts have changed. Refresh the class before continuing.']);
-                }
-
-                return $locked;
-            }
-
-            $locked->cohorts()->sync(collect($cohortExpectedCounts)->mapWithKeys(
-                fn (int $expected, int|string $cohortId): array => [(int) $cohortId => ['expected_count' => $expected]],
-            )->all());
-            $locked->forceFill([
-                'authority_reference' => $additionalAuthorityReference ?? $locked->authority_reference,
-                'confirmed_by' => $actor->id,
-                'confirmed_at' => now(),
-            ])->save();
-
-            return $locked->fresh(['cohorts', 'calendarPackage', 'courseRevision']);
+            return $confirmed;
         }, attempts: 5);
     }
 
@@ -144,7 +65,7 @@ final class ConfirmClassOffering
                 }
                 $locked = Section::query()->whereKey($section)->lockForUpdate()->firstOrFail();
                 Gate::forUser($actor)->authorize('update', $locked);
-                $locked->load(['calendarPackage', 'termOffering']);
+                $locked->load(['calendarPackage.term', 'termOffering.term']);
                 $sectionTermId = $locked->calendarPackage?->term_id;
                 if ($sectionTermId === null || ($batchTermId !== null && (int) $sectionTermId !== (int) $batchTermId)) {
                     throw ValidationException::withMessages(["items.{$index}.section" => 'All classes must belong to the selected exact Term.']);
@@ -159,9 +80,123 @@ final class ConfirmClassOffering
                 $lockedItems[] = [...$item, 'section' => $locked];
             }
 
-            return collect($lockedItems)->map(fn (array $item): Section => $this->execute(
-                $item['section'], $actor, $item['cohort_counts'] ?? [], $item['authority_reference'] ?? null,
+            $confirmed = collect($lockedItems)->map(fn (array $item): Section => $this->confirmLocked(
+                $item['section'],
+                $actor,
+                $item['cohort_counts'] ?? [],
+                $item['authority_reference'] ?? null,
             ));
+
+            $first = $confirmed->first();
+            if ($first instanceof Section) {
+                $this->syncTermSchedulingDemands($actor, $first->calendarPackage?->term ?? $first->termOffering?->term);
+            }
+
+            return $confirmed;
         }, attempts: 5);
+    }
+
+    /**
+     * @param  array<int, int>  $cohortExpectedCounts
+     */
+    private function confirmLocked(
+        Section $section,
+        User $actor,
+        array $cohortExpectedCounts,
+        ?string $additionalAuthorityReference = null,
+    ): Section {
+        $locked = Section::query()->whereKey($section)->lockForUpdate()->firstOrFail();
+        Gate::forUser($actor)->authorize('update', $locked);
+        $locked->loadMissing(['calendarPackage.term', 'termOffering.term', 'courseRevision.course', 'cohorts']);
+
+        if (in_array($locked->state, [Section::StateClosed, Section::StateCancelled], true)
+            || $locked->calendarPackage?->term?->state === Term::StateClosed
+            || ($locked->termOffering !== null && $locked->calendarPackage !== null
+                && (int) $locked->termOffering->term_id !== (int) $locked->calendarPackage->term_id)) {
+            throw ValidationException::withMessages(['section' => 'Confirmation requires an available class in its exact open Term.']);
+        }
+
+        $active = $locked->calendarPackage ? TermCalendarPackage::query()->where('term_id', $locked->calendarPackage->term_id)->where('state', TermCalendarPackage::StateActive)->lockForUpdate()->first() : null;
+        if (! $active || ! $locked->calendarPackage->isActivatedCoreSource() || $locked->calendarPackage->coreSignature() !== $active->coreSignature()) {
+            throw ValidationException::withMessages(['calendar_package' => 'Class confirmation requires the active package for this exact Term.']);
+        }
+
+        if ($locked->courseRevision?->state !== CourseSpecification::StateActive) {
+            throw ValidationException::withMessages(['course_revision' => 'Class confirmation requires an active Course Revision.']);
+        }
+
+        if (! array_key_exists((string) $locked->source, Section::confirmableSourceOptions())) {
+            throw ValidationException::withMessages(['source' => 'A new Class Offering must be Regular or authority-backed Additional. Sharing is recorded through its cohort relationships.']);
+        }
+
+        if ($cohortExpectedCounts === []
+            || collect($cohortExpectedCounts)->contains(fn (int $count): bool => $count < 1)
+            || array_sum($cohortExpectedCounts) > (int) $locked->capacity) {
+            throw ValidationException::withMessages(['cohorts' => 'Confirmed cohort demand must be present and must not exceed the Class Offering capacity.']);
+        }
+
+        $cohortIds = collect(array_keys($cohortExpectedCounts))->map(fn (int|string $id): int => (int) $id)->values();
+        $cohorts = TermCohort::query()
+            ->with(['curriculumVersion.entries.courseSpecification'])
+            ->whereKey($cohortIds)
+            ->lockForUpdate()
+            ->get();
+
+        if ($cohorts->count() !== $cohortIds->unique()->count()) {
+            throw ValidationException::withMessages(['cohorts' => 'Every confirmed cohort must be an existing cohort for this exact Term.']);
+        }
+
+        foreach ($cohorts as $cohort) {
+            $curriculum = $cohort->curriculumVersion;
+            $courseRevision = $locked->courseRevision;
+            $belongsToExactTerm = (int) $cohort->term_id === (int) $locked->calendarPackage->term_id;
+            $hasConsistentProgram = (int) $curriculum->program_id === (int) $cohort->program_id;
+            $containsCourse = $curriculum->entries->contains(function ($entry) use ($courseRevision): bool {
+                $entrySpecification = $entry->courseSpecification;
+
+                return (int) $entry->course_specification_id === (int) $courseRevision->id
+                    || ($entrySpecification instanceof CourseSpecification
+                        && (int) $entrySpecification->course_id === (int) $courseRevision->course_id);
+            });
+
+            if (! $belongsToExactTerm
+                || ! $hasConsistentProgram
+                || $curriculum->state !== CurriculumVersion::StateActive
+                || ! $containsCourse) {
+                throw ValidationException::withMessages(['cohorts' => 'Each cohort must belong to this exact Term and an active, program-consistent curriculum containing the offered course.']);
+            }
+        }
+
+        if ($locked->source === Section::SourceAdditional && blank($additionalAuthorityReference ?? $locked->authority_reference)) {
+            throw ValidationException::withMessages(['authority_reference' => 'An Additional Class Offering requires its external authority reference.']);
+        }
+
+        if ($locked->confirmed_at !== null) {
+            $currentCounts = $locked->cohorts->pluck('pivot.expected_count', 'id')->all();
+            if ($currentCounts != $cohortExpectedCounts
+                || ($additionalAuthorityReference !== null && $additionalAuthorityReference !== $locked->authority_reference)) {
+                throw ValidationException::withMessages(['cohorts' => 'Confirmed class facts have changed. Refresh the class before continuing.']);
+            }
+
+            return $locked;
+        }
+
+        $locked->cohorts()->sync(collect($cohortExpectedCounts)->mapWithKeys(
+            fn (int $expected, int|string $cohortId): array => [(int) $cohortId => ['expected_count' => $expected]],
+        )->all());
+        $locked->forceFill([
+            'authority_reference' => $additionalAuthorityReference ?? $locked->authority_reference,
+            'confirmed_by' => $actor->id,
+            'confirmed_at' => now(),
+        ])->save();
+
+        return $locked->fresh(['cohorts', 'calendarPackage.term', 'termOffering.term', 'courseRevision']);
+    }
+
+    private function syncTermSchedulingDemands(User $actor, ?Term $term): void
+    {
+        if ($term instanceof Term && Gate::forUser($actor)->allows('create', SchedulingDemand::class)) {
+            app(GenerateSchedulingDemand::class)->forTerm($actor, $term);
+        }
     }
 }

@@ -86,7 +86,7 @@
                 @else
                     <a class="primary-action" href="{{ url('/') }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 11.5 12 4l9 7.5M5.5 10v9.5h13V10M10 19.5v-5h4v5" /></svg>Back to home</a>
                 @endif
-                <a class="secondary-action" href="{{ route('home', ['modal' => 'support']) }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3.5" /><path d="M6 6l3.5 3.5M18 6l-3.5 3.5M6 18l3.5-3.5M18 18l-3.5-3.5" /></svg>Contact school support</a>
+                <a class="secondary-action" href="{{ route('home', ['modal' => 'support']) }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3.5" /><path d="M6 6l3.5 3.5M18 6l-3.5 3.5M6 18l3.5-3.5M18 18l-3.5-3.5" /></svg>Contact support</a>
             </div>
             @if ($admissionRecovery)
                 <p class="status-code">HTTP {{ $statusCode }}</p>

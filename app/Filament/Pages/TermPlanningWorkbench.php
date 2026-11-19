@@ -7,6 +7,7 @@ use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\TermCalendarPackageReadinessService;
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\FacultyAvailabilityRequestService;
+use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\ReadyTermPlanningProjection;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeadline;
 use App\Actions\Scheduling\ReviewTimetableCandidate;
@@ -17,16 +18,6 @@ use App\Actions\Scheduling\ScheduleSolverRetryService;
 use App\Actions\Scheduling\TermCoverageProjection;
 use App\Actions\Scheduling\TimetableFailureLanguage;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
-use App\Filament\Resources\CalendarEvents\CalendarEventResource;
-use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
-use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
-use App\Filament\Resources\Rooms\RoomResource;
-use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
-use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
-use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
-use App\Filament\Resources\Sections\SectionResource;
-use App\Filament\Resources\TermOfferings\TermOfferingResource;
-use App\Filament\Resources\Terms\TermResource;
 use App\Models\AcademicYear;
 use App\Models\CandidateScheduleRow;
 use App\Models\FacultyAvailabilityDeadline;
@@ -68,6 +59,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
@@ -93,8 +85,6 @@ class TermPlanningWorkbench extends Page
     protected static ?string $navigationLabel = 'Term Planning';
 
     protected static ?string $title = 'Term Planning';
-
-    protected string $view = 'filament.pages.term-planning-workbench';
 
     /** @var array<string, string> */
     protected array $extraBodyAttributes = ['class' => 'tala-term-planning-page'];
@@ -244,6 +234,7 @@ class TermPlanningWorkbench extends Page
         if (static::class === self::class) {
 
             $this->redirect(self::getUrl(['termId' => $this->termId, 'chooseTerm' => $this->chooseTerm ?: null, 'viewTab' => $this->viewTab, 'selectedRunId' => $this->selectedRunId, 'selectedVersionId' => $this->selectedVersionId]));
+            $this->skipRender();
 
             return;
 
@@ -323,6 +314,8 @@ class TermPlanningWorkbench extends Page
             ->modalSubmitActionLabel('Record approved Draft')
 
             ->modalWidth('5xl')
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->fillForm(fn (): array => $this->activeCalendarPackage() ? $this->calendarPackageFormData($this->activeCalendarPackage()) : ['source_package_id' => null, 'source_token' => null, 'windows' => [], 'dated_exceptions' => []])
 
@@ -371,7 +364,7 @@ class TermPlanningWorkbench extends Page
 
                     }
 
-                    $data['faculty_availability_due_at'] = $source?->faculty_availability_due_at;
+                    $data = collect($data)->except(['faculty_availability_due_at'])->all();
 
                     $version = ((int) TermCalendarPackage::query()->where('term_id', $term->id)->max('version')) + 1;
 
@@ -407,6 +400,8 @@ class TermPlanningWorkbench extends Page
 
                             ...$exception,
 
+                            'authority_reference' => trim((string) ($exception['authority_reference'] ?? '')),
+
                             'blocks_teaching' => (bool) ($exception['blocks_teaching'] ?? true),
 
                         ]);
@@ -433,6 +428,8 @@ class TermPlanningWorkbench extends Page
             ->modalSubmitActionLabel('Save Draft correction')
 
             ->modalWidth('5xl')
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->visible(function (): bool {
 
@@ -493,8 +490,6 @@ class TermPlanningWorkbench extends Page
                     'classes_start_on' => $draft->classes_start_on?->toDateString(),
 
                     'classes_end_on' => $draft->classes_end_on?->toDateString(),
-
-                    'faculty_availability_due_at' => $draft->faculty_availability_due_at?->timezone((string) config('app.display_timezone'))->format('Y-m-d H:i'),
 
                     'authority_reference' => $draft->authority_reference,
 
@@ -620,8 +615,6 @@ class TermPlanningWorkbench extends Page
 
                         $set('classes_end_on', $package->classes_end_on?->toDateString());
 
-                        $set('faculty_availability_due_at', $package->faculty_availability_due_at?->timezone((string) config('app.display_timezone'))->format('Y-m-d H:i'));
-
                         $set('authority_reference', $package->authority_reference);
 
                         $set('authority_date', $package->authority_date?->toDateString());
@@ -742,7 +735,7 @@ class TermPlanningWorkbench extends Page
 
                     }
 
-                    $data['faculty_availability_due_at'] = $package->faculty_availability_due_at;
+                    $data = collect($data)->except(['faculty_availability_due_at'])->all();
 
                     $package->update([
 
@@ -775,6 +768,8 @@ class TermPlanningWorkbench extends Page
                         $package->datedExceptions()->create([
 
                             ...$exception,
+
+                            'authority_reference' => trim((string) ($exception['authority_reference'] ?? '')),
 
                             'blocks_teaching' => (bool) ($exception['blocks_teaching'] ?? true),
 
@@ -836,6 +831,8 @@ class TermPlanningWorkbench extends Page
             ->modalSubmitActionLabel('Activate teaching calendar')
 
             ->modalWidth('2xl')
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->fillForm(function (): array {
 
@@ -1068,9 +1065,9 @@ class TermPlanningWorkbench extends Page
 
                     Notification::make('calendar_package_activation_feedback')
 
-                        ->title('Calendar Package activated')
+                        ->title('Teaching calendar activated')
 
-                        ->body("Calendar Package v{$package->version} is now Active for {$term->label}.")
+                        ->body("The teaching calendar is now active for {$term->label}.")
 
                         ->success()
 
@@ -1123,7 +1120,7 @@ class TermPlanningWorkbench extends Page
 
         return [
 
-            TextInput::make('authority_reference')->label('Approval reference (optional)')->maxLength(255),
+            TextInput::make('authority_reference')->label('Approval note or memo (optional)')->maxLength(255),
 
             DatePicker::make('authority_date')->label('Approval date (optional)'),
 
@@ -1172,7 +1169,7 @@ class TermPlanningWorkbench extends Page
 
             ->schema([
 
-                TextInput::make('authority_reference')->label('Approval reference (optional)')->maxLength(255),
+                TextInput::make('authority_reference')->label('Approval note or memo (optional)')->maxLength(255),
 
                 DatePicker::make('authority_date')->label('Approval date (optional)'),
 
@@ -1232,8 +1229,6 @@ class TermPlanningWorkbench extends Page
 
                 ])->columns(2)->helperText('Record each activity for this Term. Leave the closing time empty to include the entire closing day.'),
 
-                Hidden::make('faculty_availability_due_at')->dehydrated(false),
-
             ]);
 
         $exceptions = SchemaSection::make('Calendar exceptions')->description('Record approved no-class periods, make-up dates or informational exceptions, with their instructional effect and authority.')
@@ -1250,7 +1245,12 @@ class TermPlanningWorkbench extends Page
 
                     TextInput::make('label')->required()->maxLength(255),
 
-                    TextInput::make('authority_reference')->required()->maxLength(255),
+                    TextInput::make('authority_reference')
+                        ->label('Approval memo or reference')
+                        ->placeholder('e.g., Memo 2026-014 or approving office')
+                        ->helperText('Required to activate the calendar with this exception.')
+                        ->required()
+                        ->maxLength(255),
 
                     Toggle::make('blocks_teaching')->label('No classes')->default(true),
 
@@ -1289,7 +1289,7 @@ class TermPlanningWorkbench extends Page
 
                 DateTimePicker::make('due_at')->label('Reply by (Asia/Manila)')->timezone('Asia/Manila')->seconds(false)->required(),
 
-                TextInput::make('authority_reference')->label('Approval reference (optional)')->helperText('Add a reference if one was provided. TALA records who set this deadline and when.')->maxLength(255),
+                TextInput::make('authority_reference')->label('Approval note or memo (optional)')->helperText('Add a note or memo if one was provided. TALA records who set this deadline and when.')->maxLength(255),
 
                 Textarea::make('correction_reason')->label('Reason for correction')->helperText('Required when a deadline is already recorded.')->maxLength(2000),
 
@@ -1342,8 +1342,6 @@ class TermPlanningWorkbench extends Page
 
             'authority_date' => $package->authority_date?->toDateString(),
 
-            'faculty_availability_due_at' => $package->faculty_availability_due_at?->timezone('Asia/Manila')->format('Y-m-d H:i'),
-
             'windows' => $package->windows->map(fn ($window): array => [
 
                 'window_type' => $window->window_type, 'opens_on' => $window->opens_on->toDateString(), 'closes_on' => $window->closes_on->toDateString(), 'cutoff_at' => $window->cutoff_at,
@@ -1374,6 +1372,9 @@ class TermPlanningWorkbench extends Page
             ->icon(Heroicon::OutlinedEnvelope)
 
             ->modalHeading('Request Faculty availability')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->modalSubmitActionLabel('Send availability requests')
 
@@ -1492,6 +1493,9 @@ class TermPlanningWorkbench extends Page
 
             ->label('Confirm class')
             ->modalHeading('Confirm class and student sections')
+            ->modalWidth(Width::ThreeExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalDescription('Link the confirmed student sections to this class. Shared and mixed-year sections remain separate; their total must fit the approved class capacity.')
             ->modalSubmitActionLabel('Confirm class')
             ->fillForm(fn (array $arguments, ?Section $record = null): array => ['section_id' => $record?->id ?? $arguments['sectionId'] ?? null])
@@ -1517,62 +1521,179 @@ class TermPlanningWorkbench extends Page
             });
     }
 
-    /** @return array{ready: bool, reason: ?string, tab?: string} */
+    /** @return array{ready: bool, reason: ?string, tab?: string, blockers?: list<array{code: string, reason: string, label: string, url: string}>} */
     public function generationReadiness(): array
     {
-
         $term = $this->selectedTerm();
 
         if (! $term) {
-
-            return ['ready' => false, 'reason' => 'Choose a Term first.'];
-
+            return [
+                'ready' => false,
+                'reason' => 'Choose a Term first.',
+                'blockers' => [],
+            ];
         }
 
         $readiness = app(ReadyTermPlanningProjection::class)->forTerm($term);
+        $isAcademicHead = (bool) auth()->user()?->hasRole(User::StaffRoleAcademicHead);
+        $blockers = [];
 
-        if (! $readiness['ready']) {
-
-            $blocker = $readiness['blockers'][0];
-
-            return ['ready' => false, 'reason' => match ($blocker['code']) {
-                'calendar_not_active' => 'Activate the teaching calendar for this Term before preparing a timetable.',
-                'classes_not_confirmed' => 'Prepare and confirm classes for this Term before generating a timetable.',
-                default => $blocker['reason'],
-            }, 'tab' => match ($blocker['code']) {
+        foreach ($readiness['blockers'] as $blocker) {
+            $tab = match ($blocker['code']) {
                 'calendar_not_active' => 'overview',
                 'classes_not_confirmed' => 'classes',
                 default => 'resources',
-            }];
+            };
 
+            $url = match ($tab) {
+                'resources' => TermResources::getUrl(array_filter([
+                    'termId' => $term->id,
+                    'resourceView' => in_array($blocker['code'], ['rooms_unavailable', 'rooms_unsuitable'], true) ? 'rooms' : null,
+                ], fn (mixed $value): bool => $value !== null)),
+                default => TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => $tab]),
+            };
+
+            $blockers[] = [
+                'code' => $blocker['code'],
+                'reason' => match ($blocker['code']) {
+                    'calendar_not_active' => 'Activate the teaching calendar for this Term before preparing a timetable.',
+                    'classes_not_confirmed' => 'Prepare and confirm classes for this Term before generating a timetable.',
+                    default => $blocker['reason'],
+                },
+                'label' => match ($tab) {
+                    'overview' => 'Term Calendar',
+                    'classes' => 'Classes',
+                    default => 'Resources',
+                },
+                'url' => $url,
+                '_tab' => $tab,
+            ];
         }
 
         $demands = SchedulingDemand::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id));
+        $resourceFindingKeys = [
+            'missing_active_faculty_qualification',
+            'missing_suitable_room',
+            'missing_default_faculty_load',
+            'fixed_faculty_not_qualified',
+            'fixed_room_not_suitable',
+        ];
 
         if (! (clone $demands)->exists()) {
+            $blockers[] = [
+                'code' => 'scheduling_demands_missing',
+                'reason' => $isAcademicHead
+                    ? 'No weekly meeting requirements are recorded for this Term’s classes.'
+                    : 'Prepare weekly meeting requirements for this Term’s classes.',
+                'label' => 'Classes',
+                'url' => TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'classes']),
+                '_tab' => 'classes',
+            ];
+        } elseif ((clone $demands)->where('validation_state', '!=', SchedulingDemand::ValidationReadyForReview)->exists()) {
+            $unvalidatedDemands = (clone $demands)
+                ->where('validation_state', '!=', SchedulingDemand::ValidationReadyForReview)
+                ->get();
+            $findingKeys = $unvalidatedDemands
+                ->flatMap(fn (SchedulingDemand $demand): array => array_column($demand->readinessFindings(), 'key'))
+                ->unique()
+                ->values();
+            $onlyResourceFindings = $findingKeys->isNotEmpty()
+                && $findingKeys->every(fn (string $key): bool => in_array($key, $resourceFindingKeys, true));
+            $alreadyCoveredByResourceBlocker = $onlyResourceFindings
+                && collect($blockers)->contains(fn (array $blocker): bool => in_array($blocker['code'], ['faculty_qualifications_missing', 'rooms_unavailable', 'rooms_unsuitable'], true));
 
-            return ['ready' => false, 'reason' => auth()->user()?->hasRole(User::StaffRoleAcademicHead)
-                ? 'No weekly meeting requirements are recorded for this Term’s classes.'
-                : 'Prepare weekly meeting requirements for this Term’s classes.', 'tab' => 'classes'];
-
-        }
-
-        if ((clone $demands)->where('validation_state', '!=', SchedulingDemand::ValidationReadyForReview)->exists()) {
-
-            return ['ready' => false, 'reason' => auth()->user()?->hasRole(User::StaffRoleAcademicHead)
-                ? 'Recorded weekly meeting requirements have unresolved validation.'
-                : 'Resolve the recorded weekly meeting requirements before generating.', 'tab' => 'classes'];
-
+            if (! $alreadyCoveredByResourceBlocker) {
+                $targetTab = $onlyResourceFindings ? 'resources' : 'classes';
+                $isRoomOnly = $findingKeys->isNotEmpty()
+                    && $findingKeys->every(fn (string $key): bool => in_array($key, ['missing_suitable_room', 'fixed_room_not_suitable'], true));
+                $blockers[] = [
+                    'code' => 'scheduling_demands_unvalidated',
+                    'reason' => $isAcademicHead
+                        ? 'Recorded weekly meeting requirements have unresolved validation.'
+                        : ($onlyResourceFindings
+                            ? 'Update teaching resources and refresh weekly meeting requirements before generating.'
+                            : 'Resolve the recorded weekly meeting requirements before generating.'),
+                    'label' => $onlyResourceFindings ? 'Resources' : 'Classes',
+                    'url' => $onlyResourceFindings
+                        ? TermResources::getUrl(array_filter(['termId' => $term->id, 'resourceView' => $isRoomOnly ? 'rooms' : null], fn (mixed $value): bool => $value !== null))
+                        : TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => $targetTab]),
+                    '_tab' => $targetTab,
+                ];
+            }
         }
 
         if (ScheduleGenerationRun::query()->where('term_id', $term->id)->whereIn('status', [ScheduleGenerationRun::StatusQueued, ScheduleGenerationRun::StatusDispatching])->exists()) {
-
-            return ['ready' => false, 'reason' => 'A timetable is already being generated for this Term.', 'tab' => 'generate'];
-
+            $blockers[] = [
+                'code' => 'generation_in_progress',
+                'reason' => 'A timetable is already being generated for this Term.',
+                'label' => 'Timetable',
+                'url' => TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'generate']),
+                '_tab' => 'generate',
+            ];
         }
 
-        return ['ready' => true, 'reason' => null];
+        if ($blockers === []) {
+            return [
+                'ready' => true,
+                'reason' => null,
+                'blockers' => [],
+            ];
+        }
 
+        return [
+            'ready' => false,
+            'reason' => $blockers[0]['reason'],
+            'tab' => $blockers[0]['_tab'],
+            'blockers' => array_map(
+                static fn (array $blocker): array => [
+                    'code' => $blocker['code'],
+                    'reason' => $blocker['reason'],
+                    'label' => $blocker['label'],
+                    'url' => $blocker['url'],
+                ],
+                $blockers,
+            ),
+        ];
+    }
+
+    public function syncSchedulingDemandsAction(): Action
+    {
+        return Action::make('syncSchedulingDemands')
+            ->label('Refresh meeting requirements')
+            ->icon(Heroicon::OutlinedArrowPath)
+            ->color('gray')
+            ->visible(function (): bool {
+                $actor = auth()->user();
+                if (! $actor instanceof User || ! $actor->can('create', SchedulingDemand::class) || $this->termId === null) {
+                    return false;
+                }
+
+                $confirmedExist = Section::query()
+                    ->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $this->termId)->where('state', TermCalendarPackage::StateActive))
+                    ->whereNotNull('confirmed_at')
+                    ->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])
+                    ->exists();
+
+                if (! $confirmedExist) {
+                    return false;
+                }
+
+                $demands = SchedulingDemand::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $this->termId));
+
+                return ! (clone $demands)->exists()
+                    || (clone $demands)->where('validation_state', '!=', SchedulingDemand::ValidationReadyForReview)->exists();
+            })
+            ->action(function (): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $term = Term::query()->findOrFail($this->termId);
+                $summary = app(GenerateSchedulingDemand::class)->forTerm($actor, $term);
+                Notification::make()
+                    ->title('Weekly meeting requirements refreshed')
+                    ->body("Ready: {$summary['ready']} · Needs attention: {$summary['action_required']}")
+                    ->success()
+                    ->send();
+            });
     }
 
     public function generateTimetableAction(): Action
@@ -1591,6 +1712,8 @@ class TermPlanningWorkbench extends Page
             ->modalHeading('Generate whole-Term timetable')
 
             ->modalWidth('5xl')
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->modalDescription(function (): string {
 
@@ -1693,6 +1816,9 @@ class TermPlanningWorkbench extends Page
             ->requiresConfirmation()
 
             ->modalHeading('Accept timetable')
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->modalSubmitActionLabel('Accept timetable')
             ->modalIcon(Heroicon::OutlinedCheck)
@@ -1753,6 +1879,9 @@ class TermPlanningWorkbench extends Page
             ->requiresConfirmation()
 
             ->modalHeading('Reject result')
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->modalSubmitActionLabel('Reject result')
             ->modalIcon(Heroicon::OutlinedXMark)
@@ -1813,6 +1942,9 @@ class TermPlanningWorkbench extends Page
             ->requiresConfirmation()
 
             ->modalHeading(fn (): string => $this->canRecoverActiveRun() ? 'Try again after a service fix' : 'Retry generation')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->modalDescription(fn (): string => $this->selectedTerm()->label.' / Attempt #'.$this->activeScheduleRun()?->id.'. '.($this->canRecoverActiveRun()
                 ? 'After the System Administrator confirms the service fix, queue one new attempt after current planning data passes readiness checks. The failed attempt stays in history. Any original repair change is preserved.'
@@ -1892,6 +2024,9 @@ class TermPlanningWorkbench extends Page
             ->requiresConfirmation()
 
             ->modalHeading('Publish official timetable')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->modalDescription(fn (): string => $this->selectedTerm()->label.' / Attempt #'.$this->activeScheduleRun()?->id.'. '.$this->publicationModalDescription())
 
@@ -1901,7 +2036,7 @@ class TermPlanningWorkbench extends Page
 
                 TextInput::make('authority_reference')
 
-                    ->label('Approval reference (optional)')
+                    ->label('Approval note or memo (optional)')
 
                     ->maxLength(255)
 
@@ -2736,7 +2871,7 @@ class TermPlanningWorkbench extends Page
 
             'operationalDates' => $operationalDates,
 
-            'facultyDeadline' => $facultyDeadlineSource?->due_at ?? $activePackage?->faculty_availability_due_at,
+            'facultyDeadline' => $facultyDeadlineSource?->due_at,
 
             'facultyDeadlineSource' => $facultyDeadlineSource,
 
@@ -2759,86 +2894,6 @@ class TermPlanningWorkbench extends Page
                 'runs' => ScheduleGenerationRun::query()->where('term_id', $term->id)->count(),
 
             ] : ['classes' => 0, 'confirmed' => 0, 'runs' => 0],
-
-            'tabs' => [
-
-                'plan' => 'Plan',
-
-                'overview' => 'Calendar',
-
-                'classes' => 'Classes',
-
-                'resources' => 'Teaching Resources',
-
-                'generate' => 'Generate & Review',
-
-                'published' => 'Published Timetable',
-
-            ],
-
-            'taskSummaries' => [
-
-                'plan' => 'Preparation and next work',
-
-                'overview' => $draftPackages->isNotEmpty() ? 'Draft v'.$overviewPackage->version.' to review' : ($activePackage ? 'Active calendar v'.$activePackage->version : 'Start with approved dates'),
-
-                'classes' => $contextClasses->whereNotNull('confirmed_at')->count().' / '.$contextClasses->count().' confirmed',
-
-                'resources' => $facultyRecords->count().' eligible Faculty · '.$missingDeclarations.' awaiting response',
-
-                'generate' => $activeRun ? (ScheduleGenerationRun::statusOptions()[$activeRun->status] ?? str($activeRun->status)->headline()->toString()) : 'No generation yet',
-
-                'published' => $currentVersion ? 'Current version '.$currentVersion->version : 'Not published',
-
-            ],
-
-            'destinations' => [
-
-                'overview' => $term ? TermResource::getUrl('view', ['record' => $term, 'viewTab' => $this->viewTab]) : TermResource::getUrl(),
-
-                'classes' => SectionResource::getUrl('index', ['termId' => $term?->id]),
-
-                'resources' => RoomResource::getUrl('index', ['termId' => $term?->id]),
-
-                'generate' => ScheduleGenerationRunResource::getUrl('index', ['termId' => $term?->id, 'filters' => ['term_id' => ['value' => $term?->id]]]),
-
-                'published' => SectionMeetingResource::getUrl('index', ['termId' => $term?->id, 'filters' => ['term_id' => ['value' => $term?->id]]]),
-
-            ],
-
-            'classSources' => collect([
-
-                ['resource' => TermOfferingResource::class, 'label' => 'Term offerings', 'description' => 'Choose curriculum courses before creating sections.', 'filter' => 'term'],
-
-                ['resource' => SectionResource::class, 'label' => 'Sections & delivery groups', 'description' => 'Create section records and set their delivery groups.', 'filter' => null],
-
-                ['resource' => SchedulingDemandResource::class, 'label' => 'Schedule requirements', 'description' => 'Review the requirements and blockers used by generation.', 'filter' => 'term_id'],
-
-            ])->filter(fn (array $source): bool => $source['resource']::canAccess())->map(fn (array $source): array => [
-
-                ...$source,
-
-                'url' => $source['resource']::getUrl('index', ['termId' => $term?->id, ...($source['filter'] ? ['filters' => [$source['filter'] => ['value' => $term?->id]]] : [])]),
-
-            ]),
-
-            'resourceSources' => collect([
-
-                ['resource' => RoomResource::class, 'label' => 'Rooms & features', 'description' => 'Maintain room capacity, equipment and availability.', 'filter' => null],
-
-                ['resource' => FacultyQualificationResource::class, 'label' => 'Faculty qualifications', 'description' => 'Record which courses each Faculty member may teach.', 'filter' => null],
-
-                ['resource' => FacultyTermLoadOverrideResource::class, 'label' => 'Faculty Term loads', 'description' => 'Record approved load exceptions for this Term.', 'filter' => 'term_id'],
-
-                ['resource' => CalendarEventResource::class, 'label' => 'Scheduling availability', 'description' => 'Review recurring Faculty, room and institutional blocks.', 'filter' => 'term_id'],
-
-            ])->filter(fn (array $source): bool => $source['resource']::canAccess())->map(fn (array $source): array => [
-
-                ...$source,
-
-                'url' => $source['resource']::getUrl('index', ['termId' => $term?->id, ...($source['filter'] ? ['filters' => [$source['filter'] => ['value' => $term?->id]]] : [])]),
-
-            ]),
 
             'readOnly' => auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? true,
 

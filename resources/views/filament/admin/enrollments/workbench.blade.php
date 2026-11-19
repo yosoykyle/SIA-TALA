@@ -1,7 +1,10 @@
 @assets
     <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
 @endassets
-@php($queueUrl = fn (string $key): string => \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('index', ['tab' => $key]))
+@php
+    $queueUrl = fn (string $key): string => \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('index', ['tab' => $key]);
+    $featuredKey = $counts['prepare'] > 0 ? 'prepare' : ($counts['issues'] > 0 ? 'issues' : ($counts['ready'] > 0 ? 'ready' : 'prepare'));
+@endphp
 <div class="registrar-workbench tala-workspace-launcher">
     <section aria-labelledby="registrar-work-heading">
         <h2 id="registrar-work-heading">Registrar work</h2>
@@ -12,7 +15,7 @@
                 ['placement_shortages', 'issues', 'heroicon-o-exclamation-circle', 'Resolve enrollment issues', 'Review current classes or requirements that need attention.', 'Review issues'],
                 ['ready_to_finalize', 'ready', 'heroicon-o-check-circle', 'Make enrollment official', 'Confirmed and cleared for final review.', 'Review enrollments'],
             ] as [$queue, $countKey, $icon, $label, $description, $action])
-                <x-workspace-card :featured="$countKey === 'prepare'" :href="$queueUrl($queue)" :icon="$icon" :label="$label" :description="$description"
+                <x-workspace-card :featured="$countKey === $featuredKey" :action-color="$countKey === $featuredKey ? 'primary' : 'gray'" :href="$queueUrl($queue)" :icon="$icon" :label="$label" :description="$description"
                     :figure="$counts[$countKey]" :figure-label="\Illuminate\Support\Str::plural('enrollment case', $counts[$countKey])" :action="$action" :heading-level="3" />
             @endforeach
         </nav>
@@ -43,7 +46,7 @@
         </section>
         <section class="registrar-records-entry tala-task-surface" aria-labelledby="registrar-period-heading">
             <div><h2 id="registrar-period-heading">Enrollment period</h2><p>Choose who can enroll during the published dates.</p></div>
-            {{ $windowAction->button()->label('Edit enrollment period') }}
+            {{ $windowAction->button()->color('gray')->label('Edit enrollment period') }}
         </section>
     </div>
 </div>

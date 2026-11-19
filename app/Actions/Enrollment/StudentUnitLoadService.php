@@ -5,7 +5,6 @@ namespace App\Actions\Enrollment;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
 use App\Models\EnrollmentException;
-use App\Models\EnrollmentGateResult;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
 use App\Models\StudentProfile;
@@ -17,10 +16,12 @@ use Illuminate\Validation\ValidationException;
 
 class StudentUnitLoadService
 {
+    public const SummerRetakeUnitCeiling = 9.0;
+
     /** @return array<string, string> */
     public function positionOptions(Enrollment $enrollment, ?int $selectedCurriculumVersionId = null): array
     {
-        $enrollment->loadMissing(['studentProfile', 'admissionApplication']);
+        $enrollment->loadMissing(['studentProfile', 'admissionApplication', 'term']);
         $entries = CurriculumEntry::query()
             ->with('courseSpecification')
             ->where('curriculum_version_id', $enrollment->studentProfile?->curriculum_version_id ?? $selectedCurriculumVersionId)
@@ -30,7 +31,7 @@ class StudentUnitLoadService
             ->orderBy('sequence')
             ->get();
 
-        return $entries
+        $options = $entries
             ->groupBy(fn (CurriculumEntry $entry): string => $this->positionKey(
                 (string) $entry->year_level,
                 (string) $entry->term_label,
@@ -45,6 +46,13 @@ class StudentUnitLoadService
                 return $entry->year_level.' — '.$entry->term_label.' ('.$this->units($units).' units)';
             })
             ->all();
+
+        if ($enrollment->term?->type === Term::TypeSpecialTerm && ! $entries->contains('term_type', Term::TypeSpecialTerm)) {
+            $summerKey = $this->positionKey('Special Term', 'Special Term', Term::TypeSpecialTerm);
+            $options[$summerKey] = 'Special Term — Retake ceiling ('.$this->units(self::SummerRetakeUnitCeiling).' units)';
+        }
+
+        return $options;
     }
 
     /**
@@ -92,7 +100,7 @@ class StudentUnitLoadService
             $this->unavailable('Every selected class must belong to the Student’s assigned Curriculum Version and exact Term.');
         }
 
-        $position = $this->resolvePosition($offerings, $confirmedPosition);
+        $position = $this->resolvePosition($offerings, $confirmedPosition, $enrollment->selection_basis);
         $entries = CurriculumEntry::query()
             ->with('courseSpecification')
             ->where('curriculum_version_id', $curriculumVersionId)
@@ -107,7 +115,11 @@ class StudentUnitLoadService
         );
 
         if ($entries->isEmpty() || $normalTotal <= 0) {
-            $this->unavailable();
+            if ($term->type === Term::TypeSpecialTerm && $position['term_type'] === Term::TypeSpecialTerm) {
+                $normalTotal = self::SummerRetakeUnitCeiling;
+            } else {
+                $this->unavailable();
+            }
         }
 
         $requestedTotal = (float) $offerings->sum(
@@ -253,15 +265,29 @@ class StudentUnitLoadService
                 $entry->term_label,
                 $entry->term_type,
             ));
-        $otherFailedGates = EnrollmentGateResult::query()
-            ->where('enrollment_id', $enrollment->id)
-            ->where('result', EnrollmentGateResult::ResultFailed)
-            ->where('gate_type', '!=', EnrollmentGateResult::GateAcademicProgression)
-            ->pluck('gate_type')
-            ->values()
-            ->all();
+        $otherFailedGates = [];
 
         if ($groups->count() !== 1) {
+            if ($enrollment->term?->type === Term::TypeSpecialTerm && $groups->isEmpty()) {
+                $normal = self::SummerRetakeUnitCeiling;
+                $passes = $requestedTotal <= $normal;
+
+                return [
+                    'enrollment_id' => (int) $enrollment->id,
+                    'normal_load' => $this->units($normal),
+                    'requested_total' => $this->units($requestedTotal),
+                    'configured_cap' => null,
+                    'approved_excess' => '0.00',
+                    'approved_limit' => $this->units($normal),
+                    'requires_exception' => $requestedTotal > $normal,
+                    'has_active_exception' => false,
+                    'unit_load_passes' => $passes,
+                    'other_failed_gates' => $otherFailedGates,
+                    'all_gates_pass' => $passes,
+                    'blocker' => $passes ? null : 'Curriculum term load unavailable or graduating-overload authority required',
+                ];
+            }
+
             return [
                 'enrollment_id' => (int) $enrollment->id,
                 'normal_load' => null,
@@ -308,7 +334,7 @@ class StudentUnitLoadService
      * @param  Collection<int, TermOffering>  $offerings
      * @return array{year_level:string,term_label:string,term_type:string}
      */
-    private function resolvePosition(Collection $offerings, ?string $confirmedPosition): array
+    private function resolvePosition(Collection $offerings, ?string $confirmedPosition, ?string $selectionBasis = null): array
     {
         $regularPositions = $offerings
             ->filter(fn (TermOffering $offering): bool => $offering->category === TermOffering::CategoryRegular)
@@ -322,7 +348,10 @@ class StudentUnitLoadService
 
         if (filled($confirmedPosition)) {
             $position = $this->parsePositionKey($confirmedPosition);
-            if ($regularPositions->isNotEmpty()
+            $allowsCrossYearRegularMix = $selectionBasis === Enrollment::SelectionIndividuallyAdvised
+                && ($regularPositions->count() > 1 || $selectedPositions->count() > 1);
+            if (! $allowsCrossYearRegularMix
+                && $regularPositions->isNotEmpty()
                 && $regularPositions->contains(fn (array $regular): bool => $regular !== $position)) {
                 $this->unavailable('The confirmed curriculum position conflicts with an ordinary selected class.');
             }

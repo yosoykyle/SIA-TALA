@@ -16,7 +16,16 @@ final class TermCoverageProjection
     /** @return array{rows:list<array<string,mixed>>,additional:list<array<string,mixed>>,summary:array<string,int>} */
     public function forTerm(Term $term): array
     {
-        $curricula = CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)
+        $curricula = CurriculumVersion::query()
+            ->where(fn ($query) => $query
+                ->where('state', CurriculumVersion::StateActive)
+                ->orWhere(fn ($superseded) => $superseded
+                    ->where('state', CurriculumVersion::StateSuperseded)
+                    ->where(fn ($usedInTerm) => $usedInTerm
+                        ->whereHas('termCohorts', fn ($cohortQuery) => $cohortQuery->where('term_id', $term->id))
+                        ->orWhereHas('entries.termOfferings', fn ($offeringQuery) => $offeringQuery
+                            ->where('term_id', $term->id)
+                            ->where('state', '!=', TermOffering::StateCancelled)))))
             ->with(['program', 'entries' => fn ($query) => $query->where('term_type', $term->type)->orderBy('sequence'), 'entries.courseSpecification'])->get()->keyBy('id');
         $offerings = TermOffering::query()->where('term_id', $term->id)
             ->where('state', '!=', TermOffering::StateCancelled)

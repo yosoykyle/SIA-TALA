@@ -46,10 +46,5 @@
         <p class="accounting-export-note">Preview of the first {{ count($rows) }} matching {{ str('account')->plural(count($rows)) }} in the current list order. Current sources are rechecked when you download.</p>
     @endif
 
-    <x-supporting-details :summary="'CSV columns and source details · '.count($headers).' columns'" class="accounting-export-columns" inset>
-        <ol>@foreach ($headers as $header)<li>{{ $header }}</li>@endforeach</ol>
-        <p>Purpose: {{ $purpose }}</p>
-        <p>Amounts use PHP and two decimal places. Needs review leaves derived amounts blank; recorded assessment and approval details remain attributable. The time column uses Asia/Manila.</p>
-    </x-supporting-details>
-    <p class="accounting-export-note">CSV · up to 10,000 accounts · Private retrieval only for the initiator.</p>
+    <p class="accounting-export-note">CSV ({{ count($headers) }} columns · up to 10,000 accounts) includes learner and account identifiers, term charges, verified payments, and approval references (PHP · Asia/Manila · private to you).</p>
 </div>

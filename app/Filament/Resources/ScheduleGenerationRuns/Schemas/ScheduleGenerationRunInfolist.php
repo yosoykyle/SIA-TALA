@@ -425,7 +425,7 @@ class ScheduleGenerationRunInfolist
         }
 
         if (in_array($record->candidate_state, ['Rejected', 'Stale', 'Superseded'], true)) {
-            return 'This candidate is '.strtolower($record->candidate_state).'. Return to Timetable to inspect the current request or prepare a successor.';
+            return 'This candidate is '.strtolower($record->candidate_state).'. Return to Timetable to inspect the current request or prepare a new attempt.';
         }
 
         return match ($record->status) {

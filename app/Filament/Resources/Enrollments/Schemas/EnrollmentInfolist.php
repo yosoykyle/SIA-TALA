@@ -67,7 +67,7 @@ class EnrollmentInfolist
 
                 return $meeting;
             })->all();
-            $schedule['source'] = 'Registration proposal v'.$proposal->version.' · Published timetable v'.$proposal->timetableVersion->version;
+            $schedule['source'] = 'Registration proposal · Published timetable';
         }
         $position = $case->termAccount !== null ? app(TermAccountProjection::class)->forAccount($case->termAccount) : null;
         $assessment = $case->termAccount?->assessments()->with('lines')->where('state', Assessment::StateActive)->latest('version')->first();
@@ -202,19 +202,19 @@ class EnrollmentInfolist
                 ])
                 ->columns(2),
             Section::make('Proposal and confirmation')
-                ->description('Proposal versions remain immutable after issue. A material successor requires a new confirmation.')
+                ->description('Issued proposals stay unchanged. An updated selection requires a new confirmation.')
                 ->schema([
-                    TextEntry::make('proposal_version')->label('Proposal version')->state(fn (Enrollment $record): string => $record->currentProposalVersion !== null
-                        ? "v{$record->currentProposalVersion->version} · {$record->currentProposalVersion->state}"
+                    TextEntry::make('proposal_version')->label('Current proposal')->state(fn (Enrollment $record): string => $record->currentProposalVersion !== null
+                        ? collect([$record->currentProposalVersion->state, $record->currentProposalVersion->updated_at ? 'Updated '.$record->currentProposalVersion->updated_at->timezone(config('app.display_timezone'))->format('M j, Y') : null])->filter()->implode(' · ')
                         : 'Not prepared'),
                     TextEntry::make('timetable_version')
                         ->label('Published timetable source')
                         ->state(fn (Enrollment $record): ?string => $record->currentProposalVersion?->timetableVersion !== null
-                            ? collect(['Version '.$record->currentProposalVersion->timetableVersion->version, $record->currentProposalVersion->timetableVersion->authority_reference])->filter()->implode(' · ')
+                            ? collect([$record->currentProposalVersion->timetableVersion->published_at ? 'Published '.$record->currentProposalVersion->timetableVersion->published_at->timezone(config('app.display_timezone'))->format('M j, Y') : 'Published timetable', $record->currentProposalVersion->timetableVersion->authority_reference])->filter()->implode(' · ')
                             : null)
                         ->placeholder('Not selected'),
                     TextEntry::make('confirmation')
-                        ->label('Exact-version confirmation')
+                        ->label('Student confirmation')
                         ->state(fn (Enrollment $record): ?string => $record->currentProposalVersion?->confirmation !== null
                             ? collect([$record->currentProposalVersion->confirmation->method, $record->currentProposalVersion->confirmation->confirmed_at?->toDateTimeString()])->filter()->implode(' · ')
                             : null)
@@ -346,10 +346,15 @@ class EnrollmentInfolist
         $evaluation = null;
         if ($case->admissionApplication?->application_path === AdmissionApplication::PathTransferee) {
             $latest = RegistrationCreditEvaluation::query()->where('enrollment_id', $case->id)->latest('id')->first();
+            $allowedEvalStates = $case->studentProfile?->curriculum_version_id !== null
+                && $latest !== null
+                && (int) $case->studentProfile->curriculum_version_id === (int) $latest->curriculum_version_id
+                ? [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded]
+                : [CurriculumVersion::StateActive];
             if ($latest !== null
                 && (int) $latest->application_submission_version_id === (int) $case->admissionApplication->current_submission_version_id
                 && CurriculumVersion::query()->whereKey($latest->curriculum_version_id)
-                    ->where('program_id', $case->admissionApplication->program_id)->where('state', CurriculumVersion::StateActive)->exists()) {
+                    ->where('program_id', $case->admissionApplication->program_id)->whereIn('state', $allowedEvalStates)->exists()) {
                 $evaluation = $latest;
             }
         }
@@ -548,8 +553,8 @@ class EnrollmentInfolist
         $asOf = $enrollment->updated_at?->format('M j, Y g:i A') ?? 'Current source time unavailable';
 
         return [
-            ['label' => 'Student eligibility', 'state' => $readiness['eligibility'] && $readiness['identity'] ? 'Verified' : 'Action required', 'source' => $enrollment->admission_application_id !== null ? 'Verified admissions identity and contact source' : 'Released Student lifecycle, result, and progress facts', 'owner' => 'Registrar consumes; source office owns the fact', 'as_of' => $asOf, 'consequence' => 'A stale or blocked source prevents the next consuming action.', 'recovery' => 'Correct the owning source or prepare a source-valid successor; no local override is created.'],
-            ['label' => 'Confirmed proposed subjects', 'state' => $readiness['confirmation'] ? 'Verified' : 'Action required', 'source' => 'Current immutable Registration Proposal and exact-version confirmation', 'owner' => 'Registrar and student', 'as_of' => $asOf, 'consequence' => 'An unconfirmed or superseded proposal cannot be placed or finalized.', 'recovery' => 'Issue the current proposal and obtain online or attributable assisted confirmation.'],
+            ['label' => 'Student eligibility', 'state' => $readiness['eligibility'] && $readiness['identity'] ? 'Verified' : 'Action required', 'source' => $enrollment->admission_application_id !== null ? 'Verified admissions identity and contact source' : 'Released Student lifecycle, result, and progress facts', 'owner' => 'Registrar consumes; source office owns the fact', 'as_of' => $asOf, 'consequence' => 'A stale or blocked source prevents the next consuming action.', 'recovery' => 'Correct the owning source or prepare an updated proposal; no local override is created.'],
+            ['label' => 'Confirmed proposed subjects', 'state' => $readiness['confirmation'] ? 'Verified' : 'Action required', 'source' => 'Current Registration Proposal and student confirmation', 'owner' => 'Registrar and student', 'as_of' => $asOf, 'consequence' => 'An unconfirmed or replaced proposal cannot be placed or finalized.', 'recovery' => 'Issue the current proposal and obtain online or attributable assisted confirmation.'],
             ['label' => 'Valid class placement', 'state' => $readiness['placement'] ? 'Verified' : 'Action required', 'source' => 'Current Published Timetable, prerequisites, conflicts, capacity, and reservations', 'owner' => 'Registrar', 'as_of' => $asOf, 'consequence' => 'Only the affected course is blocked; no ranked waitlist or silent move is created.', 'recovery' => 'Resolve the named placement or shortage condition using a current authorized source.'],
             ['label' => 'Accounting clearance', 'state' => $readiness['finance'] ? 'Verified' : 'Action required', 'source' => 'Enrollment Payment Requirement and exact Term Account', 'owner' => 'Accounting', 'as_of' => self::asOf(self::finance($enrollment)['as_of']), 'consequence' => 'Unavailable or unsatisfied current requirement blocks finalization only.', 'recovery' => 'Accounting records the current Fee Plan or eligible exact assessment and valid payment or coverage result.'],
             ['label' => 'Registrar finalization', 'state' => $enrollment->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled ? 'Verified' : 'Action required', 'source' => 'Atomic Registration Case result', 'owner' => 'Registrar', 'as_of' => $asOf, 'consequence' => 'No Student activation, official roster, or COR exists until the transaction commits.', 'recovery' => $readiness['ready'] ? 'All prior checkpoints are ready for Registrar finalization.' : 'Resolve the earlier named checkpoint, refresh current evidence, and retry.'],

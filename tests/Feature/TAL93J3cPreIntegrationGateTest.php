@@ -106,12 +106,12 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     {
         return [
             'registrar' => ['role' => User::StaffRoleRegistrar, 'allowed' => [
-                'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
+                'AcademicCalendarWindowResource', 'AcademicYearResource',
                 'AdmissionApplicationResource', 'AdmissionCycleResource', 'Admissions', 'AssistedAdmissionApplication', 'CalendarEventResource',
-                'CatalogCurriculaWorkbench', 'ClassPlanning', 'CompletionAndTor', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
+                'CatalogCurriculaWorkbench', 'CompletionAndTor', 'CourseResource', 'CurriculumVersionResource',
                 'StaffEntry', 'DuplicateProfileResolutionResource', 'EnrollmentResource',
                 'FacultyQualificationResource', 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
-                'GradesAndCompletion', 'ImportBatchResource',
+                'GradesAndCompletion',
                 'ProgramResource', 'RoomResource', 'ScheduleGenerationRunResource',
                 'SchedulingDemandResource', 'SectionMeetingResource', 'SectionResource',
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermPlanningCluster', 'TermOverview', 'TermCalendar', 'TermClasses', 'TermClassProposal', 'TermResources', 'TermTimetable', 'TermResource', 'TranscriptRequestResource',
@@ -125,11 +125,11 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'FacultySchedule', 'GradeRosterResource', 'MyAvailability',
             ]],
             'academic head' => ['role' => User::StaffRoleAcademicHead, 'allowed' => [
-                'AcademicApprovals', 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
-                'CalendarEventResource', 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CompletionAndTor', 'CourseResource', 'CourseSpecificationResource',
+                'AcademicApprovals', 'AcademicCalendarWindowResource', 'AcademicYearResource',
+                'CalendarEventResource', 'CatalogCurriculaWorkbench', 'CompletionAndTor', 'CourseResource',
                 'CurriculumVersionResource', 'StaffEntry', 'EnrollmentResource', 'FacultyQualificationResource',
                 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
-                'ImportBatchResource', 'ProgramResource', 'RoomResource',
+                'ProgramResource', 'RoomResource',
                 'ScheduleGenerationRunResource', 'SchedulingDemandResource', 'SectionMeetingResource',
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermPlanningCluster', 'TermOverview', 'TermCalendar', 'TermClasses', 'TermResources', 'TermTimetable', 'TermResource',
             ]],
@@ -173,7 +173,6 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         foreach ($manifest as &$entry) {
             $entry['allowed'] = array_values(array_diff($entry['allowed'], [
                 'StaffEntry',
-                'ClassPlanning',
                 'TermClassProposal',
                 'TermPlanningWorkbench',
                 'TermResource',
@@ -204,8 +203,8 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'PublicNoticeResource', 'UserResource', 'FaqEntryResource',
             'AdmissionApplicationResource', 'AdmissionCycleResource',
             'EnrollmentResource', 'FeePlanResource',
-            'ProgramResource', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
-            'ImportBatchResource', 'AcademicYearResource', 'TermResource', 'AcademicCalendarWindowResource',
+            'ProgramResource', 'CourseResource', 'CurriculumVersionResource',
+            'AcademicYearResource', 'TermResource', 'AcademicCalendarWindowResource',
             'CalendarEventResource', 'RoomResource', 'FacultyQualificationResource',
             'FacultyTermLoadOverrideResource', 'TermOfferingResource', 'SectionResource', 'GradeRosterResource',
             'TranscriptRequestResource', 'SchedulingDemandResource', 'ScheduleGenerationRunResource',
@@ -229,8 +228,6 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'TermResources',
             'TermTimetable',
             'AcademicApprovals',
-            'AcademicReadiness',
-            'ClassPlanning',
             'FacultyGradeRoster',
             'MyAvailability',
             'FacultySchedule',

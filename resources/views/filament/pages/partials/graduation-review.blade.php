@@ -20,7 +20,7 @@
             @if ($projection['blockers'] === [])<p>Record the school’s actual graduation result. Requirements are checked again before saving.</p>@endif
             <div class="tala-graduation-source"><div><p>Curriculum used for this review</p><strong>{{ $student->curriculumVersion?->name ?? 'No curriculum assigned' }}</strong></div>
                 @if ($projection['blockers'] !== [] && $student->curriculumVersion && \App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::canView($student->curriculumVersion))
-                    {{ \Filament\Actions\Action::make('openCurriculum')->label('Open curriculum')->color('gray')->icon('heroicon-o-book-open')->url(\App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::getUrl('view',['record'=>$student->curriculum_version_id])) }}
+                    {{ \Filament\Actions\Action::make('openCurriculum')->label('Open curriculum')->color('gray')->icon('heroicon-o-book-open')->url(\App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::getUrl('review',['record'=>$student->curriculum_version_id])) }}
                 @endif
             </div>
             @if ($projection['blockers'] === [] && auth()->user()?->hasRole(\App\Models\User::StaffRoleRegistrar))<div class="tala-graduation-status-action">{{ $this->getAction('recordGraduation') }}</div>@endif

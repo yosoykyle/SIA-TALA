@@ -96,7 +96,6 @@ class StudentDashboardService
                 'courseEnrollments.termOffering.curriculumEntry',
                 'courseEnrollments.proposedSection.deliveryGroups',
                 'courseEnrollments.seatReservations.section.deliveryGroups',
-                'gateResults',
             ])
             ->where('student_profile_id', $studentProfile->id)
             ->orderByDesc('id')

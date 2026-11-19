@@ -88,8 +88,9 @@ class FacultyTermLoadOverrideForm
                             ->contained(false)
                             ->schema([
                                 TextInput::make('authority')
-                                    ->label('Approval reference')
-                                    ->helperText('Name the approving person or reference document.')
+                                    ->label('Approval memo or reference')
+                                    ->placeholder('e.g., Memo 2026-014 or approving office')
+                                    ->helperText('Name the approving person, office, or reference document.')
                                     ->maxLength(255)
                                     ->required(),
                                 Textarea::make('reason')

@@ -24,13 +24,12 @@ class CourseSpecificationFactory extends Factory
             'title' => fake()->sentence(3),
             'description' => fake()->optional()->sentence(),
             'credit_units' => 3.00,
-            'grading_profile_key' => 'college_standard',
+            'grading_profile_key' => CourseSpecification::GradingProfileServitechV1,
             'grading_profile_version' => 1,
             'academic_classification' => CourseSpecification::AcademicClassificationOrdinary,
             'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
             'allowed_modalities' => ['FACE_TO_FACE', 'ONLINE'],
             'same_faculty_default' => true,
-            'effective_term_id' => null,
             'state' => CourseSpecification::StateDraft,
         ];
     }

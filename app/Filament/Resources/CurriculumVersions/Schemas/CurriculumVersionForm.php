@@ -2,83 +2,63 @@
 
 namespace App\Filament\Resources\CurriculumVersions\Schemas;
 
-use App\Models\CourseSpecification;
-use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\Program;
 use App\Models\Term;
-use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 
 class CurriculumVersionForm
 {
-    public static function configure(Schema $schema): Schema
+    public static function configure(Schema $schema, ?int $programId = null): Schema
     {
         return $schema->components([
-            Section::make('Curriculum Version')
-                ->description('Encode or import a Draft curriculum. External approval and activation are separate controlled actions.')
+            Grid::make(1)
                 ->schema([
-                    Select::make('program_id')
-                        ->label('Program')
-                        ->options(fn (): array => self::programOptions())
-                        ->searchable()
-                        ->preload()
-                        ->required(),
-                    TextInput::make('version_code')
-                        ->required()
-                        ->maxLength(255),
-                    TextInput::make('name')
-                        ->label('Version Name')
-                        ->required()
-                        ->maxLength(255),
-                    Select::make('effective_entry_term_id')
-                        ->label('Effective Entry Term')
-                        ->options(fn (): array => self::termOptions())
-                        ->searchable()
-                        ->preload()
-                        ->nullable(),
-                ])
-                ->columns(2)
-                ->columnSpanFull(),
-            Section::make('Curriculum Entries')
-                ->description('Map approved course specification revisions into year level, term label, sequence, and requirement group.')
-                ->schema([
-                    Repeater::make('entries')
-                        ->relationship()
-                        ->schema([
-                            Select::make('course_specification_id')
-                                ->label('Course Specification')
-                                ->options(fn (): array => self::courseSpecificationOptions())
-                                ->searchable()
-                                ->preload()
-                                ->required(),
-                            TextInput::make('year_level')
-                                ->required()
-                                ->maxLength(255),
-                            TextInput::make('term_label')
-                                ->label('Term Label')
-                                ->required()
-                                ->maxLength(255),
-                            Select::make('term_type')
-                                ->options(Term::typeOptions())
-                                ->required(),
-                            TextInput::make('sequence')
-                                ->integer()
-                                ->minValue(1)
-                                ->required(),
-                            Select::make('requirement_group')
-                                ->options(CurriculumEntry::requirementGroupOptions())
-                                ->default(CurriculumEntry::RequirementGroupRequired)
-                                ->required(),
-                        ])
-                        ->columns(3)
-                        ->defaultItems(0)
-                        ->addActionLabel('Add curriculum entry'),
+                    $programId !== null
+                        ? Hidden::make('program_id')->default($programId)
+                        : Select::make('program_id')
+                            ->label('Program')
+                            ->options(fn (): array => self::programOptions())
+                            ->default(fn (): ?int => request()->integer('programId') ?: null)
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                    ...self::planFields(),
                 ])
                 ->columnSpanFull(),
         ]);
+    }
+
+    /** @return array<TextInput|Select> */
+    public static function planFields(): array
+    {
+        return [
+            TextInput::make('name')->label('Curriculum name')->required()->maxLength(255),
+            Select::make('effective_entry_term_id')->label('First student intake')
+                ->helperText('New students starting from this intake will use the plan. Class dates are set in Term Planning.')
+                ->options(fn (): array => self::termOptions())->searchable()->preload()->nullable(),
+        ];
+    }
+
+    /** @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public static function draftAttributes(array $data): array
+    {
+        return [...$data, 'version_code' => self::draftCodeFor((int) $data['program_id']), 'state' => CurriculumVersion::StateDraft,
+            'approved_by' => null, 'approved_at' => null];
+    }
+
+    public static function draftCodeFor(int $programId): string
+    {
+        $program = Program::query()->findOrFail($programId);
+
+        return Str::limit($program->code, 64, '').'-'.Str::ulid();
     }
 
     /**
@@ -107,25 +87,6 @@ class CurriculumVersionForm
                     $term->academicYear?->label,
                     $term->label,
                 ])->filter()->implode(' | '),
-            ])
-            ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private static function courseSpecificationOptions(): array
-    {
-        return CourseSpecification::query()
-            ->with('course')
-            ->orderBy('title')
-            ->get()
-            ->mapWithKeys(fn (CourseSpecification $specification): array => [
-                $specification->id => collect([
-                    $specification->course?->code,
-                    $specification->title,
-                    $specification->revision_code,
-                ])->filter()->implode(' - '),
             ])
             ->all();
     }

@@ -658,11 +658,11 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             ->assertSee('Verify your account')
             ->assertSee('Link expires in 60:00')
             ->assertSee('Only the most recent verification link can be used.')
-            ->assertSee('Resend Verification Link')
+            ->assertSee('Resend verification link')
             ->assertSee('Contact School Support')
             ->assertDontSee('Sign out')
-            ->assertDontSee('Return to school home')
-            ->assertDontSee('Contact school support');
+            ->assertDontSee('Back to home')
+            ->assertDontSee('Contact support');
     }
 
     public function test_sending_a_verification_link_starts_the_expiry_countdown_from_that_send(): void

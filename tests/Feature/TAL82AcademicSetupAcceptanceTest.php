@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\AcademicYears\Pages\CreateAcademicYear;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
-use App\Filament\Resources\Programs\Pages\CreateProgram;
+use App\Filament\Resources\Programs\Pages\ListPrograms;
 use App\Filament\Resources\Programs\ProgramResource;
 use App\Filament\Resources\Terms\Pages\CreateTerm;
 use App\Filament\Resources\Terms\TermResource;
@@ -86,15 +86,14 @@ class TAL82AcademicSetupAcceptanceTest extends TestCase
         $this->actingAs($this->staff(User::StaffRoleRegistrar));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(CreateProgram::class)
-            ->fillForm([
+        Livewire::test(ListPrograms::class)
+            ->callAction('create', data: [
                 'code' => 'BSIT',
                 'name' => 'Bachelor of Science in Information Technology',
                 'duration_years' => 4,
                 'is_active' => true,
             ])
-            ->call('create')
-            ->assertHasNoFormErrors();
+            ->assertHasNoActionErrors();
 
         $this->assertDatabaseHas('programs', [
             'code' => 'BSIT',

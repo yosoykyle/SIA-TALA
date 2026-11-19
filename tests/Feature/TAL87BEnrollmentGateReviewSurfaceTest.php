@@ -2,12 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
-use App\Models\EnrollmentGateResult;
 use App\Models\Section;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -43,50 +41,10 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
         }
     }
 
-    public function test_gate_review_summary_uses_recorded_rows_and_synthetic_not_checked_rows_without_writes(): void
+    public function test_retired_gate_review_summary_action_is_removed(): void
     {
-        $enrollment = Enrollment::factory()->create(['status' => 'pending_review']);
-        $courseEnrollment = CourseEnrollment::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'term_offering_id' => TermOffering::factory()->for($enrollment->term)->create()->id,
-            'status' => CourseEnrollment::StatusActive,
-            'units_snapshot' => '3.00',
-            'added_at' => now(),
-        ]);
-
-        EnrollmentGateResult::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => 'finance',
-            'sequence' => 4,
-            'result' => EnrollmentGateResult::ResultFailed,
-            'responsible_office' => 'accounting',
-            'blocker_code' => 'payment_pending',
-            'blocker_message' => 'Payment still requires Accounting confirmation.',
-            'source_type' => CourseEnrollment::class,
-            'source_id' => $courseEnrollment->id,
-            'checked_at' => now(),
-            'rule_version' => 'tal-87b-test',
-        ]);
-
-        $summary = app(EnrollmentGateReviewSummary::class);
-        $rows = $summary->rows($enrollment);
-
-        $this->assertCount(9, $rows);
-        $this->assertSame(1, EnrollmentGateResult::query()
-            ->whereBelongsTo($enrollment)
-            ->count());
-        $this->assertSame('Identity', $rows[0]['label']);
-        $this->assertSame('Not Checked', $rows[0]['result_label']);
-
-        $finance = collect($rows)->firstWhere('gate_type', 'finance');
-
-        $this->assertSame('Failed', $finance['result_label']);
-        $this->assertSame('Accounting Office', $finance['office_label']);
-        $this->assertSame('payment_pending', $finance['blocker_code']);
-        $this->assertSame('Payment still requires Accounting confirmation.', $finance['blocker_message']);
-        $this->assertSame('Course Enrollment #'.$courseEnrollment->id, $finance['source_reference']);
-        $this->assertTrue($finance['is_recorded']);
-        $this->assertSame('Finance: Payment still requires Accounting confirmation.', $summary->compactStatus($enrollment));
+        $this->assertFileDoesNotExist(app_path('Actions/Enrollment/EnrollmentGateReviewSummary.php'));
+        $this->assertFalse(class_exists('App\\Actions\\Enrollment\\EnrollmentGateReviewSummary'));
     }
 
     public function test_staff_registration_surface_uses_canonical_case_facts_and_hides_generic_gate_actions(): void
@@ -111,20 +69,6 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
             'status' => CourseEnrollment::StatusActive,
             'units_snapshot' => '3.00',
             'added_at' => now(),
-        ]);
-
-        EnrollmentGateResult::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => 'finance',
-            'sequence' => 4,
-            'result' => EnrollmentGateResult::ResultFailed,
-            'responsible_office' => 'accounting',
-            'blocker_code' => 'payment_pending',
-            'blocker_message' => 'Payment still requires Accounting confirmation.',
-            'source_type' => Enrollment::class,
-            'source_id' => $enrollment->id,
-            'checked_at' => now(),
-            'rule_version' => 'tal-87b-test',
         ]);
 
         foreach ([$registrar, $academicHead, $accounting] as $viewer) {

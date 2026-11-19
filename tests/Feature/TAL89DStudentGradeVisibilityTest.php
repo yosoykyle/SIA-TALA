@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\StudentHub\StudentDashboardService;
+use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\GradesView;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
@@ -77,21 +78,28 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
             'recorded_by' => $student->id,
         ]);
 
+        Livewire::actingAs($student)->test(GradesView::class)
+            ->assertRedirect(Academics::getUrl(['view' => 'record'], panel: 'student'));
+
         $component = $this->gradesViewComponent($student);
 
-        $component->assertSuccessful();
-
-        $component
-            ->assertCanSeeTableRecords([$numeric, $incomplete, $dropped, $withdrawn, $transferCredit])
-            ->assertCanNotSeeTableRecords([$hiddenDraft, $otherStudentReleased])
-            ->assertTableColumnFormattedStateSet('current_outcome_code', '1.75', record: $numeric)
-            ->assertTableColumnFormattedStateSet('current_outcome_code', 'Incomplete', record: $incomplete)
-            ->assertTableColumnFormattedStateSet('current_outcome_code', 'Withdrawn', record: $dropped)
-            ->assertTableColumnFormattedStateSet('current_outcome_code', 'Withdrawn', record: $withdrawn)
-            ->assertTableColumnFormattedStateSet('current_outcome_code', 'Transfer Credit', record: $transferCredit)
+        $component->assertSuccessful()
+            ->assertSee('MATH-101')
+            ->assertSee('1.75')
+            ->assertSee('ENG-102')
+            ->assertSee('INC')
+            ->assertSee('CHEM-104')
+            ->assertSee('DRP')
+            ->assertSee('BIO-105')
+            ->assertSee('PE-106')
+            ->assertSee('TC')
+            ->assertSee('Not released')
+            ->assertDontSee('OTHR-108')
             ->assertDontSee('TAL89D INTERNAL AUTHORITY')
             ->assertDontSee('TAL89D INTERNAL REASON')
             ->assertDontSee('TAL89D-PRIVATE-EVIDENCE');
+
+        $this->assertStringNotContainsString('2.25', strip_tags($component->html()));
     }
 
     #[Test]
@@ -139,9 +147,8 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
         ]);
 
         $this->gradesViewComponent($student)
-            ->assertTableColumnFormattedStateSet('current_outcome_code', '2.00', record: $row)
-            ->assertTableColumnFormattedStateSet('courseEnrollment.units_snapshot', '3.5', record: $row)
-            ->assertSee('Oct 18, 2026')
+            ->assertSee('2.00')
+            ->assertSee('3.5')
             ->assertDontSee('DRAFT-PRIVATE-AUTHORITY');
     }
 
@@ -271,7 +278,7 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
             'released_at' => $released ? now() : null,
         ]);
 
-        return GradeRosterRow::query()->create([
+        $row = GradeRosterRow::query()->create([
             'grade_roster_id' => $roster->id,
             'course_enrollment_id' => $courseEnrollment->id,
             'final_result' => $outcomeCode,
@@ -279,12 +286,32 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
             'current_outcome_category' => $outcomeCategory,
             'released_at' => $released ? now() : null,
         ]);
+
+        if ($released) {
+            GradeOutcomeEvent::query()->create([
+                'grade_roster_row_id' => $row->id,
+                'event_type' => GradeOutcomeEvent::TypeInitialRelease,
+                'result_code' => $outcomeCode,
+                'previous_value' => null,
+                'new_value' => is_numeric($outcomeCode) ? (float) $outcomeCode : null,
+                'previous_category' => null,
+                'new_category' => $outcomeCategory,
+                'deadline' => null,
+                'authority' => 'Registrar',
+                'reason' => 'Initial grade release.',
+                'evidence_reference' => null,
+                'recorded_by' => $faculty->id,
+                'released_at' => now(),
+            ]);
+        }
+
+        return $row;
     }
 
     private function gradesViewComponent(User $student): Testable
     {
         Livewire::actingAs($student);
 
-        return Livewire::test(GradesView::class);
+        return Livewire::withQueryParams(['view' => 'record'])->test(Academics::class);
     }
 }

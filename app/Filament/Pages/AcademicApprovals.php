@@ -104,7 +104,7 @@ class AcademicApprovals extends Page
             $attention[] = ['title' => 'Examination Period unavailable', 'detail' => $examination['message'], 'owner' => $examination['owner'], 'url' => $calendarUrl, 'scope' => 'Selected term'];
         }
         foreach ($authorityRows as $row) {
-            if ($row['readiness']['status'] !== 'Ready for offerings') {
+            if ($row['readiness']['status'] !== 'Active') {
                 $attention[] = [
                     'title' => $row['program']->code.' · '.$row['readiness']['status'],
                     'detail' => $row['readiness']['blocker'],
@@ -120,9 +120,15 @@ class AcademicApprovals extends Page
             'checkedAt' => now('Asia/Manila'),
             'enrollmentSummary' => $this->enrollmentSummary($term),
             'gradeSummary' => $this->gradeSummary($term),
-            'curriculumSummary' => ['total' => $authorityRows->count(), 'ready' => $authorityRows->where('readiness.status', 'Ready for offerings')->count()],
+            'curriculumSummary' => ['total' => $authorityRows->count(), 'ready' => $authorityRows->where('readiness.status', 'Active')->count()],
             'calendarTimeline' => $this->calendarTimeline($calendar, $examination, $calendarUrl),
         ];
+    }
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [];
     }
 
     public static function canAccess(): bool
@@ -236,22 +242,6 @@ class AcademicApprovals extends Page
     public function approvalAreas(): array
     {
         return collect([
-            [
-                'title' => 'Academic Authority',
-                'description' => 'Institution-wide Program and curriculum evidence.',
-                'action' => 'Catalog & Curricula',
-                'url' => CatalogCurriculaWorkbench::getUrl(['oversightTermId' => $this->termId]),
-                'icon' => 'heroicon-o-book-open',
-                'available' => CatalogCurriculaWorkbench::canAccess(),
-            ],
-            [
-                'title' => 'Term Planning',
-                'description' => 'Review the selected term and published planning evidence.',
-                'action' => 'Review term planning',
-                'url' => TermPlanningWorkbench::getUrl(['termId' => $this->termId]),
-                'icon' => 'heroicon-o-calendar-days',
-                'available' => TermPlanningWorkbench::canAccess(),
-            ],
             [
                 'title' => 'Grades & Progress',
                 'description' => 'Recorded grade rosters and released results.',

@@ -2,6 +2,7 @@
 
 namespace App\Actions\AcademicSetup;
 
+use App\Models\Course;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
@@ -35,13 +36,24 @@ class AcademicReadinessService
     }
 
     /**
-     * @return array{
-     *     status:string,
-     *     color:string,
-     *     blocker:string,
-     *     next_action:string,
-     *     entries:int
-     * }
+     * Return compact sidebar badge counts for the Catalog & Curricula sub-items.
+     *
+     * @return array{courses_with_drafts: int, curricula_pending: int}
+     */
+    public function sidebarBadges(): array
+    {
+        return [
+            'courses_with_drafts' => Course::query()
+                ->whereHas('specifications', fn ($query) => $query->where('state', CourseSpecification::StateDraft))
+                ->count(),
+            'curricula_pending' => CurriculumVersion::query()
+                ->where('state', CurriculumVersion::StateDraft)
+                ->count(),
+        ];
+    }
+
+    /**
+     * @return array{status:string, color:string, blocker:string, next_action:string, entries:int}
      */
     public function programReadiness(Program $program): array
     {
@@ -49,10 +61,10 @@ class AcademicReadinessService
 
         if (! $curriculum instanceof CurriculumVersion) {
             return [
-                'status' => 'Not configured',
+                'status' => 'No curriculum yet',
                 'color' => 'danger',
                 'blocker' => 'No curriculum has been recorded for this program.',
-                'next_action' => 'Create a curriculum draft',
+                'next_action' => 'Create a curriculum',
                 'entries' => 0,
             ];
         }
@@ -61,10 +73,10 @@ class AcademicReadinessService
 
         if ($entries === 0) {
             return [
-                'status' => 'Draft needs completion',
+                'status' => 'Draft needs subjects',
                 'color' => 'warning',
-                'blocker' => 'The draft has no curriculum rows.',
-                'next_action' => 'Add curriculum rows',
+                'blocker' => 'The draft has no subjects yet.',
+                'next_action' => 'Add subjects',
                 'entries' => 0,
             ];
         }
@@ -81,29 +93,21 @@ class AcademicReadinessService
             ];
         }
 
-        return match ($curriculum->state) {
-            CurriculumVersion::StateActive => [
-                'status' => 'Ready for offerings',
+        return $curriculum->state === CurriculumVersion::StateActive
+            ? [
+                'status' => 'Active',
                 'color' => 'success',
                 'blocker' => 'No curriculum blocker is recorded.',
                 'next_action' => 'Review curriculum',
                 'entries' => $entries,
-            ],
-            CurriculumVersion::StateRecordedApproved => [
-                'status' => 'Approved; activation required',
-                'color' => 'warning',
-                'blocker' => 'The complete approved curriculum is not active yet.',
-                'next_action' => 'Review activation impact',
-                'entries' => $entries,
-            ],
-            default => [
-                'status' => 'Draft awaiting approval',
+            ]
+            : [
+                'status' => 'Ready to activate',
                 'color' => 'info',
-                'blocker' => 'External approval evidence has not been recorded.',
-                'next_action' => 'Record external approval',
+                'blocker' => 'All subjects are complete.',
+                'next_action' => 'Activate curriculum',
                 'entries' => $entries,
-            ],
-        };
+            ];
     }
 
     /**
@@ -130,8 +134,8 @@ class AcademicReadinessService
 
         $errors = $this->courseSpecifications->readinessErrors($specification);
 
-        if ($specification->state !== CourseSpecification::StateActive) {
-            array_unshift($errors, 'Activate the completed Course Specification before curriculum activation.');
+        if (! in_array($specification->state, [CourseSpecification::StateActive, CourseSpecification::StateDraft], true)) {
+            array_unshift($errors, 'Select an active or draft Course Specification before curriculum activation.');
         }
 
         $errors = array_values(array_unique($errors));
@@ -148,7 +152,9 @@ class AcademicReadinessService
         return [
             'status' => 'Specification ready',
             'color' => 'success',
-            'blocker' => 'No specification blocker is recorded.',
+            'blocker' => $specification->state === CourseSpecification::StateDraft
+                ? 'Ready draft specification; activates automatically with the curriculum.'
+                : 'No specification blocker is recorded.',
             'next_action' => 'No correction required',
         ];
     }
@@ -156,7 +162,6 @@ class AcademicReadinessService
     private function statePriority(string $state): int
     {
         return match ($state) {
-            CurriculumVersion::StateRecordedApproved => 1,
             CurriculumVersion::StateDraft => 2,
             CurriculumVersion::StateActive => 3,
             CurriculumVersion::StateSuperseded => 4,

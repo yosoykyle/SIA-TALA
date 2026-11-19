@@ -311,7 +311,6 @@ class StudentSectionMembershipTest extends TestCase
             ->callAction('recordAcademicDecision', [
                 'student_profile_id' => $other->id,
                 'effect' => AcademicDecision::EffectAdvisingRequired,
-                'authority_reference' => 'REG-CONTEXT', 'authority_date' => today()->toDateString(),
                 'effective_from' => today()->toDateString(), 'reason' => 'Individual advising required.',
             ])->assertHasNoActionErrors();
         $this->assertSame($enrollment->student_profile_id, AcademicDecision::query()->sole()->student_profile_id);
@@ -394,12 +393,14 @@ class StudentSectionMembershipTest extends TestCase
         StudentProfile::factory()->count(12)->create();
         $page = Livewire::actingAs($registrar)->withQueryParams(['viewTab' => 'academic-progress'])->test(GradesAndCompletion::class);
         $this->assertSame(13, $page->instance()->getTableRecords()->total());
-        $this->assertCount(10, $page->instance()->getTableRecords());
+        $this->assertCount(5, $page->instance()->getTableRecords());
         $page->call('gotoPage', 2);
-        $this->assertCount(3, $page->instance()->getTableRecords());
+        $this->assertCount(5, $page->instance()->getTableRecords());
         $url = $page->instance()->getTable()->getRecordUrl($page->instance()->getTableRecords()->first());
         parse_str(parse_url($url, PHP_URL_QUERY), $parameters);
         $this->assertSame('2', $parameters['queue']['page']);
+        $page->call('gotoPage', 3);
+        $this->assertCount(3, $page->instance()->getTableRecords());
     }
 
     public function test_profile_subjects_are_term_scoped_searchable_paginated_and_keep_cumulative_results(): void

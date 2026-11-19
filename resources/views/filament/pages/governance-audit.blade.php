@@ -1,6 +1,6 @@
 <x-filament-panels::page>
     <div
-        class="space-y-6"
+        class="space-y-4"
         x-data="{
             selected: @js($activeTab),
             focused: @js($activeTab),

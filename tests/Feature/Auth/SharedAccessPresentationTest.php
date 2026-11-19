@@ -115,7 +115,7 @@ class SharedAccessPresentationTest extends TestCase
             ->assertSee('Skip to main content')
             ->assertSee('No workspace is currently authorized')
             ->assertSee('System Administrator')
-            ->assertSee('Contact school support');
+            ->assertSee('Contact support');
     }
 
     public function test_staff_activation_retains_native_password_fields_with_associated_guidance(): void
@@ -127,7 +127,7 @@ class SharedAccessPresentationTest extends TestCase
             ->assertSee('autocomplete="new-password"', false)
             ->assertSee('aria-describedby="password-guidance', false)
             ->assertSee('Continue to MFA setup')
-            ->assertSee('Contact school support');
+            ->assertSee('Contact support');
     }
 
     public function test_server_failure_rendering_does_not_require_authentication_data_or_compiled_assets(): void
@@ -137,7 +137,7 @@ class SharedAccessPresentationTest extends TestCase
             ->assertSee('Error 500')
             ->assertDontSee('Powered by TALA')
             ->assertSee('The request outcome is unconfirmed.')
-            ->assertSee('Contact school support')
+            ->assertSee('Contact support')
             ->assertSee('System Administration')
             ->assertSee('Back to home')
             ->assertDontSee('Return to TALA home')

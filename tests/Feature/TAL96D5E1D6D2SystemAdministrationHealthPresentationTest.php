@@ -6,7 +6,6 @@ use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Actions\SystemAdministration\SystemHealthPresenter;
 use App\Filament\Pages\GovernanceAudit;
 use App\Filament\Pages\SystemHealth;
-use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -33,11 +32,6 @@ final class TAL96D5E1D6D2SystemAdministrationHealthPresentationTest extends Test
     public function system_administration_home_links_to_the_two_canonical_destinations(): void
     {
         $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
-
-        Livewire::test(StaffRoleWorkspaceOverviewWidget::class)
-            ->assertSee('System Health')
-            ->assertSee('Governance & Audit')
-            ->assertSee('not recently checked');
 
         Livewire::test(SystemHealth::class)
             ->assertOk()

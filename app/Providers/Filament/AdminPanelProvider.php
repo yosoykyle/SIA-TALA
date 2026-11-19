@@ -2,20 +2,20 @@
 
 namespace App\Providers\Filament;
 
+use App\Actions\AcademicSetup\AcademicReadinessService;
 use App\Actions\Authentication\TalaAppAuthentication;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Clusters\Admissions;
 use App\Filament\Clusters\PublicContent;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Pages\AcademicApprovals;
-use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
+use App\Filament\Pages\Auth\EmailVerificationPrompt;
 use App\Filament\Pages\Auth\RequestPasswordReset;
 use App\Filament\Pages\Auth\ResetPassword;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
-use App\Filament\Pages\ClassPlanning;
 use App\Filament\Pages\CompletionAndTor;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
@@ -35,10 +35,10 @@ use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
+use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Courses\CourseResource;
-use App\Filament\Resources\CourseSpecifications\CourseSpecificationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\DuplicateProfileResolutionResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
@@ -47,7 +47,6 @@ use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResou
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
-use App\Filament\Resources\ImportBatches\ImportBatchResource;
 use App\Filament\Resources\Programs\ProgramResource;
 use App\Filament\Resources\PublicNotices\PublicNoticeResource;
 use App\Filament\Resources\Rooms\RoomResource;
@@ -69,7 +68,6 @@ use App\Filament\Resources\Terms\Pages\ViewTerm;
 use App\Filament\Resources\Terms\TermResource;
 use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Filament\Resources\Users\UserResource;
-use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
 use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use App\Http\Middleware\EnsureStaffMfaIsEnabled;
 use App\Models\AdmissionApplication;
@@ -77,6 +75,8 @@ use App\Models\AdmissionCycle;
 use App\Models\FaqEntry;
 use App\Models\Term;
 use App\Models\User;
+use App\Queries\Admissions\AdmissionQueueCounts;
+use App\Support\NavigationBadgeCounts;
 use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
@@ -89,7 +89,9 @@ use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Icons\Heroicon;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
+use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -118,7 +120,7 @@ class AdminPanelProvider extends PanelProvider
             })
             ->login(ContextualLogin::class)
             ->passwordReset()
-            ->emailVerification()
+            ->emailVerification(EmailVerificationPrompt::class)
             ->emailChangeVerification()
             ->profile(AccountSecurity::class, isSimple: false)
             ->multiFactorAuthentication(
@@ -137,8 +139,18 @@ class AdminPanelProvider extends PanelProvider
                         ->usingPage(RequestPasswordReset::class)
                         ->usingResetPage(ResetPassword::class)
                     )
-                    ->emailVerification()
+                    ->emailVerification(fn (AuthPageConfig $config) => $config
+                        ->usingPage(EmailVerificationPrompt::class)
+                    )
                     ->themeToggle()
+            )
+            ->renderHook(
+                PanelsRenderHook::SIMPLE_PAGE_START,
+                fn (array $scopes): View => view('filament.components.auth-back-link', [
+                    'showBackToSignIn' => in_array(RequestPasswordReset::class, $scopes, true)
+                        || in_array(ResetPassword::class, $scopes, true)
+                        || request()->routeIs('filament.*.auth.password-reset.*', 'filament.applicant.auth.register'),
+                ]),
             )
             ->resources([
                 PublicNoticeResource::class,
@@ -150,9 +162,7 @@ class AdminPanelProvider extends PanelProvider
                 FeePlanResource::class,
                 ProgramResource::class,
                 CourseResource::class,
-                CourseSpecificationResource::class,
                 CurriculumVersionResource::class,
-                ImportBatchResource::class,
                 AcademicYearResource::class,
                 TermResource::class,
                 AcademicCalendarWindowResource::class,
@@ -183,8 +193,6 @@ class AdminPanelProvider extends PanelProvider
                 TermResources::class,
                 TermTimetable::class,
                 AcademicApprovals::class,
-                AcademicReadiness::class,
-                ClassPlanning::class,
                 FacultyGradeRoster::class,
                 MyAvailability::class,
                 FacultySchedule::class,
@@ -291,7 +299,6 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
                 AccountWidget::class,
-                StaffRoleWorkspaceOverviewWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -326,21 +333,29 @@ class AdminPanelProvider extends PanelProvider
             $selectedContext = count($available) === 1 ? array_key_first($available) : null;
         }
 
+        $badgeCounts = new NavigationBadgeCounts;
         $termPlanningContext = $this->focusedTermPlanningContext();
         if ($selectedContext === User::StaffRoleRegistrar) {
+            $enrollmentItems = array_map(
+                fn (NavigationItem $item): NavigationItem => $item
+                    ->badge(fn (): ?string => ($count = $badgeCounts->registrarEnrollment()['total']) > 0 ? (string) $count : null, 'warning')
+                    ->badgeTooltip(fn (): ?string => $badgeCounts->registrarEnrollmentTooltip()),
+                $this->labeledNavigationItems(['Students & Enrollment' => EnrollmentResource::class]),
+            );
+
             return $builder->group('Learner work', [
-                ...$this->labeledNavigationItems(['Admissions' => Admissions::class]),
-                ...$this->labeledNavigationItems(['Students & Enrollment' => EnrollmentResource::class]),
-                ...$this->gradesWithChildren($this->labeledNavigationItems(['Students Record' => GradesAndCompletion::class])),
-            ])->group('Academic setup', $this->planningWithChildren($this->labeledNavigationItems([
+                ...$this->admissionsWithQueues($this->labeledNavigationItems(['Admissions' => Admissions::class]), $badgeCounts),
+                ...$enrollmentItems,
+                ...$this->gradesWithChildren($this->labeledNavigationItems(['Students Record' => GradesAndCompletion::class]), $badgeCounts),
+            ])->group('Academic setup', $this->catalogWithChildren($this->planningWithChildren($this->labeledNavigationItems([
                 'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
                 'Term Planning' => TermPlanningCluster::class,
                 'Admission cycles' => AdmissionCycleResource::class,
-            ]), $termPlanningContext));
+            ]), $termPlanningContext)));
         }
 
         if ($selectedContext === User::StaffRoleAccounting) {
-            return $builder->items($this->accountingNavigation());
+            return $builder->items($this->accountingNavigation($badgeCounts));
         }
 
         $components = match ($selectedContext) {
@@ -363,7 +378,166 @@ class AdminPanelProvider extends PanelProvider
 
         $items = $this->labeledNavigationItems($components);
 
-        return $builder->items($selectedContext === User::StaffRoleAcademicHead ? $this->planningWithChildren($items, $termPlanningContext) : $items);
+        if ($selectedContext === User::StaffRoleFaculty) {
+            $items = array_map(
+                fn (NavigationItem $item): NavigationItem => $item->getLabel() === 'Grade rosters'
+                    ? $item->badge(fn (): ?string => ($count = $badgeCounts->facultyGradeRosterActionCount($user)) > 0 ? (string) $count : null, 'warning')
+                    : $item,
+                $items,
+            );
+        }
+
+        if ($selectedContext === User::StaffRoleAcademicHead) {
+            $items = $termPlanningContext !== null
+                ? $this->planningWithChildren($items, $termPlanningContext)
+                : $this->academicHeadCatalogNavigation($items);
+        }
+
+        return $builder->items($items);
+    }
+
+    /**
+     * Attach the 3 Catalog & Curricula pillar child items for the Registrar sidebar
+     * only while inside one of the child resource routes (matching Grades & Completion).
+     *
+     * @param  list<NavigationItem>  $items
+     * @return list<NavigationItem>
+     */
+    private function catalogWithChildren(array $items): array
+    {
+        $children = $this->isInsideCatalogPillar()
+            ? $this->catalogChildItems(includeBadges: true)
+            : [];
+
+        return array_map(function (NavigationItem $item) use ($children): NavigationItem {
+            if ($item->getLabel() !== 'Catalog & Curricula') {
+                return $item;
+            }
+
+            $item->isActiveWhen(fn (): bool => $this->isInsideCatalogCurricula());
+
+            if ($children !== []) {
+                $item->childItems($children);
+            }
+
+            return $item;
+        }, $items);
+    }
+
+    /**
+     * When Academic Head drills into Catalog & Curricula, keep Academic Oversight active
+     * and expand the 3 badge-free read-only sub-items while inside any of the 3 child resource routes.
+     *
+     * @param  list<NavigationItem>  $items
+     * @return list<NavigationItem>
+     */
+    private function academicHeadCatalogNavigation(array $items): array
+    {
+        if (! $this->isInsideCatalogCurricula()) {
+            return $items;
+        }
+
+        $oversightTermId = $this->resolveOversightTermId();
+        $children = $this->isInsideCatalogPillar()
+            ? $this->catalogChildItems(includeBadges: false, oversightTermId: $oversightTermId)
+            : [];
+
+        return array_map(function (NavigationItem $item) use ($children, $oversightTermId): NavigationItem {
+            if ($item->getLabel() !== 'Academic Oversight') {
+                return $item;
+            }
+
+            if ($oversightTermId !== null) {
+                $item->url(AcademicApprovals::getUrl(['termId' => $oversightTermId]));
+            }
+
+            $item->isActiveWhen(fn (): bool => true);
+
+            if ($children !== []) {
+                $item->childItems($children);
+            }
+
+            return $item;
+        }, $items);
+    }
+
+    private function isInsideCatalogCurricula(): bool
+    {
+        $request = \Filament\Support\original_request();
+
+        return $request->routeIs(CatalogCurriculaWorkbench::getRouteName())
+            || $this->isInsideCatalogPillar();
+    }
+
+    private function isInsideCatalogPillar(): bool
+    {
+        $request = \Filament\Support\original_request();
+
+        return $request->routeIs(
+            'filament.admin.resources.programs.*',
+            'filament.admin.resources.courses.*',
+            'filament.admin.resources.curriculum-versions.*',
+        );
+    }
+
+    private function resolveOversightTermId(): ?int
+    {
+        $component = app('livewire')->current();
+
+        if (is_object($component)
+            && property_exists($component, 'oversightTermId')
+            && is_int($component->oversightTermId)
+            && $component->oversightTermId > 0) {
+            return $component->oversightTermId;
+        }
+
+        $request = \Filament\Support\original_request();
+        $requested = $request->integer('oversightTermId') ?: $request->integer('termId');
+
+        if ($requested > 0 && Term::query()->whereKey($requested)->exists()) {
+            return $requested;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<NavigationItem>
+     */
+    private function catalogChildItems(bool $includeBadges, ?int $oversightTermId = null): array
+    {
+        $request = \Filament\Support\original_request();
+        $query = $oversightTermId !== null ? ['oversightTermId' => $oversightTermId] : [];
+        $badges = $includeBadges ? app(AcademicReadinessService::class)->sidebarBadges() : [];
+
+        $programsItem = NavigationItem::make('Programs')
+            ->icon(Heroicon::OutlinedAcademicCap)
+            ->url(ProgramResource::getUrl('index', $query))
+            ->isActiveWhen(fn (): bool => $request->routeIs('filament.admin.resources.programs.*'));
+
+        $coursesItem = NavigationItem::make('Subjects')
+            ->icon(Heroicon::OutlinedBookOpen)
+            ->url(CourseResource::getUrl('index', $query))
+            ->isActiveWhen(fn (): bool => $request->routeIs('filament.admin.resources.courses.*'));
+
+        if (($badges['courses_with_drafts'] ?? 0) > 0) {
+            $coursesItem->badge((string) $badges['courses_with_drafts'], 'info');
+        }
+
+        $curriculaItem = NavigationItem::make('Curricula')
+            ->icon(Heroicon::OutlinedClipboardDocumentList)
+            ->url(CurriculumVersionResource::getUrl('index', $query))
+            ->isActiveWhen(fn (): bool => $request->routeIs('filament.admin.resources.curriculum-versions.*'));
+
+        if (($badges['curricula_pending'] ?? 0) > 0) {
+            $curriculaItem->badge((string) $badges['curricula_pending'], 'info');
+        }
+
+        return [
+            $programsItem,
+            $coursesItem,
+            $curriculaItem,
+        ];
     }
 
     /**
@@ -500,7 +674,7 @@ class AdminPanelProvider extends PanelProvider
     }
 
     /** @return list<NavigationItem> */
-    private function accountingNavigation(): array
+    private function accountingNavigation(NavigationBadgeCounts $badgeCounts): array
     {
         $items = [];
 
@@ -511,15 +685,32 @@ class AdminPanelProvider extends PanelProvider
             $selected = $request->routeIs('filament.admin.resources.enrollments.index')
                 ? (string) $request->query('tab', 'overview')
                 : (string) $request->query('queue', 'accounts');
+            $badgeKey = [
+                'assessment_required' => 'assessment',
+                'payment_proof' => 'proof',
+                'student_changes' => 'student_changes',
+            ];
             $children = collect([
                 'accounts' => ['All student accounts', Heroicon::OutlinedFolderOpen],
                 'assessment_required' => ['Assessment reviews', Heroicon::OutlinedDocumentCurrencyDollar],
                 'payment_proof' => ['Review receipts', Heroicon::OutlinedDocumentMagnifyingGlass],
                 'student_changes' => ['Student status changes', Heroicon::OutlinedClipboardDocumentCheck],
-            ])->map(fn (array $area, string $key): NavigationItem => NavigationItem::make($area[0])
-                ->icon($area[1])
-                ->url(EnrollmentResource::getUrl('index', ['tab' => $key]))
-                ->isActiveWhen(fn (): bool => $inside && $selected === $key))->values()->all();
+            ])->map(function (array $area, string $key) use ($inside, $selected, $badgeCounts, $badgeKey): NavigationItem {
+                $child = NavigationItem::make($area[0])
+                    ->icon($area[1])
+                    ->url(EnrollmentResource::getUrl('index', ['tab' => $key]))
+                    ->isActiveWhen(fn (): bool => $inside && $selected === $key);
+
+                if (isset($badgeKey[$key])) {
+                    $metric = $badgeKey[$key];
+                    $child->badge(
+                        fn (): ?string => ($count = $badgeCounts->accounting()[$metric]) > 0 ? (string) $count : null,
+                        'warning',
+                    );
+                }
+
+                return $child;
+            })->values()->all();
 
             $items[] = NavigationItem::make('Overview')->icon(Heroicon::OutlinedHome)
                 ->url(EnrollmentResource::getUrl('index'))
@@ -527,6 +718,11 @@ class AdminPanelProvider extends PanelProvider
             $items[] = NavigationItem::make('Student accounts')->icon(Heroicon::OutlinedBanknotes)
                 ->url(EnrollmentResource::getUrl('index', ['tab' => 'accounts']))
                 ->isActiveWhen(fn (): bool => $inside && ! $overview)
+                ->badge(
+                    fn (): ?string => ($count = $badgeCounts->accounting()['unique_total']) > 0 ? (string) $count : null,
+                    'warning',
+                )
+                ->badgeTooltip(fn (): ?string => $badgeCounts->accountingTooltip())
                 ->childItems($children);
         }
 
@@ -563,11 +759,18 @@ class AdminPanelProvider extends PanelProvider
      * @param  list<NavigationItem>  $items
      * @return list<NavigationItem>
      */
-    private function gradesWithChildren(array $items): array
+    private function gradesWithChildren(array $items, NavigationBadgeCounts $badgeCounts): array
     {
         if (! GradesAndCompletion::canAccess()) {
             return $items;
         }
+
+        $items = array_map(
+            fn (NavigationItem $item): NavigationItem => $item
+                ->badge(fn (): ?string => ($count = $badgeCounts->registrarGrades()['total']) > 0 ? (string) $count : null, 'warning')
+                ->badgeTooltip(fn (): ?string => $badgeCounts->registrarGradesTooltip()),
+            $items,
+        );
 
         $request = \Filament\Support\original_request();
         $inside = $request->routeIs(GradesAndCompletion::getRouteName(), CompletionAndTor::getRouteName())
@@ -591,11 +794,71 @@ class AdminPanelProvider extends PanelProvider
         };
         $selected = array_key_exists($selected, GradesAndCompletion::tabs()) ? $selected : 'grade-review';
         $areas = GradesAndCompletion::workAreas();
-        $children = collect(GradesAndCompletion::tabs())->map(fn (string $label, string $key): NavigationItem => NavigationItem::make($label)
-            ->icon($areas[$key]['icon'])
-            ->url(GradesAndCompletion::getUrl(['viewTab' => $key]))
-            ->isActiveWhen(fn (): bool => $selected === $key))->values()->all();
+        $badgeKeys = [
+            'grade-review' => 'grade_review',
+            'inc-corrections' => 'inc_corrections',
+            'completion-tor' => 'completion_tor',
+        ];
+        $children = collect(GradesAndCompletion::tabs())->map(function (string $label, string $key) use ($areas, $selected, $badgeCounts, $badgeKeys): NavigationItem {
+            $child = NavigationItem::make($label)
+                ->icon($areas[$key]['icon'])
+                ->url(GradesAndCompletion::getUrl(['viewTab' => $key]))
+                ->isActiveWhen(fn (): bool => $selected === $key);
+
+            if (isset($badgeKeys[$key])) {
+                $metric = $badgeKeys[$key];
+                $child->badge(
+                    fn (): ?string => ($count = $badgeCounts->registrarGrades()[$metric]) > 0 ? (string) $count : null,
+                    'warning',
+                );
+            }
+
+            return $child;
+        })->values()->all();
 
         return array_map(fn (NavigationItem $item): NavigationItem => $item->childItems($children), $items);
+    }
+
+    /**
+     * Admissions shows the Registrar-action count and, while inside Admissions, one sub-item per queue (#61 F101).
+     *
+     * @param  list<NavigationItem>  $items
+     * @return list<NavigationItem>
+     */
+    private function admissionsWithQueues(array $items, NavigationBadgeCounts $badgeCounts): array
+    {
+        if ($items === [] || ! AdmissionApplicationResource::canAccess()) {
+            return $items;
+        }
+
+        $onList = fn (): bool => request()->routeIs(ListAdmissionApplications::getRouteName());
+
+        $children = collect(AdmissionQueueCounts::labels())->map(function (string $label, string $queue) use ($badgeCounts, $onList): NavigationItem {
+            $child = NavigationItem::make($label)
+                ->icon(match ($queue) {
+                    AdmissionQueueCounts::NeedsReview => Heroicon::OutlinedDocumentMagnifyingGlass,
+                    AdmissionQueueCounts::WaitingForApplicant => Heroicon::OutlinedClock,
+                    AdmissionQueueCounts::RegistrarClearance => Heroicon::OutlinedClipboardDocumentCheck,
+                    AdmissionQueueCounts::ReadyForEnrollment => Heroicon::OutlinedCheckCircle,
+                    AdmissionQueueCounts::Closed => Heroicon::OutlinedArchiveBox,
+                    default => Heroicon::OutlinedQueueList,
+                })
+                ->url(ListAdmissionApplications::getUrl(['tab' => $queue]))
+                ->isActiveWhen(fn (): bool => $onList() && (request()->query('tab') ?? AdmissionQueueCounts::NeedsReview) === $queue);
+
+            if ($queue !== AdmissionQueueCounts::Closed) {
+                $color = in_array($queue, AdmissionQueueCounts::registrarActionQueues(), true) ? 'warning' : 'gray';
+                $child->badge(
+                    fn (): ?string => ($count = $badgeCounts->admissions()[$queue]) > 0 ? (string) $count : null,
+                    $color,
+                );
+            }
+
+            return $child;
+        })->values()->all();
+
+        return array_map(fn (NavigationItem $item): NavigationItem => $item
+            ->badge(fn (): ?string => ($count = $badgeCounts->admissions()['action']) > 0 ? (string) $count : null, 'warning')
+            ->childItems($children), $items);
     }
 }

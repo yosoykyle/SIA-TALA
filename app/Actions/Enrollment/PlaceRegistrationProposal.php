@@ -3,12 +3,15 @@
 namespace App\Actions\Enrollment;
 
 use App\Actions\Calendar\CalendarPhaseGateService;
+use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
+use App\Models\Hold;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +43,22 @@ class PlaceRegistrationProposal
                 || $enrollment->canonical_outcome !== Enrollment::OutcomeInProgress
                 || (int) $enrollment->current_proposal_version_id !== (int) $locked->id) {
                 throw ValidationException::withMessages(['proposal' => 'Reserve classes from the current prepared proposal.']);
+            }
+
+            $enrollment->loadMissing(['studentProfile', 'term']);
+            if ($enrollment->studentProfile instanceof StudentProfile) {
+                $holdService = app(HoldEvaluationService::class);
+                $blockingHold = $holdService->mostRestrictiveActiveHold(
+                    $enrollment->studentProfile,
+                    [Hold::BlockingEnrollment],
+                    $enrollment,
+                    $enrollment->term,
+                );
+                if ($blockingHold instanceof Hold) {
+                    throw ValidationException::withMessages([
+                        'hold' => $holdService->formatBlockingMessage($blockingHold),
+                    ]);
+                }
             }
 
             $this->unitLoad->assertProposalPermitted($enrollment, $locked, lockForUpdate: true);

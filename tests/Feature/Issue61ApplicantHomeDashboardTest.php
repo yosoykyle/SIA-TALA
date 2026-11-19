@@ -202,7 +202,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertSeeInOrder(['Profile', "Applicant's History", 'Sign out']);
     }
 
-    public function test_registrar_sidebar_is_flat_and_the_admissions_dashboard_shows_queue_cards_with_counts(): void
+    public function test_registrar_sidebar_shows_admissions_queues_with_counts(): void
     {
         $this->application();
         $this->application();
@@ -210,15 +210,16 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $registrar->saveAppAuthenticationSecret('base32secret3232');
         $registrar->acknowledgeRecoveryCodeStorage();
         $needsReview = app(AdmissionQueueCounts::class)->count(AdmissionQueueCounts::NeedsReview);
-        $this->assertGreaterThanOrEqual(2, $needsReview);
 
-        $this->actingAs($registrar)
+        $queueList = $this->actingAs($registrar)
             ->get(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::NeedsReview], panel: 'admin'))
             ->assertOk()
-            ->assertDontSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::WaitingForApplicant], panel: 'admin'))
-            ->assertDontSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::RegistrarClearance], panel: 'admin'))
-            ->assertDontSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::ReadyForEnrollment], panel: 'admin'))
-            ->assertDontSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::Closed], panel: 'admin'));
+            ->assertSeeInOrder(['Admissions', 'Needs review', 'Waiting for applicant', 'Registrar clearance', 'Ready for enrollment', 'Closed applications', 'Students &amp; Enrollment'], false)
+            ->assertSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::RegistrarClearance], panel: 'admin'));
+        $this->assertGreaterThanOrEqual(2, $needsReview);
+        $this->assertStringContainsString('>'.$needsReview.'<', preg_replace('/\s+/', '', (string) $queueList->getContent()));
+
+        $this->assertStringContainsString('fi-sidebar-sub-group-items', (string) $queueList->getContent());
 
         $dashboard = $this->actingAs($registrar)
             ->get(Admissions::getUrl(panel: 'admin'))

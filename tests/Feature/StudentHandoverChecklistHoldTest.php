@@ -2,13 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Applicants\HandOverApprovedApplicant;
 use App\Models\ApplicantIntake;
 use App\Models\Enrollment;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -38,13 +36,7 @@ class StudentHandoverChecklistHoldTest extends TestCase
             'approved_by' => $registrar->id,
         ]);
 
-        try {
-            app(HandOverApprovedApplicant::class)->execute($intake, $registrar);
-            $this->fail('The retired handover must never create a Student or enrollment record.');
-        } catch (ValidationException $exception) {
-            $this->assertStringContainsString('Ready for Enrollment', $exception->getMessage());
-        }
-
+        $this->assertFileDoesNotExist(app_path('Actions/Applicants/HandOverApprovedApplicant.php'));
         $this->assertSame(0, StudentProfile::query()->where('applicant_intake_id', $intake->id)->count());
         $this->assertSame(0, Enrollment::query()->count());
         $this->assertNull($intake->fresh()->handed_over_at);

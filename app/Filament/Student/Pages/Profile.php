@@ -147,6 +147,8 @@ class Profile extends Page
             ->color('gray')
             ->modalHeading('Change profile photo')
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalDescription('Choose a photo for your profile. Your official school record stays the same.')
             ->modalSubmitActionLabel('Save photo')
             ->authorize(fn (): bool => auth()->user() instanceof User

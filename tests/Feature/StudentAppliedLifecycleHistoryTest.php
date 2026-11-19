@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\Enrollment;
-use App\Filament\Student\Pages\LifecycleView;
 use App\Mail\AcademicRecordChangedMail;
 use App\Models\OperationalEvent;
 use App\Models\StudentLifecycleChange;
@@ -81,11 +80,6 @@ final class StudentAppliedLifecycleHistoryTest extends TestCase
         $pending = $this->change($student, StudentLifecycleChange::StateRecordedApproved);
         $cancelled = $this->change($student, StudentLifecycleChange::StateCancelled);
         $foreign = $this->change($otherStudent, StudentLifecycleChange::StateApplied);
-
-        Livewire::actingAs($user)->withQueryParams(['change' => $applied->id])->test(LifecycleView::class)
-            ->assertRedirect(Academics::getUrl(['view' => 'record', 'change' => $applied->id], panel: 'student').'#school-record-changes');
-        Livewire::actingAs($user)->withQueryParams([])->test(LifecycleView::class)
-            ->assertRedirect(Academics::getUrl(['view' => 'record'], panel: 'student').'#school-record-changes');
 
         Livewire::actingAs($user)->withQueryParams(['view' => 'record', 'change' => $applied->id])->test(Academics::class)
             ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->total() === 2)

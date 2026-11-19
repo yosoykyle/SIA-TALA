@@ -2,14 +2,13 @@
 
 namespace App\Filament\Resources\StudentLifecycleChanges\Pages;
 
-use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Models\Enrollment;
 use App\Models\StudentLifecycleChange;
 use App\Models\User;
-use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
@@ -18,10 +17,9 @@ use Livewire\Attributes\Url;
 
 class ListStudentLifecycleChanges extends ListRecords
 {
-    protected static string $resource = StudentLifecycleChangeResource::class;
+    use HasAcademicOversightReturn;
 
-    #[Url]
-    public ?int $oversightTermId = null;
+    protected static string $resource = StudentLifecycleChangeResource::class;
 
     #[Url(as: 'change')]
     public ?int $selectedChangeId = null;
@@ -157,8 +155,8 @@ class ListStudentLifecycleChanges extends ListRecords
             return [GradesAndCompletion::getUrl() => 'Students Record', 'Lifecycle'];
         }
 
-        if (auth()->user()?->hasRole(User::StaffRoleAcademicHead)) {
-            return [AcademicApprovals::getUrl(['termId' => $this->oversightTermId]) => 'Academic Oversight', 'Student lifecycle changes'];
+        if ($this->isAcademicHead()) {
+            return [$this->oversightReturnUrl() => 'Academic Oversight', 'Student lifecycle changes'];
         }
 
         return parent::getBreadcrumbs();
@@ -169,9 +167,8 @@ class ListStudentLifecycleChanges extends ListRecords
         if (auth()->user()?->hasRole(User::StaffRoleAccounting)) {
             return [];
         }
-        if (auth()->user()?->hasRole(User::StaffRoleAcademicHead) && ! auth()->user()->hasRole(User::StaffRoleRegistrar)) {
-            return [Action::make('returnToOversight')->label('Back to Academic Oversight')->color('gray')
-                ->url(AcademicApprovals::getUrl(['termId' => $this->oversightTermId]))];
+        if ($this->isAcademicHeadReader()) {
+            return [$this->returnToOversightAction('Back to Academic Oversight')];
         }
 
         return [

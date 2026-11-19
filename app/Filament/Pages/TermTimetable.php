@@ -2,12 +2,17 @@
 
 namespace App\Filament\Pages;
 
+use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
+use App\Models\SchedulingDemand;
+use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
+use App\Models\TermOffering;
 use App\Models\User;
 use App\Support\PlanningTableRecords;
 use App\Support\TimetablePresentation;
@@ -90,6 +95,38 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         } elseif ($this->selectedRunId !== null) {
             $this->timetableState = 'draft';
         }
+        $this->autoSyncTermSchedulingDemands();
+    }
+
+    private function autoSyncTermSchedulingDemands(): void
+    {
+        $actor = auth()->user();
+        if ($this->termId === null || ! $actor instanceof User || ! $actor->can('create', SchedulingDemand::class)) {
+            return;
+        }
+
+        $term = $this->selectedTerm();
+        if (! $term instanceof Term || $term->state !== Term::StateActive) {
+            return;
+        }
+
+        $hasConfirmedClassesWithOfferings = Section::query()
+            ->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive))
+            ->whereNotNull('confirmed_at')
+            ->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])
+            ->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id)->where('state', TermOffering::StatePendingScheduling))
+            ->whereHas('deliveryGroups')
+            ->exists();
+
+        if (! $hasConfirmedClassesWithOfferings) {
+            return;
+        }
+
+        $demands = SchedulingDemand::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id));
+        if (! (clone $demands)->exists()
+            || (clone $demands)->where('validation_state', '!=', SchedulingDemand::ValidationReadyForReview)->exists()) {
+            app(GenerateSchedulingDemand::class)->forTerm($actor, $term);
+        }
     }
 
     public function clearViewFilters(): void
@@ -108,6 +145,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             ->color('gray')
             ->modalHeading('Whole-Term timetable')
             ->modalWidth(Width::Screen)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalSubmitAction(false)
             ->modalCancelActionLabel('Close')
             ->modalContent(function (): View {
@@ -309,7 +348,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
         return [...$data, 'showOfficial' => $official, 'timetablePresentation' => $presentation,
             'masterGroups' => $groups, 'programOptions' => $programs, 'yearOptions' => $years, 'viewOptions' => $options,
-            'scopeMeetingCount' => count($allMeetings)];
+            'scopeMeetingCount' => count($allMeetings), 'generationReadiness' => $this->generationReadiness()];
     }
 
     public function timetableReviewUrl(int $runId): string
@@ -340,7 +379,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 TextColumn::make('day')->label('Day & time')->formatStateUsing(fn (array $record): string => $record['dayLabel'])->description(fn (array $record): string => $record['time'])->icon('heroicon-o-clock')->weight(FontWeight::Medium)->width('11rem')->extraAttributes(['class' => 'tala-planning-meeting-when'])->sortable(),
                 TextColumn::make('courseTitle')->label('Course & student sections')->description(fn (array $record): string => collect($record['sections'] ?? [])->pluck('label')->filter()->unique()->implode(' · ') ?: $record['class'])->weight(FontWeight::SemiBold)->width('38%')->extraAttributes(['class' => 'tala-planning-meeting-course'])->sortable()->wrap(),
                 TextColumn::make('faculty')->label('Teacher & room')->description(fn (array $record): string => $record['room'])->width('26%')->extraAttributes(['class' => 'tala-planning-meeting-teacher'])->sortable()->wrap(),
-            ])->recordActions([Action::make('viewMeeting')->modal()->label('Meeting details')->icon('heroicon-o-eye')->button()->color('gray')->modalHeading('Class meeting')->modalWidth(Width::Large)->modalSubmitAction(false)->modalCancelActionLabel('Close')->extraModalFooterActions(fn (array $record): array => $this->meetingRevisionActions($record))->modalContent(fn (array $record): View => view('filament.components.faculty-meeting-details', ['meeting' => $record, 'showFaculty' => true]))])->paginationPageOptions([10, 25, 50])->defaultPaginationPageOption(10)->defaultSort('day')->emptyStateHeading('No meetings in this view')->emptyStateDescription('Choose a timetable version or clear the view filters.');
+            ])->recordActions([Action::make('viewMeeting')->modal()->label('Meeting details')->icon('heroicon-o-eye')->button()->color('gray')->modalHeading('Class meeting')->modalWidth(Width::Large)->stickyModalHeader()->stickyModalFooter()->modalSubmitAction(false)->modalCancelActionLabel('Close')->extraModalFooterActions(fn (array $record): array => $this->meetingRevisionActions($record))->modalContent(fn (array $record): View => view('filament.components.faculty-meeting-details', ['meeting' => $record, 'showFaculty' => true]))])->defaultSort('day')->emptyState(view('filament.partials.collection-empty-state'))->emptyStateHeading('No meetings in this view')->emptyStateDescription('Choose a timetable version or clear the view filters.');
     }
 
     /** @return array<string, mixed>|null */

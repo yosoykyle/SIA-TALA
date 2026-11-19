@@ -21,8 +21,6 @@ class CourseSpecification extends Model
 
     public const GradingProfileServitechV1 = 'servitech_v1';
 
-    public const GradingProfileCollegeStandard = 'college_standard';
-
     public const ModalityFaceToFace = 'FACE_TO_FACE';
 
     public const ModalityOnline = 'ONLINE';
@@ -38,14 +36,19 @@ class CourseSpecification extends Model
     public const AcademicClassificationNstp = 'NSTP';
 
     /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'grading_profile_key' => self::GradingProfileServitechV1,
+        'grading_profile_version' => 1,
+    ];
+
+    /**
      * @var list<string>
      */
     protected $fillable = [
         'course_id',
         'revision_code',
-        'authority_reference',
-        'effective_from',
-        'effective_until',
         'title',
         'description',
         'credit_units',
@@ -55,7 +58,6 @@ class CourseSpecification extends Model
         'scheduling_treatment',
         'allowed_modalities',
         'same_faculty_default',
-        'effective_term_id',
         'state',
     ];
 
@@ -69,8 +71,6 @@ class CourseSpecification extends Model
             'grading_profile_version' => 'integer',
             'allowed_modalities' => 'array',
             'same_faculty_default' => 'boolean',
-            'effective_from' => 'date',
-            'effective_until' => 'date',
         ];
     }
 
@@ -78,12 +78,6 @@ class CourseSpecification extends Model
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
-    }
-
-    /** @return BelongsTo<Term, $this> */
-    public function effectiveTerm(): BelongsTo
-    {
-        return $this->belongsTo(Term::class, 'effective_term_id');
     }
 
     /** @return HasMany<CourseComponent, $this> */
@@ -102,11 +96,6 @@ class CourseSpecification extends Model
     public function curriculumEntries(): HasMany
     {
         return $this->hasMany(CurriculumEntry::class);
-    }
-
-    public function totalWeeklyContactHours(): float
-    {
-        return (float) $this->components()->sum('weekly_contact_hours');
     }
 
     /**
@@ -128,7 +117,6 @@ class CourseSpecification extends Model
     {
         return [
             self::GradingProfileServitechV1 => 'Servitech College Standard',
-            self::GradingProfileCollegeStandard => 'College Standard',
         ];
     }
 
@@ -148,7 +136,7 @@ class CourseSpecification extends Model
     {
         return [
             self::SchedulingRecurring => 'Recurring master-timetable meetings',
-            self::SchedulingExternallyArranged => 'Externally arranged — no recurring meeting',
+            self::SchedulingExternallyArranged => 'Externally arranged (no weekly class schedule)',
         ];
     }
 

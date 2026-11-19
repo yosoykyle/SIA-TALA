@@ -28,7 +28,7 @@
 @if ($showExaminationContext ?? false)<div class="tala-faculty-examination-context text-sm">
     <p><strong>Examination period: {{ $examinationPeriod ? $examinationPeriod->opens_on->format('M j').'–'.$examinationPeriod->closes_on->format('M j, Y') : 'Dates not configured' }}</strong>@unless ($examinationPeriod) · Contact the Registrar for approved dates.@endunless</p>
     @if ($examinationPeriod)<x-supporting-details summary="Examination source details" inset>
-        <p>{{ $examinationSource->authority_reference }} · Calendar v{{ $examinationSource->version }} · Registrar · As of {{ $asOf }} (Asia/Manila)</p><p>Arrange exact class examinations with your students.</p>
+        <p>{{ collect([$examinationSource->authority_reference, 'Active calendar', 'Registrar', 'As of '.$asOf.' (Asia/Manila)'])->filter()->implode(' · ') }}</p><p>Arrange exact class examinations with your students.</p>
     </x-supporting-details>@endif
 </div>@endif
 </header>

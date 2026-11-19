@@ -25,11 +25,6 @@ class TermOffering extends Model
 
     public const ModalityFaceToFace = 'FACE_TO_FACE';
 
-    /**
-     * @deprecated Historical compatibility value. It is not an approved selectable modality.
-     */
-    public const ModalityModular = 'MODULAR';
-
     public const StatePendingScheduling = 'PENDING_SCHEDULING';
 
     public const StateScheduled = 'SCHEDULED';

@@ -1,6 +1,6 @@
 <x-record-history heading="Submission history" :paginator="$submissionHistory" method="gotoSubmissionHistoryPage" :has-entries="$submissionHistory->isNotEmpty()">
     @foreach ($submissionHistory as $historical)
-        <x-record-history-item :heading="'Version '.$historical->version_number.' · '.str($historical->state)->lower()->headline()" :date="$historical->invalidated_at ?? $historical->released_at ?? $historical->reviewed_at ?? $historical->submitted_at">
+        <x-record-history-item :heading="str($historical->state)->lower()->headline().($historical->submitted_at ? ' · '.$historical->submitted_at->timezone('Asia/Manila')->format('M j, Y') : '')" :date="$historical->invalidated_at ?? $historical->released_at ?? $historical->reviewed_at ?? $historical->submitted_at">
             @if ($historical->submitted_at)
                 <p><strong>Submitted</strong> {{ $historical->submitted_at->timezone('Asia/Manila')->format('M j, Y · g:i A') }} · {{ $historical->submitter?->getFilamentName() ?? 'Recorder not available' }}</p>
             @endif
@@ -20,5 +20,5 @@
             @if ($historical->invalidation_reason)<p>{{ $historical->invalidation_reason }}</p>@endif
         </x-record-history-item>
     @endforeach
-    <x-slot:empty>No submitted version yet.</x-slot:empty>
+    <x-slot:empty>No submissions yet.</x-slot:empty>
 </x-record-history>

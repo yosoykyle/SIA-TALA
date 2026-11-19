@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Actions\AcademicSetup\ActivateProgramAuthority;
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
@@ -19,7 +18,6 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\FacultyQualification;
 use App\Models\Program;
-use App\Models\ProgramAuthority;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -78,14 +76,12 @@ class Issue58MultiProgramExplorationSeeder extends Issue58TimetableExplorationSe
                 $revisions = [];
                 foreach (['HR', 'Education', 'Math'] as $programIndex => $programName) {
                     $program = Program::factory()->create(['code' => $prefix.'-P'.$programIndex, 'name' => 'Hypothetical '.$programName.' — synthetic review', 'is_active' => true]);
-                    $authority = ProgramAuthority::factory()->for($program)->create(['authority_reference' => $prefix.'-SYNTHETIC-PROGRAM-'.$programIndex, 'curriculum_source_reference' => $prefix.'-HYPOTHETICAL-CURRICULUM-'.$programIndex, 'recorded_by' => $registrar->id]);
-                    app(ActivateProgramAuthority::class)->execute($authority, $registrar);
                     $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive, 'name' => 'Hypothetical '.$programName.' curriculum', 'version_code' => $prefix.'-V1']);
                     $curricula[$programName] = $curriculum;
                     foreach (['First Year', 'Second Year', 'Third Year'] as $yearIndex => $yearLevel) {
                         $key = $programName.'-'.($yearIndex + 1);
                         $course = Course::factory()->create(['code' => $prefix.'-C'.$programIndex.($yearIndex + 1)]);
-                        $revision = CourseSpecification::factory()->for($course)->create(['title' => 'Synthetic '.$programName.' year '.($yearIndex + 1).' course', 'description' => 'Hypothetical source for UI review; not Servitech curriculum authority.', 'revision_code' => $prefix.'-R'.$programIndex.($yearIndex + 1), 'state' => CourseSpecification::StateActive, 'authority_reference' => $prefix.'-SYNTHETIC-COURSE-'.$programIndex.($yearIndex + 1), 'effective_from' => '2026-06-01', 'credit_units' => 2]);
+                        $revision = CourseSpecification::factory()->for($course)->create(['title' => 'Synthetic '.$programName.' year '.($yearIndex + 1).' course', 'description' => 'Hypothetical source for UI review; not Servitech curriculum authority.', 'revision_code' => $prefix.'-R'.$programIndex.($yearIndex + 1), 'state' => CourseSpecification::StateActive, 'credit_units' => 2]);
                         CourseComponent::factory()->for($revision)->create(['component_type' => CourseComponent::TypeLecture, 'weekly_contact_hours' => 2, 'meeting_pattern' => '2x60', 'room_type_default' => Room::TypeLectureRoom]);
                         FacultyQualification::factory()->for($faculty[$programIndex], 'faculty')->for($course)->create(['is_active' => true]);
                         $entry = CurriculumEntry::factory()->for($curriculum)->for($revision, 'courseSpecification')->create(['year_level' => $yearLevel, 'term_type' => $term->type, 'term_label' => $term->label, 'sequence' => $yearIndex + 1]);

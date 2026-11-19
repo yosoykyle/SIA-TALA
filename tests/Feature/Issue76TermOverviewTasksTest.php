@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Scheduling\RecordFacultyAvailabilityDeadline;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermOverview;
@@ -73,7 +74,10 @@ class Issue76TermOverviewTasksTest extends TestCase
     {
         $this->registrar();
         $term = Term::factory()->create();
-        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now(), 'faculty_availability_due_at' => $hasDeadline ? now()->addWeek() : null]);
+        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
+        if ($hasDeadline) {
+            app(RecordFacultyAvailabilityDeadline::class)->execute($term, auth()->user(), now()->addWeek()->toDateTimeString(), 'Approved deadline', null, 0);
+        }
         $offering = TermOffering::factory()->for($term)->create();
         $faculty = User::factory()->create();
         FacultyQualification::factory()->create(['faculty_user_id' => $faculty->id, 'course_id' => $offering->course()->id]);

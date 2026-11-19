@@ -11,7 +11,6 @@ use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 
 class FacultyTermLoadOverridesTable
 {
@@ -47,11 +46,6 @@ class FacultyTermLoadOverridesTable
                     ->sortable(),
             ])
             ->filters([
-                SelectFilter::make('faculty_user_id')
-                    ->label('Teacher')
-                    ->relationship('faculty', 'name', modifyQueryUsing: fn (Builder $query): Builder => $query->whereHas('facultyTermLoadOverrides'))
-                    ->searchable()
-                    ->preload(),
                 SelectFilter::make('term_id')
                     ->label('Term')
                     ->relationship('term', 'label')
@@ -59,7 +53,7 @@ class FacultyTermLoadOverridesTable
                     ->preload()
                     ->visible(fn (ListFacultyTermLoadOverrides $livewire): bool => $livewire->termId === null),
                 SelectFilter::make('is_active')
-                    ->label('Active')
+                    ->label('Status')
                     ->options([
                         '1' => 'Active',
                         '0' => 'Inactive',
@@ -79,6 +73,7 @@ class FacultyTermLoadOverridesTable
             ->emptyStateHeading('No load exceptions recorded')
             ->emptyStateDescription('Teachers use the Term default unless an approved exception is recorded.')
             ->emptyStateIcon('heroicon-o-academic-cap')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->emptyStateActions([
                 CreateAction::make()
                     ->label('Add load exception')

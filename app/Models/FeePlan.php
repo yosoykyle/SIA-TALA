@@ -48,6 +48,18 @@ class FeePlan extends Model
         return $this->belongsTo(self::class, 'supersedes_fee_plan_id');
     }
 
+    /** @return BelongsTo<User, $this> */
+    public function publisher(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'published_by');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
     /** @return HasMany<FeePlanCharge, $this> */
     public function charges(): HasMany
     {

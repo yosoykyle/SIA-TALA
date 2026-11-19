@@ -1,10 +1,11 @@
 <x-filament-panels::page :wire:init="$torConfirmation ? 'confirmReviewedTor' : null">
+    <x-filament-actions::modals />
     @if ($completionView === 'graduation')
         @php($students = $this->getTableRecords())
         @if ($students->isEmpty())
-            {{ $this->table }}
+            <div wire:key="graduation-empty-desk">{{ $this->table }}</div>
         @else
-        <x-record-workspace collection-label="students" selection-parameter="student" selection-actions="selectGraduationStudent" class="tala-graduation-workspace">
+        <x-record-workspace wire:key="graduation-desk" collection-label="students" selection-parameter="student" selection-actions="selectGraduationStudent" class="tala-graduation-workspace">
             <x-slot:browser class="tala-record-browser--table" aria-label="Graduation students">{{ $this->table }}</x-slot:browser>
             <x-slot:collectionFooter><x-record-collection-footer :paginator="$this->getTableRecords()" method="gotoGraduationPage" label="students" :page-options="[10,25,50]" /></x-slot:collectionFooter>
             <x-slot:inspector aria-label="Graduation review">
@@ -93,6 +94,5 @@
             </x-slot:inspector>
         </x-record-workspace>
         @endif
-        <x-filament-actions::modals />
     @endif
 </x-filament-panels::page>

@@ -37,7 +37,17 @@ class FeePlanForm
                         Hidden::make('category'),
                         TextInput::make('label')->label('Charge name')->required()->maxLength(255),
                         self::amount(),
-                    ])->minItems(1)->defaultItems(1)->gridContainer()->columns(['default' => 1, '@sm' => 2])->reorderableWithButtons()->reorderableWithDragAndDrop(false)->addActionLabel('Add charge')->live(onBlur: true),
+                    ])
+                        ->itemLabel(fn (array $state): string => filled($state['label'] ?? null) ? (string) $state['label'] : 'Charge')
+                        ->minItems(1)
+                        ->defaultItems(1)
+                        ->gridContainer()
+                        ->columns(['default' => 1, '@sm' => 2])
+                        ->reorderableWithButtons(fn (?array $state): bool => count($state ?? []) > 1)
+                        ->deletable(fn (?array $state): bool => count($state ?? []) > 1)
+                        ->reorderableWithDragAndDrop(false)
+                        ->addActionLabel('Add charge')
+                        ->live(onBlur: true),
                 ])->columnSpanFull(),
             SchemaSection::make('Payment dates')
                 ->description('The first payment is required for enrollment. Later payments remain due on their dates. Dates use '.config('app.display_timezone', 'Asia/Manila').'.')
@@ -51,8 +61,17 @@ class FeePlanForm
                         TextInput::make('label')->label('Payment name')->required()->maxLength(255),
                         self::amount(),
                         DateTimePicker::make('due_at')->label('Due date and time')->required()->seconds(false)->timezone(config('app.display_timezone', 'Asia/Manila')),
-                    ])->default([['label' => 'Enrollment payment', 'purpose' => 'Enrollment', 'required_for_enrollment' => true]])
-                        ->minItems(1)->gridContainer()->columns(['default' => 1, '@sm' => 2, '@xl' => 3])->reorderableWithButtons()->reorderableWithDragAndDrop(false)->addActionLabel('Add payment date')->live(onBlur: true),
+                    ])
+                        ->itemLabel(fn (array $state): string => filled($state['label'] ?? null) ? (string) $state['label'] : 'Payment')
+                        ->default([['label' => 'Enrollment payment', 'purpose' => 'Enrollment', 'required_for_enrollment' => true]])
+                        ->minItems(1)
+                        ->gridContainer()
+                        ->columns(['default' => 1, '@sm' => 2, '@xl' => 3])
+                        ->reorderableWithButtons(fn (?array $state): bool => count($state ?? []) > 1)
+                        ->deletable(fn (?array $state): bool => count($state ?? []) > 1)
+                        ->reorderableWithDragAndDrop(false)
+                        ->addActionLabel('Add payment date')
+                        ->live(onBlur: true),
                 ])->columnSpanFull(),
             View::make('filament.admin.fee-plans.form-totals')->viewData(fn (Get $get): array => self::totals($get('charges') ?? [], $get('obligations') ?? []))->columnSpanFull(),
         ];

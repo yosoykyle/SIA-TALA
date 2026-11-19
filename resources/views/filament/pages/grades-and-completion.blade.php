@@ -2,19 +2,18 @@
     @if ($this->viewTab === 'overview')
         <div class="tala-workspace-launcher">
             <p class="tala-workspace-launcher__scope">Across all terms</p>
+            @php($classGradesPriority = $overviewCounts['submitted'] > 0 || $overviewCounts['incomplete'] === 0)
+            @php($incPriority = ! $classGradesPriority && $overviewCounts['incomplete'] > 0)
             <nav class="tala-workspace-launcher__main" aria-label="Grade work">
-                <x-workspace-card :href="$this::getUrl(['viewTab' => 'grade-review', 'filters' => ['state' => ['value' => \App\Models\GradeRoster::StateSubmitted]]])" icon="heroicon-o-document-check" label="Class grades"
+                <x-workspace-card :featured="$classGradesPriority" :action-color="$classGradesPriority ? 'primary' : 'gray'" :href="$overviewCounts['submitted'] > 0 ? $this::getUrl(['viewTab' => 'grade-review', 'filters' => ['state' => ['value' => \App\Models\GradeRoster::StateSubmitted]]]) : $this::getUrl(['viewTab' => 'grade-review'])" icon="heroicon-o-document-check" label="Class grades"
                     :figure="$overviewCounts['submitted']" :figure-label="\Illuminate\Support\Str::plural('class roster', $overviewCounts['submitted']).' awaiting review'"
                     description="Review Faculty submissions; return results for changes or release the complete roster." action="Review class grades">
                     @if ($overviewCounts['submitted'] === 0)<p class="tala-workspace-card__note">No class submissions waiting.</p>@endif
-                    <a class="tala-workspace-text-link" {{ \Filament\Support\generate_href_html($this::getUrl(['viewTab' => 'grade-review'])) }}>Find any class or earlier term <x-filament::icon icon="heroicon-m-arrow-right" /></a>
                 </x-workspace-card>
-                <x-workspace-card :href="$this::getUrl(['viewTab' => 'inc-corrections', 'filters' => ['result_scope' => ['value' => 'inc']]])" icon="heroicon-o-arrow-path-rounded-square" :label="'INC & Corrections'"
+                <x-workspace-card :featured="$incPriority" :action-color="$incPriority ? 'primary' : 'gray'" :href="$this::getUrl(['viewTab' => 'inc-corrections'])" icon="heroicon-o-arrow-path-rounded-square" :label="'INC & Corrections'"
                     :figure="$overviewCounts['incomplete']" :figure-label="'incomplete course '.\Illuminate\Support\Str::plural('result', $overviewCounts['incomplete'])"
-                    description="Faculty records completion; Registrar reviews and releases it." note="INC means incomplete." action="Open results">
-                    <a class="tala-workspace-text-link" {{ \Filament\Support\generate_href_html($this::getUrl(['viewTab' => 'inc-corrections', 'filters' => ['result_scope' => ['value' => 'all']]])) }}>Find a released grade to correct <x-filament::icon icon="heroicon-m-arrow-right" /></a>
-                </x-workspace-card>
-                <x-workspace-card :href="$this::getUrl(['viewTab' => 'academic-progress'])" icon="heroicon-o-identification" label="Student records"
+                    description="Faculty records completion; Registrar reviews and releases it." note="INC means incomplete." action="Open results" />
+                <x-workspace-card :action-color="'gray'" :href="$this::getUrl(['viewTab' => 'academic-progress'])" icon="heroicon-o-identification" label="Student records"
                     description="Released grades and averages across classes and terms." note="Find a student’s academic record." action="Find a student" />
             </nav>
             <section class="tala-workspace-launcher__supporting" aria-labelledby="other-records-title">

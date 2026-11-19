@@ -29,6 +29,7 @@ use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Support\Enums\Width;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Url;
 
@@ -71,7 +72,7 @@ class ListTermOfferings extends ListRecords
     private function regularBuilderAction(): Action
     {
         return Action::make('buildRegularOfferings')
-            ->label('Build classes from a curriculum year')->modalWidth('6xl')
+            ->label('Build classes from a curriculum year')->modalWidth('6xl')->stickyModalHeader()->stickyModalFooter()
             ->modalHeading('Build classes from a curriculum year')
 
             ->modalDescription('Choose a program, active curriculum and year level. Include or skip each eligible course, then review its classes and delivery groups. Building saves the selected course offerings and their class setup together. Use Add a class in Classes & sections for an existing offering.')
@@ -156,6 +157,9 @@ class ListTermOfferings extends ListRecords
         return Action::make('recordSpecialOffering')
             ->label('Record an approved additional offering')
             ->modalHeading('Record an approved additional offering')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->modalDescription('Record an additional offering already approved outside TALA, including its reason and class setup. Choose a course from an active curriculum entry. This records the offering, classes and delivery groups; it does not grant the approval.')
             ->modalSubmitActionLabel('Record additional offering and classes')

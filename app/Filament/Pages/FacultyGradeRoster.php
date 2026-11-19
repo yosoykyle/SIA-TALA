@@ -28,6 +28,7 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -298,24 +299,31 @@ class FacultyGradeRoster extends Page
     {
         $roster = $this->selectedRoster();
         $drafts = collect($this->data['rows'] ?? [])->mapWithKeys(fn (array $row, int|string $key): array => [
-            (int) ($row['id'] ?? 0) => ['key' => $key, 'result' => $row['final_result'] ?? null],
+            (int) ($row['id'] ?? 0) => [
+                'key' => $key,
+                'result' => $row['final_result'] ?? null,
+                'inc_completion_note' => $row['inc_completion_note'] ?? null,
+            ],
         ]);
 
-        return collect($roster?->rows ?? [])->map(function (GradeRosterRow $row) use ($drafts): array {
-            $student = $row->courseEnrollment?->enrollment?->studentProfile;
-            $draft = $drafts->get($row->id);
+        return collect($roster?->rows ?? [])
+            ->where('is_current_membership', true)
+            ->map(function (GradeRosterRow $row) use ($drafts): array {
+                $student = $row->courseEnrollment?->enrollment?->studentProfile;
+                $draft = $drafts->get($row->id);
 
-            return [
-                'id' => $row->id,
-                'key' => $draft['key'] ?? null,
-                'legal_name' => collect([$student?->last_name, collect([$student?->first_name, $student?->middle_name])->filter()->implode(' ')])->filter()->implode(', '),
-                'student_number' => $student?->student_number,
-                'initials' => str($student?->first_name)->substr(0, 1).str($student?->last_name)->substr(0, 1),
-                'final_result' => $draft !== null ? $draft['result'] : $row->final_result,
-                'returned' => $row->returned_at !== null,
-                'return_reason' => $row->return_reason ?? $this->selectedRoster()?->return_reason,
-            ];
-        })->values();
+                return [
+                    'id' => $row->id,
+                    'key' => $draft['key'] ?? null,
+                    'legal_name' => collect([$student?->last_name, collect([$student?->first_name, $student?->middle_name])->filter()->implode(' ')])->filter()->implode(', '),
+                    'student_number' => $student?->student_number,
+                    'initials' => str($student?->first_name)->substr(0, 1).str($student?->last_name)->substr(0, 1),
+                    'final_result' => $draft !== null ? $draft['result'] : $row->final_result,
+                    'inc_completion_note' => $draft !== null ? $draft['inc_completion_note'] : $row->inc_completion_note,
+                    'returned' => $row->returned_at !== null,
+                    'return_reason' => $row->return_reason ?? $this->selectedRoster()?->return_reason,
+                ];
+            })->values();
     }
 
     /** @return Collection<int, array<string, mixed>> */
@@ -344,12 +352,19 @@ class FacultyGradeRoster extends Page
                 ? route('grade-rosters.student-photo', ['roster' => $this->rosterId, 'row' => $selected['id']]) : null;
         }
 
+        $missingFinalResults = $all->filter(fn (array $student): bool => blank($student['final_result']))->count();
+        $missingIncNotes = $all->filter(
+            fn (array $student): bool => $student['final_result'] === 'INC' && blank($student['inc_completion_note'] ?? null),
+        )->count();
+
         return [
             'students' => $students->forPage($page, 10),
             'total' => $all->count(),
             'hasUnsavedChanges' => $this->savedDraftSignature !== $this->draftSignature(),
             'filtered' => $students->count(),
-            'recorded' => $all->filter(fn (array $student): bool => filled($student['final_result']))->count(),
+            'recorded' => $all->count() - $missingFinalResults,
+            'missingFinalResults' => $missingFinalResults,
+            'missingIncNotes' => $missingIncNotes,
             'returned' => $all->where('returned', true)->count(),
             'selected' => $selected,
             'position' => $position === false ? null : $position + 1,
@@ -439,6 +454,9 @@ class FacultyGradeRoster extends Page
             ->modalSubmitActionLabel('Submit complete roster')
             ->modalDescription(fn (): string => $this->submissionSummary())
             ->requiresConfirmation()
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->visible(fn (): bool => $this->canEditSelectedRoster())
             ->action(function (): void {
                 try {
@@ -634,11 +652,24 @@ class FacultyGradeRoster extends Page
     private function submissionSummary(): string
     {
         $rows = collect($this->form->getRawState()['rows'] ?? []);
-        $missing = $rows->where(fn (array $row): bool => blank($row['final_result'] ?? null))->count();
+        $missingResults = $rows->filter(fn (array $row): bool => blank($row['final_result'] ?? null))->count();
+        $missingIncNotes = $rows->filter(
+            fn (array $row): bool => ($row['final_result'] ?? null) === 'INC' && blank($row['inc_completion_note'] ?? null),
+        )->count();
 
-        return $missing === 0
-            ? "All {$rows->count()} current results will be saved and submitted to the Registrar for review."
-            : "Complete {$missing} of {$rows->count()} current rows before submission.";
+        if ($missingResults > 0 && $missingIncNotes > 0) {
+            return "Complete {$missingResults} missing final ".str('result')->plural($missingResults)." and {$missingIncNotes} missing INC completion ".str('note')->plural($missingIncNotes).' before submission.';
+        }
+
+        if ($missingResults > 0) {
+            return "Complete {$missingResults} of {$rows->count()} current rows before submission.";
+        }
+
+        if ($missingIncNotes > 0) {
+            return "Add {$missingIncNotes} missing INC completion ".str('note')->plural($missingIncNotes).' before submission.';
+        }
+
+        return "All {$rows->count()} current results will be saved and submitted to the Registrar for review.";
     }
 
     private function authenticatedUser(): User

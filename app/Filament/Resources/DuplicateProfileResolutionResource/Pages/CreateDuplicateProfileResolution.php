@@ -4,6 +4,7 @@ namespace App\Filament\Resources\DuplicateProfileResolutionResource\Pages;
 
 use App\Actions\Enrollment\DuplicateProfileResolver;
 use App\Filament\Resources\DuplicateProfileResolutionResource;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Resources\Pages\CreateRecord;
@@ -13,6 +14,16 @@ use Illuminate\Database\Eloquent\Model;
 class CreateDuplicateProfileResolution extends CreateRecord
 {
     protected static string $resource = DuplicateProfileResolutionResource::class;
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [
+            EnrollmentResource::getUrl('index') => 'Students & Enrollment',
+            DuplicateProfileResolutionResource::getUrl('index') => 'Duplicate resolutions',
+            'Resolve duplicate',
+        ];
+    }
 
     protected function handleRecordCreation(array $data): Model
     {

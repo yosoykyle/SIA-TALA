@@ -6,12 +6,12 @@ use App\Actions\Applicants\ApplicantEvidenceService;
 use App\Models\ChecklistItem;
 use App\Models\User;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -117,23 +117,6 @@ class ChecklistItemsRelationManager extends RelationManager
                         ChecklistItem::StatusWaived => ChecklistItem::statusLabel(ChecklistItem::StatusWaived),
                         ChecklistItem::StatusUndertakingApproved => ChecklistItem::statusLabel(ChecklistItem::StatusUndertakingApproved),
                     ]),
-                SelectFilter::make('evidence_method')
-                    ->label('Submission method')
-                    ->options([
-                        ChecklistItem::EvidenceMethodDigitalUpload => ChecklistItem::evidenceMethodLabel(ChecklistItem::EvidenceMethodDigitalUpload),
-                        ChecklistItem::EvidenceMethodPhysicalCopy => ChecklistItem::evidenceMethodLabel(ChecklistItem::EvidenceMethodPhysicalCopy),
-                        ChecklistItem::EvidenceMethodMetadataOnly => ChecklistItem::evidenceMethodLabel(ChecklistItem::EvidenceMethodMetadataOnly),
-                    ]),
-                SelectFilter::make('blocking_level')
-                    ->label('Effect')
-                    ->options([
-                        ChecklistItem::BlockingHandover => ChecklistItem::blockingLevelLabel(ChecklistItem::BlockingHandover),
-                        ChecklistItem::BlockingEnrollment => ChecklistItem::blockingLevelLabel(ChecklistItem::BlockingEnrollment),
-                        ChecklistItem::BlockingCorPrint => ChecklistItem::blockingLevelLabel(ChecklistItem::BlockingCorPrint),
-                        ChecklistItem::BlockingRecordRelease => ChecklistItem::blockingLevelLabel(ChecklistItem::BlockingRecordRelease),
-                        ChecklistItem::BlockingRetentionOnly => ChecklistItem::blockingLevelLabel(ChecklistItem::BlockingRetentionOnly),
-                        ChecklistItem::BlockingAdvisoryOnly => ChecklistItem::blockingLevelLabel(ChecklistItem::BlockingAdvisoryOnly),
-                    ]),
                 SelectFilter::make('verification_status')
                     ->label('Verification')
                     ->options([
@@ -146,92 +129,113 @@ class ChecklistItemsRelationManager extends RelationManager
                 //
             ])
             ->recordActions([
-                ActionGroup::make([
-                    Action::make('recordPhysicalReceipt')
-                        ->label('Record Physical Receipt')
-                        ->icon(Heroicon::OutlinedInboxArrowDown)
-                        ->color('info')
-                        ->visible(fn (ChecklistItem $record): bool => $this->canRecordPhysicalReceipt($record))
-                        ->schema([
-                            TextInput::make('receipt_reference')
-                                ->label('Receipt or Reference Number')
-                                ->helperText('Optional institutional reference for the physical submission.')
-                                ->maxLength(120),
-                        ])
-                        ->action(fn (ChecklistItem $record, array $data): mixed => $this->recordPhysicalReceipt(
-                            item: $record,
-                            reference: $data['receipt_reference'] ?? null,
-                        )),
-                    Action::make('verifyDocument')
-                        ->label(fn (ChecklistItem $record): string => $this->evidenceActionLabel($record, 'Verify'))
-                        ->icon(Heroicon::OutlinedCheckCircle)
-                        ->color('success')
-                        ->requiresConfirmation()
-                        ->visible(fn (ChecklistItem $record): bool => $this->canReview($record))
-                        ->action(fn (ChecklistItem $record): mixed => $this->runReview(
-                            item: $record,
-                            decision: ApplicantEvidenceService::DecisionAccept,
-                            successTitle: "{$this->evidenceActionLabel($record, 'Verify')} recorded",
-                        )),
-                    Action::make('downloadEvidence')
-                        ->label('Download Evidence')
-                        ->icon(Heroicon::OutlinedArrowDownTray)
-                        ->visible(fn (ChecklistItem $record): bool => $this->canDownload($record))
-                        ->action(fn (ChecklistItem $record): mixed => $this->downloadEvidence($record)),
-                    Action::make('rejectDocument')
-                        ->label(fn (ChecklistItem $record): string => $this->evidenceActionLabel($record, 'Reject'))
-                        ->icon(Heroicon::OutlinedXCircle)
-                        ->color('danger')
-                        ->visible(fn (ChecklistItem $record): bool => $this->canReview($record))
-                        ->schema([
-                            Textarea::make('notes')
-                                ->label('Correction Instruction')
-                                ->helperText('Explain what is wrong and what the applicant or Registrar must do next.')
-                                ->required()
-                                ->maxLength(500),
-                        ])
-                        ->action(fn (ChecklistItem $record, array $data): mixed => $this->runReview(
-                            item: $record,
-                            decision: ApplicantEvidenceService::DecisionReject,
-                            successTitle: "{$this->evidenceActionLabel($record, 'Reject')} recorded",
-                            reason: (string) $data['notes'],
-                        )),
-                    Action::make('waiveRequirement')
-                        ->label('Waive Requirement')
-                        ->icon(Heroicon::OutlinedShieldCheck)
-                        ->color('warning')
-                        ->visible(fn (ChecklistItem $record): bool => $this->canResolveByAuthority($record))
-                        ->schema([
-                            Textarea::make('waiver_reason')
-                                ->label('Waiver Reason')
-                                ->helperText('Record the policy exception or verified basis for waiving this requirement.')
-                                ->required()
-                                ->maxLength(1000),
-                        ])
-                        ->action(fn (ChecklistItem $record, array $data): mixed => $this->waiveRequirement(
-                            item: $record,
-                            reason: (string) $data['waiver_reason'],
-                        )),
-                    Action::make('approveUndertaking')
-                        ->label('Approve Undertaking')
-                        ->icon(Heroicon::OutlinedDocumentCheck)
-                        ->color('info')
-                        ->visible(fn (ChecklistItem $record): bool => $this->canResolveByAuthority($record))
-                        ->schema([
-                            Textarea::make('undertaking_terms')
-                                ->label('Undertaking Terms')
-                                ->helperText('State what must be provided, to whom, and by what deadline or lifecycle point.')
-                                ->required()
-                                ->maxLength(1000),
-                        ])
-                        ->action(fn (ChecklistItem $record, array $data): mixed => $this->approveUndertaking(
-                            item: $record,
-                            terms: (string) $data['undertaking_terms'],
-                        )),
-                ])
-                    ->label('Review Actions')
-                    ->icon(Heroicon::OutlinedEllipsisVertical),
+                Action::make('recordPhysicalReceipt')
+                    ->label('Record receipt')
+                    ->icon(Heroicon::OutlinedInboxArrowDown)
+                    ->button()
+                    ->color('info')
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
+                    ->visible(fn (ChecklistItem $record): bool => $this->canRecordPhysicalReceipt($record))
+                    ->schema([
+                        TextInput::make('receipt_reference')
+                            ->label('Receipt or Reference Number')
+                            ->helperText('Optional institutional reference for the physical submission.')
+                            ->maxLength(120),
+                    ])
+                    ->action(fn (ChecklistItem $record, array $data): mixed => $this->recordPhysicalReceipt(
+                        item: $record,
+                        reference: $data['receipt_reference'] ?? null,
+                    )),
+                Action::make('verifyDocument')
+                    ->label(fn (ChecklistItem $record): string => $this->evidenceActionLabel($record, 'Verify'))
+                    ->icon(Heroicon::OutlinedCheckCircle)
+                    ->button()
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
+                    ->visible(fn (ChecklistItem $record): bool => $this->canReview($record))
+                    ->action(fn (ChecklistItem $record): mixed => $this->runReview(
+                        item: $record,
+                        decision: ApplicantEvidenceService::DecisionAccept,
+                        successTitle: "{$this->evidenceActionLabel($record, 'Verify')} recorded",
+                    )),
+                Action::make('downloadEvidence')
+                    ->label('Download')
+                    ->icon(Heroicon::OutlinedArrowDownTray)
+                    ->button()
+                    ->color('gray')
+                    ->visible(fn (ChecklistItem $record): bool => $this->canDownload($record))
+                    ->action(fn (ChecklistItem $record): mixed => $this->downloadEvidence($record)),
+                Action::make('rejectDocument')
+                    ->label(fn (ChecklistItem $record): string => $this->evidenceActionLabel($record, 'Reject'))
+                    ->icon(Heroicon::OutlinedXCircle)
+                    ->button()
+                    ->color('danger')
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
+                    ->visible(fn (ChecklistItem $record): bool => $this->canReview($record))
+                    ->schema([
+                        Textarea::make('notes')
+                            ->label('Correction Instruction')
+                            ->helperText('Explain what is wrong and what the applicant or Registrar must do next.')
+                            ->required()
+                            ->maxLength(500),
+                    ])
+                    ->action(fn (ChecklistItem $record, array $data): mixed => $this->runReview(
+                        item: $record,
+                        decision: ApplicantEvidenceService::DecisionReject,
+                        successTitle: "{$this->evidenceActionLabel($record, 'Reject')} recorded",
+                        reason: (string) $data['notes'],
+                    )),
+                Action::make('waiveRequirement')
+                    ->label('Waive')
+                    ->icon(Heroicon::OutlinedShieldCheck)
+                    ->button()
+                    ->color('warning')
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
+                    ->visible(fn (ChecklistItem $record): bool => $this->canResolveByAuthority($record))
+                    ->schema([
+                        Textarea::make('waiver_reason')
+                            ->label('Waiver Reason')
+                            ->helperText('Record the policy exception or verified basis for waiving this requirement.')
+                            ->required()
+                            ->maxLength(1000),
+                    ])
+                    ->action(fn (ChecklistItem $record, array $data): mixed => $this->waiveRequirement(
+                        item: $record,
+                        reason: (string) $data['waiver_reason'],
+                    )),
+                Action::make('approveUndertaking')
+                    ->label('Undertaking')
+                    ->icon(Heroicon::OutlinedDocumentCheck)
+                    ->button()
+                    ->color('info')
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
+                    ->visible(fn (ChecklistItem $record): bool => $this->canResolveByAuthority($record))
+                    ->schema([
+                        Textarea::make('undertaking_terms')
+                            ->label('Undertaking Terms')
+                            ->helperText('State what must be provided, to whom, and by what deadline or lifecycle point.')
+                            ->required()
+                            ->maxLength(1000),
+                    ])
+                    ->action(fn (ChecklistItem $record, array $data): mixed => $this->approveUndertaking(
+                        item: $record,
+                        terms: (string) $data['undertaking_terms'],
+                    )),
             ])
+            ->emptyStateHeading('No document checklist recorded')
+            ->emptyStateDescription('No document requirements have been recorded for this student.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->stackedOnMobile();
     }
 

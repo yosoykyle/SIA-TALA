@@ -24,7 +24,7 @@
         :heading="$isTermChooser ? 'Term planning' : ($viewTab === 'plan' ? $term->typeLabel() : $taskTitle)"
         :subheading="$isTermChooser ? ($terms->isEmpty() ? null : 'Choose a Term to plan.') : ($viewTab === 'plan' ? $term->academicYear?->label : $termContext)"
         :breadcrumbs="$taskBreadcrumbs"
-        :actions="$term ? [...($isProposal ? [$this->addCoursesAction] : []), \Filament\Actions\Action::make('changeTerm')->label('Change Term')->color('gray')->icon('heroicon-o-arrows-right-left')->url(\App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]))] : ($terms->isNotEmpty() && ! $readOnly ? [\Filament\Actions\Action::make('addTerm')->label('Add Term')->icon('heroicon-o-plus')->url(\App\Filament\Resources\Terms\TermResource::getUrl('create', ['viewTab' => 'plan']))] : [])"
+        :actions="$term ? [...($isProposal ? [$this->addCoursesAction] : []), ...($extraHeaderActions ?? []), \Filament\Actions\Action::make('changeTerm')->label('Change Term')->color('gray')->icon('heroicon-o-arrows-right-left')->url(\App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]))] : ($terms->isNotEmpty() && ! $readOnly ? [\Filament\Actions\Action::make('addTerm')->label('Add Term')->icon('heroicon-o-plus')->url(\App\Filament\Resources\Terms\TermResource::getUrl('create', ['viewTab' => 'plan']))] : [])"
     />
     @if ($term)
         <div class="tala-planning-context-note">

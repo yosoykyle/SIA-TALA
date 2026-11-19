@@ -37,7 +37,7 @@ class EnrollmentException extends Model
     /** @var list<string> */
     protected $fillable = [
         'enrollment_id', 'student_profile_id', 'term_id', 'exception_type',
-        'enrollment_gate_result_id', 'target_term_offering_id', 'original_failed_result',
+        'target_term_offering_id', 'original_failed_result',
         'original_rule', 'scope_key', 'expires_at', 'requested_values', 'approved_values',
         'reason', 'evidence_reference', 'requested_by', 'approved_by', 'approved_at', 'state',
     ];
@@ -65,11 +65,6 @@ class EnrollmentException extends Model
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
-    }
-
-    public function gateResult(): BelongsTo
-    {
-        return $this->belongsTo(EnrollmentGateResult::class, 'enrollment_gate_result_id');
     }
 
     public function targetTermOffering(): BelongsTo

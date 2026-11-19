@@ -38,7 +38,7 @@ final class CandidateScheduleReviewForm
             Hidden::make('scheduling_demand_id')
                 ->dehydrated(false),
             Section::make('Requested assignment')
-                ->description('Choose the teacher, room and time for this meeting. TALA checks the complete candidate before recording a successor.')
+                ->description('Choose the teacher, room and time for this meeting. TALA checks the complete candidate before recording an updated draft.')
                 ->schema(self::assignmentFields($run))
                 ->columns(['default' => 1, 'md' => 2]),
             Section::make('Reason and authority')
@@ -187,8 +187,9 @@ final class CandidateScheduleReviewForm
     {
         return [
             TextInput::make('override_authority')
-                ->label('Approval authority')
-                ->helperText('Record the approving person, office, or policy authority.')
+                ->label('Approval memo or reference')
+                ->placeholder('e.g., Memo 2026-014 or approving office')
+                ->helperText('Record the approving person, office, or memo reference.')
                 ->maxLength(255)
                 ->required(),
             Textarea::make('override_reason')

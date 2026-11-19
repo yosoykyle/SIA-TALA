@@ -86,7 +86,6 @@ class RecordAcademicException
                 [
                     'student_profile_id' => $lockedEnrollment->student_profile_id,
                     'term_id' => $lockedEnrollment->term_id,
-                    'enrollment_gate_result_id' => null,
                     'target_term_offering_id' => $targetOffering->id,
                     'original_failed_result' => (string) ($data['original_failed_result'] ?? 'academic_progression_blocker'),
                     'original_rule' => $originalRule,

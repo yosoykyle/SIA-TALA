@@ -23,7 +23,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
@@ -295,7 +294,7 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
         ]);
 
         foreach ([$sourceMeeting, $unaffectedMeeting] as $index => $meeting) {
-            $courseEnrollment = CourseEnrollment::query()->create([
+            CourseEnrollment::query()->create([
                 'enrollment_id' => $enrollment->id,
                 'term_offering_id' => $context['offerings'][$index]->id,
                 'section_id' => $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id,
@@ -303,13 +302,6 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
                 'status' => CourseEnrollment::StatusActive,
                 'units_snapshot' => '3.00',
                 'added_at' => now(),
-            ]);
-            StudentScheduleBinding::query()->create([
-                'course_enrollment_id' => $courseEnrollment->id,
-                'section_meeting_id' => $meeting->id,
-                'is_active' => true,
-                'effective_from' => now()->toDateString(),
-                'source' => StudentScheduleBinding::SourceRegistrarPlacement,
             ]);
         }
 

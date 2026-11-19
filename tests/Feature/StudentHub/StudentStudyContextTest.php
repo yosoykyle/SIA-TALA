@@ -304,7 +304,6 @@ class StudentStudyContextTest extends TestCase
         CourseRequirement::factory()->for($next->courseSpecification)->create([
             'related_course_id' => $failed->termOffering->curriculumEntry->courseSpecification->course_id,
         ]);
-        $future = CourseRequirement::factory()->for($next->courseSpecification)->create(['effective_from' => today()->addYear()]);
         $this->signInStudent($profile);
 
         Livewire::test(Academics::class)
@@ -314,7 +313,6 @@ class StudentStudyContextTest extends TestCase
             ->set('academicView', 'plan')
             ->assertSee($failed->termOffering->curriculumEntry->courseSpecification->title.' needs follow-up')
             ->assertSee('Prerequisite: '.$failed->termOffering->curriculumEntry->courseSpecification->course->code)
-            ->assertDontSee($future->relatedCourse->code)
             ->assertSee('Ask the Registrar about completing or retaking this subject.');
 
         $retakeEnrollment = $this->officialEnrollment($profile);

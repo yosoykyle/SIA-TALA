@@ -36,7 +36,7 @@
     <section class="tala-task-surface" aria-labelledby="registered-subjects-heading">
         <div class="student-registration-subjects-heading"><h2 class="student-record-heading" id="registered-subjects-heading"><x-filament::icon icon="heroicon-o-book-open" />Registered subjects</h2><p>{{ $registeredSubjects->count() }} {{ $registeredSubjects->count() === 1 ? 'subject' : 'subjects' }} · {{ (float) $registeredSubjects->sum('units_snapshot') }} units</p>@if ($isStudent)<p class="student-registration-purpose">These are the subjects and classes on your official registration. Your grades and study plan are in Academics.</p>@endif</div>
         @if ($registeredSubjects->isNotEmpty())
-            <div class="student-academic-table-wrap" role="region" aria-label="Registered subjects and classes" tabindex="0">
+            <div class="tala-data-table-scroll student-academic-table-wrap" role="region" aria-label="Registered subjects and classes" tabindex="0">
                 <table class="tala-data-table student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Units</th></tr></thead><tbody>
                     @foreach ($registeredSubjects as $subject)
                         <tr wire:key="registered-subject-{{ $subject->id }}"><th scope="row">{{ $subject->termOffering?->curriculumEntry?->courseSpecification?->title ?? 'Subject unavailable' }}<span class="student-academic-secondary">{{ $subject->termOffering?->curriculumEntry?->courseSpecification?->course?->code }}</span></th><td>{{ $subject->section?->code ?? 'Unavailable' }}</td><td class="student-academic-number">{{ (float) $subject->units_snapshot }}</td></tr>

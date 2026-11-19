@@ -50,7 +50,7 @@
                                             <p>Teaching availability, qualifications and rooms</p>
                                         @endif
                                     @else
-                                        <p class="tala-workspace-preparation__status">{{ $activePackage ? 'Active calendar · v'.$activePackage->version : 'No active teaching calendar' }}</p>
+                                        <p class="tala-workspace-preparation__status">{{ $activePackage ? 'Active calendar · Updated '.($activePackage->updated_at ?? $activePackage->created_at)?->timezone(config('app.display_timezone'))->format('M j, Y') : 'No active teaching calendar' }}</p>
                                     @endif
                                     @if ($work->isNotEmpty() || $waiting->isNotEmpty())
                                         <ul class="tala-workspace-preparation__findings">
@@ -84,7 +84,6 @@
                                 <a class="tala-workspace-overview__link" {{ \Filament\Support\generate_href_html($overviewTimetable['official']['url']) }}>View official timetable</a>
                             @endif
                         </div>
-                        <p class="tala-workspace-overview__guide">Prepare inputs → Generate and review → Accept, then publish.</p>
                     </section>
                     <section class="tala-task-surface tala-workspace-overview__record" aria-labelledby="overview-term-record-heading">
                         <header><h2 id="overview-term-record-heading">Term details</h2><x-filament::button tag="a" color="gray" size="sm" :href="\App\Filament\Resources\Terms\TermResource::getUrl('view', ['record' => $term, 'viewTab' => 'plan'])">Term settings</x-filament::button></header>
@@ -106,8 +105,8 @@
                     @if ($coveragePage->isNotEmpty() && ($coverageSearch !== '' || $coverageYear !== ''))<x-filament::button color="gray" wire:click="clearCoverageFilters">Clear filters</x-filament::button>@endif
                 </div>
                 @if ($coveragePage->isNotEmpty())
-                    <div class="tala-workspace-coverage__table" wire:loading.class="opacity-60" wire:target="coverageSearch,coverageYear,gotoPage,nextPage,previousPage">
-                        <table>
+                    <div class="tala-data-table-scroll tala-workspace-coverage__table" role="region" aria-label="Program, curriculum and year-level coverage for {{ $term->typeLabel() }}" tabindex="0" wire:loading.class="opacity-60" wire:target="coverageSearch,coverageYear,gotoPage,nextPage,previousPage">
+                        <table class="tala-data-table">
                             <caption class="sr-only">Program, curriculum and year-level coverage for {{ $term->typeLabel() }}</caption>
                             <thead><tr><th scope="col">Program / curriculum</th><th scope="col">Year level</th><th scope="col">Classes</th><th scope="col">Weekly meetings</th><th scope="col">Student sections</th><th scope="col"><span class="sr-only">Open records</span></th></tr></thead>
                             <tbody>
@@ -131,9 +130,9 @@
                     </div>
                 @else
                     <div class="tala-workspace-coverage__empty">
-                        <h3>{{ $this->coverageEntries->isEmpty() ? 'No curriculum coverage recorded' : 'No matching coverage records' }}</h3>
-                        <p>{{ $this->coverageEntries->isEmpty() ? 'Prepare the classes and student sections that will run in this term.' : 'Try another program, curriculum or year level, or clear the filters.' }}</p>
-                        @if ($this->coverageEntries->isEmpty())<x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\TermClasses::getUrl($parameters)">View classes</x-filament::button>@else<x-filament::button color="gray" wire:click="clearCoverageFilters">Clear filters</x-filament::button>@endif
+                        <x-servitech-empty-state :illustrated="$this->coverageEntries->isEmpty()" :heading="$this->coverageEntries->isEmpty() ? 'No curriculum coverage recorded' : 'No matching coverage records'" :description="$this->coverageEntries->isEmpty() ? 'Prepare the classes and student sections that will run in this term.' : 'Try another program, curriculum or year level, or clear the filters.'" heading-tag="h3">
+                            @if ($this->coverageEntries->isEmpty())<x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\TermClasses::getUrl($parameters)">View classes</x-filament::button>@else<x-filament::button color="gray" wire:click="clearCoverageFilters">Clear filters</x-filament::button>@endif
+                        </x-servitech-empty-state>
                     </div>
                 @endif
                 <p class="tala-workspace-coverage__note">Shared classes may serve several programs or years. Whole-term figures count each class once and are unchanged by these filters.</p>
@@ -142,11 +141,10 @@
     @else
         <div class="tala-term-chooser">
             @if ($terms->isEmpty())
-                <section class="tala-task-surface tala-task-work tala-planning-first-use" aria-labelledby="first-term-heading">
-                    <x-filament::icon icon="heroicon-o-calendar-days" />
-                    <h2 id="first-term-heading">{{ $readOnly ? 'No Terms recorded' : 'Start your first Term' }}</h2>
-                    <p>{{ $readOnly ? 'Ask the Registrar to create a Term before planning begins.' : 'An academic year groups your semesters. Add the Term and its dates, then prepare its teaching calendar and classes.' }}</p>
-                    @if (! $readOnly)<x-filament::button tag="a" icon="heroicon-o-plus" :href="\App\Filament\Resources\Terms\TermResource::getUrl('create', ['viewTab' => 'plan'])">Add Term</x-filament::button>@endif
+                <section class="tala-task-surface tala-task-work tala-planning-first-use servitech-journey-scene" aria-labelledby="first-term-heading">
+                    <x-servitech-empty-state illustrated :heading="$readOnly ? 'No Terms recorded' : 'Start your first Term'" :description="$readOnly ? 'Ask the Registrar to create a Term before planning begins.' : 'An academic year groups your semesters. Add the Term and its dates, then prepare its teaching calendar and classes.'" id="first-term-heading">
+                        @if (! $readOnly)<x-filament::button tag="a" icon="heroicon-o-plus" :href="\App\Filament\Resources\Terms\TermResource::getUrl('create', ['viewTab' => 'plan'])">Add Term</x-filament::button>@endif
+                    </x-servitech-empty-state>
                 </section>
             @else
                 <div class="tala-term-chooser-search">{{ $this->academicYearFilterSelection }}<p>Choose an academic year to see its Terms.</p></div>

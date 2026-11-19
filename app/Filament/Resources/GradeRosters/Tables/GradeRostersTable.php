@@ -75,8 +75,8 @@ class GradeRostersTable
             ])
             ->recordUrl(fn (GradeRoster $record, HasTable $livewire): string => self::rosterUrl($record, $livewire))
             ->emptyState(view('filament.partials.collection-empty-state'))
-            ->emptyStateHeading(fn (HasTable $livewire): string => filled($livewire->getTableSearch()) || $livewire->getTable()->isFiltered() ? 'No matching class rosters' : 'No class rosters yet')
-            ->emptyStateDescription(fn (HasTable $livewire): string => filled($livewire->getTableSearch()) || $livewire->getTable()->isFiltered()
+            ->emptyStateHeading(fn (HasTable $livewire): string => filled(trim((string) $livewire->getTableSearch())) || count($livewire->getTable()->getFilterIndicators()) > 0 ? 'No matching class rosters' : 'No class rosters yet')
+            ->emptyStateDescription(fn (HasTable $livewire): string => filled(trim((string) $livewire->getTableSearch())) || count($livewire->getTable()->getFilterIndicators()) > 0
                 ? 'Clear the search or adjust the term and state filters.'
                 : 'Class records appear after teaching assignments and official enrollment are recorded. Submissions, returns and releases stay in each class history.')
             ->stackedOnMobile()

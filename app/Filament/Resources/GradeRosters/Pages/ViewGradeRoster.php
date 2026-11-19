@@ -6,7 +6,7 @@ use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Actions\Grades\AuthorizeLateGradeEncoding;
 use App\Actions\Grades\PostAndReleaseGradeRoster;
 use App\Actions\Grades\ReturnGradeRoster;
-use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\GradeRosters\Actions\ExportClassRosterAction;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
@@ -23,6 +23,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -35,10 +36,9 @@ use RuntimeException;
 
 class ViewGradeRoster extends ViewRecord
 {
-    protected static string $resource = GradeRosterResource::class;
+    use HasAcademicOversightReturn;
 
-    #[Url]
-    public ?int $oversightTermId = null;
+    protected static string $resource = GradeRosterResource::class;
 
     #[Url]
     public string $viewTab = 'grade-review';
@@ -144,6 +144,9 @@ class ViewGradeRoster extends ViewRecord
             Action::make('authorizeLateGradeEncoding')
                 ->label('Reopen grade entry')
                 ->modalHeading('Reopen grade entry')
+                ->modalWidth(Width::TwoExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription(fn (): string => 'Allow the designated Faculty member to edit and resubmit final results for '.$this->getTitle().' during these dates. This applies only to this class roster; submitted results still require Registrar review before release.')
                 ->modalSubmitActionLabel('Reopen grade entry')
                 ->schema([
@@ -199,7 +202,7 @@ class ViewGradeRoster extends ViewRecord
     public function classActivityAction(): Action
     {
         return Action::make('classActivity')->label('Class activity')->icon('heroicon-o-clock')->color('gray')
-            ->slideOver()->modalHeading('Class submission history')->modalWidth('3xl')
+            ->slideOver()->modalHeading('Class submission history')->modalWidth(Width::ThreeExtraLarge)->stickyModalHeader()->stickyModalFooter()
             ->modalDescription(fn (): string => $this->getTitle().' · '.$this->classContext())
             ->modalContent(fn (): View => view('filament.admin.grade-rosters.submission-history', [
                 'submissionHistory' => GradeRosterInfolist::submissionHistory($this->gradeRoster(), $this->submissionHistoryPage),
@@ -210,7 +213,7 @@ class ViewGradeRoster extends ViewRecord
     public function classDeliveryAction(): Action
     {
         return Action::make('classDelivery')->label('Delivery')->icon('heroicon-o-envelope')->color('gray')
-            ->slideOver()->modalHeading('Teaching assignment and notification delivery')->modalWidth('3xl')
+            ->slideOver()->modalHeading('Teaching assignment and notification delivery')->modalWidth(Width::ThreeExtraLarge)->stickyModalHeader()->stickyModalFooter()
             ->modalDescription(fn (): string => $this->getTitle().' · '.$this->classContext())
             ->modalContent(fn (): View => view('filament.admin.grade-rosters.class-delivery', [
                 'roster' => $this->gradeRoster(),
@@ -223,8 +226,11 @@ class ViewGradeRoster extends ViewRecord
     {
         return Action::make('return')
             ->label('Return for changes')->color('gray')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalSubmitActionLabel('Return selected rows')
-            ->modalDescription('Choose the students whose results need correction. Other rows stay unchanged; Faculty resubmits the complete class version.')
+            ->modalDescription('Choose the students whose results need correction. Other rows stay unchanged; Faculty resubmits the complete class roster.')
             ->schema([
                 CheckboxList::make('row_ids')->label('Students to return')->required()->searchable()
                     ->options(fn (): array => $this->gradeRoster()->rows()->where('is_current_membership', true)
@@ -253,7 +259,10 @@ class ViewGradeRoster extends ViewRecord
     {
         return Action::make('postAndRelease')
             ->label('Release class grades')->color('primary')
-            ->modalDescription('Release the complete current class version to students. Affected active enrollment cases will be sent to the Registrar for review; subjects are not changed automatically.')
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalDescription('Release the complete class grades to students. Affected active enrollment cases will be sent to the Registrar for review; subjects are not changed automatically.')
             ->requiresConfirmation()
             ->modalSubmitActionLabel('Release class grades')
             ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->gradeRoster()->state === GradeRoster::StateSubmitted)
@@ -298,7 +307,7 @@ class ViewGradeRoster extends ViewRecord
     {
         if ($this->isHeadReader()) {
             return [
-                AcademicApprovals::getUrl(['termId' => $this->oversightTermId]) => 'Academic Oversight',
+                $this->oversightReturnUrl() => 'Academic Oversight',
                 GradeRosterResource::getUrl('index', ['oversightTermId' => $this->oversightTermId]) => 'Class rosters',
                 $this->record->section?->code ?? 'Class roster',
             ];

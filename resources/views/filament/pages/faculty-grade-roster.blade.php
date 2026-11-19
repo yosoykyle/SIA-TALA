@@ -192,7 +192,9 @@
                         </x-slot:avatar>
                         <x-slot:heading id="faculty-result-heading" x-ref="selectedStudentHeading" tabindex="-1">{{ $selected['legal_name'] }}</x-slot:heading>
                     </x-record-identity>
-                    @php($incContext = $this->selectedIncContext())
+                    @php
+                        $incContext = $this->selectedIncContext();
+                    @endphp
                     @if ($selected['returned'])
                         <div class="tala-review-feedback faculty-result-feedback">
                             <x-filament::icon icon="heroicon-o-arrow-uturn-left" class="size-5" />
@@ -252,7 +254,7 @@
                             <h3>Class record</h3>
                             <dl>
                                 <div><dt>Designated faculty</dt><dd>{{ $roster->teachingAssignment?->faculty?->name ?? $roster->faculty?->name ?? 'Not recorded' }}</dd></div>
-                                <div><dt>Submitted roster</dt><dd>{{ $roster->current_version_number > 0 ? 'Version '.$roster->current_version_number : 'Not submitted yet' }}</dd></div>
+                                <div><dt>Submission status</dt><dd>{{ $roster->current_version_number > 0 ? ($roster->submitted_at ? 'Submitted '.$roster->submitted_at->timezone('Asia/Manila')->format('M j, Y') : 'Submitted') : 'Not submitted yet' }}</dd></div>
                                 @if ($entryWindow['reference'])<div class="faculty-roster-reference"><dt>Calendar or entry approval</dt><dd>{{ $entryWindow['reference'] }}</dd></div>@endif
                                 @if (filled($roster->teachingAssignment?->authority_reference))<div class="faculty-roster-reference"><dt>Assignment approval</dt><dd>{{ $roster->teachingAssignment->authority_reference }}</dd></div>@endif
                             </dl>
@@ -261,6 +263,11 @@
                 </x-supporting-details>
             </x-slot:toolbar>
             <x-slot:footer class="faculty-result-footer">
+                @php
+                    $missingFinalResults = (int) ($workspace['missingFinalResults'] ?? 0);
+                    $missingIncNotes = (int) ($workspace['missingIncNotes'] ?? 0);
+                    $rosterReadyToSubmit = $missingFinalResults === 0 && $missingIncNotes === 0 && ($workspace['total'] ?? 0) > 0;
+                @endphp
                 <div class="faculty-result-progress-copy">
                     <strong>{{ $workspace['recorded'] }} of {{ $workspace['total'] }} results recorded</strong>
                     @if ($workspace['returned'] > 0 || !$designated)<p>{{ $workspace['returned'] > 0 ? trans_choice('{1} :count result returned for changes|[2,*] :count results returned for changes', $workspace['returned']) : '' }}{{ !$designated ? ' · View-only co-faculty' : '' }}</p>@endif
@@ -274,6 +281,18 @@
                                 <span x-show="!transportFailed && !$wire.draftSaveError" class="faculty-result-save-confirmation"><x-filament::icon icon="heroicon-m-check-circle" class="size-4" x-show="!pending" /><span x-cloak x-show="pending">Saving draft…</span><span x-show="!pending">{{ $workspace['hasUnsavedChanges'] ? 'Changes are not saved' : 'Draft saved' }}</span></span>
                                 <x-filament::button type="button" color="gray" size="sm" x-cloak x-show="transportFailed || $wire.draftSaveError" wire:click="saveDraft" wire:loading.attr="disabled" wire:target="saveDraft">Retry save</x-filament::button>
                             </div>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;" role="status" aria-live="polite">
+                            @if ($rosterReadyToSubmit)
+                                <x-filament::badge color="success" icon="heroicon-m-check-circle">Ready to submit</x-filament::badge>
+                            @else
+                                @if ($missingFinalResults > 0)
+                                    <x-filament::badge color="warning" icon="heroicon-m-exclamation-triangle">{{ $missingFinalResults }} missing {{ str('result')->plural($missingFinalResults) }}</x-filament::badge>
+                                @endif
+                                @if ($missingIncNotes > 0)
+                                    <x-filament::badge color="warning" icon="heroicon-m-document-text">{{ $missingIncNotes }} missing INC {{ str('note')->plural($missingIncNotes) }}</x-filament::badge>
+                                @endif
+                            @endif
                         </div>
                         {{ $this->submitAction }}
                     </div>

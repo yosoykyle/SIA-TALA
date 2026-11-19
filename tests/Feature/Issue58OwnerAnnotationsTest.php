@@ -11,7 +11,7 @@ use App\Filament\Pages\TermResources;
 use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\CalendarEvents\Pages\CreateCalendarEvent;
 use App\Filament\Resources\CalendarEvents\Pages\ListCalendarEvents;
-use App\Filament\Resources\CourseSpecifications\Pages\EditCourseSpecification;
+use App\Filament\Resources\Courses\Pages\ViewCourse;
 use App\Filament\Resources\Rooms\Pages\CreateRoom;
 use App\Filament\Resources\Rooms\Pages\EditRoom;
 use App\Filament\Resources\Rooms\Pages\ViewRoom;
@@ -273,13 +273,19 @@ class Issue58OwnerAnnotationsTest extends TestCase
     public function test_course_equipment_requirements_keep_custom_keys_and_validate_each_identifier(): void
     {
         $this->staff();
-        $specification = CourseSpecification::factory()->create();
+        $specification = CourseSpecification::factory()->create(['state' => CourseSpecification::StateDraft]);
         $component = CourseComponent::factory()->for($specification)->create();
-        $path = 'data.components.record-'.$component->id.'.required_room_feature_keys';
-        $page = Livewire::test(EditCourseSpecification::class, ['record' => $specification->id])
-            ->set($path, ['LECTURE_MICROPHONE', 'PROJECTOR'])->call('save')->assertHasNoFormErrors();
+        $page = Livewire::test(ViewCourse::class, ['record' => $specification->course_id])
+            ->mountAction('editRevision');
+        $itemKey = array_key_first($page->get('mountedActions.0.data.components'));
+        $path = 'mountedActions.0.data.components.'.$itemKey.'.required_room_feature_keys';
+        $page->set($path, ['LECTURE_MICROPHONE', 'PROJECTOR'])->callMountedAction()->assertHasNoActionErrors();
         $this->assertSame(['LECTURE_MICROPHONE', 'PROJECTOR'], $component->fresh()->required_room_feature_keys);
-        $page->set($path, [str_repeat('X', 256)])->call('save')->assertHasErrors([$path.'.0']);
+        $page = Livewire::test(ViewCourse::class, ['record' => $specification->course_id])
+            ->mountAction('editRevision');
+        $itemKey = array_key_first($page->get('mountedActions.0.data.components'));
+        $path = 'mountedActions.0.data.components.'.$itemKey.'.required_room_feature_keys';
+        $page->set($path, [str_repeat('X', 256)])->callMountedAction()->assertHasErrors([$path.'.0']);
         $this->assertSame(['LECTURE_MICROPHONE', 'PROJECTOR'], $component->fresh()->required_room_feature_keys);
     }
 
@@ -324,8 +330,10 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $page = Livewire::withQueryParams(['termId' => $version->term_id, 'timetableState' => 'official', 'timetableView' => 'list'])
             ->test(TermTimetable::class)->searchTable('ANNOTATION-MEETING-')->sortTable('room');
         $this->assertSame(13, $page->instance()->getTableRecords()->total());
-        $this->assertCount(10, $page->instance()->getTableRecords()->items());
+        $this->assertCount(5, $page->instance()->getTableRecords()->items());
         $page->call('gotoPage', 2);
+        $this->assertCount(5, $page->instance()->getTableRecords()->items());
+        $page->call('gotoPage', 3);
         $this->assertCount(3, $page->instance()->getTableRecords()->items());
         $page->set('programFilter', 'No matching program');
         $this->assertSame(1, $page->instance()->getTablePage());
@@ -404,7 +412,7 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $term = Term::factory()->create();
         Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)->assertSee('Activate the teaching calendar before requesting availability.')
             ->assertActionDisabled('requestFacultyAvailability');
-        TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'faculty_availability_due_at' => null]);
+        TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
         $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
             ->assertSee('Set a reply deadline')->assertSee('Faculty need this Term’s teaching calendar and a deadline before requests can be sent.')->assertActionDisabled('requestFacultyAvailability');
         Mail::fake();
@@ -448,7 +456,7 @@ class Issue58OwnerAnnotationsTest extends TestCase
         if ($readOnly) {
             Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
                 ->assertSee('The Registrar must activate the teaching calendar before availability can be requested.');
-            TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'faculty_availability_due_at' => null]);
+            TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
             Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
                 ->assertSee('No reply deadline recorded')
                 ->assertDontSee('Set a reply deadline');

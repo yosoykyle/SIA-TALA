@@ -46,9 +46,13 @@ class RegistrationAcademicEligibilityQuery
             $programId = $profile->program_id;
         }
 
+        $isAssignedSuperseded = $profile instanceof StudentProfile
+            && (int) $profile->curriculum_version_id === (int) $curriculum->id
+            && $curriculum->state === CurriculumVersion::StateSuperseded;
+
         if ($programId === null
             || (int) $curriculum->program_id !== (int) $programId
-            || $curriculum->state !== CurriculumVersion::StateActive) {
+            || ($curriculum->state !== CurriculumVersion::StateActive && ! $isAssignedSuperseded)) {
             throw ValidationException::withMessages([
                 'sections' => 'Every proposed Class Offering must come from the learner’s active Program curriculum.',
             ]);
@@ -89,8 +93,6 @@ class RegistrationAcademicEligibilityQuery
             ->whereIn('course_specification_id', $specificationIds)
             ->where('state', CourseRequirement::StateActive)
             ->whereIn('rule_type', [CourseRequirement::TypePrerequisite, CourseRequirement::TypeCorequisite])
-            ->where(fn ($query) => $query->whereNull('effective_from')->orWhere('effective_from', '<=', today()))
-            ->where(fn ($query) => $query->whereNull('effective_until')->orWhere('effective_until', '>=', today()))
             ->get()
             ->groupBy(fn (CourseRequirement $requirement): string => $requirement->course_specification_id.':'.$requirement->rule_type.':'.$requirement->group_key);
 
@@ -172,30 +174,17 @@ class RegistrationAcademicEligibilityQuery
             return true;
         }
 
-        if ($requirement->accepts_transfer_credit && $transferCourseIds->contains((int) $requirement->related_course_id)) {
+        if ($transferCourseIds->contains((int) $requirement->related_course_id)) {
             return true;
         }
 
         $result = $currentResults->get((int) $requirement->related_course_id);
         $code = $result['result'] ?? null;
-        if (($code === 'TC' && $requirement->accepts_transfer_credit)
-            || (is_numeric($code) && (float) $code <= 4.00
-                && $this->gradeMeets((string) $code, $requirement->minimum_grade))) {
+        if ($code === 'TC' || (is_numeric($code) && (float) $code <= 4.00)) {
             return true;
         }
 
         return $acceptedCredits->contains(fn (ProgramShiftCreditEntry $credit): bool => (int) $credit->curriculumEntry?->courseSpecification?->course_id === (int) $requirement->related_course_id
-            && ($credit->numeric_grade === null
-                ? $requirement->accepts_transfer_credit
-                : (float) $credit->numeric_grade <= 4.00 && $this->gradeMeets((string) $credit->numeric_grade, $requirement->minimum_grade)));
-    }
-
-    private function gradeMeets(string $grade, mixed $minimumGrade): bool
-    {
-        if ($minimumGrade === null) {
-            return true;
-        }
-
-        return (float) $grade <= (float) $minimumGrade;
+            && ($credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00));
     }
 }

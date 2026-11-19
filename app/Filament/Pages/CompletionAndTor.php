@@ -25,9 +25,11 @@ use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\TextSize;
+use Filament\Support\Enums\Width;
 use Filament\Support\Exceptions\Halt;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -49,7 +51,7 @@ class CompletionAndTor extends Page implements HasTable
     use InteractsWithTable;
     use InteractsWithTranscriptActions;
 
-    #[Url(as: 'work')]
+    #[Url(as: 'work', history: true)]
     public string $completionView = 'tor';
 
     #[Url(as: 'request')]
@@ -155,6 +157,7 @@ class CompletionAndTor extends Page implements HasTable
     {
         abort_unless(in_array($this->completionView, ['tor', 'graduation'], true), 404);
         abort_if($this->completionView === 'tor' && ! auth()->user()?->hasRole(User::StaffRoleRegistrar), 403);
+        $this->flushCachedTableRecords();
         $this->resetErrorBag();
     }
 
@@ -163,6 +166,7 @@ class CompletionAndTor extends Page implements HasTable
         abort_unless(in_array($view, ['tor', 'graduation'], true), 404);
         abort_if($view === 'tor' && ! auth()->user()?->hasRole(User::StaffRoleRegistrar), 403);
         $this->completionView = $view;
+        $this->flushCachedTableRecords();
         $this->resetErrorBag();
     }
 
@@ -254,6 +258,9 @@ class CompletionAndTor extends Page implements HasTable
             ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
             ->modalHeading('Name printed on the TOR')
             ->modalDescription('Enter the school-confirmed signatory. These details are reused on new TORs. Issued documents keep their original certification.')
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->schema([
                 TextInput::make('name')->label('Signatory name')->required()->maxLength(255),
                 TextInput::make('title')->label('Position or title')->required()->maxLength(255),
@@ -344,6 +351,9 @@ class CompletionAndTor extends Page implements HasTable
             Action::make('recordTorRequest')->label('Record TOR request')->icon('heroicon-o-document-plus')
                 ->visible(fn (): bool => $this->completionView === 'tor')
                 ->modalSubmitActionLabel('Record request')
+                ->modalWidth(Width::TwoExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription('Choose the student and enter when the school received the request. TALA creates its tracking reference and due date. Graduation is not required.')
                 ->schema([
                     Select::make('student_profile_id')->label('Student')->searchable()
@@ -406,7 +416,7 @@ class CompletionAndTor extends Page implements HasTable
                 Action::make('selectGraduation')->label('Review')->button()->color('gray')->icon('heroicon-o-arrow-right')
                     ->action(fn (StudentProfile $record) => $this->selectGraduationStudent($record->id)),
             ])
-            ->defaultSort('last_name')->defaultPaginationPageOption(10)->paginationPageOptions([10, 25, 50])
+            ->defaultSort('last_name')
             ->stackedOnMobile()
             ->emptyState(view('filament.partials.collection-empty-state'))
             ->emptyStateHeading(fn (): string => $this->hasTableSearch() || $this->getTable()->isFiltered() ? 'No matching students' : 'No student records yet')
@@ -460,6 +470,9 @@ class CompletionAndTor extends Page implements HasTable
                 && $this->selectedGraduationStudent() !== null && $this->selectedGraduationStudent()->degreeConferrals->isEmpty())
             ->modalHeading(fn (): string => 'Record graduation for '.$this->studentName($this->selectedGraduationStudent()))
             ->modalDescription('Record the actual institutional degree outcome after reviewing the current requirements. This preserves the final evaluation and marks the student Completed. The graduation date is entered only when supplied by the institution. The recorder and recording time are saved automatically.')
+            ->modalWidth(Width::ThreeExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->fillForm(function (): array {
                 $student = $this->selectedGraduationStudent();
                 abort_unless($student instanceof StudentProfile, 404);
@@ -473,12 +486,15 @@ class CompletionAndTor extends Page implements HasTable
                 TextEntry::make('blocking_requirements')->label('Resolve these requirements first')
                     ->state(collect($this->projection($this->selectedGraduationStudent())['blockers'])->map(fn (array $blocker): string => $blocker['reason'].' '.$blocker['recovery'])->implode(' ')),
             ] : [
-                TextInput::make('degree_name')->label('Degree awarded')->default(fn (): ?string => $this->selectedGraduationStudent()?->program?->name)->required()->maxLength(255),
-                DatePicker::make('conferred_on')->label('External graduation date')->helperText('Enter only the actual date supplied by the institution. Leave blank when unavailable.'),
-                TextInput::make('honor_text')->label('Recorded honor')->maxLength(255)->live(),
-                TextInput::make('honor_authority_reference')->label('Honor authority reference')->maxLength(255)
-                    ->required(fn (Get $get): bool => filled($get('honor_text')))
-                    ->visible(fn (Get $get): bool => filled($get('honor_text'))),
+                Grid::make(['default' => 1, 'md' => 2])
+                    ->schema([
+                        TextInput::make('degree_name')->label('Degree awarded')->default(fn (): ?string => $this->selectedGraduationStudent()?->program?->name)->required()->maxLength(255),
+                        DatePicker::make('conferred_on')->label('External graduation date')->helperText('Enter only the actual date supplied by the institution. Leave blank when unavailable.'),
+                        TextInput::make('honor_text')->label('Recorded honor')->maxLength(255)->live(),
+                        TextInput::make('honor_authority_reference')->label('Honor authority reference')->maxLength(255)
+                            ->required(fn (Get $get): bool => filled($get('honor_text')))
+                            ->visible(fn (Get $get): bool => filled($get('honor_text'))),
+                    ]),
             ])
             ->action(function (array $data): void {
                 $record = StudentProfile::query()->findOrFail($this->graduationActionStudentId);
@@ -510,6 +526,9 @@ class CompletionAndTor extends Page implements HasTable
             ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
                 && $this->selectedGraduationStudent()?->degreeConferrals->isNotEmpty())
             ->modalDescription('Record the school-confirmed correction. Earlier graduation results and issued TORs remain in history; affected TORs become superseded.')
+            ->modalWidth(Width::ThreeExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->fillForm(function (): array {
                 $student = $this->selectedGraduationStudent();
                 $conferral = $student?->degreeConferrals->first();
@@ -519,12 +538,15 @@ class CompletionAndTor extends Page implements HasTable
                 return $conferral->only(['degree_name', 'conferred_on', 'honor_text', 'honor_authority_reference']);
             })
             ->schema([
-                TextInput::make('degree_name')->label('Degree awarded')->required()->maxLength(255),
-                DatePicker::make('conferred_on')->label('Graduation date')->helperText('Leave blank if the school has not supplied a date.'),
-                Textarea::make('reason')->label('What was corrected and why?')->required()->maxLength(1000),
-                TextInput::make('honor_text')->label('Recorded honor')->maxLength(255)->live(),
-                TextInput::make('honor_authority_reference')->label('Honor authority reference')->maxLength(255)
-                    ->visible(fn (Get $get): bool => filled($get('honor_text')))->required(fn (Get $get): bool => filled($get('honor_text'))),
+                Grid::make(['default' => 1, 'md' => 2])
+                    ->schema([
+                        TextInput::make('degree_name')->label('Degree awarded')->required()->maxLength(255),
+                        DatePicker::make('conferred_on')->label('Graduation date')->helperText('Leave blank if the school has not supplied a date.'),
+                        TextInput::make('honor_text')->label('Recorded honor')->maxLength(255)->live(),
+                        TextInput::make('honor_authority_reference')->label('Honor authority reference')->maxLength(255)
+                            ->visible(fn (Get $get): bool => filled($get('honor_text')))->required(fn (Get $get): bool => filled($get('honor_text'))),
+                        Textarea::make('reason')->label('What was corrected and why?')->required()->maxLength(1000)->columnSpanFull(),
+                    ]),
             ])->modalSubmitActionLabel('Record correction')
             ->action(function (array $data): void {
                 $conferral = DegreeConferral::query()->findOrFail($this->graduationActionConferralId);

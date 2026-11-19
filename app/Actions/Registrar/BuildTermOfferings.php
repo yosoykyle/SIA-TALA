@@ -132,7 +132,7 @@ class BuildTermOfferings
 
         $this->validateScope($term, $program, $curriculumVersion);
 
-        if ($entry->term_type !== $term->type) {
+        if ($term->type !== Term::TypeSpecialTerm && $entry->term_type !== $term->type) {
             throw ValidationException::withMessages(['curriculum_entry_id' => 'The curriculum entry does not match the target term type.']);
         }
 

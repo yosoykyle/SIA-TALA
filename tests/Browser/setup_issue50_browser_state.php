@@ -85,7 +85,6 @@ $draftUnready = TermCalendarPackage::create([
     'administrative_ends_on' => '2027-05-15',
     'classes_start_on' => '2026-11-03',
     'classes_end_on' => '2027-04-10',
-    'faculty_availability_due_at' => '2026-10-25 17:00:00',
     'recorded_by' => $registrar->id,
 ]);
 
@@ -100,7 +99,6 @@ $draftReady = TermCalendarPackage::create([
     'administrative_ends_on' => '2027-05-15',
     'classes_start_on' => '2026-11-03',
     'classes_end_on' => '2027-04-10',
-    'faculty_availability_due_at' => '2026-10-25 17:00:00',
     'recorded_by' => $registrar->id,
 ]);
 

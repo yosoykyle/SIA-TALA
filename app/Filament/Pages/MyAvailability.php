@@ -58,6 +58,12 @@ class MyAvailability extends Page implements HasTable
 
     protected static ?string $title = 'My Availability';
 
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [];
+    }
+
     protected string $view = 'filament.pages.my-availability';
 
     /** @var array<string, string> */
@@ -96,6 +102,9 @@ class MyAvailability extends Page implements HasTable
             ->visible(fn (): bool => $this->termId !== null && ($this->hasDeclaration() || $this->hasAvailabilityRequest()))
             ->icon(Heroicon::OutlinedClock)
             ->modalHeading(fn (): string => $this->hasDeclaration() ? 'Update my availability' : 'Submit my availability')
+            ->modalWidth('2xl')
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalDescription(fn (): string => ($latest = $this->declarationsQuery()->latest('version')->first())
                 ? 'Current answer: '.$this->intervalSummary($latest).'. Your update records a new response; current official meetings remain unchanged.'
                 : 'Your availability helps the Registrar plan teaching assignments.')
@@ -204,8 +213,8 @@ class MyAvailability extends Page implements HasTable
             ->query($this->declarationsQuery())
             ->columns([
                 TextColumn::make('version')
-                    ->label('Version')
-                    ->formatStateUsing(fn (int $state): string => 'v'.$state),
+                    ->label('Update')
+                    ->formatStateUsing(fn (int $state, FacultyAvailabilityDeclaration $record): string => $state === 1 ? 'Initial' : 'Updated'),
                 TextColumn::make('declaration')
                     ->label('Answer')
                     ->formatStateUsing(fn (string $state): string => $state === FacultyAvailabilityDeclaration::DeclarationAvailable ? 'Can teach' : 'Cannot teach'),
@@ -229,7 +238,8 @@ class MyAvailability extends Page implements HasTable
                 : ($this->hasAvailabilityRequest()
                     ? 'Select Submit my availability to answer the teaching and weekly unavailable-time questions.'
                     : 'Wait for the Registrar to request your availability for this Term before submitting your first response.'))
-            ->emptyStateIcon(Heroicon::OutlinedClock);
+            ->emptyStateIcon(Heroicon::OutlinedClock)
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
     public function viewAvailabilityAction(): Action
@@ -239,6 +249,8 @@ class MyAvailability extends Page implements HasTable
             ->authorize(fn (FacultyAvailabilityDeclaration $record): bool => static::canAccess() && $this->declarationsQuery()->whereKey($record)->exists())
             ->modalHeading('Availability response')
             ->modalWidth('2xl')
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->schema(function (FacultyAvailabilityDeclaration $record): array {
                 abort_unless(static::canAccess(), 403);
                 $owned = $this->declarationsQuery()->with('term.academicYear')->whereKey($record)->firstOrFail();
@@ -266,7 +278,7 @@ class MyAvailability extends Page implements HasTable
                             ->columnSpanFull(),
                     ])->dense(),
                     Group::make([
-                        TextEntry::make('response_version')->label('Response')->state('v'.$owned->version),
+                        TextEntry::make('response_version')->label('Response')->state($owned->version === 1 ? 'Initial response' : 'Updated response'),
                         TextEntry::make('recorded')->label('Recorded · Asia/Manila')->state(DisplayDateTime::format($owned->declared_at)),
                     ])->columns(['default' => 1, 'sm' => 2])->dense(),
                 ];
@@ -295,7 +307,7 @@ class MyAvailability extends Page implements HasTable
                     'day' => SectionMeeting::dayOptions()[(int) $interval['day_of_week']] ?? 'Unknown day',
                     'time' => $this->displayIntervalTime((string) $interval['starts_at']).'–'.$this->displayIntervalTime((string) $interval['ends_at']),
                 ])->values(),
-            'availabilityDueAt' => $deadlineSource?->due_at ?? $package?->faculty_availability_due_at,
+            'availabilityDueAt' => $deadlineSource?->due_at,
             'availabilityDeadlineSource' => $deadlineSource?->authority_reference ?? $package?->authority_reference,
             'historicalBlocksUrl' => CalendarEventResource::getUrl('index', ['termId' => $this->termId]),
             'hasHistoricalBlocks' => $term instanceof Term && CalendarEventResource::getEloquentQuery()->where('term_id', $term->id)->exists(),

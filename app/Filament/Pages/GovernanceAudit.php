@@ -9,6 +9,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -35,6 +36,12 @@ class GovernanceAudit extends Page implements HasTable
     protected static ?string $slug = 'governance-audit';
 
     protected static ?string $title = 'Governance & Audit';
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [];
+    }
 
     protected string $view = 'filament.pages.governance-audit';
 
@@ -126,6 +133,9 @@ class GovernanceAudit extends Page implements HasTable
                     ->label('View detail')
                     ->icon(Heroicon::OutlinedEye)
                     ->slideOver()
+                    ->modalWidth(Width::TwoExtraLarge)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->modalHeading(fn (array $record): string => "Evidence Detail: {$record['reference_id']}")
                     ->modalDescription('Safe allowlisted governance projection. Sensitive credentials and raw payloads are withheld.')
                     ->infolist(fn (array $record): array => [
@@ -155,10 +165,9 @@ class GovernanceAudit extends Page implements HasTable
             ])
             ->searchable()
             ->stackedOnMobile()
-            ->paginated([25, 50])
-            ->defaultPaginationPageOption(25)
             ->emptyStateHeading('No governance evidence matches this view')
-            ->emptyStateDescription('Clear the safe filters or select another canonical tab. No evidence is changed.');
+            ->emptyStateDescription('Clear the safe filters or select another canonical tab. No evidence is changed.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
     private function projection(): GovernanceEvidenceProjection

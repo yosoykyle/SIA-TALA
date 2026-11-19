@@ -4,12 +4,9 @@ namespace Tests\Feature;
 
 use App\Actions\AcademicSetup\CourseSpecificationLifecycleService;
 use App\Actions\AcademicSetup\CurriculumVersionLifecycleService;
-use App\Filament\Resources\CourseSpecifications\Pages\CreateCourseSpecification;
-use App\Filament\Resources\CourseSpecifications\Pages\EditCourseSpecification;
-use App\Filament\Resources\CourseSpecifications\Pages\ViewCourseSpecification;
-use App\Filament\Resources\CurriculumVersions\Pages\CreateCurriculumVersion;
-use App\Filament\Resources\CurriculumVersions\Pages\EditCurriculumVersion;
-use App\Filament\Resources\CurriculumVersions\Pages\ViewCurriculumVersion;
+use App\Filament\Resources\Courses\Pages\ViewCourse;
+use App\Filament\Resources\CurriculumVersions\Pages\ListCurriculumVersions;
+use App\Filament\Resources\CurriculumVersions\Pages\ReviewCurriculumVersion;
 use App\Filament\Resources\Terms\Pages\CreateTerm;
 use App\Models\AcademicYear;
 use App\Models\Course;
@@ -17,11 +14,13 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\ExternalCompetencyRequirement;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -108,7 +107,7 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
             'state' => CurriculumVersion::StateDraft,
         ])));
         $this->assertFalse($registrar->can('update', CurriculumVersion::factory()->create([
-            'state' => CurriculumVersion::StateRecordedApproved,
+            'state' => CurriculumVersion::StateSuperseded,
         ])));
         $this->assertFalse($registrar->can('update', CurriculumVersion::factory()->create([
             'state' => CurriculumVersion::StateActive,
@@ -186,15 +185,22 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ViewCourseSpecification::class, ['record' => $activeSpecification->id])
-            ->assertActionHidden('edit')
-            ->assertActionVisible('copyToDraft')
+        Livewire::test(ViewCourse::class, ['record' => $activeSpecification->course_id])
+            ->assertActionHidden('editRevision')
+            ->assertActionVisible('reviseSubject')
             ->assertActionHidden('activateRevision');
 
-        Livewire::test(ViewCurriculumVersion::class, ['record' => $draftCurriculum->id])
-            ->assertActionVisible('edit')
-            ->assertActionVisible('recordApproval')
-            ->assertActionHidden('activateCurriculum');
+        Livewire::test(ReviewCurriculumVersion::class, ['record' => $draftCurriculum->id])
+            ->assertOk();
+
+        $activeCurriculum = CurriculumVersion::factory()->create([
+            'state' => CurriculumVersion::StateActive,
+        ]);
+
+        Livewire::test(ReviewCurriculumVersion::class, ['record' => $activeCurriculum->id])
+            ->assertActionHidden('addCurriculumRow')
+            ->assertActionHidden('activateCurriculum')
+            ->assertActionVisible('copyToDraft');
     }
 
     #[Test]
@@ -207,8 +213,8 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(CreateCourseSpecification::class)
-            ->fillForm([
+        Livewire::test(ViewCourse::class, ['record' => $course->id])
+            ->callAction('createRevision', data: [
                 'course_id' => $course->id,
                 'revision_code' => 'TAMPERED-CREATE',
                 'title' => 'Server-owned lifecycle state',
@@ -232,72 +238,56 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
                     'sequence' => 1,
                 ]],
             ])
-            ->call('create')
-            ->assertHasNoFormErrors();
+            ->assertHasNoActionErrors();
 
         $specification = CourseSpecification::query()
-            ->where('revision_code', 'TAMPERED-CREATE')
+            ->where('course_id', $course->id)
             ->firstOrFail();
 
         $this->assertSame(CourseSpecification::StateDraft, $specification->state);
 
-        Livewire::test(EditCourseSpecification::class, ['record' => $specification->id])
-            ->fillForm([
+        Livewire::test(ViewCourse::class, ['record' => $course->id])
+            ->callAction('editRevision', data: [
                 'title' => 'Still a Draft after edit',
+                'credit_units' => '3.00',
+                'academic_classification' => CourseSpecification::AcademicClassificationOrdinary,
+                'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
+                'allowed_modalities' => [CourseSpecification::ModalityFaceToFace],
+                'same_faculty_default' => false,
                 'state' => CourseSpecification::StateActive,
             ])
-            ->call('save')
-            ->assertHasNoFormErrors();
+            ->assertHasNoActionErrors();
 
         $this->assertSame(CourseSpecification::StateDraft, $specification->fresh()->state);
 
-        Livewire::test(CreateCurriculumVersion::class)
-            ->fillForm([
+        Livewire::test(ListCurriculumVersions::class)
+            ->callAction('create', data: [
                 'program_id' => $program->id,
                 'version_code' => 'TAMPERED-CURRICULUM',
                 'name' => 'Server-owned curriculum lifecycle',
                 'state' => CurriculumVersion::StateActive,
-                'approval_reference' => 'UNAUTHORIZED-APPROVAL',
                 'approved_by' => $registrar->id,
                 'approved_at' => now(),
-                'entries' => [],
             ])
-            ->call('create')
-            ->assertHasNoFormErrors();
+            ->assertHasNoActionErrors();
 
         $curriculum = CurriculumVersion::query()
-            ->where('version_code', 'TAMPERED-CURRICULUM')
+            ->where('name', 'Server-owned curriculum lifecycle')
             ->firstOrFail();
 
         $this->assertSame(CurriculumVersion::StateDraft, $curriculum->state);
-        $this->assertNull($curriculum->approval_reference);
         $this->assertNull($curriculum->approved_by);
         $this->assertNull($curriculum->approved_at);
 
-        Livewire::test(EditCurriculumVersion::class, ['record' => $curriculum->id])
-            ->fillForm([
-                'name' => 'Still a Draft after edit',
-                'state' => CurriculumVersion::StateActive,
-                'approval_reference' => 'UNAUTHORIZED-EDIT',
-                'approved_by' => $registrar->id,
-                'approved_at' => now(),
-            ])
-            ->call('save')
-            ->assertHasNoFormErrors();
-
-        $curriculum->refresh();
-
-        $this->assertSame(CurriculumVersion::StateDraft, $curriculum->state);
-        $this->assertNull($curriculum->approval_reference);
-        $this->assertNull($curriculum->approved_by);
-        $this->assertNull($curriculum->approved_at);
+        Livewire::test(ReviewCurriculumVersion::class, ['record' => $curriculum->id])
+            ->assertOk();
     }
 
     #[Test]
     public function curriculum_activation_supersedes_the_previous_active_version_without_moving_existing_students(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $program = Program::factory()->create(['duration_years' => 3]);
+        $program = Program::factory()->create(['duration_years' => 4]);
         $previous = CurriculumVersion::factory()->create([
             'program_id' => $program->id,
             'state' => CurriculumVersion::StateActive,
@@ -309,6 +299,7 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
         CurriculumEntry::factory()->create([
             'curriculum_version_id' => $candidate->id,
             'course_specification_id' => $this->readySpecification(CourseSpecification::StateActive)->id,
+            'year_level' => '4',
         ]);
         $student = StudentProfile::factory()->create([
             'program_id' => $program->id,
@@ -316,28 +307,95 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
         ]);
         $service = app(CurriculumVersionLifecycleService::class);
 
-        $recorded = $service->recordApproval(
-            actor: $registrar,
-            curriculumVersion: $candidate,
-            approvalReference: 'BOARD-2026-017',
-        );
-        $impact = $service->activationImpact($recorded);
-        $activated = $service->activate(
-            actor: $registrar,
-            curriculumVersion: $recorded,
-            confirmed: true,
-        );
+        $impact = $service->activationImpact($candidate);
+        $activated = $service->activate(actor: $registrar, curriculumVersion: $candidate);
 
-        $this->assertSame(CurriculumVersion::StateRecordedApproved, $recorded->state);
-        $this->assertSame($previous->version_code, $impact['active_version_code']);
+        $this->assertSame([], $impact['readiness_errors']);
+        $this->assertSame($previous->name, $impact['active_version_name']);
         $this->assertSame(1, $impact['existing_student_locks']);
         $this->assertSame(CurriculumVersion::StateSuperseded, $previous->fresh()->state);
         $this->assertSame(CurriculumVersion::StateActive, $activated->state);
+        $this->assertSame($registrar->id, $activated->approved_by);
         $this->assertSame($previous->id, $student->fresh()->curriculum_version_id);
         $this->assertSame(1, CurriculumVersion::query()
             ->where('program_id', $program->id)
             ->where('state', CurriculumVersion::StateActive)
             ->count());
+    }
+
+    #[Test]
+    public function activation_records_an_explicitly_chosen_first_intake_and_only_activates_drafts(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $intake = Term::factory()->create();
+        $candidate = CurriculumVersion::factory()->create(['state' => CurriculumVersion::StateDraft]);
+        CurriculumEntry::factory()->create([
+            'curriculum_version_id' => $candidate->id,
+            'course_specification_id' => $this->readySpecification(CourseSpecification::StateActive)->id,
+        ]);
+        $service = app(CurriculumVersionLifecycleService::class);
+
+        $activated = $service->activate(actor: $registrar, curriculumVersion: $candidate, effectiveEntryTermId: $intake->id);
+
+        $this->assertSame($intake->id, $activated->effective_entry_term_id);
+
+        try {
+            $service->activate(actor: $registrar, curriculumVersion: $activated);
+            $this->fail('An active curriculum must not be activated again.');
+        } catch (AuthorizationException) {
+            $this->assertSame(CurriculumVersion::StateActive, $activated->fresh()->state);
+        }
+    }
+
+    #[Test]
+    public function registrar_can_copy_an_active_curriculum_into_an_editable_draft_successor(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $program = Program::factory()->create(['duration_years' => 4]);
+        $active = CurriculumVersion::factory()->for($program)->create([
+            'version_code' => 'BSIS-2024',
+            'name' => 'BSIS 2024',
+            'state' => CurriculumVersion::StateActive,
+        ]);
+        $entry = CurriculumEntry::factory()->for($active)->create([
+            'course_specification_id' => $this->readySpecification(CourseSpecification::StateActive)->id,
+            'year_level' => '4',
+            'term_label' => 'Second Semester',
+            'term_type' => Term::TypeSecondSemester,
+        ]);
+        ExternalCompetencyRequirement::query()->create([
+            'curriculum_version_id' => $active->id,
+            'curriculum_entry_id' => $entry->id,
+            'requirement_code' => 'TESDA-NCII',
+            'qualification_label' => 'Computer Systems Servicing NC II',
+            'qualification_level' => 'NC II',
+            'treatment' => ExternalCompetencyRequirement::TreatmentTrackedOnly,
+            'state' => 'ACTIVE',
+            'recorded_by' => $registrar->id,
+            'recorded_at' => now(),
+        ]);
+        $student = StudentProfile::factory()->create([
+            'program_id' => $program->id,
+            'curriculum_version_id' => $active->id,
+        ]);
+
+        $draft = app(CurriculumVersionLifecycleService::class)->copyToDraft(
+            actor: $registrar,
+            source: $active,
+            versionCode: 'BSIS-2026-DRAFT',
+            name: 'BSIS 2026 Revision',
+        );
+
+        $this->assertSame(CurriculumVersion::StateDraft, $draft->state);
+        $this->assertSame(CurriculumVersion::StateActive, $active->fresh()->state);
+        $this->assertNull($draft->effective_entry_term_id, 'A copied draft asks for its own first intake.');
+        $this->assertSame(1, $draft->entries()->count());
+        $this->assertSame('4', $draft->entries()->sole()->year_level);
+        $this->assertSame(1, $draft->externalCompetencyRequirements()->count());
+        $this->assertSame('Draft', $draft->externalCompetencyRequirements()->sole()->state);
+        $this->assertSame($active->id, $student->fresh()->curriculum_version_id);
+        $this->assertFalse($registrar->can('update', $active->fresh()));
+        $this->assertTrue($registrar->can('update', $draft));
     }
 
     #[Test]
@@ -363,11 +421,9 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
     public function curriculum_activation_blocks_incomplete_referenced_specifications(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $candidate = CurriculumVersion::factory()->create([
-            'state' => CurriculumVersion::StateRecordedApproved,
-            'approval_reference' => 'BOARD-2026-018',
-            'approved_by' => $registrar->id,
-            'approved_at' => now(),
+        $program = Program::factory()->create(['duration_years' => 4]);
+        $candidate = CurriculumVersion::factory()->for($program)->create([
+            'state' => CurriculumVersion::StateDraft,
         ]);
         CurriculumEntry::factory()->create([
             'curriculum_version_id' => $candidate->id,
@@ -377,75 +433,13 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
         ]);
 
         try {
-            app(CurriculumVersionLifecycleService::class)->activate(
-                actor: $registrar,
-                curriculumVersion: $candidate,
-                confirmed: true,
-            );
-            $this->fail('A curriculum with a non-Active Course Specification must not activate.');
+            app(CurriculumVersionLifecycleService::class)->activate(actor: $registrar, curriculumVersion: $candidate);
+            $this->fail('A curriculum with an incomplete subject must not activate.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('curriculum_version', $exception->errors());
         }
 
-        $this->assertSame(CurriculumVersion::StateRecordedApproved, $candidate->fresh()->state);
-    }
-
-    #[Test]
-    public function curriculum_activation_requires_explicit_confirmation(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $candidate = CurriculumVersion::factory()->create([
-            'state' => CurriculumVersion::StateRecordedApproved,
-            'approval_reference' => 'BOARD-2026-019',
-            'approved_by' => $registrar->id,
-            'approved_at' => now(),
-        ]);
-        CurriculumEntry::factory()->create([
-            'curriculum_version_id' => $candidate->id,
-            'course_specification_id' => $this->readySpecification(CourseSpecification::StateActive)->id,
-        ]);
-
-        try {
-            app(CurriculumVersionLifecycleService::class)->activate(
-                actor: $registrar,
-                curriculumVersion: $candidate,
-                confirmed: false,
-            );
-            $this->fail('Curriculum activation must require explicit confirmation.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('confirmation', $exception->errors());
-        }
-
-        $this->assertSame(CurriculumVersion::StateRecordedApproved, $candidate->fresh()->state);
-    }
-
-    #[Test]
-    public function curriculum_activation_requires_complete_approval_evidence(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $candidate = CurriculumVersion::factory()->create([
-            'state' => CurriculumVersion::StateRecordedApproved,
-            'approval_reference' => null,
-            'approved_by' => null,
-            'approved_at' => null,
-        ]);
-        CurriculumEntry::factory()->create([
-            'curriculum_version_id' => $candidate->id,
-            'course_specification_id' => $this->readySpecification(CourseSpecification::StateActive)->id,
-        ]);
-
-        try {
-            app(CurriculumVersionLifecycleService::class)->activate(
-                actor: $registrar,
-                curriculumVersion: $candidate,
-                confirmed: true,
-            );
-            $this->fail('Curriculum activation must require complete approval evidence.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('curriculum_version', $exception->errors());
-        }
-
-        $this->assertSame(CurriculumVersion::StateRecordedApproved, $candidate->fresh()->state);
+        $this->assertSame(CurriculumVersion::StateDraft, $candidate->fresh()->state);
     }
 
     private function readySpecification(string $state): CourseSpecification

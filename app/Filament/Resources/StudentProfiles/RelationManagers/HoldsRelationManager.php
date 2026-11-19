@@ -8,6 +8,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -27,6 +28,7 @@ class HoldsRelationManager extends RelationManager
             ->emptyStateHeading('No restrictions recorded')
             ->emptyStateIcon('heroicon-o-shield-check')
             ->emptyStateDescription('Review the document checklist above for outstanding requirements.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->recordTitleAttribute('reason')->columns([
                 TextColumn::make('hold_type')->label('Concern')->formatStateUsing(fn (string $state): string => self::holdTypeOptions()[$state] ?? str($state)->headline()->toString())
                     ->description(fn (Hold $record): string => $record->studentFacingOfficeLabel())->sortable(),
@@ -44,6 +46,9 @@ class HoldsRelationManager extends RelationManager
             ])->recordActions([
                 Action::make('resolve')->label('Mark resolved')->authorize('resolve')->visible(fn (Hold $record): bool => $record->status === Hold::StatusActive)
                     ->modalHeading('Resolve restriction')->modalSubmitActionLabel('Mark resolved')
+                    ->modalWidth(Width::TwoExtraLarge)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->schema([Textarea::make('evidence')->label('How was this resolved?')
                         ->helperText('Describe the completed requirement or confirmation from the responsible office.')->required()])
                     ->action(function (Hold $record, array $data): void {

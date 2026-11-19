@@ -31,8 +31,8 @@ class HumanCenteredSharedThemeTest extends TestCase
         $response = $this->get('/admin/login')->assertOk()
             ->assertSee('Sign in')
             ->assertSee('<main', false)
-            ->assertSee('Return to school home')
-            ->assertSee('Contact school support')
+            ->assertSee('Back to home')
+            ->assertSee('Contact support')
             ->assertDontSee('Remember me')
             ->assertDontSee('Remember device');
 
@@ -141,6 +141,14 @@ class HumanCenteredSharedThemeTest extends TestCase
         $scripts = (string) FilamentView::renderHook(PanelsRenderHook::SCRIPTS_AFTER);
         $this->assertStringContainsString('js/tala-unsaved-changes.js', $scripts);
         $this->assertStringContainsString('data-navigate-once', $scripts);
+        $unsavedChangesJs = file_get_contents(public_path('js/tala-unsaved-changes.js'));
+        $this->assertStringContainsString('.fi-auth-theme-switcher-wrapper:not([x-data])', $unsavedChangesJs);
+        $this->assertStringContainsString("wrapper.setAttribute('x-data', '{ close() {} }')", $unsavedChangesJs);
+        $this->assertStringContainsString("backdrop.setAttribute('data-auth-error-pulse', 'peak')", $unsavedChangesJs);
+        $this->assertStringContainsString("backdrop.setAttribute('data-auth-error-pulse', 'settle')", $unsavedChangesJs);
+        $this->assertStringContainsString("backdrop.setAttribute('data-auth-state', 'loading')", $unsavedChangesJs);
+        $this->assertStringContainsString("backdrop.setAttribute('data-auth-state', 'success')", $unsavedChangesJs);
+        $this->assertStringNotContainsString("backdrop.setAttribute('data-auth-error'", $unsavedChangesJs);
 
         $modal = Blade::render("@include('filament.components.unsaved-changes-confirmation')");
         $this->assertStringContainsString('Leave without saving?', $modal);
@@ -164,7 +172,11 @@ class HumanCenteredSharedThemeTest extends TestCase
             ->assertSee('Enable light theme')
             ->assertSee('Enable dark theme')
             ->assertSee('Enable system theme')
-            ->assertSee('autocomplete="username"', false);
+            ->assertSee('autocomplete="username"', false)
+            ->assertSee('class="tala-ambient tala-ambient--auth"', false)
+            ->assertSee('class="tala-ambient-wash"', false)
+            ->assertSee('data-band="top"', false)
+            ->assertSee('data-band="bottom"', false);
         $this->get('/'.$panelId.'/login')->assertDontSee('href="'.asset('css/tala-filament.css').'"', false);
     }
 
@@ -174,7 +186,15 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->get('/'.$panelId.'/password-reset/request')
             ->assertOk()
             ->assertSee('images/auth/admin.webp', false)
-            ->assertSee('media-top', false);
+            ->assertSee('media-top', false)
+            ->assertSee('Forgot password?')
+            ->assertSee('Enter your email address and we will send a password reset link if your account is eligible.')
+            ->assertSee('Send reset link')
+            ->assertSee('Back to sign in')
+            ->assertSee('autocomplete="email"', false)
+            ->assertSee('novalidate', false)
+            ->assertDontSee('back to login')
+            ->assertDontSee('Send email');
 
         foreach (['login', 'registration', 'password-reset', 'email-verification'] as $page) {
             $config = app(AuthDesignerConfigRepository::class)->getConfig($page, $panelId);
@@ -324,6 +344,31 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->assertStringContainsString('border-radius: 9999px;', $themeCss);
         $this->assertStringContainsString('.fi-simple-main::before', $themeCss);
         $this->assertStringContainsString('.tala-ambient, .tala-ambient * { animation: none !important; }', $themeCss);
+        $this->assertStringContainsString('.tala-auth-main:has(.media-top.has-media) > .tala-ambient--auth', $themeCss);
+        $this->assertStringContainsString('.tala-ambient-wash', $themeCss);
+        $this->assertStringContainsString('.tala-ambient-trinket--edge[data-band="top"]', $themeCss);
+        $this->assertStringContainsString('.tala-ambient-trinket--edge[data-band="bottom"]', $themeCss);
+        $this->assertStringContainsString('@keyframes tala-ambient-wash-drift', $themeCss);
+        $this->assertStringContainsString('@keyframes tala-ambient-orbit-a', $themeCss);
+        $this->assertStringNotContainsString('.tala-auth-main:has(.fi-invalid, .fi-fo-field-wrp-error-message, [aria-invalid="true"]) > .tala-ambient--auth', $themeCss);
+        $this->assertStringNotContainsString('.tala-ambient--auth[data-auth-error="true"]', $themeCss);
+        $this->assertStringContainsString('.tala-ambient--auth[data-auth-error-pulse="peak"]', $themeCss);
+        $this->assertStringContainsString('.tala-ambient--auth[data-auth-error-pulse="settle"]', $themeCss);
+        $this->assertStringContainsString('.tala-ambient--auth[data-auth-state="loading"] .tala-ambient-wash', $themeCss);
+        $this->assertStringContainsString('.tala-ambient--auth[data-auth-state="success"]', $themeCss);
+        $this->assertStringContainsString('@keyframes tala-auth-error-glow-pulse', $themeCss);
+        $this->assertStringContainsString('@keyframes tala-auth-error-trinket-pulse', $themeCss);
+        $this->assertStringContainsString('@keyframes tala-auth-loading-wash-sweep', $themeCss);
+        $this->assertStringContainsString('@keyframes tala-auth-success-trinket-celebrate', $themeCss);
+        $this->assertStringContainsString('.fi-body:has(.tala-auth-main .media-top.has-media) .fi-auth-theme-switcher-wrapper', $themeCss);
+        $this->assertStringContainsString('calc(var(--tala-auth-topbar-inset) + ((var(--tala-auth-topbar-height) - var(--tala-auth-switcher-height)) / 2))', $themeCss);
+        $this->assertStringContainsString('.tala-verification-card', $themeCss);
+        $this->assertStringContainsString('.tala-auth-verify-card', $themeCss);
+        $this->assertStringContainsString('.tala-auth-back-link', $themeCss);
+        $this->assertStringContainsString('.fi-body :is(.tala-auth-main, .fi-auth-layout) .fi-simple-header-heading', $themeCss);
+        $this->assertStringContainsString('.fi-body .fi-input-wrp:is(.fi-invalid, :has(:is(input, textarea, select):is(:user-invalid, [aria-invalid="true"])))', $themeCss);
+        $this->assertStringContainsString('.tala-auth-slideshow__slide.is-active', $themeCss);
+        $this->assertMatchesRegularExpression('/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.tala-auth-slideshow__slide,\s*\.tala-auth-slideshow__slide\.is-active\s*\{[^}]*transition:\s*none !important;/s', $themeCss);
     }
 
     public function test_mfa_modals_pin_sunken_header_and_footer_within_dynamic_viewport_height(): void

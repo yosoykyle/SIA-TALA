@@ -18,6 +18,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 
 class StudentAccountsTable
 {
@@ -56,7 +57,7 @@ class StudentAccountsTable
                     ->orWhereHas('studentProfile', fn (Builder $profile): Builder => $profile->where('student_number', 'like', "%{$search}%"))
                     ->orWhereHas('admissionApplication', fn (Builder $application): Builder => $application->where('application_reference', 'like', "%{$search}%"));
             })])
-            ->searchPlaceholder('Name or student number')
+            ->searchPlaceholder('Name or ID')
             ->filters([
                 SelectFilter::make('term')->relationship('term', 'label')->searchable()->preload(),
                 SelectFilter::make('program')->options(fn (): array => Program::query()->orderBy('name')->pluck('name', 'id')->all())
@@ -121,6 +122,14 @@ class StudentAccountsTable
         };
         $detail = $position !== null && $position['state'] !== 'Unavailable' && (float) $position['remaining_balance'] > (float) $position['current_due']
             ? 'Later term fees: '.AccountingDisplay::money((float) $position['remaining_balance'] - (float) $position['current_due']) : null;
+        if ($status === 'Assessment needed') {
+            $proposal = $case->currentProposalVersion;
+            $itemCount = $proposal?->items->count() ?? 0;
+            $units = (float) ($proposal?->items->sum('units_snapshot') ?? 0);
+            $detail = $case->selection_basis === Enrollment::SelectionIndividuallyAdvised
+                ? 'Individually advised · '.$itemCount.' '.Str::plural('subject', $itemCount).' ('.$units.' units) — individual assessment'
+                : 'Standard · Fee Plan needed';
+        }
         if ($context === 'payment_proof') {
             $status = 'Receipt to review';
         } elseif ($context === 'student_changes') {

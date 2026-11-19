@@ -14,7 +14,7 @@ class PublishFeePlan
 {
     public function __construct(private readonly DecimalMoney $money) {}
 
-    public function execute(FeePlan $feePlan, User $actor, string $authorityReference, ?CarbonImmutable $authorityDate = null, ?string $noPaymentRequiredAuthorityReference = null, ?string $expectedContentFingerprint = null): FeePlan
+    public function execute(FeePlan $feePlan, User $actor, ?string $authorityReference = null, ?CarbonImmutable $authorityDate = null, ?string $noPaymentRequiredAuthorityReference = null, ?string $expectedContentFingerprint = null): FeePlan
     {
         if (! $actor->canAuthenticate() || ! $actor->hasRole(User::StaffRoleAccounting)) {
             throw new AuthorizationException('Only Accounting staff may publish a Fee Plan.');
@@ -34,8 +34,8 @@ class PublishFeePlan
                 throw ValidationException::withMessages(['no_payment_required_authority_reference' => 'A zero enrollment requirement needs explicit institutional NoPaymentRequired authority.']);
             }
             if ($locked->state !== FeePlan::StateDraft || $locked->charges->isEmpty()
-                || $locked->obligations->isEmpty() || blank($authorityReference) || ! $authorityDate instanceof CarbonImmutable) {
-                throw ValidationException::withMessages(['fee_plan' => 'Only a complete Draft with recorded authority may be published.']);
+                || $locked->obligations->isEmpty()) {
+                throw ValidationException::withMessages(['fee_plan' => 'Only a complete Draft with balanced charges and payment dates may be published.']);
             }
 
             $otherPublished = FeePlan::query()
@@ -48,12 +48,13 @@ class PublishFeePlan
 
             if ($otherPublished instanceof FeePlan
                 && (int) $locked->supersedes_fee_plan_id !== (int) $otherPublished->id) {
-                throw ValidationException::withMessages(['fee_plan' => 'Publish the recorded successor instead of creating two current Fee Plans.']);
+                throw ValidationException::withMessages(['fee_plan' => 'Publish the prepared update draft instead of creating two current Fee Plans.']);
             }
             if ($otherPublished instanceof FeePlan) {
                 $otherPublished->update(['state' => FeePlan::StateSuperseded]);
             }
 
+            $trimmedReference = filled($authorityReference) ? trim((string) $authorityReference) : null;
             $payload = [
                 'program_id' => $locked->program_id,
                 'term_id' => $locked->term_id,
@@ -64,8 +65,8 @@ class PublishFeePlan
             ];
             $locked->update([
                 'state' => FeePlan::StatePublished,
-                'authority_reference' => $authorityReference,
-                'authority_date' => $authorityDate->toDateString(),
+                'authority_reference' => $trimmedReference,
+                'authority_date' => $authorityDate?->toDateString(),
                 'no_payment_required_authority_reference' => filled($noPaymentRequiredAuthorityReference) ? trim($noPaymentRequiredAuthorityReference) : null,
                 'content_hash' => hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR)),
                 'published_by' => $actor->id,
@@ -84,7 +85,7 @@ class PublishFeePlan
                 ->where('term_id', $plan->term_id)->where('state', FeePlan::StatePublished)
                 ->whereKeyNot($plan->id)->first();
             if ($current !== null && (int) $plan->supersedes_fee_plan_id !== (int) $current->id) {
-                return 'A current fee plan already exists. Open it and create a successor draft before publishing.';
+                return 'A current fee plan already exists. Open it and prepare an updated draft before publishing.';
             }
 
             return null;

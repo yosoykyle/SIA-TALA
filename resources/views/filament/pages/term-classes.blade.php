@@ -1,24 +1,33 @@
 <x-filament-panels::page class="tala-term-workspace">
-    @include('filament.pages.partials.term-workspace-header')
+    @php
+        $extraHeaderActions = $term ? array_values(array_filter([
+            $classesView === 'classes' && ! $activePackage
+                ? \Filament\Actions\Action::make('openCalendar')->label('Calendar')->color('gray')->icon('heroicon-o-calendar-days')->url(\App\Filament\Pages\TermCalendar::getUrl(['termId' => $term->id]))
+                : null,
+            \Filament\Actions\Action::make('toggleClassesView')
+                ->label($classesView === 'classes' ? 'View student sections' : 'View classes')
+                ->color('gray')
+                ->icon($classesView === 'classes' ? 'heroicon-o-user-group' : 'heroicon-o-book-open')
+                ->url(\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id, ...($classesView === 'classes' ? ['classesView' => 'cohorts'] : [])])),
+            \App\Filament\Resources\SchedulingDemands\SchedulingDemandResource::canAccess()
+                ? \Filament\Actions\Action::make('scheduleRequirements')->label('Schedule requirements')->color('gray')->outlined()->icon('heroicon-o-clipboard-document-check')->url(\App\Filament\Resources\SchedulingDemands\SchedulingDemandResource::getUrl('index', ['filters' => ['term_id' => ['value' => $term->id]]]))
+                : null,
+        ])) : [];
+    @endphp
+    @include('filament.pages.partials.term-workspace-header', ['extraHeaderActions' => $extraHeaderActions])
     @if ($term)
         <section class="tala-task-work {{ $classesView === 'cohorts' ? 'tala-term-cohorts' : '' }}" aria-label="Classes and student sections">
-        <div class="tala-task-heading">
             <p class="tala-work-summary">{{ $classesView === 'cohorts' ? 'Groups of learners who take classes together.' : 'Review the classes that will run and the meetings they need.' }}</p>
-            <div class="tala-task-commands">
-                @if ($classesView === 'cohorts' && ! $readOnly){{ $this->recordCohortAction }}@endif
-                <x-filament::button tag="a" color="gray" :icon="$classesView === 'classes' ? 'heroicon-o-user-group' : 'heroicon-o-book-open'" :href="\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id, ...($classesView === 'classes' ? ['classesView' => 'cohorts'] : [])])">{{ $classesView === 'classes' ? 'View student sections' : 'View classes' }}</x-filament::button>
-                @if (\App\Filament\Resources\SchedulingDemands\SchedulingDemandResource::canAccess())
-                    <x-filament::button tag="a" color="gray" outlined icon="heroicon-o-clipboard-document-check" :href="\App\Filament\Resources\SchedulingDemands\SchedulingDemandResource::getUrl('index', ['filters' => ['term_id' => ['value' => $term->id]]])">Schedule requirements</x-filament::button>
-                @endif
-            </div>
-        </div>
-        @if ($classesView === 'classes')
-            @if (! $activePackage)<p class="text-sm" role="status">Preparing and confirming classes requires an active teaching calendar. Student sections can be recorded now. <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\TermCalendar::getUrl(['termId' => $term->id])">Calendar</x-filament::button></p>@endif
+            @if ($classesView === 'cohorts' && ! $readOnly)
+                <div class="tala-task-commands">{{ $this->recordCohortAction }}</div>
+            @endif
+            @if ($classesView === 'classes' && ! $activePackage)
+                <p class="tala-work-footnote" role="status">Preparing and confirming classes requires an active teaching calendar. Student sections can be recorded now.</p>
+            @endif
             {{ $this->table }}
-        @else
-            {{ $this->table }}
-        @endif
         </section>
-    @else<p>Select a Term to prepare its sections and classes.</p>@endif
+    @else
+        <x-servitech-empty-state illustrated heading="Select a Term" description="Select a Term to prepare its sections and classes." />
+    @endif
     <x-filament-actions::modals />
 </x-filament-panels::page>

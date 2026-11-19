@@ -93,13 +93,6 @@ class GradesAndCompletion extends Page implements HasTable
         return auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false;
     }
 
-    public function getHeader(): ?View
-    {
-        return $this->viewTab === 'inc-corrections'
-            ? view('filament.admin.grade-rosters.inc-header')
-            : parent::getHeader();
-    }
-
     /** @return array<string, string> */
     public static function tabs(): array
     {
@@ -212,7 +205,6 @@ class GradesAndCompletion extends Page implements HasTable
                 ->defaultGroup(null)
                 ->groupingSettingsHidden()
                 ->defaultSort('last_name')
-                ->paginated([10, 25, 50])->defaultPaginationPageOption(10)
                 ->filters(StudentProfileResource::academicBrowsingFilters())
                 ->filtersLayout(FiltersLayout::BeforeContent)
                 ->filtersFormWidth(Width::ExtraSmall)
@@ -279,13 +271,6 @@ class GradesAndCompletion extends Page implements HasTable
             ->emptyStateDescription(fn (): string => $this->hasClassQueueFilters()
                 ? 'Clear your search or change the term and status to find a class.'
                 : 'Class rosters appear after the teaching assignment and official enrollment are recorded.')
-            ->emptyStateActions([
-                Action::make('resetClassQueue')->label('Reset search and filters')->color('gray')
-                    ->visible(fn (): bool => $this->hasClassQueueFilters())
-                    ->action(function (): void {
-                        $this->clearClassQueue();
-                    }),
-            ])
             ->searchPlaceholder('Course, class or Faculty');
     }
 
@@ -322,7 +307,7 @@ class GradesAndCompletion extends Page implements HasTable
 
     public function hasClassQueueFilters(): bool
     {
-        return filled($this->getTableSearch())
+        return filled(trim((string) $this->getTableSearch()))
             || filled($this->getTableFilterState('term')['value'] ?? null)
             || filled($this->getTableFilterState('state')['value'] ?? null);
     }
@@ -394,14 +379,14 @@ class GradesAndCompletion extends Page implements HasTable
         return [
             'grade-review' => [
                 'title' => 'Grade Review',
-                'description' => 'Review immutable Faculty submissions, return named rows with one consolidated explanation, or release the complete current version.',
+                'description' => 'Review submitted class grades, return named rows with one consolidated explanation, or release the complete class grades.',
                 'action' => 'Open official grade rosters',
                 'url' => GradeRosterResource::getUrl('index'),
                 'icon' => 'heroicon-o-document-check',
             ],
             'inc-corrections' => [
                 'title' => 'INC & Corrections',
-                'description' => 'Review open or overdue INC work, deadline authority, immutable completion successors, and authorized grade corrections.',
+                'description' => 'Review open or overdue INC work, deadline updates, completed INC records, and authorized grade corrections.',
                 'action' => 'Open released result rows',
                 'url' => GradeRosterResource::getUrl('index'),
                 'icon' => 'heroicon-o-arrow-path-rounded-square',

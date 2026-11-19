@@ -6,6 +6,7 @@ use App\Actions\Finance\AccountingDisplay;
 use App\Actions\Finance\CreateSuccessorFeePlan;
 use App\Actions\Finance\PublishFeePlan;
 use App\Actions\Finance\UpdateFeePlanDraft;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\FeePlans\Schemas\FeePlanForm;
 use App\Models\Assessment;
@@ -63,22 +64,31 @@ class ViewFeePlan extends ViewRecord
         $termLabel = collect([$plan->term?->academicYear?->label, $plan->term?->label])->filter()->implode(' · ');
         $date = match ($plan->state) {
             FeePlan::StatePublished => $plan->published_at,
-            FeePlan::StateDraft => $plan->created_at,
-            default => $plan->updated_at,
+            FeePlan::StateDraft => $plan->updated_at ?? $plan->created_at,
+            default => $plan->published_at ?? $plan->updated_at,
         };
-        $dateLabel = $date !== null ? AccountingDisplay::dateTime($date, 'M j, Y') : 'Date unavailable';
+        $datePrefix = match ($plan->state) {
+            FeePlan::StatePublished => 'Updated ',
+            FeePlan::StateDraft => 'Saved ',
+            default => 'Published ',
+        };
+        $dateLabel = $date !== null ? $datePrefix.AccountingDisplay::dateTime($date, 'M j, Y') : null;
 
         return collect([
             $termLabel !== '' ? $termLabel : null,
-            'Version '.$plan->version,
             $status,
             $dateLabel,
         ])->filter()->implode(' · ');
     }
 
+    /** @return array<string|int, string> */
     public function getBreadcrumbs(): array
     {
-        return [FeePlanResource::getUrl('index') => 'Fee plans'];
+        return [
+            EnrollmentResource::getUrl('index') => 'Overview',
+            FeePlanResource::getUrl('index') => 'Fee plans',
+            $this->getTitle(),
+        ];
     }
 
     private function reviewedPlanData(): array
@@ -113,7 +123,7 @@ class ViewFeePlan extends ViewRecord
         $record = parent::getRecord();
         abort_unless($record instanceof FeePlan, 404);
 
-        return $record->loadMissing(['program', 'term.academicYear', 'charges', 'obligations', 'supersedes']);
+        return $record->loadMissing(['program', 'term.academicYear', 'charges', 'obligations', 'supersedes', 'publisher']);
     }
 
     protected function getHeaderActions(): array
@@ -157,15 +167,21 @@ class ViewFeePlan extends ViewRecord
                     Hidden::make('reviewed_plan'),
                     SchemaView::make('filament.admin.fee-plans.publish-confirmation')->viewData(fn (Get $get): array => ['reviewed' => $get('reviewed_plan')]),
                     SchemaSection::make('Approval details')
+                        ->description('TALA automatically records who published this plan and when.')
                         ->contained(false)
                         ->extraAttributes(['class' => 'accounting-finance-form-section'])
                         ->gridContainer()
                         ->columns(['default' => 1, '@sm' => 2])
                         ->schema([
-                            TextInput::make('authority_reference')->label('Approval reference')->required()->maxLength(255),
-                            DatePicker::make('authority_date')->label('Approval date')->required(),
-                            TextInput::make('no_payment_required_authority_reference')->label('Zero-payment approval reference')
-                                ->helperText('Record the institutional approval for requiring no enrollment payment.')
+                            TextInput::make('authority_reference')
+                                ->label('Approval note or memo (optional)')
+                                ->placeholder('e.g., Memo 2026-014 or Board approval')
+                                ->maxLength(255),
+                            DatePicker::make('authority_date')->label('Approval date (optional)'),
+                            TextInput::make('no_payment_required_authority_reference')
+                                ->label('Approval memo or reference for zero enrollment payment')
+                                ->placeholder('e.g., Memo 2026-014 or approving office')
+                                ->helperText('Required when the enrollment payment is PHP 0.00.')
                                 ->visible(fn (Get $get): bool => (float) ($get('reviewed_plan.enrollment_payment') ?? -1) === 0.0)
                                 ->required(fn (Get $get): bool => (float) ($get('reviewed_plan.enrollment_payment') ?? -1) === 0.0)
                                 ->maxLength(255)
@@ -177,7 +193,9 @@ class ViewFeePlan extends ViewRecord
                     $actor = auth()->user();
                     abort_unless($actor instanceof User, 403);
                     try {
-                        app(PublishFeePlan::class)->execute($this->getRecord(), $actor, $data['authority_reference'], CarbonImmutable::parse($data['authority_date'], config('app.timezone')), $data['no_payment_required_authority_reference'] ?? null, expectedContentFingerprint: (string) $data['reviewed_content_fingerprint']);
+                        $authorityReference = filled($data['authority_reference'] ?? null) ? (string) $data['authority_reference'] : null;
+                        $authorityDate = filled($data['authority_date'] ?? null) ? CarbonImmutable::parse($data['authority_date'], config('app.timezone')) : null;
+                        app(PublishFeePlan::class)->execute($this->getRecord(), $actor, $authorityReference, $authorityDate, $data['no_payment_required_authority_reference'] ?? null, expectedContentFingerprint: (string) $data['reviewed_content_fingerprint']);
                     } catch (ValidationException $exception) {
                         Notification::make()->title('Plan was not published')->body(collect($exception->errors())->flatten()->first())->danger()->send();
                         throw $exception;
@@ -185,10 +203,10 @@ class ViewFeePlan extends ViewRecord
                     $this->redirect(FeePlanResource::getUrl('view', ['record' => $this->getRecord()]));
                 }),
             Action::make('createSuccessor')
-                ->label('Create draft')->icon(Heroicon::OutlinedDocumentDuplicate)
+                ->label('Edit plan')->icon(Heroicon::PencilSquare)
                 ->visible(fn (): bool => $this->getRecord()->state === FeePlan::StatePublished || collect($this->mountedActions ?? [])->contains('name', 'createSuccessor'))
-                ->modalHeading('Create draft from current plan')->modalDescription(null)->modalIcon(null)
-                ->modalWidth(Width::TwoExtraLarge)->stickyModalHeader()->stickyModalFooter()->modalFooterActionsAlignment(Alignment::End)->modalSubmitActionLabel('Create draft')
+                ->modalHeading('Prepare an updated plan')->modalDescription(null)->modalIcon(null)
+                ->modalWidth(Width::FourExtraLarge)->stickyModalHeader()->stickyModalFooter()->modalFooterActionsAlignment(Alignment::End)->modalSubmitActionLabel('Create draft')
                 ->fillForm(fn (): array => $this->reviewedPlanData())
                 ->schema([
                     Hidden::make('reviewed_content_fingerprint')->required(),

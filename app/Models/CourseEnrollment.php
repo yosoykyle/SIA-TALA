@@ -108,10 +108,4 @@ class CourseEnrollment extends Model
     {
         return $this->hasOne(GradeRosterRow::class);
     }
-
-    /** @return HasMany<StudentScheduleBinding, $this> */
-    public function scheduleBindings(): HasMany
-    {
-        return $this->hasMany(StudentScheduleBinding::class);
-    }
 }

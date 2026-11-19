@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
 use App\Models\GraduationReviewBatch;
 use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
@@ -31,7 +30,7 @@ final class GraduationReviewBatchFilamentTest extends TestCase
     #[Test]
     public function legacy_batch_resource_and_mutation_routes_are_not_registered(): void
     {
-        $this->assertNotContains(GraduationReviewBatchResource::class, Filament::getPanel('admin')->getResources());
+        $this->assertNotContains('App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource', Filament::getPanel('admin')->getResources());
         $this->assertFalse(Route::has('filament.admin.resources.graduation-review-batches.index'));
         $this->assertFalse(Route::has('filament.admin.resources.graduation-review-batches.create'));
         $this->assertFalse(Route::has('filament.admin.resources.graduation-review-batches.edit'));

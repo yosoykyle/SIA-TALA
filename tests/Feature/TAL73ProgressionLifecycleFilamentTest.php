@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
+use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\CreateStudentLifecycleChange;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
@@ -469,22 +471,34 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
-            ->assertSee('Academic summary')
+        $page = Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
+            ->assertSee('Current enrollment')
+            ->assertSee('Academic guidance')
             ->assertSee('Student-wide · next enrollment Term not confirmed')
+            ->assertSee('1 active restriction');
+
+        $page->call('selectRecordTab', 'enrollment')
             ->assertSee('AY 2025-2026 First Semester')
             ->assertSee('Officially Enrolled')
-            ->assertSee('Released grades')
+            ->assertSee('Open enrollment');
+
+        $page->call('selectRecordTab', 'academic')
+            ->assertSee('Academic record')
             ->assertSee('2.25')
-            ->assertSee('Financial History')
-            ->assertSee('PHP 15,000.00')
-            ->assertSee('Open Enrollment')
-            ->assertSee('Open Grade Roster')
-            ->assertSee('Open Registration Case')
-            ->assertSee('Open Lifecycle Record')
-            ->assertSee('Approved temporary leave.')
-            ->assertSee('Academic review required.')
-            ->assertSee('Registrar Office');
+            ->assertSee('View class record')
+            ->assertSee(GradeRosterResource::getUrl('view', ['record' => $roster->id, 'result' => $row->id, 'viewTab' => 'grade-review', 'history' => true]).'#course-result-'.$courseEnrollment->id);
+
+        $page->call('selectRecordTab', 'history')
+            ->assertSee('Financial & student status history', escape: false)
+            ->assertSee('Current assessment')
+            ->assertSee('Leave of Absence')
+            ->assertSee(EnrollmentResource::getUrl('view', ['record' => $enrollment->id]), escape: false)
+            ->assertSee(StudentLifecycleChangeResource::getUrl('view', ['record' => $lifecycleChange]), escape: false);
+
+        $page->call('selectRecordTab', 'requirements')
+            ->assertSee('Requirements & follow-up', escape: false)
+            ->assertSee('Recorded restrictions')
+            ->assertSee('Academic review required.');
 
         $this->assertNotNull($lifecycleChange->getKey());
     }
@@ -565,8 +579,8 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
             ->test(ListStudentLifecycleChanges::class)
             ->assertSee('PRIVATE-OLDER-SELECTED-CHANGE')
             ->assertCanSeeTableRecords([$oldest]);
-        $this->assertSame(2, $page->instance()->getTableRecords()->currentPage());
-        $this->assertSame(10, $page->instance()->getTableRecordsPerPage());
+        $this->assertSame(3, $page->instance()->getTableRecords()->currentPage());
+        $this->assertSame(5, $page->instance()->getTableRecordsPerPage());
 
         Livewire::withQueryParams(['change' => $oldest->id, 'search' => $profile->student_number, 'page' => 1])
             ->test(ListStudentLifecycleChanges::class)

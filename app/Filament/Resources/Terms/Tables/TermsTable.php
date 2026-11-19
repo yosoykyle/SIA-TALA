@@ -58,6 +58,7 @@ class TermsTable
             ->stackedOnMobile()
             ->emptyStateHeading('No Terms found')
             ->emptyStateDescription('Create a Term to begin planning, or clear search and filters to see recorded Terms.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->defaultSort('starts_on', 'desc');
     }
 }

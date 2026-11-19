@@ -305,7 +305,7 @@ final class TAL85CSchedulingDemandReadinessAcceptanceTest extends TestCase
         $course = Course::factory()->create(['code' => 'TAL85C'.$this->scopeCounter]);
         $specification = CourseSpecification::factory()->for($course)->create([
             'state' => CourseSpecification::StateActive,
-            'allowed_modalities' => [TermOffering::ModalityFaceToFace, TermOffering::ModalityOnline, TermOffering::ModalityModular],
+            'allowed_modalities' => [TermOffering::ModalityFaceToFace, TermOffering::ModalityOnline],
             'credit_units' => 3.00,
         ]);
         $component = CourseComponent::factory()->for($specification)->create([

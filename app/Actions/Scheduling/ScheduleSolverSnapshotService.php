@@ -12,7 +12,6 @@ use App\Models\CurriculumVersion;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
-use App\Models\ResourceUnavailability;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingCommitment;
@@ -961,24 +960,6 @@ class ScheduleSolverSnapshotService
             ])
             ->values()
             ->all();
-        $resourceBlocks = ResourceUnavailability::query()
-            ->where('term_id', $term->id)
-            ->whereNull('effective_on')
-            ->whereNotNull('day_of_week')
-            ->orderBy('day_of_week')
-            ->orderBy('starts_at')
-            ->get()
-            ->map(fn (ResourceUnavailability $record): array => [
-                'resource_unavailability_id' => (int) $record->id,
-                'event_type' => 'ResourceUnavailability',
-                'scope_type' => $record->room_id !== null ? 'Room' : 'Faculty',
-                'room_id' => $record->room_id !== null ? (int) $record->room_id : null,
-                'faculty_user_id' => $record->faculty_user_id !== null ? (int) $record->faculty_user_id : null,
-                'authority' => $record->authority_reference,
-                'day_of_week' => $record->day_of_week,
-                'starts_at' => $this->timeString($record->starts_at),
-                'ends_at' => $this->timeString($record->ends_at),
-            ])->all();
         $packageBlocks = [];
 
         if ($package instanceof TermCalendarPackage) {
@@ -1004,7 +985,7 @@ class ScheduleSolverSnapshotService
 
         }
 
-        return [...$packageBlocks, ...$this->facultyDeclarationBlocks($term, $package), ...$legacy, ...$resourceBlocks];
+        return [...$packageBlocks, ...$this->facultyDeclarationBlocks($term, $package), ...$legacy];
     }
 
     /** @return list<array<string, mixed>> */
@@ -1062,7 +1043,7 @@ class ScheduleSolverSnapshotService
     /** @return list<array<string, mixed>> */
     private function datedExceptionsPayload(Term $term, ?TermCalendarPackage $package): array
     {
-        $calendarExceptions = $package instanceof TermCalendarPackage
+        return $package instanceof TermCalendarPackage
             ? $package->datedExceptions->map(fn ($exception): array => [
                 'term_dated_exception_id' => (int) $exception->id,
                 'source_type' => 'TermDatedException',
@@ -1072,22 +1053,6 @@ class ScheduleSolverSnapshotService
                 'authority_reference' => $exception->authority_reference,
             ])->all()
             : [];
-        $resourceExceptions = ResourceUnavailability::query()
-            ->where('term_id', $term->id)
-            ->whereNotNull('effective_on')
-            ->get()
-            ->map(fn (ResourceUnavailability $record): array => [
-                'resource_unavailability_id' => (int) $record->id,
-                'source_type' => 'ResourceUnavailability',
-                'effective_on' => $this->dateString($record->effective_on),
-                'room_id' => $record->room_id !== null ? (int) $record->room_id : null,
-                'faculty_user_id' => $record->faculty_user_id !== null ? (int) $record->faculty_user_id : null,
-                'starts_at' => $this->timeString($record->starts_at),
-                'ends_at' => $this->timeString($record->ends_at),
-                'authority_reference' => $record->authority_reference,
-            ])->all();
-
-        return [...$calendarExceptions, ...$resourceExceptions];
     }
 
     private function hourMinute(mixed $value): mixed

@@ -73,13 +73,13 @@ class CreateAssessmentFromPublishedFeePlan
                 ]);
             }
 
-            if ($feePlan->authority_date === null || $feePlan->obligations->contains(fn ($obligation): bool => $obligation->sequence === null || blank($obligation->purpose) || $obligation->due_at === null)) {
-                throw ValidationException::withMessages(['assessment' => 'Unavailable: the published Fee Plan lacks complete dated obligation authority; publish a successor.']);
+            if ($feePlan->obligations->contains(fn ($obligation): bool => $obligation->sequence === null || blank($obligation->purpose) || $obligation->due_at === null)) {
+                throw ValidationException::withMessages(['assessment' => 'Unavailable: the published Fee Plan lacks complete dated payment obligations; publish an updated fee plan.']);
             }
 
             return $this->create(
                 $locked, $actor, 'PublishedFeePlan', null, $feePlan->authority_reference,
-                CarbonImmutable::parse($feePlan->authority_date), $feePlan,
+                $feePlan->authority_date !== null ? CarbonImmutable::parse($feePlan->authority_date) : null, $feePlan,
                 $feePlan->charges->map->only(['id', 'code', 'label', 'category', 'amount'])->all(),
                 $feePlan->obligations->map->only(['sequence', 'code', 'label', 'purpose', 'amount', 'due_at', 'required_for_enrollment'])->all(),
             );
@@ -90,7 +90,7 @@ class CreateAssessmentFromPublishedFeePlan
      * @param  list<array{id?:int,code:string,label:string,category?:string,amount:string}>  $charges
      * @param  list<array{sequence?:int,code:string,label:string,purpose:string,amount:string,due_at:mixed,required_for_enrollment:bool}>  $obligations
      */
-    public function create(Enrollment $enrollment, User $actor, string $basis, ?string $reasonCategory, string $authorityReference, CarbonImmutable $authorityDate, ?FeePlan $feePlan, array $charges, array $obligations, ?string $noPaymentRequiredAuthorityReference = null, ?CourseDropRecord $courseDrop = null): Assessment
+    public function create(Enrollment $enrollment, User $actor, string $basis, ?string $reasonCategory, ?string $authorityReference, ?CarbonImmutable $authorityDate, ?FeePlan $feePlan, array $charges, array $obligations, ?string $noPaymentRequiredAuthorityReference = null, ?CourseDropRecord $courseDrop = null): Assessment
     {
         if ($basis === 'PublishedFeePlan') {
             $this->authorizePublishedAssessment($enrollment, $actor);
@@ -113,7 +113,7 @@ class CreateAssessmentFromPublishedFeePlan
         }
         $account = TermAccount::query()->lockForUpdate()->findOrFail($account->id);
         $enrollment->loadMissing('currentProposalVersion.items');
-        $source = ['basis' => $basis, 'reason_category' => $reasonCategory, 'authority_reference' => $authorityReference, 'authority_date' => $authorityDate->toDateString(), 'fee_plan_id' => $feePlan?->id, 'proposal_id' => $enrollment->current_proposal_version_id, 'proposal_content_hash' => $enrollment->currentProposalVersion?->content_hash, 'courses' => $enrollment->currentProposalVersion?->items->map->only(['term_offering_id', 'course_code_snapshot', 'units_snapshot'])->all(), 'charges' => $charges, 'obligations' => $obligations, 'no_payment_required_authority_reference' => $feePlan?->no_payment_required_authority_reference ?? $noPaymentRequiredAuthorityReference];
+        $source = ['basis' => $basis, 'reason_category' => $reasonCategory, 'authority_reference' => $authorityReference, 'authority_date' => $authorityDate?->toDateString(), 'fee_plan_id' => $feePlan?->id, 'proposal_id' => $enrollment->current_proposal_version_id, 'proposal_content_hash' => $enrollment->currentProposalVersion?->content_hash, 'courses' => $enrollment->currentProposalVersion?->items->map->only(['term_offering_id', 'course_code_snapshot', 'units_snapshot'])->all(), 'charges' => $charges, 'obligations' => $obligations, 'no_payment_required_authority_reference' => $feePlan?->no_payment_required_authority_reference ?? $noPaymentRequiredAuthorityReference];
         if ($courseDrop instanceof CourseDropRecord) {
             $cor = $enrollment->currentCorVersion;
             $source['course_drop'] = [
@@ -163,7 +163,7 @@ class CreateAssessmentFromPublishedFeePlan
             'assessment_basis' => $basis,
             'reason_category' => $reasonCategory,
             'authority_reference' => $authorityReference,
-            'authority_date' => $authorityDate->toDateString(),
+            'authority_date' => $authorityDate?->toDateString(),
             'source_snapshot' => $source,
             'content_hash' => $contentHash,
             'version' => $version,

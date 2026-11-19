@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PublicNotices\Pages;
 
 use App\Actions\PublicContent\ManagePublicContent;
+use App\Filament\Clusters\PublicContent;
 use App\Filament\Resources\PublicNotices\PublicNoticeResource;
 use App\Models\PublicNotice;
 use Filament\Resources\Pages\CreateRecord;
@@ -11,6 +12,16 @@ use Illuminate\Database\Eloquent\Model;
 class CreatePublicNotice extends CreateRecord
 {
     protected static string $resource = PublicNoticeResource::class;
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [
+            PublicContent::getUrl() => 'Public Content',
+            PublicNoticeResource::getUrl('index') => 'Notices',
+            'Add notice',
+        ];
+    }
 
     protected static bool $canCreateAnother = false;
 

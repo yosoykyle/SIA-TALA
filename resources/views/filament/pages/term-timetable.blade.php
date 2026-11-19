@@ -71,12 +71,7 @@
                     @endif
                     @if ($timetablePresentation['synthetic'] ?? false)<p class="tala-studio-record">Synthetic review data</p>@endif
                     @if ($readOnly)<p class="tala-studio-record">Read-only · Registrar maintains these records.</p>@endif
-                    @if ($solverFailure || ! empty($solverOutcome['message']))
-                        @php($failureText = $solverFailure['message'] ?? $solverOutcome['message'])
-                        @php($plainFailure = \App\Actions\Scheduling\TimetableFailureLanguage::forSolverFailureMessage(is_string($failureText) ? $failureText : null))
-                        <p class="tala-guide-info tala-guide-warning" role="status">{{ $plainFailure['explanation'] }} {{ $plainFailure['nextStep'] }}</p>
-                        <details class="tala-planning-coverage"><summary>Technical details</summary><div class="tala-planning-reveal"><p class="tala-work-footnote">{{ $failureText }}</p></div></details>
-                    @endif
+                    @if ($solverFailure || ! empty($solverOutcome['message']))<p class="tala-guide-info tala-guide-warning" role="status">{{ \App\Actions\Scheduling\TimetableFailureLanguage::forSolverFailureMessage($solverFailure['message'] ?? $solverOutcome['message'])['explanation'] }} {{ \App\Actions\Scheduling\TimetableFailureLanguage::forSolverFailureMessage($solverFailure['message'] ?? $solverOutcome['message'])['nextStep'] }}</p><details class="tala-planning-coverage"><summary>Technical details</summary><div class="tala-planning-reveal"><p class="tala-work-footnote">{{ $solverFailure['message'] ?? $solverOutcome['message'] }}</p></div></details>@endif
 
                 </section>
             @endif
@@ -94,16 +89,53 @@
                 @elseif ($pendingGeneration)
                     <x-tala-operation-status :run="$activeRun" wire:poll.5s.visible />
                 @else
+                    @php
+                        $readiness = $generationReadiness ?? $this->generationReadiness();
+                        $readinessBlockers = $readiness['blockers'] ?? [];
+                        $emptyDescription = $activeRun && ! $showOfficial
+                            ? ($reviewEvidence['meaning'] ?? 'Inspect the result checks and correct the source before trying again.')
+                            : ($readiness['ready']
+                                ? 'Recorded scope is ready for a timetable.'
+                                : (count($readinessBlockers) > 1
+                                    ? 'Resolve '.count($readinessBlockers).' remaining prerequisites below before generating a whole-Term timetable.'
+                                    : ($readiness['reason'] ?? 'Complete the remaining prerequisite before generating a timetable.')));
+                    @endphp
                     <div class="tala-guide-empty-work tala-planning-timetable-empty">
-                        <x-filament::icon icon="heroicon-o-calendar-days" />
-                        <h2>{{ $activeRun && ! $showOfficial ? (in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) ? 'Preparing the meetings' : 'No meetings are available from this draft.') : 'No timetable yet' }}</h2>
-                        <p>{{ $activeRun && ! $showOfficial ? ($reviewEvidence['meaning'] ?? 'Inspect the result checks and correct the source before trying again.') : ($this->generationReadiness()['reason'] ?? 'Recorded scope is ready for a timetable.') }}</p>
-                        @if (! $activeRun && ! $this->generationReadiness()['ready'])
-                            @php($nextTab = $this->generationReadiness()['tab'] ?? 'plan')
-                            <x-filament::button tag="a" :icon="match ($nextTab) { 'classes' => 'heroicon-o-book-open', 'resources' => 'heroicon-o-user-group', default => 'heroicon-o-calendar-days' }" :href="\App\Filament\Pages\TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => $nextTab])">{{ match ($nextTab) { 'classes' => 'Review classes', 'resources' => 'Review Faculty and rooms', default => 'Review teaching calendar' } }}</x-filament::button>
+                        <x-servitech-empty-state :illustrated="! ($activeRun && ! $showOfficial)" :heading="$activeRun && ! $showOfficial ? (in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) ? 'Preparing the meetings' : 'No meetings are available from this draft.') : 'No timetable yet'" :description="$emptyDescription">
+                            @if ($activeRun && ! $showOfficial)<x-filament::button tag="a" color="gray" icon="heroicon-o-clipboard-document-check" :href="$this->timetableReviewUrl($activeRun->id)">Review findings and recovery</x-filament::button>@endif
+                            @if (! $activeRun && ! $readOnly && $readiness['ready']){{ $this->generateTimetableAction }}@endif
+                        </x-servitech-empty-state>
+
+                        @if (! $activeRun && ! $readiness['ready'] && $readinessBlockers !== [])
+                            <x-filament::section
+                                :heading="count($readinessBlockers) === 1 ? '1 prerequisite remaining' : count($readinessBlockers).' prerequisites remaining'"
+                                description="Complete each item below before generating a whole-Term timetable."
+                                compact
+                                style="inline-size: 100%; max-inline-size: 48rem; text-align: start;"
+                            >
+                                @if ($this->syncSchedulingDemandsAction->isVisible())
+                                    <x-slot name="afterHeader">
+                                        {{ $this->syncSchedulingDemandsAction }}
+                                    </x-slot>
+                                @endif
+                                <ul class="tala-guide-history" aria-label="Timetable prerequisites">
+                                    @foreach ($readinessBlockers as $blocker)
+                                        <li>
+                                            <span>{{ $blocker['reason'] }}</span>
+                                            <x-filament::button
+                                                tag="a"
+                                                size="sm"
+                                                :color="$loop->first ? 'primary' : 'gray'"
+                                                :icon="match ($blocker['label']) { 'Classes' => 'heroicon-o-book-open', 'Resources' => 'heroicon-o-user-group', 'Timetable' => 'heroicon-o-clock', default => 'heroicon-o-calendar-days' }"
+                                                :href="$blocker['url']"
+                                            >
+                                                {{ $blocker['label'] }}
+                                            </x-filament::button>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </x-filament::section>
                         @endif
-                        @if ($activeRun && ! $showOfficial)<x-filament::button tag="a" color="gray" icon="heroicon-o-clipboard-document-check" :href="$this->timetableReviewUrl($activeRun->id)">Review findings and recovery</x-filament::button>@endif
-                        @if (! $activeRun && ! $readOnly && $this->generationReadiness()['ready']){{ $this->generateTimetableAction }}@endif
                     </div>
                 @endif
             </section>
@@ -190,7 +222,7 @@
                         <dl class="tala-evidence-facts">
                             <div class="tala-evidence-wide"><dt>Recorded name</dt><dd>{{ $term->label }}</dd></div>
                             <div><dt>Term dates</dt><dd>{{ $term->starts_on->format('M j, Y') }} – {{ $term->ends_on->format('M j, Y') }}</dd></div>
-                            <div><dt>Record status</dt><dd><x-filament::badge :color="$term->stateColor()">{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge></dd></div>
+                            <div><dt>Record status</dt><dd><x-filament::badge color="gray">{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge></dd></div>
                         </dl>
                     </section>
                     <section class="tala-evidence-scope">
@@ -211,7 +243,7 @@
                         <section class="tala-studio-evidence" aria-label="Timetable result and next action">
                             <div class="tala-evidence-title">
                                 <x-filament::icon :icon="$showOfficial ? 'heroicon-o-check-badge' : 'heroicon-o-document-text'" />
-                                <div><h2>{{ $timetableStateLabel }}</h2><p class="tala-work-footnote">@if ($showOfficial)Issued timetable version {{ $selectedVersion->version }}@else Attempt #{{ $activeRun->id }} · Not official @endif</p></div>
+                                <div><h2>{{ $timetableStateLabel }}</h2><p class="tala-work-footnote">@if ($showOfficial)Issued timetable{{ $selectedVersion->published_at ? ' · '.$selectedVersion->published_at->timezone('Asia/Manila')->format('M j, Y') : '' }}@else Attempt #{{ $activeRun->id }} · Not official @endif</p></div>
                             </div>
                             @if ($timetablePresentation['synthetic'] ?? false)<p class="tala-work-footnote">Mode: Synthetic review data</p>@endif
                             @if ($showOfficial && $selectedVersion)
@@ -219,19 +251,18 @@
                                     <h3>Publication record <x-filament::badge :color="$selectedVersion->state === 'Published' ? 'success' : 'gray'">{{ $selectedVersion->state }}</x-filament::badge></h3>
                                     <dl class="tala-evidence-facts">
                                         <div><dt>Published (Asia/Manila)</dt><dd>{{ $selectedVersion->published_at?->timezone('Asia/Manila')->format('M j, Y g:i A') }}</dd></div>
-                                        @if ($selectedVersion->authority_reference)<div><dt>Approval reference</dt><dd>{{ $selectedVersion->authority_reference }}</dd></div>@endif
+                                        @if ($selectedVersion->authority_reference)<div><dt>Approval note / memo</dt><dd>{{ $selectedVersion->authority_reference }}</dd></div>@endif
                                     </dl>
-                                    <p class="tala-work-footnote">Changes are prepared and reviewed separately. This issued version stays unchanged.</p>
+                                    <p class="tala-work-footnote">Changes are prepared and reviewed separately. This issued timetable stays unchanged.</p>
                                 </section>
                                 <div class="tala-evidence-actions">
                                     <x-filament::button tag="a" color="gray" icon="heroicon-o-printer" :href="route('timetable.version.print', ['version' => $selectedVersion, 'timetableView' => $timetableView, 'timetableFormat' => $timetableFormat, 'viewFilter' => $viewFilter, 'programFilter' => $programFilter, 'yearFilter' => $yearFilter, 'tableSearch' => $tableSearch])" target="_blank">Print whole Term</x-filament::button>
                                     <x-filament::button tag="a" color="gray" icon="heroicon-o-document-text" :href="$this->timetableReviewUrl($selectedVersion->schedule_run_id)">Publication record</x-filament::button>
                                 </div>
                             @elseif ($activeRun)
-                                @php($plainOutcome = \App\Actions\Scheduling\TimetableFailureLanguage::forOutcome($reviewEvidence['outcome']))
-                                <p class="tala-evidence-meaning">{{ $plainOutcome['explanation'] }}</p>
+                                <p class="tala-evidence-meaning">{{ \App\Actions\Scheduling\TimetableFailureLanguage::forOutcome($reviewEvidence['outcome'])['explanation'] }}</p>
                                 <dl class="tala-evidence-checks">
-                                    <div><x-filament::icon icon="heroicon-o-cpu-chip" /><div><dt>Solver result</dt><dd>{{ $plainOutcome['label'] }}</dd></div></div>
+                                    <div><x-filament::icon icon="heroicon-o-cpu-chip" /><div><dt>Solver result</dt><dd>{{ \App\Actions\Scheduling\TimetableFailureLanguage::forOutcome($reviewEvidence['outcome'])['label'] }}</dd></div></div>
                                     <div><x-filament::icon icon="heroicon-o-calendar-days" /><div><dt>Meeting completeness</dt><dd>{{ str_contains($reviewEvidence['coverage'], 'not established') ? \App\Actions\Scheduling\TimetableFailureLanguage::meetingCompletenessNotEstablished() : $reviewEvidence['coverage'] }}</dd></div></div>
                                     <div><x-filament::icon icon="heroicon-o-shield-check" /><div><dt>Conflict checks</dt><dd>{{ str_contains($reviewEvidence['conflicts'], 'not established') ? \App\Actions\Scheduling\TimetableFailureLanguage::conflictChecksNotEstablished() : $reviewEvidence['conflicts'] }}</dd></div></div>
                                 </dl>
@@ -240,19 +271,19 @@
                                 <div class="tala-evidence-actions"><x-filament::button tag="a" color="primary" icon="heroicon-o-magnifying-glass" :href="$this->timetableReviewUrl($activeRun->id)">{{ $scopeMeetingCount ? 'Inspect assignments and validation' : 'Inspect generation diagnostics and validation findings' }}</x-filament::button></div>
                             @endif
                             @if ($showOfficial && $workingRun)
-                                <div class="tala-evidence-source-switch"><div><h3>Latest timetable attempt</h3><p class="tala-work-footnote">Review changes separately from this issued version.</p></div><x-filament::button color="gray" icon="heroicon-o-document-text" wire:click="chooseTimetable('draft:{{ $workingRun->id }}')">Review latest attempt</x-filament::button></div>
+                                <div class="tala-evidence-source-switch"><div><h3>Latest timetable attempt</h3><p class="tala-work-footnote">Review changes separately from this issued timetable.</p></div><x-filament::button color="gray" icon="heroicon-o-document-text" wire:click="chooseTimetable('draft:{{ $workingRun->id }}')">Review latest attempt</x-filament::button></div>
                             @elseif (! $showOfficial && $currentVersion)
-                                <div class="tala-evidence-source-switch"><div><h3>Current official timetable</h3><p class="tala-work-footnote">Version {{ $currentVersion->version }} stays in use.</p></div><x-filament::button color="gray" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')">View official timetable · v{{ $currentVersion->version }}</x-filament::button></div>
+                                <div class="tala-evidence-source-switch"><div><h3>Current official timetable</h3><p class="tala-work-footnote">The published timetable stays in use.</p></div><x-filament::button color="gray" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')">View official timetable</x-filament::button></div>
                             @endif
                         </section>
-                    @if (! $readOnly && ! $this->retainedCandidateNextStep() && ($activeRun || $versions->isNotEmpty() || $this->generationReadiness()['ready']))
+                    @if (! $readOnly && ! $this->retainedCandidateNextStep() && ($activeRun || $versions->isNotEmpty() || ($generationReadiness ?? $this->generationReadiness())['ready']))
                         {{ $this->generateTimetableAction->label($activeRun || $versions->isNotEmpty() ? 'Generate another attempt' : 'Generate timetable')->color($activeRun || $versions->isNotEmpty() ? 'gray' : 'primary') }}
                     @endif
                     @if ($timetablePresentation && count($timetablePresentation['meetings']))
                         <details class="tala-planning-coverage"><summary>Course colors</summary><div class="tala-planning-reveal"><div class="tala-guide-course-legend" aria-label="Course colors">@foreach (collect($timetablePresentation['meetings'])->unique('courseCode') as $meeting)<span data-course-color="{{ $timetablePresentation['courseColors'][$meeting['courseCode']] }}"><i aria-hidden="true"></i>{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</span>@endforeach</div></div></details>
                     @endif
                     @if ($activeRun && ! $showOfficial)
-                        @if ($this->canPublishActiveRun())<p class="tala-work-footnote">Accepted, not published yet. Publication rechecks independent validation, source freshness and Registrar authority for the whole Term.@if ($currentVersion) The current official version stays in use.@endif</p>@endif
+                        @if ($this->canPublishActiveRun())<p class="tala-work-footnote">Accepted, not published yet. Publication rechecks independent validation, source freshness and Registrar authority for the whole Term.@if ($currentVersion) The current official timetable stays in use.@endif</p>@endif
                         @if (! $readOnly && $this->retainedCandidateNextStep())<p class="tala-work-footnote" role="status">{{ $this->retainedCandidateNextStep() }}</p>@endif
                     @endif
                             @if ($activeRun && ! $showOfficial)
@@ -262,7 +293,7 @@
 </details>
         @endif
         @if ($allRuns->where('status', '!=', 'published')->count() > 1 || $versions->count() > 1)
-            <details class="tala-planning-coverage"><summary>Earlier timetable attempts &amp; versions</summary>
+            <details class="tala-planning-coverage"><summary>Earlier timetable history</summary>
 <div class="tala-planning-reveal"><p class="tala-work-footnote">Opening an earlier result does not change the official timetable.</p>
                 <ul class="tala-guide-history">@foreach ($allRuns->where('status', '!=', 'published') as $run)<li><span><strong>Attempt #{{ $run->id }}</strong> · {{ $run->created_at->timezone('Asia/Manila')->format('M j, Y g:i A') }} · {{ \App\Models\ScheduleGenerationRun::statusOptions()[$run->status] ?? $run->status }}</span><x-filament::button color="gray" wire:click="chooseTimetable('draft:{{ $run->id }}')" :disabled="! $showOfficial && $activeRun?->id === $run->id">{{ ! $showOfficial && $activeRun?->id === $run->id ? 'Viewing this attempt' : 'Open attempt' }}</x-filament::button></li>@endforeach
                 @foreach ($versions as $version)<li><span><strong>{{ $version->state }} v{{ $version->version }}</strong> · {{ $version->published_at?->timezone('Asia/Manila')->format('M j, Y') }}</span><x-filament::button color="gray" wire:click="chooseTimetable('official:{{ $version->id }}')" :disabled="$showOfficial && $selectedVersion?->id === $version->id">Open version</x-filament::button></li>@endforeach</ul>

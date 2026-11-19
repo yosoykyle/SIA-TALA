@@ -46,6 +46,12 @@ class FacultySchedule extends Page implements HasTable
 
     protected static ?string $title = 'My Schedule';
 
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [];
+    }
+
     protected string $view = 'filament.pages.faculty-schedule';
 
     #[Url]
@@ -249,7 +255,8 @@ class FacultySchedule extends Page implements HasTable
                 Action::make('clearScheduleFilters')->label('Clear filters and search')->action(fn () => $this->clearScheduleFilters())->visible(fn (): bool => $this->meetingsQuery()->exists()),
                 Action::make('openAvailability')->label('Open My Availability')->color('gray')->url(fn (): string => MyAvailability::getUrl(['termId' => $this->termId]))->visible(fn (): bool => $this->termId !== null && ! $this->meetingsQuery()->exists()),
             ])
-            ->emptyStateIcon(Heroicon::OutlinedCalendar);
+            ->emptyStateIcon(Heroicon::OutlinedCalendar)
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
     public function selectTerm(int $termId): void
@@ -265,7 +272,9 @@ class FacultySchedule extends Page implements HasTable
             ->label('Details')->color('gray')->icon(Heroicon::OutlinedEye)
             ->authorize(fn (SectionMeeting $record): bool => ($version = $this->currentVersion()) && $this->meetingsQuery()->where('published_timetable_version_id', $version->id)->whereKey($record)->exists())
             ->modalHeading('Class meeting')
-            ->modalWidth('lg')
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalContent(function (SectionMeeting $record): View {
                 $version = $this->currentVersion();
                 abort_unless($version, 404);

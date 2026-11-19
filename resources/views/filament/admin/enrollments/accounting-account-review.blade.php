@@ -20,7 +20,7 @@
         <p>{{ $sources['course_drop']->courseEnrollment?->termOffering?->curriculumEntry?->courseSpecification?->title ?? 'Recorded subject removal' }} · {{ $sources['course_drop']->courseEnrollment?->section?->code }}</p>
         <p>The academic change is recorded. Review the approved financial result; a Course Drop does not calculate a refund or reduce charges.</p>
         <div class="accounting-context-actions">{{ $this->getAction('recordIndividualAssessment', isMounting: false) }}</div>
-        <section class="tala-context-inset accounting-source-details"><h3>Recorded change</h3><p>{{ $sources['course_drop']->reason }}</p><p>Earlier registration and certificate versions remain in history.</p></section>
+        <section class="tala-context-inset accounting-source-details"><h3>Recorded change</h3><p>{{ $sources['course_drop']->reason }}</p><p>Earlier registration and certificate records remain in history.</p></section>
     @elseif ($reviewState === 'adjustment')
         <h2 id="account-review-heading">{{ $adjustmentFinanceReady ? 'Financial result ready for Registrar' : ($pendingAdjustment->state === \App\Models\RegistrationProposalVersion::StateConfirmed ? 'Review the confirmed registration change' : 'Waiting for the confirmed registration change') }}</h2>
         @if ($change['valid'])
@@ -35,7 +35,7 @@
                 {{ $this->getAction('recordIndividualAssessment', isMounting: false)->color('gray') }}
             </div>
         @endif
-        <section class="tala-context-inset accounting-source-details"><h3>Change source</h3><p>Proposal version {{ $pendingAdjustment->version }} · {{ \App\Actions\Finance\AccountingDisplay::proposalStateLabel($pendingAdjustment->state) }}</p><p>Registrar owns the official subject and certificate change. Accounting records only its approved financial result.</p></section>
+        <section class="tala-context-inset accounting-source-details"><h3>Change source</h3><p>Registration proposal · {{ \App\Actions\Finance\AccountingDisplay::proposalStateLabel($pendingAdjustment->state) }}</p><p>Registrar owns the official subject and certificate change. Accounting records only its approved financial result.</p></section>
     @else
         <h2 id="account-review-heading">No active charges recorded yet</h2>
         <p>{{ $position['reason'] ?? 'Record an assessment and required enrollment payment before the balance can be calculated.' }}</p>
@@ -43,6 +43,9 @@
         <div class="accounting-context-actions">
             {{ $this->getAction('createAssessment', isMounting: false) }}
             {{ $this->getAction('recordIndividualAssessment', isMounting: false)->color('gray') }}
+            @if (! ($this->getAction('createAssessment', isMounting: false)?->isVisible() ?? false) && \App\Filament\Resources\FeePlans\FeePlanResource::canAccess())
+                <x-filament::link :href="\App\Filament\Resources\FeePlans\FeePlanResource::getUrl('index')">Open Fee Plans</x-filament::link>
+            @endif
         </div>
     @endif
 </section>

@@ -54,7 +54,7 @@ class RoomsTable
                 SelectFilter::make('room_type')
                     ->label('Room type')
                     ->options(Room::typeOptions()),
-                SelectFilter::make('is_active')->label('Active')->options([
+                SelectFilter::make('is_active')->label('Status')->options([
                     '1' => 'Active',
                     '0' => 'Inactive',
                 ]),
@@ -75,6 +75,7 @@ class RoomsTable
             ->stackedOnMobile()
             ->emptyStateHeading('No rooms recorded')
             ->emptyStateDescription('Add a room for class assignments, or clear search and filters to see recorded rooms.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->defaultSort('code');
     }
 }

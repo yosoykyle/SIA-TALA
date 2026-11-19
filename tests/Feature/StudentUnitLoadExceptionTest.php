@@ -106,6 +106,51 @@ final class StudentUnitLoadExceptionTest extends TestCase
     }
 
     #[Test]
+    public function special_term_position_uses_retake_unit_ceiling_when_curriculum_has_no_dedicated_summer_entries(): void
+    {
+        $profile = StudentProfile::factory()->create();
+        $term = Term::factory()->create([
+            'type' => Term::TypeSpecialTerm,
+            'default_max_units' => 99,
+        ]);
+        $enrollment = Enrollment::factory()->create([
+            'student_profile_id' => $profile->id,
+            'term_id' => $term->id,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+        ]);
+        $first = $this->section(
+            $term,
+            $this->curriculumEntry($profile, 'First Year', 'First Semester', Term::TypeFirstSemester, 3),
+            TermOffering::CategorySpecial,
+        );
+        $second = $this->section(
+            $term,
+            $this->curriculumEntry($profile, 'Second Year', 'Second Semester', Term::TypeSecondSemester, 3),
+            TermOffering::CategorySpecial,
+        );
+
+        $service = app(StudentUnitLoadService::class);
+        $options = $service->positionOptions($enrollment);
+        $summerKey = 'Special Term|Special Term|'.Term::TypeSpecialTerm;
+        $this->assertArrayHasKey($summerKey, $options);
+
+        $snapshot = $service->snapshotForSections($enrollment, collect([$first, $second]), $summerKey);
+        $this->assertSame('Special Term', $snapshot['year_level']);
+        $this->assertSame(Term::TypeSpecialTerm, $snapshot['term_type']);
+        $this->assertSame([], $snapshot['curriculum_entry_ids']);
+        $this->assertSame('9.00', $snapshot['normal_total']);
+        $this->assertSame('6.00', $snapshot['requested_total']);
+        $this->assertTrue($snapshot['unit_load_passes']);
+        $this->assertFalse($snapshot['requires_graduating_overload']);
+
+        $evaluation = $service->evaluate($enrollment, 6.0);
+        $this->assertTrue($evaluation['unit_load_passes']);
+        $this->assertTrue($evaluation['all_gates_pass']);
+        $this->assertSame('9.00', $evaluation['normal_load']);
+        $this->assertNull($evaluation['blocker']);
+    }
+
+    #[Test]
     public function only_a_matching_registrar_recorded_graduating_overload_authority_permits_the_draft(): void
     {
         [$enrollment, $proposal] = $this->overloadProposal();

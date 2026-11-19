@@ -25,7 +25,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
@@ -265,16 +264,6 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
             'units_snapshot' => '3.00',
             'added_at' => now(),
         ]);
-
-        foreach ([$currentMeeting, $historicalMeeting] as $meeting) {
-            StudentScheduleBinding::query()->create([
-                'course_enrollment_id' => $courseEnrollment->id,
-                'section_meeting_id' => $meeting->id,
-                'is_active' => true,
-                'effective_from' => now()->toDateString(),
-                'source' => StudentScheduleBinding::SourceRegistrarPlacement,
-            ]);
-        }
 
         $schedule = $this->studentHubScheduleFor($enrollment);
         $currentPublishedMeetingId = PublishedTimetableVersion::query()

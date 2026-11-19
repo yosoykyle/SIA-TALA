@@ -1,7 +1,7 @@
 @php
     $title = match ($kind) {
         'payment' => $record->state === \App\Models\Payment::StateReversal ? 'Payment reversal' : ($record->evidence_status === 'verified' && $record->verified_at ? 'Verified payment' : 'Unverified payment claim'),
-        'assessment' => 'Assessment version '.$record->version,
+        'assessment' => $record->state === \App\Models\Assessment::StateActive ? 'Current assessment' : 'Earlier assessment',
         'proof' => 'Submitted receipt',
         'coverage' => 'Approved coverage',
         default => 'Payment export',
@@ -52,7 +52,7 @@
                     @endif
                     @break
                 @case('assessment')
-                    <p>{{ \App\Actions\Finance\AccountingDisplay::assessmentBasisLabel($record->assessment_basis) }} · {{ $record->authority_reference }}@if ($record->authority_date) · {{ \App\Actions\Finance\AccountingDisplay::date($record->authority_date) }}@endif</p>
+                    <p>{{ collect([\App\Actions\Finance\AccountingDisplay::assessmentBasisLabel($record->assessment_basis), $record->authority_reference, $record->authority_date ? \App\Actions\Finance\AccountingDisplay::date($record->authority_date) : null])->filter()->implode(' · ') }}</p>
                     @if ($record->lines->isNotEmpty())
                         <x-supporting-details summary="Audit details" inset>
                             <dl class="registrar-source-charges">@foreach ($record->lines as $line)<div><dt>{{ $line->description_snapshot }}</dt><dd>{{ \App\Actions\Finance\AccountingDisplay::money($line->amount) }}</dd></div>@endforeach</dl>

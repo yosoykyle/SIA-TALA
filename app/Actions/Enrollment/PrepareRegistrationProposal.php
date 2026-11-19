@@ -6,6 +6,7 @@ use App\Models\AdmissionApplication;
 use App\Models\Assessment;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
@@ -15,6 +16,7 @@ use App\Models\RegistrationCreditEvaluation;
 use App\Models\RegistrationProposalItem;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
+use App\Models\StudentProfile;
 use App\Models\TermAccount;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -178,6 +180,14 @@ class PrepareRegistrationProposal
                 $sections->pluck('termOffering')->filter()->values(),
             );
 
+            if ($locked->selection_basis === Enrollment::SelectionStandardCurriculum
+                && $actor->hasRole(User::StaffRoleRegistrar)
+                && $locked->studentProfile instanceof StudentProfile
+                && $locked->term !== null
+                && app(PrepareStandardRegistration::class)->hasPartialSatisfiedPosition($locked->studentProfile, $locked->term)) {
+                $locked->update(['selection_basis' => Enrollment::SelectionIndividuallyAdvised]);
+            }
+
             $unitLoad = $this->unitLoad->snapshotForSections(
                 $locked,
                 $sections->values(),
@@ -186,7 +196,27 @@ class PrepareRegistrationProposal
             if ($locked->selection_basis === Enrollment::SelectionStandardCurriculum) {
                 $selectedEntries = $sections->pluck('termOffering.curriculum_entry_id')->map(fn ($id): int => (int) $id)->sort()->values()->all();
                 if ($selectedEntries !== $unitLoad['curriculum_entry_ids']) {
-                    throw ValidationException::withMessages(['sections' => 'Standard Curriculum requires the complete curriculum position, including required subjects that are not currently offered. Registrar must advise a bounded alternative when that block is unavailable.']);
+                    $omittedEntryIds = array_values(array_diff($unitLoad['curriculum_entry_ids'], $selectedEntries));
+                    $extraEntryIds = array_values(array_diff($selectedEntries, $unitLoad['curriculum_entry_ids']));
+                    $satisfiedCourseIds = $locked->studentProfile instanceof StudentProfile
+                        ? $this->eligibility->satisfiedCourseIds($locked->studentProfile)
+                        : collect();
+                    $allOmittedAlreadySatisfied = $actor->hasRole(User::StaffRoleRegistrar)
+                        && $locked->studentProfile instanceof StudentProfile
+                        && $omittedEntryIds !== []
+                        && $extraEntryIds === []
+                        && CurriculumEntry::query()
+                            ->with('courseSpecification')
+                            ->whereIn('id', $omittedEntryIds)
+                            ->get()
+                            ->every(fn (CurriculumEntry $entry): bool => $satisfiedCourseIds
+                                ->contains((int) $entry->courseSpecification?->course_id));
+
+                    if ($allOmittedAlreadySatisfied) {
+                        $locked->update(['selection_basis' => Enrollment::SelectionIndividuallyAdvised]);
+                    } else {
+                        throw ValidationException::withMessages(['sections' => 'Standard Curriculum requires the complete curriculum position, including required subjects that are not currently offered. Registrar must advise a bounded alternative when that block is unavailable.']);
+                    }
                 }
             }
 

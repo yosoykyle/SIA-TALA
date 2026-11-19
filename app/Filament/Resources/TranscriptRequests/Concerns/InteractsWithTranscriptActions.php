@@ -18,6 +18,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
+use Filament\Support\Enums\Width;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -141,6 +142,9 @@ trait InteractsWithTranscriptActions
                 ->disabled(fn (): bool => ! $this->hasUncompletedTorReview(TranscriptPreviewConfirmation::OperationIssue))
                 ->tooltip('Review Preview TOR before confirming issuance.')
                 ->requiresConfirmation()
+                ->modalWidth(Width::Large)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription(fn (): string => 'Issue '.$this->nextTorReference().' for request '.$this->request()->external_request_reference.' after reviewing its preview. TALA rechecks the academic record, Accounting restrictions and signatory inputs. Physical signing, sealing and delivery remain external.')
                 ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
                     && $this->currentSnapshot() === null && ! $this->latestSnapshotIsVoided())
@@ -165,6 +169,9 @@ trait InteractsWithTranscriptActions
                 ->icon('heroicon-o-no-symbol')
                 ->color('danger')
                 ->requiresConfirmation()
+                ->modalWidth(Width::TwoExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription('This appends a Void event. The issued snapshot remains immutable history and can no longer be represented as the current valid TOR.')
                 ->schema([
                     Textarea::make('reason')->required()->maxLength(1000),
@@ -185,6 +192,9 @@ trait InteractsWithTranscriptActions
                 ->tooltip('Review the replacement document before confirming.')
                 ->icon('heroicon-o-arrow-path')
                 ->requiresConfirmation()
+                ->modalWidth(Width::TwoExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription('This requires a voided predecessor and creates a new immutable snapshot and reference. The predecessor remains attributable history.')
                 ->schema([
                     Textarea::make('reason')->required()->maxLength(1000),

@@ -15,7 +15,7 @@ class FaqEntriesTable
         return $table
             ->columns([
                 TextColumn::make('question')
-                    ->searchable()->wrap()->description(fn (FaqEntry $record): string => 'Version '.$record->version),
+                    ->searchable()->wrap()->description(fn (FaqEntry $record): ?string => $record->updated_at ? 'Updated '.$record->updated_at->timezone('Asia/Manila')->format('M j, Y') : null),
                 TextColumn::make('category')
                     ->formatStateUsing(fn (?string $state): string => FaqEntry::categoryLabel($state))
                     ->searchable(),
@@ -43,9 +43,19 @@ class FaqEntriesTable
             ->filters([
                 SelectFilter::make('category')
                     ->options(FaqEntry::categoryOptions()),
+                SelectFilter::make('state')
+                    ->label('Publication state')
+                    ->options([
+                        'Draft' => 'Draft',
+                        'Published' => 'Published (including scheduled / expired)',
+                        'Unpublished' => 'Unpublished',
+                    ]),
             ])
             ->defaultSort('sort_order')
             ->recordActions(PublicContentActions::tableActions())
+            ->emptyStateHeading('No FAQ entries in this view')
+            ->emptyStateDescription('System Administration can add a draft FAQ entry, or clear filters to see other saved entries.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->toolbarActions([]);
     }
 }

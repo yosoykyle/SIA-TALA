@@ -133,7 +133,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
                 ->assertSee('Set up authenticator app')
                 ->assertSee('Set up an authenticator app and save your recovery codes before continuing.')
                 ->assertDontSee('adds an extra layer')
-                ->assertSee('Contact school support')
+                ->assertSee('Contact support')
                 ->assertSee('Sign out')
                 ->assertDontSee('/'.$panelId.'/account-profile', false)
                 ->assertDontSee("Applicant's History");
@@ -570,6 +570,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $this->actingAs($applicant);
 
         Livewire::test(AccountSecurity::class)
+            ->call('startEditingCredentials')
             ->fillForm([
                 'email' => 'successor-learner@example.test',
                 'currentPassword' => 'password',
@@ -874,6 +875,9 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $forgotAction = TestAction::make('forgotPassword')->schemaComponent('currentPassword', 'form');
 
         $page = Livewire::test(AccountSecurity::class)
+            ->assertDontSee('Current password')
+            ->assertDontSee('Save changes')
+            ->call('startEditingCredentials')
             ->assertSee($expectedHelper)
             ->assertDontSee('For security, please confirm your password to continue.')
             ->assertActionVisible($forgotAction);
@@ -966,6 +970,9 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
 
         $emptyProfile = Livewire::test(AccountSecurity::class);
         $emptyProfile
+            ->assertDontSee('Current password')
+            ->assertDontSee('Save changes')
+            ->call('startEditingCredentials')
             ->assertSeeHtml('<fieldset')
             ->assertSeeHtml('tala-profile-password-box')
             ->assertSeeInOrder([
@@ -980,6 +987,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->assertHasFormErrors(['password']);
 
         Livewire::test(AccountSecurity::class)
+            ->call('startEditingCredentials')
             ->fillForm([
                 'currentPassword' => 'original passphrase 2026',
             ])
@@ -987,6 +995,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->assertHasFormErrors(['password']);
 
         Livewire::test(AccountSecurity::class)
+            ->call('startEditingCredentials')
             ->fillForm([
                 'passwordConfirmation' => 'different passphrase 2026',
             ])
@@ -994,6 +1003,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->assertHasFormErrors(['password']);
 
         Livewire::test(AccountSecurity::class)
+            ->call('startEditingCredentials')
             ->fillForm([
                 'currentPassword' => 'original passphrase 2026',
                 'password' => 'original passphrase 2026',
@@ -1003,6 +1013,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->assertHasFormErrors(['password']);
 
         Livewire::test(AccountSecurity::class)
+            ->call('startEditingCredentials')
             ->fillForm([
                 'email' => 'abandoned-edit@example.test',
                 'currentPassword' => 'wrong',
@@ -1012,6 +1023,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->assertHasFormErrors(['password'])
             ->assertNotNotified()
             ->callAction(TestAction::make('cancelChanges')->schemaComponent('form-actions', 'content'))
+            ->assertSet('editingCredentials', false)
             ->assertHasNoFormErrors()
             ->assertFormSet([
                 'email' => 'unchanged-or-email@example.test',
@@ -1021,12 +1033,14 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ]);
 
         Livewire::test(AccountSecurity::class)
+            ->call('startEditingCredentials')
             ->fillForm([
                 'email' => 'successor-only@example.test',
                 'currentPassword' => 'original passphrase 2026',
             ])
             ->call('save')
             ->assertHasNoFormErrors()
+            ->assertSet('editingCredentials', false)
             ->assertSet('data.currentPassword', null);
 
         $freshApplicant = $applicant->fresh();
@@ -1068,6 +1082,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $forgotAction = TestAction::make('forgotPassword')->schemaComponent('currentPassword', 'form');
 
         $page = Livewire::test(AccountSecurity::class)
+            ->call('startEditingCredentials')
             ->mountAction($forgotAction)
             ->assertSee($accounting->email)
             ->callMountedAction()

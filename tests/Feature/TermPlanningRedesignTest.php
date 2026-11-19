@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Actions\Scheduling\ConfirmClassOffering;
+use App\Actions\Scheduling\ReadyTermPlanningProjection;
 use App\Actions\Scheduling\ReviewTimetableCandidate;
 use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\TermCoverageProjection;
@@ -41,6 +43,7 @@ use App\Models\FacultyTermLoadOverride;
 use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
+use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
@@ -229,7 +232,7 @@ final class TermPlanningRedesignTest extends TestCase
         $this->assertSame(1, substr_count($page->html(), 'wire:partial="action-modals"'));
         $page->mountAction('expandTimetable')->assertMountedActionModalSee($mathCohort->reference)
             ->assertMountedActionModalDontSee($prefix.'-HR-2A')->unmountAction();
-        $page->call('showTimetableView', 'list')->assertCanSeeTableRecords($expected);
+        $page->call('showTimetableView', 'list')->set('tableRecordsPerPage', 10)->assertCanSeeTableRecords($expected);
         $page->assertSet('timetableView', 'whole')->assertSet('timetableFormat', 'list');
         $this->assertSame(1, substr_count($page->html(), 'wire:partial="action-modals"'));
         $page->call('showTimetableView', 'section')->set('viewFilter', (string) $mathCohort->id)
@@ -678,6 +681,113 @@ final class TermPlanningRedesignTest extends TestCase
             $page->assertTableActionHidden('prepareClassOffering', $record)
                 ->assertTableActionHidden('confirmClassOffering', $record);
         }
+    }
+
+    public function test_generation_readiness_collects_all_active_blockers_and_renders_checklist_in_timetable(): void
+    {
+        $this->staff();
+        $term = Term::factory()->create(['label' => 'Checklist Blocker Term']);
+
+        $workbench = app(TermPlanningWorkbench::class);
+        $workbench->termId = $term->id;
+        $readiness = $workbench->generationReadiness();
+        $codes = collect($readiness['blockers'] ?? [])->pluck('code')->all();
+
+        $this->assertFalse($readiness['ready']);
+        $this->assertContains('calendar_not_active', $codes);
+        $this->assertContains('classes_not_confirmed', $codes);
+        $this->assertContains('scheduling_demands_missing', $codes);
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
+            ->assertSuccessful()
+            ->assertSee('Activate the teaching calendar for this Term before preparing a timetable.')
+            ->assertSee('Prepare and confirm classes for this Term before generating a timetable.')
+            ->assertSee('Prepare weekly meeting requirements for this Term’s classes.')
+            ->assertSee('Term Calendar')
+            ->assertSee('Classes');
+    }
+
+    public function test_confirming_class_auto_syncs_scheduling_demands_and_surfaces_resource_readiness_blockers(): void
+    {
+        $registrar = $this->staff();
+        $term = Term::factory()->create(['state' => Term::StateActive, 'default_max_units' => 24]);
+        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
+        $package->teachingGridRows()->create([
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '17:00:00',
+            'breaks' => [],
+        ]);
+
+        $program = Program::factory()->create();
+        $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive]);
+        $course = Course::factory()->create(['code' => 'AUTO-REQ-101']);
+        $specification = CourseSpecification::factory()->for($course)->create([
+            'state' => CourseSpecification::StateActive,
+            'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
+        ]);
+        CourseComponent::factory()->for($specification)->create([
+            'component_type' => CourseComponent::TypeLecture,
+            'weekly_contact_hours' => 3.00,
+            'meeting_pattern' => '1x180',
+            'room_type_default' => Room::TypeLaboratory,
+        ]);
+        $entry = CurriculumEntry::factory()->for($curriculum)->for($specification)->create(['year_level' => 'First Year']);
+        $cohort = TermCohort::factory()->for($term)->for($program)->for($curriculum)->create();
+        $offering = TermOffering::factory()->for($term)->for($entry, 'curriculumEntry')->create([
+            'modality' => TermOffering::ModalityFaceToFace,
+            'state' => TermOffering::StatePendingScheduling,
+        ]);
+        $section = Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $package->id,
+            'course_specification_id' => $specification->id,
+            'source' => Section::SourceRegular,
+            'capacity' => 35,
+            'state' => Section::StatePlanned,
+        ]);
+        SectionDeliveryGroup::factory()->for($section)->create([
+            'expected_count' => 25,
+            'modality' => TermOffering::ModalityFaceToFace,
+            'state' => SectionDeliveryGroup::StateReady,
+        ]);
+
+        Room::factory()->create([
+            'room_type' => Room::TypeLectureRoom,
+            'capacity' => 40,
+            'is_active' => true,
+        ]);
+
+        app(ConfirmClassOffering::class)->execute($section, $registrar, [$cohort->id => 25]);
+
+        $demand = SchedulingDemand::query()->where('term_offering_id', $offering->id)->sole();
+        $this->assertSame(SchedulingDemand::ValidationActionRequired, $demand->validation_state);
+
+        $projection = app(ReadyTermPlanningProjection::class)->forTerm($term);
+        $this->assertFalse($projection['ready']);
+        $projectionCodes = array_column($projection['blockers'], 'code');
+        $this->assertContains('faculty_qualifications_missing', $projectionCodes);
+        $this->assertContains('rooms_unsuitable', $projectionCodes);
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
+            ->assertSuccessful()
+            ->assertSee('AUTO-REQ-101')
+            ->assertSee(e(TermResources::getUrl(['termId' => $term->id])), false)
+            ->assertSee(e(TermResources::getUrl(['termId' => $term->id, 'resourceView' => 'rooms'])), false);
+
+        $faculty = User::factory()->create(['status' => User::StatusActive]);
+        FacultyQualification::factory()->for($faculty, 'faculty')->for($course)->create(['is_active' => true]);
+        Room::factory()->create([
+            'room_type' => Room::TypeLaboratory,
+            'capacity' => 30,
+            'is_active' => true,
+        ]);
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
+            ->assertSuccessful()
+            ->assertSee('Generate whole-Term timetable');
+
+        $this->assertSame(SchedulingDemand::ValidationReadyForReview, $demand->fresh()->validation_state);
+        $this->assertTrue(app(ReadyTermPlanningProjection::class)->forTerm($term)['ready']);
     }
 
     private function staff(string $roleName = User::StaffRoleRegistrar): User

@@ -151,7 +151,7 @@ class UserAccessService
         string $newEmail,
         #[\SensitiveParameter] string $actorPassword,
         string $reason,
-        string $authority,
+        ?string $authority = null,
     ): PendingEmailChange {
         $this->authorizeAdministrator($actor);
 
@@ -163,7 +163,11 @@ class UserAccessService
         validator(['email' => $newEmail], [
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
         ])->validate();
-        $this->validateReasonAndAuthority($reason, $authority);
+        if (mb_strlen(trim($reason)) < 10) {
+            throw ValidationException::withMessages([
+                'reason' => 'A specific reason is required.',
+            ]);
+        }
 
         return DB::transaction(function () use ($actor, $target, $newEmail, $reason, $authority): PendingEmailChange {
             $locked = User::query()->lockForUpdate()->findOrFail($target->id);
@@ -184,7 +188,7 @@ class UserAccessService
                 'expires_at' => now()->addMinutes(60),
             ]);
 
-            $this->audit($actor, $locked, 'staff_email_change_requested', $reason, $authority, [
+            $this->audit($actor, $locked, 'staff_email_change_requested', $reason, (string) ($authority ?? ''), [
                 'new_email_domain' => Str::after($newEmail, '@'),
             ]);
 

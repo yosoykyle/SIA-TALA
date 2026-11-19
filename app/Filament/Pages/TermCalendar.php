@@ -62,7 +62,9 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
 
         })->columns([TextColumn::make('day'), TextColumn::make('hours')->label('Teaching hours'), TextColumn::make('breaks')->wrap()])
 
-            ->paginated(false)->emptyStateHeading('No approved teaching days recorded')
+            ->paginated(false)
+            ->emptyState(view('filament.partials.collection-empty-state'))
+            ->emptyStateHeading('No approved teaching days recorded')
             ->emptyStateDescription(fn (): string => auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? 'The Registrar records the teaching calendar before classes can be planned.' : 'Record the teaching calendar before planning classes.');
 
     }

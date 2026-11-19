@@ -130,7 +130,7 @@ class ApplicationToReadinessJourneyTest extends TestCase
         $component->assertRedirect(SubmissionReceipt::getUrl(['application' => $application->id, 'version' => $application->current_submission_version_id]));
         if ($followUpFails) {
             $component->assertSet('saveStatus', 'saved')
-                ->assertSet('saveStatusMessage', 'Your Application was submitted. A follow-up step could not finish. Open Home to check your submitted version and notification status.');
+                ->assertSet('saveStatusMessage', 'Your Application was submitted. A follow-up step could not finish. Open Home to check your submission and notification status.');
         }
     }
 

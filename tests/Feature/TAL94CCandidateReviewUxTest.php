@@ -257,7 +257,7 @@ final class TAL94CCandidateReviewUxTest extends TestCase
                 ->test(CandidateRowsRelationManager::class, ['ownerRecord' => $context['run']->fresh(), 'pageClass' => ViewScheduleGenerationRun::class])
                 ->mountTableAction('view', $candidate)
                 ->assertMountedActionModalSee('Source assignment unavailable')
-                ->assertMountedActionModalSee('Previous assignment unavailable. Inspect the source evidence before accepting this successor.')
+                ->assertMountedActionModalSee('Previous assignment unavailable. Inspect the source evidence before accepting this update.')
                 ->assertMountedActionModalSee('Tuesday · 8:00 AM - 11:00 AM · Asia/Manila')
                 ->assertMountedActionModalDontSee('Monday · 8:00 AM - 11:00 AM · Asia/Manila');
         }

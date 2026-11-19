@@ -39,12 +39,6 @@ class CourseSpecificationPolicy
             && $courseSpecification->state === CourseSpecification::StateDraft;
     }
 
-    public function retire(User $user, CourseSpecification $courseSpecification): bool
-    {
-        return $this->canManage($user)
-            && $courseSpecification->state === CourseSpecification::StateActive;
-    }
-
     public function delete(User $user, CourseSpecification $courseSpecification): bool
     {
         return false;
