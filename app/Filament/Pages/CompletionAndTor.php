@@ -324,7 +324,7 @@ class CompletionAndTor extends Page implements HasTable
     public function getBreadcrumbs(): array
     {
         return auth()->user()?->hasRole(User::StaffRoleRegistrar)
-            ? [GradesAndCompletion::getUrl() => 'Grades & Completion', 'Completion & TOR']
+            ? [GradesAndCompletion::getUrl() => 'Students Record', 'Completion & TOR']
             : [AcademicApprovals::getUrl() => 'Academic Oversight', 'Completion & TOR'];
     }
 

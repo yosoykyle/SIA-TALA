@@ -38,6 +38,7 @@ use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -104,6 +105,49 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->callAction('generateTimetable')
             ->assertHasNoActionErrors()
             ->assertNotified('Timetable generation requested');
+    }
+
+    public function test_blocked_generation_opens_the_plain_language_failure_modal_instead_of_a_toast(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $academicYear = $this->getOrCreateAcademicYear();
+        $term = Term::factory()->for($academicYear, 'academicYear')->create();
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => now(),
+        ]);
+
+        $offering = $this->createTermOffering($term);
+        $class = Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $package->id, 'confirmed_at' => now(),
+        ]);
+        $group = SectionDeliveryGroup::factory()->for($class, 'section')->create();
+        SchedulingDemand::factory()->for($offering, 'termOffering')->for($group, 'sectionDeliveryGroup')->create();
+        Room::factory()->create(['is_active' => true]);
+
+        $this->mock(ScheduleGenerationService::class)
+            ->shouldReceive('generate')
+            ->once()
+            ->andThrow(ValidationException::withMessages([
+                'generation' => 'Review or reject the retained candidate, or change its source facts before generating again.',
+            ]));
+
+        $component = Livewire::actingAs($registrar)
+            ->test(TermTimetable::class, [
+                'termId' => $term->id,
+                'viewTab' => 'generate',
+            ])
+            ->assertActionEnabled('generateTimetable')
+            ->callAction('generateTimetable')
+            ->assertHasNoActionErrors()
+            ->assertNotNotified()
+            ->assertDispatched('open-modal', id: 'timetable-generation-failure');
+
+        $failure = $component->get('generationFailure');
+        $this->assertSame('A previous draft needs your decision', $failure['title']);
+        $this->assertSame('A previous timetable draft is still waiting for your decision.', $failure['explanation']);
+        $this->assertStringNotContainsString('solver', strtolower($failure['explanation']));
+        $this->assertSame('Review or reject the retained candidate, or change its source facts before generating again.', $failure['technical']);
     }
 
     public function test_term_context_is_preserved_in_source_record_actions_and_run_evidence_links(): void

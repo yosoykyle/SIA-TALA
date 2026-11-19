@@ -154,7 +154,7 @@ class ListStudentLifecycleChanges extends ListRecords
             ];
         }
         if (auth()->user()?->hasRole(User::StaffRoleRegistrar)) {
-            return [GradesAndCompletion::getUrl() => 'Grades & Completion', 'Lifecycle'];
+            return [GradesAndCompletion::getUrl() => 'Students Record', 'Lifecycle'];
         }
 
         if (auth()->user()?->hasRole(User::StaffRoleAcademicHead)) {

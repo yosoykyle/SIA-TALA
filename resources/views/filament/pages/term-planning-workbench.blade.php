@@ -109,4 +109,8 @@
 
     </div>
 
+    @if ($term)
+        @include('filament.pages.partials.timetable-generation-failure-modal')
+    @endif
+
 </x-filament-panels::page>

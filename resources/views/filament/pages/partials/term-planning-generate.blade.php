@@ -28,7 +28,12 @@
 
         </div></div>
 
-        @if ($solverFailure || ! empty($solverOutcome['message']))<p role="status" class="mt-4 text-sm">{{ $solverFailure['message'] ?? $solverOutcome['message'] ?? '' }}</p>@endif
+        @if ($solverFailure || ! empty($solverOutcome['message']))
+            @php($failureText = $solverFailure['message'] ?? $solverOutcome['message'])
+            @php($plainFailure = \App\Actions\Scheduling\TimetableFailureLanguage::forSolverFailureMessage(is_string($failureText) ? $failureText : null))
+            <p role="status" class="mt-4 text-sm">{{ $plainFailure['explanation'] }} {{ $plainFailure['nextStep'] }}</p>
+            <details class="tala-planning-coverage mt-2"><summary>Technical details</summary><div class="tala-planning-reveal"><p class="text-sm">{{ $failureText }}</p></div></details>
+        @endif
 
         @if ($generationPending)
 

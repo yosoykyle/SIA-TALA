@@ -7,6 +7,9 @@
             <div class="tala-task-commands">
                 @if ($classesView === 'cohorts' && ! $readOnly){{ $this->recordCohortAction }}@endif
                 <x-filament::button tag="a" color="gray" :icon="$classesView === 'classes' ? 'heroicon-o-user-group' : 'heroicon-o-book-open'" :href="\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id, ...($classesView === 'classes' ? ['classesView' => 'cohorts'] : [])])">{{ $classesView === 'classes' ? 'View student sections' : 'View classes' }}</x-filament::button>
+                @if (\App\Filament\Resources\SchedulingDemands\SchedulingDemandResource::canAccess())
+                    <x-filament::button tag="a" color="gray" outlined icon="heroicon-o-clipboard-document-check" :href="\App\Filament\Resources\SchedulingDemands\SchedulingDemandResource::getUrl('index', ['filters' => ['term_id' => ['value' => $term->id]]])">Schedule requirements</x-filament::button>
+                @endif
             </div>
         </div>
         @if ($classesView === 'classes')

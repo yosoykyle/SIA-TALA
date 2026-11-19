@@ -15,6 +15,7 @@ use App\Actions\Scheduling\SchedulePublicationImpactService;
 use App\Actions\Scheduling\SchedulePublishService;
 use App\Actions\Scheduling\ScheduleSolverRetryService;
 use App\Actions\Scheduling\TermCoverageProjection;
+use App\Actions\Scheduling\TimetableFailureLanguage;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
@@ -132,6 +133,9 @@ class TermPlanningWorkbench extends Page
 
     #[Url]
     public ?int $selectedVersionId = null;
+
+    /** @var array{title: string, explanation: string, nextStep: string, technical: string}|null */
+    public ?array $generationFailure = null;
 
     /** @var list<string> */
     protected static bool $shouldRegisterNavigation = false;
@@ -1646,34 +1650,28 @@ class TermPlanningWorkbench extends Page
                 } catch (ValidationException $exception) {
 
                     $message = collect($exception->errors())->flatten()->first();
+                    $plain = TimetableFailureLanguage::forBlockedGeneration(is_string($message) ? $message : '');
 
-                    Notification::make()
-
-                        ->title('Timetable generation blocked')
-
-                        ->body(is_string($message) ? $message : 'Review the Schedule Requirement findings and try again.')
-
-                        ->danger()
-
-                        ->persistent()
-
-                        ->send();
+                    $this->generationFailure = [
+                        'title' => $plain['title'],
+                        'explanation' => $plain['explanation'],
+                        'nextStep' => $plain['nextStep'],
+                        'technical' => is_string($message) ? $message : 'Review the Schedule Requirement findings and try again.',
+                    ];
+                    $this->dispatch('open-modal', id: 'timetable-generation-failure');
 
                 } catch (Throwable $exception) {
 
                     report($exception);
+                    $plain = TimetableFailureLanguage::fallback();
 
-                    Notification::make()
-
-                        ->title('Timetable generation failed')
-
-                        ->body('TALA could not queue the timetable request. Try again or review the application log.')
-
-                        ->danger()
-
-                        ->persistent()
-
-                        ->send();
+                    $this->generationFailure = [
+                        'title' => $plain['title'],
+                        'explanation' => $plain['explanation'],
+                        'nextStep' => $plain['nextStep'],
+                        'technical' => $exception->getMessage(),
+                    ];
+                    $this->dispatch('open-modal', id: 'timetable-generation-failure');
 
                 }
 

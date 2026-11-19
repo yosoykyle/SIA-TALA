@@ -2,10 +2,8 @@
 
 namespace App\Filament\Clusters;
 
-use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Queries\Admissions\AdmissionQueueCounts;
 use BackedEnum;
-use Filament\Actions\Action;
 use Filament\Clusters\Cluster;
 use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
@@ -24,7 +22,7 @@ class Admissions extends Cluster
 
     /**
      * The Application queue tab pointed at the page it sits on, with nothing to switch to or from.
-     * Admission cycles is reachable from the dashboard and from page actions instead (#80).
+     * Admission cycles now has its own Academic setup sidebar entry instead of a sub-nav tab (#80).
      */
     protected static bool $shouldRegisterSubNavigation = false;
 
@@ -75,25 +73,6 @@ class Admissions extends Cluster
     public function getBreadcrumbs(): array
     {
         return ['Admissions'];
-    }
-
-    /**
-     * Admission cycles is setup/management, not an application queue, so it doesn't belong in the
-     * "Other queues" card list (it has no count and isn't a status of any application) — it lives
-     * here instead, alongside the page title (#80).
-     *
-     * @return array<Action>
-     */
-    protected function getHeaderActions(): array
-    {
-        return [
-            Action::make('manageAdmissionCycles')
-                ->label('Admission cycles')
-                ->icon('heroicon-o-calendar-date-range')
-                ->color('gray')
-                ->outlined()
-                ->url(fn (): string => AdmissionCycleResource::getUrl()),
-        ];
     }
 
     /** @return array<string, mixed> */

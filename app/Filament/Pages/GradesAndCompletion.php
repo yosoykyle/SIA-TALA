@@ -134,7 +134,7 @@ class GradesAndCompletion extends Page implements HasTable
     public function getTitle(): string
     {
         return match ($this->viewTab) {
-            'overview' => 'Grades & Completion',
+            'overview' => 'Students Record',
             'grade-review' => 'Class grades',
             'inc-corrections' => 'INC & corrections',
             default => static::tabs()[$this->viewTab],
@@ -154,7 +154,7 @@ class GradesAndCompletion extends Page implements HasTable
 
     public function getBreadcrumbs(): array
     {
-        return $this->viewTab === 'overview' ? [] : [self::getUrl() => 'Grades & Completion', $this->getTitle()];
+        return $this->viewTab === 'overview' ? [] : [self::getUrl() => 'Students Record', $this->getTitle()];
     }
 
     /** @return array<string, mixed> */

@@ -52,10 +52,11 @@ class ScheduleGenerationRunInfolist
         return $schema
             ->components([
                 Section::make('Validation & evidence')
+                    ->id('timetable-run-evidence')
                     ->collapsible()
                     ->collapsed(fn (ScheduleGenerationRun $record): bool => $record->isPublished() || $record->published_at !== null)
                     ->description('Recorded checks, source findings and request history. Review these alongside the meeting assignments.')
-                    ->extraAttributes(['class' => 'tala-run-evidence', 'id' => 'timetable-run-evidence'])
+                    ->extraAttributes(['class' => 'tala-run-evidence'])
                     ->schema([
                         Section::make('Publication Status')->contained(false)->columnSpanFull()
                             ->visible(fn (ScheduleGenerationRun $record): bool => $record->published_at !== null)

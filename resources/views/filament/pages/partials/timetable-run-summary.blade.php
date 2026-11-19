@@ -22,6 +22,9 @@
         <p class="tala-work-footnote">{{ $evidence['meaning'] }}</p>
         @if ($run->status === \App\Models\ScheduleGenerationRun::StatusBlocked)<p class="tala-run-blocker" role="status">{{ $run->finalSolverFailure()['message'] ?? data_get($run->diagnostics, 'solver_result.summary.message', 'Review the validation findings before requesting a new draft.') }}</p>@endif
         <p>{{ $nextStep }}</p>
-        <div class="tala-evidence-actions"><x-filament::button tag="a" href="#timetable-run-evidence" color="gray" icon="heroicon-o-clipboard-document-check">Review checks and findings</x-filament::button></div>
+        <div class="tala-evidence-actions">
+            <x-filament::button tag="a" color="primary" icon="heroicon-o-table-cells" :href="$this->termPlanningReturnUrl()">Return to Timetable</x-filament::button>
+            <x-filament::button tag="a" href="#timetable-run-evidence" color="gray" icon="heroicon-o-clipboard-document-check">Review checks and findings</x-filament::button>
+        </div>
     @endif
 </section>

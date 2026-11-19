@@ -34,7 +34,7 @@ class WorkspaceNavigationSearchTest extends TestCase
         ])->all();
 
         $this->assertSame([
-            'Learner work' => ['Admissions', 'Students & Enrollment', 'Grades & Completion'],
+            'Learner work' => ['Admissions', 'Students & Enrollment', 'Students Record'],
             'Academic setup' => ['Catalog & Curricula', 'Term Planning'],
         ], $groups);
         $this->assertSame('/admin/admissions', app(WorkspaceContextResolver::class)

@@ -331,10 +331,11 @@ class AdminPanelProvider extends PanelProvider
             return $builder->group('Learner work', [
                 ...$this->labeledNavigationItems(['Admissions' => Admissions::class]),
                 ...$this->labeledNavigationItems(['Students & Enrollment' => EnrollmentResource::class]),
-                ...$this->gradesWithChildren($this->labeledNavigationItems(['Grades & Completion' => GradesAndCompletion::class])),
+                ...$this->gradesWithChildren($this->labeledNavigationItems(['Students Record' => GradesAndCompletion::class])),
             ])->group('Academic setup', $this->planningWithChildren($this->labeledNavigationItems([
                 'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
                 'Term Planning' => TermPlanningCluster::class,
+                'Admission cycles' => AdmissionCycleResource::class,
             ]), $termPlanningContext));
         }
 
