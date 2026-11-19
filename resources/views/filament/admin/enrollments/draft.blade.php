@@ -21,6 +21,16 @@
             {{ $this->getAction('prepareProposal', isMounting: false) }}
         </div>
     </section>
+    @if ($placementCurrent && $requirement['state'] === 'Unavailable')
+        <x-workflow-handoff
+            current-owner="Accounting"
+            current-area="Record assessment"
+            current-task="Accounting records the approved charges and payment schedule for this selection."
+            next-owner="Student"
+            next-area="Confirm subjects"
+            next-task="Confirm subjects (auto-sent after assessment)."
+        />
+    @endif
     <div class="registrar-case-grid">
         <section aria-labelledby="draft-subjects-heading">
             <h2 id="draft-subjects-heading">Subjects</h2>

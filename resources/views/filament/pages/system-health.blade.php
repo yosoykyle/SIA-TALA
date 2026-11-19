@@ -1,9 +1,9 @@
 <x-filament-panels::page>
-    <div class="space-y-6">
+    <div class="space-y-4">
         @if ($captureNotice !== null)
             <div
                 @class([
-                    'rounded-xl border px-4 py-3 text-sm',
+                    'rounded-xl border p-4 text-sm',
                     'border-warning-300 bg-warning-50 text-warning-900 dark:border-warning-700 dark:bg-warning-950 dark:text-warning-100' => $captureStale,
                     'border-gray-200 bg-white text-gray-700 dark:border-white/10 dark:bg-gray-900 dark:text-gray-200' => ! $captureStale,
                 ])

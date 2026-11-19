@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\Courses\Schemas;
 
 use App\Models\Course;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Schemas\Components\Section;
+use App\Models\CourseSpecification;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 
 class CourseInfolist
@@ -12,17 +12,50 @@ class CourseInfolist
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Course Identity')
-                ->schema([
-                    TextEntry::make('code')->label('Subject Code'),
-                    TextEntry::make('state')
-                        ->badge()
-                        ->formatStateUsing(fn (?string $state): string => Course::stateOptions()[$state] ?? str((string) $state)->headline()->toString()),
-                    TextEntry::make('created_at')->dateTime()->placeholder('-'),
-                    TextEntry::make('updated_at')->dateTime()->placeholder('-'),
-                ])
-                ->columns(2)
+            View::make('filament.admin.catalog.course-detail')
+                ->viewData(function (Course $record, $livewire): array {
+                    $record->loadMissing(['specifications.components', 'specifications.requirements.relatedCourse']);
+                    $revisions = $record->specifications
+                        ->sortBy([
+                            fn (CourseSpecification $a, CourseSpecification $b): int => self::stateRank($a->state) <=> self::stateRank($b->state),
+                            fn (CourseSpecification $a, CourseSpecification $b): int => $b->id <=> $a->id,
+                        ])
+                        ->values();
+
+                    return [
+                        'course' => $record,
+                        'specification' => method_exists($livewire, 'selectedRevision') ? $livewire->selectedRevision() : self::primarySpecification($record),
+                        'revisions' => $revisions,
+                        'canManage' => auth()->user()?->can('update', $record) ?? false,
+                        'oversightTermId' => property_exists($livewire, 'oversightTermId') ? $livewire->oversightTermId : null,
+                    ];
+                })
                 ->columnSpanFull(),
         ]);
+    }
+
+    private static function stateRank(string $state): int
+    {
+        return match ($state) {
+            CourseSpecification::StateActive => 1,
+            CourseSpecification::StateDraft => 2,
+            default => 3,
+        };
+    }
+
+    private static function activeSpecification(Course $record): ?CourseSpecification
+    {
+        $record->loadMissing('specifications');
+
+        return $record->specifications
+            ->where('state', CourseSpecification::StateActive)
+            ->sortByDesc('id')
+            ->first();
+    }
+
+    private static function primarySpecification(Course $record): ?CourseSpecification
+    {
+        return self::activeSpecification($record)
+            ?? $record->specifications->sortByDesc('id')->first();
     }
 }

@@ -9,9 +9,11 @@
             @if ($proposal && $proposal->items->isNotEmpty())
                 <div class="head-enrollment-panel-heading"><h2 id="head-proposed-subjects">{{ match ($proposal->state) { \App\Models\RegistrationProposalVersion::StateDraft => 'Draft subjects', \App\Models\RegistrationProposalVersion::StateConfirmed => 'Confirmed proposed subjects', default => 'Proposed subjects' } }}</h2><dl class="head-enrollment-figures"><div><dt>Subjects</dt><dd>{{ $proposal->items->count() }}</dd></div><div><dt>Units</dt><dd>{{ (float) $proposal->items->sum('units_snapshot') }}</dd></div></dl></div>
                 <p class="head-enrollment-note">{{ $proposal->state === \App\Models\RegistrationProposalVersion::StateDraft ? 'Draft subjects recorded by Registrar.' : 'These subjects are proposed and are not official registrations.' }}</p>
-                <table class="head-enrollment-subject-table"><caption class="sr-only">Current proposed subjects, not official registrations</caption><thead><tr><th scope="col">Subject</th><th scope="col">Section</th><th scope="col">Units</th></tr></thead><tbody>
-                    @foreach ($proposal->items as $item)<tr><th scope="row">{{ $item->course_title_snapshot }}<small>{{ $item->course_code_snapshot }}</small></th><td data-label="Section">{{ $item->section?->code ?? 'Section unavailable' }}</td><td data-label="Units">{{ (float) $item->units_snapshot }}</td></tr>@endforeach
-                </tbody></table>
+                <div class="tala-data-table-scroll" role="region" aria-label="Current proposed subjects, not official registrations" tabindex="0">
+                    <table class="tala-data-table head-enrollment-subject-table"><caption class="sr-only">Current proposed subjects, not official registrations</caption><thead><tr><th scope="col">Subject</th><th scope="col">Section</th><th scope="col">Units</th></tr></thead><tbody>
+                        @foreach ($proposal->items as $item)<tr><th scope="row">{{ $item->course_title_snapshot }}<small>{{ $item->course_code_snapshot }}</small></th><td data-label="Section">{{ $item->section?->code ?? 'Section unavailable' }}</td><td data-label="Units">{{ (float) $item->units_snapshot }}</td></tr>@endforeach
+                    </tbody></table>
+                </div>
                 @foreach ($proposal->items->where('scheduling_treatment_snapshot', \App\Models\CourseSpecification::SchedulingExternallyArranged) as $item)<p class="head-enrollment-note">{{ $item->course_title_snapshot }} is externally arranged and has no recurring meeting.</p>@endforeach
             @else
                 <div class="head-enrollment-empty"><x-heroicon-o-document-text aria-hidden="true" /><h2 id="head-proposed-subjects">Subjects being prepared</h2><p>Registrar has not recorded a subject proposal for this enrollment.</p></div>

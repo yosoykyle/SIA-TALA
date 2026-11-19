@@ -19,7 +19,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
@@ -137,7 +136,7 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
         $this->assertSame(ScheduleGenerationRun::StatusPublished, $priorRun->fresh()->status);
         $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $newRun->fresh()->status);
         $this->assertSame(1, SectionMeeting::query()->count());
-        $this->assertTrue($binding->fresh()->is_active);
+        $this->assertTrue($binding->fresh()->is_current);
         $this->assertSame('10:00:00', $candidate->fresh()->starts_at);
         $this->assertSame(0, DB::table('activity_log')
             ->where('event', 'schedule_generation_run_published')
@@ -403,7 +402,7 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
         Term $term,
         TermOffering $offering,
         SectionMeeting $meeting,
-    ): StudentScheduleBinding {
+    ): CourseEnrollment {
         $studentProfile = StudentProfile::factory()->create();
         $enrollment = Enrollment::factory()
             ->for($studentProfile)
@@ -413,7 +412,8 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
                 'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
                 'status' => 'officially_enrolled',
             ]);
-        $courseEnrollment = CourseEnrollment::query()->create([
+
+        return CourseEnrollment::query()->create([
             'enrollment_id' => $enrollment->id,
             'term_offering_id' => $offering->id,
             'section_id' => $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id,
@@ -421,14 +421,6 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
             'status' => CourseEnrollment::StatusActive,
             'units_snapshot' => '3.00',
             'added_at' => now(),
-        ]);
-
-        return StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $courseEnrollment->id,
-            'section_meeting_id' => $meeting->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
         ]);
     }
 

@@ -18,6 +18,7 @@ use App\Actions\Enrollment\RecordRegistrationAdjustmentFinanceConfirmation;
 use App\Actions\Enrollment\RecordRegistrationCreditEvaluation;
 use App\Actions\Enrollment\RecordRegistrationLateAuthority;
 use App\Actions\Enrollment\RecordRegistrationSourceImpactReview;
+use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationPlacementValidator;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
@@ -50,10 +51,12 @@ use App\Models\Assessment;
 use App\Models\AssessmentObligation;
 use App\Models\CourseDropRecord;
 use App\Models\CourseEnrollment;
+use App\Models\CourseRequirement;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
+use App\Models\EnrollmentSeatReservation;
 use App\Models\FeePlan;
 use App\Models\FinanceExport;
 use App\Models\OperationalEvent;
@@ -68,6 +71,7 @@ use App\Models\RegistrationLateAuthority;
 use App\Models\RegistrationProposalItem;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
+use App\Models\StudentProfile;
 use App\Models\TermOffering;
 use App\Models\TimetableRevision;
 use App\Models\TranscriptRequest;
@@ -416,6 +420,8 @@ class ViewEnrollment extends ViewRecord
         return Action::make('recordLifecycleReview')->label('Record review result')->icon('heroicon-o-pencil-square')
             ->visible(fn (): bool => $this->isAccountingActor())
             ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalHeading(fn (): string => ($this->reviewedLifecycleChange['current_result_id'] ?? null) !== null ? 'Correct review result' : 'Record review result')
             ->modalSubmitActionLabel('Record review result')->modalCancelActionLabel(fn (): string => ($this->reviewedLifecycleChange['current_result_id'] ?? null) !== null ? 'Keep current review' : 'Cancel')
             ->mountUsing(function (Schema $schema, array $arguments): void {
@@ -874,6 +880,8 @@ class ViewEnrollment extends ViewRecord
             })
             ->modalHeading('Match earlier payments to current schedule')
             ->modalDescription('Choose which current payment due date each earlier payment or coverage should apply toward. Original records stay in account history.')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
             ->stickyModalFooter()
             ->modalSubmitActionLabel('Record mapping')->modalCancelActionLabel('Keep for review')
             ->modalSubmitAction(fn (Action $action): Action|false => ($this->reviewedReconciliation['sources'] ?? []) !== [] ? $action : false)
@@ -926,6 +934,28 @@ class ViewEnrollment extends ViewRecord
         return ['identity' => $this->correctionIdentity(), 'lead' => $lead, 'facts' => $facts, 'unavailable' => $unavailable];
     }
 
+    /** @return array{identity:string, lead:?string, facts:array<string,string>, unavailable:?string} */
+    private function individualAssessmentModalContext(): array
+    {
+        $case = $this->getRecord();
+        $proposal = $case->currentProposalVersion;
+        $items = $proposal?->items ?? collect();
+        $itemCount = $items->count();
+        $units = (float) $items->sum('units_snapshot');
+        $subjects = $items->isNotEmpty()
+            ? $items->map(fn ($item): string => collect([$item->course_code_snapshot, $item->course_title_snapshot, $item->section?->code])->filter()->implode(' · '))->implode('; ')
+            : 'No current subjects';
+
+        return $this->correctionContext(
+            facts: [
+                'Selection' => $case->selection_basis === Enrollment::SelectionIndividuallyAdvised ? 'Individually Advised' : 'Special Term / Exception',
+                'Selected load' => $proposal !== null ? $itemCount.' '.Str::plural('subject', $itemCount).' · '.$units.' '.Str::plural('unit', $units) : 'No current proposal',
+                'Subjects' => $subjects,
+            ],
+            lead: 'Review the selected subject load below before entering the school-approved charges and payment dates.',
+        );
+    }
+
     private function money(mixed $amount): string
     {
         return AccountingDisplay::money($amount);
@@ -946,7 +976,7 @@ class ViewEnrollment extends ViewRecord
             'context_fingerprint' => $this->reconciliationAssessmentFingerprint($assessment),
             'sources' => collect($sources)->mapWithKeys(fn (array $source): array => [$source['id'] => [
                 'fingerprint' => $this->retainedSourceFingerprint($source),
-                'line' => 'Earlier assessment v'.$earlier->get($source['id'])?->assessment?->version.' · '.$source['label']
+                'line' => 'Earlier assessment · '.$source['label']
                     .' · payment '.$this->money($source['payment'] / 100).' · coverage '.$this->money($source['committed_coverage'] / 100),
             ]])->all(),
         ];
@@ -1050,6 +1080,8 @@ class ViewEnrollment extends ViewRecord
             ->modalDescription('This makes the subjects official and issues the Certificate of Registration. Student access is enabled for a first enrollment. Current requirements are checked again when you finalize.')
             ->modalSubmitActionLabel('Finalize enrollment')
             ->modalWidth(Width::ThreeExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
             ->modalContent(fn () => view('filament.admin.enrollments.finalization-context', ['case' => $this->getRecord()]))
             ->fillForm(fn (): array => ['reviewed_proposal_id' => $this->getRecord()->current_proposal_version_id])
@@ -1140,6 +1172,7 @@ class ViewEnrollment extends ViewRecord
                 && $this->getRecord()->canonical_outcome === Enrollment::OutcomeInProgress
                 && $this->getRecord()->admissionApplication?->application_path === AdmissionApplication::PathTransferee)
             ->modalHeading('Record transfer credit evaluation')->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()->stickyModalFooter()
             ->modalDescription('Record the school’s approved result. This does not approve new credits.')
             ->modalSubmitActionLabel('Save evaluation')->modalCancelActionLabel('Cancel')
             ->fillForm(function (): array {
@@ -1163,7 +1196,7 @@ class ViewEnrollment extends ViewRecord
                         ->mapWithKeys(fn (CurriculumEntry $entry): array => [$entry->id => $entry->courseSpecification->course->code.' · '.$entry->courseSpecification->title])->all())
                     ->visible(fn (Get $get): bool => $get('result') === 'credits')->required(fn (Get $get): bool => $get('result') === 'credits')
                     ->helperText('Only these requirements count as credited.'),
-                Grid::make(2)->schema([TextInput::make('authority_reference')->label('Approval reference')->required()->maxLength(255),
+                Grid::make(2)->schema([TextInput::make('authority_reference')->label('Approval memo or reference')->placeholder('e.g., Memo 2026-014 or approving office')->required()->maxLength(255),
                     DatePicker::make('approved_on')->label('Approval date')->required()->maxDate(today())]),
                 Text::make('Recorded by you automatically. Earlier evaluations remain in history. Replacing an evaluation requires a fresh subject proposal.'),
             ])->action(function (array $data): void {
@@ -1192,6 +1225,8 @@ class ViewEnrollment extends ViewRecord
                 : 'Saving a changed selection replaces these subjects and releases their temporary class places. Charges must be checked and the student must confirm again.'))
             ->modalSubmitActionLabel('Save subjects')
             ->modalWidth(Width::FourExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal registrar-subject-selection-modal'])
             ->authorize(fn (): bool => $this->actor()->can('confirmPlacement', $this->getRecord()))
             ->visible(fn (): bool => $this->getRecord()->canonical_outcome === Enrollment::OutcomeInProgress
@@ -1222,15 +1257,28 @@ class ViewEnrollment extends ViewRecord
             ])
             ->action(function (array $data): void {
                 try {
-                    app(PrepareRegistrationProposal::class)->execute(
+                    $proposal = app(PrepareRegistrationProposal::class)->execute(
                         $this->getRecord(),
                         $this->actor(),
                         array_map('intval', $data['section_ids']),
                         (int) $data['case_version'],
                         curriculumPosition: $data['curriculum_position'] ?? null,
                     );
-                    $this->record = $this->getRecord()->refresh();
-                    Notification::make()->title('Subjects saved for review')->success()->send();
+                    try {
+                        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $this->actor());
+                        $this->record = $this->getRecord()->refresh();
+                        Notification::make()->title('Subjects saved and seats reserved')->success()->send();
+                    } catch (ValidationException|CalendarGateViolation $reservationException) {
+                        $this->record = $this->getRecord()->refresh();
+                        $reason = $reservationException instanceof ValidationException
+                            ? collect($reservationException->errors())->flatten()->first()
+                            : $reservationException->getMessage();
+                        Notification::make()
+                            ->title('Subjects saved for review')
+                            ->body($reason ?: 'Seats could not be reserved yet. Review the subjects and reserve seats when ready.')
+                            ->warning()
+                            ->send();
+                    }
                     $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Subjects were not saved', $exception);
@@ -1246,19 +1294,23 @@ class ViewEnrollment extends ViewRecord
             ->modalHeading('Record overload approval')
             ->modalDescription('Record the school’s existing approval for these subjects. This does not grant approval.')
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
             ->modalSubmitActionLabel('Record approval')->modalCancelActionLabel('Keep under review')
             ->fillForm(fn (): array => ['proposal_id' => $this->getRecord()->current_proposal_version_id, 'reviewed_source' => $this->overloadFingerprint()])
             ->modalContent(fn () => view('filament.admin.enrollments.review-source-context', ['review' => $this->registrarReviewData()]))
             ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleRegistrar))
             ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleRegistrar)
+                && $this->getRecord()->studentProfile?->academic_standing === StudentProfile::StandingGraduationCandidate
                 && $this->getRecord()->currentProposalVersion?->state === RegistrationProposalVersion::StateDraft
                 && data_get($this->getRecord()->currentProposalVersion->source_snapshot, 'unit_load.requires_graduating_overload') === true)
             ->schema([
                 Hidden::make('proposal_id')->required(),
                 Hidden::make('reviewed_source')->required(),
                 TextInput::make('authority_reference')
-                    ->label('School approval reference')
+                    ->label('Approval memo or reference')
+                    ->placeholder('e.g., Memo 2026-014 or approving office')
                     ->required()
                     ->maxLength(255),
                 DatePicker::make('authority_date')
@@ -1326,6 +1378,8 @@ class ViewEnrollment extends ViewRecord
             ->modalDescription('Record only confirmation the student has already given for these reviewed subjects. This records their consent; enrollment becomes official only after Registrar finalization.')
             ->modalSubmitActionLabel('Record confirmation')
             ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
             ->visible(fn (): bool => $this->getRecord()->currentProposalVersion?->state === RegistrationProposalVersion::StateIssued
                 && $this->actor()->can('confirmPlacement', $this->getRecord()))
@@ -1384,14 +1438,16 @@ class ViewEnrollment extends ViewRecord
     public function createAssessmentAction(): Action
     {
         return Action::make('createAssessment')
-            ->label('Use Fee Plan')
+            ->label('Apply standard fee plan')
             ->icon('heroicon-o-document-currency-dollar')
             ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
                 && $this->hasCurrentReservedProposal() && $this->applicablePublishedFeePlan() !== null)
             ->authorize(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting))
-            ->modalHeading('Use published Fee Plan')
+            ->modalHeading('Apply standard fee plan')
             ->modalDescription('Check the approved charges and payment dates before recording this assessment.')
-            ->modalWidth(Width::ThreeExtraLarge)
+            ->modalWidth(Width::FourExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
             ->modalSubmitActionLabel('Record assessment')
             ->fillForm(fn (): array => [
@@ -1437,11 +1493,11 @@ class ViewEnrollment extends ViewRecord
         ];
 
         return Action::make('recordIndividualAssessment')
-            ->label('Record individual assessment')
+            ->label('Enter custom assessment')
             ->icon('heroicon-o-document-currency-dollar')
-            ->modalHeading('Record individual assessment')
-            ->modalDescription('Record school-approved fixed charges and payment dates for this assessment.')
-            ->modalWidth(Width::SevenExtraLarge)
+            ->modalHeading('Custom assessment')
+            ->modalDescription('Enter school-approved custom charges and payment dates for this student.')
+            ->modalWidth(Width::FiveExtraLarge)
             ->stickyModalHeader()
             ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal accounting-assessment-modal'])
@@ -1460,15 +1516,55 @@ class ViewEnrollment extends ViewRecord
                 Hidden::make('reviewed_proposal_id')->required(),
                 Hidden::make('reviewed_drop_id'),
                 SchemaView::make('filament.admin.enrollments.accounting-correction-context')
-                    ->viewData(fn (): array => $this->correctionContext())
+                    ->viewData(fn (): array => $this->individualAssessmentModalContext())
                     ->columnSpanFull(),
                 ...$categoryFields,
                 SchemaSection::make('Charges')
                     ->description('Add each approved charge and its amount for this assessment.')
+                    ->afterHeader([
+                        Action::make('loadFromPublishedFeePlan')
+                            ->label('Copy from standard fee plan')
+                            ->icon('heroicon-o-arrow-down-on-square')
+                            ->color('gray')
+                            ->visible(fn (): bool => $this->applicablePublishedFeePlan() !== null)
+                            ->action(function (Set $set): void {
+                                $plan = $this->applicablePublishedFeePlan();
+                                if ($plan === null) {
+                                    return;
+                                }
+
+                                $charges = $plan->charges
+                                    ->map(fn ($charge): array => [
+                                        'label' => $charge->label,
+                                        'amount' => (string) $charge->amount,
+                                    ])
+                                    ->values()
+                                    ->all();
+
+                                if ($charges !== []) {
+                                    $set('charges', $charges);
+                                }
+
+                                $obligations = $plan->obligations->sortBy('sequence')->values();
+                                if ($obligations->isNotEmpty()) {
+                                    $first = $obligations->first();
+                                    $set('enrollment_payment', [
+                                        'amount' => (string) $first->amount,
+                                        'due_at' => $first->due_at?->timezone(config('app.display_timezone'))->format('Y-m-d H:i:s'),
+                                    ]);
+                                    $set('later_payments', $obligations->slice(1)->values()->map(fn ($obligation): array => [
+                                        'amount' => (string) $obligation->amount,
+                                        'due_at' => $obligation->due_at?->timezone(config('app.display_timezone'))->format('Y-m-d H:i:s'),
+                                    ])->all());
+                                }
+                            }),
+                    ])
                     ->contained(false)
                     ->extraAttributes(['class' => 'accounting-finance-form-section'])
                     ->schema([
                         Repeater::make('charges')->label('Charges')->hiddenLabel()->addActionLabel('Add charge')->reorderable(false)
+                            ->itemLabel(fn (array $state): string => filled($state['label'] ?? null) ? (string) $state['label'] : 'Charge')
+                            ->deletable(fn (?array $state): bool => count($state ?? []) > 1)
                             ->schema([
                                 TextInput::make('label')->label('Charge name')->required()->maxLength(255),
                                 TextInput::make('amount')->label('Amount')->numeric()->minValue(0)->prefix('PHP')->required()->live(onBlur: true),
@@ -1476,6 +1572,19 @@ class ViewEnrollment extends ViewRecord
                     ])->columnSpanFull(),
                 SchemaSection::make(fn (Get $get): string => $get('category') === Assessment::CategoryAuthorizedAdjustment ? 'Payment dates for this change' : 'Payment dates')
                     ->description('Set the amount and due date for each payment. Dates use '.config('app.display_timezone').'.')
+                    ->afterHeader([
+                        Action::make('matchEnrollmentPaymentToCharges')
+                            ->label('Match enrollment payment to total charges')
+                            ->icon('heroicon-o-calculator')
+                            ->color('gray')
+                            ->visible(fn (Get $get): bool => empty($get('later_payments')))
+                            ->action(function (Get $get, Set $set): void {
+                                $totals = $this->assessmentDraftTotals($get('charges') ?? [], $get('enrollment_payment') ?? [], []);
+                                if ($totals['chargeTotal'] !== null) {
+                                    $set('enrollment_payment.amount', number_format($totals['chargeTotal'] / 100, 2, '.', ''));
+                                }
+                            }),
+                    ])
                     ->contained(false)
                     ->extraAttributes(['class' => 'accounting-finance-form-section'])
                     ->schema([
@@ -1490,11 +1599,11 @@ class ViewEnrollment extends ViewRecord
                             ->visible(fn (Get $get): bool => filled($get('enrollment_payment.amount')) && (float) $get('enrollment_payment.amount') === 0.0)
                             ->maxLength(255),
                         Repeater::make('later_payments')->hiddenLabel()->addActionLabel('Add later payment')->defaultItems(0)->reorderable(false)
+                            ->itemLabel('Later payment')
                             ->schema([
-                                Text::make('Later payment')->weight('medium'),
                                 TextInput::make('amount')->label('Amount')->numeric()->minValue(0)->prefix('PHP')->required()->live(onBlur: true),
                                 DateTimePicker::make('due_at')->label('Due date and time')->timezone(config('app.display_timezone'))->helperText(config('app.display_timezone'))->required()->seconds(false),
-                            ])->columns(['default' => 1, 'md' => 3]),
+                            ])->columns(['default' => 1, 'md' => 2]),
                     ])->columnSpanFull(),
                 SchemaSection::make('School approval')
                     ->description('Provide the school approval details for this assessment.')
@@ -1502,7 +1611,7 @@ class ViewEnrollment extends ViewRecord
                     ->extraAttributes(['class' => 'accounting-finance-form-section'])
                     ->schema([
                         Grid::make(['default' => 1, 'md' => 2])->schema([
-                            TextInput::make('authority_reference')->label('Approval reference')->required()->maxLength(255),
+                            TextInput::make('authority_reference')->label('Approval memo or reference')->placeholder('e.g., Memo 2026-014 or approving office')->required()->maxLength(255),
                             DatePicker::make('authority_date')->label('Approval date')->required(),
                         ]),
                     ])->columnSpanFull(),
@@ -1552,7 +1661,9 @@ class ViewEnrollment extends ViewRecord
             ->modalHeading('Record approved coverage')
             ->modalDescription('Record the approved scholarship, sponsorship or subsidy against a named fee.')
             ->modalSubmitActionLabel('Record coverage')
-            ->modalWidth(Width::ThreeExtraLarge)
+            ->modalWidth(Width::FourExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
             ->authorize(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting))
             ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
@@ -1598,7 +1709,7 @@ class ViewEnrollment extends ViewRecord
                 ]),
                 TextInput::make('safe_source_description')->label('Funding source')->required()->maxLength(255),
                 Grid::make(['md' => 2])->schema([
-                    TextInput::make('authority_reference')->label('Approval reference')->required()->maxLength(255),
+                    TextInput::make('authority_reference')->label('Approval memo or reference')->placeholder('e.g., Voucher 2026-014 or approving office')->required()->maxLength(255),
                     DatePicker::make('authority_date')->label('Approval date')->required(),
                 ]),
                 DatePicker::make('effective_date')->label('Effective from')->helperText('Coverage reduces the balance from this date.')->required(),
@@ -1646,6 +1757,9 @@ class ViewEnrollment extends ViewRecord
             ->modalDescription('Recording creates a verified payment and applies it to the targets below.')
             ->modalSubmitActionLabel('Record verified payment')
             ->modalCancelActionLabel('Keep under review')
+            ->modalWidth(Width::FourExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->icon('heroicon-o-check-circle')
             ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
                 && $this->selectedPaymentProof() !== null)
@@ -1654,12 +1768,14 @@ class ViewEnrollment extends ViewRecord
             ->schema([
                 $this->selectedProofField(),
                 SchemaView::make('filament.admin.enrollments.payment-proof-context')->viewData(fn (): array => $this->paymentProofViewData()),
-                TextInput::make('actual_verified_amount')->label('Verified amount')->numeric()->minValue(0.01)->prefix('PHP')->required()->live(onBlur: true)
-                    ->helperText('Enter the amount confirmed by the independent source.'),
+                Grid::make(['default' => 1, 'md' => 2])->schema([
+                    TextInput::make('actual_verified_amount')->label('Verified amount')->numeric()->minValue(0.01)->prefix('PHP')->required()->live(onBlur: true)
+                        ->helperText('Enter the amount confirmed by the independent source.'),
+                    TextInput::make('or_number')->label('Official Receipt (OR) number (optional)')->maxLength(100)
+                        ->helperText('Optional. Enter the Official Receipt number now, or map it later from payment history.'),
+                ]),
                 TextInput::make('external_check_reference')->label('Bank or collecting-office verification reference')->required()->maxLength(255)
                     ->helperText('Enter the bank transaction number, deposit reference, or collecting-office confirmation note used to verify this payment.'),
-                TextInput::make('or_number')->label('Official Receipt (OR) number (optional)')->maxLength(100)
-                    ->helperText('Optional. Enter the Official Receipt number now, or map it later from payment history.'),
                 SchemaView::make('filament.admin.enrollments.payment-proof-allocation')
                     ->viewData(fn (Get $get): array => $this->paymentProofViewData($get('actual_verified_amount'))),
             ])
@@ -1698,6 +1814,8 @@ class ViewEnrollment extends ViewRecord
             ->modalDescription('Record a walk-in cash, e-wallet, or bank transfer payment collected by Accounting and apply it directly to this account.')
             ->modalSubmitActionLabel('Record payment')
             ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->isAccountingActor())
             ->visible(fn (): bool => $this->canRecordOnsitePayment())
             ->fillForm(function (): array {
@@ -1836,6 +1954,8 @@ class ViewEnrollment extends ViewRecord
             ->modalDescription('Assign the physical Official Receipt (OR) number to this verified payment.')
             ->modalSubmitActionLabel('Save OR number')
             ->modalWidth(Width::Medium)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->authorize(function (array $arguments): bool {
                 $payment = $this->paymentForOfficialReceiptMapping($arguments);
 
@@ -1934,6 +2054,8 @@ class ViewEnrollment extends ViewRecord
             ->visible(fn (): bool => $this->isAccountingActor() && $this->appliedCoverages()->isNotEmpty())
             ->modalHeading('Reverse approved coverage')
             ->modalDescription('Corrects this term account. It does not refund money or contact a provider.')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
             ->stickyModalFooter()
             ->modalSubmitActionLabel('Reverse coverage')->modalCancelActionLabel('Keep coverage')
             ->modalSubmitAction(fn (Action $action): Action|false => $this->reviewedCoverage !== [] ? $action : false)
@@ -1947,8 +2069,8 @@ class ViewEnrollment extends ViewRecord
                     ->options(fn (): array => $this->coverageChoices())->visible(fn (): bool => count($this->reviewedCoverage) > 1),
                 SchemaView::make('filament.admin.enrollments.accounting-correction-context')
                     ->viewData(fn (Get $get): array => $this->coverageContext($get('coverage_id'))),
-                TextInput::make('authority_reference')->label('Reversal approval reference')->required()->maxLength(255)
-                    ->helperText('The external approval for this correction, not the original coverage reference.'),
+                TextInput::make('authority_reference')->label('Approval memo or reference')->placeholder('e.g., Correction Memo 2026-019 or approving office')->required()->maxLength(255)
+                    ->helperText('The approval for this reversal, not the original coverage reference.'),
                 Textarea::make('safe_reason')->label('Reason')->required()->maxLength(1000)
                     ->helperText('Use an explanation that is safe for the student to read. Leave out private eligibility details.'),
                 Text::make('The coverage becomes Reversed, the original record stays in history, and the account is recalculated. No refund or provider request is made, and enrollment is not revoked.')->color('neutral'),
@@ -1975,6 +2097,8 @@ class ViewEnrollment extends ViewRecord
             ->visible(fn (): bool => $this->isAccountingActor() && $this->reversiblePayments()->isNotEmpty())
             ->modalHeading('Record refund reversal')
             ->modalDescription('Record an externally completed refund against this verified payment. This action does not send money or contact a provider.')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
             ->stickyModalFooter()
             ->modalSubmitActionLabel('Record refund reversal')->modalCancelActionLabel('Keep payment unchanged')
             ->modalSubmitAction(fn (Action $action): Action|false => $this->reviewedPayments !== [] ? $action : false)
@@ -1988,7 +2112,7 @@ class ViewEnrollment extends ViewRecord
                     ->options(fn (): array => $this->paymentChoices())->visible(fn (): bool => count($this->reviewedPayments) > 1),
                 SchemaView::make('filament.admin.enrollments.accounting-correction-context')
                     ->viewData(fn (Get $get): array => $this->paymentContext($get('payment_id'))),
-                TextInput::make('authority_reference')->label('Refund approval reference')->required()->maxLength(255),
+                TextInput::make('authority_reference')->label('Approval memo or reference')->placeholder('e.g., Refund Voucher 2026-022 or approving office')->required()->maxLength(255),
                 Textarea::make('safe_reason')->label('Reason')->required()->maxLength(1000)
                     ->helperText('Use a student-safe explanation of this correction.'),
                 TextInput::make('external_refund_reference')->label('Completed external refund reference')->required()->maxLength(255),
@@ -2285,6 +2409,9 @@ class ViewEnrollment extends ViewRecord
             ->modalDescription('The receipt and reason stay in account history. The student can submit a corrected receipt.')
             ->modalSubmitActionLabel('Reject receipt')
             ->modalCancelActionLabel('Keep under review')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->icon('heroicon-o-x-circle')
             ->color('danger')
             ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
@@ -2319,6 +2446,8 @@ class ViewEnrollment extends ViewRecord
             ->modalHeading('Record review outcome')->modalSubmitActionLabel('Record outcome')->modalCancelActionLabel('Keep under review')
             ->modalDescription('Record this source review only. It changes no academic result, registration or published timetable; any required correction is performed in its owning task.')
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->fillForm(function (): array {
                 $ids = array_keys($this->openImpactReviewOptions());
                 $id = $ids[0] ?? null;
@@ -2398,8 +2527,8 @@ class ViewEnrollment extends ViewRecord
                 && $this->pendingAdjustment() !== null
                 && $this->pendingAdjustment()->state === RegistrationProposalVersion::StateConfirmed
                 && $this->adjustmentFinanceBases() !== [])
-            ->modalHeading('Apply the confirmed change')->modalSubmitActionLabel('Apply change')->modalCancelActionLabel('Keep current registration')->stickyModalFooter()
-            ->modalDescription('This applies the confirmed change and issues an updated certificate. Earlier registration and certificate versions remain in history.')
+            ->modalHeading('Apply the confirmed change')->modalSubmitActionLabel('Apply change')->modalCancelActionLabel('Keep current registration')->modalWidth(Width::TwoExtraLarge)->stickyModalHeader()->stickyModalFooter()
+            ->modalDescription('This applies the confirmed change and issues an updated certificate. Earlier registration and certificate records remain in history.')
             ->fillForm(function (): array {
                 $options = $this->adjustmentLateAuthorities();
                 $this->reviewedRegistrationLateAuthorities = $this->adjustmentWindowOpen()
@@ -2767,7 +2896,7 @@ class ViewEnrollment extends ViewRecord
         if ($assessment !== null && $assessment->id !== $this->getRecord()->currentCorVersion?->assessment_id
             && $assessment->source_proposal_version_id === $proposal->id
             && app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($this->getRecord())['state'] === 'Cleared') {
-            $options['assessment:'.$assessment->id] = 'Cleared successor assessment - '.$assessment->authority_reference;
+            $options['assessment:'.$assessment->id] = 'Cleared updated assessment'.(filled($assessment->authority_reference) ? ' - '.$assessment->authority_reference : '');
         }
 
         return $options;
@@ -2822,6 +2951,9 @@ class ViewEnrollment extends ViewRecord
             ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleRegistrar))
             ->visible(fn (): bool => $this->getRecord()->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled && $this->getRecord()->currentCorVersion !== null && $this->actor()->hasRole(User::StaffRoleRegistrar))
             ->modalHeading(fn (array $arguments): string => ($arguments['change_type'] ?? 'Add') === 'Replace' ? 'Change class' : 'Add a subject')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalDescription('Prepare one change for learner confirmation. Current official registration and the certificate stay unchanged. A revised selection needs a new confirmation.')
             ->modalSubmitActionLabel('Prepare change')->modalCancelActionLabel('Keep current registration')
             ->modalSubmitAction(function (Action $action): Action|bool {
@@ -2955,6 +3087,8 @@ class ViewEnrollment extends ViewRecord
             ->requiresConfirmation()
             ->modalIcon('heroicon-o-check-circle')
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalDescription('Confirm that this learner-approved change requires no additional payment. Registrar applies the change separately.')
             ->modalSubmitActionLabel('Confirm no additional cost')->modalCancelActionLabel('Keep for review')
             ->fillForm(function (): array {
@@ -3041,7 +3175,7 @@ class ViewEnrollment extends ViewRecord
             ->visible(fn (): bool => $this->getRecord()->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled && $this->getRecord()->currentCorVersion !== null && $this->actor()->hasRole(User::StaffRoleRegistrar))
             ->modalHeading(fn (): string => $this->courseDropWindowOpen() ? 'Record the approved Course Drop' : 'Record a late Course Drop')
             ->modalDescription('Remove one selected subject from current registration and issue an updated certificate. Earlier registration remains in history. Accounting review follows; no refund is decided or recorded here.')
-            ->modalSubmitActionLabel('Record Course Drop')->modalCancelActionLabel('Keep current registration')->stickyModalFooter()
+            ->modalSubmitActionLabel('Record Course Drop')->modalCancelActionLabel('Keep current registration')->modalWidth(Width::TwoExtraLarge)->stickyModalHeader()->stickyModalFooter()
             ->fillForm(function (array $arguments): array {
                 $courseId = filled($arguments['course_enrollment_id'] ?? null) ? (int) $arguments['course_enrollment_id'] : null;
                 $options = $this->dropLateAuthorities($courseId);
@@ -3154,7 +3288,7 @@ class ViewEnrollment extends ViewRecord
                         }
                         app(RecordCourseDrop::class)->execute($case, $course, $this->actor(), $data['reason'], $late?->authority_reference ?? '', $late);
                     });
-                    Notification::make()->title('Course Drop recorded')->body('Accounting review is now required; earlier registration and certificate versions remain in history.')->success()->send();
+                    Notification::make()->title('Course Drop recorded')->body('Accounting review is now required; earlier registration and certificate records remain in history.')->success()->send();
                     $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Course Drop was not recorded', $exception);
@@ -3192,6 +3326,8 @@ class ViewEnrollment extends ViewRecord
             ->modalHeading('Cancel enrollment?')
             ->modalAlignment(Alignment::Start)
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
             ->modalDescription('Release the temporary class places and stop this enrollment. Existing payments and history remain recorded. Cancellation does not issue a refund.')
             ->modalContent(fn () => view('filament.admin.enrollments.recovery-context', ['case' => $this->getRecord()]))
@@ -3230,7 +3366,7 @@ class ViewEnrollment extends ViewRecord
                 && $this->getRecord()->currentCorVersion !== null
                 && $this->actor()->hasRole(User::StaffRoleRegistrar)
                 && $this->lateActionContext($arguments) !== [])
-            ->modalHeading('Record late approval')->modalSubmitActionLabel('Record approval')->modalCancelActionLabel('Keep current registration')->stickyModalFooter()
+            ->modalHeading('Record late approval')->modalSubmitActionLabel('Record approval')->modalCancelActionLabel('Keep current registration')->stickyModalHeader()->stickyModalFooter()
             ->modalWidth(Width::Large)->modalAlignment(Alignment::Start)
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
             ->modalDescription('Record the school’s approval; apply the change separately.')
@@ -3258,7 +3394,7 @@ class ViewEnrollment extends ViewRecord
                     ]),
                     TextInput::make('approving_office')->label('Approving office')->required()->maxLength(120),
                     Grid::make(2)->schema([
-                        TextInput::make('authority_reference')->label('School approval reference')->required()->maxLength(255),
+                        TextInput::make('authority_reference')->label('Approval memo or reference')->placeholder('e.g., Memo 2026-014 or approving office')->required()->maxLength(255),
                         DatePicker::make('authority_date')->label('Approval date')->required()->maxDate(now()),
                     ]),
                     TextInput::make('learner_acknowledgement_basis')->label('Student acknowledgement')
@@ -3348,6 +3484,7 @@ class ViewEnrollment extends ViewRecord
             ->modalContent(fn () => view('filament.admin.enrollments.recovery-context', ['case' => $this->getRecord(), 'reopening' => true]))
             ->modalSubmitActionLabel('Reopen enrollment')
             ->modalCancelActionLabel('Keep current record')
+            ->stickyModalHeader()
             ->stickyModalFooter()
             ->visible(fn (): bool => in_array($this->getRecord()->canonical_outcome, Enrollment::reopenableOutcomes(), true)
                 && $this->actor()->can('confirmPlacement', $this->getRecord()))
@@ -3433,6 +3570,8 @@ class ViewEnrollment extends ViewRecord
             ->modalHeading('Record late-enrollment approval')
             ->modalAlignment(Alignment::Start)
             ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
             ->modalContent(fn () => view('filament.admin.enrollments.recovery-context', ['case' => $this->getRecord()]))
             ->modalSubmitActionLabel('Record and continue')
@@ -3446,7 +3585,7 @@ class ViewEnrollment extends ViewRecord
                 && $this->actor()->can('confirmPlacement', $this->getRecord()) && $this->reopenRequiresLateAuthority())
             ->schema([
                 Hidden::make('reviewed_lock_version')->required(),
-                TextInput::make('authority_reference')->label('Approval reference')->required()->maxLength(255),
+                TextInput::make('authority_reference')->label('Approval memo or reference')->placeholder('e.g., Memo 2026-014 or approving office')->required()->maxLength(255),
             ])
             ->modalDescription('Record the actual approval received for this student, case and Term. This does not reopen enrollment.')
             ->action(function (array $data): void {
@@ -3493,16 +3632,55 @@ class ViewEnrollment extends ViewRecord
     /** @return array<int, string> */
     private function sectionOptions(): array
     {
-        return $this->classChoices()['sections']->mapWithKeys(fn (Section $section): array => [
-            $section->id => collect([
-                $section->termOffering?->courseSpecification()?->title,
-                $section->termOffering?->course()?->code,
-                $section->code,
-            ])->filter()->implode(' · '),
-        ])->all();
+        $choices = $this->classChoices();
+        $satisfiedCourseIds = $choices['satisfiedCourseIds'];
+
+        return $choices['sections']->mapWithKeys(function (Section $section) use ($satisfiedCourseIds): array {
+            $entry = $section->termOffering?->curriculumEntry;
+            $positionLabel = $entry !== null
+                ? collect([
+                    is_numeric($entry->year_level) ? 'Year '.$entry->year_level : $entry->year_level,
+                    $entry->term_label,
+                ])->filter()->implode(', ')
+                : null;
+            $specification = $section->termOffering?->courseSpecification();
+            $courseId = (int) ($specification?->course_id ?? 0);
+            $prereqCourseIds = $specification?->requirements
+                ?->where('rule_type', CourseRequirement::TypePrerequisite)
+                ->where('state', CourseRequirement::StateActive)
+                ->pluck('related_course_id')
+                ->filter()
+                ->map(fn (mixed $id): int => (int) $id)
+                ->values() ?? collect();
+
+            $statusCue = null;
+            if ($courseId > 0 && $satisfiedCourseIds->contains($courseId)) {
+                $statusCue = 'Already passed';
+            } elseif ($prereqCourseIds->isNotEmpty() && $prereqCourseIds->contains(fn (int $reqId): bool => ! $satisfiedCourseIds->contains($reqId))) {
+                $statusCue = 'Prereq unmet';
+            }
+
+            return [
+                $section->id => collect([
+                    $specification?->title,
+                    $section->termOffering?->course()?->code,
+                    $section->code,
+                    $positionLabel,
+                    $statusCue,
+                ])->filter()->implode(' · '),
+            ];
+        })->all();
     }
 
-    /** @return array{sections: Collection<int, Section>, meetings: Collection} */
+    /**
+     * @return array{
+     *     sections: Collection<int, Section>,
+     *     meetings: Collection,
+     *     reserved: Collection<int, int>,
+     *     enrolled: Collection<int, int>,
+     *     satisfiedCourseIds: Collection<int, int>
+     * }
+     */
     private function classChoices(): array
     {
         if ($this->classChoiceContext !== null) {
@@ -3514,18 +3692,30 @@ class ViewEnrollment extends ViewRecord
         $timetable = PublishedTimetableVersion::query()->where('term_id', $case->term_id)
             ->where('state', PublishedTimetableVersion::StatePublished)->latest('version')->first();
         if ($timetable === null) {
-            return $this->classChoiceContext = ['sections' => collect(), 'meetings' => collect()];
+            return $this->classChoiceContext = [
+                'sections' => collect(),
+                'meetings' => collect(),
+                'reserved' => collect(),
+                'enrolled' => collect(),
+                'satisfiedCourseIds' => collect(),
+            ];
         }
         $meetings = PublishedTimetableMeeting::query()->with('room')
             ->where('published_timetable_version_id', $timetable->id)->orderBy('day_of_week')->orderBy('starts_at')->get();
         $recurringSectionIds = $meetings->pluck('section_id')->unique();
-        $sections = Section::query()->with('termOffering.curriculumEntry.courseSpecification.course')
+        $allowedStates = $case->studentProfile?->curriculum_version_id !== null
+            ? [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded]
+            : [CurriculumVersion::StateActive];
+        $sections = Section::query()->with([
+            'termOffering.curriculumEntry.courseSpecification.course',
+            'termOffering.curriculumEntry.courseSpecification.requirements.relatedCourse',
+        ])
             ->where('state', Section::StateOpen)
             ->whereHas('termOffering', fn (Builder $query) => $query->where('term_id', $case->term_id)
                 ->where('state', TermOffering::StateScheduled)
                 ->whereHas('curriculumEntry.curriculumVersion', fn (Builder $query) => $query
                     ->where('program_id', $case->studentProfile?->program_id ?? $case->admissionApplication?->program_id)
-                    ->where('state', CurriculumVersion::StateActive)
+                    ->whereIn('state', $allowedStates)
                     ->when($case->studentProfile?->curriculum_version_id, fn (Builder $query, int $id) => $query->whereKey($id))))
             ->where(fn (Builder $query) => $query
                 ->where(fn (Builder $query) => $query->whereIn('id', $recurringSectionIds)
@@ -3534,7 +3724,50 @@ class ViewEnrollment extends ViewRecord
                     ->whereHas('termOffering.curriculumEntry.courseSpecification', fn (Builder $query) => $query->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged))))
             ->orderBy('code')->get();
 
-        return $this->classChoiceContext = ['sections' => $sections, 'meetings' => $meetings->groupBy('section_id')];
+        $sectionIds = $sections->pluck('id')->all();
+        $reserved = $sectionIds === []
+            ? collect()
+            : EnrollmentSeatReservation::query()
+                ->whereIn('section_id', $sectionIds)
+                ->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())
+                ->where('enrollment_id', '!=', $case->id)
+                ->selectRaw('section_id, COUNT(*) as total')
+                ->groupBy('section_id')
+                ->pluck('total', 'section_id');
+        $enrolled = $sectionIds === []
+            ? collect()
+            : CourseEnrollment::query()
+                ->whereIn('section_id', $sectionIds)
+                ->where('is_current', true)
+                ->where('enrollment_id', '!=', $case->id)
+                ->selectRaw('section_id, COUNT(*) as total')
+                ->groupBy('section_id')
+                ->pluck('total', 'section_id');
+
+        $satisfiedCourseIds = $case->studentProfile !== null
+            ? app(RegistrationAcademicEligibilityQuery::class)->satisfiedCourseIds($case->studentProfile)
+            : collect();
+        if ($case->admissionApplication?->application_path === AdmissionApplication::PathTransferee) {
+            $evaluation = RegistrationCreditEvaluation::query()->where('enrollment_id', $case->id)->latest('id')->first();
+            $creditedCourseIds = $evaluation !== null
+                ? CurriculumEntry::query()
+                    ->with('courseSpecification')
+                    ->whereIn('id', $evaluation->credited_curriculum_entry_ids ?? [])
+                    ->get()
+                    ->pluck('courseSpecification.course_id')
+                    ->filter()
+                    ->map(fn (mixed $id): int => (int) $id)
+                : collect();
+            $satisfiedCourseIds = $satisfiedCourseIds->merge($creditedCourseIds)->unique()->values();
+        }
+
+        return $this->classChoiceContext = [
+            'sections' => $sections,
+            'meetings' => $meetings->groupBy('section_id'),
+            'reserved' => $reserved,
+            'enrolled' => $enrolled,
+            'satisfiedCourseIds' => $satisfiedCourseIds,
+        ];
     }
 
     /** @return array<int, string> */
@@ -3553,8 +3786,11 @@ class ViewEnrollment extends ViewRecord
                 return $day.' '.CarbonImmutable::parse($meeting->starts_at)->format('g:i A').'–'.CarbonImmutable::parse($meeting->ends_at)->format('g:i A')
                     .' · '.($meeting->room?->name ?? $meeting->location_label ?? 'Room not recorded');
             })->implode('; ');
+            $used = (int) ($choices['reserved'][$section->id] ?? 0) + (int) ($choices['enrolled'][$section->id] ?? 0);
+            $remaining = max(0, (int) $section->capacity - $used);
+            $seatsLabel = $remaining.' '.str('seat')->plural($remaining).' left';
 
-            return [$section->id => $units.' units · '.($schedule !== '' ? $schedule : 'Externally arranged · no recurring meeting')];
+            return [$section->id => $units.' units · '.($schedule !== '' ? $schedule : 'Externally arranged · no recurring meeting').' · '.$seatsLabel];
         })->all();
     }
 
@@ -3621,7 +3857,9 @@ class ViewEnrollment extends ViewRecord
     {
         $case = $this->getRecord();
         $proposal = $case->currentProposalVersion;
-        if ($proposal?->state !== RegistrationProposalVersion::StateDraft || data_get($proposal->source_snapshot, 'unit_load.requires_graduating_overload') !== true) {
+        if ($case->studentProfile?->academic_standing !== StudentProfile::StandingGraduationCandidate
+            || $proposal?->state !== RegistrationProposalVersion::StateDraft
+            || data_get($proposal->source_snapshot, 'unit_load.requires_graduating_overload') !== true) {
             return false;
         }
         try {

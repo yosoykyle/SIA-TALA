@@ -75,6 +75,9 @@ class AdmissionCyclesTable
                 ViewAction::make()->label('Open')->button()->color('gray'),
                 EditAction::make()->iconButton()->tooltip('Edit draft cycle')->color('gray')
                     ->visible(fn (AdmissionCycle $record): bool => $record->state === AdmissionCycle::StateDraft),
-            ]);
+            ])
+            ->emptyStateHeading('No admission cycles')
+            ->emptyStateDescription('Create an admission cycle to configure dates, accepting programs, and requirements.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 }

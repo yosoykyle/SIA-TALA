@@ -2,13 +2,26 @@
 
 namespace App\Filament\Resources\AcademicCalendarWindows\Pages;
 
+use App\Filament\Concerns\HasAcademicSetupBreadcrumbs;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Models\CalendarEvent;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateAcademicCalendarWindow extends CreateRecord
 {
+    use HasAcademicSetupBreadcrumbs;
+
     protected static string $resource = AcademicCalendarWindowResource::class;
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [
+            ...$this->academicSetupParentBreadcrumb(),
+            AcademicCalendarWindowResource::getUrl('index') => 'Academic Calendar Windows',
+            'Add calendar window',
+        ];
+    }
 
     /**
      * @param  array<string, mixed>  $data

@@ -22,7 +22,7 @@
                         <x-filament::badge color="warning">Review pending</x-filament::badge>
                     </div>
                     <div class="registrar-case-task-actions">
-                        @if ($source && ! $this->isAccountingWorkspace())
+                        @if ($source)
                             @can('view', $source)
                                 <x-filament::link :href="\App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource::getUrl('index', ['change' => $source->id, 'account' => $case->id, 'queue' => 'student_changes'])">View change</x-filament::link>
                             @endcan

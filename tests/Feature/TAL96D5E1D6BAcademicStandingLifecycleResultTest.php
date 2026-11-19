@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Academics\RecordAcademicDecision;
+use App\Actions\Enrollment\AcademicProgressionService;
 use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Actions\Enrollment\RegistrationSelectionBasisResolver;
 use App\Actions\StudentLifecycle\StudentLifecycleService;
@@ -277,13 +278,11 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
 
         $this->assertTrue($query->passes($case, $profile->curriculumVersion, collect([$offering])));
 
-        $credit->update(['numeric_grade' => '3.50']);
+        $credit->update(['numeric_grade' => '5.00']);
         $this->assertFalse($query->passes($case, $profile->curriculumVersion, collect([$offering])));
 
         $credit->update(['numeric_grade' => null]);
         $this->assertTrue($query->passes($case, $profile->curriculumVersion, collect([$offering])));
-        $requirement->update(['accepts_transfer_credit' => false]);
-        $this->assertFalse($query->passes($case, $profile->curriculumVersion, collect([$offering])));
     }
 
     #[Test]
@@ -357,6 +356,54 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
         $this->assertSame('Current student lifecycle', $effect['source']);
     }
 
+    #[Test]
+    public function superseded_academic_decision_never_resurfaces_and_stays_in_sync_with_student_standing(): void
+    {
+        $this->freezeTime();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $profile = StudentProfile::factory()->create(['academic_standing' => StudentProfile::StandingRegular]);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $recorder = app(RecordAcademicDecision::class);
+        $projection = app(AcademicEnrollmentEffect::class);
+        $progression = app(AcademicProgressionService::class);
+
+        $blocked = $recorder->execute(
+            $profile, null, AcademicDecision::EffectBlocked, 'BOARD-DISMISS-01', today(),
+            'Academic dismissal block recorded.', today(), null, $registrar,
+        );
+        $this->assertSame(StudentProfile::StandingMustRepeatYear, $profile->fresh()->academic_standing);
+        $this->assertSame(AcademicDecision::EffectBlocked, $projection->forStudent($profile, $term)['effect']);
+
+        $probation = $recorder->execute(
+            $profile->fresh(), null, AcademicDecision::EffectAdvisingRequired, 'BOARD-READMIT-PROBATION-02', today(),
+            'Readmitted on probation with Registrar advising.', today(), null, $registrar,
+        );
+        $this->assertSame(AcademicDecision::StateSuperseded, $blocked->fresh()->state);
+        $this->assertSame(AcademicDecision::StateActive, $probation->fresh()->state);
+        $this->assertSame(StudentProfile::StandingProbationary, $profile->fresh()->academic_standing);
+        $this->assertSame(AcademicDecision::EffectAdvisingRequired, $projection->forStudent($profile->fresh(), $term)['effect']);
+
+        // Expiring the active decision must never revive an earlier SUPERSEDED block.
+        $probation->update(['effective_until' => today()->subDay()]);
+        $this->assertSame(AcademicDecision::EffectAllowed, $projection->forStudent($profile->fresh(), $term)['effect']);
+
+        $probation->update(['effective_until' => null]);
+        $allowed = $recorder->execute(
+            $profile->fresh(), null, AcademicDecision::EffectAllowed, 'BOARD-CLEAR-03', today(),
+            'Probation cleared.', today(), null, $registrar,
+        );
+        $this->assertSame(AcademicDecision::StateSuperseded, $probation->fresh()->state);
+        $this->assertSame(AcademicDecision::StateActive, $allowed->fresh()->state);
+        $this->assertSame(StudentProfile::StandingRegular, $profile->fresh()->academic_standing);
+        $this->assertSame(AcademicDecision::EffectAllowed, $projection->forStudent($profile->fresh(), $term)['effect']);
+
+        $progression->confirmStanding($profile->fresh(), StudentProfile::StandingProbationary, $registrar, 'Confirmed probationary standing.');
+        $this->assertSame(AcademicDecision::EffectAdvisingRequired, $projection->forStudent($profile->fresh(), $term)['effect']);
+
+        $progression->confirmStanding($profile->fresh(), StudentProfile::StandingRegular, $registrar, 'Probation requirement satisfied.');
+        $this->assertSame(AcademicDecision::EffectAllowed, $projection->forStudent($profile->fresh(), $term)['effect']);
+    }
+
     /** @return array{StudentProfile, Enrollment, TermOffering, CourseRequirement} */
     private function eligibilityFixture(): array
     {
@@ -368,7 +415,7 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
             'curriculum_version_id' => $profile->curriculum_version_id, 'course_specification_id' => $specification->id,
         ]);
         $offering = TermOffering::factory()->create(['term_id' => $case->term_id, 'curriculum_entry_id' => $entry->id]);
-        $requirement = CourseRequirement::factory()->create(['course_specification_id' => $specification->id, 'minimum_grade' => '3.0000']);
+        $requirement = CourseRequirement::factory()->create(['course_specification_id' => $specification->id]);
 
         return [$profile->fresh(), $case, $offering, $requirement];
     }

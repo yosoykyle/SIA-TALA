@@ -8,6 +8,7 @@ use Caresome\FilamentAuthDesigner\Pages\Auth\ResetPassword as BaseResetPassword;
 use Filament\Auth\Http\Responses\Contracts\PasswordResetResponse;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Component;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,14 +29,22 @@ class ResetPassword extends BaseResetPassword
     public function getSubheading(): string|Htmlable|null
     {
         if (! Filament::auth()->check()) {
-            return parent::getSubheading();
+            return 'Choose a strong password to finish recovering your account.';
         }
 
         return 'You are currently signed in. Setting a new password will sign you out here and return you to the sign-in page.';
     }
 
+    public function getFormContentComponent(): Component
+    {
+        return parent::getFormContentComponent()
+            ->extraAttributes(['novalidate' => true]);
+    }
+
     public function resetPassword(): ?PasswordResetResponse
     {
+        $this->form->getState();
+
         $wasAuthenticated = Filament::auth()->check();
         $hadAuthenticationFlag = session()->has(ContextualLogin::AuthenticatingSessionKey);
         $authenticationFlag = session(ContextualLogin::AuthenticatingSessionKey);

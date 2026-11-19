@@ -28,7 +28,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -331,13 +330,6 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
             'state' => SectionMeeting::StateActive,
             'published_at' => now(),
         ]);
-        StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $fixture['course_enrollment']->id,
-            'section_meeting_id' => $labMeeting->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
-        ]);
     }
 
     /**
@@ -425,13 +417,6 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
             'modality' => TermOffering::ModalityFaceToFace,
             'state' => SectionMeeting::StateActive,
             'published_at' => now(),
-        ]);
-        StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $courseEnrollment->id,
-            'section_meeting_id' => $meeting->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
         ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,

@@ -19,7 +19,7 @@
     <section class="tala-task-surface tala-calendar-sheet" aria-labelledby="term-active-calendar-heading">
         <header class="tala-calendar-sheet-heading">
             <h2 id="term-active-calendar-heading"><x-filament::icon icon="heroicon-o-calendar-days" />Active teaching calendar</h2>
-            @if ($activeCalendar)<p>Version {{ $activeCalendar->version }}</p>@endif
+            @if ($activeCalendar)<p>Updated {{ ($activeCalendar->updated_at ?? $activeCalendar->created_at)?->timezone(config('app.display_timezone'))->format('M j, Y') }}</p>@endif
         </header>
         @if ($activeCalendar)
             <div class="tala-term-settings-class-dates">

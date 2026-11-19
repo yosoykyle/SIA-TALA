@@ -39,13 +39,20 @@
             </li>
         @empty
             <li class="registrar-ready-empty">
-                @if (filled($this->readyApplicantSearch))
-                    <h2>No matching applicants</h2>
-                    <p>Try another name or application number, or clear the search.</p>
-                @else
-                    <h2>No applicants waiting to start</h2>
-                    <p>Applicants appear after Admissions clears them for enrollment. Existing cases are in Enrollment records.</p>
-                @endif
+                <x-servitech-empty-state
+                    :illustrated="blank($this->readyApplicantSearch)"
+                    :heading="filled($this->readyApplicantSearch) ? 'No matching applicants' : 'No applicants waiting to start'"
+                    :description="filled($this->readyApplicantSearch) ? 'Try another name or application number, or clear the search.' : 'Applicants appear after Admissions clears them for enrollment. Existing cases and individual adjustments are in Enrollment records.'"
+                    :icon="filled($this->readyApplicantSearch) ? 'heroicon-o-magnifying-glass' : 'heroicon-o-user-plus'"
+                >
+                    @if (filled($this->readyApplicantSearch))
+                        <x-filament::button color="gray" wire:click="$set('readyApplicantSearch', '')" icon="heroicon-m-x-mark">Clear search</x-filament::button>
+                    @else
+                        {{ $this->getAction('startContinuingEnrollment', isMounting: false) }}
+                        {{ $this->getAction('startLateContinuingEnrollment', isMounting: false) }}
+                        <x-filament::button tag="a" color="gray" icon="heroicon-o-magnifying-glass" :href="\App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('index', ['tab' => 'all_cases'])">Irregular or existing enrollment</x-filament::button>
+                    @endif
+                </x-servitech-empty-state>
             </li>
         @endforelse
     </ul>

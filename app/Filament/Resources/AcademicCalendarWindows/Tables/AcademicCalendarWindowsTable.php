@@ -52,6 +52,9 @@ class AcademicCalendarWindowsTable
                 EditAction::make(),
             ])
             ->toolbarActions([])
+            ->emptyStateHeading('No calendar windows recorded')
+            ->emptyStateDescription('Academic calendar windows for active terms appear here.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->defaultSort('start_at');
     }
 }

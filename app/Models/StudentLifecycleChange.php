@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\Calendar\CalendarPhaseGateService;
 use Database\Factories\StudentLifecycleChangeFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -118,7 +119,18 @@ class StudentLifecycleChange extends Model
 
     public function isFutureDated(): bool
     {
+        if ($this->allowsPreTermEnrollmentApplication()) {
+            return false;
+        }
+
         return $this->applicationAvailableOn()->toDateString() > today('Asia/Manila')->toDateString();
+    }
+
+    public function allowsPreTermEnrollmentApplication(): bool
+    {
+        return $this->type === self::TypeProgramShift
+            && $this->term_id !== null
+            && app(CalendarPhaseGateService::class)->isCutoverActive((int) $this->term_id);
     }
 
     public function applicationAudit(): MorphOne

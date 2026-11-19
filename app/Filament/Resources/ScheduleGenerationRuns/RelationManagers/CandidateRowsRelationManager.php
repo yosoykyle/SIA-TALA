@@ -12,7 +12,6 @@ use App\Models\SectionMeeting;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
@@ -46,7 +45,7 @@ class CandidateRowsRelationManager extends RelationManager
             ->components([
                 Section::make('Assignment comparison')
                     ->visible(fn (CandidateScheduleRow $record): bool => filled($record->supersedes_candidate_row_id) || in_array($record->change_type, ['RequestedRepair', 'RepairImpact', 'LocalAdjustment', 'Unchanged'], true))
-                    ->description('Compare this successor with its recorded source. Review every changed meeting before accepting the whole candidate.')
+                    ->description('Compare this updated candidate with its recorded source. Review every changed meeting before accepting the whole candidate.')
                     ->schema([
                         TextEntry::make('comparison_change')->label('Change')
                             ->state(fn (CandidateScheduleRow $record): string => match ($record->change_type) {
@@ -54,14 +53,14 @@ class CandidateRowsRelationManager extends RelationManager
                                 'RepairImpact' => 'Other meeting changed by repair',
                                 'Unchanged' => 'Unchanged meeting',
                                 'LocalAdjustment' => 'Local adjustment',
-                                default => 'Recorded successor',
+                                default => 'Recorded update',
                             }),
                         TextEntry::make('comparison_source')->label('Source attempt')
                             ->state(fn (CandidateScheduleRow $record): ?string => ($previous = self::previousAssignment($record)) ? 'Attempt #'.$previous->schedule_run_id : null)
                             ->placeholder('Source assignment unavailable')
                             ->url(fn (CandidateScheduleRow $record): ?string => ($previous = self::previousAssignment($record)) ? ScheduleGenerationRunResource::getUrl('view', ['record' => $previous->schedule_run_id, 'termId' => $record->scheduleRun->term_id]) : null),
                         TextEntry::make('comparison_before')->label('Before')
-                            ->state(fn (CandidateScheduleRow $record): array => ($previous = self::previousAssignment($record)) ? self::assignmentFacts($previous) : ['Previous assignment unavailable. Inspect the source evidence before accepting this successor.'])
+                            ->state(fn (CandidateScheduleRow $record): array => ($previous = self::previousAssignment($record)) ? self::assignmentFacts($previous) : ['Previous assignment unavailable. Inspect the source evidence before accepting this update.'])
                             ->listWithLineBreaks(),
                         TextEntry::make('comparison_after')->label('After')
                             ->state(fn (CandidateScheduleRow $record): array => self::assignmentFacts($record))
@@ -246,15 +245,14 @@ class CandidateRowsRelationManager extends RelationManager
                 ViewAction::make()
                     ->label('Meeting details')->button()->color('gray')
                     ->modalHeading('Candidate meeting details'),
-                ActionGroup::make([
-                    $this->correctAssignmentAction(),
-                    $this->findValidRepairAction(),
-                ])->label('Changes')->button()->color('gray'),
+                $this->correctAssignmentAction()->button()->color('gray'),
+                $this->findValidRepairAction()->button(),
             ])
             ->toolbarActions([])
             ->stackedOnMobile()
             ->emptyStateHeading(fn (): string => $this->ownerRun()->candidateRows()->exists() ? 'No meetings match this view' : 'No candidate assignments are available')
-            ->emptyStateDescription(fn (): string => $this->ownerRun()->candidateRows()->exists() ? 'Clear the search or filters to see all candidate meetings.' : 'The timetable request has not returned any assignments to review.');
+            ->emptyStateDescription(fn (): string => $this->ownerRun()->candidateRows()->exists() ? 'Clear the search or filters to see all candidate meetings.' : 'The timetable request has not returned any assignments to review.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
     private static function previousAssignment(CandidateScheduleRow $record): ?CandidateScheduleRow
@@ -295,6 +293,8 @@ class CandidateRowsRelationManager extends RelationManager
             ]).'. TALA revalidates the complete candidate schedule before saving this correction.')
             ->modalSubmitActionLabel('Validate and save')
             ->modalWidth(Width::FiveExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->fillForm(fn (CandidateScheduleRow $record): array => [
                 'scheduling_demand_id' => $record->scheduling_demand_id,
                 'faculty_user_id' => $record->faculty_user_id,
@@ -360,6 +360,8 @@ class CandidateRowsRelationManager extends RelationManager
             ]).'. The requested meeting is fixed as a hard requirement. Other meetings may move only in a previewable immutable candidate; nothing official changes until the whole repair is accepted and published.')
             ->modalSubmitActionLabel('Queue repair preview')
             ->modalWidth(Width::FiveExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->fillForm(fn (CandidateScheduleRow $record): array => [
                 'scheduling_demand_id' => $record->scheduling_demand_id,
                 'faculty_user_id' => $record->faculty_user_id,
@@ -395,7 +397,7 @@ class CandidateRowsRelationManager extends RelationManager
 
                 Notification::make()
                     ->title('Repair preview queued')
-                    ->body('The source candidate remains unchanged. Review every reported impact before accepting the successor.')
+                    ->body('The source candidate remains unchanged. Review every reported impact before accepting the updated candidate.')
                     ->success()
                     ->send();
                 $this->dispatch('schedule-run-updated');

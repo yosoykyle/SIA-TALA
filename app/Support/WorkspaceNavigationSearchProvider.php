@@ -10,11 +10,9 @@ use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Courses\CourseResource;
-use App\Filament\Resources\CourseSpecifications\CourseSpecificationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
-use App\Filament\Resources\ImportBatches\ImportBatchResource;
 use App\Filament\Resources\Programs\ProgramResource;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
@@ -117,9 +115,7 @@ class WorkspaceNavigationSearchProvider implements GlobalSearchProvider
             SectionMeetingResource::class,
             ProgramResource::class,
             CourseResource::class,
-            CourseSpecificationResource::class,
             CurriculumVersionResource::class,
-            ImportBatchResource::class,
         ] as $resource) {
             if ($resource::canAccess()) {
                 $resourceItems = $this->visibleItems($resource::getNavigationItems());

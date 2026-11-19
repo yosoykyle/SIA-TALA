@@ -45,9 +45,6 @@ class CourseSpecificationLifecycleService
             $draft = CourseSpecification::query()->create([
                 'course_id' => $lockedSource->course_id,
                 'revision_code' => $normalizedRevisionCode,
-                'authority_reference' => $lockedSource->authority_reference,
-                'effective_from' => $lockedSource->effective_from,
-                'effective_until' => $lockedSource->effective_until,
                 'title' => $lockedSource->title,
                 'description' => $lockedSource->description,
                 'credit_units' => $lockedSource->credit_units,
@@ -57,7 +54,6 @@ class CourseSpecificationLifecycleService
                 'scheduling_treatment' => $lockedSource->scheduling_treatment,
                 'allowed_modalities' => $lockedSource->allowed_modalities,
                 'same_faculty_default' => $lockedSource->same_faculty_default,
-                'effective_term_id' => $lockedSource->effective_term_id,
                 'state' => CourseSpecification::StateDraft,
             ]);
 
@@ -222,14 +218,6 @@ class CourseSpecificationLifecycleService
             'rule_type',
             'group_key',
             'related_course_id',
-            'direction',
-            'equivalency_scope',
-            'required_outcome',
-            'minimum_grade',
-            'accepts_transfer_credit',
-            'effective_from',
-            'effective_until',
-            'authority',
             'state',
             'sequence',
         ]);

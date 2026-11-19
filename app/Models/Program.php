@@ -50,21 +50,9 @@ class Program extends Model
         return $this->hasMany(CurriculumVersion::class);
     }
 
-    /** @return HasMany<ProgramAuthority, $this> */
-    public function authorities(): HasMany
-    {
-        return $this->hasMany(ProgramAuthority::class);
-    }
-
     public function studentProfiles(): HasMany
     {
         return $this->hasMany(StudentProfile::class);
-    }
-
-    /** @return HasMany<CurriculumVersion, $this> */
-    public function curriculums(): HasMany
-    {
-        return $this->curriculumVersions();
     }
 
     public function sections(): HasMany

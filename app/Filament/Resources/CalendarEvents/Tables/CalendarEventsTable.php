@@ -75,6 +75,7 @@ class CalendarEventsTable
             ->stackedOnMobile()
             ->emptyStateHeading(fn (Table $table): string => $table->getFilterIndicators() === [] ? 'No weekly unavailable times recorded' : 'No weekly unavailable times found')
             ->emptyStateDescription(fn (Table $table): string => $table->getFilterIndicators() === [] ? 'Weekly unavailable times prevent recurring meetings. Record dated no-class exceptions in Calendar.' : 'Clear search and filters to see recorded times. Record dated no-class exceptions in Calendar.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->defaultSort('day_of_week');
     }
 }

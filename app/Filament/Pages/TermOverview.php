@@ -112,7 +112,7 @@ class TermOverview extends TermPlanningWorkbench
         }
 
         if ($version = $data['currentVersion']) {
-            $timetable['official'] = ['state' => 'official', 'label' => 'Official timetable v'.$version->version, 'description' => 'The published timetable remains official while separate work is prepared.', 'url' => TermTimetable::getUrl([...$parameters, 'selectedVersionId' => $version->id])];
+            $timetable['official'] = ['state' => 'official', 'label' => 'Official timetable'.($version->published_at ? ' · Published '.$version->published_at->timezone(config('app.display_timezone'))->format('M j, Y') : ''), 'description' => 'The published timetable remains official while separate work is prepared.', 'url' => TermTimetable::getUrl([...$parameters, 'selectedVersionId' => $version->id])];
         }
         $run = $data['activeRun'];
         if ($run && $run->status !== ScheduleGenerationRun::StatusPublished) {

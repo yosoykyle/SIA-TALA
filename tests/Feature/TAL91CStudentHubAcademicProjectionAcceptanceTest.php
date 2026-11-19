@@ -23,7 +23,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -44,10 +43,7 @@ use Tests\TestCase;
  * published+active `sectionMeeting` filter fix (regression for the bug where
  * candidate/unpublished or superseded meetings could leak onto the
  * standalone Schedule page).
- *
- * This sub-slice reuses already-persisted `EnrollmentGateResult` rows via
- * `EnrollmentGateReviewSummary`; it does not add any new gate-evaluation
- * logic. COR is acceptance-only here and already covered by TAL-70/TAL-88A.
+ * COR is acceptance-only here and already covered by TAL-70/TAL-88A.
  */
 final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
 {
@@ -95,7 +91,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
         Livewire::actingAs($fixture['student'])
             ->test(ScheduleView::class)
             ->assertSee($fixture['course_code'])
-            ->assertDontSee($unpublishedBinding->courseEnrollment->termOffering->curriculumEntry->courseSpecification->course->code);
+            ->assertDontSee($unpublishedBinding->termOffering->curriculumEntry->courseSpecification->course->code);
     }
 
     #[Test]
@@ -115,7 +111,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
         Livewire::actingAs($fixture['student'])
             ->test(ScheduleView::class)
             ->assertSee($fixture['course_code'])
-            ->assertDontSee($superseded->courseEnrollment->termOffering->curriculumEntry->courseSpecification->course->code);
+            ->assertDontSee($superseded->termOffering->curriculumEntry->courseSpecification->course->code);
     }
 
     #[Test]
@@ -181,7 +177,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
     }
 
     /**
-     * @return array{student:User, profile:StudentProfile, program:Program, term:Term, enrollment:Enrollment, binding:StudentScheduleBinding, course_code:string}
+     * @return array{student:User, profile:StudentProfile, program:Program, term:Term, enrollment:Enrollment, binding:CourseEnrollment, course_code:string}
      */
     private function publishedScheduleFixture(): array
     {
@@ -248,7 +244,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
             'term' => $term,
             'enrollment' => $enrollment,
             'binding' => $binding,
-            'course_code' => $binding->courseEnrollment->termOffering->curriculumEntry->courseSpecification->course->code,
+            'course_code' => $binding->termOffering->curriculumEntry->courseSpecification->course->code,
         ];
     }
 
@@ -258,7 +254,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
         Term $term,
         string $runStatus,
         ?Enrollment $enrollment = null,
-    ): StudentScheduleBinding {
+    ): CourseEnrollment {
         return $this->scheduleBinding($student, $program, $term, $runStatus, SectionMeeting::StateActive, $enrollment);
     }
 
@@ -268,7 +264,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
         Term $term,
         string $meetingState,
         ?Enrollment $enrollment = null,
-    ): StudentScheduleBinding {
+    ): CourseEnrollment {
         return $this->scheduleBinding($student, $program, $term, ScheduleGenerationRun::StatusPublished, $meetingState, $enrollment);
     }
 
@@ -279,7 +275,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
         string $runStatus,
         string $meetingState,
         ?Enrollment $enrollment = null,
-    ): StudentScheduleBinding {
+    ): CourseEnrollment {
         if (! $enrollment instanceof Enrollment) {
             $profile = StudentProfile::factory()->for($student)->for($program)->create([
                 'student_number' => 'SIA-2026-'.fake()->unique()->numerify('####'),
@@ -368,13 +364,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
             ]);
         }
 
-        return StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $courseEnrollment->id,
-            'section_meeting_id' => $meeting->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
-        ]);
+        return $courseEnrollment;
     }
 
     private function studentUser(): User

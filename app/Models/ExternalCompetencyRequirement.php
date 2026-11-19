@@ -21,12 +21,12 @@ class ExternalCompetencyRequirement extends Model
     protected $fillable = [
         'curriculum_version_id', 'curriculum_entry_id', 'requirement_code',
         'qualification_label', 'qualification_level', 'treatment',
-        'authority_reference', 'authority_date', 'state', 'recorded_by', 'recorded_at',
+        'state', 'recorded_by', 'recorded_at',
     ];
 
     protected function casts(): array
     {
-        return ['authority_date' => 'date', 'recorded_at' => 'datetime'];
+        return ['recorded_at' => 'datetime'];
     }
 
     public function scopeApplicableTo(Builder $query, StudentProfile $student): Builder

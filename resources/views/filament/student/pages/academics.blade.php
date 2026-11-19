@@ -51,7 +51,7 @@
                                 </section>
                             @endif
                         </div>
-                        <div class="student-academic-table-wrap" role="region" aria-label="Current subjects and released results" tabindex="0">
+                        <div class="tala-data-table-scroll student-academic-table-wrap" role="region" aria-label="Current subjects and released results" tabindex="0">
                             <table class="tala-data-table student-academic-table student-academic-ledger">
                                 <thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Units</th><th scope="col">Released result</th></tr></thead>
                                 <tbody>
@@ -91,11 +91,11 @@
                             </table>
                         </div>
                     @else
-                        <div class="student-academic-empty-state">
-                            <x-filament::icon icon="heroicon-o-book-open" />
-                            <div><h3>{{ $studyContext['is_official'] ? 'No active subjects recorded' : 'Current subjects unavailable' }}</h3>
-                            <p>{{ $studyContext['is_official'] ? 'Contact the Registrar if you expected subjects in this registration.' : 'Current subjects cannot be shown here. View your enrollment record, or contact the Registrar.' }}</p></div>
-                        </div>
+                        <x-servitech-empty-state
+                            illustrated
+                            :heading="$studyContext['is_official'] ? 'No active subjects recorded' : 'Current subjects unavailable'"
+                            :description="$studyContext['is_official'] ? 'Contact the Registrar if you expected subjects in this registration.' : 'Current subjects cannot be shown here. View your enrollment record, or contact the Registrar.'"
+                        />
                     @endif
                 </section>
                 @if ($effect['needs_attention'])
@@ -207,7 +207,7 @@
                                         <ul class="student-plan-subjects">@foreach ($rows as $row)
                                             <li><div><h4>{{ $row['curriculum_entry']->courseSpecification?->title ?? 'Subject unavailable' }}</h4><p class="student-academic-secondary">{{ $row['curriculum_entry']->courseSpecification?->course?->code }}</p>
                                                 @if (! in_array($row['status'], ['Completed', 'Approved credit'], true))
-                                                    @foreach ($planRequirements->get($row['curriculum_entry']->id) ?? [] as $requirement)<p class="student-academic-secondary">{{ \App\Models\CourseRequirement::typeOptions()[$requirement->rule_type] }}: {{ $requirement->relatedCourse?->code ?? 'Subject not recorded' }}@if ($requirement->minimum_grade !== null) · Minimum grade {{ (float) $requirement->minimum_grade }}@endif</p>@endforeach
+                                                    @foreach ($planRequirements->get($row['curriculum_entry']->id) ?? [] as $requirement)<p class="student-academic-secondary">{{ \App\Models\CourseRequirement::typeOptions()[$requirement->rule_type] }}: {{ $requirement->relatedCourse?->code ?? 'Subject not recorded' }}</p>@endforeach
                                                     @if ($row['status'] === 'Deficient')<p class="student-academic-secondary">Ask the Registrar about completing or retaking this subject.</p>@endif
                                                 @endif
                                             </div><p>{{ (float) $row['curriculum_entry']->courseSpecification?->credit_units }} units</p><p @class(['student-plan-status', 'student-plan-status-future' => $row['status'] === 'Not taken', 'student-plan-status-warning' => $row['status'] === 'Deficient'])><x-filament::icon :icon="match ($row['status']) { 'Completed', 'Approved credit' => 'heroicon-o-check-circle', 'In progress' => 'heroicon-o-clock', 'Deficient' => 'heroicon-o-exclamation-circle', default => 'heroicon-o-minus-circle' }" />{{ match ($row['status']) { 'Not taken' => 'Not yet enrolled', 'Deficient' => 'Needs follow-up', default => $row['status'] } }}</p></li>
@@ -225,7 +225,11 @@
                     @if ($effect['needs_attention'])
                         @include('filament.student.pages.academic-guidance')
                     @endif
-                    <p class="student-academic-empty">Your curriculum is unavailable. Contact the Registrar.</p>
+                    <x-servitech-empty-state
+                        illustrated
+                        heading="Your curriculum is unavailable"
+                        description="Your curriculum is unavailable. Contact the Registrar."
+                    />
                 @endif
                 @if ($competencyRequirements->isNotEmpty())
                     <section class="student-record-panel student-academic-section" aria-labelledby="student-external-qualifications">
@@ -352,7 +356,7 @@
                                 <div><h2>{{ $term->label }}</h2><p>{{ collect([$termYearLevels->get($term->id), $term->academicYear?->label])->filter()->implode(' · ') }}</p></div>
                                 <div class="student-record-term-average"><x-academic-average :$average compact /></div>
                             </header>
-                            <div class="student-academic-table-wrap" role="region" aria-label="{{ $term->label }} results" tabindex="0"><table class="tala-data-table student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Result</th></tr></thead><tbody>
+                            <div class="tala-data-table-scroll student-academic-table-wrap" role="region" aria-label="{{ $term->label }} results" tabindex="0"><table class="tala-data-table student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Result</th></tr></thead><tbody>
                                 @foreach ($results->where('term.id', $term->id) as $result)<tr><th scope="row">{{ $result['course_specification']?->title }}<span class="student-academic-secondary">{{ $result['course_specification']?->course?->code }}</span></th><td>{{ (float) $result['units'] }}</td><td @class(['student-record-grade' => is_numeric($result['result'])])><x-student-academic-result :$result :show-details="false" /></td></tr>@endforeach
                             </tbody></table></div>
                             @if ($average['value'] === null)<p class="student-record-term-note">{{ $average['reason'] }}</p>@endif

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Scheduling\SectionMeetingAssignmentService;
+use App\Actions\Scheduling\ScheduleAssignmentRevalidationService;
 use App\Filament\Resources\CalendarEvents\Pages\ListCalendarEvents;
 use App\Models\CalendarEvent;
 use App\Models\Room;
@@ -105,7 +105,7 @@ final class TAL77CalendarSchedulingBlockTest extends TestCase
         $term = Term::factory()->create();
         $faculty = $this->staff(User::StaffRoleFaculty);
         $room = Room::factory()->create();
-        $service = app(SectionMeetingAssignmentService::class);
+        $service = app(ScheduleAssignmentRevalidationService::class);
         $assignment = [
             'term_id' => $term->id,
             'faculty_user_id' => $faculty->id,

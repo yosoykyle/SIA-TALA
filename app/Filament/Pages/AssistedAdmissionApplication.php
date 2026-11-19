@@ -223,8 +223,8 @@ class AssistedAdmissionApplication extends ApplicantApplication
                         ->compact()
                         ->schema([
                             TextInput::make('assistance_authority_reference')
-                                ->label('Authority reference')
-                                ->placeholder('e.g. ADM-REQ-2026-089')
+                                ->label('Approval note or memo (optional)')
+                                ->placeholder('e.g., Memo 2026-014 or office ticket')
                                 ->helperText('Optional reference to an existing office directive, ticket, or authorization.')
                                 ->maxLength(255),
                             TextInput::make('assistance_evidence_reference')

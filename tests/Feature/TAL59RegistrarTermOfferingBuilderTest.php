@@ -136,7 +136,7 @@ final class TAL59RegistrarTermOfferingBuilderTest extends TestCase
         foreach ([
             ['row' => $this->regularRow($entry, 'BSIT-1A', expectedCount: -1), 'year' => 'First Year'],
             ['row' => $this->regularRow($entry, 'BSIT-1A', capacity: 0), 'year' => 'First Year'],
-            ['row' => $this->regularRow($entry, 'BSIT-1A', modality: TermOffering::ModalityModular), 'year' => 'First Year'],
+            ['row' => $this->regularRow($entry, 'BSIT-1A', modality: 'MODULAR'), 'year' => 'First Year'],
             ['row' => $this->regularRow($entry, 'BSIT-1A'), 'year' => 'Second Year'],
         ] as $case) {
             try {
@@ -199,6 +199,35 @@ final class TAL59RegistrarTermOfferingBuilderTest extends TestCase
         $this->assertSame(TermOffering::CategorySpecial, $offering->category);
         $this->assertSame('Approved graduating-student need', $offering->special_reason);
         $this->assertSame(TermOffering::ArrangementTutorial, $offering->delivery_variant);
+    }
+
+    public function test_special_term_allows_offering_regular_semester_retake_subjects(): void
+    {
+        [, , , $firstSemesterEntry] = $this->scope();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        $summerTerm = Term::factory()->create([
+            'type' => Term::TypeSpecialTerm,
+            'state' => Term::StateActive,
+        ]);
+        $secondSemesterTerm = Term::factory()->create([
+            'type' => Term::TypeSecondSemester,
+            'state' => Term::StateActive,
+        ]);
+
+        $result = $this->builder->special($registrar, $summerTerm, $firstSemesterEntry, $this->specialData('BSIT-ST1'));
+        $this->assertSame(1, $result['created']);
+        $this->assertTrue(TermOffering::query()
+            ->where('term_id', $summerTerm->id)
+            ->where('curriculum_entry_id', $firstSemesterEntry->id)
+            ->exists());
+
+        try {
+            $this->builder->special($registrar, $secondSemesterTerm, $firstSemesterEntry, $this->specialData('BSIT-2S1'));
+            $this->fail('Non-special terms must still enforce matching curriculum entry term type.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('curriculum_entry_id', $exception->errors());
+        }
     }
 
     public function test_only_registrar_can_mutate_offerings(): void

@@ -66,7 +66,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
         ]);
 
         Filament::setCurrentPanel(Filament::getPanel('staff'));
@@ -85,7 +84,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->assertSee('Draft')
-            ->assertSee('Version 1')
+            ->assertSee('Updated ')
             ->assertSee('Review and activate this draft when ready.')
             ->assertViewHas('overviewPackage', fn (TermCalendarPackage $package): bool => $package->is($invalidDraft))
             ->assertViewHas('coreReadiness', fn (array $readiness): bool => $readiness['ready']);
@@ -104,7 +103,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
         ]);
 
         // Attempt activation directly -> fails readiness
@@ -128,7 +126,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00',
             'authority_reference' => 'CORRECTED-BOARD-RES-2026-001',
             'authority_date' => '2026-07-15',
             'special_term_schedule_basis' => null,
@@ -168,7 +165,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
             ->callAction('activateCalendarPackage', data: ['package_id' => $draft->id])
-            ->assertNotified('Calendar Package activated');
+            ->assertNotified('Teaching calendar activated');
 
         $this->assertSame(TermCalendarPackage::StateActive, $draft->fresh()->state);
         $this->assertSame(Term::StateActive, $term->fresh()->state);
@@ -215,7 +212,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
                 'administrative_ends_on' => '2026-12-31',
                 'classes_start_on' => '2026-08-15',
                 'classes_end_on' => '2026-12-15',
-                'faculty_availability_due_at' => '2026-08-10 17:00',
                 'authority_reference' => 'HACK-ACTIVE',
                 'authority_date' => '2026-07-15',
                 'windows' => [
@@ -241,7 +237,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
                 'administrative_ends_on' => '2026-12-31',
                 'classes_start_on' => '2026-08-15',
                 'classes_end_on' => '2026-12-15',
-                'faculty_availability_due_at' => '2026-08-10 17:00',
                 'authority_reference' => 'HACK-CLOSED',
                 'authority_date' => '2026-07-15',
                 'windows' => [
@@ -298,7 +293,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
                 'administrative_ends_on' => '2026-12-31',
                 'classes_start_on' => '2026-08-15',
                 'classes_end_on' => '2026-12-15',
-                'faculty_availability_due_at' => '2026-08-10 17:00',
                 'authority_reference' => 'CROSS-TERM-HACK',
                 'authority_date' => '2026-07-15',
                 'windows' => [
@@ -359,7 +353,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
             'authority_date' => '2026-07-15',
         ]);
         $this->addValidWindowsAndGridToPackage($term1DraftV2);
@@ -591,7 +584,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
             'authority_date' => '2026-07-15',
         ]);
         $this->addValidWindowsAndGridToPackage($draft);
@@ -648,7 +640,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
             'authority_date' => '2026-07-15',
         ]);
         $this->addValidWindowsAndGridToPackage($draft);
@@ -699,7 +690,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
             'authority_date' => '2026-07-15',
         ]);
         $this->addValidWindowsAndGridToPackage($draft);
@@ -764,7 +754,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
             'authority_date' => '2026-07-15',
         ]);
         $this->addValidWindowsAndGridToPackage($draft);
@@ -822,7 +811,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
             'authority_date' => '2026-07-15',
         ]);
         $this->addValidWindowsAndGridToPackage($package);
@@ -978,7 +966,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
             'authority_date' => '2026-07-15',
         ]);
         $this->addValidWindowsAndGridToPackage($draft);
@@ -1034,7 +1021,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
         ]);
         $this->addValidWindowsAndGridToPackage($draft);
         $draft->windows()->create([
@@ -1062,7 +1048,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->assertMountedActionModalSee('Package activation does not itself open enrollment')
             ->assertMountedActionModalSee('Activation consequences')
             ->callMountedAction()
-            ->assertNotified('Calendar Package activated');
+            ->assertNotified('Teaching calendar activated');
 
         $this->assertSame(TermCalendarPackage::StateActive, $draft->fresh()->state);
         $this->assertSame($registrar->id, $draft->fresh()->recorded_by);
@@ -1072,7 +1058,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         // Workbench visibly displays Active state
         $testable->assertSee('Calendar ready for class planning.')
             ->assertSee('Active')
-            ->assertSee('Version 1')
+            ->assertSee('Updated ')
             ->assertActionHidden('activateCalendarPackage');
 
         $this->assertContains(
@@ -1095,7 +1081,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
         ]);
         $this->addValidWindowsAndGridToPackage($draft1);
 
@@ -1108,7 +1093,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-20',
             'classes_end_on' => '2026-12-20',
-            'faculty_availability_due_at' => '2026-08-12 17:00:00',
         ]);
         $this->addValidWindowsAndGridToPackage($draft2);
 
@@ -1133,7 +1117,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->assertMountedActionModalSee('DRAFT-AUTH-V2')
             ->assertMountedActionModalSee('All required checks passed')
             ->callMountedAction()
-            ->assertNotified('Calendar Package activated');
+            ->assertNotified('Teaching calendar activated');
 
         $this->assertSame(TermCalendarPackage::StateDraft, $draft1->fresh()->state);
         $this->assertSame(TermCalendarPackage::StateActive, $draft2->fresh()->state);
@@ -1171,7 +1155,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->assertSchemaStateSet(['package_id' => null])
             ->setActionData(['package_id' => $olderReady->id, 'concurrency_token' => $olderReady->fresh()->concurrencyToken()])
             ->assertMountedActionModalSee('OLDER-READY-AUTH')->assertMountedActionModalSee('All required checks passed')
-            ->callMountedAction()->assertHasNoActionErrors()->assertNotified('Calendar Package activated');
+            ->callMountedAction()->assertHasNoActionErrors()->assertNotified('Teaching calendar activated');
 
         $this->assertSame(TermCalendarPackage::StateActive, $olderReady->fresh()->state);
         $this->assertNotNull($olderReady->fresh()->activated_at);
@@ -1193,7 +1177,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
         ]);
         $this->addValidWindowsAndGridToPackage($draft);
 
@@ -1247,7 +1230,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
             'classes_end_on' => '2026-12-15',
-            'faculty_availability_due_at' => '2026-08-10 17:00:00',
         ]);
         $this->addValidWindowsAndGridToPackage($draft);
 

@@ -8,6 +8,7 @@ use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\RegistrationShortageProjection;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Models\Enrollment;
 use App\Models\Program;
 use App\Models\RegistrationProposalVersion;
@@ -16,6 +17,7 @@ use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\Layout\View as RecordView;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -123,12 +125,14 @@ class EnrollmentsTable
                     ]),
                 SelectFilter::make('canonical_outcome')
                     ->label('Outcome')
+                    ->visible(fn ($livewire): bool => ! $livewire instanceof ListEnrollments
+                        || in_array($livewire->activeTab, ['official_history', 'all_cases', 'adjustments_drops'], true))
                     ->options([
                         Enrollment::OutcomeInProgress => 'In Progress',
                         Enrollment::OutcomeOfficiallyEnrolled => 'Officially Enrolled',
                         Enrollment::OutcomeCancelledByLearner => 'Cancelled by Learner',
                         Enrollment::OutcomeCancelledByRegistrar => 'Cancelled by Registrar',
-                        Enrollment::OutcomeCancelled => 'Cancelled (legacy)',
+                        Enrollment::OutcomeCancelled => 'Cancelled',
                         Enrollment::OutcomeNotEnrolled => 'Not Enrolled',
                     ]),
                 SelectFilter::make('context')
@@ -144,6 +148,7 @@ class EnrollmentsTable
                     )),
                 Filter::make('capacity_shortage')
                     ->label('Capacity shortage')
+                    ->visible(fn ($livewire): bool => ! $livewire instanceof ListEnrollments || $livewire->activeTab !== 'placement_shortages')
                     ->query(fn (Builder $query): Builder => $query->whereIn(
                         'id',
                         app(RegistrationShortageProjection::class)->caseIds(),
@@ -154,7 +159,8 @@ class EnrollmentsTable
             ->recordActions($registrar ? [] : [ViewAction::make()])
             ->when($registrar, fn (Table $table): Table => $table->recordUrl(null)->recordAction(null))
             ->selectable(fn ($livewire): bool => $registrar && $livewire->activeTab === 'ready_to_finalize')
-            ->emptyStateHeading(fn ($livewire): string => filled($livewire->getTableSearch()) ? 'No matching enrollments' : match ($livewire->activeTab) {
+            ->emptyState(view('filament.partials.collection-empty-state'))
+            ->emptyStateHeading(fn ($livewire): string => filled($livewire->getTableSearch()) || count($livewire->getTable()->getFilterIndicators()) > 0 ? 'No matching enrollments' : match ($livewire->activeTab) {
                 'ready_to_prepare' => 'No subjects waiting to be prepared',
                 'waiting_for_learner' => 'No students waiting to confirm subjects',
                 'placement_shortages' => 'No current enrollment issues',
@@ -162,7 +168,7 @@ class EnrollmentsTable
                 'ready_to_finalize' => 'No enrollments ready to make official',
                 default => 'No enrollment records found',
             })
-            ->emptyStateDescription(fn ($livewire): string => filled($livewire->getTableSearch())
+            ->emptyStateDescription(fn ($livewire): string => filled($livewire->getTableSearch()) || count($livewire->getTable()->getFilterIndicators()) > 0
                 ? 'Try another name or number, or clear the search and filters.'
                 : ($livewire->activeTab === 'ready_to_prepare' ? 'New enrollments and saved drafts appear here.' : 'Return to Enrollment to choose another task or find a record.'))
             ->emptyStateActions([
@@ -172,11 +178,17 @@ class EnrollmentsTable
                 Action::make('chooseContinuingStudent')->label('Continuing student')->color('gray')->icon('heroicon-o-plus-circle')
                     ->visible(fn ($livewire): bool => $registrar && $livewire->activeTab === 'ready_to_prepare')
                     ->action(fn ($livewire) => $livewire->mountAction('startContinuingEnrollment')),
+                Action::make('chooseLateContinuingStudent')->label('Approved late enrollment')->color('gray')->icon('heroicon-o-plus-circle')
+                    ->visible(fn ($livewire): bool => $registrar && $livewire->activeTab === 'ready_to_prepare')
+                    ->action(fn ($livewire) => $livewire->mountAction('startLateContinuingEnrollment')),
             ])
             ->toolbarActions([
                 BulkAction::make('finalizeSelected')->label('Finalize selected cases')->icon('heroicon-o-check-badge')
                     ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
                     ->requiresConfirmation()->modalHeading('Make selected enrollments official')
+                    ->modalWidth(Width::TwoExtraLarge)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->modalContent(fn (Collection $records) => view('filament.pages.partials.enrollment-batch-confirmation', ['records' => $records]))
                     ->modalCancelActionLabel('Keep reviewing')
                     ->modalDescription('Successful cases receive official registration, a Student number when needed, and a certificate. Each case is rechecked independently; a failed case stays unchanged.')
@@ -228,11 +240,12 @@ class EnrollmentsTable
                 SelectFilter::make('canonical_outcome')->label('Outcome')->options([
                     Enrollment::OutcomeInProgress => 'In progress', Enrollment::OutcomeOfficiallyEnrolled => 'Officially enrolled',
                     Enrollment::OutcomeCancelledByLearner => 'Cancelled by learner', Enrollment::OutcomeCancelledByRegistrar => 'Cancelled by Registrar',
-                    Enrollment::OutcomeCancelled => 'Cancelled (legacy)', Enrollment::OutcomeNotEnrolled => 'Not enrolled',
+                    Enrollment::OutcomeCancelled => 'Cancelled', Enrollment::OutcomeNotEnrolled => 'Not enrolled',
                 ]),
             ])
             ->searchable([fn (Builder $query, string $search): Builder => self::searchLearner($query, $search)])
             ->searchPlaceholder('Name or number')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->emptyStateHeading('No matching enrollments')
             ->emptyStateDescription('Try another name or number, or change the filters.');
     }

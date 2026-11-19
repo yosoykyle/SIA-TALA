@@ -72,7 +72,8 @@ class DuplicateProfileResolutionResource extends Resource
                             ->maxLength(1000)
                             ->columnSpanFull(),
                     ])
-                    ->columns(2),
+                    ->columns(2)
+                    ->columnSpanFull(),
             ]);
     }
 
@@ -120,7 +121,10 @@ class DuplicateProfileResolutionResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
-            ]);
+            ])
+            ->emptyStateHeading('No duplicate profile resolutions')
+            ->emptyStateDescription('Recorded duplicate profile checks and keep-separate decisions appear here.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
     public static function getRelations(): array

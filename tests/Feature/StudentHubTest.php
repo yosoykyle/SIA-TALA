@@ -154,8 +154,7 @@ class StudentHubTest extends TestCase
             '/student/cor-view',
             '/student/finance',
             '/student/schedule-view',
-            '/student/grades-view',
-            '/student/holds-view',
+            '/student/academics?view=record',
         ];
 
         foreach ($pages as $url) {
@@ -164,9 +163,12 @@ class StudentHubTest extends TestCase
         }
 
         $this->get('/student/grades-view')
+            ->assertRedirect('/student/academics?view=record');
+
+        $this->get('/student/academics?view=record')
             ->assertOk()
-            ->assertSee('No released grades yet')
-            ->assertSee('Your results appear here after release. You can check your enrolled subjects in Academics.');
+            ->assertSee('No released results yet')
+            ->assertSee('Results appear after the Registrar releases them.');
     }
 
     #[Test]

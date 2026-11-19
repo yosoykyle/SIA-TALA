@@ -423,13 +423,12 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'title' => $definition['title'],
             'description' => $this->courseSpecificationDescription($definition),
             'credit_units' => $definition['units'],
-            'grading_profile_key' => CourseSpecification::GradingProfileCollegeStandard,
+            'grading_profile_key' => CourseSpecification::GradingProfileServitechV1,
             'grading_profile_version' => 1,
             'academic_classification' => $this->academicClassification($course, $definition),
             'scheduling_treatment' => $schedulingTreatment,
             'allowed_modalities' => [TermOffering::ModalityOnline, TermOffering::ModalityFaceToFace],
             'same_faculty_default' => true,
-            'effective_term_id' => $term->id,
             'state' => CourseSpecification::StateActive,
         ]);
 
@@ -536,7 +535,6 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 'name' => $programCode.' AY 2025-2026 Curriculum',
                 'effective_entry_term_id' => $term->id,
                 'state' => CurriculumVersion::StateActive,
-                'approval_reference' => 'Registrar-approved client curriculum encoding',
                 'approved_by' => $registrar->id,
                 'approved_at' => '2025-12-01 08:00:00',
             ]);
@@ -1314,12 +1312,11 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     ): bool {
         $specification = CourseSpecification::query()
             ->whereBelongsTo($course)
-            ->whereBelongsTo($term, 'effectiveTerm')
             ->where('revision_code', $revisionCode)
             ->where('title', $definition['title'])
             ->where('description', $this->courseSpecificationDescription($definition))
             ->where('credit_units', $definition['units'])
-            ->where('grading_profile_key', CourseSpecification::GradingProfileCollegeStandard)
+            ->where('grading_profile_key', CourseSpecification::GradingProfileServitechV1)
             ->where('grading_profile_version', 1)
             ->where('scheduling_treatment', $this->schedulingTreatment($definition))
             ->where('same_faculty_default', true)
@@ -1380,7 +1377,6 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 ->where('version_code', $programCode.'-AY2025-2026')
                 ->where('name', $programCode.' AY 2025-2026 Curriculum')
                 ->where('state', CurriculumVersion::StateActive)
-                ->where('approval_reference', 'Registrar-approved client curriculum encoding')
                 ->where('approved_at', '2025-12-01 08:00:00')
                 ->first();
 

@@ -33,6 +33,7 @@ use App\Models\TermAccount;
 use App\Models\TermCalendarPackage;
 use App\Models\TermDatedException;
 use App\Models\User;
+use App\Support\SafeUserNotification;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
@@ -233,11 +234,19 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
 
         $page = Livewire::actingAs($accounting)
             ->test(PaymentChannels::class)
-            ->assertSee('Save payment channels')
+            ->assertSee('View only')
+            ->assertActionVisible('editChannels')
+            ->assertActionHidden('saveChannels')
+            ->call('startEditing')
+            ->assertActionVisible('cancelEditing')
+            ->assertActionHidden('saveChannels')
+            ->assertDontSee('Save payment channels')
             ->assertSet('data.cash.enabled', true);
 
         $beforeCount = SystemSetting::query()->where('key', SchoolPaymentChannels::SettingKey)->count();
         $page->set('data.bank_transfer.enabled', true)
+            ->assertActionVisible('saveChannels')
+            ->assertSee('Save payment channels')
             ->set('data.e_wallets.enabled', true);
         $bankKey = (string) array_key_first($page->get('data.bank_transfer.accounts'));
         $walletKey = (string) array_key_first($page->get('data.e_wallets.accounts'));
@@ -309,7 +318,8 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
             ->assertSeeHtml('&ldquo;How to pay&rdquo; preview')
             ->assertDontSee('Unsaved');
 
-        $page->set('data.e_wallets.enabled', true);
+        $page->call('startEditing')
+            ->set('data.e_wallets.enabled', true);
         $walletKey = (string) array_key_first($page->get('data.e_wallets.accounts'));
 
         $page
@@ -724,6 +734,7 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
 
         $page = Livewire::actingAs($accounting)
             ->test(PaymentChannels::class)
+            ->call('startEditing')
             ->assertSee('Registrar academic calendar reference')
             ->assertSee('Bonifacio Day')
             ->assertSee('+ Add to cashier closures')
@@ -979,8 +990,53 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
 
         Livewire::actingAs($accounting)
             ->test(PaymentChannels::class)
+            ->assertSee('View only')
+            ->assertDontSeeHtml('fi-fo-repeater-item-header-label')
+            ->call('startEditing')
             ->assertSeeHtml('fi-fo-repeater-item-header-label')
-            ->assertSee('Enrollment Saturday · Nov 7, 2026 · 8:00 AM – 12:00 PM');
+            ->assertSee('Enrollment Saturday · Nov 7, 2026 · 8:00 AM – 12:00 PM')
+            ->call('cancelEditing')
+            ->assertSet('isEditing', false)
+            ->assertSee('View only');
+    }
+
+    public function test_save_confirmation_modal_blocks_invalid_enabled_channels_and_shows_specific_toast(): void
+    {
+        $accounting = $this->accountingUser();
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $page = Livewire::actingAs($accounting)
+            ->test(PaymentChannels::class)
+            ->call('startEditing')
+            ->set('data.e_wallets.enabled', true)
+            ->assertActionVisible('saveChannels');
+
+        $walletKey = (string) array_key_first($page->get('data.e_wallets.accounts'));
+
+        $page->mountAction('saveChannels')
+            ->assertActionNotMounted('saveChannels')
+            ->assertHasErrors([
+                "data.e_wallets.accounts.{$walletKey}.provider",
+                "data.e_wallets.accounts.{$walletKey}.account_name",
+                "data.e_wallets.accounts.{$walletKey}.account_number",
+            ])
+            ->assertNotified(SafeUserNotification::ValidationErrorTitle);
+
+        $page->set("data.e_wallets.accounts.{$walletKey}.provider", 'GCash')
+            ->set("data.e_wallets.accounts.{$walletKey}.account_name", 'Servitech Institute Asia Inc.')
+            ->set("data.e_wallets.accounts.{$walletKey}.account_number", '0917 555 0199')
+            ->mountAction('saveChannels')
+            ->assertActionMounted('saveChannels');
+
+        $description = $page->instance()->saveConfirmationDescription();
+        $this->assertStringContainsString('Active channels:', $description);
+        $this->assertStringContainsString('E-Wallets (1 account)', $description);
+
+        $page->callMountedAction(['reason' => 'Added GCash'])
+            ->assertHasNoErrors()
+            ->assertSet('isEditing', false)
+            ->assertNotified('Payment channels saved');
     }
 
     /** @return array{learner: User, enrollment: Enrollment, account: TermAccount, assessment: Assessment} */

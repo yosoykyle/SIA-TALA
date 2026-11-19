@@ -381,7 +381,8 @@
                             @endif
 
                             <p class="tala-channel-card__onsite-callout">
-                                No receipt upload needed: cashier posts onsite payments directly.
+                                <x-filament::icon icon="heroicon-o-check-circle" aria-hidden="true" />
+                                <span>No receipt upload needed — the cashier posts your payment directly.</span>
                             </p>
                         </footer>
                     </div>

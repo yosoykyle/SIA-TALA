@@ -28,7 +28,7 @@ class AcademicEnrollmentEffect
         $schoolDate = today('Asia/Manila')->toDateString();
         $decision = AcademicDecision::query()
             ->where('student_profile_id', $student->id)
-            ->whereIn('state', ['ACTIVE', 'SUPERSEDED'])
+            ->where('state', AcademicDecision::StateActive)
             ->whereDate('effective_from', '<=', $schoolDate)
             ->where(fn ($query) => $query->whereNull('term_id')->when($term, fn ($termQuery) => $termQuery->orWhere('term_id', $term->id)))
             ->orderByDesc('term_id')

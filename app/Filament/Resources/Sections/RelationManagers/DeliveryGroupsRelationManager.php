@@ -7,6 +7,7 @@ use App\Models\PublishedTimetableMeeting;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\User;
+use App\Support\SafeUserNotification;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
@@ -14,7 +15,6 @@ use Filament\Actions\ViewAction;
 use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Section as FormSection;
 use Filament\Schemas\Schema;
@@ -115,6 +115,9 @@ class DeliveryGroupsRelationManager extends RelationManager
                         return $this->saveDeliveryGroup($data, $record);
                     }),
             ])
+            ->emptyStateHeading('No delivery groups recorded')
+            ->emptyStateDescription('Add a delivery group to define learner cohorts and teaching mode for this class.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->toolbarActions([]);
     }
 
@@ -131,7 +134,7 @@ class DeliveryGroupsRelationManager extends RelationManager
         try {
             return app(SectionDeliveryGroupService::class)->save($this->ownerSection(), $data, $group, $this->actor());
         } catch (ValidationException $exception) {
-            Notification::make()->title('Delivery group could not be saved')->body(collect($exception->errors())->flatten()->first())->danger()->persistent()->send();
+            SafeUserNotification::sendValidationError();
             throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(
                 fn (array $messages, string $field): array => [$this->getMountedActionSchema()->getStatePath().'.'.$field => $messages],
             )->all());

@@ -55,8 +55,6 @@ class CurriculumEvaluation
                         'type' => $requirement->rule_type,
                         'related_course_id' => $requirement->related_course_id,
                         'related_course_code' => $requirement->relatedCourse?->code,
-                        'minimum_grade' => $requirement->minimum_grade,
-                        'accepts_transfer_credit' => $requirement->accepts_transfer_credit,
                     ])->values()->all(),
                 ];
             });

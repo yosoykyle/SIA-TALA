@@ -7,6 +7,7 @@ use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Actions\SystemAdministration\UserAccessService;
 use App\Filament\Resources\Users\Pages\ListUsers;
+use App\Filament\Resources\Users\Pages\ViewUser;
 use App\Models\OperationalEvent;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
@@ -260,8 +261,8 @@ class UsersAndAccessLifecycleJourneyTest extends TestCase
         ];
 
         foreach ($expectations as $action => [$effect, $recovery]) {
-            Livewire::test(ListUsers::class)
-                ->mountAction(TestAction::make($action)->table($target))
+            Livewire::test(ViewUser::class, ['record' => $target->getRouteKey()])
+                ->mountAction($action)
                 ->assertMountedActionModalSee($effect)
                 ->assertMountedActionModalSee($recovery);
         }

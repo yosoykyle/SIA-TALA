@@ -11,13 +11,15 @@
                 <dl class="head-enrollment-figures"><div><dt>Subjects</dt><dd>{{ $subjects->count() }}</dd></div><div><dt>Units</dt><dd>{{ (float) $subjects->sum('units_snapshot') }}</dd></div></dl>
             </div>
             @if ($subjects->isNotEmpty())
-                <table class="head-enrollment-subject-table"><caption class="sr-only">Current active official subjects for this enrollment</caption>
-                    <thead><tr><th scope="col">Subject</th><th scope="col">Section</th><th scope="col">Units</th></tr></thead>
-                    <tbody>@foreach ($subjects as $subject)
-                        @php($specification = $subject->termOffering?->curriculumEntry?->courseSpecification)
-                        <tr><th scope="row">{{ $subject->proposalItem?->course_title_snapshot ?? $specification?->title ?? 'Subject unavailable' }}<small>{{ $subject->proposalItem?->course_code_snapshot ?? $specification?->course?->code }}</small></th><td data-label="Section">{{ $subject->section?->code ?? 'Section unavailable' }}</td><td data-label="Units">{{ (float) $subject->units_snapshot }}</td></tr>
-                    @endforeach</tbody>
-                </table>
+                <div class="tala-data-table-scroll" role="region" aria-label="Current active official subjects for this enrollment" tabindex="0">
+                    <table class="tala-data-table head-enrollment-subject-table"><caption class="sr-only">Current active official subjects for this enrollment</caption>
+                        <thead><tr><th scope="col">Subject</th><th scope="col">Section</th><th scope="col">Units</th></tr></thead>
+                        <tbody>@foreach ($subjects as $subject)
+                            @php($specification = $subject->termOffering?->curriculumEntry?->courseSpecification)
+                            <tr><th scope="row">{{ $subject->proposalItem?->course_title_snapshot ?? $specification?->title ?? 'Subject unavailable' }}<small>{{ $subject->proposalItem?->course_code_snapshot ?? $specification?->course?->code }}</small></th><td data-label="Section">{{ $subject->section?->code ?? 'Section unavailable' }}</td><td data-label="Units">{{ (float) $subject->units_snapshot }}</td></tr>
+                        @endforeach</tbody>
+                    </table>
+                </div>
             @else<p class="head-enrollment-note">No active subjects remain. Recorded changes are available in Enrollment history and source details.</p>@endif
             @foreach ($subjects->filter(fn ($subject) => ($subject->proposalItem?->scheduling_treatment_snapshot ?? $subject->termOffering?->curriculumEntry?->courseSpecification?->scheduling_treatment) === \App\Models\CourseSpecification::SchedulingExternallyArranged) as $subject)<p class="head-enrollment-note">{{ $subject->proposalItem?->course_title_snapshot ?? $subject->termOffering?->curriculumEntry?->courseSpecification?->title ?? 'This subject' }} is externally arranged and has no recurring meeting.</p>@endforeach
         </section>

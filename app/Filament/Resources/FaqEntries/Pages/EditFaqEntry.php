@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\FaqEntries\Pages;
 
+use App\Filament\Clusters\PublicContent;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Support\EditsPublicContent;
 use Filament\Actions\Action;
@@ -12,6 +13,16 @@ class EditFaqEntry extends EditRecord
     use EditsPublicContent;
 
     protected static string $resource = FaqEntryResource::class;
+
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [
+            PublicContent::getUrl() => 'Public Content',
+            FaqEntryResource::getUrl('index') => 'FAQ',
+            'Edit FAQ',
+        ];
+    }
 
     protected function getCancelFormAction(): Action
     {

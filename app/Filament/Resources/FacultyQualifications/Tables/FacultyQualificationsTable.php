@@ -70,7 +70,7 @@ class FacultyQualificationsTable
                     ->searchable()
                     ->preload(),
                 SelectFilter::make('is_active')
-                    ->label('Active')
+                    ->label('Status')
                     ->options([
                         '1' => 'Active',
                         '0' => 'Inactive',
@@ -92,6 +92,9 @@ class FacultyQualificationsTable
             ])
             ->recordActionsColumnLabel('Actions')
             ->toolbarActions([])
+            ->emptyStateHeading('No faculty course qualifications recorded')
+            ->emptyStateDescription('Record approved course qualifications so eligible teachers can be assigned to classes.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->stackedOnMobile()
             ->defaultSort('recorded_at', 'desc');
     }

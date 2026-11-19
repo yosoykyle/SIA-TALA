@@ -87,7 +87,7 @@
             </x-filament::callout>
         </div>
 
-        <form wire:submit="{{ $formSubmitAction }}" class="space-y-6" novalidate x-on:input="changed = true" x-on:change="changed = true">
+        <form wire:submit="{{ $formSubmitAction }}" class="space-y-4" novalidate x-on:input="changed = true" x-on:change="changed = true">
             @if (! $this->requiresCompleteSubmission() && $this->saveStatus !== 'failed')
                 <div x-show="! failed">
                     @include('filament.applicant.components.application-save-status')

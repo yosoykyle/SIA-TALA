@@ -49,6 +49,7 @@ class StudentAcademicActions
                 ->modalDescription('Record a result already verified by the school. A reassessment keeps the earlier attempt in the student’s record.')
                 ->modalSubmitActionLabel('Record result')
                 ->modalWidth(Width::FourExtraLarge)
+                ->stickyModalHeader()
                 ->stickyModalFooter()
                 ->schema([
                     Hidden::make('command_key')->default(fn (): string => (string) Str::uuid()),
@@ -89,14 +90,12 @@ class StudentAcademicActions
                         ]),
                     Section::make('Verified evidence')
                         ->compact()
-                        ->description('Use the assessment provider’s record and the school’s approval to document this result.')
+                        ->description('Use the assessment provider’s record to document this verified result.')
                         ->columns(2)
                         ->schema([
                             TextInput::make('external_source')->label('Assessment provider')->required()->maxLength(255),
                             TextInput::make('evidence_reference')->label('Private evidence reference')
                                 ->helperText('Enter the identifier of the verified assessment record.')->required()->maxLength(255),
-                            TextInput::make('authority_reference')->label('School approval reference')->required()->maxLength(255),
-                            DatePicker::make('authority_date')->label('School approval date')->required(),
                         ]),
                     Section::make('Credential and notes (optional)')
                         ->compact()->collapsible()->collapsed()->columns(2)
@@ -123,8 +122,8 @@ class StudentAcademicActions
                             $student,
                             (string) $data['outcome'],
                             (string) $data['evidence_reference'],
-                            (string) $data['authority_reference'],
-                            Carbon::parse($data['authority_date']),
+                            null,
+                            null,
                             $actor,
                             assessmentDate: Carbon::parse($data['assessment_date']),
                             externalSource: (string) $data['external_source'],
@@ -171,6 +170,7 @@ class StudentAcademicActions
             ->modalCancelActionLabel('Cancel')
             ->modalWidth(Width::FiveExtraLarge)
             ->extraModalWindowAttributes(['class' => 'tala-enrollment-decision-modal'])
+            ->stickyModalHeader()
             ->stickyModalFooter()
             ->modalFooterActions(function (Action $action): array {
                 $actor = auth()->user();
@@ -239,8 +239,8 @@ class StudentAcademicActions
                                         ->live(),
 
                                     TextInput::make('authority_reference')
-                                        ->label('Approval reference (optional)')
-                                        ->placeholder('Memo or email reference, if issued')
+                                        ->label('Approval note or memo (optional)')
+                                        ->placeholder('e.g., Memo or email reference, if issued')
                                         ->maxLength(255),
 
                                     DatePicker::make('authority_date')

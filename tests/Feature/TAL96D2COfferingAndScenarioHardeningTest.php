@@ -6,8 +6,7 @@ use App\Actions\Scheduling\SectionDeliveryGroupService;
 use App\Actions\Scheduling\SectionPlanningService;
 use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
-use App\Filament\Resources\CurriculumVersions\Pages\ViewCurriculumVersion;
-use App\Filament\Widgets\RegistrarOperationalReadinessWidget;
+use App\Filament\Resources\CurriculumVersions\Pages\ReviewCurriculumVersion;
 use App\Models\AcademicYear;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\Assessment;
@@ -170,32 +169,11 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         $registrar->saveAppAuthenticationRecoveryCodes(['stored-code']);
         $this->actingAs($registrar);
 
-        $this->assertTrue(RegistrarOperationalReadinessWidget::canView());
-
-        Livewire::test(RegistrarOperationalReadinessWidget::class)
-            ->assertSee('1. Academic Period')
-            ->assertSee('AY 2025-2026 / Second Semester')
-            ->assertSee('2. Active Curricula')
-            ->assertSee('3 programs ready')
-            ->assertSee('3. Offerings & Sections')
-            ->assertSee('54 offerings / 54 sections')
-            ->assertSee('4. Teaching Resources')
-            ->assertSee('9 faculty / 10 rooms')
-            ->assertSee('5. Schedule Requirements')
-            ->assertSee('54 ready for review')
-            ->assertSee('6. Published Timetable')
-            ->assertSee('Not published');
-
         $this->get('/admin')
             ->assertRedirect(AdmissionApplicationResource::getUrl(panel: 'admin'));
         $this->get(AdmissionApplicationResource::getUrl(panel: 'admin'))
             ->assertOk()
             ->assertSee('Application queue');
-
-        $accounting = User::query()->where('email', 'accounting.demo@example.test')->sole();
-        $this->actingAs($accounting);
-
-        $this->assertFalse(RegistrarOperationalReadinessWidget::canView());
     }
 
     public function test_curriculum_review_presents_the_source_order_and_course_facts_in_a_readable_table(): void
@@ -211,20 +189,10 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ViewCurriculumVersion::class, ['record' => $curriculum->id])
-            ->assertSee('Curriculum Entries')
-            ->assertSee('Year Level')
-            ->assertSee('Term')
-            ->assertSee('Sequence')
-            ->assertSee('Course Code')
-            ->assertSee('Course Title')
-            ->assertSee('Units')
-            ->assertSee('Requirement')
-            ->assertSee('Third Year')
-            ->assertSee('Second Semester')
+        Livewire::test(ReviewCurriculumVersion::class, ['record' => $curriculum->id])
+            ->call('selectYear', 3)
             ->assertSee('THC09')
-            ->assertSee('International Business and Trade')
-            ->assertSee('3.00');
+            ->assertSee('International Business and Trade');
     }
 
     public function test_exploration_personas_are_grounded_in_owner_correct_prior_term_records(): void
@@ -441,8 +409,6 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
             DB::table('grade_outcome_events')->delete();
             DB::table('grade_roster_rows')->delete();
             DB::table('grade_rosters')->delete();
-            DB::table('student_schedule_bindings')->delete();
-            DB::table('enrollment_gate_results')->delete();
             DB::table('enrollment_exceptions')->delete();
             DB::table('enrollment_seat_reservations')->delete();
             DB::table('course_enrollments')->delete();

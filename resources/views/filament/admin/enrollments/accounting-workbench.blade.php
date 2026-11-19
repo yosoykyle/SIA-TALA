@@ -66,30 +66,6 @@
             @endif
         </p>
         <ul class="tala-workflow-steps" aria-label="Accounting tasks">
-            <li @class(['tala-workflow-step', 'tala-workflow-step--active' => $allPublishedPlans > 0 || $draftPlans > 0, 'tala-workflow-step--caught-up' => $allPublishedPlans === 0 && $draftPlans === 0])>
-                <div class="accounting-step-body">
-                    <div class="tala-workflow-step__head">
-                        <span class="tala-workspace-card__icon" aria-hidden="true">
-                            <x-filament::icon icon="heroicon-o-calculator" />
-                        </span>
-                    </div>
-                    <h3 class="tala-workflow-step__title">Fee plans</h3>
-                    <div class="tala-workflow-step__figure">
-                        <x-workspace-figure :value="$allPublishedPlans" label="published" />
-                    </div>
-                    <p class="tala-workflow-step__desc">Set tuition, fees and payment due dates.</p>
-                    <p class="tala-workflow-step__meta">All terms · {{ $draftPlans }} {{ \Illuminate\Support\Str::plural('draft', $draftPlans) }}</p>
-                    @if (($summary['activeTermId'] ?? null) !== null && $allPublishedPlans !== $publishedPlans)
-                        <p class="tala-workflow-step__meta">{{ $activeTermLabel }}: {{ $publishedPlans }} published</p>
-                    @endif
-                    <p class="tala-workflow-step__meta">
-                        <a class="tala-workspace-text-link" {{ \Filament\Support\generate_href_html(\App\Filament\Pages\PaymentChannels::getUrl()) }}>Payment channels <x-filament::icon icon="heroicon-m-arrow-right" aria-hidden="true" /></a>
-                    </p>
-                </div>
-                <div class="tala-workflow-step__action tala-workspace-feature__action">
-                    <x-filament::button tag="a" :href="\App\Filament\Resources\FeePlans\FeePlanResource::getUrl('index')" color="gray" icon="heroicon-m-arrow-right" icon-position="after">Review fee plans</x-filament::button>
-                </div>
-            </li>
             <li @class(['tala-workflow-step', 'tala-workflow-step--priority' => $priorityStep === 'assessment', 'tala-workflow-step--active' => $assessmentCount > 0 && $priorityStep !== 'assessment', 'tala-workflow-step--caught-up' => $assessmentCount === 0])>
                 <div class="accounting-step-body">
                     <div class="tala-workflow-step__head">
@@ -139,6 +115,30 @@
                 </div>
                 <div class="tala-workflow-step__action tala-workspace-feature__action">
                     <x-filament::button tag="a" :href="$queueUrl('student_changes')" :color="$priorityStep === 'student_changes' ? 'primary' : 'gray'" icon="heroicon-m-arrow-right" icon-position="after">Review changes</x-filament::button>
+                </div>
+            </li>
+            <li @class(['tala-workflow-step', 'tala-workflow-step--active' => $allPublishedPlans > 0 || $draftPlans > 0, 'tala-workflow-step--caught-up' => $allPublishedPlans === 0 && $draftPlans === 0])>
+                <div class="accounting-step-body">
+                    <div class="tala-workflow-step__head">
+                        <span class="tala-workspace-card__icon" aria-hidden="true">
+                            <x-filament::icon icon="heroicon-o-calculator" />
+                        </span>
+                    </div>
+                    <h3 class="tala-workflow-step__title">Fee plans</h3>
+                    <div class="tala-workflow-step__figure">
+                        <x-workspace-figure :value="$allPublishedPlans" label="published" />
+                    </div>
+                    <p class="tala-workflow-step__desc">Set tuition, fees and payment due dates.</p>
+                    <p class="tala-workflow-step__meta">All terms · {{ $draftPlans }} {{ \Illuminate\Support\Str::plural('draft', $draftPlans) }}</p>
+                    @if (($summary['activeTermId'] ?? null) !== null && $allPublishedPlans !== $publishedPlans)
+                        <p class="tala-workflow-step__meta">{{ $activeTermLabel }}: {{ $publishedPlans }} published</p>
+                    @endif
+                    <p class="tala-workflow-step__meta">
+                        <a class="tala-workspace-text-link" {{ \Filament\Support\generate_href_html(\App\Filament\Pages\PaymentChannels::getUrl()) }}>Payment channels <x-filament::icon icon="heroicon-m-arrow-right" aria-hidden="true" /></a>
+                    </p>
+                </div>
+                <div class="tala-workflow-step__action tala-workspace-feature__action">
+                    <x-filament::button tag="a" :href="\App\Filament\Resources\FeePlans\FeePlanResource::getUrl('index')" color="gray" icon="heroicon-m-arrow-right" icon-position="after">Review fee plans</x-filament::button>
                 </div>
             </li>
         </ul>

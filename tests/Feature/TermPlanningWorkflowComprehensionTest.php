@@ -216,7 +216,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
             ->assertSee('Synthetic Faculty Alex')
             ->toggleAllTableColumns()
-            ->assertSee('Declaration v');
+            ->assertSee('Responded ·');
         Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
             ->assertSet('timetableFormat', 'week')
             ->assertSee('Whole Term')->assertSee('View weekly timetable')->assertSee('Not measured')
@@ -237,7 +237,8 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
             ->assertSeeInOrder(['Classes & student sections', 'Review and confirm classes', 'Faculty & rooms', 'Teaching calendar', 'Set teaching calendar', 'Timetable'])
             ->assertSee('Candidate under review')
-            ->assertSee('Official timetable v1 stays in use')
+            ->assertSee('Official timetable')
+            ->assertSee('stays in use')
             ->assertDontSee('Next task:')
             ->assertDontSee('Other work and replies');
     }
@@ -326,7 +327,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         $this->actingAs($registrar);
         FacultyAvailabilityDeclaration::query()->where('term_id', $term->id)->delete();
         Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
-            ->assertSee('Not requested')->assertDontSee('Awaiting response')->assertDontSee('Declaration v');
+            ->assertSee('Not requested')->assertDontSee('Awaiting response')->assertDontSee('Responded ·');
         $head = User::factory()->create();
         Role::findOrCreate(User::StaffRoleAcademicHead, 'web');
         $head->assignRole(User::StaffRoleAcademicHead);

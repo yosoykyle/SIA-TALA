@@ -18,9 +18,6 @@
             <p class="accounting-export-note">Preview of the first {{ count($rows) }} matching {{ str('entry')->plural(count($rows)) }}. Sources are rechecked on download.</p>
         @endif
     @endif
-    <x-supporting-details :summary="'CSV columns and source details · '.count($headers).' columns'" class="accounting-export-columns" inset>
-        <ol>@foreach ($headers as $header)<li>{{ $header }}</li>@endforeach</ol>
-        <p>Amounts remain positive. Entry type identifies each verified payment or reversal. Both the actual payment/refund time and Accounting verification time are retained. External references are masked.</p>
-    </x-supporting-details>
-    <p class="accounting-export-note">Purpose: {{ \App\Actions\Finance\CreateContextualFinanceExport::VerifiedPaymentsPurpose }}<br>Private file · available only to you.</p>
+    <p class="accounting-export-note">CSV ({{ count($headers) }} columns) includes verified payment and reversal references, positive PHP amounts, payment/refund and verification timestamps, and masked external references (PHP · Asia/Manila).</p>
+    <p class="accounting-export-note">Purpose: {{ \App\Actions\Finance\CreateContextualFinanceExport::VerifiedPaymentsPurpose }} · Private file available only to you.</p>
 </div>

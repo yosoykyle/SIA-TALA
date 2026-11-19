@@ -125,6 +125,7 @@ class SectionMeetingsTable
             ->toolbarActions([])
             ->stackedOnMobile()
             ->emptyStateHeading('No published timetable is available')
-            ->emptyStateDescription('A generated timetable becomes official only after Registrar review, validation, and explicit publication.');
+            ->emptyStateDescription('A generated timetable becomes official only after Registrar review, validation, and explicit publication.')
+            ->emptyState(view('filament.partials.collection-empty-state'));
     }
 }

@@ -149,8 +149,8 @@ final class PublishedScheduleRevisionForm
                     && filled($get($cancelClass ? 'section_id' : 'section_meeting_ids')))
                 ->schema([
                     Textarea::make('authority_reference')
-                        ->label('Approval reference (optional)')
-                        ->helperText('Add a reference if one was provided. TALA records the publishing actor and time.')
+                        ->label('Approval note or memo (optional)')
+                        ->helperText('Add a note or memo if one was provided. TALA records the publishing actor and time.')
                         ->rows(2)
                         ->maxLength(255),
                     Textarea::make('reason')

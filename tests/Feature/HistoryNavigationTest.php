@@ -175,7 +175,7 @@ class HistoryNavigationTest extends TestCase
 
         Livewire::actingAs($fixture['registrar'])->withQueryParams(['viewTab' => 'overview'])
 
-            ->test(GradesAndCompletion::class)->assertSee('Find any class or earlier term')
+            ->test(GradesAndCompletion::class)->assertSee('Review class grades')->assertSeeHtml('viewTab=grade-review')
 
             ->assertDontSeeHtml('viewTab=history');
 
@@ -217,7 +217,7 @@ class HistoryNavigationTest extends TestCase
 
             'pageClass' => ViewGradeRoster::class,
 
-        ])->assertSee('1–10 of 11 students')->assertSee('Page 1 of 2');
+        ])->assertSee('1–5 of 11 students')->assertSee('Page 1 of 3');
 
         $pageName = $page->instance()->getTableRecords()->getPageName();
 
@@ -225,9 +225,15 @@ class HistoryNavigationTest extends TestCase
 
             ->call('gotoPage', 2, $pageName)
 
+            ->assertSee('6–10 of 11 students')
+
+            ->assertSee('Page 2 of 3')
+
+            ->call('gotoPage', 3, $pageName)
+
             ->assertSee('11–11 of 11 students')
 
-            ->assertSee('Page 2 of 2');
+            ->assertSee('Page 3 of 3');
 
     }
 
@@ -328,9 +334,9 @@ class HistoryNavigationTest extends TestCase
 
         $modal = fn (): string => $page->instance()->getMountedAction()->getModalContent()->render();
 
-        $this->assertStringContainsString('Version 11', $modal());
+        $this->assertStringContainsString('Released · Oct 1, 2026', $modal());
 
-        $this->assertStringNotContainsString('Version 1 ·', $modal());
+        $this->assertStringNotContainsString('Check the original assessment', $modal());
 
         $this->assertStringContainsString('Released</strong> Oct 3, 2026 · 11:00 AM · '.e($registrarName), $modal());
 
@@ -338,7 +344,7 @@ class HistoryNavigationTest extends TestCase
 
         $page->call('gotoSubmissionHistoryPage', 2)->assertSet('submissionHistoryOpen', true);
 
-        $this->assertStringContainsString('Version 1 · Returned', $modal());
+        $this->assertStringContainsString('Returned · Oct 1, 2026', $modal());
 
         $this->assertStringContainsString('Submitted</strong> Oct 1, 2026 · 9:00 AM · '.e($facultyName), $modal());
 
@@ -350,11 +356,11 @@ class HistoryNavigationTest extends TestCase
 
         $page->call('gotoSubmissionHistoryPage', 999);
 
-        $this->assertStringContainsString('Version 1 · Returned', $modal());
+        $this->assertStringContainsString('Returned · Oct 1, 2026', $modal());
 
         $page->call('gotoSubmissionHistoryPage', -3);
 
-        $this->assertStringContainsString('Version 11', $modal());
+        $this->assertStringContainsString('Released · Oct 1, 2026', $modal());
 
         $this->assertSame(GradeRoster::StateReleased, $roster->fresh()->state);
 
@@ -377,11 +383,11 @@ class HistoryNavigationTest extends TestCase
             ->assertActionMounted('classActivity');
 
         $modal = fn (): string => $page->instance()->getMountedAction()->getModalContent()->render();
-        $this->assertStringContainsString('Version 11', $modal());
+        $this->assertStringContainsString('Released · Oct 1, 2026', $modal());
 
         app()->instance('originalRequest', Request::create('/admin/grade-rosters/2'));
         $page->call('gotoSubmissionHistoryPage', 2);
-        $this->assertStringContainsString('Version 1 · Returned', $modal());
+        $this->assertStringContainsString('Returned · Oct 1, 2026', $modal());
         $this->assertStringContainsString('Check the original assessment', $modal());
 
         Mail::fake();

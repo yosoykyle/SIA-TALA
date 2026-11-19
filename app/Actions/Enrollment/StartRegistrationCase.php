@@ -3,8 +3,10 @@
 namespace App\Actions\Enrollment;
 
 use App\Actions\Calendar\CalendarPhaseGateService;
+use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\AdmissionApplication;
 use App\Models\Enrollment;
+use App\Models\Hold;
 use App\Models\RegistrationCaseEvent;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -80,11 +82,15 @@ class StartRegistrationCase
             throw ValidationException::withMessages(['student_profile' => 'The Student lifecycle does not allow registration.']);
         }
 
+        $this->assertNoBlockingEnrollmentHold($studentProfile, $term);
+
+        $selectionBasis = $this->resolveContinuingSelectionBasis($studentProfile, $term);
+
         $enrollment = $this->createOrReturn(
             credentialUser: $studentProfile->user()->firstOrFail(),
             term: $term,
             actor: $actor,
-            selectionBasis: $this->selectionBasisResolver->forContinuingStudent($studentProfile, $term),
+            selectionBasis: $selectionBasis,
             startMethod: $startMethod,
             application: null,
             studentProfile: $studentProfile,
@@ -140,7 +146,8 @@ class StartRegistrationCase
                 if ($studentProfile->blocksEnrollmentByLifecycle() || ((int) $actor->id !== (int) $studentProfile->user_id && ! $actor->hasRole(User::StaffRoleRegistrar))) {
                     throw new AuthorizationException('The active owning Student or authorized Registrar must start this Registration Case.');
                 }
-                $selectionBasis = $this->selectionBasisResolver->forContinuingStudent($studentProfile, $term);
+                $this->assertNoBlockingEnrollmentHold($studentProfile, $term);
+                $selectionBasis = $this->resolveContinuingSelectionBasis($studentProfile, $term);
                 if ($startMethod === 'SelfService' && ! Enrollment::query()->where('credential_user_id', $credentialUser->id)->where('term_id', $term->id)->exists()) {
                     $entry = app(RegistrationEntryContext::class)->forUser($actor, $term);
                     if ((int) $entry['term']?->id !== (int) $term->id || ! $entry['can_start']) {
@@ -214,5 +221,33 @@ class StartRegistrationCase
 
             return $enrollment->refresh();
         }, attempts: 3);
+    }
+
+    private function assertNoBlockingEnrollmentHold(StudentProfile $studentProfile, Term $term): void
+    {
+        $holdService = app(HoldEvaluationService::class);
+        $blockingHold = $holdService->mostRestrictiveActiveHold(
+            $studentProfile,
+            [Hold::BlockingEnrollment],
+            term: $term,
+        );
+
+        if ($blockingHold instanceof Hold) {
+            throw ValidationException::withMessages([
+                'hold' => $holdService->formatBlockingMessage($blockingHold),
+            ]);
+        }
+    }
+
+    private function resolveContinuingSelectionBasis(StudentProfile $studentProfile, Term $term): string
+    {
+        $selectionBasis = $this->selectionBasisResolver->forContinuingStudent($studentProfile, $term);
+
+        if ($selectionBasis === Enrollment::SelectionStandardCurriculum
+            && app(PrepareStandardRegistration::class)->hasPartialSatisfiedPosition($studentProfile, $term)) {
+            return Enrollment::SelectionIndividuallyAdvised;
+        }
+
+        return $selectionBasis;
     }
 }

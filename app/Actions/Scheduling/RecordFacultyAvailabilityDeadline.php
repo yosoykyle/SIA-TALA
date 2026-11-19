@@ -31,7 +31,7 @@ class RecordFacultyAvailabilityDeadline
             if ((int) ($prior?->id ?? 0) !== $expectedId) {
                 throw ValidationException::withMessages(['due_at' => 'The Faculty deadline changed. Reopen this form and review its latest source.']);
             }
-            if (($prior || $package->faculty_availability_due_at) && blank($reason)) {
+            if ($prior && blank($reason)) {
                 throw ValidationException::withMessages(['correction_reason' => 'Record why the existing Faculty deadline is being corrected.']);
             }
 

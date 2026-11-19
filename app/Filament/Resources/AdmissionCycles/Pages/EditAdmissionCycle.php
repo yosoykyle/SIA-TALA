@@ -8,6 +8,7 @@ use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\Width;
 
 class EditAdmissionCycle extends EditRecord
 {
@@ -42,6 +43,9 @@ class EditAdmissionCycle extends EditRecord
         return [
             ViewAction::make(),
             DeleteAction::make()->label('Discard draft')
+                ->modalWidth(Width::Large)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalHeading('Discard cycle draft?')
                 ->modalDescription('This removes the unreferenced cycle draft. Published cycles and drafts with applications, requirements or retained events cannot be discarded.')
                 ->modalSubmitActionLabel('Discard draft'),

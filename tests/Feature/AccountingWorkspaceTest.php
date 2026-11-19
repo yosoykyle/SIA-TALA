@@ -5,16 +5,21 @@ namespace Tests\Feature;
 use App\Actions\StudentLifecycle\LifecycleAccountingReview;
 use App\Actions\StudentLifecycle\LifecycleFinanceAction;
 use App\Actions\StudentLifecycle\RecordLifecycleAccountingReview;
+use App\Filament\Pages\PaymentChannels;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Pages\AccountingAccountInspector;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Resources\Enrollments\Tables\StudentAccountsTable;
+use App\Filament\Resources\FeePlans\FeePlanResource;
+use App\Filament\Resources\FeePlans\Pages\ListFeePlans;
+use App\Filament\Resources\FeePlans\Pages\ViewFeePlan;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\FeePlan;
 use App\Models\PaymentEvidenceVersion;
+use App\Models\Program;
 use App\Models\StudentLifecycleChange;
 use App\Models\Term;
 use App\Models\TermAccount;
@@ -84,7 +89,7 @@ class AccountingWorkspaceTest extends TestCase
 
         $page = Livewire::actingAs($actor)->withQueryParams(['tab' => 'accounts', 'account' => $oldest->id, 'search' => 'SYN-PAGED-WORKSPACE-'])
             ->test(ListEnrollments::class);
-        $this->assertSame(2, $page->instance()->getPage());
+        $this->assertSame(3, $page->instance()->getPage());
         $this->assertSame($oldest->id, $page->instance()->selectedAccountingRecord()->id);
 
         $page->call('gotoPage', 1)->assertSet('selectedAccountingId', null);
@@ -488,7 +493,7 @@ class AccountingWorkspaceTest extends TestCase
             ->assertDontSeeHtml('<div class="tala-record-scope-bar__summary" role="status">');
 
         Livewire::actingAs($actor)->test(AccountingAccountInspector::class, ['record' => $case->id])
-            ->assertSee('Published Fee Plan');
+            ->assertSee('Standard fee plan');
 
         Livewire::actingAs($actor)->test(AccountingAccountInspector::class, ['record' => $awaitingCase->id])
             ->assertSeeHtml('<section class="accounting-awaiting-summary" aria-labelledby="accounting-awaiting-heading">');
@@ -503,6 +508,67 @@ class AccountingWorkspaceTest extends TestCase
         $this->assertStringContainsString('class="tala-live-totals accounting-fee-plan-form-totals"', $draftTotalsHtml);
         $this->assertStringContainsString('role="status" aria-live="polite"', $draftTotalsHtml);
         $this->assertStringContainsString('Amounts match', $draftTotalsHtml);
+    }
+
+    public function test_accounting_breadcrumbs_trace_to_overview_and_split_inspector_surfaces_recovery_links(): void
+    {
+        $actor = $this->accounting();
+        $program = Program::factory()->create(['name' => 'Bachelor of Science in Accountancy']);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $plan = FeePlan::factory()->create([
+            'program_id' => $program->id,
+            'term_id' => $term->id,
+            'version' => 2,
+            'state' => FeePlan::StatePublished,
+            'created_by' => $actor->id,
+        ]);
+
+        $this->actingAs($actor);
+
+        $this->assertSame([
+            EnrollmentResource::getUrl('index') => 'Overview',
+            'Fee plans',
+        ], Livewire::test(ListFeePlans::class)->instance()->getBreadcrumbs());
+
+        $this->assertSame([
+            EnrollmentResource::getUrl('index') => 'Overview',
+            FeePlanResource::getUrl('index') => 'Fee plans',
+            'Bachelor of Science in Accountancy',
+        ], Livewire::test(ViewFeePlan::class, ['record' => $plan->getRouteKey()])->instance()->getBreadcrumbs());
+
+        $this->assertSame([
+            EnrollmentResource::getUrl('index') => 'Overview',
+            'Payment channels',
+        ], Livewire::test(PaymentChannels::class)->instance()->getBreadcrumbs());
+
+        $otherTerm = Term::factory()->create(['state' => Term::StateActive]);
+        $case = Enrollment::factory()->create(['term_id' => $otherTerm->id]);
+        $account = TermAccount::factory()->create(['enrollment_id' => $case->id, 'term_id' => $otherTerm->id]);
+        Assessment::factory()->create([
+            'enrollment_id' => $case->id,
+            'term_account_id' => $account->id,
+            'state' => Assessment::StateSuperseded,
+            'activated_by' => $actor->id,
+        ]);
+        $change = StudentLifecycleChange::factory()->create([
+            'enrollment_id' => $case->id,
+            'student_profile_id' => $case->student_profile_id,
+            'term_id' => $otherTerm->id,
+            'state' => StudentLifecycleChange::StateApplied,
+        ]);
+        app(LifecycleFinanceAction::class)->execute($change, $actor);
+
+        Livewire::test(AccountingAccountInspector::class, ['record' => $case->id])
+            ->assertSee('Open Fee Plans')
+            ->assertSee('View change');
+
+        $emptyTerm = Term::factory()->create(['state' => Term::StateActive]);
+        Livewire::withQueryParams([
+            'tab' => 'accounts',
+            'filters' => ['term' => ['value' => (string) $emptyTerm->id]],
+        ])->test(ListEnrollments::class)
+            ->assertActionDisabled('exportAccountStatus');
+        Livewire::withQueryParams([]);
     }
 
     private function accounting(): User

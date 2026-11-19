@@ -72,7 +72,7 @@ class Issue58SuccessorRecoveryTest extends TestCase
     {
         $registrar = $this->staff();
         $active = $this->activePackage($registrar);
-        $draft = TermCalendarPackage::factory()->for($active->term)->create(['version' => 2, 'faculty_availability_due_at' => null]);
+        $draft = TermCalendarPackage::factory()->for($active->term)->create(['version' => 2]);
         $draft->teachingGridRows()->create(['day_of_week' => 1, 'starts_at' => '08:00:00', 'ends_at' => '17:00:00', 'breaks' => [['starts_at' => '12:00:00', 'ends_at' => '13:00:00']]]);
         $section = Section::factory()->for(TermOffering::factory()->for($draft->term), 'termOffering')->create(['term_calendar_package_id' => $draft->id]);
         $this->assertSame($active->coreSignature(), $draft->fresh()->coreSignature());
@@ -170,34 +170,25 @@ class Issue58SuccessorRecoveryTest extends TestCase
     {
         Role::findOrCreate(User::StaffRoleFaculty, 'web');
         $registrar = $this->staff();
-        foreach ([false, true] as $hasSeparateSource) {
-            $package = $this->activePackage($registrar);
-            if ($hasSeparateSource) {
-                $prior = app(RecordFacultyAvailabilityDeadline::class)->execute($package->term, $registrar, '2026-10-31 17:00:00', 'Approved deadline', null, 0);
-            } else {
-                $package->update(['faculty_availability_due_at' => '2026-10-31 17:00:00']);
-                $prior = null;
-            }
-            $packageBefore = $package->fresh()->getAttributes();
+        $package = $this->activePackage($registrar);
+        $prior = app(RecordFacultyAvailabilityDeadline::class)->execute($package->term, $registrar, '2026-10-31 17:00:00', 'Approved deadline', null, 0);
+        $packageBefore = $package->fresh()->getAttributes();
 
-            $component = Livewire::actingAs($registrar)->test(TermResources::class, ['termId' => $package->term_id])
-                ->assertSee('Nov 1, 2026 · 1:00 AM')->assertSee('Asia/Manila')
-                ->mountAction('recordFacultyDeadline');
-            $component->setActionData(['authority_reference' => 'Deadline reviewed without time change', 'correction_reason' => 'Confirm the existing approved deadline']);
-            $schema = $component->instance()->getSchema($component->instance()->getMountedActionSchemaName());
-            $this->assertSame('2026-11-01 01:00', $schema->getRawState()['due_at']);
-            $state = $schema->getState();
-            $this->assertSame('2026-10-31 17:00', $state['due_at']);
-            $component->callMountedAction()->assertHasNoActionErrors();
+        $component = Livewire::actingAs($registrar)->test(TermResources::class, ['termId' => $package->term_id])
+            ->assertSee('Nov 1, 2026 · 1:00 AM')->assertSee('Asia/Manila')
+            ->mountAction('recordFacultyDeadline');
+        $component->setActionData(['authority_reference' => 'Deadline reviewed without time change', 'correction_reason' => 'Confirm the existing approved deadline']);
+        $schema = $component->instance()->getSchema($component->instance()->getMountedActionSchemaName());
+        $this->assertSame('2026-11-01 01:00', $schema->getRawState()['due_at']);
+        $state = $schema->getState();
+        $this->assertSame('2026-10-31 17:00', $state['due_at']);
+        $component->callMountedAction()->assertHasNoActionErrors();
 
-            $latest = FacultyAvailabilityDeadline::query()->where('term_id', $package->term_id)->latest('id')->firstOrFail();
-            $this->assertSame('2026-10-31 17:00:00', $latest->due_at->format('Y-m-d H:i:s'));
-            $this->assertSame('2026-11-01 01:00:00', $latest->due_at->copy()->timezone('Asia/Manila')->format('Y-m-d H:i:s'));
-            $this->assertSame($packageBefore, $package->fresh()->getAttributes());
-            if ($prior !== null) {
-                $this->assertSame('2026-10-31 17:00:00', $prior->fresh()->due_at->format('Y-m-d H:i:s'));
-            }
-        }
+        $latest = FacultyAvailabilityDeadline::query()->where('term_id', $package->term_id)->latest('id')->firstOrFail();
+        $this->assertSame('2026-10-31 17:00:00', $latest->due_at->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-11-01 01:00:00', $latest->due_at->copy()->timezone('Asia/Manila')->format('Y-m-d H:i:s'));
+        $this->assertSame($packageBefore, $package->fresh()->getAttributes());
+        $this->assertSame('2026-10-31 17:00:00', $prior->fresh()->due_at->format('Y-m-d H:i:s'));
     }
 
     public function test_new_request_and_failed_resend_use_the_retained_deadline_in_the_actual_mail(): void
@@ -480,7 +471,7 @@ class Issue58SuccessorRecoveryTest extends TestCase
 
     private function activePackage(User $registrar): TermCalendarPackage
     {
-        $package = TermCalendarPackage::factory()->create(['faculty_availability_due_at' => null]);
+        $package = TermCalendarPackage::factory()->create();
         $package->teachingGridRows()->create(['day_of_week' => 1, 'starts_at' => '08:00:00', 'ends_at' => '17:00:00', 'breaks' => [['starts_at' => '12:00:00', 'ends_at' => '13:00:00']]]);
 
         return app(ActivateTermCalendarPackage::class)->execute($package, $registrar);

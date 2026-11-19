@@ -186,7 +186,7 @@ class ReopenRegistrationCase
         $profile = $enrollment->studentProfile;
         if (! $profile instanceof StudentProfile
             || $profile->blocksEnrollmentByLifecycle()
-            || $profile->curriculumVersion?->state !== CurriculumVersion::StateActive) {
+            || ! in_array($profile->curriculumVersion?->state, [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded], true)) {
             throw ValidationException::withMessages(['case' => 'The continuing Student’s current lifecycle, Program, and Curriculum authority do not permit reopening.']);
         }
     }

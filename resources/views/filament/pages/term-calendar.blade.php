@@ -6,7 +6,7 @@
             @if ($overviewPackage)
                 <header class="tala-calendar-sheet-heading">
                     <h2 id="teaching-calendar-heading"><x-filament::icon icon="heroicon-o-calendar-days" />Classes run</h2>
-                    <p><x-filament::badge color="gray">{{ $overviewPackage->state }}</x-filament::badge><span>Version {{ $overviewPackage->version }}</span></p>
+                    <p><x-filament::badge color="gray">{{ $overviewPackage->state }}</x-filament::badge>@if ($overviewPackage->updated_at)<span>Updated {{ $overviewPackage->updated_at->timezone(config('app.display_timezone'))->format('M j, Y') }}</span>@endif</p>
                 </header>
                 <div class="tala-calendar-date-range">
                     <dl><dt>Starts</dt><dd><time datetime="{{ $overviewPackage->classes_start_on?->toDateString() }}">{{ $overviewPackage->classes_start_on?->format('M j, Y') ?? 'Start date missing' }}</time></dd></dl>
@@ -25,10 +25,8 @@
                     <div class="tala-calendar-exceptions"><h3>No-class days and exceptions</h3><ul>@foreach ($overviewPackage->datedExceptions as $exception)<li>{{ $exception->starts_on->format('M j') }} – {{ $exception->ends_on->format('M j, Y') }} · {{ $exception->label }} · {{ $exception->blocks_teaching ? 'No classes' : $exception->exception_type }}</li>@endforeach</ul></div>
                 @endif
             @else
-                <div class="tala-calendar-first-use">
-                    <x-filament::icon icon="heroicon-o-calendar-days" />
-                    <h2 id="teaching-calendar-heading">Set the teaching week</h2>
-                    <p>Record approved class dates and weekly teaching hours to prepare this Term.</p>
+                <div class="tala-calendar-first-use" id="teaching-calendar-heading">
+                    <x-servitech-empty-state illustrated heading="Set the teaching week" description="Record approved class dates and weekly teaching hours to prepare this Term." />
                 </div>
             @endif
             @if (! $readOnly)
@@ -45,7 +43,7 @@
                 <x-supporting-details summary="Teaching hours, source and calendar history" inset>
                         <p>Meetings use 30-minute slots within the recorded teaching hours.</p>
                         {{ $this->table }}
-                        @if ($overviewPackage->authority_reference || $overviewPackage->authority_date)<p>@if ($overviewPackage->authority_reference)Approval reference: {{ $overviewPackage->authority_reference }}@endif @if ($overviewPackage->authority_date)Approved {{ $overviewPackage->authority_date->format('M j, Y') }}@endif</p>@endif
+                        @if ($overviewPackage->authority_reference || $overviewPackage->authority_date)<p>@if ($overviewPackage->authority_reference)Approval note: {{ $overviewPackage->authority_reference }}@endif @if ($overviewPackage->authority_date)Approved {{ $overviewPackage->authority_date->format('M j, Y') }}@endif</p>@endif
                         @if ($term->type === \App\Models\Term::TypeSpecialTerm)<p>Special Term basis: {{ $overviewPackage->special_term_schedule_basis ?: 'Not recorded' }}</p>@endif
                         <p>Changes create a new draft and preserve the active calendar’s history.</p>
                 </x-supporting-details>

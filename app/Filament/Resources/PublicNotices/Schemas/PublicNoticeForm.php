@@ -16,7 +16,7 @@ class PublicNoticeForm
     {
         return $schema->components([
             Section::make('Notice draft')
-                ->description('System Administration owns this public guidance. Saving published content creates a successor draft; the public version stays unchanged until you publish.')
+                ->description('System Administration owns this public guidance. Saving published content creates an updated draft; the live notice stays unchanged until you publish.')
                 ->schema([
                     TextInput::make('title')->required()->maxLength(160)->columnSpanFull(),
                     Textarea::make('message')->required()->maxLength(500)->rows(4)->helperText('Plain text only; 500 characters maximum.')->columnSpanFull(),

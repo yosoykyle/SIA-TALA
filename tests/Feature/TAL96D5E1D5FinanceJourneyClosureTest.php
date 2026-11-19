@@ -7,9 +7,7 @@ use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Finance\PaymentConfirmationService;
 use App\Actions\Finance\ReviewPaymentEvidence;
 use App\Actions\Finance\StudentAccountPresenter;
-use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
-use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
 use App\Models\AssessmentObligation;
@@ -35,7 +33,6 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
-use ReflectionMethod;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -284,7 +281,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $fixture = $this->activeAssessmentFixture();
 
         $this->actingAs($fixture['accounting']);
-        $this->assertFalse(AssessmentResource::canAccess());
+        $this->assertFalse(class_exists('App\Filament\Resources\Assessments\AssessmentResource'));
 
         $page = Livewire::actingAs($fixture['accounting'])
             ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->getRouteKey()])
@@ -369,21 +366,6 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $this->assertSame(
             'Electronic receipt uploads are currently turned off. Pay directly at the Campus Cashier: Accounting records onsite payments directly.',
             $finance['state']['payment_evidence']['required_action'],
-        );
-    }
-
-    public function test_four_step_staff_summary_uses_two_columns_at_large_container_widths(): void
-    {
-        $fixture = $this->activeAssessmentFixture();
-        $this->actingAs($fixture['accounting']);
-        $widget = Livewire::test(StaffRoleWorkspaceOverviewWidget::class)
-            ->assertSee('review submitted receipts')
-            ->assertDontSee('verify payment proof');
-        $method = new ReflectionMethod(StaffRoleWorkspaceOverviewWidget::class, 'getColumns');
-
-        $this->assertSame(
-            ['@xl' => 2, '!@lg' => 2],
-            $method->invoke($widget->instance()),
         );
     }
 

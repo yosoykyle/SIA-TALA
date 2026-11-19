@@ -52,11 +52,11 @@ class FeePlansTable
                 TextColumn::make('charges_sum_amount')->label('Total charges')
                     ->extraHeaderAttributes(['class' => 'fee-plans-col-money'])
                     ->extraCellAttributes(['class' => 'fee-plans-col-money'])
-                    ->formatStateUsing(fn ($state): string => AccountingDisplay::money($state, 'Not set'))->placeholder('Not set')->alignEnd(),
+                    ->formatStateUsing(fn ($state): string => AccountingDisplay::money($state, 'Not set'))->placeholder('Not set')->alignStart(),
                 TextColumn::make('enrollment_payment_amount')->label('Enrollment payment')
                     ->extraHeaderAttributes(['class' => 'fee-plans-col-money'])
                     ->extraCellAttributes(['class' => 'fee-plans-col-money'])
-                    ->formatStateUsing(fn ($state): string => AccountingDisplay::money($state, 'Not set'))->placeholder('Not set')->alignEnd(),
+                    ->formatStateUsing(fn ($state): string => AccountingDisplay::money($state, 'Not set'))->placeholder('Not set')->alignStart(),
             ])
             ->searchable([fn (Builder $query, string $search): Builder => $query->where(fn (Builder $scope): Builder => $scope
                 ->where('authority_reference', 'like', "%{$search}%")

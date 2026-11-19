@@ -1,18 +1,18 @@
-<div class="space-y-6">
+<div class="space-y-4">
     @if ($roster->state !== \App\Models\GradeRoster::StateReleased)
         <x-filament::section>
             <x-slot name="heading">{{ $roster->state === \App\Models\GradeRoster::StateReturned ? 'Returned grades' : ($version ? 'Submitted grades' : 'Awaiting Faculty submission') }}</x-slot>
-            <x-slot name="description">{{ $version ? $reviewRows->count().' students · '.($roster->teachingAssignment?->faculty?->getFilamentName() ?? 'Faculty not recorded').' · Version '.$version->version_number : 'The designated Faculty member records and submits the complete class.' }}</x-slot>
+            <x-slot name="description">{{ $version ? collect([$reviewRows->count().' students', $roster->teachingAssignment?->faculty?->getFilamentName() ?? 'Faculty not recorded', $version->submitted_at ? 'Submitted '.$version->submitted_at->timezone('Asia/Manila')->format('M j, Y') : null])->filter()->implode(' · ') : 'The designated Faculty member records and submits the complete class.' }}</x-slot>
             @if ($roster->state === \App\Models\GradeRoster::StateReturned)
                 @php($returnedCount = $version?->returnedRows->whereNull('resolved_at')->count() ?? 0)
-                <div class="tala-review-feedback mb-5">
+                <div class="tala-review-feedback mb-4">
                     <x-filament::icon icon="heroicon-o-arrow-uturn-left" class="size-5" />
                     <div><h3>{{ $returnedCount }} {{ $returnedCount === 1 ? 'result needs' : 'results need' }} Faculty changes</h3><p>{{ $roster->return_reason }}</p><p>Next: {{ $roster->teachingAssignment?->faculty?->getFilamentName() ?? 'The designated Faculty member' }} corrects the marked results and resubmits the complete class.</p></div>
                 </div>
             @endif
             @if ($reviewRows->isNotEmpty())
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
+                <div class="tala-data-table-scroll overflow-x-auto" role="region" aria-label="Submitted class grades" tabindex="0">
+                    <table class="tala-data-table w-full text-left text-sm">
                         <thead class="border-b border-gray-200 dark:border-gray-700">
                             <tr><th scope="col" class="px-3 pb-3">Student</th><th scope="col" class="px-3 pb-3">Result</th><th scope="col" class="px-3 pb-3">Remaining work</th></tr>
                         </thead>
@@ -29,7 +29,7 @@
                     </table>
                 </div>
                 @if ($roster->state === \App\Models\GradeRoster::StateSubmitted && auth()->user()?->hasRole(\App\Models\User::StaffRoleRegistrar))
-                    <div class="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 pt-5 dark:border-gray-700">
+                    <div class="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 pt-4 dark:border-gray-700">
                         <p class="max-w-md text-sm text-gray-600 dark:text-gray-300">Release makes this complete class submission visible to students. Any affected enrollment goes to the Registrar for review.</p>
                         <div class="flex flex-wrap items-center gap-3">{{ $getLivewire()->returnAction }} {{ $getLivewire()->postAndReleaseAction }}</div>
                     </div>

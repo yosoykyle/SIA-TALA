@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Actions\Finance\MapOfficialReceiptToPayment;
 use App\Actions\Finance\PaymentConfirmationService;
-use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
@@ -54,8 +53,8 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         $accounting = $this->staff(User::StaffRoleAccounting);
         $this->actingAs($accounting);
 
-        $this->assertFalse(AssessmentResource::canAccess());
-        $this->assertFalse(AssessmentResource::shouldRegisterNavigation());
+        $this->assertFalse(class_exists('App\Filament\Resources\Assessments\AssessmentResource'));
+        $this->assertFalse(Route::has('filament.admin.resources.assessments.index'));
     }
 
     public function test_duplicate_manual_payment_reference_and_or_number_are_rejected_without_reposting(): void
@@ -148,7 +147,7 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         $payment = $this->verifiedPostedPayment($fixture);
 
         $this->actingAs($registrar);
-        $this->assertFalse(AssessmentResource::canAccess());
+        $this->assertFalse(class_exists('App\Filament\Resources\Assessments\AssessmentResource'));
 
         $this->assertFalse(Gate::forUser($registrar)->allows('mapOfficialReceipt', $payment));
 

@@ -21,8 +21,8 @@ class RecordExternalCompetencyResult
         StudentProfile $student,
         string $outcome,
         string $evidenceReference,
-        string $authorityReference,
-        Carbon $authorityDate,
+        ?string $authorityReference,
+        ?Carbon $authorityDate,
         User $registrar,
         ?Carbon $assessmentDate = null,
         ?string $externalSource = null,
@@ -41,14 +41,15 @@ class RecordExternalCompetencyResult
             throw new RuntimeException('External competency outcome must be Not Yet Competent or Competent.');
         }
 
-        $assessmentDate ??= $authorityDate;
-        $externalSource = trim($externalSource ?? $authorityReference);
+        $assessmentDate ??= $authorityDate ?? today();
+        $authorityReference = filled($authorityReference) ? trim((string) $authorityReference) : null;
+        $externalSource = trim((string) ($externalSource ?? $authorityReference ?? ''));
         $credentialType = filled($credentialType) ? strtoupper(trim((string) $credentialType)) : null;
         $credentialReference = filled($credentialReference) ? trim((string) $credentialReference) : null;
         $safeRemarks = filled($safeRemarks) ? trim((string) $safeRemarks) : null;
 
-        if (blank(trim($evidenceReference)) || blank(trim($authorityReference)) || $externalSource === '') {
-            throw new RuntimeException('Evidence, external source, and authority are required.');
+        if (blank(trim($evidenceReference)) || $externalSource === '') {
+            throw new RuntimeException('Evidence and external source are required.');
         }
 
         if ($credentialType !== null && ! in_array($credentialType, ['NC', 'COC'], true)) {
@@ -64,8 +65,8 @@ class RecordExternalCompetencyResult
             $student->id,
             $outcome,
             trim($evidenceReference),
-            trim($authorityReference),
-            $authorityDate->toDateString(),
+            $authorityReference,
+            $authorityDate?->toDateString(),
             $assessmentDate->toDateString(),
             $externalSource,
             $credentialType,
@@ -118,7 +119,7 @@ class RecordExternalCompetencyResult
                 'safe_remarks' => $safeRemarks,
                 'source_key' => $sourceKey,
                 'evidence_reference' => trim($evidenceReference),
-                'authority_reference' => trim($authorityReference),
+                'authority_reference' => $authorityReference,
                 'authority_date' => $authorityDate,
                 'recorded_by' => $registrar->id,
                 'recorded_at' => now(),

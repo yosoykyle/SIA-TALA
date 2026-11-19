@@ -13,7 +13,7 @@
     @if (! $ordinary)@include('filament.admin.enrollments.accounting-account-review')@endif
     <div class="accounting-account-highlights">
         @if ($ordinary)
-            <section class="accounting-current-payment tala-task-surface" aria-labelledby="account-current-status">
+            <section @class(['accounting-current-payment', 'tala-task-surface' => ! $this->isAccountingWorkspace()]) aria-labelledby="account-current-status">
                 <p class="accounting-payment-kicker"><span class="tala-workspace-card__icon"><x-filament::icon icon="heroicon-o-wallet" aria-hidden="true" /></span>{{ $due ? 'Due now' : 'Current payment' }}</p>
                 <h2 id="account-current-status">{{ $due ? \App\Actions\Finance\AccountingDisplay::money($position['current_due']) : 'No payment due now' }}</h2>
                 <p>{{ $requirement['state'] === 'Cleared' ? 'Enrollment payment satisfied' : 'Enrollment payment pending' }}</p>

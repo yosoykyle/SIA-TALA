@@ -14,6 +14,8 @@ use App\Filament\Pages\Auth\RequestPasswordReset;
 use App\Filament\Pages\Auth\ResetPassword;
 use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use App\Http\Middleware\EnsureStaffMfaIsEnabled;
+use App\Models\User;
+use App\Support\NavigationBadgeCounts;
 use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
@@ -27,7 +29,9 @@ use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Icons\Heroicon;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
+use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -73,15 +77,30 @@ class ApplicantPanelProvider extends PanelProvider
                     )
                     ->themeToggle()
             )
+            ->renderHook(
+                PanelsRenderHook::SIMPLE_PAGE_START,
+                fn (array $scopes): View => view('filament.components.auth-back-link', [
+                    'showBackToSignIn' => in_array(RequestPasswordReset::class, $scopes, true)
+                        || in_array(ResetPassword::class, $scopes, true)
+                        || request()->routeIs('filament.*.auth.password-reset.*', 'filament.applicant.auth.register'),
+                ]),
+            )
             ->discoverResources(in: app_path('Filament/Applicant/Resources'), for: 'App\Filament\Applicant\Resources')
             ->discoverPages(in: app_path('Filament/Applicant/Pages'), for: 'App\Filament\Applicant\Pages')
             ->pages([
                 Dashboard::class,
             ])
-            ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $builder->items([
-                $this->navigationItem(Dashboard::class, 'Home', 'filament.applicant.pages.dashboard'),
-                $this->navigationItem(Application::class, 'Application', 'filament.applicant.pages.application'),
-            ]))
+            ->navigation(function (NavigationBuilder $builder): NavigationBuilder {
+                $badgeCounts = new NavigationBadgeCounts;
+                $user = auth()->user();
+                $user = $user instanceof User ? $user : null;
+
+                return $builder->items([
+                    $this->navigationItem(Dashboard::class, 'Home', 'filament.applicant.pages.dashboard'),
+                    $this->navigationItem(Application::class, 'Application', 'filament.applicant.pages.application')
+                        ->badge(fn (): ?string => ($count = $badgeCounts->applicantActionCount($user)) > 0 ? (string) $count : null, 'warning'),
+                ]);
+            })
             ->userMenuItems([
                 'history' => Action::make('history')
                     ->label("Applicant's History")

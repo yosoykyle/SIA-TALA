@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\AcademicScheduling;
 
-use App\Actions\AcademicSetup\ActivateProgramAuthority;
 use App\Actions\Calendar\ActivateTermCalendarPackage;
 use App\Actions\Calendar\TermCalendarPackageReadinessService;
 use App\Actions\Enrollment\RecordRegistrationSourceImpactReview;
@@ -13,6 +12,7 @@ use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\FacultyAvailabilityRequestService;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\ReadyTermPlanningProjection;
+use App\Actions\Scheduling\RecordFacultyAvailabilityDeadline;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
 use App\Actions\Scheduling\ResolveTimetableRevisionRegistrationImpact;
 use App\Actions\Scheduling\ReviewTimetableCandidate;
@@ -28,6 +28,7 @@ use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermResources;
 use App\Filament\Pages\TermTimetable;
+use App\Filament\Resources\Programs\ProgramResource;
 use App\Mail\FacultyAvailabilityRequestedMail;
 use App\Mail\ScheduleReleasedMail;
 use App\Models\CalendarEvent;
@@ -41,7 +42,7 @@ use App\Models\Enrollment;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\OperationalEvent;
-use App\Models\ProgramAuthority;
+use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationCaseEvent;
@@ -53,7 +54,6 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
@@ -105,12 +105,7 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $faculty = User::factory()->create(['status' => User::StatusActive]);
         $faculty->assignRole(User::StaffRoleFaculty);
 
-        $authority = ProgramAuthority::factory()->create([
-            'curriculum_source_reference' => 'SYNTH-DIT-CURRICULUM-2026',
-            'state' => ProgramAuthority::StateDraft,
-        ]);
-        app(ActivateProgramAuthority::class)->execute($authority, $registrar);
-        $program = $authority->program;
+        $program = Program::factory()->create();
         $term = Term::factory()->create([
             'state' => Term::StateDraft,
             'default_max_units' => 21,
@@ -130,8 +125,6 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $course = Course::factory()->create(['code' => 'S3-JOURNEY']);
         $specification = CourseSpecification::factory()->for($course)->create([
             'state' => CourseSpecification::StateActive,
-            'authority_reference' => 'SYNTH-COURSE-AUTHORITY-2026',
-            'effective_from' => now()->subMonth()->toDateString(),
             'credit_units' => 1,
         ]);
         CourseComponent::factory()->for($specification)->create([
@@ -278,7 +271,6 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
 
         $this->assertSame(PublishedTimetableVersion::StatePublished, $publishedVersion->state);
         $this->assertSame($faculty->id, $publishedMeeting->faculty_user_id);
-        $this->assertSame(0, StudentScheduleBinding::query()->count());
         Mail::assertQueued(ScheduleReleasedMail::class, 1);
 
         $this->actingAs($registrar)
@@ -314,39 +306,6 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $this->assertSame(PublishedTimetableVersion::StateSuperseded, $publishedVersion->fresh()->state);
         $this->assertSame($replacementRoom->id, $successorVersion->meetings->sole()->room_id);
         $this->assertSame($publishedMeeting->id, $successorVersion->meetings->sole()->supersedes_meeting_id);
-        $this->assertSame(0, StudentScheduleBinding::query()->count());
-    }
-
-    public function test_program_authority_activation_is_failed_first_attributable_and_effective_dated(): void
-    {
-        $registrar = $this->registrar();
-        $authority = ProgramAuthority::factory()->create([
-            'curriculum_source_reference' => null,
-            'state' => ProgramAuthority::StateDraft,
-        ]);
-
-        try {
-            app(ActivateProgramAuthority::class)->execute($authority, $registrar);
-            $this->fail('Authority without an attributable curriculum source was activated.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('readiness', $exception->errors());
-        }
-
-        $this->assertSame(ProgramAuthority::StateDraft, $authority->fresh()->state);
-
-        $authority->update(['curriculum_source_reference' => 'SYNTH-BSIT-CURRICULUM-2026']);
-        $active = app(ActivateProgramAuthority::class)->execute($authority->fresh(), $registrar);
-
-        $this->assertSame(ProgramAuthority::StateActive, $active->state);
-        $this->assertSame($registrar->id, $active->recorded_by);
-
-        $overlap = ProgramAuthority::factory()->for($active->program)->create([
-            'effective_from' => $active->effective_from,
-            'state' => ProgramAuthority::StateDraft,
-        ]);
-
-        $this->expectException(ValidationException::class);
-        app(ActivateProgramAuthority::class)->execute($overlap, $registrar);
     }
 
     public function test_exact_terms_activate_independently_after_failed_first_calendar_readiness(): void
@@ -539,11 +498,13 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $academicHead = User::factory()->create(['status' => User::StatusActive]);
         $academicHead->assignRole(User::StaffRoleAcademicHead);
         $term = Term::factory()->create();
+        $program = Program::factory()->create(['code' => 'S3-WB', 'name' => 'Workbench Program']);
 
         Livewire::actingAs($registrar)
             ->test(CatalogCurriculaWorkbench::class)
-            ->assertSee('Academic authority at a glance')
-            ->assertSee('Import previews');
+            ->assertNoRedirect()
+            ->assertSee('Active curricula')
+            ->assertSee(ProgramResource::getUrl('index'));
 
         $termPlanning = Livewire::actingAs($registrar)
             ->test(TermTimetable::class, ['termId' => $term->id])
@@ -577,8 +538,8 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         );
 
         Livewire::actingAs($academicHead)
-            ->test(CatalogCurriculaWorkbench::class)
-            ->assertSee('Academic Head access is read-only');
+            ->test(CatalogCurriculaWorkbench::class, ['programId' => $program->id, 'oversightTermId' => $term->id])
+            ->assertRedirect(ProgramResource::getUrl('view', ['record' => $program, 'oversightTermId' => $term->id]));
     }
 
     public function test_timetable_impact_records_system_sources_for_changed_and_cancelled_outcomes(): void
@@ -757,7 +718,6 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $this->assertSame(9, User::role(User::StaffRoleFaculty)->count());
         $this->assertSame(10, Room::query()->where('is_active', true)->count());
         $this->assertSame(54, SchedulingDemand::query()->count());
-        $this->assertSame(0, StudentScheduleBinding::query()->count());
     }
 
     public function test_late_faculty_availability_correction_is_attributable_and_stales_the_candidate(): void
@@ -844,6 +804,7 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $faculty = User::factory()->create(['status' => User::StatusActive]);
         $faculty->assignRole(User::StaffRoleFaculty);
         $registrar = $this->registrar();
+        app(RecordFacultyAvailabilityDeadline::class)->execute($term, $registrar, '2026-07-15 09:00:00', 'Approved availability deadline', null, 0);
 
         $requests = app(FacultyAvailabilityRequestService::class)->request($package, [$faculty->id], $registrar);
         app(FacultyAvailabilityRequestService::class)->request($package, [$faculty->id], $registrar);
@@ -899,9 +860,11 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         ]);
         $faculty = User::factory()->create(['status' => User::StatusActive]);
         $faculty->assignRole(User::StaffRoleFaculty);
+        $registrar = $this->registrar();
+        app(RecordFacultyAvailabilityDeadline::class)->execute($term, $registrar, '2026-07-15 09:00:00', 'Approved availability deadline', null, 0);
 
         $event = app(FacultyAvailabilityRequestService::class)
-            ->request($package, [$faculty->id], $this->registrar())
+            ->request($package, [$faculty->id], $registrar)
             ->sole()
             ->fresh();
 

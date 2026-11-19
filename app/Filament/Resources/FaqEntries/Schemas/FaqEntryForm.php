@@ -18,7 +18,7 @@ class FaqEntryForm
         return $schema
             ->components([
                 Section::make('FAQ Content')
-                    ->description('System Administration owns FAQ guidance. Saving published content creates a successor draft. Publish separately after reviewing its window and position.')
+                    ->description('System Administration owns FAQ guidance. Saving published content creates an updated draft. Publish separately after reviewing its window and position.')
                     ->schema([
                         TextInput::make('question')
                             ->required()

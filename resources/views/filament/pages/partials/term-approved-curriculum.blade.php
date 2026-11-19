@@ -16,8 +16,8 @@
             @if ($group['entries']->isEmpty())
                 <p>No entries in this group.</p>
             @else
-                <div class="tala-approved-curriculum-table-wrap">
-                    <table class="tala-approved-curriculum-table">
+                <div class="tala-data-table-scroll tala-approved-curriculum-table-wrap" role="region" aria-label="{{ $group['heading'] }} approved courses" tabindex="0">
+                    <table class="tala-data-table tala-approved-curriculum-table">
                         <caption class="sr-only">{{ $group['heading'] }} approved courses</caption>
                         <thead>
                             <tr>

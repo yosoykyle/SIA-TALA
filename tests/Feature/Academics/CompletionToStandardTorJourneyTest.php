@@ -91,7 +91,6 @@ class CompletionToStandardTorJourneyTest extends TestCase
         $required = ExternalCompetencyRequirement::factory()->create([
             'curriculum_version_id' => $fixture['student']->curriculum_version_id,
             'qualification_label' => 'Synthetic graduation requirement',
-            'authority_reference' => 'SYNTHETIC COMPLETION AUTHORITY — TEST ONLY',
             'treatment' => ExternalCompetencyRequirement::TreatmentCompletionRequired,
             'state' => 'ACTIVE',
         ]);

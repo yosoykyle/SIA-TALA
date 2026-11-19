@@ -48,7 +48,7 @@ final class Issue66TermPreparationTest extends TestCase
     public function test_core_calendar_records_actor_without_optional_reference_date_or_consumer_dates(): void
     {
         $actor = $this->registrar();
-        $package = TermCalendarPackage::factory()->create(['authority_reference' => null, 'authority_date' => null, 'faculty_availability_due_at' => null]);
+        $package = TermCalendarPackage::factory()->create(['authority_reference' => null, 'authority_date' => null]);
         TermTeachingGridRow::factory()->create(['term_calendar_package_id' => $package->id, 'day_of_week' => 1]);
         $active = app(ActivateTermCalendarPackage::class)->execute($package, $actor);
 
@@ -95,7 +95,7 @@ final class Issue66TermPreparationTest extends TestCase
         $this->assertSame(['confirmed' => 2, 'cancelled' => 0], $result);
         $this->assertCount(2, Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))->whereNotNull('confirmed_at')->get());
         $this->assertSame(2, Section::query()->where('code', 'SYNTH66-SHARED')->firstOrFail()->cohorts()->count());
-        $this->assertSame(0, SchedulingDemand::query()->count());
+        $this->assertSame(2, SchedulingDemand::query()->count());
     }
 
     public function test_invalid_additional_authority_or_stale_proposal_saves_no_class(): void

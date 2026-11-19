@@ -21,21 +21,21 @@ class UserInfolist
                         ->badge()
                         ->formatStateUsing(fn (?string $state): string => User::statusLabel($state))
                         ->color(fn (?string $state): string => User::statusColor($state)),
-                ])->columns(2),
+                ])->columns(2)->columnSpanFull(),
             Section::make('Authorized contexts')
                 ->schema([
                     TextEntry::make('roles.name')->label('Roles')->badge()->separator(', '),
                     TextEntry::make('email_verified_at')->label('Email verified')->dateTime()->placeholder('Pending'),
                     TextEntry::make('two_factor_confirmed_at')->label('MFA enrolled')->dateTime()->placeholder('Not enrolled'),
                     TextEntry::make('last_successful_sign_in_at')->label('Last successful sign-in')->dateTime()->placeholder('No successful sign-in recorded'),
-                ])->columns(2),
+                ])->columns(2)->columnSpanFull(),
             Section::make('Access history')
                 ->schema([
                     TextEntry::make('disabled_at')->label('Disabled at')->dateTime()->placeholder('Active'),
                     TextEntry::make('disabled_reason')->label('Disablement reason')->placeholder('Not applicable'),
                     TextEntry::make('disabled_authority')->label('Authority')->placeholder('Not applicable'),
                     TextEntry::make('created_at')->label('Account created')->dateTime(),
-                ])->columns(2),
+                ])->columns(2)->columnSpanFull(),
         ]);
     }
 }

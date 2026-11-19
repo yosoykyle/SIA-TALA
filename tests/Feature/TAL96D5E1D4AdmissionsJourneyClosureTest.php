@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Applicants\ApplicantEvidenceService;
 use App\Actions\Applicants\ApplicantIntakeWorkflowPresenter;
 use App\Filament\Applicant\Pages\Dashboard;
-use App\Filament\Resources\ApplicantIntakes\Pages\ViewApplicantIntake;
+use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelationManager;
 use App\Mail\ApplicantStatusChangedMail;
 use App\Models\ApplicantIntake;
@@ -209,7 +209,7 @@ class TAL96D5E1D4AdmissionsJourneyClosureTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ChecklistItemsRelationManager::class, [
                 'ownerRecord' => $intake,
-                'pageClass' => ViewApplicantIntake::class,
+                'pageClass' => ViewStudentProfile::class,
             ])
             ->assertTableActionHasLabel('verifyDocument', 'Verify Digital Evidence', $digital)
             ->assertTableActionHasLabel('verifyDocument', 'Verify Physical Requirement', $physical)

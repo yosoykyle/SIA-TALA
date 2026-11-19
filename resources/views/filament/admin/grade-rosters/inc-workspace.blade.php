@@ -5,16 +5,30 @@
     $releasedAt = $selected?->outcomeEvents->whereNotNull('released_at')->sortByDesc('id')->first()?->released_at ?? $selected?->released_at;
     $history = $selected ? $this->resultHistoryFor($selected->id) : null;
     $followUp = $selected ? \App\Filament\Resources\GradeRosters\Tables\ReleasedResultsTable::followUp($selected) : null;
+    $scope = $this->getTableFilterState('result_scope')['value'] ?? 'inc';
+    $work = $scope === 'inc' ? 'INC follow-up' : 'Grade correction';
+    $termId = $this->getTableFilterState('term')['value'] ?? null;
+    $term = filled($termId) ? ($this->getTable()->getFilter('term')->getOptions()[$termId] ?? 'Selected term') : 'All terms';
+    $hasCriteria = $this->hasTableSearch() || filled($termId);
 @endphp
+<div class="tala-inc-card tala-task-surface">
+    <div class="tala-inc-toolbar" aria-label="Find course results">
+        <div class="tala-record-query">
+            <x-filament-tables::search-field label="Find a course result" placeholder="Student, course or class" debounce="350ms" />
+            <x-filament::dropdown :menu="false" placement="bottom-end" width="sm" shift>
+                <x-slot:trigger><x-filament::button color="gray" icon="heroicon-m-funnel">Filters</x-filament::button></x-slot:trigger>
+                <x-filament-tables::filters :form="$this->getTableFiltersForm()" :apply-action="$this->getTable()->getFiltersApplyAction()" :reset-action="$this->getTable()->getFiltersResetAction()" />
+            </x-filament::dropdown>
+            <p class="tala-record-query-summary" aria-live="polite">{{ $work }} · {{ $term }}</p>
+        </div>
+    </div>
 @if ($records->isEmpty())
-    @php
-        $scope = $this->getTableFilterState('result_scope')['value'] ?? 'inc';
-        $hasCriteria = $this->hasTableSearch() || filled($this->getTableFilterState('term')['value'] ?? null);
-    @endphp
-    <x-servitech-empty-state :illustrated="! $hasCriteria && $scope === 'all'" :heading="$hasCriteria ? 'No released course results match' : ($scope === 'inc' ? 'No INC results in this scope' : 'No released course results yet')" :description="$hasCriteria ? $getEmptyStateDescription() : ($scope === 'inc' ? 'Choose Grade correction to inspect other released results, or change the term.' : 'Results appear here after the Registrar releases a class roster.')" icon="heroicon-o-magnifying-glass">
-        @if ($this->hasTableSearch())<x-filament::button color="gray" wire:click="resetTableSearch" icon="heroicon-m-x-mark">Clear search</x-filament::button>@endif
-        @if (filled($this->getTableFilterState('term')['value'] ?? null))<x-filament::button color="gray" wire:click="resetTableFiltersForm" icon="heroicon-m-arrow-path">Clear filters</x-filament::button>@endif
-    </x-servitech-empty-state>
+    <div class="servitech-empty-collection">
+        <x-servitech-empty-state :illustrated="! $hasCriteria" :heading="$hasCriteria ? 'No released course results match' : ($scope === 'inc' ? 'No INC results in this scope' : 'No released course results yet')" :description="$hasCriteria ? $getEmptyStateDescription() : ($scope === 'inc' ? 'Choose Grade correction in Filters to inspect other released results, or change the term.' : 'Results appear here after the Registrar releases a class roster.')" :icon="$hasCriteria ? 'heroicon-o-magnifying-glass' : 'heroicon-o-document-text'">
+            @if ($this->hasTableSearch())<x-filament::button color="gray" wire:click="resetTableSearch" icon="heroicon-m-x-mark">Clear search</x-filament::button>@endif
+            @if (filled($termId))<x-filament::button color="gray" wire:click="resetTableFiltersForm" icon="heroicon-m-arrow-path">Clear filters</x-filament::button>@endif
+        </x-servitech-empty-state>
+    </div>
 @else
 <x-record-workspace class="tala-inc-workspace" collection-label="course results">
     <x-slot:browser aria-label="Course results">
@@ -74,3 +88,4 @@
 </x-record-workspace>
 
 @endif
+</div>

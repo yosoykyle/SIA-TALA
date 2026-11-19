@@ -12,6 +12,7 @@ use App\Models\StudentLifecycleChange;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Support\Enums\Width;
 use Illuminate\Validation\ValidationException;
 
 class CreateStudentLifecycleChange extends CreateRecord
@@ -43,6 +44,9 @@ class CreateStudentLifecycleChange extends CreateRecord
             ->label('Choose another student')->icon('heroicon-o-users')->color('primary')
             ->visible(fn (): bool => filled($this->data['student_profile_id'] ?? null))
             ->requiresConfirmation(fn (): bool => filled($this->data['type'] ?? null))
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalHeading('Choose another student?')
             ->modalDescription('The unsaved change will be cleared. No student change has been recorded.')
             ->modalSubmitActionLabel('Choose another student')

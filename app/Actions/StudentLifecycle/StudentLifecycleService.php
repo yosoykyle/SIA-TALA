@@ -4,7 +4,9 @@ namespace App\Actions\StudentLifecycle;
 
 use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Actions\Academics\OfficialCourseResultProjection;
+use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\StudentLifecycle\Exceptions\StudentLifecycleRuleViolation;
+use App\Models\AcademicDecision;
 use App\Models\CalendarEvent;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
@@ -18,7 +20,6 @@ use App\Models\Program;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -33,6 +34,7 @@ class StudentLifecycleService
         private readonly LifecycleFinanceAction $finance,
         private readonly AcademicRecordNotificationService $notifications,
         private readonly OfficialCourseResultProjection $results,
+        private readonly CalendarPhaseGateService $calendar,
     ) {}
 
     /** @param array<string,mixed> $data @return array<string,mixed> */
@@ -92,7 +94,6 @@ class StudentLifecycleService
                 ])
                 ->values()
                 ->all(),
-            'binding_ids' => StudentScheduleBinding::query()->whereIn('course_enrollment_id', $courseEnrollments->modelKeys())->where('is_active', true)->pluck('id')->all(),
             'reservation_ids' => EnrollmentSeatReservation::query()->whereIn('course_enrollment_id', $courseEnrollments->modelKeys())->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->pluck('id')->all(),
             'master_schedule_changes' => 0,
             'profile_status_before' => $student->lifecycle_status,
@@ -205,10 +206,11 @@ class StudentLifecycleService
             }
 
             $term = Term::query()->lockForUpdate()->findOrFail($locked->term_id);
-            if ($term->starts_on->toDateString() > today('Asia/Manila')->toDateString()) {
+            $canApplyForPreTermEnrollment = $this->calendar->isCutoverActive((int) $term->id);
+            if (! $canApplyForPreTermEnrollment && $term->starts_on->toDateString() > today('Asia/Manila')->toDateString()) {
                 throw new StudentLifecycleRuleViolation('Program Shift cannot be applied before its effective term.');
             }
-            if ($locked->effective_on->toDateString() > today('Asia/Manila')->toDateString()) {
+            if (! $canApplyForPreTermEnrollment && $locked->effective_on->toDateString() > today('Asia/Manila')->toDateString()) {
                 throw new StudentLifecycleRuleViolation('Program Shift cannot be applied before its recorded effective date.');
             }
             if ($locked->target_program_id === null || $locked->target_curriculum_version_id === null) {
@@ -242,10 +244,14 @@ class StudentLifecycleService
                 }
             }
             $this->assertCurrentApprovalSource($locked, $student);
-            $student->update([
+            $attributes = [
                 'program_id' => $locked->target_program_id,
                 'curriculum_version_id' => $locked->target_curriculum_version_id,
-            ]);
+            ];
+            if (! $this->hasActiveProgramIndependentRestriction($student)) {
+                $attributes['academic_standing'] = StudentProfile::StandingRegular;
+            }
+            $student->update($attributes);
             $locked->update(['state' => StudentLifecycleChange::StateApplied]);
             $this->recordAudit($locked, $actor, 'program_shift_applied');
             $this->finance->execute($locked, $actor);
@@ -400,10 +406,16 @@ class StudentLifecycleService
             if (blank($data['target_program_id'] ?? null) || blank($data['target_curriculum_version_id'] ?? null)) {
                 throw new StudentLifecycleRuleViolation('Program Shift requires a future target program and curriculum.');
             }
-            if ($term->starts_on->toDateString() <= today('Asia/Manila')->toDateString()) {
+            $enrollmentWindow = $this->calendar->isCutoverActive((int) $term->id)
+                ? $this->calendar->enrollmentWindow((int) $term->id)
+                : null;
+            if ($enrollmentWindow === null && $term->starts_on->toDateString() <= today('Asia/Manila')->toDateString()) {
                 throw new StudentLifecycleRuleViolation('Program Shift must target a future term.');
             }
-            if (Carbon::parse($data['effective_on'])->lt($term->starts_on)) {
+            $earliestEffectiveOn = $enrollmentWindow?->opens_on?->lt($term->starts_on)
+                ? $enrollmentWindow->opens_on
+                : $term->starts_on;
+            if (Carbon::parse($data['effective_on'])->lt($earliestEffectiveOn)) {
                 throw new StudentLifecycleRuleViolation('Program Shift effective date must be within the future effective term.');
             }
             $targetCurriculum = CurriculumVersion::query()->findOrFail((int) $data['target_curriculum_version_id']);
@@ -548,10 +560,6 @@ class StudentLifecycleService
             'status' => $status,
             $status === CourseEnrollment::StatusDropped ? 'dropped_at' : 'withdrawn_at' => now(),
             'status_reason' => $change->reason,
-        ]);
-        StudentScheduleBinding::query()->where('course_enrollment_id', $course->id)->where('is_active', true)->update([
-            'is_active' => false, 'effective_until' => $change->effective_on, 'released_by' => $actor->id,
-            'released_at' => now(), 'release_reason' => $change->reason,
         ]);
         EnrollmentSeatReservation::query()->where('course_enrollment_id', $course->id)->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->update([
             'status' => EnrollmentSeatReservation::StatusReleased, 'released_at' => now(),
@@ -714,6 +722,20 @@ class StudentLifecycleService
         }
 
         return $validated;
+    }
+
+    private function hasActiveProgramIndependentRestriction(StudentProfile $student): bool
+    {
+        $schoolDate = today('Asia/Manila')->toDateString();
+
+        return AcademicDecision::query()
+            ->where('student_profile_id', $student->id)
+            ->whereNull('term_id')
+            ->where('state', AcademicDecision::StateActive)
+            ->whereDate('effective_from', '<=', $schoolDate)
+            ->where(fn ($query) => $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', $schoolDate))
+            ->whereIn('effect', [AcademicDecision::EffectBlocked, AcademicDecision::EffectPendingDecision])
+            ->exists();
     }
 
     private function authorizeRegistrar(User $actor): void

@@ -4,9 +4,11 @@ namespace App\Filament\Pages;
 
 use App\Actions\Finance\CashierSchedule;
 use App\Actions\Finance\SchoolPaymentChannels;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Models\SectionMeeting;
 use App\Models\User;
 use App\Support\DisplayDateTime;
+use App\Support\SafeUserNotification;
 use BackedEnum;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
@@ -30,6 +32,7 @@ use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
@@ -58,6 +61,8 @@ class PaymentChannels extends Page
 
     public ?string $updatedAt = null;
 
+    public bool $isEditing = false;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -72,11 +77,137 @@ class PaymentChannels extends Page
         return 'Configure verified bank transfer, e-wallet, and campus cashier details shown to students and applicants.';
     }
 
+    /** @return array<string|int, string> */
+    public function getBreadcrumbs(): array
+    {
+        return [
+            EnrollmentResource::getUrl('index') => 'Overview',
+            'Payment channels',
+        ];
+    }
+
     public function mount(): void
     {
         abort_unless(static::canAccess(), 403);
 
         $this->loadChannels();
+    }
+
+    /** @return list<Action> */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('editChannels')
+                ->label('Edit payment channels')
+                ->icon(Heroicon::OutlinedPencilSquare)
+                ->color('primary')
+                ->visible(fn (): bool => ! $this->isEditing)
+                ->action(fn () => $this->startEditing()),
+            Action::make('cancelEditing')
+                ->label('Cancel')
+                ->icon(Heroicon::OutlinedXMark)
+                ->color('gray')
+                ->visible(fn (): bool => $this->isEditing)
+                ->requiresConfirmation(fn (): bool => $this->hasUnsavedChanges())
+                ->modalHeading('Discard unsaved changes?')
+                ->modalDescription('Your edits to payment channels will not be saved.')
+                ->modalWidth(Width::Medium)
+                ->modalSubmitActionLabel('Discard changes')
+                ->modalCancelActionLabel('Keep editing')
+                ->action(fn () => $this->cancelEditing()),
+            Action::make('saveChannels')
+                ->label('Save payment channels')
+                ->icon(Heroicon::OutlinedCheckCircle)
+                ->color('primary')
+                ->visible(fn (): bool => $this->isEditing && $this->hasUnsavedChanges())
+                ->mountUsing(function (): void {
+                    $this->validateBeforeConfirm();
+                })
+                ->modalHeading('Save payment channels')
+                ->modalDescription(fn (): string => $this->saveConfirmationDescription())
+                ->modalWidth(Width::Medium)
+                ->modalSubmitActionLabel('Save payment channels')
+                ->schema([
+                    TextInput::make('reason')
+                        ->label('Reason for update (optional)')
+                        ->placeholder('e.g. Updated afternoon hours')
+                        ->maxLength(255),
+                ])
+                ->action(function (array $data): void {
+                    $this->data['reason'] = $data['reason'] ?? null;
+                    $this->save();
+                }),
+        ];
+    }
+
+    public function startEditing(): void
+    {
+        abort_unless(static::canAccess(), 403);
+
+        $this->isEditing = true;
+    }
+
+    public function cancelEditing(): void
+    {
+        abort_unless(static::canAccess(), 403);
+
+        $this->resetValidation();
+        $this->loadChannels();
+        $this->isEditing = false;
+    }
+
+    public function hasUnsavedChanges(): bool
+    {
+        return $this->savedSnapshot !== []
+            && $this->comparableSnapshot($this->data ?? []) !== $this->savedSnapshot;
+    }
+
+    public function validateBeforeConfirm(): void
+    {
+        abort_unless(static::canAccess(), 403);
+
+        $this->resetValidation();
+
+        try {
+            $this->validate(collect(SchoolPaymentChannels::inputRules())
+                ->mapWithKeys(fn (array $rules, string $field): array => ['data.'.$field => $rules])
+                ->all());
+
+            $state = $this->form->getState();
+            $payload = $this->buildPayloadFromState($state);
+            app(SchoolPaymentChannels::class)->validatePayload($payload);
+        } catch (ValidationException $exception) {
+            $mappedErrors = $this->mapChannelValidationErrors($exception);
+            SafeUserNotification::sendValidationError();
+
+            throw ValidationException::withMessages($mappedErrors);
+        }
+    }
+
+    public function saveConfirmationDescription(): string
+    {
+        $snapshot = $this->comparableSnapshot($this->data ?? []);
+        $active = [];
+
+        if ($snapshot['bank_transfer']['enabled']) {
+            $count = count($snapshot['bank_transfer']['accounts']);
+            $active[] = "Bank Transfer ({$count} ".Str::plural('account', $count).')';
+        }
+
+        if ($snapshot['e_wallets']['enabled']) {
+            $count = count($snapshot['e_wallets']['accounts']);
+            $active[] = "E-Wallets ({$count} ".Str::plural('account', $count).')';
+        }
+
+        if ($snapshot['cash']['enabled']) {
+            $active[] = 'Campus Cashier';
+        }
+
+        if ($active === []) {
+            return 'All channels are turned off. Students and applicants will see standard campus cashier instructions immediately after saving.';
+        }
+
+        return 'Active channels: '.implode(', ', $active).'. Changes apply immediately to How to pay and are recorded in the audit log.';
     }
 
     public function form(Schema $schema): Schema
@@ -274,16 +405,36 @@ class PaymentChannels extends Page
         $state = $this->form->getState();
         $rawReason = $this->data['reason'] ?? ($state['reason'] ?? null);
         $reason = filled($rawReason) ? trim((string) $rawReason) : null;
+        $payload = $this->buildPayloadFromState($state);
+
+        try {
+            $updated = app(SchoolPaymentChannels::class)->update($payload, $actor, $reason);
+        } catch (ValidationException $exception) {
+            $mappedErrors = $this->mapChannelValidationErrors($exception);
+            SafeUserNotification::sendValidationError();
+
+            throw ValidationException::withMessages($mappedErrors);
+        }
+
+        $this->syncStateFromChannels($updated);
+        $this->isEditing = false;
+
+        Notification::make()
+            ->title('Payment channels saved')
+            ->body('Updated details are now active for student and applicant payment instructions.')
+            ->success()
+            ->send();
+    }
+
+    /** @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    private function buildPayloadFromState(array $state): array
+    {
         $current = app(SchoolPaymentChannels::class)->current();
-        $rawBankAccounts = data_get($this->data, 'bank_transfer.accounts', []);
-        $bankAccountKeys = is_array($rawBankAccounts) ? array_keys($rawBankAccounts) : [];
-        $rawEWalletAccounts = data_get($this->data, 'e_wallets.accounts', []);
-        $eWalletAccountKeys = is_array($rawEWalletAccounts) ? array_keys($rawEWalletAccounts) : [];
-        $rawExceptions = data_get($this->data, 'cash.schedule.exceptions', []);
-        $exceptionKeys = is_array($rawExceptions) ? array_keys($rawExceptions) : [];
         $schedule = $this->normalizeScheduleFromState(data_get($state, 'cash.schedule'));
 
-        $payload = [
+        return [
             'bank_transfer' => [
                 'enabled' => (bool) data_get($state, 'bank_transfer.enabled', false),
                 'label' => $current['bank_transfer']['label'],
@@ -311,38 +462,34 @@ class PaymentChannels extends Page
                 'instructions' => data_get($state, 'cash.instructions'),
             ],
         ];
+    }
 
-        try {
-            $updated = app(SchoolPaymentChannels::class)->update($payload, $actor, $reason);
-        } catch (ValidationException $exception) {
-            $mappedErrors = [];
+    /** @return array<string, list<string>> */
+    private function mapChannelValidationErrors(ValidationException $exception): array
+    {
+        $rawBankAccounts = data_get($this->data, 'bank_transfer.accounts', []);
+        $bankAccountKeys = is_array($rawBankAccounts) ? array_keys($rawBankAccounts) : [];
+        $rawEWalletAccounts = data_get($this->data, 'e_wallets.accounts', []);
+        $eWalletAccountKeys = is_array($rawEWalletAccounts) ? array_keys($rawEWalletAccounts) : [];
+        $rawExceptions = data_get($this->data, 'cash.schedule.exceptions', []);
+        $exceptionKeys = is_array($rawExceptions) ? array_keys($rawExceptions) : [];
 
-            foreach ($exception->errors() as $key => $messages) {
-                $mappedKey = $this->mapValidationErrorKey(
-                    (string) $key,
+        $mappedErrors = [];
+
+        foreach ($exception->errors() as $key => $messages) {
+            $keyString = (string) $key;
+            $mappedKey = str_starts_with($keyString, 'data.')
+                ? $keyString
+                : $this->mapValidationErrorKey(
+                    $keyString,
                     $bankAccountKeys,
                     $eWalletAccountKeys,
                     $exceptionKeys,
                 );
-                $mappedErrors[$mappedKey] = $messages;
-            }
-
-            Notification::make()
-                ->title('Payment channels could not be saved')
-                ->body('Review the highlighted payment channel or cashier schedule fields.')
-                ->danger()
-                ->send();
-
-            throw ValidationException::withMessages($mappedErrors);
+            $mappedErrors[$mappedKey] = array_values(array_map('strval', $messages));
         }
 
-        $this->syncStateFromChannels($updated);
-
-        Notification::make()
-            ->title('Payment channels saved')
-            ->body('Updated details are now active for student and applicant payment instructions.')
-            ->success()
-            ->send();
+        return $mappedErrors;
     }
 
     public function copyMondayHoursToWeekdays(): void
@@ -542,7 +689,7 @@ class PaymentChannels extends Page
         }
 
         return Section::make('Weekly cashier operating hours')
-            ->description('Set regular Asia/Manila campus cashier hours for each day of the week.')
+            ->description('Set weekly campus cashier hours (Asia/Manila).')
             ->compact()
             ->extraAttributes(['class' => 'payment-channels-subpanel payment-channels-weekly-section'])
             ->afterHeader([
@@ -625,7 +772,7 @@ class PaymentChannels extends Page
                             ->required(fn (Get $get): bool => $get('status') === CashierSchedule::StatusCustomHours)
                             ->live(onBlur: true),
                         TextInput::make('label')
-                            ->label('Reason / Holiday name')
+                            ->label('Reason or holiday name')
                             ->placeholder("e.g. All Saints' Day or Enrollment Saturday")
                             ->maxLength(160)
                             ->required()

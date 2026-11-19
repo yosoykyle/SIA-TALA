@@ -199,7 +199,7 @@ class Issue58PlanningGridTest extends TestCase
         $faculty = User::factory()->create(['status' => User::StatusActive]);
         $faculty->assignRole(User::StaffRoleFaculty);
         $term = Term::factory()->create(['state' => Term::StateActive, 'scheduling_slot_minutes' => 60, 'scheduling_days' => [6], 'scheduling_day_starts_at' => '07:00:00', 'scheduling_day_ends_at' => '21:00:00']);
-        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'faculty_availability_due_at' => null]);
+        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
         $package->teachingGridRows()->createMany([
             ['day_of_week' => 1, 'starts_at' => '08:00:00', 'ends_at' => '10:00:00', 'breaks' => []],
             ['day_of_week' => 2, 'starts_at' => '13:00:00', 'ends_at' => '16:00:00', 'breaks' => []],

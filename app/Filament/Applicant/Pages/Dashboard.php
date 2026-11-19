@@ -20,10 +20,10 @@ use App\Models\RegistrationProposalVersion;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Pages\Dashboard as BaseDashboard;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -52,7 +52,7 @@ class Dashboard extends BaseDashboard implements HasTable
 
     protected function getHeaderActions(): array
     {
-        $actions = [
+        return [
             Action::make('openEnrollment')
                 ->label('Open enrollment')
                 ->icon('heroicon-o-academic-cap')
@@ -63,72 +63,74 @@ class Dashboard extends BaseDashboard implements HasTable
                     return $this->registrationCase() instanceof Enrollment
                         || ($application instanceof AdmissionApplication && app(ReadyApplicantProjectionQuery::class)->forApplication($application)['ready']);
                 }),
-            Action::make('resendFailedNotification')
-                ->label('Resend failed update')
-                ->icon('heroicon-o-paper-airplane')
-                ->color('warning')
-                ->requiresConfirmation()
-                ->modalDescription('This retries only the latest failed admissions email. Your authoritative Application state will not change.')
-                ->visible(fn (): bool => $this->failedNotification() instanceof OperationalEvent)
-                ->action(function (): void {
-                    $actor = Auth::user();
-                    $event = $this->failedNotification();
-                    abort_unless($actor instanceof User && $event instanceof OperationalEvent, 404);
-
-                    app(AdmissionNotificationLedger::class)->resend($event, $actor);
-                    Notification::make()
-                        ->title('Admissions update queued again')
-                        ->body('Your Application state was unchanged. Check your email or return here if delivery fails again.')
-                        ->success()
-                        ->send();
-                    $this->redirect(self::getUrl());
-                }),
-            Action::make('withdrawApplication')
-                ->label('Withdraw application')
-                ->icon('heroicon-o-archive-box-x-mark')
-                ->color('danger')
-                ->requiresConfirmation()
-                ->modalDescription('The same Application reference and all submitted versions remain in history. Withdrawal is blocked once enrollment registration starts.')
-                ->schema([
-                    Textarea::make('reason')
-                        ->label('Reason (optional)')
-                        ->maxLength(500),
-                ])
-                ->visible(fn (): bool => $this->canWithdraw())
-                ->action(function (array $data): void {
-                    $application = $this->currentApplication();
-                    $applicant = Auth::user();
-                    abort_unless($application instanceof AdmissionApplication && $applicant instanceof User, 404);
-
-                    try {
-                        app(ChangeAdmissionApplicationLifecycle::class)->withdrawByApplicant(
-                            $application,
-                            $applicant,
-                            filled($data['reason'] ?? null) ? (string) $data['reason'] : null,
-                        );
-                        Notification::make()->title('Application withdrawn')->success()->send();
-                        $this->redirect(self::getUrl());
-                    } catch (ValidationException $exception) {
-                        Notification::make()
-                            ->title('Application cannot be withdrawn')
-                            ->body($exception->validator->errors()->first())
-                            ->danger()
-                            ->send();
-                    }
-                }),
         ];
+    }
 
-        $secondary = [];
-        $primary = [];
-        foreach ($actions as $action) {
-            if (in_array($action->getName(), ['withdrawApplication', 'resendFailedNotification'], true)) {
-                $secondary[] = $action;
-            } else {
-                $primary[] = $action;
-            }
-        }
+    public function resendFailedNotificationAction(): Action
+    {
+        return Action::make('resendFailedNotification')
+            ->label('Resend failed update')
+            ->icon('heroicon-o-paper-airplane')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalDescription('This retries only the latest failed admissions email. Your authoritative Application state will not change.')
+            ->visible(fn (): bool => $this->failedNotification() instanceof OperationalEvent)
+            ->action(function (): void {
+                $actor = Auth::user();
+                $event = $this->failedNotification();
+                abort_unless($actor instanceof User && $event instanceof OperationalEvent, 404);
 
-        return [...$primary, ActionGroup::make($secondary)->label('More actions')->icon('heroicon-o-ellipsis-horizontal')];
+                app(AdmissionNotificationLedger::class)->resend($event, $actor);
+                Notification::make()
+                    ->title('Admissions update queued again')
+                    ->body('Your Application state was unchanged. Check your email or return here if delivery fails again.')
+                    ->success()
+                    ->send();
+                $this->redirect(self::getUrl());
+            });
+    }
+
+    public function withdrawApplicationAction(): Action
+    {
+        return Action::make('withdrawApplication')
+            ->label('Withdraw application')
+            ->icon('heroicon-o-archive-box-x-mark')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalDescription('Your Application reference and submission history remain saved. Withdrawal is blocked once enrollment registration starts.')
+            ->schema([
+                Textarea::make('reason')
+                    ->label('Reason (optional)')
+                    ->maxLength(500),
+            ])
+            ->visible(fn (): bool => $this->canWithdraw())
+            ->action(function (array $data): void {
+                $application = $this->currentApplication();
+                $applicant = Auth::user();
+                abort_unless($application instanceof AdmissionApplication && $applicant instanceof User, 404);
+
+                try {
+                    app(ChangeAdmissionApplicationLifecycle::class)->withdrawByApplicant(
+                        $application,
+                        $applicant,
+                        filled($data['reason'] ?? null) ? (string) $data['reason'] : null,
+                    );
+                    Notification::make()->title('Application withdrawn')->success()->send();
+                    $this->redirect(self::getUrl());
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->title('Application cannot be withdrawn')
+                        ->body($exception->validator->errors()->first())
+                        ->danger()
+                        ->send();
+                }
+            });
     }
 
     public function table(Table $table): Table
@@ -187,6 +189,7 @@ class Dashboard extends BaseDashboard implements HasTable
                     ->visible(fn (AdmissionApplication $record): bool => $record->currentSubmissionVersion !== null),
             ])
             ->defaultSort('updated_at', 'desc')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) ? 'No matching applications' : 'No application yet')
             ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) ? 'Try another reference or clear the search.' : 'Start one application while a published Admission Cycle is open.');
     }
@@ -243,7 +246,7 @@ class Dashboard extends BaseDashboard implements HasTable
             return 'The current proposal is unavailable. Refresh before confirming.';
         }
 
-        return 'Confirm proposal version '.$proposal->version.': '.$proposal->items
+        return 'Confirm proposed subjects: '.$proposal->items
             ->map(fn ($item): string => collect([
                 $item->course_code_snapshot,
                 $item->section?->code,
@@ -608,7 +611,7 @@ class Dashboard extends BaseDashboard implements HasTable
             : ['available' => false, 'status' => 'unavailable', 'explanation' => 'Term enrollment window is not available.', 'opens_at' => null, 'closes_at' => null];
     }
 
-    private function canWithdraw(): bool
+    public function canWithdraw(): bool
     {
         $application = $this->currentApplication();
 
@@ -624,7 +627,7 @@ class Dashboard extends BaseDashboard implements HasTable
         return ! app(ReadyApplicantProjectionQuery::class)->registrationHasStarted($application);
     }
 
-    private function failedNotification(): ?OperationalEvent
+    public function failedNotification(): ?OperationalEvent
     {
         $application = $this->currentApplication();
 

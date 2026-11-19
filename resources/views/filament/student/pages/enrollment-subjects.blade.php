@@ -6,7 +6,7 @@
         @if ($preparing)<p>Subjects may change before your enrollment is ready to confirm.</p>@endif
     </div>
     @if ($proposal->items->isNotEmpty())
-        <div class="student-academic-table-wrap" role="region" aria-label="{{ $subjectsHeading }} and classes" tabindex="0">
+        <div class="tala-data-table-scroll student-academic-table-wrap" role="region" aria-label="{{ $subjectsHeading }} and classes" tabindex="0">
             <table class="tala-data-table student-academic-table">
                 <thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Units</th></tr></thead>
                 <tbody>

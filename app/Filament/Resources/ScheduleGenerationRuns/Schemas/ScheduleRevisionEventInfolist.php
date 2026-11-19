@@ -53,7 +53,8 @@ final class ScheduleRevisionEventInfolist
                                     ->columnSpanFull(),
                             ]),
                     ])
-                    ->compact(),
+                    ->compact()
+                    ->columnSpanFull(),
                 InfolistSection::make('Impact')
                     ->schema([
                         TextEntry::make('affected_student_count')
@@ -63,7 +64,8 @@ final class ScheduleRevisionEventInfolist
                             ->label('Affected Faculty')
                             ->numeric(),
                     ])
-                    ->columns(2),
+                    ->columns(2)
+                    ->columnSpanFull(),
                 Grid::make(['default' => 1, 'lg' => 2])
                     ->schema([
                         InfolistSection::make('Before')
@@ -74,7 +76,8 @@ final class ScheduleRevisionEventInfolist
                             ->schema(self::snapshotEntries('new_snapshot_json', 'after'))
                             ->columns(2)
                             ->compact(),
-                    ]),
+                    ])
+                    ->columnSpanFull(),
             ]);
     }
 

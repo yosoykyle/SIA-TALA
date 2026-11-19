@@ -13,6 +13,7 @@ use Filament\Auth\Http\Responses\Contracts\RegistrationResponse;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Illuminate\Contracts\Support\Htmlable;
@@ -73,6 +74,8 @@ class RegisterApplicant extends Register
     public function register(): ?RegistrationResponse
     {
         try {
+            $this->form->getState();
+
             return parent::register();
         } catch (ValidationException $exception) {
             $firstInvalidField = $this->firstInvalidField($exception);
@@ -188,6 +191,17 @@ class RegisterApplicant extends Register
     public function getHeading(): string|Htmlable|null
     {
         return 'Create your applicant account';
+    }
+
+    public function getSubheading(): string|Htmlable|null
+    {
+        return 'Use an active email address to start your admission application and track your progress.';
+    }
+
+    public function getFormContentComponent(): Component
+    {
+        return parent::getFormContentComponent()
+            ->extraAttributes(['novalidate' => true]);
     }
 
     public function getRegisterFormAction(): Action

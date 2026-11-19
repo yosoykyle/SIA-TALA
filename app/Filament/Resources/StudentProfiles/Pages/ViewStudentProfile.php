@@ -9,6 +9,8 @@ use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Academics\TermWeightedAverageProjection;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\Enrollment\RecordStudentSection;
+use App\Actions\StudentProfiles\RecordStudentProfileCorrection;
+use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
@@ -28,15 +30,20 @@ use App\Models\Term;
 use App\Models\TermCohort;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Livewire;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -44,14 +51,20 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 
 class ViewStudentProfile extends ViewRecord
 {
+    use HasAcademicOversightReturn;
+
     protected static string $resource = StudentProfileResource::class;
 
     #[Url]
-    public string $viewTab = '';
+    public string $viewTab = 'academic-progress';
+
+    #[Locked]
+    public bool $openedFromGradesWorkspace = false;
 
     /** @var array<string, mixed> */
     #[Url]
@@ -88,27 +101,24 @@ class ViewStudentProfile extends ViewRecord
     {
         parent::mount($record);
         $this->queue = StudentProfileResource::academicQueueParameters($this->queue);
+        $this->openedFromGradesWorkspace = \Filament\Support\original_request()->query('viewTab') === 'academic-progress'
+            || $this->queue !== [];
+        $this->viewTab = 'academic-progress';
     }
 
     public function getTitle(): string
     {
-        if ($this->viewTab !== 'academic-progress') {
-            return parent::getTitle();
-        }
-
         return collect([$this->record->first_name, $this->record->middle_name, $this->record->last_name])->filter()->implode(' ');
     }
 
     public function getSubheading(): ?string
     {
-        return $this->viewTab === 'academic-progress'
-            ? null
-            : parent::getSubheading();
+        return null;
     }
 
     public function getHeading(): string
     {
-        return $this->viewTab === 'academic-progress' ? '' : (string) parent::getHeading();
+        return '';
     }
 
     public function activeRecordTab(): string
@@ -125,8 +135,21 @@ class ViewStudentProfile extends ViewRecord
 
     public function getBreadcrumbs(): array
     {
-        if ($this->viewTab !== 'academic-progress') {
-            return parent::getBreadcrumbs();
+        if ($this->isAcademicHeadReader() && ! $this->openedFromGradesWorkspace) {
+            return [
+                $this->oversightReturnUrl() => 'Academic Oversight',
+                StudentProfileResource::getUrl('index', array_filter([
+                    'oversightTermId' => $this->oversightTermId,
+                ], fn (mixed $value): bool => $value !== null)) => 'Student Profiles',
+                $this->getTitle(),
+            ];
+        }
+
+        if (! $this->openedFromGradesWorkspace) {
+            return [
+                StudentProfileResource::getUrl('index') => 'Student Profiles',
+                $this->getTitle(),
+            ];
         }
 
         return [
@@ -139,18 +162,13 @@ class ViewStudentProfile extends ViewRecord
 
     public function content(Schema $schema): Schema
     {
-        if ($this->viewTab !== 'academic-progress') {
-            return parent::content($schema);
-        }
-
         return $schema->components([View::make('filament.admin.student-profiles.profile')]);
     }
 
     public function requirements(Schema $schema): Schema
     {
         return $schema->components(collect($this->getCachedRelationManagers())
-            ->filter(fn (string $manager): bool => $this->viewTab !== 'academic-progress'
-                || ($manager === ChecklistItemsRelationManager::class && $this->requirementsProfile['hasChecklist'])
+            ->filter(fn (string $manager): bool => ($manager === ChecklistItemsRelationManager::class && $this->requirementsProfile['hasChecklist'])
                 || ($manager === HoldsRelationManager::class && $this->requirementsProfile['hasHolds']))
             ->map(fn (string $manager): Livewire => Livewire::make($manager, [
                 'ownerRecord' => $this->getRecord(), 'pageClass' => static::class,
@@ -160,9 +178,70 @@ class ViewStudentProfile extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        return $this->viewTab === 'academic-progress' ? [] : [
-            $this->recordStudentSectionAction(), ...StudentAcademicActions::make($this->record),
-        ];
+        return [];
+    }
+
+    public function recordCorrectionAction(): Action
+    {
+        return Action::make('recordCorrection')
+            ->label('Record factual correction')
+            ->icon('heroicon-o-pencil-square')
+            ->color('gray')
+            ->size('sm')
+            ->visible(fn (): bool => auth()->user()?->status === User::StatusActive
+                && auth()->user()->hasRole(User::StaffRoleRegistrar))
+            ->modalHeading('Record factual correction')
+            ->modalDescription('Record an institutional factual correction to this Student Profile. Prior issued outputs remain unchanged.')
+            ->modalWidth(Width::FourExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalSubmitActionLabel('Save correction')
+            ->schema([
+                Grid::make(['default' => 1, 'md' => 2])->schema([
+                    TextInput::make('first_name')->default(fn (): string => $this->studentProfile()->first_name)->required()->maxLength(255),
+                    TextInput::make('middle_name')->default(fn (): ?string => $this->studentProfile()->middle_name)->maxLength(255),
+                    TextInput::make('last_name')->default(fn (): string => $this->studentProfile()->last_name)->required()->maxLength(255),
+                    DatePicker::make('birth_date')->default(fn () => $this->studentProfile()->birth_date)->native(false),
+                    TextInput::make('prior_identifier')->label('LRN / Prior-Education Identifier')->default(fn (): ?string => $this->studentProfile()->prior_identifier)->maxLength(255),
+                    Select::make('entry_term_id')
+                        ->label('Entry Term')
+                        ->options(fn (): array => Term::query()->orderByDesc('starts_on')->pluck('label', 'id')->all())
+                        ->default(fn (): ?int => $this->studentProfile()->entry_term_id)
+                        ->searchable(),
+                    TextInput::make('email')->default(fn (): ?string => $this->studentProfile()->email)->email()->maxLength(255),
+                    TextInput::make('phone')->default(fn (): ?string => $this->studentProfile()->phone)->maxLength(255),
+                ]),
+                Textarea::make('address')->default(fn (): ?string => $this->studentProfile()->address)->maxLength(2000),
+                Textarea::make('reason')->required()->maxLength(2000),
+            ])
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                $record = $this->studentProfile();
+                abort_unless($actor instanceof User, 403);
+
+                app(RecordStudentProfileCorrection::class)->execute(
+                    $record,
+                    collect($data)->except(['reason'])->all(),
+                    $actor,
+                    (string) $data['reason'],
+                );
+                $record->refresh();
+                unset($this->academicProfile);
+
+                Notification::make()
+                    ->title('Student Profile correction recorded')
+                    ->body('The factual correction is attributable and prior issued outputs remain unchanged.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    private function studentProfile(): StudentProfile
+    {
+        $record = $this->getRecord();
+        abort_unless($record instanceof StudentProfile, 404);
+
+        return $record;
     }
 
     public function recordAcademicDecisionAction(): Action
@@ -391,7 +470,7 @@ class ViewStudentProfile extends ViewRecord
                 'date' => $assessment ? $record->created_at : $record->effective_on,
                 'dateLabel' => $assessment ? 'Assessment created' : 'Effective date',
                 'termLabel' => $this->termLabel($terms->get($row->term_id)),
-                'title' => $assessment ? 'Assessment v'.$record->version : (StudentLifecycleChange::typeOptions()[$record->type] ?? Str::headline($record->type)),
+                'title' => $assessment ? ($record->state === Assessment::StateActive ? 'Current assessment' : 'Earlier assessment') : (StudentLifecycleChange::typeOptions()[$record->type] ?? Str::headline($record->type)),
                 'status' => Str::headline($record->state),
                 'sourceUrl' => $source && $resource::canView($source) ? $resource::getUrl('view', ['record' => $source]) : null];
         });
@@ -413,6 +492,9 @@ class ViewStudentProfile extends ViewRecord
         return Action::make('recordStudentSection')
             ->label('Student section')->icon('heroicon-o-user-group')->color('gray')
             ->modalHeading('Record student section')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalDescription('Record the student’s group for one term. Their enrolled subjects, grades and timetable stay separate.')
             ->modalSubmitActionLabel('Save section')
             ->visible(fn (): bool => auth()->user()?->status === User::StatusActive

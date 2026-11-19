@@ -17,6 +17,8 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Support\Enums\Width;
 use Illuminate\Validation\ValidationException;
 
 class ViewAdmissionCycle extends ViewRecord
@@ -68,6 +70,9 @@ class ViewAdmissionCycle extends ViewRecord
                 ->outlined(fn (): bool => app(AdmissionCycleReadinessService::class)->for($this->cycle())['blockers'] !== [])
                 ->modalSubmitActionLabel('Publish cycle')
                 ->requiresConfirmation()
+                ->modalWidth(Width::Large)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription(fn (): string => "Publishing {$this->cycle()->label} ({$this->cycle()->code}) makes its requirement sets active and opens applications according to its schedule. Publication reruns every readiness check for this cycle; failed sources remain visible with their owner.")
                 ->schema($this->authoritySchema(includeReason: false))
                 ->visible(fn (): bool => $this->cycle()->state === AdmissionCycle::StateDraft)
@@ -84,6 +89,9 @@ class ViewAdmissionCycle extends ViewRecord
                 ->color('warning')->outlined()
                 ->modalSubmitActionLabel('Close applications now')
                 ->requiresConfirmation()
+                ->modalWidth(Width::TwoExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->schema($this->authoritySchema())
                 ->visible(fn (): bool => $this->cycle()->state === AdmissionCycle::StatePublished
                     && $this->cycle()->closes_at?->isFuture())
@@ -99,6 +107,9 @@ class ViewAdmissionCycle extends ViewRecord
                 ->color('gray')->outlined()
                 ->modalDescription(fn (): string => "Extending {$this->cycle()->label} ({$this->cycle()->code}) allows new starts and first submissions for this cycle until the new closing time. Existing applications retain their history.")
                 ->icon('heroicon-o-calendar-days')
+                ->modalWidth(Width::ThreeExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->schema($this->dateChangeSchema())
                 ->visible(fn (): bool => $this->cycle()->state === AdmissionCycle::StatePublished
                     && $this->cycle()->closes_at?->isFuture())
@@ -122,6 +133,9 @@ class ViewAdmissionCycle extends ViewRecord
                 ->color('primary')
                 ->modalSubmitActionLabel('Reopen applications')
                 ->icon('heroicon-o-lock-open')
+                ->modalWidth(Width::ThreeExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription(fn (): string => "Reopening {$this->cycle()->label} ({$this->cycle()->code}) allows new starts and first submissions for this cycle until the new closing time. Existing applications and history are preserved.")
                 ->schema($this->dateChangeSchema())
                 ->visible(fn (): bool => $this->cycle()->state === AdmissionCycle::StatePublished
@@ -147,6 +161,9 @@ class ViewAdmissionCycle extends ViewRecord
                 ->color('gray')->outlined()
                 ->modalDescription(fn (): string => "Extending the correction boundary for {$this->cycle()->label} ({$this->cycle()->code}) allows the Registrar to issue new correction requests for applicants in this cycle through the new boundary. This leaves the public application window unchanged.")
                 ->icon('heroicon-o-arrow-right-circle')
+                ->modalWidth(Width::TwoExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->schema([
                     DateTimePicker::make('correction_closes_at')
                         ->label('New correction requests end')
@@ -180,6 +197,9 @@ class ViewAdmissionCycle extends ViewRecord
                 ->color('danger')
                 ->outlined()
                 ->requiresConfirmation()
+                ->modalWidth(Width::TwoExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
                 ->modalDescription(fn (): string => "Cancelling {$this->cycle()->label} ({$this->cycle()->code}) stops new applications and first submissions. Draft inspection and discard, active corrections, Registrar review, decisions and clearance remain available under their existing rules. Every recorded application and authority event is preserved.")
                 ->schema($this->authoritySchema())
                 ->visible(fn (): bool => $this->cycle()->state === AdmissionCycle::StatePublished)
@@ -199,9 +219,9 @@ class ViewAdmissionCycle extends ViewRecord
     {
         $schema = [
             TextInput::make('authority_reference')
-                ->label('Approving authority reference')
-                ->placeholder('Memo, approval or decision reference')
-                ->helperText('Enter the existing school memo, approved calendar or decision identifier authorizing this publication or change. This identifies its source; TALA records your account and time separately. Do not enter private document contents.')
+                ->label('Approval memo or reference')
+                ->placeholder('e.g., Memo 2026-014 or approving office')
+                ->helperText('Enter the school memo, approved calendar, or decision identifier authorizing this publication or change. TALA records your account and time automatically.')
                 ->required()
                 ->maxLength(255),
         ];
@@ -213,28 +233,31 @@ class ViewAdmissionCycle extends ViewRecord
         return $schema;
     }
 
-    /** @return list<DateTimePicker|TextInput|Textarea> */
+    /** @return list<Grid|TextInput|Textarea> */
     private function dateChangeSchema(): array
     {
         return [
-            DateTimePicker::make('closes_at')
-                ->label('New public closing')
-                ->displayFormat('M j, Y · g:i A')
-                ->timezone('Asia/Manila')
-                ->prefixIcon('heroicon-o-calendar')
-                ->placeholder('Select date and time')
-                ->helperText(fn (): string => 'Current public closing: '.($this->cycle()->closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila).')
-                ->native(false)
-                ->minDate(now())
-                ->required(),
-            DateTimePicker::make('correction_closes_at')
-                ->label('New correction requests end (if needed)')
-                ->displayFormat('M j, Y · g:i A')
-                ->timezone('Asia/Manila')
-                ->prefixIcon('heroicon-o-clock')
-                ->placeholder('Select date and time')
-                ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila). Required only when the new public closing would pass the current correction boundary.')
-                ->native(false),
+            Grid::make(['default' => 1, 'md' => 2])
+                ->schema([
+                    DateTimePicker::make('closes_at')
+                        ->label('New public closing')
+                        ->displayFormat('M j, Y · g:i A')
+                        ->timezone('Asia/Manila')
+                        ->prefixIcon('heroicon-o-calendar')
+                        ->placeholder('Select date and time')
+                        ->helperText(fn (): string => 'Current public closing: '.($this->cycle()->closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila).')
+                        ->native(false)
+                        ->minDate(now())
+                        ->required(),
+                    DateTimePicker::make('correction_closes_at')
+                        ->label('New correction requests end (if needed)')
+                        ->displayFormat('M j, Y · g:i A')
+                        ->timezone('Asia/Manila')
+                        ->prefixIcon('heroicon-o-clock')
+                        ->placeholder('Select date and time')
+                        ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila). Required only when the new public closing would pass the current correction boundary.')
+                        ->native(false),
+                ]),
             ...$this->authoritySchema(),
         ];
     }

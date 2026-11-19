@@ -3,14 +3,12 @@
 namespace Tests\Feature;
 
 use App\Actions\Graduation\GraduationEligibilitySnapshotService;
+use App\Filament\Pages\CompletionAndTor;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\GradesAndCompletion;
-use App\Filament\Resources\GraduationReviewBatches\Pages\ViewGraduationReviewBatch;
-use App\Filament\Resources\GraduationReviewBatches\RelationManagers\MembersRelationManager;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
 use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\GradesView;
-use App\Filament\Student\Pages\LifecycleView;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\GraduationReviewBatch;
@@ -23,7 +21,7 @@ use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
 use Database\Seeders\TAL96D4BAcceptanceStateSeeder;
-use Filament\Actions\ActionGroup;
+use Filament\Actions\Action;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -110,7 +108,6 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
     public function graduation_member_picker_is_not_limited_to_the_first_one_hundred_students(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $batch = GraduationReviewBatch::factory()->create(['created_by' => $registrar->id]);
         $sharedProfile = StudentProfile::factory()->create();
         StudentProfile::factory()->count(101)->create([
             'program_id' => $sharedProfile->program_id,
@@ -124,21 +121,21 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $component = Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => ViewGraduationReviewBatch::class,
-        ]);
-        $relationManager = $component->instance();
-        $this->assertInstanceOf(MembersRelationManager::class, $relationManager);
-        $table = $relationManager->getTable();
+        $component = Livewire::withQueryParams(['work' => 'graduation'])->test(CompletionAndTor::class)
+            ->searchTable('TAL-D4B-SEARCH-999')
+            ->assertCanSeeTableRecords([$target]);
+        $page = $component->instance();
+        $this->assertInstanceOf(CompletionAndTor::class, $page);
+        $table = $page->getTable();
 
         $this->assertTrue($table->isStackedOnMobile());
         $this->assertCount(1, $table->getRecordActions());
-        $this->assertInstanceOf(ActionGroup::class, $table->getRecordActions()[0]);
+        $this->assertInstanceOf(Action::class, $table->getRecordActions()[0]);
 
-        $results = MembersRelationManager::searchableStudentOptions('TAL-D4B-SEARCH-999');
+        $results = $page->studentOptions('TAL-D4B-SEARCH-999');
         $this->assertArrayHasKey($target->id, $results);
         $this->assertStringContainsString('Reachable, Student', $results[$target->id]);
+        Livewire::withQueryParams([]);
     }
 
     #[Test]
@@ -152,14 +149,11 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        $gradesPage = Livewire::test(GradesView::class)->instance();
-        $this->assertInstanceOf(GradesView::class, $gradesPage);
-        $this->assertTrue($gradesPage->getTable()->isStackedOnMobile());
+        Livewire::test(GradesView::class)
+            ->assertRedirect(Academics::getUrl(['view' => 'record'], panel: 'student'));
         Livewire::withQueryParams(['view' => 'record'])->test(Academics::class)
             ->assertSee('No applied changes')
             ->assertSee('School record changes appear here after the Registrar applies them.');
-        Livewire::withQueryParams([])->test(LifecycleView::class)
-            ->assertRedirect(Academics::getUrl(['view' => 'record'], panel: 'student').'#school-record-changes');
     }
 
     #[Test]

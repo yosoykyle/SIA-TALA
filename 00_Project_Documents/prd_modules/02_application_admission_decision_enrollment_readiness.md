@@ -204,7 +204,7 @@ The readiness checklist is failed-first: successful checks use a concise summary
 | Check | Authoritative source | Owner | Valid condition | Effect if missing | Consuming action | Recovery |
 |---|---|---|---|---|---|---|
 | Target term and dates | Admission Cycle and approved academic-term source | Registrar | Target exists; opening precedes public closing; correction boundary is at or after public closing; dates do not conflict | Cycle publication blocked | Publish cycle; accept first submission; issue new correction request | Correct the draft dates/source and rerun readiness |
-| Accepting programs | Active program authority | Registrar | At least one active program is selected | Publication blocked; applicant cannot choose a valid program | Publish cycle; start application | Activate/correct program authority, then recheck |
+| Accepting programs | Active program | Registrar | At least one active program is selected | Publication blocked; applicant cannot choose a valid program | Publish cycle; start application | Activate or select an active program, then recheck |
 | Path requirement versions | Published immutable requirement sets | Registrar | Every enabled first-year/transferee path has one applicable version | Publication blocked | Publish cycle; validate submission | Publish/correct replacement requirement version |
 | Applicant guidance | Cycle instructions, support contact, privacy-notice reference | Registrar and institution | Each approved reference is present and reachable | Publication blocked | Public entry and Applicant submission | Supply approved text/reference and recheck |
 | Private evidence storage | Operational storage readiness | System Administrator | Private upload, validation, retrieval, and authorized download are available | Publication blocked | Evidence upload/review | Restore service; do not weaken privacy or accept public storage |
@@ -451,8 +451,8 @@ Contextual Registrar pages provide:
 
 - Admission Cycle list and derived readiness.
 - Draft cycle form.
-- Published requirement-set review.
-- Publish, extend, close, cancel, and publish-replacement actions with reason, authority, and audit evidence.
+- Published requirement-set review (`RequirementSetsRelationManager`), where individual requirements retain their mandatory source reference while set publication inherits its authority from the published Admission Cycle alongside automatic Registrar actor/time attribution without separate routine approval-reference/date fields.
+- Publish, extend, close, cancel, and publish-replacement actions for the Admission Cycle with reason, authority, and audit evidence.
 
 These pages are reached from Admissions. They are not a generic Settings area.
 

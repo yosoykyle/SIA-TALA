@@ -138,6 +138,9 @@ class Academics extends Page
             ->icon('heroicon-o-paper-airplane')
             ->color('warning')
             ->requiresConfirmation()
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->modalDescription('This retries only the failed completion email. Your application, readiness, conferral, and academic record will not change.')
             ->visible($this->failedCompletionNotification() instanceof OperationalEvent)
             ->action(function (): void {
@@ -221,9 +224,7 @@ class Academics extends Page
             'planRequirements' => collect($curriculum['required'])->mapWithKeys(fn (array $row): array => [
                 $row['curriculum_entry']->id => $row['curriculum_entry']->courseSpecification?->requirements
                     ->filter(fn (CourseRequirement $requirement): bool => $requirement->state === CourseRequirement::StateActive
-                        && in_array($requirement->rule_type, [CourseRequirement::TypePrerequisite, CourseRequirement::TypeCorequisite], true)
-                        && ($requirement->effective_from === null || $requirement->effective_from->lte(today()))
-                        && ($requirement->effective_until === null || $requirement->effective_until->gte(today()))),
+                        && in_array($requirement->rule_type, [CourseRequirement::TypePrerequisite, CourseRequirement::TypeCorequisite], true)),
             ]),
             'effect' => $guidance,
             'competencyRequirements' => $this->academicView === 'plan'

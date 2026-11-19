@@ -13,19 +13,21 @@
         @elseif ($count === 0)
             <p>No officially enrolled students are currently assigned to this class.</p>
         @else
-            <table class="faculty-membership-table">
-                <thead><tr><th scope="col">Student number</th><th scope="col">Legal name</th><th scope="col">Program</th></tr></thead>
-                <tbody>
-                    @foreach ($roster->rows as $row)
-                        @php($student = $row->courseEnrollment?->enrollment?->studentProfile)
-                        <tr>
-                            <td data-label="Student number">{{ $student?->student_number }}</td>
-                            <th scope="row" data-label="Legal name">{{ collect([$student?->last_name, collect([$student?->first_name, $student?->middle_name])->filter()->implode(' ')])->filter()->implode(', ') }}</th>
-                            <td data-label="Program">{{ $student?->program?->code ?? 'Not recorded' }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+            <div class="tala-data-table-scroll" role="region" aria-label="Current class members" tabindex="0">
+                <table class="tala-data-table faculty-membership-table">
+                    <thead><tr><th scope="col">Student number</th><th scope="col">Legal name</th><th scope="col">Program</th></tr></thead>
+                    <tbody>
+                        @foreach ($roster->rows as $row)
+                            @php($student = $row->courseEnrollment?->enrollment?->studentProfile)
+                            <tr>
+                                <td data-label="Student number">{{ $student?->student_number }}</td>
+                                <th scope="row" data-label="Legal name">{{ collect([$student?->last_name, collect([$student?->first_name, $student?->middle_name])->filter()->implode(' ')])->filter()->implode(', ') }}</th>
+                                <td data-label="Program">{{ $student?->program?->code ?? 'Not recorded' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
             <p class="faculty-membership-note">Current official class membership. @if ($roster->state === \App\Models\GradeRoster::StateReleased)Released results are available below.@else Draft grades are not shown here.@endif</p>
         @endif
         @if (filled($roster->return_reason))<p>{{ $roster->return_reason }}</p>@endif

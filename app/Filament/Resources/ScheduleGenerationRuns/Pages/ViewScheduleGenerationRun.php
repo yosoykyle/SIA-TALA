@@ -180,6 +180,9 @@ class ViewScheduleGenerationRun extends ViewRecord
             ->color('warning')
             ->requiresConfirmation()
             ->modalHeading(fn (): string => $this->canRecoverSolver() ? 'Try again after a service fix' : 'Retry generation')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->modalDescription(fn (): string => $this->run()->term->label.' · Attempt #'.$this->run()->id.'. '.($this->canRecoverSolver()
                 ? 'After the System Administrator confirms the service fix, queue one new attempt after current planning data passes readiness checks. The failed attempt stays in history. Any original repair change is preserved.'
@@ -266,6 +269,8 @@ class ViewScheduleGenerationRun extends ViewRecord
                         || blank($data[$cancelClass ? 'section_id' : 'section_meeting_ids'] ?? null);
                 }))
             ->modalWidth(Width::SevenExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->fillForm(fn (array $arguments): array => [
                 ...$this->revisionTarget($arguments, $cancelClass),
                 'change_type' => $cancelClass ? ScheduleRevisionEvent::ChangeSectionCancellation : null,
@@ -373,19 +378,22 @@ class ViewScheduleGenerationRun extends ViewRecord
             ->color('primary')
             ->requiresConfirmation()
             ->modalHeading('Publish official timetable')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->modalDescription(fn (): string => $this->run()->term->label.' / Attempt #'.$this->run()->id.'. '.$this->publicationConfirmationDescription())
             ->modalSubmitActionLabel('Publish official timetable')
             ->schema([
                 TextInput::make('authority_reference')
-                    ->label('Approval reference (optional)')
+                    ->label('Approval note or memo (optional)')
                     ->maxLength(255),
                 Textarea::make('publication_note')
                     ->label('Publication reason')
                     ->maxLength(2000)
                     ->required(fn (): bool => $this->publicationReasonRequirement() !== null)
                     ->helperText(fn (): string => $this->publicationReasonRequirement()
-                        ?? 'Optional for this Optimal candidate because no quality-lowering successor or advisory warning is recorded.'),
+                        ?? 'Optional for this Optimal candidate because no quality-lowering update or advisory warning is recorded.'),
             ])
             ->visible(fn (): bool => $this->canPublish())
             ->action(function (array $data): void {
@@ -451,6 +459,9 @@ class ViewScheduleGenerationRun extends ViewRecord
             ->color($color)
             ->requiresConfirmation()
             ->modalHeading($label)
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
 
             ->modalSubmitActionLabel($label)
             ->modalIcon($decision === 'Accepted' ? Heroicon::OutlinedCheck : Heroicon::OutlinedXMark)

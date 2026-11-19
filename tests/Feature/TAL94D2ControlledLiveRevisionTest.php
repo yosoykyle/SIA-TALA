@@ -24,7 +24,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
@@ -134,7 +133,6 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
         $this->assertSame($context['replacementRoom']->id, $successorMeeting->room_id);
         $this->assertTrue($binding['courseEnrollment']->fresh()->is_current);
         $this->assertSame($context['section']->id, $binding['courseEnrollment']->fresh()->section_id);
-        $this->assertSame(1, StudentScheduleBinding::query()->where('course_enrollment_id', $binding['courseEnrollment']->id)->count());
         $this->assertSame($context['room']->id, $event->old_snapshot_json['room_id']);
         $this->assertSame($context['replacementRoom']->id, $event->new_snapshot_json['room_id']);
         $this->assertSame(now()->toDateString(), $event->effective_date->toDateString());
@@ -438,13 +436,6 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
             $this->assertDatabaseCount('schedule_revision_events', 0);
         }
 
-        $binding['binding']->forceFill([
-            'is_active' => false,
-            'effective_until' => now()->toDateString(),
-            'released_by' => $registrar->id,
-            'released_at' => now(),
-            'release_reason' => 'Placement resolved before cancellation.',
-        ])->save();
         $reservation->forceFill([
             'status' => EnrollmentSeatReservation::StatusReleased,
             'released_at' => now(),
@@ -612,7 +603,7 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
 
     /**
      * @param  array<string, mixed>  $context
-     * @return array{enrollment:Enrollment,courseEnrollment:CourseEnrollment,binding:StudentScheduleBinding}
+     * @return array{enrollment:Enrollment,courseEnrollment:CourseEnrollment}
      */
     private function activeBinding(array $context, SectionMeeting $meeting): array
     {
@@ -634,15 +625,8 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
             'units_snapshot' => '3.00',
             'added_at' => now(),
         ]);
-        $binding = StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $courseEnrollment->id,
-            'section_meeting_id' => $meeting->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
-        ]);
 
-        return compact('enrollment', 'courseEnrollment', 'binding');
+        return compact('enrollment', 'courseEnrollment');
     }
 
     /**

@@ -15,6 +15,10 @@ class AcademicDecision extends Model
 
     public const EffectPendingDecision = 'PENDING_DECISION';
 
+    public const StateActive = 'ACTIVE';
+
+    public const StateSuperseded = 'SUPERSEDED';
+
     protected $fillable = [
         'student_profile_id', 'term_id', 'effect', 'authority_reference', 'authority_date',
         'reason', 'effective_from', 'effective_until', 'state', 'recorded_by', 'recorded_at',

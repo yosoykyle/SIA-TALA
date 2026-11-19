@@ -10,18 +10,18 @@
         </dl>
     </div>
 @else
-    <ol class="tala-term-calendar-history" aria-label="Recorded calendar versions">
+    <ol class="tala-term-calendar-history" aria-label="Calendar change history">
         @forelse ($calendarVersions as $version)
             <li>
-                <header><h3>Version {{ $version->version }}</h3><x-filament::badge :color="$version->state === \App\Models\TermCalendarPackage::StateActive ? 'success' : 'gray'">{{ $version->state }}</x-filament::badge></header>
+                <header><h3>{{ $version->state === \App\Models\TermCalendarPackage::StateActive ? 'Active calendar' : ($version->state === \App\Models\TermCalendarPackage::StateDraft ? 'Draft calendar' : 'Past calendar') }}</h3><x-filament::badge :color="$version->state === \App\Models\TermCalendarPackage::StateActive ? 'success' : 'gray'">{{ $version->state }}</x-filament::badge></header>
                 <p class="tala-term-version-period"><span class="sr-only">Classes start </span><time datetime="{{ $version->classes_start_on?->toDateString() }}">{{ $version->classes_start_on?->format('M j, Y') ?? 'Start date missing' }}</time><x-filament::icon icon="heroicon-o-arrow-long-right" /><span class="sr-only">Classes end </span><time datetime="{{ $version->classes_end_on?->toDateString() }}">{{ $version->classes_end_on?->format('M j, Y') ?? 'End date missing' }}</time></p>
                 <dl class="tala-term-history-facts">
-                    <div><dt>Approval reference</dt><dd>{{ $version->authority_reference ?: 'Not recorded' }}</dd></div>
+                    @if (filled($version->authority_reference))<div><dt>Approval note / memo</dt><dd>{{ $version->authority_reference }}</dd></div>@endif
                     <div><dt>Recorded by</dt><dd>{{ $version->recorder?->name ?? 'Recorder unavailable' }}<small>{{ \App\Support\DisplayDateTime::format($version->created_at) }} · Asia/Manila</small></dd></div>
                 </dl>
             </li>
         @empty
-            <li class="tala-work-footnote">No calendar versions recorded.</li>
+            <li class="tala-work-footnote">No calendar history recorded.</li>
         @endforelse
     </ol>
 @endif

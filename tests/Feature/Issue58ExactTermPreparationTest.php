@@ -315,7 +315,7 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $page->call('selectTerm', $first->term_id)
             ->assertSet('termId', $first->term_id)->assertSee('Issue58 first source')
             ->assertSee(TermPlanningWorkbench::getUrl(['termId' => $first->term_id]))
-            ->assertSee('Academic Authority')->assertSee('Grades & Progress')->assertSee('Lifecycle & Completion')
+            ->assertSeeHtml('id="oversight-authority-title">Curricula</h2>')->assertSee('Grades & Progress')->assertSee('Lifecycle & Completion')
             ->assertDontSee('Choose an academic term')
             ->assertDontSee('Academic decisions requiring oversight')->assertDontSee('resolve their stated blockers')
             ->assertViewHas('timetable', null);
@@ -637,7 +637,7 @@ final class Issue58ExactTermPreparationTest extends TestCase
     private function core(): TermCalendarPackage
     {
         $term = Term::factory()->create(['state' => Term::StateDraft]);
-        $package = TermCalendarPackage::factory()->for($term)->create(['faculty_availability_due_at' => null]);
+        $package = TermCalendarPackage::factory()->for($term)->create();
         TermTeachingGridRow::factory()->for($package, 'package')->create(['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '12:00', 'breaks' => []]);
 
         return $package;

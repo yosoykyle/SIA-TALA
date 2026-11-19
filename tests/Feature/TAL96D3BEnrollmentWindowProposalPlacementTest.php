@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
-use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Actions\Enrollment\StartRegistrationCase;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
@@ -476,21 +475,6 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->whereBelongsTo($profile)
             ->whereBelongsTo($term)
             ->count());
-    }
-
-    public function test_enrollment_summary_explains_the_next_step_and_responsible_office_in_plain_language(): void
-    {
-        $cancelled = Enrollment::factory()->create([
-            'status' => 'cancelled',
-            'status_reason' => 'Student withdrew the request.',
-        ]);
-        $pendingPayment = Enrollment::factory()->create(['status' => 'pending_payment']);
-        $summary = app(EnrollmentGateReviewSummary::class);
-
-        $this->assertStringContainsString('cancelled', strtolower($summary->nextStep($cancelled)));
-        $this->assertSame('Registrar Office', $summary->responsibleOffice($cancelled));
-        $this->assertStringContainsString('payment', strtolower($summary->nextStep($pendingPayment)));
-        $this->assertSame('Accounting Office', $summary->responsibleOffice($pendingPayment));
     }
 
     public function test_staff_enrollment_list_uses_a_direct_record_link_and_assisted_start_recovery(): void

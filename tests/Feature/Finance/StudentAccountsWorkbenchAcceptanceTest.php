@@ -515,6 +515,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             Assessment::factory()->create([
                 'term_account_id' => $fixture['account']->id,
                 'version' => $version,
+                'authority_reference' => 'HIST-ASSESSMENT-'.$version,
                 'state' => Assessment::StateSuperseded,
                 'created_at' => now()->subDays($version),
             ]);
@@ -523,15 +524,15 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
 
         $history = Livewire::actingAs($accounting)->withQueryParams(['view' => 'history'])
             ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id])
-            ->assertDontSee('Assessment version 13')->assertSee('RECEIPT-KEPT-WHILE-PAGING')->assertDontSee('FOREIGN-HISTORY-SOURCE')
+            ->assertDontSee('HIST-ASSESSMENT-13')->assertSee('RECEIPT-KEPT-WHILE-PAGING')->assertDontSee('FOREIGN-HISTORY-SOURCE')
             ->assertDontSee('Export verified payments')->assertDontSee('View source details');
         $this->assertSame(13, $history->instance()->accountingHistoryGroups()['assessment']['records']->total());
         $this->assertCount(10, $history->instance()->accountingHistoryGroups()['assessment']['records']);
 
-        $history->call('gotoPage', 2, 'accountHistoryAssessmentPage')->assertSee('Assessment version 13')->assertSee('RECEIPT-KEPT-WHILE-PAGING');
+        $history->call('gotoPage', 2, 'accountHistoryAssessmentPage')->assertSee('HIST-ASSESSMENT-13')->assertSee('Earlier assessment')->assertSee('RECEIPT-KEPT-WHILE-PAGING');
         $this->assertSame(1, $history->instance()->accountingHistoryGroups()['proof']['records']->currentPage());
         $this->assertCount(3, $history->instance()->accountingHistoryGroups()['assessment']['records']);
-        $history->call('gotoPage', 100, 'accountHistoryAssessmentPage')->assertSee('Assessment version 13');
+        $history->call('gotoPage', 100, 'accountHistoryAssessmentPage')->assertSee('HIST-ASSESSMENT-13');
         $this->assertSame(2, $history->instance()->accountingHistoryGroups()['assessment']['records']->currentPage());
     }
 

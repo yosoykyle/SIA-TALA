@@ -10,12 +10,10 @@ use App\Models\CourseRequirement;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
-use App\Models\ImportBatch;
 use App\Models\Program;
 use App\Models\Term;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 final class TAL55AcademicFoundationTest extends TestCase
@@ -82,8 +80,6 @@ final class TAL55AcademicFoundationTest extends TestCase
             ->create([
                 'rule_type' => CourseRequirement::TypePrerequisite,
                 'group_key' => 'G1',
-                'required_outcome' => 'PASSED',
-                'accepts_transfer_credit' => true,
             ]);
 
         $this->assertTrue($course->specifications->contains($specification));
@@ -109,7 +105,7 @@ final class TAL55AcademicFoundationTest extends TestCase
             ->for($effectiveTerm, 'effectiveEntryTerm')
             ->create([
                 'version_code' => 'BSIT-2026',
-                'state' => CurriculumVersion::StateRecordedApproved,
+                'state' => CurriculumVersion::StateActive,
             ]);
         $entry = CurriculumEntry::factory()
             ->for($curriculumVersion)
@@ -128,29 +124,5 @@ final class TAL55AcademicFoundationTest extends TestCase
         $this->assertTrue($curriculumVersion->effectiveEntryTerm->is($effectiveTerm));
         $this->assertSame('First Year', $entry->year_level);
         $this->assertSame(Term::TypeFirstSemester, $entry->term_type);
-    }
-
-    public function test_import_batches_store_academic_import_metadata_without_legacy_import_columns(): void
-    {
-        $batch = ImportBatch::factory()->create([
-            'type' => ImportBatch::TypeCurriculum,
-            'template_version' => 'curriculum-v1',
-            'row_count' => 12,
-            'warning_count' => 1,
-            'validation_details' => [
-                'warnings' => [
-                    ['row' => 4, 'message' => 'Computed total units mismatch.'],
-                ],
-            ],
-        ]);
-
-        $this->assertSame(ImportBatch::TypeCurriculum, $batch->type);
-        $this->assertSame(12, $batch->row_count);
-        $validationDetails = $batch->getAttribute('validation_details');
-
-        $this->assertIsArray($validationDetails);
-        $this->assertSame('Computed total units mismatch.', $validationDetails['warnings'][0]['message']);
-        $this->assertFalse(Schema::hasColumn('import_batches', 'import_type'));
-        $this->assertFalse(Schema::hasColumn('import_batches', 'error_log'));
     }
 }

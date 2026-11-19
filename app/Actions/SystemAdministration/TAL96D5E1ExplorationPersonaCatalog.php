@@ -255,18 +255,6 @@ final class TAL96D5E1ExplorationPersonaCatalog
                 ->where('email', 'student.dit-1a.005@example.test'))
             ->withCount('courseEnrollments')
             ->first();
-        $activeBindings = $officialEnrollment instanceof Enrollment
-            ? DB::table('student_schedule_bindings')
-                ->join(
-                    'course_enrollments',
-                    'course_enrollments.id',
-                    '=',
-                    'student_schedule_bindings.course_enrollment_id',
-                )
-                ->where('course_enrollments.enrollment_id', $officialEnrollment->id)
-                ->where('student_schedule_bindings.is_active', true)
-                ->count()
-            : 0;
         $publishedRun = $termRuns
             ->where('status', ScheduleGenerationRun::StatusPublished)
             ->first(fn (ScheduleGenerationRun $run): bool => (int) $run->candidate_rows_count === $schedulingDemands
@@ -278,7 +266,6 @@ final class TAL96D5E1ExplorationPersonaCatalog
             && $openSections === $sections
             && $officialEnrollment instanceof Enrollment
             && (int) $officialEnrollment->course_enrollments_count === 8
-            && $activeBindings === 8
             && $jobsEmpty;
         $detectedCheckpoint = match (true) {
             $publishedCheckpointReady => self::CheckpointPublished,
@@ -323,7 +310,6 @@ final class TAL96D5E1ExplorationPersonaCatalog
             'scheduled_offerings' => $scheduledOfferings,
             'open_sections' => $openSections,
             'representative_official_courses' => $officialEnrollment->course_enrollments_count ?? 0,
-            'representative_active_bindings' => $activeBindings,
             'accepted_candidate_ready' => $acceptedCandidateReady,
             'published_checkpoint_ready' => $publishedCheckpointReady,
             'scheduling_outputs_empty' => $schedulingOutputsEmpty,

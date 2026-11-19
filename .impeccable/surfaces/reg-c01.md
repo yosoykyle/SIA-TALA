@@ -1,60 +1,32 @@
 ---
-version: 1
+version: 11
 slug: "reg-c01"
-primary_target: "app/Filament/Pages/CatalogCurriculaWorkbench.php"
-related_targets: ["REG-C01", "AHD-001", "app/Filament/Resources/Programs", "app/Filament/Resources/Courses", "app/Filament/Resources/CourseSpecifications", "app/Filament/Resources/CurriculumVersions", "app/Filament/Resources/ImportBatches", "resources/views/filament/pages/catalog-curricula-workbench.blade.php"]
+primary_target: "app/Filament/Resources/CurriculumVersions/Pages/ReviewCurriculumVersion.php"
+related_targets: ["REG-C01", "AHD-001", "app/Filament/Pages/CatalogCurriculaWorkbench.php", "app/Filament/Resources/Programs", "app/Filament/Resources/Courses", "app/Filament/Resources/CurriculumVersions", "public/css/tala-catalog.css", "resources/views/filament/pages/catalog-curricula-workbench.blade.php", "resources/views/filament/resources/curriculum-versions/pages/review-curriculum-version.blade.php"]
 ---
 
 # Surface Brief: Catalog and Curricula
 
-<!-- impeccable:surface-brief 1 -->
+<!-- impeccable:surface-brief 3 -->
 
 ## Job and authority
 
-**Mode: Operate.** Registrar records an approved academic source, prepares a complete curriculum and activates it with understandable effects. Academic Head inspects the permitted source and readiness without an approval or mutation workflow.
+Operate. Registrar prepares each Program's study plan and activates it for new students; Academic Head inspects the same facts read-only. PRD 03 owns behavior, the Blueprint owns role journeys, DESIGN owns the shared visual system. #91 and #48 hold live scope and evidence.
 
-PRD 03 Section 5 owns Program/Course/Curriculum facts, effective authority, CSV v1, activation and immutable history. PRDs 04/05 own assigned-curriculum consumers; PRD 06 owns financial effects. The Blueprint owns REG-C01 and connected AHD-001 interaction outcomes; PRODUCT.md purpose, DESIGN.md shared appearance and the Protocol permissions. [#48](https://github.com/yosoykyle/SIA-TALA/issues/48) and [#91](https://github.com/yosoykyle/SIA-TALA/issues/91) own assignments, acceptance and evidence. This brief describes intended delivery, not implementation or owner acceptance.
+## Direction (owner, 19 November 2026)
 
-## Entry and information hierarchy
+Lean on the shared design and native Filament first; aim for aesthetic usability and a clear hierarchy that anyone can understand. Remove anything that does not serve that goal: Catalog keeps no approval records, approval periods, approval references or a separate approval step, and zero three-dots (`...`) overflow menus. Keep the Year-Card -> Side-by-Side Semester Board (`First Year`..`Fourth Year` cards focusing `First Semester` and `Second Semester` side-by-side with `Special Term (Summer)` stacked underneath), centered Subject Editor modal, and inline **TESDA & External Certifications** section.
 
-Enter through Registrar's Catalog & Curricula. Academic Head enters through permitted Catalog navigation or a source drill-in from Academic Oversight. Start with recognizable Program identity, applicable authority/current curriculum, remaining work and the next permitted action. Show Program name with its supporting code; preserve the selected Program, version and authorized return scope across related destinations.
+## Composition
 
-Follow **choose Program → inspect applicable authority → prepare one grouped sheet manually or through CSV → resolve findings → review impact → activate**. The groups are connected tasks, not another mandatory wizard. Reuse stored facts and the PRD's plain approval-source labels. Do not repeat a Program picker when the context supplies it. Counts are secondary only where they help choose work; a six-destination menu cannot replace the journey. A healthy state need not invent a primary action.
+- **Entry (`CatalogCurriculaWorkbench`):** **Draft curricula to finish** leads in a balanced multi-column card grid (`tala-catalog-task-grid`) with program badge, status pill (`Ready to activate`, `N subjects need details`, `Empty draft`), draft title, and sunken `.tala-workspace-feature__action` CTA footer (`Open & activate →`, `Complete subjects →`, `Add subjects →`), eliminating right-side desktop void; followed by one browse link each for Programs, Curricula (`Study plans by program, including active and past study plans.`) and Subjects. Illustrated empty states (`<x-servitech-empty-state illustrated>`) handle first-run Programs setup (`Set up your first program`), read-only empty catalog (`No programs recorded yet`), and all-plans-active states (`All study plans are up to date`).
+- **Program (`ViewProgram`):** Program name as title, code and length as subheading, header **Edit program** modal (plus **Return to Academic Oversight** with `oversightTermId` for Academic Head), and `CurriculumVersionsRelationManager` in one native table whose rows open the curriculum (using `collection-empty-state`).
+- **Curriculum (`ReviewCurriculumVersion`, canonical; `ViewCurriculumVersion` redirects to it):** curriculum name as title, plus one wrapped subheading line (`status · Program · N years · subjects · units · First intake`). Decluttered top header actions (at most 2 buttons on editable drafts, zero `...` menus, zero inventory count badges): **Return to Academic Oversight** (read-only), **Curriculum details** centered `lg` modal (`name`, `effective_entry_term_id`, and `Program length (years)` `1–8` clamped above the highest placed curriculum year), and **Activate curriculum** (primary once complete) or **Create revised draft** on protected plans. A protected plan explains once why it is read-only; a single warning banner lists only activation blockers.
+- **Year-Card -> Side-by-Side Semester Board (`tala-catalog.css`):** Year Overview Card Grid (`tala-year-grid`) across the top presents clickable `First Year`..`Eighth Year` (`Year 1`..`Year N`) summary cards (showing subject/unit totals and incomplete warning cues without noisy numeric badges) plus a dashed **+ Add year** card (`1–8` years on drafts). Below sits the active year heading with live cross-year search (`Search subjects across all years...`) and **Remove empty Year N** (removing an empty trailing year also syncs Program `duration_years`), followed by two balanced side-by-side cards (`tala-semester-grid`) for **First Semester** and **Second Semester** (each with its own **Add subject** button pre-filling that year and semester), and a full-width **Special Term (Summer)** card stacked cleanly underneath (or a subtle **+ Add Summer term** opt-in bar below the regular semesters). Subject rows show code, title, inline incomplete-details/elective/prerequisite cues, trailing units, and click-through selection tint (`is-selected`).
+- **Centered Subject Editor & Add Subjects Modal:** clicking any semester row opens `curriculum-subject-inspector` as a centered `2xl` modal (`x-filament::modal width="2xl"` with sticky header/footer) for both editable drafts and read-only Academic Head / Active / Superseded inspection. Shows units, weekly hours, delivery modes, prerequisites, `Open in Subjects` link, `Revise subject for this curriculum`, inline semester ordering (`Move up` / `Move down` persisted immediately), placement/requirement editing, `Remove from plan`, and `Save changes` (or `Close` read-only). **Add subject** opens a `2xl` modal whose `Existing subjects` / `New subjects` segmented switcher spans 100% width (`grid-template-columns: repeat(2, minmax(0, 1fr))`), defaulting to the viewed year and clicked semester; atomic batch validation preserves partial-failure safety.
+- **Activation & Inline TESDA & External Certifications:** activation uses one short native confirmation with plain consequences and an optional first-intake choice. **TESDA & External Certifications** renders as a self-explanatory section card below the year semesters (*"Industry certificates assessed outside class subjects, such as TESDA NC II or NC III."*) listing each qualification, graduation effect and linked subject with direct **Add certificate**, **Edit** and **Remove** controls.
+- **Subject (`ViewCourse`):** canonical subject workspace (`CourseSpecificationResource` is retired), showing plain facts (units, weekly hours, how it can be taught, prerequisites, description) and a Versions list only when several exist.
 
-The current-authority display follows PRD 03's effective-period/as-of rule. Keep real approval evidence, but place detailed source/version history behind a recognizable contextual disclosure. Do not keep a field, screen or stored fact solely because it exists. Preserve information with a genuine academic, historical or integrity purpose.
+## Retained behavior and recovery
 
-## Sheet, source and correction
-
-One curriculum sheet grouped by year and term is the sustained preparation surface. Course identity, revision, units, placement and readiness remain recognizable together. Progressive disclosure exposes the necessary requisites, scheduling treatment, recurring components, modes and room requirements without repeating every source fact in every row. External competency treatment follows PRD 03; evaluation-sheet outcomes never become catalog facts. Externally arranged courses retain their academic units and make the absence of recurring timetable meetings clear.
-
-Use focused row/metadata forms for bounded corrections and a page for sustained review. Keep one canonical editing path; preserve authorized old links through contextual recovery when a duplicate path is retired. Draft corrections are practical; active or historically used data is read-only with a successor path. A blocker states what is wrong, who corrects it and an available source-owned action. Opening a source and returning preserves the current sheet and valid context.
-
-Activation names the selected version, actual source/readiness and affected future use, including preservation of existing Student curriculum assignments. Retain explicit confirmation and current-source/permission checks. No Academic Head approval queue, generic rules, automatic reassignment or financial mutation follows.
-
-## CSV and history
-
-Offer the optional fixed CSV v1 beside manual preparation and link the downloadable template and constraints from PRD 03. Do not duplicate its field contract in this brief or add a mapping designer. Preview shows the original row, interpretation, current-source comparison, proposed Draft effect and actionable findings. Correct the original template, acknowledge warnings and create Drafts only when the source is valid. Draft creation and activation remain visibly distinct.
-
-Empty, parsing, validation and stale-source states retain useful context and recovery. A failed creation never implies partial success; a retry never silently duplicates Drafts. Source values remain escaped plain text and findings use PRD-owned safe CSV rules. Existing batches, files, findings and posted results remain attributable; legacy evidence is not silently reinterpreted under v1.
-
-Registrar owns upload, preview creation, curriculum-import findings download and commit. Academic Head retains authorized read-only review and existing source-file access. Findings and source-file download are distinct permissions; visible controls and underlying actions agree. Preserve unrelated import rights and never expose foreign Program context.
-
-## Shared composition and components
-
-Reuse DESIGN.md's school-first identity, semantic light/dark surfaces, tactile action family, typography, record context and shared collection/inspector patterns where suitable. Use project-local Impeccable and relevant interface guidance. Native Filament tables, grouped rows, forms, infolists, actions, filters and dialogs own standard behavior; focused TALA composition connects context and the bounded preview/commit flow. Use record subnavigation only when it helps sustained work on the same record. Do not create another application shell or custom table engine.
-
-Search/filter controls remain native, relevant and nonduplicated. Retain existing usable shared patterns from delivered journeys; their appearance does not transfer domain fields, permissions or source rules. Actions, breadcrumbs, contextual returns and dialog/page choices are consistent. Remove redundant back controls when native navigation already supplies the same safe return; retain a distinct recovery/return action when it serves a different context.
-
-## States, responsive behavior and accessibility
-
-Reuse existing native loading feedback without duplicate overlays. Distinguish no Programs, no curriculum, no selection, filtered-empty results, missing source, unauthorized access and failed work. Only a true whole-destination absence needs the shared primary-empty treatment. A record with missing required source is a recovery problem, not an empty success.
-
-Wide layouts support sheet scanning and sustained source review. Narrow layouts retain readable identity, year/term grouping, essential values and access to row details without hiding required actions. Preserve table semantics, keyboard navigation, focus/return after dialogs, labelled status and readable light/dark and forced-color behavior. Avoid essential hover-only information, decorative motion and color-only readiness cues.
-
-## Prototypes and verification
-
-Follow Protocol Section 6 and the accepted Issue contract. Inventory the affected Registrar entry, Program/source context, Course/revision and curriculum sheet, CSV preview/recovery, activation and materially changed dialogs; cover Academic Head's read-only composition and return path. For meaningful changes use **prototype → implementation → rendered check** per surface, reusing proven shared patterns when another prototype adds no information. A single entry-page mockup does not cover deeper work. An inspectable prototype may use available local sketch/image/HTML tools; no environment-only plugin is required.
-
-Verify the main manual/import journey and proportionate alternate/error/cancellation/stale recovery, narrow layout and keyboard/focus. Reuse owning tests for effective authority, safe Draft creation, roles, immutable activation and assigned-curriculum preservation. Target relevant Term/enrollment/Student projections without redesigning their unrelated destinations. Broader Registrar curriculum evaluation and Academic Head/Public/admin work remain separate.
-
-Agents own technical verification; owner review assesses appearance and understandable use. Local readiness stops for owner review/refinements and reporting follows explicit permission. Captures, test results, removals, legacy limitations and owner verdicts belong in the Issue/evidence rather than a progress timeline in this brief. Recording this brief grants no implementation, publication or deployment permission.
+Active and historically used curricula and subjects stay read-only and receive successors. Validation and permissions are rechecked on every write. Subject and placement batches are atomic. Missing details, stale state and empty or filtered sheets name the remedy without inventing school facts. Internal identifiers are generated, never typed. Catalog CSV import, import history, and legacy approval records/actions stay retired. Academic Head preserves `oversightTermId` across Program, Curriculum and Subject drill-ins and returns directly to **Academic Oversight**.

@@ -10,7 +10,12 @@
     <x-record-identity :name="$name" :number="$student->student_number" :program="$student->program?->name"
         :initials="$initials" :photo-url="$student->adminPhotoUrl()" heading-level="h1">
         <x-slot:supporting><p class="tala-profile-muted">{{ $student->curriculumVersion?->name ?? 'No curriculum recorded' }}</p></x-slot:supporting>
-        <x-slot:actions><x-filament::badge :color="$student->lifecycle_status === \App\Models\StudentProfile::LifecycleActive ? 'success' : 'gray'">{{ \App\Models\StudentProfile::lifecycleStatusLabel($student->lifecycle_status) }} student</x-filament::badge></x-slot:actions>
+        <x-slot:actions>
+            <x-filament::badge :color="$student->lifecycle_status === \App\Models\StudentProfile::LifecycleActive ? 'success' : 'gray'">{{ \App\Models\StudentProfile::lifecycleStatusLabel($student->lifecycle_status) }} student</x-filament::badge>
+            @if ($this->recordCorrectionAction->isVisible())
+                {{ $this->recordCorrectionAction }}
+            @endif
+        </x-slot:actions>
     </x-record-identity>
     <x-filament::tabs label="Student record views" class="tala-profile-tabs">
         @foreach (['overview' => 'Summary', 'academic' => 'Academic record', 'enrollment' => 'Enrollment', 'requirements' => 'Requirements', 'history' => 'History'] as $key => $label)

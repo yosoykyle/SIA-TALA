@@ -23,7 +23,6 @@ use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\FeeRule;
 use App\Models\FinancialAccommodation;
-use App\Models\ImportBatch;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentScheduleRow;
@@ -49,7 +48,6 @@ use App\Policies\FacultyQualificationPolicy;
 use App\Policies\FacultyTermLoadOverridePolicy;
 use App\Policies\FeeRulePolicy;
 use App\Policies\FinancialAccommodationPolicy;
-use App\Policies\ImportBatchPolicy;
 use App\Policies\LedgerEntryPolicy;
 use App\Policies\PaymentPolicy;
 use App\Policies\PaymentScheduleRowPolicy;
@@ -67,6 +65,7 @@ use Filament\Actions\Action;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as FilamentLoginResponse;
 use Filament\Support\Facades\FilamentTimezone;
 use Filament\Support\Facades\FilamentView;
+use Filament\Tables\Table;
 use Filament\Tables\View\TablesRenderHook;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -140,6 +139,11 @@ class AppServiceProvider extends ServiceProvider
         FilamentTimezone::set((string) config('app.display_timezone', 'Asia/Manila'));
         config(['livewire.navigate.progress_bar_color' => 'var(--tala-brand-foreground)']);
         Action::configureUsing(TalaPanelTheme::configureActionModal(...));
+        Table::configureUsing(function (Table $table): void {
+            $table
+                ->paginationPageOptions([5, 10, 25, 50])
+                ->defaultPaginationPageOption(5);
+        });
         FilamentView::registerRenderHook(
             TablesRenderHook::CONTENT_BEFORE,
             fn () => view('filament.components.table-loading'),
@@ -170,7 +174,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Course::class, CoursePolicy::class);
         Gate::policy(CourseSpecification::class, CourseSpecificationPolicy::class);
         Gate::policy(CurriculumVersion::class, CurriculumVersionPolicy::class);
-        Gate::policy(ImportBatch::class, ImportBatchPolicy::class);
         Gate::policy(DuplicateProfileResolution::class, DuplicateProfileResolutionPolicy::class);
 
         Event::listen(Login::class, [LogAuthenticationActivity::class, 'handleLogin']);

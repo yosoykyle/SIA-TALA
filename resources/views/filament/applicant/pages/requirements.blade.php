@@ -2,13 +2,15 @@
     @php($application = $this->application())
 
     @if (! $application || ! $application->currentSubmissionVersion)
-        <x-filament::section>
-            <x-slot name="heading">Requirements are not available yet</x-slot>
-            <x-slot name="description">Submit your application to see its requirements and review results.</x-slot>
+        <x-servitech-empty-state
+            illustrated
+            heading="Requirements are not available yet"
+            description="Submit your application to see its requirements and review results."
+        >
             <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application?->id])" tag="a" icon="heroicon-m-document-text">
                 Open application
             </x-filament::button>
-        </x-filament::section>
+        </x-servitech-empty-state>
     @else
         <div>
             <x-application-reference :value="$application->application_reference" />

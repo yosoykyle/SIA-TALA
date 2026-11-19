@@ -23,6 +23,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Validation\ValidationException;
@@ -37,16 +38,13 @@ class RequirementSetsRelationManager extends RelationManager
     {
         return $schema
             ->components([
-                Section::make('Version authority')
+                Section::make('Version details')
                     ->schema([
                         Select::make('application_path')
                             ->label('Student type')
                             ->options(AdmissionCycle::studentTypeOptions())
                             ->required(),
                         TextInput::make('version')->numeric()->minValue(1)->required(),
-                        TextInput::make('authority_reference')->label('Requirement policy source')
-                            ->helperText('Identify the approved school policy establishing this version. Publisher identity and time are recorded separately.')
-                            ->placeholder('Approved requirements policy or memo reference')->required()->maxLength(255),
                         DateTimePicker::make('effective_at')->label('Effective from (Manila time)')
                             ->helperText('Controls when this requirement version may apply. Existing submitted versions retain their original requirements.')
                             ->placeholder('Select date and time')->prefixIcon('heroicon-o-calendar-days')->native(false)->required(),
@@ -146,15 +144,20 @@ class RequirementSetsRelationManager extends RelationManager
                     ->formatStateUsing(fn (string $state): string => AdmissionCycle::studentTypeLabel($state)),
                 TextColumn::make('state')->badge(),
                 TextColumn::make('requirements_count')->counts('requirements')->label('Requirements'),
-                TextColumn::make('authority_reference')->wrap(),
                 TextColumn::make('published_at')->dateTime()->placeholder('Not published'),
             ])
             ->filters([
                 //
             ])
             ->headerActions([
-                CreateAction::make(),
+                CreateAction::make()
+                    ->modalWidth(Width::FourExtraLarge)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter(),
             ])
+            ->emptyStateHeading('No requirement versions yet')
+            ->emptyStateDescription('Create a requirement version to list required credentials and submission rules for each student type.')
+            ->emptyState(view('filament.partials.collection-empty-state'))
             ->recordActions([
                 Action::make('publish')
                     ->label('Publish version')
@@ -162,15 +165,12 @@ class RequirementSetsRelationManager extends RelationManager
                     ->icon('heroicon-o-check-badge')
                     ->color('primary')
                     ->requiresConfirmation()
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->modalDescription('Publishing makes this exact requirement version immutable. Review every path, authority, method, and due stage first.')
-                    ->schema([
-                        TextInput::make('authority_reference')
-                            ->label('Publication authority reference')
-                            ->required()
-                            ->maxLength(255),
-                    ])
                     ->visible(fn (AdmissionRequirementSet $record): bool => $record->state === AdmissionRequirementSet::StateDraft)
-                    ->action(function (AdmissionRequirementSet $record, array $data): void {
+                    ->action(function (AdmissionRequirementSet $record): void {
                         $actor = auth()->user();
                         abort_unless($actor instanceof User, 403);
 
@@ -178,7 +178,7 @@ class RequirementSetsRelationManager extends RelationManager
                             app(PublishAdmissionRequirementSet::class)->execute(
                                 $record,
                                 $actor,
-                                (string) $data['authority_reference'],
+                                null,
                                 $record->replacedRequirementSet,
                             );
                             Notification::make()->title('Requirement Set published')->success()->send();
@@ -191,8 +191,14 @@ class RequirementSetsRelationManager extends RelationManager
                         }
                     }),
                 EditAction::make()
+                    ->modalWidth(Width::FourExtraLarge)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->visible(fn (AdmissionRequirementSet $record): bool => $record->state === AdmissionRequirementSet::StateDraft),
                 DeleteAction::make()
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->visible(fn (AdmissionRequirementSet $record): bool => $record->state === AdmissionRequirementSet::StateDraft),
             ]);
     }

@@ -837,7 +837,7 @@ class HumanCenteredCompletionAndTorAcceptanceTest extends TestCase
         $this->assertStringContainsString('SCALED-0025', reset($searched));
         $scaled = Livewire::actingAs($fixture['registrar'])->test(CompletionAndTor::class, ['completionView' => 'graduation', 'graduationStudentId' => $fixture['student']->id])->assertSuccessful();
         $records = $scaled->instance()->getTable()->getRecords();
-        $this->assertCount(10, $records);
+        $this->assertCount(5, $records);
         $this->assertGreaterThanOrEqual(57, $records->total());
         $scaled->call('gotoGraduationPage', 2)->assertSet('graduationStudentId', null)->assertSee('Page 2 of');
         $this->assertSame(2, $scaled->instance()->getTableRecords()->currentPage());

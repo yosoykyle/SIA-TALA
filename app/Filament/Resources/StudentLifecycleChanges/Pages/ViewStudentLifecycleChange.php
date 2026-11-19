@@ -2,17 +2,16 @@
 
 namespace App\Filament\Resources\StudentLifecycleChanges\Pages;
 
+use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use Filament\Resources\Pages\Page;
 use Illuminate\Support\Facades\Gate;
-use Livewire\Attributes\Url;
 
 class ViewStudentLifecycleChange extends Page
 {
-    protected static string $resource = StudentLifecycleChangeResource::class;
+    use HasAcademicOversightReturn;
 
-    #[Url]
-    public ?int $oversightTermId = null;
+    protected static string $resource = StudentLifecycleChangeResource::class;
 
     public function mount(int|string $record): void
     {

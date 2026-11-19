@@ -29,7 +29,6 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
@@ -277,13 +276,6 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->test(ScheduleView::class)
             ->assertSee($fixture['course']->code);
 
-        $fixture['binding']->forceFill([
-            'is_active' => false,
-            'effective_until' => now()->toDateString(),
-            'released_by' => $registrar->id,
-            'released_at' => now(),
-            'release_reason' => 'Placement released before section cancellation.',
-        ])->save();
         $fixture['courseEnrollment']->forceFill([
             'status' => CourseEnrollment::StatusDropped,
             'is_current' => false,
@@ -550,13 +542,6 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
         ]);
         $enrollment->update(['current_cor_version_id' => $cor->id]);
         $courseEnrollment->update(['published_timetable_version_id' => $timetableVersion->id]);
-        $binding = StudentScheduleBinding::query()->create([
-            'course_enrollment_id' => $courseEnrollment->id,
-            'section_meeting_id' => $meeting->id,
-            'is_active' => true,
-            'effective_from' => now()->toDateString(),
-            'source' => StudentScheduleBinding::SourceRegistrarPlacement,
-        ]);
 
         return [
             ...$studentContext,
@@ -573,7 +558,6 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             'run' => $run,
             'room' => $room,
             'meeting' => $meeting,
-            'binding' => $binding,
         ];
     }
 

@@ -20,10 +20,6 @@ class CourseRequirement extends Model
 
     public const StateActive = 'ACTIVE';
 
-    public const DirectionRequires = 'REQUIRES';
-
-    public const RequiredOutcomePassed = 'PASSED';
-
     /**
      * @var list<string>
      */
@@ -32,14 +28,6 @@ class CourseRequirement extends Model
         'rule_type',
         'group_key',
         'related_course_id',
-        'direction',
-        'equivalency_scope',
-        'required_outcome',
-        'minimum_grade',
-        'accepts_transfer_credit',
-        'effective_from',
-        'effective_until',
-        'authority',
         'state',
         'sequence',
     ];
@@ -50,10 +38,6 @@ class CourseRequirement extends Model
     protected function casts(): array
     {
         return [
-            'minimum_grade' => 'decimal:4',
-            'accepts_transfer_credit' => 'boolean',
-            'effective_from' => 'date',
-            'effective_until' => 'date',
             'sequence' => 'integer',
         ];
     }
@@ -79,26 +63,6 @@ class CourseRequirement extends Model
             self::TypePrerequisite => 'Prerequisite',
             self::TypeCorequisite => 'Corequisite',
             self::TypeEquivalency => 'Equivalent Course',
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public static function stateOptions(): array
-    {
-        return [
-            self::StateActive => 'Active',
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public static function requiredOutcomeOptions(): array
-    {
-        return [
-            self::RequiredOutcomePassed => 'Passed / Credited',
         ];
     }
 }

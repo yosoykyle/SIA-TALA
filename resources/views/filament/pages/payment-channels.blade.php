@@ -38,74 +38,72 @@
             @endif
         </section>
 
-        <form wire:submit="save" class="payment-channels-workbench">
-            <div class="payment-channels-workbench__editor">
-                {{ $this->form }}
-            </div>
-
-            <x-sticky-companion class="payment-channels-workbench__rail" aria-labelledby="payment-channels-preview-heading">
-                <div class="payment-channels-preview-card tala-companion-card">
-                    <header class="payment-channels-preview-card__head">
-                        <div class="payment-channels-preview-card__title">
-                            <span class="tala-workspace-card__icon payment-channels-preview-card__icon" aria-hidden="true">
-                                <x-filament::icon icon="heroicon-o-eye" />
-                            </span>
-                            <h3 id="payment-channels-preview-heading">Students and applicants &ldquo;How to pay&rdquo; preview</h3>
-                        </div>
-                        @if ($preview['isDirty'])
-                            <x-filament::badge color="warning" size="sm">Unsaved</x-filament::badge>
-                        @endif
-                    </header>
-
-                    <div class="payment-channels-preview-card__body tala-companion-body" tabindex="0" role="region" aria-label="Payment instructions preview">
-                        @include('filament.student.pages.how-to-pay', [
-                            'display' => $preview['display'],
-                            'variant' => 'preview',
-                            'surface' => 'accounting-preview',
-                        ])
-                    </div>
-
-                    <div class="payment-channels-preview-card__footer">
-                        <div class="payment-channels-reason-field">
-                            <label for="payment-channels-reason" class="payment-channels-reason-label">
-                                Reason for update (optional)
-                            </label>
-                            <div @class(['fi-input-wrp', 'fi-invalid' => $errors->has('data.reason')])>
-                                <input
-                                    id="payment-channels-reason"
-                                    type="text"
-                                    maxlength="255"
-                                    wire:model="data.reason"
-                                    placeholder="e.g. Updated afternoon hours"
-                                    @if ($errors->has('data.reason'))
-                                        aria-invalid="true"
-                                        aria-describedby="payment-channels-reason-error"
-                                    @endif
-                                    class="fi-input"
-                                />
-                            </div>
-                            @error('data.reason')
-                                <p id="payment-channels-reason-error" class="fi-fo-field-wrp-error-message">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <x-filament::button
-                            type="submit"
-                            icon="heroicon-o-check-circle"
-                            wire:loading.attr="disabled"
-                            wire:target="save"
-                            class="payment-channels-save-btn"
-                        >
-                            <span wire:loading.remove wire:target="save">Save payment channels</span>
-                            <span wire:loading wire:target="save">Saving payment channels…</span>
-                        </x-filament::button>
-
-                        <p class="payment-channels-actions__note">
-                            Versioned in the governance audit log and applied immediately to How to pay.
-                        </p>
-                    </div>
+        @if ($this->isEditing)
+            <form wire:submit="save" class="payment-channels-workbench">
+                <div class="payment-channels-workbench__editor">
+                    {{ $this->form }}
                 </div>
-            </x-sticky-companion>
-        </form>
+
+                <x-sticky-companion class="payment-channels-workbench__rail" aria-labelledby="payment-channels-preview-heading">
+                    <div class="payment-channels-preview-card tala-companion-card">
+                        <header class="payment-channels-preview-card__head">
+                            <div class="payment-channels-preview-card__title">
+                                <span class="tala-workspace-card__icon payment-channels-preview-card__icon" aria-hidden="true">
+                                    <x-filament::icon icon="heroicon-o-eye" />
+                                </span>
+                                <h3 id="payment-channels-preview-heading">Students and applicants &ldquo;How to pay&rdquo; preview</h3>
+                            </div>
+                            @if ($preview['isDirty'])
+                                <x-filament::badge color="warning" size="sm">Unsaved</x-filament::badge>
+                            @endif
+                        </header>
+
+                        <div class="payment-channels-preview-card__body tala-companion-body" tabindex="0" role="region" aria-label="Payment instructions preview">
+                            @include('filament.student.pages.how-to-pay', [
+                                'display' => $preview['display'],
+                                'variant' => 'preview',
+                                'surface' => 'accounting-preview',
+                            ])
+                        </div>
+
+                        <div class="payment-channels-preview-card__footer">
+                            <p class="payment-channels-actions__note">
+                                @if ($preview['isDirty'])
+                                    Preview reflects your unsaved changes. Click <strong>Save payment channels</strong> above to confirm and publish.
+                                @else
+                                    Live preview of student and applicant instructions. Change any channel on the left to save updates.
+                                @endif
+                            </p>
+                        </div>
+                    </div>
+                </x-sticky-companion>
+            </form>
+        @else
+            <section class="payment-channels-preview-card payment-channels-preview-only" aria-labelledby="payment-channels-preview-heading">
+                <header class="payment-channels-preview-card__head">
+                    <div class="payment-channels-preview-card__title">
+                        <span class="tala-workspace-card__icon payment-channels-preview-card__icon" aria-hidden="true">
+                            <x-filament::icon icon="heroicon-o-eye" />
+                        </span>
+                        <h3 id="payment-channels-preview-heading">Students and applicants &ldquo;How to pay&rdquo; preview</h3>
+                    </div>
+                    <x-filament::badge color="gray" size="sm">View only</x-filament::badge>
+                </header>
+
+                <div class="payment-channels-preview-card__body" role="region" aria-label="Payment instructions preview">
+                    @include('filament.student.pages.how-to-pay', [
+                        'display' => $preview['display'],
+                        'variant' => 'preview',
+                        'surface' => 'accounting-preview',
+                    ])
+                </div>
+
+                <div class="payment-channels-preview-card__footer">
+                    <p class="payment-channels-actions__note">
+                        Read-only preview of live payment instructions. Click <strong>Edit payment channels</strong> above to update Bank Transfer, E-Wallets, or Campus Cashier details.
+                    </p>
+                </div>
+            </section>
+        @endif
     </div>
 </x-filament-panels::page>
