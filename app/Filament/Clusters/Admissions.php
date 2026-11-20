@@ -12,7 +12,7 @@ use Filament\Support\Icons\Heroicon;
 
 /**
  * Lands on a dashboard of Admission queue cards instead of redirecting straight into the
- * Needs review list, matching the Grades & Completion launcher pattern (#80).
+ * Needs review list, matching the Students Record launcher pattern (#80).
  */
 class Admissions extends Cluster
 {

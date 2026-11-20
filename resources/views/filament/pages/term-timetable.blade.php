@@ -100,7 +100,7 @@
                                     ? 'Resolve '.count($readinessBlockers).' remaining prerequisites below before generating a whole-Term timetable.'
                                     : ($readiness['reason'] ?? 'Complete the remaining prerequisite before generating a timetable.')));
                     @endphp
-                    <div class="tala-guide-empty-work tala-planning-timetable-empty">
+                    <div class="tala-guide-empty-work">
                         <x-servitech-empty-state :illustrated="! ($activeRun && ! $showOfficial)" :heading="$activeRun && ! $showOfficial ? (in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) ? 'Preparing the meetings' : 'No meetings are available from this draft.') : 'No timetable yet'" :description="$emptyDescription">
                             @if ($activeRun && ! $showOfficial)<x-filament::button tag="a" color="gray" icon="heroicon-o-clipboard-document-check" :href="$this->timetableReviewUrl($activeRun->id)">Review findings and recovery</x-filament::button>@endif
                             @if (! $activeRun && ! $readOnly && $readiness['ready']){{ $this->generateTimetableAction }}@endif
@@ -111,7 +111,7 @@
                                 :heading="count($readinessBlockers) === 1 ? '1 prerequisite remaining' : count($readinessBlockers).' prerequisites remaining'"
                                 description="Complete each item below before generating a whole-Term timetable."
                                 compact
-                                style="inline-size: 100%; max-inline-size: 48rem; text-align: start;"
+                                style="inline-size: 100%; max-inline-size: 48rem; margin-inline: auto; text-align: start;"
                             >
                                 @if ($this->syncSchedulingDemandsAction->isVisible())
                                     <x-slot name="afterHeader">

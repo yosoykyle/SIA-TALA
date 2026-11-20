@@ -1618,9 +1618,27 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-planning-setup-links > h2 { margin:0; color:var(--tala-text); font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); }
 .tala-planning-setup-links > .tala-planning-reveal { margin:0; }
 .oversight-welcome-main.servitech-journey-scene { overflow:hidden; }
-.registrar-workbench .tala-workspace-launcher__split > .tala-task-surface { display:flex; flex-direction:column; justify-content:space-between; border-color:var(--tala-edge); box-shadow:var(--tala-material-raised); }
+/* Admission cycles table has no sortable column headers (Split/Stack record layout), so Filament renders its
+   "Sort by" control as a standing content-header row below the search/filter toolbar, inside a separately
+   clipped scroll container (.fi-ta-content-ctn has overflow:auto) that blocks simple repositioning. Promote
+   that wrapper's children into .fi-ta-main's own grid instead, so "Sort by" becomes a real sibling of the
+   toolbar and can share its row; every other direct/promoted child gets an explicit cell so nothing is lost
+   to CSS grid auto-placement. Below 48rem there isn't room for both rows side by side, so this is left to
+   Filament's default stacked layout there. */
+@media (min-width:48rem) {
+    .tala-admissions-table .fi-ta-main { display:grid; grid-template-columns:auto 1fr; align-items:center; column-gap:1rem; }
+    .tala-admissions-table .fi-ta-header-ctn { grid-column:2; grid-row:1; }
+    .tala-admissions-table .fi-ta-content-ctn { display:contents; }
+    .tala-admissions-table .fi-ta-content-header { grid-column:1; grid-row:1; padding-inline-start:24px; }
+    .tala-admissions-table .fi-ta-content { grid-column:1 / -1; grid-row:2; }
+    .tala-admissions-table .fi-ta-content-ctn > .fi-sr-only { grid-column:1 / -1; grid-row:2; }
+    .tala-admissions-table .fi-ta-main > .tala-content-progress { grid-column:1 / -1; grid-row:1; }
+    .tala-admissions-table .fi-ta-main > .fi-pagination { grid-column:1 / -1; grid-row:3; }
+}
+.registrar-workbench .tala-workspace-launcher__split > .tala-task-surface { border-color:var(--tala-edge); box-shadow:var(--tala-material-raised); }
+.registrar-workbench .tala-workspace-launcher__split > .tala-task-surface:not(.registrar-records-entry) { display:flex; flex-direction:column; justify-content:space-between; }
 .registrar-workbench .registrar-records-entry { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:1rem; }
-.registrar-workbench .registrar-records-entry > div { flex:1 1 16rem; min-inline-size:0; }
+.registrar-workbench .registrar-records-entry > div { flex:1 1 auto; min-inline-size:min(16rem, 100%); }
 .registrar-workbench .registrar-records-entry > .fi-btn { flex:0 0 auto; min-block-size:2.5rem; }
 .tala-home-alert { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:1rem; padding:var(--tala-card-pad-compact) var(--tala-card-pad); border:1px solid var(--tala-status-warning-border); border-radius:var(--tala-card-radius); background:var(--tala-status-warning-bg); color:var(--tala-text); }
 .tala-home-alert h2 { margin:0; font-size:1rem; font-weight:var(--tala-weight-emphasis); }

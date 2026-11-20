@@ -533,7 +533,7 @@
                         </div>
                         <div class="tala-inspector-footer__primary">
                             <x-filament::button type="button" color="gray" wire:click="closeSubjectEditor">Cancel</x-filament::button>
-                            <x-filament::button type="submit" form="curriculum-subject-form" wire:loading.attr="disabled" wire:target="saveCurriculumSubject">
+                            <x-filament::button type="button" wire:click="saveCurriculumSubject" wire:loading.attr="disabled" wire:target="saveCurriculumSubject">
                                 Save changes
                             </x-filament::button>
                         </div>
@@ -571,7 +571,7 @@
                 <x-slot:footer>
                     <div class="tala-add-subjects-modal-footer">
                         <x-filament::button type="button" color="gray" wire:click="closeSubjectEditor">Cancel</x-filament::button>
-                        <x-filament::button type="submit" form="curriculum-add-subject-form" wire:loading.attr="disabled" wire:target="saveCurriculumSubject">
+                        <x-filament::button type="button" wire:click="saveCurriculumSubject" wire:loading.attr="disabled" wire:target="saveCurriculumSubject">
                             Add to plan
                         </x-filament::button>
                     </div>
