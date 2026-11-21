@@ -193,6 +193,11 @@ class AssistedAdmissionApplication extends ApplicantApplication
         parent::saveAndExit();
     }
 
+    protected function showsSaveAndExitAction(): bool
+    {
+        return true;
+    }
+
     /** @return array<int, mixed> */
     protected function assistanceComponents(): array
     {

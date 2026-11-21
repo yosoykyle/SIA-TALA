@@ -459,7 +459,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
                 ->assertSee('This draft is read-only')
                 ->assertSee('You can view or discard your draft.')
                 ->assertDontSee('Save partial work at any step.');
-            $page->assertActionDisabled('saveAndExit');
+            $page->assertActionHidden('saveAndExit');
             $facts = $application->fresh()->getAttributes();
             $page->call('saveDraft')->assertHasErrors(['data.admission_cycle_id']);
             $page->call('submitApplication')->assertHasErrors(['data.admission_cycle_id']);
@@ -594,6 +594,39 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertNull($application->fresh()->guardian_full_name);
     }
 
+    public function test_corrected_guardian_mobile_clears_its_stale_error_without_another_save(): void
+    {
+        [$application, $applicant] = $this->editableDraft();
+        $application->update(['first_name' => null, 'guardian_full_name' => null, 'guardian_relationship' => null, 'guardian_mobile' => null]);
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        $page = Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
+            ->assertWizardCurrentStep(2)
+            ->fillForm([
+                'first_name' => 'Synthetic applicant',
+                'birth_date' => now('Asia/Manila')->subYears(17)->format('Y-m-d'),
+                'guardian_full_name' => 'Synthetic guardian',
+                'guardian_relationship' => 'Parent',
+                'guardian_mobile' => '0981136327',
+            ])
+            ->goToNextWizardStep()
+            ->assertHasFormErrors(['guardian_mobile' => 'regex']);
+
+        $page->fillForm(['guardian_mobile' => '09811363279'])
+            ->assertHasNoFormErrors(['guardian_mobile']);
+
+        $page->fillForm(['guardian_mobile' => '0981136327'])
+            ->assertHasFormErrors(['guardian_mobile'])
+            ->assertSee('Enter an 11-digit Philippine mobile number beginning with 09.');
+
+        $page->fillForm(['guardian_mobile' => '09811363279'])
+            ->goToNextWizardStep()
+            ->assertHasNoFormErrors()
+            ->assertWizardCurrentStep(3);
+
+        $this->assertSame('09811363279', $application->fresh()->guardian_mobile);
+    }
+
     public function test_native_wizard_saves_identity_before_advancing_without_submitting(): void
     {
         [$application, $applicant] = $this->editableDraft();
@@ -660,7 +693,8 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
         Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
             ->fillForm(['middle_name' => 'Partial work'])
-            ->callAction('saveAndExit')
+            ->assertActionHidden('saveAndExit')
+            ->call('saveAndExit')
             ->assertHasNoFormErrors()
             ->assertRedirect(Dashboard::getUrl(['application' => $application->id]));
 
@@ -923,7 +957,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
             ->assertNoRedirect();
 
         $this->assertSame(1, $application->evidenceVersions()->count());
-        $page->callAction('saveAndExit')->assertHasNoFormErrors();
+        $page->call('saveAndExit')->assertHasNoFormErrors();
         $this->assertSame(1, $application->evidenceVersions()->count());
         $this->assertSame(0, $application->submissionVersions()->count());
     }

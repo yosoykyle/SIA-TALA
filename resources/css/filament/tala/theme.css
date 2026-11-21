@@ -74,7 +74,7 @@
 .fi-panel-applicant :is(.fi-section-header-description, .fi-fo-field-wrp-helper-text, .fi-in-text, .fi-sc-text) { line-height: 1.5; }
 .fi-panel-applicant .fi-callout-description { max-inline-size: none; }
 .fi-panel-applicant :is(.fi-in-text, .fi-sc-text, .fi-fo-field-wrp-error-message, .fi-ta-text-item, .filepond--file-info-main, .filepond--file-status-main) { overflow-wrap: anywhere; }
-.fi-panel-applicant :is(.tala-journey__stage, .tala-home > *, .tala-home__summary > .fi-section, .tala-home__rail > .fi-section, .tala-record-group) { min-width: 0; }
+.fi-panel-applicant :is(.tala-journey__stage, .tala-home > *, .tala-record-group) { min-width: 0; }
 .tala-record-groups { display: grid; gap: 1.5rem; }
 .tala-record-group { display: grid; gap: 0.75rem; }
 .tala-record-group h3 { font-size: 1rem; font-weight: 600; line-height: 1.5; }
@@ -1225,6 +1225,8 @@
 }
 .tala-return-route a { display: inline-flex; align-items: center; min-height: 2.75rem; color: var(--tala-link); text-decoration: underline; text-underline-offset: 0.2em; }
 /* Applicant Home: factual journey, one next step, then status and dates (#61 F70-F76). */
+.tala-journey-step-top { margin: 0 0 0.75rem; font-size: 0.875rem; font-weight: 600; color: var(--primary-700); }
+.dark .tala-journey-step-top { color: var(--primary-300); }
 .tala-journey { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
 .tala-journey__stage { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.625rem; min-width: 0; }
 .tala-journey__stage:not(:last-child)::after { content: ""; position: absolute; inset-block-start: calc(1rem - 1px); inset-inline: 2.75rem -0.5rem; height: 2px; border-radius: 1px; background: var(--gray-200); }
@@ -1252,18 +1254,18 @@
 .dark .tala-journey-next__step { color: var(--primary-300); }
 .tala-journey-next .tala-application-next-action { max-width: 60ch; font-size: 1.125rem; font-weight: 600; line-height: 1.45; text-wrap: pretty; }
 .tala-journey-next__action { flex: 0 0 auto; }
-/* Applicant Home composition (#61 amended F76, F77-F80): summary cards, journey, side column, help. */
-.tala-home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem); grid-template-areas: "summary rail" "journey rail" "help rail"; align-items: start; }
-.tala-home__summary { grid-area: summary; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
-.tala-home__summary > .fi-section { height: 100%; }
+/* Applicant Home composition (#61 amended F76, F77-F80): journey leads, checklist pairs with the deadline, then status, then help. */
+.tala-home { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "journey journey" "checklist deadline" "status status" "help help"; align-items: start; }
 .tala-home__journey { grid-area: journey; container-type: inline-size; }
-.tala-home__rail { grid-area: rail; display: grid; align-content: start; }
+.tala-home-checklist { grid-area: checklist; }
+.tala-home-deadline-card { grid-area: deadline; }
+.tala-home-status-card { grid-area: status; }
 .tala-home-help { grid-area: help; }
 .tala-home-status { display: grid; justify-items: start; gap: 0.75rem; margin-block-end: 1.25rem; }
 .tala-home-status p { margin: 0; line-height: 1.6; }
 .tala-home-status:last-child { margin-block-end: 0; }
-.tala-home-summary .tala-home-facts { gap: 0.625rem; }
-.tala-home-summary .tala-home-facts > div, .tala-home-dates .tala-home-facts > div { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; }
+.tala-home-status-card .tala-home-facts { gap: 0.625rem; }
+.tala-home-status-card .tala-home-facts > div, .tala-home-dates .tala-home-facts > div { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; }
 .tala-home-facts { display: grid; gap: 0.875rem; margin: 0; }
 .tala-home-facts > div { display: grid; grid-template-columns: minmax(7rem, 10rem) minmax(0, 1fr); gap: 0.75rem; }
 .tala-home-facts dt { font-size: 0.875rem; color: var(--tala-muted); }
@@ -1277,10 +1279,10 @@
 .tala-home-muted { margin: 0; font-size: 0.875rem; line-height: 1.6; color: var(--tala-muted); }
 .tala-home-link { color: var(--tala-link); font-weight: 600; text-decoration: underline; text-underline-offset: 0.2em; }
 .tala-home-link:hover { text-decoration-thickness: 2px; }
-.tala-checklist { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.tala-checklist__item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding-block: 0.75rem; border-bottom: 1px solid var(--gray-200); }
+.tala-support-modal__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-block: 1rem; }
+.tala-checklist { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 0.625rem; margin: 0; padding: 0; list-style: none; }
+.tala-checklist__item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding: 0.75rem 0.875rem; border: 1px solid var(--gray-200); border-radius: 0.75rem; background: var(--tala-surface-sunken); }
 .dark .tala-checklist__item { border-color: var(--gray-800); }
-.tala-checklist__item:first-child { padding-block-start: 0; }
 .tala-checklist__mark { display: flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; border: 2px solid var(--gray-300); border-radius: 9999px; color: #fff; }
 .dark .tala-checklist__mark { border-color: var(--gray-600); }
 .tala-checklist__mark--success { border-color: var(--primary-600); background: var(--primary-600); }
@@ -1319,14 +1321,8 @@
     .tala-journey__stage:not(:last-child)::after { inset-block: 2.5rem 0.375rem; inset-inline: calc(1rem - 1px) auto; width: 2px; height: auto; }
     .tala-journey__text { padding-block-start: 0.25rem; }
 }
-@media (max-width: 63.999rem) {
-    .tala-home { grid-template-columns: minmax(0, 1fr); grid-template-areas: "summary" "journey" "checklist" "dates" "help"; }
-    .tala-home__rail { display: contents; }
-    .tala-home-checklist { grid-area: checklist; }
-    .tala-home-dates { grid-area: dates; }
-}
 @media (max-width: 39.999rem) {
-    .tala-home__summary { grid-template-columns: minmax(0, 1fr); }
+    .tala-home { grid-template-columns: minmax(0, 1fr); grid-template-areas: "journey" "checklist" "deadline" "status" "help"; }
     .tala-home-help { padding: 1.125rem; }
     .tala-home-help .fi-btn { width: 100%; }
 }
