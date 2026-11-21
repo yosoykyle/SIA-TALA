@@ -57,7 +57,7 @@ class ListGradeRosters extends ListRecords
             ];
         }
 
-        return [GradesAndCompletion::getUrl() => 'Grades & Completion', 'Class grades'];
+        return [GradesAndCompletion::getUrl() => 'Students Record', 'Class grades'];
     }
 
     public function headRosterUrl(GradeRoster $roster): string

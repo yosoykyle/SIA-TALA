@@ -204,6 +204,10 @@ class Issue57AdmissionsPresentationTest extends TestCase
             ->assertActionDataSet(['document_evidence_id' => $evidence->id]);
         $this->assertSame('Review application — '.$application->first_name.' '.$application->last_name, $record->instance()->getTitle());
         $this->assertSame('Review application', $record->instance()->getBreadcrumb());
+        $record->assertSee('Personal Information')->assertSee('Educational Information')->assertSee('Application Choice')
+            ->assertSee($application->email)->assertDontSee('Version / Uploaded')
+            ->assertSee('Admission decisions')->assertSee('Registrar enrollment clearance');
+        $this->assertContains('Application queue', $record->instance()->getBreadcrumbs());
     }
 
     public function test_reached_recovery_preserves_response_and_context_safe_actions(): void
@@ -455,7 +459,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
                 ->assertSee('This draft is read-only')
                 ->assertSee('You can view or discard your draft.')
                 ->assertDontSee('Save partial work at any step.');
-            $page->assertActionDisabled('saveAndExit');
+            $page->assertActionHidden('saveAndExit');
             $facts = $application->fresh()->getAttributes();
             $page->call('saveDraft')->assertHasErrors(['data.admission_cycle_id']);
             $page->call('submitApplication')->assertHasErrors(['data.admission_cycle_id']);
@@ -590,6 +594,39 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertNull($application->fresh()->guardian_full_name);
     }
 
+    public function test_corrected_guardian_mobile_clears_its_stale_error_without_another_save(): void
+    {
+        [$application, $applicant] = $this->editableDraft();
+        $application->update(['first_name' => null, 'guardian_full_name' => null, 'guardian_relationship' => null, 'guardian_mobile' => null]);
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        $page = Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
+            ->assertWizardCurrentStep(2)
+            ->fillForm([
+                'first_name' => 'Synthetic applicant',
+                'birth_date' => now('Asia/Manila')->subYears(17)->format('Y-m-d'),
+                'guardian_full_name' => 'Synthetic guardian',
+                'guardian_relationship' => 'Parent',
+                'guardian_mobile' => '0981136327',
+            ])
+            ->goToNextWizardStep()
+            ->assertHasFormErrors(['guardian_mobile' => 'regex']);
+
+        $page->fillForm(['guardian_mobile' => '09811363279'])
+            ->assertHasNoFormErrors(['guardian_mobile']);
+
+        $page->fillForm(['guardian_mobile' => '0981136327'])
+            ->assertHasFormErrors(['guardian_mobile'])
+            ->assertSee('Enter an 11-digit Philippine mobile number beginning with 09.');
+
+        $page->fillForm(['guardian_mobile' => '09811363279'])
+            ->goToNextWizardStep()
+            ->assertHasNoFormErrors()
+            ->assertWizardCurrentStep(3);
+
+        $this->assertSame('09811363279', $application->fresh()->guardian_mobile);
+    }
+
     public function test_native_wizard_saves_identity_before_advancing_without_submitting(): void
     {
         [$application, $applicant] = $this->editableDraft();
@@ -656,7 +693,8 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
         Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
             ->fillForm(['middle_name' => 'Partial work'])
-            ->callAction('saveAndExit')
+            ->assertActionHidden('saveAndExit')
+            ->call('saveAndExit')
             ->assertHasNoFormErrors()
             ->assertRedirect(Dashboard::getUrl(['application' => $application->id]));
 
@@ -919,7 +957,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
             ->assertNoRedirect();
 
         $this->assertSame(1, $application->evidenceVersions()->count());
-        $page->callAction('saveAndExit')->assertHasNoFormErrors();
+        $page->call('saveAndExit')->assertHasNoFormErrors();
         $this->assertSame(1, $application->evidenceVersions()->count());
         $this->assertSame(0, $application->submissionVersions()->count());
     }
@@ -1695,7 +1733,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
         // 1. Current submitted version match
         $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        $page->assertSee("Submission Version {$submissionVersion1->version} · Current submitted version")
+        $page->assertSee("Submission #{$submissionVersion1->version} · Current submitted version")
             ->assertSee('Admitted')
             ->assertSee('Admitted with verified documents')
             ->assertSee($registrar->name);
@@ -1712,7 +1750,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $application->update(['current_submission_version_id' => $submissionVersion2->id]);
 
         $pageUpdated = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        $pageUpdated->assertSee("Submission Version {$submissionVersion1->version} · Earlier submitted version (retained)")
+        $pageUpdated->assertSee("Submission #{$submissionVersion1->version} · Earlier submitted version (retained)")
             ->assertSee('Admitted')
             ->assertSee('Admitted with verified documents')
             ->assertSee($registrar->name);

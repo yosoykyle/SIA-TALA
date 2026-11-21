@@ -72,7 +72,7 @@ final class PublishTimetableVersion
                         : ($room instanceof Room ? (string) $room->code : 'Assigned room'),
                 ];
             })
-            ->sortBy(['section_id', 'meeting_sequence'])
+            ->sortBy(['section_id', 'scheduling_demand_id', 'meeting_sequence'])
             ->values();
 
         $version = PublishedTimetableVersion::query()->create([

@@ -157,16 +157,31 @@ class TalaPanelTheme
             ->renderHook(PanelsRenderHook::LAYOUT_END, fn (): View => view('filament.components.idle-countdown', ['panelId' => $panel->getId()]))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.content-anchor'))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): View => view('filament.components.form-accessibility'))
-            ->renderHook(PanelsRenderHook::CONTENT_BEFORE, fn (): HtmlString => new HtmlString(
-                self::isApplicantPanel($panel)
-                    ? view('filament.components.applicant-topbar', [
-                        'brand' => new HtmlString(self::brand($panel)->render()),
-                        'person' => self::applicantName($panel),
-                    ])->render()
-                    : '',
-            ))
+            ->renderHook(PanelsRenderHook::CONTENT_BEFORE, fn (): HtmlString => new HtmlString(match (true) {
+                self::isApplicantPanel($panel) => view('filament.components.applicant-topbar', [
+                    'brand' => new HtmlString(self::brand($panel)->render()),
+                    'person' => self::applicantName($panel),
+                ])->render(),
+                self::isRegistrarWorkspace($panel) => view('filament.components.registrar-topbar', [
+                    'brand' => new HtmlString(self::brand($panel)->render()),
+                    'person' => self::staffName($panel),
+                ])->render(),
+                self::otherStaffWorkspace($panel) !== null => view('filament.components.staff-workspace-topbar', [
+                    'workspace' => self::otherStaffWorkspace($panel),
+                    'brand' => new HtmlString(self::brand($panel)->render()),
+                    'person' => self::staffName($panel),
+                ])->render(),
+                self::isStudentPanel($panel) => view('filament.components.staff-workspace-topbar', [
+                    'workspace' => 'student',
+                    'brand' => new HtmlString(self::brand($panel)->render()),
+                    'person' => self::staffName($panel),
+                ])->render(),
+                default => '',
+            }))
             ->renderHook(PanelsRenderHook::CONTENT_START, fn (): HtmlString => new HtmlString(
-                self::isApplicantPanel($panel) ? '' : '<div class="tala-mobile-workspace-identity">'.self::brand($panel)->render().'</div>',
+                self::hasWorkspaceTopBar($panel)
+                    ? ''
+                    : '<div class="tala-mobile-workspace-identity">'.self::brand($panel)->render().'</div>',
             ))
             ->renderHook(PanelsRenderHook::SIMPLE_LAYOUT_START, fn (array $scopes): View => view('filament.components.auth-main-start', [
                 'usesAuthDesigner' => self::usesAuthDesigner($scopes),
@@ -202,6 +217,57 @@ class TalaPanelTheme
         return $panel->getId() === 'applicant';
     }
 
+    private static function isStudentPanel(Panel $panel): bool
+    {
+        return $panel->getId() === 'student';
+    }
+
+    /** The user's current selected staff workspace within the shared admin panel, not merely a held role. */
+    private static function selectedStaffContext(Panel $panel): ?string
+    {
+        $user = $panel->auth()->user();
+        if ($panel->getId() !== 'admin' || ! $user instanceof User) {
+            return null;
+        }
+
+        $resolver = app(WorkspaceContextResolver::class);
+        $contexts = $resolver->availableContexts($user);
+
+        return $resolver->selected($user) ?? (count($contexts) === 1 ? array_key_first($contexts) : null);
+    }
+
+    /** The Registrar top bar (#80) only shows while Registrar is the user's current selected workspace. */
+    private static function isRegistrarWorkspace(Panel $panel): bool
+    {
+        return self::selectedStaffContext($panel) === User::StaffRoleRegistrar;
+    }
+
+    /** The remaining staff workspaces (#80) share one generic top bar, keyed by a short workspace slug. */
+    private static function otherStaffWorkspace(Panel $panel): ?string
+    {
+        return match (self::selectedStaffContext($panel)) {
+            User::StaffRoleAccounting => 'accounting',
+            User::StaffRoleFaculty => 'faculty',
+            User::StaffRoleAcademicHead => 'academic-head',
+            User::StaffRoleSystemSuperAdmin => 'system-admin',
+            default => null,
+        };
+    }
+
+    /** Whether this panel/workspace renders a sticky top bar instead of the plain mobile-only brand identity. */
+    private static function hasWorkspaceTopBar(Panel $panel): bool
+    {
+        return self::isApplicantPanel($panel) || self::isRegistrarWorkspace($panel)
+            || self::otherStaffWorkspace($panel) !== null || self::isStudentPanel($panel);
+    }
+
+    private static function staffName(Panel $panel): ?string
+    {
+        $user = $panel->auth()->user();
+
+        return $user instanceof User && filled($user->name) ? (string) $user->name : null;
+    }
+
     private static function applicantName(Panel $panel): ?string
     {
         $user = $panel->auth()->user();
@@ -222,19 +288,11 @@ class TalaPanelTheme
 
     private static function workspaceContext(Panel $panel): string
     {
-        $user = $panel->auth()->user();
-        if ($panel->getId() !== 'admin' || ! $user instanceof User) {
+        if ($panel->getId() !== 'admin' || ! $panel->auth()->user() instanceof User) {
             return (string) str($panel->getBrandName())->after(' — ');
         }
 
-        $resolver = app(WorkspaceContextResolver::class);
-        $contexts = $resolver->availableContexts($user);
-        $selected = $resolver->selected($user);
-        if ($selected === null && count($contexts) === 1) {
-            $selected = array_key_first($contexts);
-        }
-
-        $label = User::staffRoleOptions()[$selected ?? ''] ?? null;
+        $label = User::staffRoleOptions()[self::selectedStaffContext($panel) ?? ''] ?? null;
 
         return $label !== null ? $label.' workspace' : 'Choose a workspace';
     }

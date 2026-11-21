@@ -66,6 +66,15 @@ class Hold extends Model
 
     public const StatusExpired = 'expired';
 
+    public static function blockingLevelColor(?string $blockingLevel): string
+    {
+        return match ($blockingLevel) {
+            self::BlockingAdvisoryOnly => 'info',
+            self::BlockingEnrollment, self::BlockingGraduationEligibility => 'danger',
+            default => 'warning',
+        };
+    }
+
     /**
      * @var list<string>
      */

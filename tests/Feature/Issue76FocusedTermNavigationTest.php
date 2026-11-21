@@ -56,8 +56,8 @@ class Issue76FocusedTermNavigationTest extends TestCase
         $groups = $this->staffNavigation()->getNavigation();
 
         $this->assertSame(['Learner work', 'Academic setup'], array_map(fn ($group): ?string => $group->getLabel(), $groups));
-        $this->assertSame(['Admissions', 'Students & Enrollment', 'Grades & Completion'], array_map(fn ($item): string => $item->getLabel(), $groups[0]->getItems()));
-        $this->assertSame(['Programs & Curricula', 'Term Planning'], array_map(fn ($item): string => $item->getLabel(), $groups[1]->getItems()));
+        $this->assertSame(['Admissions', 'Students & Enrollment', 'Students Record'], array_map(fn ($item): string => $item->getLabel(), $groups[0]->getItems()));
+        $this->assertSame(['Programs & Curricula', 'Term Planning', 'Admission cycles'], array_map(fn ($item): string => $item->getLabel(), $groups[1]->getItems()));
         $items = $this->planningChildren();
         $this->assertSame(['Term overview', 'Teaching calendar', 'Classes & sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $items));
         foreach ($items as $item) {
@@ -193,7 +193,7 @@ class Issue76FocusedTermNavigationTest extends TestCase
     {
         $role = Role::findOrCreate($roleName, 'web');
         if ($roleName === User::StaffRoleRegistrar) {
-            $role->syncPermissions([Permission::findOrCreate('manage-schedules', 'web'), Permission::findOrCreate('approve-documents', 'web')]);
+            $role->syncPermissions([Permission::findOrCreate('manage-schedules', 'web'), Permission::findOrCreate('approve-documents', 'web'), Permission::findOrCreate('manage-admission-setup', 'web')]);
         }
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         $user = User::factory()->create(['status' => User::StatusActive]);

@@ -155,7 +155,7 @@ class NavigationBadgeCountsTest extends TestCase
         $baselineAdmissions = $this->flattenNavigationItems($this->staffNavigation());
         $baselineNeedsReview = (int) ($baselineAdmissions['Needs review']->getBadge() ?? 0);
         $baselineEnrollments = (int) ($baselineAdmissions['Students & Enrollment']->getBadge() ?? 0);
-        $baselineGrades = (int) ($baselineAdmissions['Grades & Completion']->getBadge() ?? 0);
+        $baselineGrades = (int) ($baselineAdmissions['Students Record']->getBadge() ?? 0);
 
         AdmissionApplication::factory()->submitted()->create();
         AdmissionApplication::factory()->create([
@@ -201,8 +201,8 @@ class NavigationBadgeCountsTest extends TestCase
         $this->assertNull($admissionsItems['Closed applications']->getBadge());
         $this->assertSame((string) ($baselineEnrollments + 1), $admissionsItems['Students & Enrollment']->getBadge());
         $this->assertSame('warning', $admissionsItems['Students & Enrollment']->getBadgeColor());
-        $this->assertSame((string) ($baselineGrades + 3), $admissionsItems['Grades & Completion']->getBadge());
-        $this->assertSame('warning', $admissionsItems['Grades & Completion']->getBadgeColor());
+        $this->assertSame((string) ($baselineGrades + 3), $admissionsItems['Students Record']->getBadge());
+        $this->assertSame('warning', $admissionsItems['Students Record']->getBadgeColor());
 
         $this->resolveCurrentAdminPage(GradesAndCompletion::getRouteName(), ['viewTab' => 'grade-review']);
         $gradesItems = $this->flattenNavigationItems($this->staffNavigation());
@@ -247,8 +247,8 @@ class NavigationBadgeCountsTest extends TestCase
         $this->resolveCurrentAdminPage(GradesAndCompletion::getRouteName());
 
         $items = $this->flattenNavigationItems($this->staffNavigation());
-        $this->assertSame('1', $items['Grade rosters']->getBadge());
-        $this->assertSame('warning', $items['Grade rosters']->getBadgeColor());
+        $this->assertSame('1', $items['Class grades']->getBadge());
+        $this->assertSame('warning', $items['Class grades']->getBadgeColor());
         $this->assertNull($items['My schedule']->getBadge());
         $this->assertNull($items['My availability']->getBadge());
     }

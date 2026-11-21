@@ -460,6 +460,34 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             ->assertDontSeeHtml('id="applicant-registration-error-summary"');
     }
 
+    public function test_duplicate_account_registration_through_the_form_shows_an_inline_error(): void
+    {
+        $this->openAdmissions();
+        $this->configureReadyApplicantEntry();
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $password = 'Valid1!passphrase';
+
+        app(CreateNewUser::class)->create([
+            'email' => 'already-registered@example.test',
+            'password' => $password,
+            'password_confirmation' => $password,
+            'privacy_acknowledged' => true,
+        ]);
+
+        Livewire::test(RegisterApplicant::class)
+            ->fillForm([
+                'email' => 'already-registered@example.test',
+                'password' => $password,
+                'password_confirmation' => $password,
+                'privacy_acknowledged' => true,
+            ])
+            ->call('register')
+            ->assertHasFormErrors(['email'])
+            ->assertDispatched('focus-applicant-email');
+
+        $this->assertSame(1, User::query()->where('email', 'already-registered@example.test')->count());
+    }
+
     public function test_resending_verification_supersedes_the_previous_link_and_success_clears_the_nonce(): void
     {
         $applicant = User::factory()->unverified()->create([

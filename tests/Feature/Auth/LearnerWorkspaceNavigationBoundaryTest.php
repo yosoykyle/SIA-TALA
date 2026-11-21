@@ -3,10 +3,10 @@
 namespace Tests\Feature\Auth;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Clusters\Admissions;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\MyAvailability;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
-use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -76,7 +76,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
     public static function staffNavigation(): array
     {
         return [
-            'Registrar' => [User::StaffRoleRegistrar, ['Admissions', 'Students & Enrollment', 'Grades & Completion', 'Programs & Curricula', 'Term Planning']],
+            'Registrar' => [User::StaffRoleRegistrar, ['Admissions', 'Students & Enrollment', 'Students Record', 'Programs & Curricula', 'Term Planning', 'Admission cycles']],
             'Accounting' => [User::StaffRoleAccounting, ['Overview', 'Student accounts', 'Fee plans', 'Payment channels']],
             'Faculty' => [User::StaffRoleFaculty, ['Overview', 'My schedule', 'My availability', 'Class grades']],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight']],
@@ -97,8 +97,8 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $this->get(AdmissionApplicationResource::getUrl())
             ->assertOk()
-            ->assertSee('Admission cycles')
-            ->assertSee(AdmissionCycleResource::getUrl(), false);
+            ->assertSee('Admissions')
+            ->assertSee(Admissions::getUrl(), false);
 
         $academicHead = $this->userWithRole(User::StaffRoleAcademicHead, User::StatusActive);
         $this->actingAs($academicHead)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAcademicHead]);

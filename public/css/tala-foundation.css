@@ -207,6 +207,15 @@
 .tala-workspace-launcher__main .tala-workspace-feature__body > :not(.tala-workspace-card__icon):not(h2):not(h3) { grid-column:1 / -1; }
 .tala-workspace-launcher__main .tala-workspace-card__icon { inline-size:2.5rem; block-size:2.5rem; }
 .tala-workspace-launcher__main .tala-workspace-card__icon > .fi-icon { inline-size:1.5rem; block-size:1.5rem; }
+.tala-workspace-launcher__main .tala-workspace-feature__body--with-art { display:flex; flex-direction:row; align-items:center; gap:1.25rem; }
+.tala-workspace-feature__content { display:flex; flex-direction:column; gap:1rem; min-inline-size:0; flex:1; }
+.tala-workspace-feature__content :is(h2,h3) { font-size:var(--tala-type-section); }
+.tala-workspace-feature__content > p { font-size:var(--tala-type-caption); }
+.tala-workspace-card__art { flex-shrink:0; inline-size:6rem; block-size:6rem; filter:drop-shadow(0 .5rem 1rem rgb(0 0 0 / 35%)); }
+.tala-workspace-card__art > svg { display:block; inline-size:100%; block-size:100%; }
+@container (max-width: 26rem) {
+    .tala-workspace-card__art { display:none; }
+}
 .tala-workspace-launcher__main .tala-workspace-figure > strong { font-size:var(--tala-type-value); }
 .tala-workspace-launcher__main .tala-workspace-feature__body > p { font-size:var(--tala-type-caption); }
 .tala-workspace-launcher__main .tala-workspace-feature__action { padding:var(--tala-card-pad-compact) var(--tala-card-pad); }
@@ -246,7 +255,9 @@
 .tala-workspace-card__content { display: grid; gap: .5rem; min-inline-size: 0; }
 .tala-workspace-card__title { font-size: var(--tala-type-caption); font-weight: var(--tala-weight-emphasis); line-height: 1.35; }
 .tala-workspace-card__description, .tala-workspace-card__note { color: var(--tala-muted); font-size: var(--tala-type-caption); line-height: 1.5; }
-.tala-workspace-card__arrow { inline-size: 1rem; block-size: 1rem; color: var(--tala-muted); }
+.tala-workspace-card__trailing { display: flex; align-items: center; gap: .625rem; flex-shrink: 0; margin-block-start: .125rem; }
+.tala-workspace-card__count { font-size: var(--tala-type-value); font-weight: var(--tala-weight-heading); line-height: 1; font-variant-numeric: tabular-nums; color: var(--tala-text); }
+.tala-workspace-card__arrow { inline-size: 1rem; block-size: 1rem; color: var(--tala-muted); flex-shrink: 0; }
 .tala-workspace-card:hover { background: var(--tala-surface-sunken); }
 .tala-workspace-card:focus-visible { outline: 3px solid var(--tala-focus); outline-offset: -3px; }
 .tala-workspace-launcher__supporting { margin-block-start: 1.75rem; }
@@ -267,12 +278,18 @@
 .tala-workspace-launcher__split { display: grid; gap: 1rem; }
 @container (min-width: 40rem) {
     .tala-workspace-launcher__main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .tala-workspace-launcher__main--two-up { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .tala-workspace-launcher__other { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
     .tala-workspace-card--compact + .tala-workspace-card--compact { border-block-start: 0; border-inline-start: 1px solid var(--tala-edge); }
     .tala-workspace-task-grid, .tala-workspace-launcher__split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.tala-workspace-launcher__other--plain-list { grid-auto-flow: row; grid-template-columns: 1fr; }
+.tala-workspace-launcher__other--plain-list .tala-workspace-card--compact + .tala-workspace-card--compact { border-inline-start: 0; border-block-start: 1px solid var(--tala-edge); }
+.tala-workspace-launcher__other--plain-list .tala-workspace-card__icon { inline-size: 1.5rem; block-size: 1.5rem; border-radius: 0; background: transparent; color: var(--tala-muted); }
+.tala-workspace-launcher__other--plain-list .tala-workspace-card__icon > .fi-icon { inline-size: 1.5rem; block-size: 1.5rem; }
 @container (min-width: 64rem) {
     .tala-workspace-launcher__main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .tala-workspace-launcher__main--two-up { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (forced-colors: active) {
     .tala-workspace-feature .tala-workspace-feature__body, .tala-workspace-feature__action, .tala-workspace-card__icon { background: Canvas; color: CanvasText; }

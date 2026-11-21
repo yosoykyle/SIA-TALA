@@ -32,6 +32,9 @@
         <p>
             During account registration and sign-in, TALA collects your email address, a securely hashed password representation, your Privacy Notice acknowledgment, and security and email-verification audit records. Once signed in, TALA processes the admission, academic, and enrollment information you submit for your official school journey. Creating an Applicant account does not automatically create an Admission Application or Student record, and TALA never displays your password in plain text.
         </p>
+        <p>
+            Application updates, requirements and corrections are available only through your signed-in Applicant account. Access to private application records and evidence is checked against the account and the authorized school role.
+        </p>
     </section>
 
     <section class="tala-info-content__section" aria-labelledby="tala-privacy-security-heading">

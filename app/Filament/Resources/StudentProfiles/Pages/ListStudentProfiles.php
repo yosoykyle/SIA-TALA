@@ -30,7 +30,7 @@ class ListStudentProfiles extends ListRecords
 
         if ($this->viewTab === 'academic-progress') {
             return [
-                GradesAndCompletion::getUrl(['viewTab' => 'academic-progress']) => 'Grades & Completion',
+                GradesAndCompletion::getUrl(['viewTab' => 'academic-progress']) => 'Students Record',
                 'Student Profiles',
             ];
         }

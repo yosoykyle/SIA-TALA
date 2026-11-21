@@ -708,10 +708,6 @@ html.dark .tala-term-workspace :is(.fi-ta-text-item,.fi-in-text-item).fi-color-s
 .tala-planning-timetable-layout .tala-guide-result-checks { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1.25rem; }
 .tala-planning-timetable-layout .tala-guide-result-checks > div { display:grid; align-content:start; gap:.5rem; }
 @media(max-width:48rem) { .tala-planning-timetable-layout .tala-guide-result-checks { grid-template-columns:minmax(0,1fr); } }
-.tala-planning-timetable-empty { display:flex; flex-direction:column; align-items:center; text-align:center; gap:1rem; padding:3rem 1.5rem; }
-.tala-planning-timetable-empty > .fi-icon { inline-size:2.75rem; block-size:2.75rem; color:var(--guide-green-ink); }
-.tala-planning-timetable-empty h2 { font-size:1.5rem; line-height:1.3; font-weight:700; }
-.tala-planning-timetable-empty p { max-inline-size:45ch; color:var(--tala-muted); }
 .tala-planning-continuation { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; padding-block-start:1rem; }
 
 .tala-proposal-item-title { display:grid; gap:.25rem; white-space:normal; }

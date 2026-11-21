@@ -268,7 +268,11 @@ class EnrollmentInfolist
             Section::make('Finance requirement')
                 ->description('Read-only source-owned Enrollment Clearance evidence. Accounting actions remain in the Accounting context.')
                 ->schema([
-                    TextEntry::make('finance_state')->label('Clearance state')->state(fn (Enrollment $record): string => self::finance($record)['state'])->badge()->color(fn (string $state): string => $state === 'Cleared' ? 'success' : 'warning'),
+                    TextEntry::make('finance_state')->label('Clearance state')->state(fn (Enrollment $record): string => self::finance($record)['state'])->badge()->color(fn (string $state): string => match ($state) {
+                        'Cleared' => 'success',
+                        'Unavailable' => 'gray',
+                        default => 'warning',
+                    }),
                     TextEntry::make('finance_basis')->label('Assessment basis')->state(fn (Enrollment $record): ?string => self::finance($record)['basis'])->placeholder('Unavailable'),
                     TextEntry::make('finance_total')->label('Amount required now')->state(fn (Enrollment $record): ?string => self::money(self::finance($record)['total'])),
                     TextEntry::make('finance_payment')->label('Verified payment applied')->state(fn (Enrollment $record): ?string => self::money(self::finance($record)['payment_applied'])),

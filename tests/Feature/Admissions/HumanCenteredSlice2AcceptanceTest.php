@@ -194,7 +194,7 @@ class HumanCenteredSlice2AcceptanceTest extends TestCase
             ->assertSee('Save your progress before leaving?')
             ->assertSee('Leave without saving')
             ->assertSee('Submit application')
-            ->assertActionVisible('saveAndExit')
+            ->assertActionHidden('saveAndExit')
             ->assertSeeHtml('x-bind:aria-current=')
             ->assertSee('Draft has not been saved yet.');
 

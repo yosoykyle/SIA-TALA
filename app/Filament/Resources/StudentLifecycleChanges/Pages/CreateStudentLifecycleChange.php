@@ -61,7 +61,7 @@ class CreateStudentLifecycleChange extends CreateRecord
     public function getBreadcrumbs(): array
     {
         if (auth()->user()?->hasRole(User::StaffRoleRegistrar)) {
-            return [GradesAndCompletion::getUrl() => 'Grades & Completion', StudentLifecycleChangeResource::getUrl('index') => 'Student lifecycle changes', 'Record change'];
+            return [GradesAndCompletion::getUrl() => 'Students Record', StudentLifecycleChangeResource::getUrl('index') => 'Student lifecycle changes', 'Record change'];
         }
 
         if (auth()->user()?->hasRole(User::StaffRoleAcademicHead)) {

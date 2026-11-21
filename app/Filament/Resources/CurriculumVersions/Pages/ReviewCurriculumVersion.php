@@ -918,7 +918,7 @@ class ReviewCurriculumVersion extends Page
             ->modalWidth(Width::TwoExtraLarge)
             ->stickyModalHeader()
             ->stickyModalFooter()
-            ->modalDescription('For a qualification assessed outside the school, such as a TESDA certificate. Students’ results are recorded later in Grades & Completion.')
+            ->modalDescription('For a qualification assessed outside the school, such as a TESDA certificate. Students’ results are recorded later in Students Record.')
             ->modalSubmitActionLabel('Add qualification')
             ->fillForm(['treatment' => ExternalCompetencyRequirement::TreatmentTrackedOnly])
             ->schema(fn (): array => $this->externalCompetencyFields())

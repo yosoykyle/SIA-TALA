@@ -9,6 +9,7 @@ use App\Filament\Applicant\Pages\Application;
 use App\Filament\Applicant\Pages\ApplicationHistory;
 use App\Filament\Applicant\Pages\Dashboard;
 use App\Filament\Applicant\Pages\SubmissionReceipt;
+use App\Filament\Clusters\Admissions;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Models\AdmissionApplication;
@@ -166,7 +167,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $applicant->forceFill(['first_name' => 'Ana'])->saveQuietly();
 
         $this->home($applicant->fresh(), $application)
-            ->assertSeeInOrder(['Hi, Ana!', "Here's what's happening with your application.", 'Application status', 'Application deadline', 'Applications close', 'Your application journey']);
+            ->assertSeeInOrder(['Hi, Ana!', "Here's what's happening with your application.", 'Your application journey', 'Requirements checklist', 'Application deadline', 'Applications close', 'Application status']);
 
         $nameless = User::factory()->create(['status' => User::StatusActive]);
         $nameless->forceFill(['first_name' => null])->saveQuietly();
@@ -219,6 +220,14 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $this->assertStringContainsString('>'.$needsReview.'<', preg_replace('/\s+/', '', (string) $queueList->getContent()));
 
         $this->assertStringContainsString('fi-sidebar-sub-group-items', (string) $queueList->getContent());
+
+        $dashboard = $this->actingAs($registrar)
+            ->get(Admissions::getUrl(panel: 'admin'))
+            ->assertOk()
+            ->assertSeeInOrder(['Applications to review', 'Application clearance', 'Other queues', 'Waiting for applicant', 'Ready for enrollment', 'Closed applications'], false)
+            ->assertSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::NeedsReview], panel: 'admin'))
+            ->assertSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::RegistrarClearance], panel: 'admin'));
+        $this->assertStringContainsString('>'.$needsReview.'<', preg_replace('/\s+/', '', (string) $dashboard->getContent()));
     }
 
     public function test_waiting_and_decided_states_offer_no_primary_action(): void
@@ -435,7 +444,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertSee('Need help?')
             ->assertSee('mailto:admissions@servitech.example', false)
             ->assertSee('Contact support')
-            ->assertSee(e(route('home', ['modal' => 'support'])), false);
+            ->assertSee('applicant-support-contact', false);
 
         $application->admissionCycle->forceFill(['support_contact' => ''])->saveQuietly();
         $this->home($applicant, $application->fresh())->assertDontSee('Need help?');
@@ -444,14 +453,14 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
     public function test_important_dates_show_effective_announcements_read_only(): void
     {
         [$application, $applicant] = $this->application();
-        $this->home($applicant, $application)->assertSee('No announcements yet.');
+        $this->home($applicant, $application)->assertDontSee('Announcements');
 
         $notice = PublicNotice::factory()->create(['title' => 'Orientation week schedule']);
         $notice->forceFill(['state' => 'Published', 'published_at' => now(), 'ever_published' => true, 'version' => 1])->save();
 
         $this->home($applicant, $application)
             ->assertSee('Orientation week schedule')
-            ->assertDontSee('No announcements yet.');
+            ->assertSee('Announcements');
     }
 
     /** @param list<string> $expected */

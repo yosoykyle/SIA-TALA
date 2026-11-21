@@ -354,10 +354,11 @@ class AdminPanelProvider extends PanelProvider
             return $builder->group('Learner work', [
                 ...$this->admissionsWithQueues($this->labeledNavigationItems(['Admissions' => Admissions::class]), $badgeCounts),
                 ...$enrollmentItems,
-                ...$this->gradesWithChildren($this->labeledNavigationItems(['Grades & Completion' => GradesAndCompletion::class]), $badgeCounts),
+                ...$this->gradesWithChildren($this->labeledNavigationItems(['Students Record' => GradesAndCompletion::class]), $badgeCounts),
             ])->group('Academic setup', $this->catalogWithChildren($this->planningWithChildren($this->labeledNavigationItems([
                 'Programs & Curricula' => CatalogCurriculaWorkbench::class,
                 'Term Planning' => TermPlanningCluster::class,
+                'Admission cycles' => AdmissionCycleResource::class,
             ]), $termPlanningContext)));
         }
 

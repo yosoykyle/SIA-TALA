@@ -352,7 +352,7 @@ class CompletionAndTor extends Page implements HasTable
     {
         return $this->isAcademicHeadReader()
             ? [$this->oversightReturnUrl() => 'Academic Oversight', 'Completion & TOR']
-            : [GradesAndCompletion::getUrl() => 'Grades & Completion', 'Completion & TOR'];
+            : [GradesAndCompletion::getUrl() => 'Students Record', 'Completion & TOR'];
     }
 
     public function getHeader(): ?View
