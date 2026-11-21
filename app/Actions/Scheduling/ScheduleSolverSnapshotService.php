@@ -60,7 +60,8 @@ class ScheduleSolverSnapshotService
                 ]);
             }
 
-            $this->assertDemandReadiness($term);
+            $allDemands = $this->demandsForTerm($term);
+            $this->assertDemandReadiness($term, $allDemands);
 
             $hasCanonicalClasses = Section::query()
                 ->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $term->id))
@@ -76,7 +77,7 @@ class ScheduleSolverSnapshotService
                 }
             }
 
-            $demands = $this->readyDemandsForTerm($term);
+            $demands = $allDemands->where('validation_state', SchedulingDemand::ValidationReadyForReview);
             $this->assertCompleteConfirmedScope($term, $demands);
 
             if ($demands->isEmpty()) {
@@ -269,7 +270,7 @@ class ScheduleSolverSnapshotService
             ->all();
 
         $demands = $this->demandsForTerm($term);
-        $this->assertDemandReadiness($term);
+        $this->assertDemandReadiness($term, $demands);
         $this->assertCompleteConfirmedScope($term, $demands);
         $capturedDemandIds = collect(data_get($run->input_snapshot, 'scheduling_demands', []))
             ->pluck('scheduling_demand_id')->map(fn (mixed $id): int => (int) $id)->all();
@@ -289,6 +290,7 @@ class ScheduleSolverSnapshotService
         $demands = $demands->reject(
             fn (SchedulingDemand $demand): bool => in_array((int) $demand->id, $excludedDemandIds, true),
         );
+        $preservedFacultyIds = $this->preservedAssignedFacultyIds($run);
 
         return $this->buildSnapshot(
             $run,
@@ -296,12 +298,16 @@ class ScheduleSolverSnapshotService
             $demands,
             useCurrentSources: true,
             cohortIdsByDeliveryGroup: $cohortIdsByDeliveryGroup,
+            preservedFacultyIds: $preservedFacultyIds,
         );
     }
 
-    private function assertDemandReadiness(Term $term): void
+    /**
+     * @param  EloquentCollection<int, SchedulingDemand>|null  $demands
+     */
+    private function assertDemandReadiness(Term $term, ?EloquentCollection $demands = null): void
     {
-        $blockingCount = $this->demandsForTerm($term)
+        $blockingCount = ($demands ?? $this->demandsForTerm($term))
             ->where('validation_state', '!=', SchedulingDemand::ValidationReadyForReview)
             ->count();
 
@@ -389,6 +395,7 @@ class ScheduleSolverSnapshotService
 
     /**
      * @param  EloquentCollection<int, SchedulingDemand>  $demands
+     * @param  list<int>  $preservedFacultyIds
      * @return array<string, mixed>
      */
     private function buildSnapshot(
@@ -397,6 +404,7 @@ class ScheduleSolverSnapshotService
         EloquentCollection $demands,
         bool $useCurrentSources = false,
         ?array $cohortIdsByDeliveryGroup = null,
+        array $preservedFacultyIds = [],
     ): array {
         $calendarPackage = TermCalendarPackage::query()
             ->with(['windows', 'teachingGridRows', 'datedExceptions'])
@@ -409,12 +417,22 @@ class ScheduleSolverSnapshotService
             ]);
         }
 
+        $latestDeclarations = $this->latestFacultyDeclarationsForTerm($term);
+        $declaredFacultyIds = $latestDeclarations
+            ->pluck('faculty_user_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         $timeSlots = $this->timeSlots($calendarPackage);
         $demandPayload = $this->schedulingDemandsPayload(
             $demands,
             $term,
             $useCurrentSources,
             $cohortIdsByDeliveryGroup ?? $this->cohortIdsByDeliveryGroup($demands),
+            $preservedFacultyIds,
+            $declaredFacultyIds,
         );
         $gridRows = $calendarPackage->teachingGridRows;
 
@@ -463,10 +481,10 @@ class ScheduleSolverSnapshotService
             'rooms' => $this->roomsPayload(),
             'faculty' => $this->facultyPayload($demandPayload),
             'faculty_qualifications' => $this->facultyQualificationsPayload($demandPayload),
-            'faculty_availability' => $this->facultyAvailabilityPayload($term),
+            'faculty_availability' => $this->facultyAvailabilityPayload($term, $latestDeclarations),
             'term_offerings' => $this->termOfferingsPayload($demandPayload),
             'student_cohort_groups' => $this->studentCohortGroupsPayload($demandPayload),
-            'calendar_blocks' => $this->calendarBlocksPayload($term, $calendarPackage),
+            'calendar_blocks' => $this->calendarBlocksPayload($term, $calendarPackage, $latestDeclarations),
             'dated_exceptions' => $this->datedExceptionsPayload($term, $calendarPackage),
             'hard_constraints' => $this->hardConstraints(),
             'soft_constraints' => $this->softConstraints(),
@@ -517,6 +535,8 @@ class ScheduleSolverSnapshotService
 
     /**
      * @param  EloquentCollection<int, SchedulingDemand>  $demands
+     * @param  list<int>  $preservedFacultyIds
+     * @param  list<int>|null  $declaredFacultyIds
      * @return list<array<string, mixed>>
      */
     private function schedulingDemandsPayload(
@@ -524,6 +544,8 @@ class ScheduleSolverSnapshotService
         Term $term,
         bool $useCurrentSources,
         array $cohortIdsByDeliveryGroup,
+        array $preservedFacultyIds = [],
+        ?array $declaredFacultyIds = null,
     ): array {
         $commitmentsBySection = SchedulingCommitment::query()
             ->where('term_id', $term->id)
@@ -531,8 +553,12 @@ class ScheduleSolverSnapshotService
             ->get()
             ->groupBy(fn (SchedulingCommitment $commitment): int => (int) $commitment->section_id);
 
+        $facultyLoadOptionsByCourse = $useCurrentSources
+            ? $this->precomputedFacultyLoadOptionsByCourse($term, $demands, $preservedFacultyIds, $declaredFacultyIds)
+            : [];
+
         return $demands
-            ->map(function ($demand) use ($term, $useCurrentSources, $cohortIdsByDeliveryGroup, $commitmentsBySection): array {
+            ->map(function ($demand) use ($term, $useCurrentSources, $cohortIdsByDeliveryGroup, $commitmentsBySection, $facultyLoadOptionsByCourse): array {
                 $group = $demand->getRelationValue('sectionDeliveryGroup');
                 $group = $group instanceof SectionDeliveryGroup ? $group : null;
                 $section = $group?->getRelationValue('section');
@@ -546,7 +572,17 @@ class ScheduleSolverSnapshotService
                 $offering = $demand->getRelationValue('termOffering');
                 $offering = $offering instanceof TermOffering ? $offering : null;
                 $source = $useCurrentSources
-                    ? $this->currentSourceSnapshot($term, $demand, $offering, $group, $section, $component, $specification, $course)
+                    ? $this->currentSourceSnapshot(
+                        $term,
+                        $demand,
+                        $offering,
+                        $group,
+                        $section,
+                        $component,
+                        $specification,
+                        $course,
+                        $facultyLoadOptionsByCourse[$course?->id !== null ? (int) $course->id : 0] ?? [],
+                    )
                     : $this->arrayValue($demand->getAttribute('source_snapshot'));
                 $facultyOptions = collect($source['faculty_load_options'] ?? [])
                     ->filter(fn (mixed $option): bool => is_array($option) && isset($option['faculty_user_id']))
@@ -629,6 +665,7 @@ class ScheduleSolverSnapshotService
     }
 
     /**
+     * @param  list<array{faculty_user_id:int,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>  $facultyLoadOptions
      * @return array<string, mixed>
      */
     private function currentSourceSnapshot(
@@ -640,9 +677,8 @@ class ScheduleSolverSnapshotService
         CourseComponent $component,
         CourseSpecification $specification,
         Course $course,
+        array $facultyLoadOptions = [],
     ): array {
-        $facultyLoadOptions = $this->currentFacultyLoadOptions($term, $course);
-
         return [
             'term_id' => (int) $term->id,
             'term_offering_id' => (int) $demand->term_offering_id,
@@ -660,7 +696,7 @@ class ScheduleSolverSnapshotService
             'section_capacity' => (int) $section->capacity,
             'offering_modality' => $offering->modality,
             'demand_modality' => filled($group->modality) ? (string) $group->modality : (string) $offering->modality,
-            'room_type_requirement' => $offering->room_type_override ?: $component->room_type_default,
+            'room_type_requirement' => GenerateSchedulingDemand::resolveRoomType($offering->room_type_override, $component),
             'same_faculty_required' => (bool) ($offering->same_faculty_override ?? $specification->same_faculty_default ?? $component->same_faculty),
             'eligible_faculty_count' => count($facultyLoadOptions),
             'faculty_load_options' => $facultyLoadOptions,
@@ -668,40 +704,89 @@ class ScheduleSolverSnapshotService
     }
 
     /**
-     * @return list<array{faculty_user_id:int,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>
+     * @param  EloquentCollection<int, SchedulingDemand>  $demands
+     * @param  list<int>  $preservedFacultyIds
+     * @param  list<int>|null  $declaredFacultyIds
+     * @return array<int, list<array{faculty_user_id:int,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>>
      */
-    private function currentFacultyLoadOptions(Term $term, Course $course): array
-    {
+    private function precomputedFacultyLoadOptionsByCourse(
+        Term $term,
+        EloquentCollection $demands,
+        array $preservedFacultyIds = [],
+        ?array $declaredFacultyIds = null,
+    ): array {
+        $courseIds = $demands
+            ->map(function (SchedulingDemand $demand): ?int {
+                $component = $demand->getRelationValue('courseComponent');
+                $specification = $component instanceof CourseComponent ? $component->getRelationValue('courseSpecification') : null;
+                $course = $specification instanceof CourseSpecification ? $specification->getRelationValue('course') : null;
+
+                return $course instanceof Course ? (int) $course->id : null;
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($courseIds === []) {
+            return [];
+        }
+
+        $declaredFacultyIds ??= FacultyAvailabilityDeclaration::query()
+            ->where('term_id', $term->id)
+            ->distinct()
+            ->pluck('faculty_user_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
+        $allowedFacultyIds = array_values(array_unique([...$declaredFacultyIds, ...$preservedFacultyIds]));
+
+        if ($allowedFacultyIds === []) {
+            return [];
+        }
+
         $qualifications = FacultyQualification::query()
-            ->whereBelongsTo($course)
+            ->whereIn('course_id', $courseIds)
             ->where('is_active', true)
+            ->whereIn('faculty_user_id', $allowedFacultyIds)
             ->orderBy('faculty_user_id')
             ->get();
+
+        if ($qualifications->isEmpty()) {
+            return [];
+        }
+
         $overrides = FacultyTermLoadOverride::query()
             ->whereBelongsTo($term)
             ->where('is_active', true)
-            ->whereIn('faculty_user_id', $qualifications->pluck('faculty_user_id')->all())
+            ->whereIn('faculty_user_id', $qualifications->pluck('faculty_user_id')->unique()->values()->all())
             ->get()
-            ->keyBy('faculty_user_id');
+            ->keyBy(fn (FacultyTermLoadOverride $override): int => (int) $override->faculty_user_id);
 
-        return $qualifications
-            ->map(function (FacultyQualification $qualification) use ($term, $overrides): array {
-                $override = $overrides->get($qualification->faculty_user_id);
-                $maxAllowedUnits = $override instanceof FacultyTermLoadOverride
-                    ? $override->allowedLoadUnits()
-                    : ($term->default_max_units !== null ? (float) $term->default_max_units : null);
+        $result = [];
 
-                return [
-                    'faculty_user_id' => (int) $qualification->faculty_user_id,
-                    'qualification_id' => (int) $qualification->id,
-                    'term_load_override_id' => $override instanceof FacultyTermLoadOverride ? (int) $override->id : null,
-                    'max_allowed_units' => $maxAllowedUnits !== null
-                        ? number_format($maxAllowedUnits, 2, '.', '')
-                        : null,
-                ];
-            })
-            ->values()
-            ->all();
+        foreach ($qualifications->groupBy(fn (FacultyQualification $qualification): int => (int) $qualification->course_id) as $courseId => $courseQualifications) {
+            $result[(int) $courseId] = $courseQualifications
+                ->map(function (FacultyQualification $qualification) use ($term, $overrides): array {
+                    $override = $overrides->get((int) $qualification->faculty_user_id);
+                    $maxAllowedUnits = $override instanceof FacultyTermLoadOverride
+                        ? $override->allowedLoadUnits()
+                        : ($term->default_max_units !== null ? (float) $term->default_max_units : null);
+
+                    return [
+                        'faculty_user_id' => (int) $qualification->faculty_user_id,
+                        'qualification_id' => (int) $qualification->id,
+                        'term_load_override_id' => $override instanceof FacultyTermLoadOverride ? (int) $override->id : null,
+                        'max_allowed_units' => $maxAllowedUnits !== null
+                            ? number_format($maxAllowedUnits, 2, '.', '')
+                            : null,
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        return $result;
     }
 
     /**
@@ -934,10 +1019,14 @@ class ScheduleSolverSnapshotService
     }
 
     /**
+     * @param  EloquentCollection<int, FacultyAvailabilityDeclaration>|null  $latestDeclarations
      * @return list<array<string, mixed>>
      */
-    private function calendarBlocksPayload(Term $term, ?TermCalendarPackage $package): array
-    {
+    private function calendarBlocksPayload(
+        Term $term,
+        ?TermCalendarPackage $package,
+        ?EloquentCollection $latestDeclarations = null,
+    ): array {
         $legacy = CalendarEvent::query()
             ->whereBelongsTo($term)
             ->recurringSchedulingBlocks()
@@ -985,33 +1074,54 @@ class ScheduleSolverSnapshotService
 
         }
 
-        return [...$packageBlocks, ...$this->facultyDeclarationBlocks($term, $package), ...$legacy];
+        return [...$packageBlocks, ...$this->facultyDeclarationBlocks($term, $package, $latestDeclarations), ...$legacy];
     }
 
-    /** @return list<array<string, mixed>> */
-    private function facultyDeclarationBlocks(Term $term, ?TermCalendarPackage $package): array
+    /** @return list<int> */
+    private function preservedAssignedFacultyIds(ScheduleGenerationRun $run): array
+    {
+        $snapshotFaculty = collect(data_get($run->input_snapshot, 'faculty', []))
+            ->pluck('faculty_id');
+        $candidateFaculty = $run->candidateRows()->pluck('faculty_user_id');
+        $meetingFaculty = $run->sectionMeetings()->pluck('faculty_user_id');
+
+        return $snapshotFaculty
+            ->merge($candidateFaculty)
+            ->merge($meetingFaculty)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return EloquentCollection<int, FacultyAvailabilityDeclaration>
+     */
+    private function latestFacultyDeclarationsForTerm(Term $term): EloquentCollection
     {
         return FacultyAvailabilityDeclaration::query()
             ->where('term_id', $term->id)
             ->orderBy('faculty_user_id')
             ->orderByDesc('version')
             ->get()
-            ->unique('faculty_user_id')
-            ->flatMap(function (FacultyAvailabilityDeclaration $declaration) use ($package): array {
-                $storedIntervals = $declaration->getAttribute('hard_unavailability');
-                $intervals = is_array($storedIntervals) ? $storedIntervals : [];
+            ->unique('faculty_user_id');
+    }
 
-                if ($declaration->declaration === FacultyAvailabilityDeclaration::DeclarationUnavailable
-                    && $intervals === []
-                    && $package instanceof TermCalendarPackage) {
-                    $intervals = $package->teachingGridRows
-                        ->map(fn ($row): array => [
-                            'day_of_week' => (int) $row->day_of_week,
-                            'starts_at' => $this->timeString($row->starts_at),
-                            'ends_at' => $this->timeString($row->ends_at),
-                        ])
-                        ->all();
-                }
+    /**
+     * @param  EloquentCollection<int, FacultyAvailabilityDeclaration>|null  $latestDeclarations
+     * @return list<array<string, mixed>>
+     */
+    private function facultyDeclarationBlocks(
+        Term $term,
+        ?TermCalendarPackage $package,
+        ?EloquentCollection $latestDeclarations = null,
+    ): array {
+        return ($latestDeclarations ?? $this->latestFacultyDeclarationsForTerm($term))
+            ->flatMap(function (FacultyAvailabilityDeclaration $declaration) use ($package): array {
+                $intervals = $package instanceof TermCalendarPackage
+                    ? $declaration->compileUnavailableBlocks($package)
+                    : (is_array($declaration->hard_unavailability) ? $declaration->hard_unavailability : []);
 
                 return collect($intervals)
                     ->filter(fn (mixed $interval): bool => is_array($interval))
@@ -1064,20 +1174,22 @@ class ScheduleSolverSnapshotService
         return mb_substr($value, 0, 5);
     }
 
-    /** @return list<array<string, mixed>> */
-    private function facultyAvailabilityPayload(Term $term): array
-    {
-        return FacultyAvailabilityDeclaration::query()
-            ->where('term_id', $term->id)
-            ->orderBy('faculty_user_id')
-            ->orderByDesc('version')
-            ->get()
-            ->unique('faculty_user_id')
+    /**
+     * @param  EloquentCollection<int, FacultyAvailabilityDeclaration>|null  $latestDeclarations
+     * @return list<array<string, mixed>>
+     */
+    private function facultyAvailabilityPayload(
+        Term $term,
+        ?EloquentCollection $latestDeclarations = null,
+    ): array {
+        return ($latestDeclarations ?? $this->latestFacultyDeclarationsForTerm($term))
             ->map(fn (FacultyAvailabilityDeclaration $record): array => [
                 'faculty_user_id' => (int) $record->faculty_user_id,
                 'declaration_version' => (int) $record->version,
                 'declaration' => $record->declaration,
+                'availability_mode' => $record->effectiveMode(),
                 'hard_unavailability' => $record->hard_unavailability ?? [],
+                'teaching_windows' => $record->normalizedTeachingWindows(),
                 'declared_at' => $record->declared_at->toIso8601String(),
             ])
             ->values()

@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <title>{{ $statusCode }} — {{ $pageTitle }} | Servitech Institute Asia Inc.</title>
-    <link rel="icon" type="image/webp" href="{{ asset('images/brand/servitech-crest-outlined-192.webp') }}">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
+    <link rel="icon" type="image/png" href="{{ asset('images/brand/servitech-crest-favicon.png') }}">
     <link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-foundation.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-error.css') }}">
@@ -21,13 +22,17 @@
         $workspacePath = $authenticatedUser?->authorizedWorkspacePath();
         $workspaceName = $authenticatedUser?->authorizedWorkspaceName();
         $canSwitchAccount = $statusCode === 403 && $workspacePath !== null && $workspaceName !== null;
-        $isApplicantVerificationFailure = $statusCode === 403
-            && request()->routeIs('filament.applicant.auth.email-verification.verify')
+        $isVerificationRoute = $statusCode === 403
+            && request()->routeIs('filament.applicant.auth.email-verification.verify');
+        $isApplicantVerificationFailure = $isVerificationRoute
             && $authenticatedUser?->hasRole('applicant')
             && ! $authenticatedUser->hasVerifiedEmail();
-        $guidance = $isApplicantVerificationFailure
-            ? 'This verification link is expired, malformed, or no longer the newest link. Request a new link from the verification page.'
-            : $guidance;
+        $isGuestVerificationFailure = $isVerificationRoute && $authenticatedUser === null;
+        $guidance = match (true) {
+            $isApplicantVerificationFailure => 'This verification link is expired, malformed, or no longer the newest link. Request a new link from the verification page.',
+            $isGuestVerificationFailure => 'This verification link is expired, malformed, or no longer the newest link. Sign in to request a new verification link.',
+            default => $guidance,
+        };
         $mood = match (true) {
             $statusCode === 404 => 'This page wandered off.',
             $statusCode === 403 => 'This door is not yours to open.',
@@ -77,6 +82,9 @@
                 @if ($isApplicantVerificationFailure)
                     <a class="primary-action" href="{{ route('filament.applicant.auth.email-verification.prompt') }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 6.5h17v11h-17zM4 7l8 6.5L20 7" /></svg>Request a new verification link</a>
                     <button class="secondary-action" type="button" data-open-account-switch><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 4 3 8l4 4M3 8h13a4 4 0 0 1 4 4M17 20l4-4-4-4M21 16H8a4 4 0 0 1-4-4" /></svg>Use another account</button>
+                @elseif ($isGuestVerificationFailure)
+                    <a class="primary-action" href="{{ route('filament.applicant.auth.login') }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" /></svg>Sign in to request a new link</a>
+                    <a class="secondary-action" href="{{ url('/') }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 11.5 12 4l9 7.5M5.5 10v9.5h13V10M10 19.5v-5h4v5" /></svg>Back to home</a>
                 @elseif ($canSwitchAccount)
                     <a class="primary-action" href="{{ url($workspacePath) }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 6 4 12l6 6M4 12h16" /></svg>Return to {{ $workspaceName }}</a>
                     <button class="secondary-action" type="button" data-open-account-switch><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 4 3 8l4 4M3 8h13a4 4 0 0 1 4 4M17 20l4-4-4-4M21 16H8a4 4 0 0 1-4-4" /></svg>Use another account</button>
@@ -86,11 +94,16 @@
                 @else
                     <a class="primary-action" href="{{ url('/') }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 11.5 12 4l9 7.5M5.5 10v9.5h13V10M10 19.5v-5h4v5" /></svg>Back to home</a>
                 @endif
-                <a class="secondary-action" href="{{ route('home', ['modal' => 'support']) }}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3.5" /><path d="M6 6l3.5 3.5M18 6l-3.5 3.5M6 18l3.5-3.5M18 18l-3.5-3.5" /></svg>Contact support</a>
             </div>
-            @if ($admissionRecovery)
-                <p class="status-code">HTTP {{ $statusCode }}</p>
-            @endif
+
+            <nav class="error-support" aria-label="Support">
+                <a class="error-support-link" href="{{ route('home', ['modal' => 'support']) }}">
+                    <span>Contact support</span>
+                    <svg class="error-support-link__icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                        <path fill-rule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.23 5.29a.75.75 0 1 1 1.04-1.08l5.5 5.25a.75.75 0 0 1 0 1.08l-5.5 5.25a.75.75 0 1 1-1.04-1.08l4.158-3.96H3.75A.75.75 0 0 1 3 10Z" clip-rule="evenodd" />
+                    </svg>
+                </a>
+            </nav>
             </div>
             </div>
         </article>

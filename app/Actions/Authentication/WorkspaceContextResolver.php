@@ -3,7 +3,7 @@
 namespace App\Actions\Authentication;
 
 use App\Filament\Pages\AcademicApprovals;
-use App\Filament\Pages\FacultySchedule;
+use App\Filament\Pages\FacultyOverview;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Users\UserResource;
@@ -51,7 +51,7 @@ class WorkspaceContextResolver
                 $destination = match ($role) {
                     User::StaffRoleRegistrar => AdmissionApplicationResource::getUrl(panel: 'admin', isAbsolute: false),
                     User::StaffRoleAccounting => EnrollmentResource::getUrl(panel: 'admin', isAbsolute: false),
-                    User::StaffRoleFaculty => FacultySchedule::getUrl(panel: 'admin', isAbsolute: false),
+                    User::StaffRoleFaculty => FacultyOverview::getUrl(panel: 'admin', isAbsolute: false),
                     User::StaffRoleAcademicHead => AcademicApprovals::getUrl(panel: 'admin', isAbsolute: false),
                     User::StaffRoleSystemSuperAdmin => UserResource::getUrl(panel: 'admin', isAbsolute: false),
                     default => throw new \LogicException('The Staff context has no canonical destination.'),

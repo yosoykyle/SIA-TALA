@@ -45,6 +45,7 @@
         <section aria-labelledby="progress-subjects-heading">
             <h2 id="progress-subjects-heading">{{ $progressView === 'placement-recovery' ? 'Subjects to review' : ($proposal->confirmation !== null ? 'Confirmed subjects' : 'Proposed subjects') }}</h2>
             <p class="registrar-case-meta">{{ $proposal->items->count() }} subjects · {{ (float) $proposal->items->sum('units_snapshot') }} units</p>
+            <x-enrollment-proposal-explanation :enrollment="$case" :proposal="$proposal" audience="registrar" />
             @include('filament.admin.enrollments.subjects', ['sourceKey' => 'progress'])
         </section>
         <section class="registrar-case-payment registrar-case-progress-payment tala-task-surface" aria-labelledby="progress-payment-heading">

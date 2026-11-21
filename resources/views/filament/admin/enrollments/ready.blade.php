@@ -15,6 +15,7 @@
         <section aria-labelledby="ready-subjects-heading">
             <h2 id="ready-subjects-heading">Subjects for enrollment</h2>
             <p class="registrar-case-meta">{{ $proposal->items->count() }} subjects · {{ (float) $proposal->items->sum('units_snapshot') }} units</p>
+            <x-enrollment-proposal-explanation :enrollment="$case" :proposal="$proposal" audience="registrar" />
             @include('filament.admin.enrollments.subjects', ['sourceKey' => 'ready'])
         </section>
         <section class="registrar-case-payment tala-task-surface" aria-labelledby="ready-payment-heading">

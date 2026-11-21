@@ -45,6 +45,8 @@ class TermClassProposal extends TermPlanningWorkbench
     /** @var array<string, mixed> */
     public array $proposal = [];
 
+    public bool $revealProposalErrors = false;
+
     /** @var array<string, mixed>|null */
     private ?array $proposalPreview = null;
 
@@ -75,7 +77,7 @@ class TermClassProposal extends TermPlanningWorkbench
         $cohorts = $this->currentPreview()['cohorts']->mapWithKeys(fn ($cohort): array => [$cohort->id => $cohort->reference.' · '.$cohort->confirmed_count.' confirmed learners'])->all();
 
         return $schema->statePath('proposal')->components([
-            Repeater::make('classes')->label('Term class decisions')->defaultItems(0)->reorderable(false)->collapsible()->collapsed()
+            Repeater::make('classes')->label('Term class decisions')->defaultItems(0)->reorderable(false)->collapsible()->collapsed(fn (): bool => ! $this->revealProposalErrors)
                 ->itemLabel(function (array $state) use ($catalogRows): HtmlString|string {
                     $course = $catalogRows->get((int) ($state['entry_id'] ?? 0));
                     $decision = match ($state['action'] ?? 'skip') {
@@ -136,7 +138,7 @@ class TermClassProposal extends TermPlanningWorkbench
                         ? 'This class has a published timetable. Keep it here; changes require the controlled timetable revision.'
                         : null)->default('skip')->required()->live(),
                     Fieldset::make('Prepare this course')->columns(2)->columnSpanFull()->visible(fn (Get $get): bool => $get('action') === 'confirm')->schema([
-                        TextInput::make('code')->label('Class reference')->maxLength(64)->required(fn (Get $get): bool => $get('action') === 'confirm')->disabled(fn (Get $get): bool => $get('action') !== 'confirm')->dehydrated(),
+                        Hidden::make('code')->dehydrated(),
                         TextInput::make('capacity')->label('Approved capacity')->integer()->minValue(1)->required(fn (Get $get): bool => $get('action') === 'confirm')->disabled(fn (Get $get): bool => $get('action') !== 'confirm' || filled($get('section_id')))->dehydrated(),
                         Select::make('source')->options(Section::confirmableSourceOptions())->required()->live()->disabled(fn (Get $get): bool => $get('action') !== 'confirm')->dehydrated(),
                         Select::make('modality')->label('Delivery')->options(TermOffering::modalityOptions())->required(fn (Get $get): bool => $get('action') === 'confirm')->disabled(fn (Get $get): bool => $get('action') !== 'confirm')->dehydrated(),
@@ -197,8 +199,30 @@ class TermClassProposal extends TermPlanningWorkbench
             ->modalDescription('Prepared classes and cancellations are checked and saved together. Skipped courses and retained classes stay unchanged. Faculty and room readiness are checked before generation.')
             ->modalSubmitActionLabel('Confirm proposal')
             ->action(function (): void {
-                $state = $this->form->getState();
-                $result = app(PrepareTermClassProposal::class)->confirm($this->selectedTerm(), auth()->user(), array_values($state['classes'] ?? []), $this->proposalSource);
+                try {
+                    $this->revealProposalErrors = false;
+                    $state = $this->form->getState();
+                    $result = app(PrepareTermClassProposal::class)->confirm($this->selectedTerm(), auth()->user(), array_values($state['classes'] ?? []), $this->proposalSource);
+                } catch (ValidationException $exception) {
+                    $this->revealProposalErrors = true;
+
+                    foreach ($exception->errors() as $key => $messages) {
+                        foreach ($messages as $message) {
+                            $this->addError($key, $message);
+                        }
+                    }
+
+                    $firstError = collect($exception->errors())->flatten()->first();
+                    Notification::make()
+                        ->title('Complete the highlighted class details before confirming')
+                        ->body(is_string($firstError) ? $firstError : 'One or more class rows are missing required fields.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    return;
+                }
+
                 Notification::make()->title($result['confirmed'].' '.Str::plural('class', $result['confirmed']).' confirmed · '.$result['cancelled'].' '.Str::plural('class', $result['cancelled']).' cancelled')->success()->send();
                 $this->redirect(TermClasses::getUrl(['termId' => $this->termId]));
             });

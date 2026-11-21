@@ -76,9 +76,9 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
     public static function staffNavigation(): array
     {
         return [
-            'Registrar' => [User::StaffRoleRegistrar, ['Admissions', 'Students & Enrollment', 'Grades & Completion', 'Catalog & Curricula', 'Term Planning']],
+            'Registrar' => [User::StaffRoleRegistrar, ['Admissions', 'Students & Enrollment', 'Grades & Completion', 'Programs & Curricula', 'Term Planning']],
             'Accounting' => [User::StaffRoleAccounting, ['Overview', 'Student accounts', 'Fee plans', 'Payment channels']],
-            'Faculty' => [User::StaffRoleFaculty, ['My schedule', 'My availability', 'Grade rosters']],
+            'Faculty' => [User::StaffRoleFaculty, ['Overview', 'My schedule', 'My availability', 'Class grades']],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight']],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit']],
         ];
@@ -105,13 +105,16 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::test(AcademicApprovals::class)
             ->assertSee('Catalog & Curricula', false)
-            ->assertSee('Grade Review')
+            ->assertSee('Class rosters')
             ->assertSee('Lifecycle Exceptions')
+            ->assertSee('Completion & TOR')
             ->assertSee('Student academic records');
 
         $provider = file_get_contents(app_path('Providers/Filament/AdminPanelProvider.php'));
+        $this->assertStringContainsString('FacultyOverview::class', $provider);
         $this->assertStringContainsString('MyAvailability::class', $provider);
-        $this->assertStringContainsString("'My schedule' => FacultySchedule::class", $provider);
+        $this->assertStringContainsString("NavigationItem::make('My schedule')", $provider);
+        $this->assertStringContainsString("NavigationItem::make('Class grades')", $provider);
         $this->assertStringContainsString("'Public Content' => PublicContent::class", $provider);
         $this->assertStringNotContainsString("'Admission Cycles' =>", $provider);
         $this->assertStringNotContainsString("'My Unavailable Times' =>", $provider);

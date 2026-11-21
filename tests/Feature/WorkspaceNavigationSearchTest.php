@@ -66,7 +66,7 @@ class WorkspaceNavigationSearchTest extends TestCase
 
         $this->assertSame([
             'Learner work' => ['Admissions', 'Students & Enrollment', 'Grades & Completion'],
-            'Academic setup' => ['Catalog & Curricula', 'Term Planning'],
+            'Academic setup' => ['Programs & Curricula', 'Term Planning'],
         ], $groups);
         $this->assertSame('/admin/admissions/admission-applications', app(WorkspaceContextResolver::class)
             ->destinationFor($user, User::StaffRoleRegistrar));
@@ -129,7 +129,7 @@ class WorkspaceNavigationSearchTest extends TestCase
         $this->assertSame($labels, collect(Filament::getNavigation())
             ->flatMap(fn ($group) => $group->getItems())->map->getLabel()->values()->all());
         foreach (['Term Offerings', 'Classes', 'Rooms', 'Faculty Qualifications', 'Programs', 'Admission cycles'] as $title) {
-            $this->assertSame([], $this->titles($title));
+            $this->assertNotContains($title, $this->titles($title));
         }
     }
 
@@ -159,13 +159,26 @@ class WorkspaceNavigationSearchTest extends TestCase
         $this->signIn(User::StaffRoleSystemSuperAdmin, ['manage-faqs', 'manage-public-notices']);
 
         $this->assertContains('FAQ', $this->titles('FAQ'));
+
+        $publicContent = collect(Filament::getNavigation())
+            ->flatMap(fn ($group) => $group->getItems())
+            ->first(fn ($item): bool => $item->getLabel() === 'Public Content');
+
+        $this->assertNotNull($publicContent);
+        $this->assertSame(
+            ['Notices', 'FAQ'],
+            collect($publicContent->getChildItems())->map->getLabel()->values()->all(),
+        );
     }
 
     public function test_faculty_finds_sibling_availability_without_a_duplicate_sidebar_destination(): void
     {
         $this->signIn(User::StaffRoleFaculty);
 
-        $this->assertContains('My Availability', $this->titles('Availability'));
+        $this->assertContains('Overview', $this->titles('Overview'));
+        $this->assertContains('My schedule', $this->titles('Schedule'));
+        $this->assertContains('My availability', $this->titles('Availability'));
+        $this->assertContains('Class grades', $this->titles('Class grades'));
         $this->assertSame([], $this->titles('Term Planning'));
     }
 
@@ -174,7 +187,7 @@ class WorkspaceNavigationSearchTest extends TestCase
     {
         return [
             'Accounting' => [User::StaffRoleAccounting, ['Overview', 'Student accounts', 'Fee plans', 'Payment channels'], []],
-            'Faculty' => [User::StaffRoleFaculty, ['My schedule', 'My availability', 'Grade rosters'], []],
+            'Faculty' => [User::StaffRoleFaculty, ['Overview', 'My schedule', 'My availability', 'Class grades'], []],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight'], []],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit'], ['manage-faqs', 'manage-public-notices']],
         ];
@@ -240,7 +253,8 @@ class WorkspaceNavigationSearchTest extends TestCase
         $this->signIn(User::StaffRoleRegistrar, ['approve-documents']);
         Livewire::test(ListAdmissionApplications::class)
             ->assertSee('aria-label="Filter applications"', false)
-            ->assertSee('aria-label="Columns"', false);
+            ->assertSee('aria-label="Columns"', false)
+            ->assertDontSeeHtml('fi-ta-filters-above-content-ctn');
     }
 
     public function test_record_action_accessible_name_waits_for_its_record(): void

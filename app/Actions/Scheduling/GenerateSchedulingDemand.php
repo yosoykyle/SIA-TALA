@@ -8,22 +8,55 @@ use App\Models\CalendarEvent;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
 use App\Models\FacultyQualification;
-use App\Models\FacultyTermLoadOverride;
 use App\Models\Room;
 use App\Models\SchedulingCommitment;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class GenerateSchedulingDemand
 {
+    public static function resolveRoomType(?string $rawOverride, CourseComponent $component): ?string
+    {
+        $raw = is_string($rawOverride) ? trim($rawOverride) : '';
+
+        if ($raw !== '') {
+            if (str_starts_with($raw, '{')) {
+                $decoded = json_decode($raw, true);
+
+                if (is_array($decoded)) {
+                    $byComponentId = $decoded[(string) $component->id] ?? null;
+
+                    if (is_string($byComponentId) && trim($byComponentId) !== '') {
+                        return trim($byComponentId);
+                    }
+
+                    $byType = $decoded[(string) $component->component_type] ?? null;
+
+                    if (is_string($byType) && trim($byType) !== '') {
+                        return trim($byType);
+                    }
+
+                    return filled($component->room_type_default) ? (string) $component->room_type_default : null;
+                }
+            }
+
+            return $raw;
+        }
+
+        return filled($component->room_type_default) ? (string) $component->room_type_default : null;
+    }
+
     /**
      * @return array{created:int,updated:int,skipped:int,total:int,ready:int,action_required:int,findings:int}
      */
@@ -44,8 +77,76 @@ class GenerateSchedulingDemand
 
             $offerings = $this->offeringsForTerm($term);
 
+            if ($offerings->isEmpty()) {
+                return $summary;
+            }
+
+            $activePackage = TermCalendarPackage::query()
+                ->where('term_id', $term->id)
+                ->where('state', TermCalendarPackage::StateActive)
+                ->with(['windows', 'teachingGridRows', 'datedExceptions'])
+                ->first();
+            $activePackage?->setRelation('term', $term);
+
+            $schedulingWindowCount = $activePackage instanceof TermCalendarPackage
+                && app(TermCalendarPackageReadinessService::class)->for($activePackage)['ready']
+                ? 1
+                : 0;
+
+            $gridRows = $activePackage instanceof TermCalendarPackage
+                ? $activePackage->teachingGridRows->sortBy('day_of_week')->map(fn ($row): array => [
+                    'day_of_week' => (int) $row->day_of_week,
+                    'starts_at' => substr((string) $row->starts_at, 0, 8),
+                    'ends_at' => substr((string) $row->ends_at, 0, 8),
+                ])->values()
+                : collect();
+            $slotMinutes = app(TermTeachingGrid::class)->slotMinutes($term);
+            $blockingCalendarBlocks = $this->recurringBlockingCalendarBlocks($term, $activePackage);
+
+            $activeRooms = Room::query()->where('is_active', true)->get();
+            $activeRoomsById = $activeRooms->keyBy(fn (Room $room): int => (int) $room->id);
+            $activeRoomsByType = $activeRooms->groupBy(fn (Room $room): string => (string) $room->room_type);
+
+            $sectionIds = $offerings
+                ->flatMap(fn (TermOffering $offering) => $offering->sections)
+                ->map(fn (Section $section): int => (int) $section->id)
+                ->unique()
+                ->values()
+                ->all();
+
+            $commitmentsBySection = $sectionIds === []
+                ? collect()
+                : SchedulingCommitment::query()
+                    ->where('term_id', $term->id)
+                    ->whereIn('section_id', $sectionIds)
+                    ->lockForUpdate()
+                    ->get()
+                    ->groupBy(fn (SchedulingCommitment $commitment): int => (int) $commitment->section_id);
+
+            $courseIds = $offerings
+                ->map(fn (TermOffering $offering): ?int => $offering->courseSpecification()?->course_id !== null
+                    ? (int) $offering->courseSpecification()->course_id
+                    : null)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $facultyLoadOptionsByCourse = $this->precomputedFacultyLoadOptionsByCourse($term, $courseIds);
+
+            $existingDemands = SchedulingDemand::query()
+                ->whereIn('term_offering_id', $offerings->modelKeys())
+                ->get()
+                ->keyBy(fn (SchedulingDemand $demand): string => "{$demand->term_offering_id}:{$demand->course_component_id}:{$demand->section_delivery_group_id}");
+
+            $now = now();
+            $nowString = $now->toDateTimeString();
+            $rowsToInsert = [];
+            $validComponentIdsByOffering = [];
+
             foreach ($offerings as $offering) {
                 $components = $this->courseComponents($offering);
+                $validComponentIdsByOffering[(int) $offering->id] = $components->modelKeys();
                 $sections = $this->sectionsForOffering($offering);
 
                 foreach ($sections as $section) {
@@ -58,16 +159,29 @@ class GenerateSchedulingDemand
                             continue;
                         }
 
+                        $group->setRelation('section', $section);
+
                         foreach ($components as $component) {
-                            $attributes = $this->attributesForDemand($actor, $term, $offering, $section, $group, $component);
-                            $demand = SchedulingDemand::query()->firstOrNew([
-                                'term_offering_id' => $attributes['term_offering_id'],
-                                'course_component_id' => $attributes['course_component_id'],
-                                'section_delivery_group_id' => $attributes['section_delivery_group_id'],
-                            ]);
-                            $wasNew = ! $demand->exists;
-                            $demand->fill($attributes);
-                            $demand->save();
+                            $attributes = $this->attributesForDemand(
+                                actor: $actor,
+                                term: $term,
+                                offering: $offering,
+                                section: $section,
+                                group: $group,
+                                component: $component,
+                                commitmentsBySection: $commitmentsBySection,
+                                facultyLoadOptionsByCourse: $facultyLoadOptionsByCourse,
+                                activeRooms: $activeRooms,
+                                activeRoomsByType: $activeRoomsByType,
+                                activeRoomsById: $activeRoomsById,
+                                schedulingWindowCount: $schedulingWindowCount,
+                                blockingCalendarBlocks: $blockingCalendarBlocks,
+                                gridRows: $gridRows,
+                                slotMinutes: $slotMinutes,
+                            );
+
+                            $lookupKey = "{$attributes['term_offering_id']}:{$attributes['course_component_id']}:{$attributes['section_delivery_group_id']}";
+                            $demand = $existingDemands->get($lookupKey);
 
                             $summary['total']++;
                             $summary['findings'] += count($attributes['readiness_findings']);
@@ -78,9 +192,24 @@ class GenerateSchedulingDemand
                                 $summary['action_required']++;
                             }
 
-                            if ($wasNew) {
+                            if (! $demand instanceof SchedulingDemand) {
+                                $rowsToInsert[] = [
+                                    ...$attributes,
+                                    'source_snapshot' => json_encode($attributes['source_snapshot'], JSON_THROW_ON_ERROR),
+                                    'readiness_findings' => json_encode($attributes['readiness_findings'], JSON_THROW_ON_ERROR),
+                                    'readiness_checked_at' => $nowString,
+                                    'created_at' => $nowString,
+                                    'updated_at' => $nowString,
+                                ];
                                 $summary['created']++;
-                            } elseif ($demand->wasChanged()) {
+
+                                continue;
+                            }
+
+                            if ($this->demandChanged($demand, $attributes)) {
+                                $demand->fill($attributes);
+                                $demand->readiness_checked_at = $now;
+                                $demand->save();
                                 $summary['updated']++;
                             } else {
                                 $summary['skipped']++;
@@ -88,6 +217,26 @@ class GenerateSchedulingDemand
                         }
                     }
                 }
+            }
+
+            if ($rowsToInsert !== []) {
+                foreach (array_chunk($rowsToInsert, 1000) as $chunk) {
+                    SchedulingDemand::query()->insert($chunk);
+                }
+            }
+
+            $obsoleteComponentDemandIds = $existingDemands
+                ->filter(fn (SchedulingDemand $demand): bool => ($validComponentIdsByOffering[(int) $demand->term_offering_id] ?? []) !== []
+                    && ! in_array((int) $demand->course_component_id, $validComponentIdsByOffering[(int) $demand->term_offering_id], true))
+                ->map(fn (SchedulingDemand $demand): int => (int) $demand->id)
+                ->values()
+                ->all();
+
+            if ($obsoleteComponentDemandIds !== []) {
+                SchedulingDemand::query()
+                    ->whereIn('id', $obsoleteComponentDemandIds)
+                    ->whereDoesntHave('sectionMeetings')
+                    ->delete();
             }
 
             return $summary;
@@ -99,17 +248,194 @@ class GenerateSchedulingDemand
      */
     private function offeringsForTerm(Term $term): EloquentCollection
     {
-        return TermOffering::query()
-            ->whereBelongsTo($term)
-            ->where('state', TermOffering::StatePendingScheduling)
-            ->with([
-                'term.calendarEvents',
-                'curriculumEntry.courseSpecification.course',
-                'curriculumEntry.courseSpecification.components',
-                'sections.deliveryGroups',
+        $rows = TermOffering::query()
+            ->select([
+                'term_offerings.*',
+                'ce.id as joined_entry_id',
+                'ce.course_specification_id as joined_spec_id',
+                'cs.course_id as joined_course_id',
+                'cs.state as joined_spec_state',
+                'cs.same_faculty_default as joined_spec_same_faculty_default',
+                'c.code as joined_course_code',
+                'cc.id as joined_component_id',
+                'cc.component_type as joined_component_type',
+                'cc.weekly_contact_hours as joined_component_weekly_contact_hours',
+                'cc.meeting_pattern as joined_component_meeting_pattern',
+                'cc.room_type_default as joined_component_room_type_default',
+                'cc.required_room_feature_keys as joined_component_required_room_feature_keys',
+                'cc.modality_restriction as joined_component_modality_restriction',
+                'cc.requires_consecutive_block as joined_component_requires_consecutive_block',
+                'cc.same_faculty as joined_component_same_faculty',
+                'cc.sequence as joined_component_sequence',
             ])
-            ->orderBy('id')
+            ->leftJoin('curriculum_entries as ce', 'ce.id', '=', 'term_offerings.curriculum_entry_id')
+            ->leftJoin('course_specifications as cs', 'cs.id', '=', 'ce.course_specification_id')
+            ->leftJoin('courses as c', 'c.id', '=', 'cs.course_id')
+            ->leftJoin('course_components as cc', 'cc.course_specification_id', '=', 'cs.id')
+            ->where('term_offerings.term_id', $term->id)
+            ->where('term_offerings.state', TermOffering::StatePendingScheduling)
+            ->orderBy('term_offerings.id')
+            ->orderBy('cc.sequence')
+            ->orderBy('cc.id')
             ->get();
+
+        if ($rows->isEmpty()) {
+            return new EloquentCollection;
+        }
+
+        $offeringsById = [];
+        $componentsBySpecId = [];
+
+        foreach ($rows as $row) {
+            $offeringId = (int) $row->id;
+
+            if (! isset($offeringsById[$offeringId])) {
+                $offeringsById[$offeringId] = $row;
+            }
+
+            if ($row->joined_spec_id !== null && $row->joined_component_id !== null) {
+                $specId = (int) $row->joined_spec_id;
+                $componentId = (int) $row->joined_component_id;
+
+                if (! isset($componentsBySpecId[$specId][$componentId])) {
+                    $featureKeys = $row->joined_component_required_room_feature_keys;
+                    if (is_string($featureKeys)) {
+                        $decodedKeys = json_decode($featureKeys, true);
+                        $featureKeys = is_array($decodedKeys) ? $decodedKeys : null;
+                    }
+
+                    $component = (new CourseComponent)->forceFill([
+                        'id' => $componentId,
+                        'course_specification_id' => $specId,
+                        'component_type' => $row->joined_component_type,
+                        'weekly_contact_hours' => $row->joined_component_weekly_contact_hours,
+                        'meeting_pattern' => $row->joined_component_meeting_pattern,
+                        'room_type_default' => $row->joined_component_room_type_default,
+                        'required_room_feature_keys' => $featureKeys,
+                        'modality_restriction' => $row->joined_component_modality_restriction,
+                        'requires_consecutive_block' => (bool) $row->joined_component_requires_consecutive_block,
+                        'same_faculty' => (bool) $row->joined_component_same_faculty,
+                        'sequence' => (int) $row->joined_component_sequence,
+                    ]);
+                    $component->exists = true;
+                    $componentsBySpecId[$specId][$componentId] = $component;
+                }
+            }
+        }
+
+        $offerings = new EloquentCollection(array_values($offeringsById));
+        $offeringIds = $offerings->modelKeys();
+
+        $sectionRows = Section::query()
+            ->select([
+                'sections.*',
+                'sdg.id as joined_group_id',
+                'sdg.name as joined_group_name',
+                'sdg.expected_count as joined_group_expected_count',
+                'sdg.modality as joined_group_modality',
+                'sdg.delivery_override as joined_group_delivery_override',
+                'sdg.state as joined_group_state',
+            ])
+            ->leftJoin('section_delivery_groups as sdg', 'sdg.section_id', '=', 'sections.id')
+            ->whereIn('sections.term_offering_id', $offeringIds)
+            ->orderBy('sections.id')
+            ->orderBy('sdg.id')
+            ->get();
+
+        $sectionsById = [];
+        $groupsBySectionId = [];
+
+        foreach ($sectionRows as $sectionRow) {
+            $sectionId = (int) $sectionRow->id;
+
+            if (! isset($sectionsById[$sectionId])) {
+                $sectionsById[$sectionId] = $sectionRow;
+            }
+
+            if ($sectionRow->joined_group_id !== null) {
+                $groupId = (int) $sectionRow->joined_group_id;
+                $rawOverride = $sectionRow->joined_group_delivery_override;
+                if (is_string($rawOverride)) {
+                    $decodedOverride = json_decode($rawOverride, true);
+                    $rawOverride = is_array($decodedOverride) ? $decodedOverride : null;
+                }
+
+                $group = (new SectionDeliveryGroup)->forceFill([
+                    'id' => $groupId,
+                    'section_id' => $sectionId,
+                    'name' => $sectionRow->joined_group_name,
+                    'expected_count' => (int) $sectionRow->joined_group_expected_count,
+                    'modality' => $sectionRow->joined_group_modality,
+                    'delivery_override' => $rawOverride,
+                    'state' => $sectionRow->joined_group_state,
+                ]);
+                $group->exists = true;
+                $groupsBySectionId[$sectionId][] = $group;
+            }
+        }
+
+        $sections = new EloquentCollection(array_values($sectionsById));
+
+        foreach ($sections as $section) {
+            $section->setRelation('deliveryGroups', new EloquentCollection(
+                $groupsBySectionId[(int) $section->id] ?? [],
+            ));
+        }
+
+        $sectionsByOfferingId = $sections->groupBy(fn (Section $section): int => (int) $section->term_offering_id);
+
+        foreach ($offerings as $offering) {
+            $offering->setRelation('sections', new EloquentCollection(
+                $sectionsByOfferingId->get((int) $offering->id, collect())->all(),
+            ));
+
+            if ($offering->joined_entry_id === null) {
+                $offering->setRelation('curriculumEntry', null);
+
+                continue;
+            }
+
+            $entry = (new CurriculumEntry)->forceFill([
+                'id' => (int) $offering->joined_entry_id,
+                'course_specification_id' => $offering->joined_spec_id !== null ? (int) $offering->joined_spec_id : null,
+            ]);
+            $entry->exists = true;
+
+            if ($offering->joined_spec_id !== null) {
+                $specId = (int) $offering->joined_spec_id;
+                $spec = (new CourseSpecification)->forceFill([
+                    'id' => $specId,
+                    'course_id' => $offering->joined_course_id !== null ? (int) $offering->joined_course_id : null,
+                    'state' => $offering->joined_spec_state,
+                    'same_faculty_default' => $offering->joined_spec_same_faculty_default !== null
+                        ? (bool) $offering->joined_spec_same_faculty_default
+                        : null,
+                ]);
+                $spec->exists = true;
+
+                if ($offering->joined_course_id !== null) {
+                    $course = (new Course)->forceFill([
+                        'id' => (int) $offering->joined_course_id,
+                        'code' => $offering->joined_course_code,
+                    ]);
+                    $course->exists = true;
+                    $spec->setRelation('course', $course);
+                } else {
+                    $spec->setRelation('course', null);
+                }
+
+                $spec->setRelation('components', new EloquentCollection(
+                    array_values($componentsBySpecId[$specId] ?? []),
+                ));
+                $entry->setRelation('courseSpecification', $spec);
+            } else {
+                $entry->setRelation('courseSpecification', null);
+            }
+
+            $offering->setRelation('curriculumEntry', $entry);
+        }
+
+        return $offerings;
     }
 
     /**
@@ -117,6 +443,10 @@ class GenerateSchedulingDemand
      */
     private function sectionsForOffering(TermOffering $offering): EloquentCollection
     {
+        if ($offering->relationLoaded('sections')) {
+            return $offering->sections;
+        }
+
         return Section::query()
             ->whereBelongsTo($offering)
             ->orderBy('id')
@@ -128,6 +458,10 @@ class GenerateSchedulingDemand
      */
     private function deliveryGroupsForSection(Section $section): EloquentCollection
     {
+        if ($section->relationLoaded('deliveryGroups')) {
+            return $section->deliveryGroups;
+        }
+
         return SectionDeliveryGroup::query()
             ->whereBelongsTo($section)
             ->orderBy('id')
@@ -145,6 +479,10 @@ class GenerateSchedulingDemand
             return new EloquentCollection;
         }
 
+        if ($specification->relationLoaded('components')) {
+            return $specification->components;
+        }
+
         return CourseComponent::query()
             ->whereBelongsTo($specification)
             ->orderBy('sequence')
@@ -153,6 +491,13 @@ class GenerateSchedulingDemand
     }
 
     /**
+     * @param  Collection<int, EloquentCollection<int, SchedulingCommitment>>  $commitmentsBySection
+     * @param  array<int, list<array{faculty_user_id:int<0, max>,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>>  $facultyLoadOptionsByCourse
+     * @param  EloquentCollection<int, Room>  $activeRooms
+     * @param  Collection<string, EloquentCollection<int, Room>>  $activeRoomsByType
+     * @param  Collection<int, Room>  $activeRoomsById
+     * @param  list<array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>  $blockingCalendarBlocks
+     * @param  Collection<int, array{day_of_week:int,starts_at:string,ends_at:string}>  $gridRows
      * @return array<string, mixed>
      */
     private function attributesForDemand(
@@ -162,21 +507,24 @@ class GenerateSchedulingDemand
         Section $section,
         SectionDeliveryGroup $group,
         CourseComponent $component,
+        Collection $commitmentsBySection,
+        array $facultyLoadOptionsByCourse,
+        EloquentCollection $activeRooms,
+        Collection $activeRoomsByType,
+        Collection $activeRoomsById,
+        int $schedulingWindowCount,
+        array $blockingCalendarBlocks,
+        Collection $gridRows,
+        int $slotMinutes,
     ): array {
-        $specification = CourseSpecification::query()->find($component->course_specification_id);
-        $course = $specification instanceof CourseSpecification
-            ? Course::query()->find($specification->course_id)
-            : null;
+        $specification = $offering->courseSpecification();
+        $course = $specification?->course;
         $modality = filled($group->modality) ? (string) $group->modality : (string) $offering->modality;
         $meetingPattern = CourseComponent::parseMeetingPattern($component->meeting_pattern);
         $durationMinutes = $meetingPattern['duration_minutes']
             ?? max(1, (int) round((float) $component->weekly_contact_hours * 60));
         $meetingCount = $meetingPattern['count'] ?? 1;
-        $commitments = SchedulingCommitment::query()
-            ->where('term_id', $term->id)
-            ->where('section_id', $section->id)
-            ->lockForUpdate()
-            ->get();
+        $commitments = $commitmentsBySection->get((int) $section->id, collect());
         $commitment = $commitments->count() === 1 ? $commitments->first() : null;
         $fixedInputs = $this->fixedInputs($group);
 
@@ -188,13 +536,12 @@ class GenerateSchedulingDemand
                 'fixed_start_time' => $this->timeString($commitment->starts_at),
             ];
         }
-        $roomTypeRequirement = $offering->room_type_override ?: $component->room_type_default;
+
+        $roomTypeRequirement = self::resolveRoomType($offering->room_type_override, $component);
         $facultyLoadOptions = $course instanceof Course
-            ? $this->facultyLoadOptions($term, $course)
+            ? ($facultyLoadOptionsByCourse[(int) $course->id] ?? [])
             : [];
-        $suitableRoomCount = $this->suitableRoomCount($modality, $roomTypeRequirement, (int) $group->expected_count);
-        $schedulingWindowCount = $this->schedulingWindowCount($term);
-        $blockingCalendarBlocks = $this->recurringBlockingCalendarBlocks($term);
+        $suitableRoomCount = $this->suitableRoomCount($modality, $roomTypeRequirement, (int) $group->expected_count, $activeRooms, $activeRoomsByType);
         $sameFacultyDefault = $specification instanceof CourseSpecification ? $specification->same_faculty_default : null;
 
         $snapshot = [
@@ -241,6 +588,9 @@ class GenerateSchedulingDemand
             schedulingWindowCount: $schedulingWindowCount,
             blockingCalendarBlocks: $blockingCalendarBlocks,
             durationMinutes: $durationMinutes,
+            activeRoomsById: $activeRoomsById,
+            gridRows: $gridRows,
+            slotMinutes: $slotMinutes,
         );
 
         if ($commitments->count() > 1) {
@@ -281,6 +631,34 @@ class GenerateSchedulingDemand
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function demandChanged(SchedulingDemand $demand, array $attributes): bool
+    {
+        $scalarFields = [
+            'demand_key',
+            'required_duration_minutes',
+            'meeting_count',
+            'modality',
+            'fixed_faculty_user_id',
+            'fixed_room_id',
+            'fixed_day_of_week',
+            'fixed_start_time',
+            'validation_state',
+            'generated_by',
+        ];
+
+        foreach ($scalarFields as $field) {
+            if ($demand->getAttribute($field) != ($attributes[$field] ?? null)) {
+                return true;
+            }
+        }
+
+        return $demand->source_snapshot != $attributes['source_snapshot']
+            || $demand->readiness_findings != $attributes['readiness_findings'];
+    }
+
     private function demandKey(TermOffering $offering, SectionDeliveryGroup $group, CourseComponent $component): string
     {
         return "term-offering:{$offering->id}:delivery-group:{$group->id}:component:{$component->id}";
@@ -312,43 +690,63 @@ class GenerateSchedulingDemand
     }
 
     /**
-     * @return list<array{faculty_user_id:int<0, max>,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>
+     * @param  list<int>  $courseIds
+     * @return array<int, list<array{faculty_user_id:int<0, max>,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>>
      */
-    private function facultyLoadOptions(Term $term, Course $course): array
+    private function precomputedFacultyLoadOptionsByCourse(Term $term, array $courseIds): array
     {
-        $qualifications = FacultyQualification::query()
-            ->whereBelongsTo($course)
-            ->where('is_active', true)
-            ->orderBy('faculty_user_id')
-            ->get();
-
-        if ($qualifications->isEmpty()) {
+        if ($courseIds === []) {
             return [];
         }
 
-        $overrides = FacultyTermLoadOverride::query()
-            ->whereBelongsTo($term)
-            ->where('is_active', true)
-            ->whereIn('faculty_user_id', $qualifications->pluck('faculty_user_id')->all())
-            ->get()
-            ->keyBy('faculty_user_id');
-
-        return $qualifications
-            ->map(function (FacultyQualification $qualification) use ($term, $overrides): array {
-                $override = $overrides->get($qualification->faculty_user_id);
-                $maxAllowedUnits = $override instanceof FacultyTermLoadOverride
-                    ? $override->allowedLoadUnits()
-                    : ($term->default_max_units !== null ? (float) $term->default_max_units : null);
-
-                return [
-                    'faculty_user_id' => (int) $qualification->faculty_user_id,
-                    'qualification_id' => (int) $qualification->id,
-                    'term_load_override_id' => $override instanceof FacultyTermLoadOverride ? (int) $override->id : null,
-                    'max_allowed_units' => $this->decimalString($maxAllowedUnits),
-                ];
+        $rows = FacultyQualification::query()
+            ->select([
+                'faculty_qualifications.*',
+                'ftlo.id as joined_override_id',
+                'ftlo.default_max_units_snapshot as joined_override_default_units',
+                'ftlo.approved_overload_units as joined_override_overload_units',
+            ])
+            ->leftJoin('faculty_term_load_overrides as ftlo', function ($join) use ($term): void {
+                $join->on('ftlo.faculty_user_id', '=', 'faculty_qualifications.faculty_user_id')
+                    ->where('ftlo.term_id', '=', $term->id)
+                    ->where('ftlo.is_active', '=', true);
             })
-            ->values()
-            ->all();
+            ->whereIn('faculty_qualifications.course_id', $courseIds)
+            ->where('faculty_qualifications.is_active', true)
+            ->orderBy('faculty_qualifications.faculty_user_id')
+            ->orderBy('faculty_qualifications.id')
+            ->orderBy('ftlo.id')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $byCourseAndQual = [];
+
+        foreach ($rows as $row) {
+            $courseId = (int) $row->course_id;
+            $qualId = (int) $row->id;
+            $overrideId = $row->joined_override_id !== null ? (int) $row->joined_override_id : null;
+            $maxAllowedUnits = $overrideId !== null
+                ? ((float) $row->joined_override_default_units + (float) $row->joined_override_overload_units)
+                : ($term->default_max_units !== null ? (float) $term->default_max_units : null);
+
+            $byCourseAndQual[$courseId][$qualId] = [
+                'faculty_user_id' => (int) $row->faculty_user_id,
+                'qualification_id' => $qualId,
+                'term_load_override_id' => $overrideId,
+                'max_allowed_units' => $this->decimalString($maxAllowedUnits),
+            ];
+        }
+
+        $result = [];
+
+        foreach ($byCourseAndQual as $courseId => $options) {
+            $result[$courseId] = array_values($options);
+        }
+
+        return $result;
     }
 
     private function decimalString(?float $value): ?string
@@ -356,34 +754,34 @@ class GenerateSchedulingDemand
         return $value === null ? null : number_format($value, 2, '.', '');
     }
 
-    private function suitableRoomCount(string $modality, mixed $roomTypeRequirement, int $expectedCount): int
-    {
+    /**
+     * @param  EloquentCollection<int, Room>  $activeRooms
+     * @param  Collection<string, EloquentCollection<int, Room>>  $activeRoomsByType
+     */
+    private function suitableRoomCount(
+        string $modality,
+        mixed $roomTypeRequirement,
+        int $expectedCount,
+        EloquentCollection $activeRooms,
+        Collection $activeRoomsByType,
+    ): int {
         if ($modality !== TermOffering::ModalityFaceToFace) {
             return 0;
         }
 
-        return Room::query()
-            ->where('is_active', true)
-            ->where('capacity', '>=', $expectedCount)
-            ->when(filled($roomTypeRequirement), fn ($query) => $query->where('room_type', $roomTypeRequirement))
+        $pool = filled($roomTypeRequirement)
+            ? $activeRoomsByType->get((string) $roomTypeRequirement, collect())
+            : $activeRooms;
+
+        return $pool
+            ->filter(fn (Room $room): bool => (int) $room->capacity >= $expectedCount)
             ->count();
-    }
-
-    private function schedulingWindowCount(Term $term): int
-    {
-        $package = app(TermTeachingGrid::class)->activePackage($term);
-
-        if ($package) {
-            return app(TermCalendarPackageReadinessService::class)->for($package)['ready'] ? 1 : 0;
-        }
-
-        return 0;
     }
 
     /**
      * @return list<array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>
      */
-    private function recurringBlockingCalendarBlocks(Term $term): array
+    private function recurringBlockingCalendarBlocks(Term $term, ?TermCalendarPackage $package): array
     {
         $legacyBlocks = CalendarEvent::query()
             ->whereBelongsTo($term)
@@ -411,7 +809,6 @@ class GenerateSchedulingDemand
             ->values()
             ->all();
 
-        $package = app(TermTeachingGrid::class)->activePackage($term);
         $packageBlocks = [];
 
         foreach ($package?->teachingGridRows ?? [] as $row) {
@@ -442,6 +839,8 @@ class GenerateSchedulingDemand
      * @param  array{fixed_faculty_user_id:int|null,fixed_room_id:int|null,fixed_day_of_week:int|null,fixed_start_time:string|null}  $fixedInputs
      * @param  list<array{faculty_user_id:int<0, max>,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>  $facultyLoadOptions
      * @param  list<array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>  $blockingCalendarBlocks
+     * @param  Collection<int, Room>  $activeRoomsById
+     * @param  Collection<int, array{day_of_week:int,starts_at:string,ends_at:string}>  $gridRows
      * @return list<array{key:string,severity:string,source_type:string,source_id:int|null,message:string}>
      */
     private function findings(
@@ -460,6 +859,9 @@ class GenerateSchedulingDemand
         int $schedulingWindowCount,
         array $blockingCalendarBlocks,
         int $durationMinutes,
+        Collection $activeRoomsById,
+        Collection $gridRows,
+        int $slotMinutes,
     ): array {
         $findings = [];
 
@@ -514,7 +916,7 @@ class GenerateSchedulingDemand
                 $findings[] = $this->finding('missing_suitable_room', 'blocking', 'room', null, 'No active room matches the required room type and expected delivery-group count.');
             }
 
-            if ($fixedInputs['fixed_room_id'] !== null && ! $this->fixedRoomIsSuitable($fixedInputs['fixed_room_id'], $roomTypeRequirement, (int) $group->expected_count)) {
+            if ($fixedInputs['fixed_room_id'] !== null && ! $this->fixedRoomIsSuitable($fixedInputs['fixed_room_id'], $roomTypeRequirement, (int) $group->expected_count, $activeRoomsById)) {
                 $findings[] = $this->finding('fixed_room_not_suitable', 'blocking', 'room', $fixedInputs['fixed_room_id'], 'The fixed room override is inactive, below expected count, or does not match the required room type.');
             }
         }
@@ -539,13 +941,10 @@ class GenerateSchedulingDemand
 
         $fixedDay = $fixedInputs['fixed_day_of_week'];
         $fixedStart = $this->minutesFromTime($fixedInputs['fixed_start_time']);
-        $grid = app(TermTeachingGrid::class);
-        $rows = collect($grid->rows($term));
-        $dayRow = $rows->firstWhere('day_of_week', $fixedDay);
-        $schedulingDays = $rows->pluck('day_of_week')->all();
+        $dayRow = $gridRows->firstWhere('day_of_week', $fixedDay);
+        $schedulingDays = $gridRows->pluck('day_of_week')->all();
         $dayStart = $this->minutesFromTime($dayRow['starts_at'] ?? null);
         $dayEnd = $this->minutesFromTime($dayRow['ends_at'] ?? null);
-        $slotMinutes = $grid->slotMinutes($term);
 
         if ($fixedDay !== null
             && $fixedDay >= 1
@@ -591,14 +990,26 @@ class GenerateSchedulingDemand
         ];
     }
 
-    private function fixedRoomIsSuitable(int $roomId, ?string $roomTypeRequirement, int $expectedCount): bool
-    {
-        return Room::query()
-            ->whereKey($roomId)
-            ->where('is_active', true)
-            ->where('capacity', '>=', $expectedCount)
-            ->when(filled($roomTypeRequirement), fn ($query) => $query->where('room_type', $roomTypeRequirement))
-            ->exists();
+    /**
+     * @param  Collection<int, Room>  $activeRoomsById
+     */
+    private function fixedRoomIsSuitable(
+        int $roomId,
+        ?string $roomTypeRequirement,
+        int $expectedCount,
+        Collection $activeRoomsById,
+    ): bool {
+        $room = $activeRoomsById->get($roomId);
+
+        if (! $room instanceof Room || (int) $room->capacity < $expectedCount) {
+            return false;
+        }
+
+        if (filled($roomTypeRequirement) && (string) $room->room_type !== (string) $roomTypeRequirement) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

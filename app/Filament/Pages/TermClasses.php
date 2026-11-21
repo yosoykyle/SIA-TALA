@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Actions\Scheduling\ConfirmClassOffering;
+use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\PrepareClassOffering;
 use App\Actions\Scheduling\SectionPlanningService;
 use App\Actions\Scheduling\TermCoverageProjection;
@@ -10,8 +11,13 @@ use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\Sections\Schemas\SectionForm;
 use App\Filament\Resources\Sections\Schemas\SectionInfolist;
 use App\Filament\Resources\Sections\SectionResource;
+use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\Room;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
@@ -24,12 +30,16 @@ use App\Support\SafeUserNotification;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\CreateAction;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
@@ -41,6 +51,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -126,8 +138,9 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 ->columns([
                     TextColumn::make('reference')->label('Student section')->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $identity): Builder => $identity
                         ->where('reference', 'like', '%'.$search.'%')
-                        ->orWhereHas('program', fn (Builder $program): Builder => $program->where('name', 'like', '%'.$search.'%'))))->sortable()->weight('semibold')->wrap()
-                        ->description(fn (TermCohort $record): string => collect([$record->program->name, $record->curriculumVersion?->version_code ?? 'Curriculum not associated', $record->year_level])->filter()->implode(' · ')),
+                        ->orWhereHas('program', fn (Builder $program): Builder => $program->where('name', 'like', '%'.$search.'%'))))->sortable()->weight('semibold')
+                        ->formatStateUsing(fn (string $state): HtmlString => new HtmlString('<span class="inline-block whitespace-nowrap">'.e($state).'</span>'))
+                        ->description(fn (TermCohort $record): string => collect([$record->program->name, $record->curriculumVersion?->name ?: ($record->curriculumVersion?->version_code ?? 'Curriculum not associated'), $record->year_level])->filter()->implode(' · ')),
                     TextColumn::make('expected_learners')->label('Learners')->state(fn (TermCohort $record): string => match (true) {
                         $record->confirmed_count !== null => $record->confirmed_count.' confirmed',
                         $record->forecast_count !== null => $record->forecast_count.' forecast',
@@ -166,15 +179,20 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->orWhereHas('courseRevision', fn (Builder $course): Builder => $course->where('title', 'like', '%'.$search.'%'))
                     ->orWhereHas('termOffering.curriculumEntry.courseSpecification', fn (Builder $course): Builder => $course->where('title', 'like', '%'.$search.'%'))))->sortable()->weight('bold')
                     ->formatStateUsing(fn (string $state, Section $record): string => ($record->courseRevision?->title ?? $record->termOffering?->curriculumEntry?->courseSpecification?->title) ?: $state)
+                    ->description(fn (Section $record): string => $this->roomRequirementSummary($record))
                     ->wrap(),
                 TextColumn::make('source_code')->label('Class code')->state(fn (Section $record): string => $record->code)->wrap()->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('termOffering.curriculumEntry.curriculumVersion.program.code')->label('Curriculum origin')
                     ->description(fn (Section $record): string => (string) $record->termOffering?->curriculumEntry?->year_level)->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('cohorts.reference')->label('Student sections')->listWithLineBreaks()->placeholder('No sections linked')
-                    ->description(fn (Section $record): string => collect([$record->termOffering?->curriculumEntry?->year_level, $record->cohorts->isEmpty() ? null : $record->cohorts->sum(fn ($cohort): int => (int) $cohort->pivot->expected_count).' learners'])->filter()->implode(' · '))->wrap(),
+                    ->formatStateUsing(fn (string $state): HtmlString => new HtmlString('<span class="inline-block whitespace-nowrap">'.e($state).'</span>'))
+                    ->description(fn (Section $record): string => collect([$record->termOffering?->curriculumEntry?->year_level, $record->cohorts->isEmpty() ? null : $record->cohorts->sum(fn ($cohort): int => (int) $cohort->pivot->expected_count).' learners'])->filter()->implode(' · ')),
                 TextColumn::make('weekly_meetings')->label('Weekly meetings')
                     ->state(fn (Section $record): int => (int) $this->demands($record)->sum('meeting_count'))
-                    ->description(fn (Section $record): string => $this->demands($record)->map(fn (SchedulingDemand $demand): string => $demand->meeting_count.' × '.$demand->required_duration_minutes.' min')->unique()->implode(' · '))->toggleable(isToggledHiddenByDefault: true),
+                    ->description(fn (Section $record): string => collect([
+                        $this->demands($record)->map(fn (SchedulingDemand $demand): string => $demand->meeting_count.' × '.$demand->required_duration_minutes.' min')->unique()->implode(' · '),
+                        $this->roomRequirementSummary($record),
+                    ])->filter()->implode(' · '))->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('teacher_options')->label('Teacher options')
                     ->state(function (Section $record): string {
                         $course = $record->courseRevision?->course?->code ?? $record->termOffering?->curriculumEntry?->courseSpecification?->course?->code;
@@ -185,21 +203,29 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
                         return $count ? $count.' qualified' : 'No qualified teacher';
                     })->tooltip('Generation chooses among eligible teachers using availability and load checks. Grading assignment is separate.')->toggleable(isToggledHiddenByDefault: true)->wrap(),
-                TextColumn::make('state')->label('Class lifecycle')->badge()->formatStateUsing(fn (string $state): string => Section::stateOptions()[$state] ?? $state)->color('gray')->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('state')->label('Class lifecycle')->badge()
+                    ->formatStateUsing(fn (string $state): string => Section::stateOptions()[$state] ?? $state)
+                    ->color(fn (string $state): string => match ($state) {
+                        Section::StateOpen => 'success',
+                        Section::StatePlanned => 'info',
+                        Section::StateCancelled => 'danger',
+                        Section::StateClosed => 'gray',
+                        default => 'gray',
+                    })->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('preparation')->label('Status')->state(fn (Section $record): string => $this->preparation($record))
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'Needs active calendar source' => 'Needs preparation',
-                        'Needs confirmation' => 'Confirm learners',
                         'Confirmed; requirements recorded' => 'Confirmed',
                         default => $state,
                     })->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'Confirmed; requirements recorded' => 'success',
+                        'Review recorded findings', 'Needs active course revision' => 'danger',
                         'Outside generation' => 'gray',
                         default => 'warning',
-                    })->tooltip(fn (Section $record): string => collect([$this->preparation($record)])
-                    ->merge($this->demands($record)->flatMap(fn (SchedulingDemand $demand): array => $demand->readinessFindings())->pluck('message'))
-                    ->unique()->implode(' · '))->wrap(),
+                    })
+                    ->description(fn (Section $record): ?string => $this->inlineFindingsDescription($record))
+                    ->wrap(),
             ])
             ->filters([
                 SelectFilter::make('program')->label('Program')->searchable()->options(fn (): array => Program::query()->orderBy('name')->get()->mapWithKeys(fn (Program $program): array => [$program->id => $program->name.' ('.$program->code.')'])->all())
@@ -307,6 +333,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->visible(fn (Section $record): bool => $this->canPrepareClass($record) && $this->preparation($record) === 'Needs active calendar source'),
                 $this->confirmClassAction()->label('Confirm learners')->icon('heroicon-o-check')->button()
                     ->visible(fn (Section $record): bool => $this->canPrepareClass($record) && $this->preparation($record) !== 'Needs active calendar source'),
+                $this->editClassAction(),
                 $this->classDetailsAction('viewClass')->label('Details')->icon('heroicon-o-eye')->button()->color('gray'),
             ])->recordActionsColumnLabel('Actions')->defaultSort('code')
             ->emptyState(view('filament.partials.collection-empty-state'))
@@ -365,12 +392,589 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->modalSubmitAction(false)->modalCancelActionLabel('Close');
     }
 
+    public function confirmClassAction(): Action
+    {
+        return parent::confirmClassAction()
+            ->action(function (array $data, Schema $schema): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $counts = collect($data['cohorts'])->mapWithKeys(fn (array $row): array => [(int) $row['term_cohort_id'] => (int) $row['expected_count']])->all();
+
+                try {
+                    app(ConfirmClassOffering::class)->execute(
+                        Section::query()->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $this->termId))->findOrFail((int) $data['section_id']),
+                        $actor,
+                        $counts,
+                        $data['additional_authority_reference'] ?? null,
+                    );
+                } catch (ValidationException $exception) {
+                    $firstMessage = collect($exception->errors())->flatten()->first();
+                    Notification::make()
+                        ->title('Cannot confirm class')
+                        ->body(is_string($firstMessage) ? $firstMessage : 'Review the learner counts and class setup, then try again.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw ValidationException::withMessages(
+                        collect($exception->errors())->mapWithKeys(fn (array $messages, string $field): array => [$schema->getStatePath().'.'.$field => $messages])->all(),
+                    );
+                }
+
+                $this->classViewData = null;
+                $this->coverageScope = null;
+                Notification::make()->title('Class confirmed')->success()->send();
+            });
+    }
+
+    public function editClassAction(): Action
+    {
+        return Action::make('editClass')
+            ->label('Edit')
+            ->icon('heroicon-o-pencil-square')
+            ->button()
+            ->color('gray')
+            ->modalHeading('Edit class & room requirements')
+            ->modalDescription('Update capacity, delivery mode, linked student sections, or room type overrides before the timetable is published. Saving automatically refreshes scheduling requirements.')
+            ->modalSubmitActionLabel('Save changes')
+            ->modalCancelActionLabel('Cancel')
+            ->modalWidth(Width::ThreeExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->visible(fn (Section $record): bool => $this->canEditClass($record))
+            ->fillForm(function (Section $record): array {
+                $record->loadMissing([
+                    'termOffering.curriculumEntry.curriculumVersion',
+                    'termOffering.curriculumEntry.courseSpecification.components',
+                    'courseRevision.components',
+                    'cohorts',
+                    'deliveryGroups',
+                ]);
+
+                $offering = $record->termOffering;
+                $spec = $record->courseRevision ?? $offering?->courseSpecification();
+                $components = $spec?->components ?? collect();
+                $lectureComponent = $components->firstWhere('component_type', CourseComponent::TypeLecture);
+                $labComponent = $components->firstWhere('component_type', CourseComponent::TypeLaboratory);
+
+                return [
+                    'capacity' => (int) $record->capacity,
+                    'delivery_mode' => $record->delivery_mode ?: $offering?->modality ?: TermOffering::ModalityFaceToFace,
+                    'lecture_room_type' => $lectureComponent instanceof CourseComponent
+                        ? GenerateSchedulingDemand::resolveRoomType($offering?->room_type_override, $lectureComponent)
+                        : null,
+                    'laboratory_room_type' => $labComponent instanceof CourseComponent
+                        ? GenerateSchedulingDemand::resolveRoomType($offering?->room_type_override, $labComponent)
+                        : null,
+                    'room_type_override' => $offering?->room_type_override,
+                    'sync_latest_curriculum' => $this->hasNewerActiveCurriculumOrSubject($record),
+                    'cohorts' => $record->cohorts->map(fn (TermCohort $cohort): array => [
+                        'term_cohort_id' => $cohort->id,
+                        'expected_count' => (int) $cohort->pivot->expected_count,
+                    ])->values()->all(),
+                ];
+            })
+            ->schema(fn (Section $record): array => [
+                Grid::make(['default' => 1, 'md' => 2])->schema([
+                    TextInput::make('capacity')
+                        ->label('Approved capacity')
+                        ->numeric()
+                        ->integer()
+                        ->minValue(1)
+                        ->required(),
+                    Select::make('delivery_mode')
+                        ->label('Delivery mode')
+                        ->options(TermOffering::modalityOptions())
+                        ->required()
+                        ->live(),
+                ]),
+                Grid::make(['default' => 1, 'md' => 2])
+                    ->visible(fn (Get $get): bool => $get('delivery_mode') === TermOffering::ModalityFaceToFace)
+                    ->schema([
+                        Select::make('lecture_room_type')
+                            ->label('Lecture room requirement')
+                            ->options(CourseComponent::roomTypeOptions())
+                            ->placeholder('Use subject default')
+                            ->visible(fn (): bool => $this->hasComponentType($record, CourseComponent::TypeLecture)),
+                        Select::make('laboratory_room_type')
+                            ->label('Laboratory room requirement')
+                            ->options(CourseComponent::roomTypeOptions())
+                            ->placeholder('Use subject default')
+                            ->visible(fn (): bool => $this->hasComponentType($record, CourseComponent::TypeLaboratory)),
+                        Select::make('room_type_override')
+                            ->label('Room type requirement')
+                            ->options(CourseComponent::roomTypeOptions())
+                            ->placeholder('Use subject default')
+                            ->visible(fn (): bool => ! $this->hasComponentType($record, CourseComponent::TypeLecture) && ! $this->hasComponentType($record, CourseComponent::TypeLaboratory)),
+                    ]),
+                Hidden::make('room_type_override')
+                    ->dehydrated()
+                    ->visible(fn (Get $get): bool => $get('delivery_mode') !== TermOffering::ModalityFaceToFace
+                        || $this->hasComponentType($record, CourseComponent::TypeLecture)
+                        || $this->hasComponentType($record, CourseComponent::TypeLaboratory)),
+                Checkbox::make('sync_latest_curriculum')
+                    ->label('Sync latest active subject & curriculum')
+                    ->helperText('Re-points this class to the program’s current active curriculum version and active subject revision before refreshing schedule requirements.'),
+                Repeater::make('cohorts')
+                    ->label('Linked student sections')
+                    ->schema([
+                        Select::make('term_cohort_id')
+                            ->label('Student section')
+                            ->options(fn (): array => TermCohort::query()->where('term_id', $this->termId)->orderBy('reference')->pluck('reference', 'id')->all())
+                            ->searchable()
+                            ->required()
+                            ->distinct(),
+                        TextInput::make('expected_count')
+                            ->label('Learners in this class')
+                            ->numeric()
+                            ->integer()
+                            ->minValue(1)
+                            ->required(),
+                    ])
+                    ->columns(2)
+                    ->addActionLabel('Link a student section')
+                    ->defaultItems(0),
+            ])
+            ->action(function (Section $record, array $data, Schema $schema): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                Gate::forUser($actor)->authorize('update', $record);
+
+                try {
+                    $summary = DB::transaction(function () use ($actor, $record, $data): array {
+                        $term = Term::query()->whereKey($this->termId)->lockForUpdate()->firstOrFail();
+
+                        if ($term->state === Term::StateClosed) {
+                            throw ValidationException::withMessages(['capacity' => 'Closed Terms cannot be edited.']);
+                        }
+
+                        $section = Section::query()
+                            ->with(['termOffering.curriculumEntry.curriculumVersion', 'termOffering.curriculumEntry.courseSpecification.components', 'courseRevision.components', 'cohorts', 'deliveryGroups'])
+                            ->lockForUpdate()
+                            ->findOrFail($record->id);
+
+                        if (in_array($section->state, [Section::StateClosed, Section::StateCancelled], true)
+                            || PublishedTimetableMeeting::query()->where('section_id', $section->id)->exists()) {
+                            throw ValidationException::withMessages(['capacity' => 'Only unpublished, active classes can be edited here. Published classes require a controlled timetable revision.']);
+                        }
+
+                        $offering = TermOffering::query()
+                            ->with(['curriculumEntry.curriculumVersion', 'curriculumEntry.courseSpecification.components'])
+                            ->lockForUpdate()
+                            ->findOrFail($section->term_offering_id);
+
+                        $capacity = (int) ($data['capacity'] ?? 0);
+                        $deliveryMode = (string) ($data['delivery_mode'] ?? TermOffering::ModalityFaceToFace);
+
+                        if ($capacity < 1) {
+                            throw ValidationException::withMessages(['capacity' => 'Approved capacity must be at least 1.']);
+                        }
+
+                        if (! array_key_exists($deliveryMode, TermOffering::modalityOptions())) {
+                            throw ValidationException::withMessages(['delivery_mode' => 'Choose a valid delivery mode.']);
+                        }
+
+                        $cohortRows = is_array($data['cohorts'] ?? null) ? array_values($data['cohorts']) : [];
+                        $cohortCounts = [];
+
+                        foreach ($cohortRows as $cohortRow) {
+                            $cohortId = (int) ($cohortRow['term_cohort_id'] ?? 0);
+                            $count = (int) ($cohortRow['expected_count'] ?? 0);
+
+                            if ($cohortId < 1 || $count < 1) {
+                                throw ValidationException::withMessages(['cohorts' => 'Each linked student section requires at least 1 learner.']);
+                            }
+
+                            $cohortCounts[$cohortId] = $count;
+                        }
+
+                        if ($cohortCounts !== []) {
+                            $cohorts = TermCohort::query()
+                                ->where('term_id', $term->id)
+                                ->whereKey(array_keys($cohortCounts))
+                                ->lockForUpdate()
+                                ->get()
+                                ->keyBy('id');
+
+                            if ($cohorts->count() !== count($cohortCounts)) {
+                                throw ValidationException::withMessages(['cohorts' => 'Every linked student section must belong to this exact Term.']);
+                            }
+
+                            foreach ($cohortCounts as $cohortId => $count) {
+                                $cohort = $cohorts->get($cohortId);
+
+                                if ($cohort instanceof TermCohort && $cohort->confirmed_count !== null && $count > (int) $cohort->confirmed_count) {
+                                    throw ValidationException::withMessages(['cohorts' => "Learner count for {$cohort->reference} ({$count}) exceeds its confirmed count ({$cohort->confirmed_count})."]);
+                                }
+                            }
+
+                            if (array_sum($cohortCounts) > $capacity) {
+                                throw ValidationException::withMessages(['capacity' => 'Total linked learner count ('.array_sum($cohortCounts).') exceeds approved class capacity ('.$capacity.').']);
+                            }
+                        } elseif ($section->confirmed_at !== null) {
+                            throw ValidationException::withMessages(['cohorts' => 'A confirmed class must keep at least one linked student section.']);
+                        }
+
+                        if ((bool) ($data['sync_latest_curriculum'] ?? false)) {
+                            $offering = $this->syncOfferingAndSectionToLatestActive($term, $offering, $section);
+                        }
+
+                        $spec = $section->courseRevision()->with('components')->first()
+                            ?? $offering->fresh(['curriculumEntry.courseSpecification.components'])?->courseSpecification();
+                        $components = $spec?->components ?? collect();
+                        $hasLecture = $components->contains(fn (CourseComponent $c): bool => $c->component_type === CourseComponent::TypeLecture);
+                        $hasLab = $components->contains(fn (CourseComponent $c): bool => $c->component_type === CourseComponent::TypeLaboratory);
+
+                        $lectureRoom = filled($data['lecture_room_type'] ?? null) ? trim((string) $data['lecture_room_type']) : null;
+                        $labRoom = filled($data['laboratory_room_type'] ?? null) ? trim((string) $data['laboratory_room_type']) : null;
+                        $rawOverride = filled($data['room_type_override'] ?? null) ? trim((string) $data['room_type_override']) : null;
+
+                        if ($deliveryMode !== TermOffering::ModalityFaceToFace) {
+                            $roomTypeOverride = null;
+                        } elseif ($hasLecture && $hasLab) {
+                            $overrideMap = array_filter([
+                                CourseComponent::TypeLecture => $lectureRoom,
+                                CourseComponent::TypeLaboratory => $labRoom,
+                            ], fn (?string $value): bool => $value !== null);
+
+                            if ($overrideMap !== []) {
+                                $roomTypeOverride = json_encode($overrideMap, JSON_THROW_ON_ERROR);
+                            } else {
+                                $roomTypeOverride = $rawOverride;
+                            }
+                        } elseif ($hasLecture) {
+                            $roomTypeOverride = $lectureRoom ?? $rawOverride;
+                        } elseif ($hasLab) {
+                            $roomTypeOverride = $labRoom ?? $rawOverride;
+                        } else {
+                            $roomTypeOverride = $lectureRoom ?? $labRoom ?? $rawOverride;
+                        }
+
+                        $expectedTotal = $cohortCounts !== []
+                            ? array_sum($cohortCounts)
+                            : max(1, (int) ($section->deliveryGroups->sum('expected_count') ?: $offering->expected_count ?: $capacity));
+
+                        $section->forceFill([
+                            'term_offering_id' => $offering->id,
+                            'capacity' => $capacity,
+                            'delivery_mode' => $deliveryMode,
+                        ])->save();
+
+                        $offering->forceFill([
+                            'modality' => $deliveryMode,
+                            'room_type_override' => $roomTypeOverride,
+                            'expected_count' => max((int) $offering->expected_count, $expectedTotal),
+                        ])->save();
+
+                        if ($cohortCounts !== []) {
+                            $section->cohorts()->sync(collect($cohortCounts)->mapWithKeys(
+                                fn (int $count, int $cohortId): array => [$cohortId => ['expected_count' => $count]],
+                            )->all());
+                        }
+
+                        $groups = $section->deliveryGroups()->whereNotIn('state', [SectionDeliveryGroup::StateClosed, SectionDeliveryGroup::StateCancelled])->get();
+
+                        if ($groups->isEmpty() && $section->confirmed_at !== null) {
+                            $section->deliveryGroups()->create([
+                                'name' => $section->class_reference ?: $section->code,
+                                'expected_count' => $expectedTotal,
+                                'modality' => $deliveryMode,
+                                'state' => SectionDeliveryGroup::StateReady,
+                            ]);
+                        } elseif ($groups->count() === 1) {
+                            $group = $groups->first();
+                            $group->forceFill([
+                                'expected_count' => $expectedTotal,
+                                'modality' => $deliveryMode,
+                                'state' => $section->confirmed_at !== null ? SectionDeliveryGroup::StateReady : $group->state,
+                            ])->save();
+                        } else {
+                            foreach ($groups as $group) {
+                                $group->forceFill([
+                                    'modality' => $deliveryMode,
+                                    'expected_count' => min((int) $group->expected_count, $capacity),
+                                ])->save();
+                            }
+                        }
+
+                        return app(GenerateSchedulingDemand::class)->forTerm($actor, $term);
+                    }, attempts: 5);
+                } catch (ValidationException $exception) {
+                    $firstMessage = collect($exception->errors())->flatten()->first();
+                    Notification::make()
+                        ->title('Cannot save class changes')
+                        ->body(is_string($firstMessage) ? $firstMessage : 'Review the class details and try again.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw ValidationException::withMessages(
+                        collect($exception->errors())->mapWithKeys(fn (array $messages, string $field): array => [$schema->getStatePath().'.'.$field => $messages])->all(),
+                    );
+                }
+
+                $this->classViewData = null;
+                $this->coverageScope = null;
+                Notification::make()
+                    ->title('Class and room requirements updated')
+                    ->body("Schedule requirements refreshed ({$summary['ready']} ready · {$summary['action_required']} needing attention).")
+                    ->success()
+                    ->send();
+            });
+    }
+
     private function classesQuery(): Builder
     {
         return Section::query()
+            ->select('sections.*')
+            ->addSelect([
+                'is_published' => PublishedTimetableMeeting::query()
+                    ->selectRaw('1')
+                    ->whereColumn('section_id', 'sections.id')
+                    ->limit(1),
+            ])
             ->where(fn (Builder $query) => $query->whereHas('calendarPackage', fn (Builder $package) => $package->where('term_id', $this->termId ?? 0))
                 ->orWhere(fn (Builder $legacy) => $legacy->whereNull('term_calendar_package_id')->whereHas('termOffering', fn (Builder $offering) => $offering->where('term_id', $this->termId ?? 0))))
-            ->with(['termOffering.curriculumEntry.curriculumVersion.program', 'termOffering.curriculumEntry.courseSpecification.course', 'courseRevision.course', 'cohorts', 'deliveryGroups.schedulingDemands.courseComponent', 'calendarPackage.teachingGridRows', 'calendarPackage.datedExceptions']);
+            ->with([
+                'termOffering.curriculumEntry.curriculumVersion.program',
+                'termOffering.curriculumEntry.courseSpecification.course',
+                'termOffering.curriculumEntry.courseSpecification.components',
+                'courseRevision.course',
+                'courseRevision.components',
+                'cohorts',
+                'deliveryGroups.schedulingDemands.courseComponent',
+                'calendarPackage.teachingGridRows',
+                'calendarPackage.datedExceptions',
+            ]);
+    }
+
+    private function canEditClass(Section $class): bool
+    {
+        if (! (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+            || ! (bool) auth()->user()?->can('update', $class)) {
+            return false;
+        }
+
+        if ($this->selectedTerm()?->state === Term::StateClosed
+            || in_array($class->state, [Section::StateClosed, Section::StateCancelled], true)) {
+            return false;
+        }
+
+        if ($class->getAttribute('is_published')) {
+            return false;
+        }
+
+        return ! PublishedTimetableMeeting::query()->where('section_id', $class->id)->exists();
+    }
+
+    private function hasComponentType(Section $class, string $componentType): bool
+    {
+        $spec = $class->courseRevision ?? $class->termOffering?->courseSpecification();
+        $components = $spec?->components ?? collect();
+
+        return $components->contains(fn (CourseComponent $component): bool => $component->component_type === $componentType);
+    }
+
+    private function hasNewerActiveCurriculumOrSubject(Section $class): bool
+    {
+        $offering = $class->termOffering;
+        $currentEntry = $offering?->curriculumEntry;
+        $currentSpec = $class->courseRevision ?? $currentEntry?->courseSpecification;
+        $courseId = $currentSpec?->course_id;
+        $programId = $currentEntry?->curriculumVersion?->program_id ?? $class->cohorts->first()?->program_id;
+
+        if (! $courseId) {
+            return false;
+        }
+
+        if ($currentSpec && $currentSpec->state !== CourseSpecification::StateActive) {
+            return CourseSpecification::query()
+                ->where('course_id', $courseId)
+                ->where('state', CourseSpecification::StateActive)
+                ->exists();
+        }
+
+        $latestActiveSpecId = CourseSpecification::query()
+            ->where('course_id', $courseId)
+            ->where('state', CourseSpecification::StateActive)
+            ->max('id');
+
+        if ($latestActiveSpecId && (int) $latestActiveSpecId !== (int) $currentSpec?->id) {
+            return true;
+        }
+
+        if ($programId && $currentEntry?->curriculumVersion?->state !== CurriculumVersion::StateActive) {
+            return CurriculumEntry::query()
+                ->whereHas('curriculumVersion', fn (Builder $q) => $q->where('program_id', $programId)->where('state', CurriculumVersion::StateActive))
+                ->whereHas('courseSpecification', fn (Builder $q) => $q->where('course_id', $courseId))
+                ->exists();
+        }
+
+        return false;
+    }
+
+    private function syncOfferingAndSectionToLatestActive(Term $term, TermOffering $offering, Section $section): TermOffering
+    {
+        $currentEntry = $offering->curriculumEntry;
+        $currentSpec = $section->courseRevision ?? $currentEntry?->courseSpecification;
+        $courseId = $currentSpec?->course_id;
+        $programId = $currentEntry?->curriculumVersion?->program_id ?? $section->cohorts->first()?->program_id;
+
+        if (! $courseId) {
+            return $offering;
+        }
+
+        $latestActiveSpec = CourseSpecification::query()
+            ->where('course_id', $courseId)
+            ->where('state', CourseSpecification::StateActive)
+            ->with('components')
+            ->latest('id')
+            ->first();
+
+        $latestActiveEntry = $programId
+            ? CurriculumEntry::query()
+                ->whereHas('curriculumVersion', fn (Builder $q) => $q->where('program_id', $programId)->where('state', CurriculumVersion::StateActive))
+                ->whereHas('courseSpecification', fn (Builder $q) => $q->where('course_id', $courseId))
+                ->with(['curriculumVersion', 'courseSpecification.components'])
+                ->orderByRaw('CASE WHEN term_type = ? THEN 0 ELSE 1 END', [$term->type])
+                ->latest('id')
+                ->first()
+            : null;
+
+        if ($latestActiveEntry instanceof CurriculumEntry) {
+            if ($latestActiveSpec instanceof CourseSpecification && (int) $latestActiveEntry->course_specification_id !== (int) $latestActiveSpec->id) {
+                $latestActiveEntry->update(['course_specification_id' => $latestActiveSpec->id]);
+            }
+
+            if ((int) $offering->curriculum_entry_id !== (int) $latestActiveEntry->id) {
+                $existingOffering = TermOffering::query()
+                    ->where('term_id', $term->id)
+                    ->where('curriculum_entry_id', $latestActiveEntry->id)
+                    ->where('delivery_variant', $offering->delivery_variant)
+                    ->whereKeyNot($offering->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existingOffering instanceof TermOffering) {
+                    $section->term_offering_id = $existingOffering->id;
+                    $offering = $existingOffering;
+                } else {
+                    $offering->update(['curriculum_entry_id' => $latestActiveEntry->id]);
+                }
+            }
+
+            foreach ($section->cohorts as $cohort) {
+                if ((int) $cohort->program_id === (int) $programId
+                    && (int) $cohort->curriculum_version_id !== (int) $latestActiveEntry->curriculum_version_id) {
+                    $cohort->update(['curriculum_version_id' => $latestActiveEntry->curriculum_version_id]);
+                }
+            }
+        } elseif ($latestActiveSpec instanceof CourseSpecification && $currentEntry instanceof CurriculumEntry) {
+            $currentEntry->update(['course_specification_id' => $latestActiveSpec->id]);
+        }
+
+        $targetSpecId = $latestActiveSpec?->id ?? $latestActiveEntry?->course_specification_id;
+
+        if ($targetSpecId !== null) {
+            $section->course_specification_id = $targetSpecId;
+        }
+
+        $activePackage = TermCalendarPackage::query()
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->first();
+
+        if ($activePackage instanceof TermCalendarPackage && $section->term_calendar_package_id !== $activePackage->id) {
+            $section->term_calendar_package_id = $activePackage->id;
+        }
+
+        $section->save();
+
+        $activeComponentIds = $latestActiveSpec?->components?->modelKeys()
+            ?? $latestActiveEntry?->courseSpecification?->components?->modelKeys()
+            ?? [];
+
+        if ($activeComponentIds !== []) {
+            SchedulingDemand::query()
+                ->where('term_offering_id', $offering->id)
+                ->whereNotIn('course_component_id', $activeComponentIds)
+                ->whereDoesntHave('sectionMeetings')
+                ->delete();
+        }
+
+        return $offering->fresh(['curriculumEntry.curriculumVersion', 'curriculumEntry.courseSpecification.components']);
+    }
+
+    private function roomRequirementSummary(Section $class): string
+    {
+        $modality = $class->delivery_mode ?: $class->termOffering?->modality;
+
+        if ($modality === TermOffering::ModalityOnline) {
+            return 'Online';
+        }
+
+        $offering = $class->termOffering;
+        $spec = $class->courseRevision ?? $offering?->courseSpecification();
+        $components = $spec?->components ?? collect();
+
+        if ($components->isEmpty()) {
+            $fallback = $offering?->room_type_override;
+
+            return filled($fallback) ? $this->roomTypeHumanLabel((string) $fallback) : 'Room type needed';
+        }
+
+        $labels = $components
+            ->sortBy(fn (CourseComponent $component): string => sprintf('%06d|%010d', (int) $component->sequence, (int) $component->id))
+            ->map(function (CourseComponent $component) use ($offering): string {
+                $resolved = GenerateSchedulingDemand::resolveRoomType($offering?->room_type_override, $component);
+
+                if (blank($resolved)) {
+                    return 'Room type needed';
+                }
+
+                return $this->roomTypeHumanLabel($resolved);
+            })
+            ->unique()
+            ->values()
+            ->all();
+
+        return implode(' + ', $labels);
+    }
+
+    private function roomTypeHumanLabel(string $roomType): string
+    {
+        return match (strtoupper(trim($roomType))) {
+            CourseComponent::RoomTypeLectureRoom, 'LECTURE' => 'Lecture room',
+            CourseComponent::RoomTypeComputerLaboratory => 'Computer lab',
+            CourseComponent::RoomTypeLaboratory => 'Laboratory',
+            Room::TypeSpecialRoom => 'Special room',
+            Room::TypeOnlineNoPhysicalRoom => 'Online',
+            default => Room::typeOptions()[$roomType] ?? CourseComponent::roomTypeOptions()[$roomType] ?? Str::headline(strtolower($roomType)),
+        };
+    }
+
+    private function inlineFindingsDescription(Section $class): ?string
+    {
+        $messages = $this->demands($class)
+            ->flatMap(fn (SchedulingDemand $demand): array => $demand->readinessFindings())
+            ->pluck('message')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($messages->isEmpty()) {
+            $state = $this->preparation($class);
+
+            return match ($state) {
+                'Needs active calendar source' => 'Needs active calendar source',
+                'Needs active course revision' => 'Course revision is inactive. Click Edit and sync the latest active subject.',
+                'Needs student sections' => 'Link at least one confirmed student section.',
+                'Needs meeting requirements' => 'Click Refresh meeting requirements or Edit to sync.',
+                default => null,
+            };
+        }
+
+        return $messages->implode(' · ');
     }
 
     private function classConfirmationSource(Section $section): string

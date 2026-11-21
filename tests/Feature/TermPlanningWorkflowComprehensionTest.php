@@ -120,20 +120,33 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         $chooser = Livewire::test(TermOverview::class);
 
         $chooser->assertSee($recentYear->label)
-            ->assertSee('4 Terms')
             ->assertSee($priorYear->label)
-            ->assertSee('3 Terms')
-            ->assertSee('Search by academic year or Term.')
-            ->assertSee('First Semester')
+            ->assertSee('All')
             ->assertSee('Active')
+            ->assertSee('Draft')
+            ->assertSee('Closed')
+            ->assertSee('First Semester')
             ->assertSeeHtml('<time datetime="2026-06-01">')
-            ->assertSee('Jun 1, 2026')
-            ->assertSee('Dec 31, 2026');
+            ->assertSee('Jun 1')
+            ->assertSee('Dec 31, 2026')
+            ->assertDontSee('Each Term covers the school’s programs and year levels.');
         foreach ($terms as $term) {
             $chooser->assertSee($term->label);
         }
         $chooser->assertSee('aria-label="Open Term: Term 7"', false)
             ->assertSeeHtml('href="'.e(TermOverview::getUrl(['termId' => $terms->last()->id])).'"');
+
+        $chooser->call('setTermStateFilter', Term::StateActive)
+            ->assertSee('Term 1')
+            ->assertDontSee('Term 7');
+        $chooser->call('setTermStateFilter', 'all')
+            ->set('termAcademicYear', (string) $priorYear->id)
+            ->assertSee('Term 5')
+            ->assertDontSee('Term 1');
+        $chooser->call('clearTermFilters')
+            ->set('termSearch', 'Term 7')
+            ->assertSee('Term 7')
+            ->assertDontSee('Term 1');
     }
 
     public function test_empty_term_chooser_keeps_academic_head_read_only_and_points_to_registrar(): void
@@ -208,7 +221,9 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         [$registrar, $term, $prefix] = $this->scenario();
         $this->actingAs($registrar);
         $overview = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
-            ->assertSee('Programs and year levels')->assertSee('School-wide · All programs and year levels');
+            ->assertSee('Programs and year levels')
+            ->assertDontSee('School-wide · All programs and year levels')
+            ->assertDontSee('Term details');
         $this->assertSame(3, $overview->instance()->coverage()['summary']['class_count']);
         $this->assertSame(3, $overview->viewData('sourceClasses')->whereNotNull('confirmed_at')->count());
         Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
@@ -235,10 +250,11 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
             ->update(['state' => TermCalendarPackage::StateClosed]);
 
         Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
-            ->assertSeeInOrder(['Classes & student sections', 'Review and confirm classes', 'Faculty & rooms', 'Teaching calendar', 'Set teaching calendar', 'Timetable'])
+            ->assertSeeInOrder(['1. Teaching calendar & load', '2. Student sections & classes', '3. Faculty & rooms', '4. Generate & publish timetable'])
             ->assertSee('Candidate under review')
             ->assertSee('Official timetable')
             ->assertSee('stays in use')
+            ->assertDontSee('Prepare this term')
             ->assertDontSee('Next task:')
             ->assertDontSee('Other work and replies');
     }
@@ -327,7 +343,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         $this->actingAs($registrar);
         FacultyAvailabilityDeclaration::query()->where('term_id', $term->id)->delete();
         Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
-            ->assertSee('Not requested')->assertDontSee('Awaiting response')->assertDontSee('Responded ·');
+            ->assertSee('No response')->assertSee('Not sent')->assertDontSee('Responded ·');
         $head = User::factory()->create();
         Role::findOrCreate(User::StaffRoleAcademicHead, 'web');
         $head->assignRole(User::StaffRoleAcademicHead);

@@ -1,61 +1,365 @@
 <x-filament-panels::page>
-    <x-filament-actions::modals />
     <div class="tala-faculty-workflow space-y-4">
         @if (! $term)
-            @include('filament.components.faculty-term-context', ['emptyHeading' => 'Choose a Term to view your availability', 'emptyDescription' => 'Select an Academic Year and Term to see its request and your response.'])
+            @include('filament.components.faculty-term-context', [
+                'emptyHeading' => 'Choose a Term to view your availability',
+                'emptyDescription' => 'Select an Academic Year and Term to view school teaching hours and record your availability.',
+            ])
         @else
-        <div class="tala-faculty-work-header">@include('filament.components.faculty-term-context')
-        </div>
-        <section class="tala-availability-answer tala-task-work" aria-label="Current availability">
-            <div class="tala-task-heading"><div>
-                @if ($currentDeclaration)
-                    <h2>{{ $currentDeclaration->declaration === \App\Models\FacultyAvailabilityDeclaration::DeclarationAvailable ? 'Can teach this Term' : 'Cannot teach this Term' }}</h2>
-                    <p>Recorded {{ \App\Support\DisplayDateTime::format($currentDeclaration->declared_at) }} · Asia/Manila</p>
-                @elseif ($availabilityRequested)
-                    <h2>Your availability is requested</h2>
-                    <p>Tell the Registrar whether you can teach and add any weekly times you cannot teach.</p>
-                @else
-                    <h2>No availability request for this Term</h2>
-                    <p>Ask the Registrar to send an availability request.</p>
-                @endif
-                @if ($availabilityRequested || $currentDeclaration)
-                    <p class="tala-availability-due"><strong>Response due:</strong> {{ $availabilityDueAt?->timezone(config('app.display_timezone'))->format('M j, Y g:i A') ?? 'Unavailable — contact the Registrar' }} · Asia/Manila</p>
-                @endif
-            </div>@if ($availabilityRequested || $currentDeclaration){{ $this->declareAvailabilityAction }}@endif</div>
-            @if ($currentDeclaration)
-                @if ($currentDeclaration->declaration === \App\Models\FacultyAvailabilityDeclaration::DeclarationAvailable)
-                    <div class="tala-availability-weekly">
-                        <h3>Weekly unavailable times</h3>
-                        @if ($currentDeclaration->hard_unavailability === [])
-                            <p>No recurring restrictions recorded.</p>
-                        @else
-                            <ul>
-                                @foreach ($weeklyUnavailableTimes as $interval)
-                                    <li><strong>{{ $interval['day'] }}</strong><span>{{ $interval['time'] }}</span></li>
-                                @endforeach
-                            </ul>
+            @include('filament.components.faculty-term-context', [
+                'scopePill' => $scopePill,
+            ])
+
+            @if ($needsGridReview)
+                <section class="tala-warning-banner" role="status" aria-labelledby="faculty-grid-review-heading">
+                    <h2 id="faculty-grid-review-heading" class="flex items-center gap-2 text-sm font-semibold">
+                        <x-filament::icon icon="heroicon-o-exclamation-triangle" class="h-5 w-5" aria-hidden="true" />
+                        <span>School teaching hours changed</span>
+                    </h2>
+                    <p class="text-sm">
+                        Adjust the highlighted days below to match the updated school hours.
+                    </p>
+                </section>
+            @endif
+
+            @if ($hasPublishedImpact)
+                <section class="tala-warning-banner" role="status" aria-labelledby="faculty-official-impact-heading">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div class="space-y-1">
+                            <h2 id="faculty-official-impact-heading" class="flex items-center gap-2 text-sm font-semibold">
+                                <x-filament::icon icon="heroicon-o-exclamation-triangle" class="h-5 w-5" aria-hidden="true" />
+                                <span>Some current classes conflict with your updated availability</span>
+                            </h2>
+                            <p class="text-sm">
+                                Continue teaching these classes until the Registrar publishes an updated schedule.
+                            </p>
+                        </div>
+                        <x-filament::button tag="a" color="gray" size="sm" :href="\App\Filament\Pages\FacultySchedule::getUrl(['termId' => $term->id])">
+                            View my schedule
+                        </x-filament::button>
+                    </div>
+                    @if ($lateImpactMeetings !== [])
+                        <ul class="tala-faculty-affected-list mt-1">
+                            @foreach ($lateImpactMeetings as $meeting)
+                                <li class="tala-faculty-affected-row">
+                                    <div class="tala-faculty-affected-row__main">
+                                        <strong>{{ collect([$meeting['course_code'] ?? null, $meeting['course_title'] ?? null, $meeting['section_code'] ?? null])->filter()->implode(' · ') ?: 'Official class' }}</strong>
+                                        <span class="tabular-nums">{{ $meeting['day_label'] }} · {{ $meeting['time_label'] }}</span>
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </section>
+            @endif
+
+            @if (! $hasActiveCoreCalendar && ! $currentDeclaration)
+                <x-servitech-empty-state
+                    illustrated
+                    heading="Teaching calendar is not active yet"
+                    description="Availability opens as soon as the Registrar activates the teaching calendar for this Term."
+                />
+            @else
+                <section class="tala-task-surface tala-availability-card" aria-labelledby="faculty-availability-status-heading">
+                    <div class="tala-availability-card__body">
+                        <header class="tala-availability-header">
+                            <div class="tala-availability-header__main">
+                                <h2 id="faculty-availability-status-heading">{{ $statusHeading }}</h2>
+                                @if ($currentDeclaration)
+                                    <p class="tala-availability-header__meta tabular-nums">
+                                        {{ $currentDeclaration->version === 1 ? 'Submitted' : 'Updated (v'.$currentDeclaration->version.')' }}
+                                        {{ \App\Support\DisplayDateTime::format($currentDeclaration->declared_at) }} · Asia/Manila
+                                    </p>
+                                @else
+                                    <p class="tala-availability-header__meta">
+                                        Choose how you can teach this Term. Times are in Asia/Manila.
+                                    </p>
+                                @endif
+                            </div>
+                            @if ($weeklyHoursSummary)
+                                <p class="tala-availability-hours-pill tabular-nums" role="status" aria-live="polite">
+                                    {{ $weeklyHoursSummary }}
+                                </p>
+                            @endif
+                        </header>
+
+                        @if ($groupedApprovedHours !== [])
+                            <div class="tala-context-inset tala-availability-school-hours">
+                                <div class="tala-availability-school-hours__row">
+                                    <strong>School teaching hours:</strong>
+                                    <span class="tabular-nums">{{ implode(' · ', $groupedApprovedHours) }}</span>
+                                </div>
+                                <p class="tala-availability-school-hours__note">
+                                    Mandatory breaks are never scheduled even if your selected range spans a break.
+                                </p>
+                            </div>
+                        @endif
+
+                        @if ($effectiveMode === \App\Models\FacultyAvailabilityDeclaration::ModeLegacyUnavailability)
+                            <div class="tala-context-inset space-y-2">
+                                <h3 class="text-sm font-semibold">Recorded unavailable times</h3>
+                                <p class="text-sm" style="color: var(--tala-muted);">
+                                    Recorded under the earlier unavailable-times format. Choose one of the availability options below to save an update.
+                                </p>
+                                @if ($legacyUnavailableTimes->isEmpty())
+                                    <p class="text-sm">No recurring unavailable times recorded.</p>
+                                @else
+                                    <ul class="tala-availability-legacy-list tabular-nums">
+                                        @foreach ($legacyUnavailableTimes as $interval)
+                                            <li><strong>{{ $interval['day'] }}</strong> <span>{{ $interval['time'] }}</span></li>
+                                        @endforeach
+                                    </ul>
+                                @endif
+                            </div>
+                        @endif
+
+                        @if ($hasActiveCoreCalendar)
+                            <form wire:submit="saveAvailability" class="tala-availability-form" novalidate>
+                                <fieldset class="tala-availability-fieldset">
+                                    <legend class="tala-availability-fieldset__legend">How can you teach this Term?</legend>
+                                    <div class="tala-choice-options fi-fo-radio tala-availability-modes">
+                                        <label class="fi-fo-radio-label">
+                                            <input
+                                                type="radio"
+                                                name="availability_mode"
+                                                value="{{ \App\Models\FacultyAvailabilityDeclaration::ModeWindows }}"
+                                                wire:model.live="availabilityMode"
+                                                class="fi-radio-input"
+                                            />
+                                            <span class="fi-fo-radio-label-text">
+                                                <p>Specific weekly times</p>
+                                                <p class="fi-fo-radio-label-description">Pick the days and time ranges you can teach.</p>
+                                            </span>
+                                        </label>
+
+                                        <label class="fi-fo-radio-label">
+                                            <input
+                                                type="radio"
+                                                name="availability_mode"
+                                                value="{{ \App\Models\FacultyAvailabilityDeclaration::ModeAnyApproved }}"
+                                                wire:model.live="availabilityMode"
+                                                class="fi-radio-input"
+                                            />
+                                            <span class="fi-fo-radio-label-text">
+                                                <p>Any school teaching time</p>
+                                                <p class="fi-fo-radio-label-description">Available across all approved hours; follows grid updates automatically.</p>
+                                            </span>
+                                        </label>
+
+                                        <label class="fi-fo-radio-label">
+                                            <input
+                                                type="radio"
+                                                name="availability_mode"
+                                                value="{{ \App\Models\FacultyAvailabilityDeclaration::ModeCannotTeach }}"
+                                                wire:model.live="availabilityMode"
+                                                class="fi-radio-input"
+                                            />
+                                            <span class="fi-fo-radio-label-text">
+                                                <p>Unavailable this term</p>
+                                                <p class="fi-fo-radio-label-description">You will not be scheduled for any class this Term.</p>
+                                            </span>
+                                        </label>
+                                    </div>
+                                    @error('availabilityMode')
+                                        <p class="tala-availability-error" role="alert">{{ $message }}</p>
+                                    @enderror
+                                </fieldset>
+
+                                @if ($availabilityMode === \App\Models\FacultyAvailabilityDeclaration::ModeWindows)
+                                    <div class="tala-availability-days" aria-label="Weekly teaching times">
+                                        <div class="tala-availability-days__header">
+                                            <h3>Weekly teaching times</h3>
+                                            <span class="tala-availability-days__hint">Check the days you can teach and adjust hours as needed.</span>
+                                        </div>
+
+                                        <ul class="tala-availability-day-list">
+                                            @foreach ($editorDayRows as $row)
+                                                <li
+                                                    wire:key="availability-day-{{ $row['day_of_week'] }}"
+                                                    @class([
+                                                        'tala-availability-day-row',
+                                                        'is-enabled' => $row['is_enabled'],
+                                                        'is-outside-grid' => $row['has_warning'],
+                                                    ])
+                                                >
+                                                    <div class="tala-availability-day-row__identity">
+                                                        <label class="tala-availability-day-toggle">
+                                                            <input
+                                                                type="checkbox"
+                                                                wire:click="toggleDay({{ $row['day_of_week'] }})"
+                                                                @checked($row['is_enabled'])
+                                                                @disabled(! $row['is_approved_day'] && ! $row['is_enabled'])
+                                                            />
+                                                            <span class="tala-availability-day-toggle__name">{{ $row['day_label'] }}</span>
+                                                        </label>
+                                                        <div class="tala-availability-day-row__bounds tabular-nums">
+                                                            <span>{{ $row['hours_label'] }}</span>
+                                                            @if ($row['breaks_label'])
+                                                                <span>· {{ $row['breaks_label'] }}</span>
+                                                            @endif
+                                                        </div>
+                                                        @if ($row['has_warning'])
+                                                            <div class="tala-availability-day-row__warning">
+                                                                <x-filament::badge color="warning" size="sm">Outside approved hours</x-filament::badge>
+                                                                <span>{{ $row['warning_reason'] }}</span>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+
+                                                    <div class="tala-availability-day-row__controls">
+                                                        @if ($row['is_enabled'])
+                                                            <div class="tala-availability-ranges">
+                                                                @foreach ($row['ranges'] as $range)
+                                                                    <div
+                                                                        wire:key="availability-day-{{ $row['day_of_week'] }}-range-{{ $range['index'] }}"
+                                                                        class="tala-availability-range-row"
+                                                                    >
+                                                                        <label class="tala-availability-time-field">
+                                                                            <span class="sr-only">{{ $row['day_label'] }} start time {{ $range['index'] + 1 }}</span>
+                                                                            <select
+                                                                                wire:model.live="dayWindows.{{ $row['day_of_week'] }}.{{ $range['index'] }}.start_time"
+                                                                                class="fi-select-input tala-availability-select tabular-nums"
+                                                                            >
+                                                                                @foreach ($range['start_options'] as $value => $label)
+                                                                                    <option value="{{ $value }}">{{ $label }}</option>
+                                                                                @endforeach
+                                                                            </select>
+                                                                        </label>
+                                                                        <span class="tala-availability-range-sep" aria-hidden="true">–</span>
+                                                                        <label class="tala-availability-time-field">
+                                                                            <span class="sr-only">{{ $row['day_label'] }} end time {{ $range['index'] + 1 }}</span>
+                                                                            <select
+                                                                                wire:model.live="dayWindows.{{ $row['day_of_week'] }}.{{ $range['index'] }}.end_time"
+                                                                                class="fi-select-input tala-availability-select tabular-nums"
+                                                                            >
+                                                                                @foreach ($range['end_options'] as $value => $label)
+                                                                                    <option value="{{ $value }}">{{ $label }}</option>
+                                                                                @endforeach
+                                                                            </select>
+                                                                        </label>
+                                                                        @if (count($row['ranges']) > 1 || ! $row['is_approved_day'])
+                                                                            <button
+                                                                                type="button"
+                                                                                wire:click="removeDayRange({{ $row['day_of_week'] }}, {{ $range['index'] }})"
+                                                                                class="tala-availability-icon-btn"
+                                                                                aria-label="Remove time range for {{ $row['day_label'] }}"
+                                                                            >
+                                                                                <x-filament::icon icon="heroicon-o-x-mark" class="h-4 w-4" aria-hidden="true" />
+                                                                            </button>
+                                                                        @endif
+                                                                    </div>
+                                                                @endforeach
+                                                            </div>
+                                                            <div class="tala-availability-day-actions">
+                                                                @if ($row['is_approved_day'])
+                                                                    <button
+                                                                        type="button"
+                                                                        wire:click="addDayRange({{ $row['day_of_week'] }})"
+                                                                        class="tala-availability-inline-btn"
+                                                                    >
+                                                                        + Add time range
+                                                                    </button>
+                                                                @endif
+                                                                @if ($row['is_weekday'] && $canCopyToWeekdays)
+                                                                    <button
+                                                                        type="button"
+                                                                        wire:click="copyDayToWeekdays({{ $row['day_of_week'] }})"
+                                                                        class="tala-availability-inline-btn"
+                                                                    >
+                                                                        Copy to weekdays
+                                                                    </button>
+                                                                @endif
+                                                            </div>
+                                                        @else
+                                                            <span class="tala-availability-day-off">Not available</span>
+                                                        @endif
+                                                    </div>
+                                                </li>
+                                            @endforeach
+                                        </ul>
+
+                                        @error('teachingWindows')
+                                            <p class="tala-availability-error" role="alert">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+                                @endif
+
+                                @if ($hasDeclaration)
+                                    <div class="tala-availability-reason">
+                                        <label for="faculty-availability-reason">Reason for update</label>
+                                        <p id="faculty-availability-reason-help" class="tala-availability-reason__help">
+                                            Briefly explain what changed so the Registrar can review your update.
+                                        </p>
+                                        <textarea
+                                            id="faculty-availability-reason"
+                                            wire:model="correctionReason"
+                                            rows="2"
+                                            maxlength="2000"
+                                            aria-describedby="faculty-availability-reason-help"
+                                            class="tala-availability-textarea"
+                                            placeholder="Example: Moved afternoon consultation hours to Thursday."
+                                        ></textarea>
+                                        @error('correctionReason')
+                                            <p class="tala-availability-error" role="alert">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+                                @endif
+
+                                <footer class="tala-availability-footer">
+                                    <div class="tala-availability-footer__actions">
+                                        <x-filament::button type="button" color="gray" wire:click="cancelEdits">
+                                            Cancel
+                                        </x-filament::button>
+                                        <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="saveAvailability">
+                                            {{ $hasDeclaration ? 'Save update' : 'Save availability' }}
+                                        </x-filament::button>
+                                    </div>
+                                </footer>
+                            </form>
+                        @elseif ($currentDeclaration)
+                            @if ($effectiveMode === \App\Models\FacultyAvailabilityDeclaration::ModeWindows && $teachingWindows->isNotEmpty())
+                                <ul class="tala-availability-readonly-list tabular-nums">
+                                    @foreach ($teachingWindows as $window)
+                                        <li>
+                                            <strong>{{ $window['day'] }}</strong>
+                                            <span>{{ $window['time'] }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                            <p class="tala-work-footnote">
+                                This Term’s teaching calendar is not currently active. Updates open when the Registrar activates the teaching calendar.
+                            </p>
                         @endif
                     </div>
-                @else
-                    <p class="tala-availability-whole-term">Unavailable for the whole Term. Current official meetings remain unchanged until the Registrar publishes an updated schedule.</p>
-                @endif
+                </section>
             @endif
-            @if ($hasPublishedImpact)<p role="status" class="mt-3 text-sm"><strong>Official timetable review required.</strong> Your latest answer conflicts with a current assignment. Registrar must publish an updated schedule; current meetings remain official. <x-filament::link :href="\App\Filament\Pages\FacultySchedule::getUrl(['termId' => $term->id])">View official schedule</x-filament::link></p>@endif
-            @if ($availabilityRequested || $currentDeclaration)
-                <details class="mt-3 text-sm"><summary>Request details</summary>
-<div class="tala-planning-reveal"><p>{{ $availabilityDeadlineSource ?: 'Deadline source unavailable' }} · Registrar</p><p>Availability updates help the Registrar plan; current official meetings remain unchanged.</p>
-</div>
-</details>
+
+            @if ($declarations->isNotEmpty())
+                <x-record-history heading="Availability history" :has-entries="true" heading-tag="h2">
+                    @foreach ($declarations as $declaration)
+                        <x-record-history-item
+                            wire:key="availability-history-{{ $declaration->id }}"
+                            :heading="'Version '.$declaration->version.' · '.$this->stateHeading($declaration->effectiveMode())"
+                            :date="$declaration->declared_at"
+                            heading-tag="h3"
+                        >
+                            <p class="tabular-nums">{{ $this->availabilitySummary($declaration) }}</p>
+                            @if (filled($declaration->correction_reason))
+                                <p>Reason: {{ $declaration->correction_reason }}</p>
+                            @elseif ($declaration->version === 1)
+                                <p>Initial response</p>
+                            @endif
+                        </x-record-history-item>
+                    @endforeach
+                </x-record-history>
             @endif
-        </section>
-        @if ($hasDeclaration)
-            <details class="tala-availability-history"><summary>Availability history</summary>
-<div class="tala-planning-reveal">{{ $this->table }}@if ($hasHistoricalBlocks)<p class="mt-3 text-sm"><x-filament::link :href="$historicalBlocksUrl">Older unavailable-time records</x-filament::link></p>@endif
-</div>
-</details>
-        @elseif ($hasHistoricalBlocks)
-            <p><x-filament::link :href="$historicalBlocksUrl">Older unavailable-time records</x-filament::link></p>
-        @endif
+
+            @if ($hasHistoricalBlocks)
+                <p class="text-sm">
+                    <x-filament::link :href="$historicalBlocksUrl">Older unavailable-time records</x-filament::link>
+                </p>
+            @endif
         @endif
     </div>
 </x-filament-panels::page>

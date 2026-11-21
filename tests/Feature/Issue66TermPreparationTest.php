@@ -201,11 +201,11 @@ final class Issue66TermPreparationTest extends TestCase
         FacultyQualification::factory()->create(['faculty_user_id' => $faculty->id, 'course_id' => $entry->courseSpecification->course_id]);
         Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])
             ->assertDontSee($faculty->name)->filterTable('faculty_scope', 'all')
-            ->assertSee($faculty->name)->assertSee('Not requested')->assertDontSee('Awaiting response');
+            ->assertSee($faculty->name)->assertSee('No response')->assertSee('Not sent')->assertDontSee('Reminder sent');
         OperationalEvent::factory()->create(['event_type' => OperationalEvent::TypeFacultyAvailabilityRequestedEmail, 'related_record_type' => TermCalendarPackage::class,
             'related_record_id' => $term->calendarPackages()->where('state', 'Active')->value('id'), 'user_id' => $faculty->id,
             'status' => OperationalEvent::StatusProcessed, 'sent_at' => now()]);
-        Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])->assertSee('Awaiting response');
+        Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])->assertSee('No response')->assertSee('Reminder sent');
         Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id])->assertSee('Term class decisions')->assertSee('Add courses');
     }
 

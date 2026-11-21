@@ -1,5 +1,16 @@
 <x-filament-panels::page>
-    @assets<link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">@endassets
+    @assets
+        <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
+        <style>
+            .oversight-board.oversight-board--attention-first{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"attention attention" "calendar calendar" "enrollment grades" "authority authority" "lifecycle lifecycle";}
+            .oversight-board.oversight-board--attention-first .oversight-attention ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:1rem;}
+            .oversight-board.oversight-board--attention-first .oversight-attention li,.oversight-board.oversight-board--attention-first .oversight-attention li:first-child{border:1px solid var(--tala-edge);border-radius:.75rem;padding:1rem;}
+            .oversight-programs .oversight-program-badges{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;justify-content:flex-end;}
+            .oversight-programs .oversight-successor-note{display:block;font-size:.75rem;color:var(--tala-muted);margin-block-start:.25rem;}
+            @media(max-width:65rem){.oversight-board.oversight-board--attention-first{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"attention attention" "calendar calendar" "enrollment grades" "authority authority" "lifecycle lifecycle";}}
+            @media(max-width:40rem){.oversight-board.oversight-board--attention-first{grid-template-columns:minmax(0,1fr);grid-template-areas:"attention" "calendar" "enrollment" "grades" "authority" "lifecycle";}.oversight-board.oversight-board--attention-first .oversight-attention ul{grid-template-columns:minmax(0,1fr);}.oversight-programs .oversight-program-badges{justify-content:flex-start;}}
+        </style>
+    @endassets
     @if ($termId === null)
         <section class="oversight-welcome" aria-labelledby="oversight-welcome-title">
             <div class="oversight-welcome-main servitech-journey-scene">
@@ -24,7 +35,27 @@
             </div>
         </section>
     @else
-    <div class="oversight-board">
+    <div class="oversight-board oversight-board--attention-first">
+        <section class="oversight-panel oversight-attention tala-task-surface" aria-labelledby="oversight-attention-title">
+            <div class="oversight-panel-heading"><h2 id="oversight-attention-title">Attention</h2><span class="oversight-count">{{ count($attention) }}</span></div>
+            @if ($attention)
+                <ul>
+                    @foreach ($attention as $finding)
+                        <li>
+                            <span class="oversight-scope {{ $finding['scope'] === 'Institution-wide' ? 'oversight-scope-institution' : '' }}">{{ $finding['scope'] }}</span>
+                            <h3><a {{ \Filament\Support\generate_href_html($finding['url']) }} aria-label="Inspect source: {{ $finding['title'] }}">{{ $finding['title'] }} <span aria-hidden="true">→</span></a></h3>
+                            <p>{{ $finding['detail'] }}</p>
+                            <p class="oversight-finding-owner">Responsible: {{ $finding['owner'] }}</p>
+                        </li>
+                    @endforeach
+                </ul>
+            @else
+                <div class="oversight-no-findings">
+                    <x-servitech-empty-state illustrated heading="No findings recorded" description="Open a source below to inspect its current records." heading-tag="h3" />
+                </div>
+            @endif
+        </section>
+
         <section class="oversight-panel oversight-calendar tala-task-surface" aria-labelledby="oversight-calendar-title">
             <div class="oversight-panel-heading">
                 <h2 id="oversight-calendar-title">This term</h2>
@@ -119,36 +150,32 @@
                         @if ($gradeSummary['unknown'] > 0)<div><dt><i class="oversight-grade-unknown" aria-hidden="true"></i>Unclassified</dt><dd>{{ $gradeSummary['unknown'] }}</dd></div>@endif
                     </dl>
                 @else<p class="oversight-summary-note">No class rosters are recorded for this term.</p>@endif
-                <x-filament::button tag="a" color="gray" :href="$gradeSummary['url']" icon="heroicon-m-arrow-right" icon-position="after">Open class rosters</x-filament::button>
+                <x-filament::button tag="a" color="gray" :href="$gradeSummary['url']" icon="heroicon-m-arrow-right" icon-position="after">Class rosters</x-filament::button>
             @else<p class="oversight-unavailable"><strong aria-hidden="true">—</strong><span>Choose a term to see its class rosters.</span></p>@endif
-        </section>
-
-        <section class="oversight-panel oversight-attention tala-task-surface" aria-labelledby="oversight-attention-title">
-            <div class="oversight-panel-heading"><h2 id="oversight-attention-title">Attention</h2><span class="oversight-count">{{ count($attention) }}</span></div>
-            @if ($attention)
-                <ul>
-                    @foreach ($attention as $finding)
-                        <li>
-                            <span class="oversight-scope {{ $finding['scope'] === 'Institution-wide' ? 'oversight-scope-institution' : '' }}">{{ $finding['scope'] }}</span>
-                            <h3><a {{ \Filament\Support\generate_href_html($finding['url']) }} aria-label="Inspect source: {{ $finding['title'] }}">{{ $finding['title'] }} <span aria-hidden="true">→</span></a></h3>
-                            <p>{{ $finding['detail'] }}</p>
-                            <p class="oversight-finding-owner">Responsible: {{ $finding['owner'] }}</p>
-                        </li>
-                    @endforeach
-                </ul>
-            @else
-                <div class="oversight-no-findings">
-                    <x-servitech-empty-state illustrated heading="No findings recorded" description="Open a source below to inspect its current records." heading-tag="h3" />
-                </div>
-            @endif
         </section>
 
         <section class="oversight-panel oversight-authority tala-task-surface" aria-labelledby="oversight-authority-title">
             <div class="oversight-panel-heading"><div class="oversight-heading-scope"><h2 id="oversight-authority-title">Curricula</h2><span class="oversight-scope oversight-scope-institution">Institution-wide</span></div><a {{ \Filament\Support\generate_href_html(\App\Filament\Pages\CatalogCurriculaWorkbench::getUrl(['oversightTermId' => $termId])) }}>Catalog & Curricula <span aria-hidden="true">→</span></a></div>
             @if ($curriculumSummary['total'] > 0)
-                <div class="oversight-program-summary"><p><strong>{{ $curriculumSummary['ready'] }}</strong> of {{ $curriculumSummary['total'] }} {{ str('program')->plural($curriculumSummary['total']) }} with an active curriculum</p><div class="oversight-distribution oversight-program-distribution" aria-hidden="true">@if ($curriculumSummary['ready'] > 0)<span class="oversight-segment-official" style="flex-grow:{{ $curriculumSummary['ready'] }}"></span>@endif @if ($curriculumSummary['total'] > $curriculumSummary['ready'])<span class="oversight-segment-closed" style="flex-grow:{{ $curriculumSummary['total'] - $curriculumSummary['ready'] }}"></span>@endif</div></div>
+                <div class="oversight-program-summary"><p><strong>{{ $curriculumSummary['ready'] }}</strong> of {{ $curriculumSummary['total'] }} {{ str('program')->plural($curriculumSummary['total']) }} with an active curriculum @if (($curriculumSummary['successor_drafts'] ?? 0) > 0) · {{ $curriculumSummary['successor_drafts'] }} successor {{ str('draft')->plural($curriculumSummary['successor_drafts']) }} in progress @endif</p><div class="oversight-distribution oversight-program-distribution" aria-hidden="true">@if ($curriculumSummary['ready'] > 0)<span class="oversight-segment-official" style="flex-grow:{{ $curriculumSummary['ready'] }}"></span>@endif @if ($curriculumSummary['total'] > $curriculumSummary['ready'])<span class="oversight-segment-closed" style="flex-grow:{{ $curriculumSummary['total'] - $curriculumSummary['ready'] }}"></span>@endif</div></div>
                 <ul class="oversight-programs">
-                    @foreach ($authorityRows as $row)<li><div><a {{ \Filament\Support\generate_href_html($row['url']) }}>{{ $row['program']->name }}</a><small>{{ $row['program']->code }} · {{ $row['curriculum']?->name ?? 'No curriculum yet' }}</small></div><x-filament::badge :color="$row['readiness']['color']">{{ $row['readiness']['status'] }}</x-filament::badge></li>@endforeach
+                    @foreach ($authorityRows as $row)
+                        <li>
+                            <div>
+                                <a {{ \Filament\Support\generate_href_html($row['url']) }}>{{ $row['program']->name }}</a>
+                                <small>{{ $row['program']->code }} · {{ $row['curriculum']?->name ?? 'No curriculum yet' }}</small>
+                                @if ($row['successorDraft'] && $row['successorUrl'])
+                                    <span class="oversight-successor-note">Successor draft: <a {{ \Filament\Support\generate_href_html($row['successorUrl']) }}>{{ $row['successorDraft']->name }}</a> ({{ $row['successorReadiness']['status'] }})</span>
+                                @endif
+                            </div>
+                            <div class="oversight-program-badges">
+                                <x-filament::badge :color="$row['readiness']['color']">{{ $row['readiness']['status'] }}</x-filament::badge>
+                                @if ($row['successorReadiness'])
+                                    <x-filament::badge :color="$row['successorReadiness']['color']">Draft: {{ $row['successorReadiness']['status'] }}</x-filament::badge>
+                                @endif
+                            </div>
+                        </li>
+                    @endforeach
                 </ul>
             @else<p class="oversight-summary-note">No programs recorded yet.</p>@endif
         </section>
@@ -156,7 +183,7 @@
         <section class="oversight-panel oversight-lifecycle tala-task-surface" aria-labelledby="oversight-lifecycle-title">
             <div><h2 id="oversight-lifecycle-title">Lifecycle &amp; Completion</h2><p>Read-only records · these views use their own filters.</p></div>
             <nav aria-label="Lifecycle and academic record sources">
-                @foreach (collect($this->approvalAreas())->where('title', 'Lifecycle & Completion') as $area)<x-filament::button tag="a" color="gray" :href="$area['url']" icon="heroicon-o-document-text">{{ $area['action'] }}</x-filament::button>@endforeach
+                @foreach (collect($this->approvalAreas())->where('title', 'Lifecycle & Completion') as $area)<x-filament::button tag="a" color="gray" :href="$area['url']" :icon="$area['icon']">{{ $area['action'] }}</x-filament::button>@endforeach
                 @if (\App\Filament\Resources\StudentProfiles\StudentProfileResource::canAccess())<x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\StudentProfiles\StudentProfileResource::getUrl('index', ['oversightTermId' => $termId, 'viewTab' => 'academic-progress'])" icon="heroicon-o-user-group">Student academic records</x-filament::button>@endif
             </nav>
         </section>

@@ -77,37 +77,115 @@
 .tala-oversight-workflow { display:grid; gap:1.5rem; }
 .tala-oversight-findings { display:grid; gap:.75rem; margin-block-start:1rem; }
 .tala-faculty-work-header { display:grid; gap:.5rem; }
-.tala-availability-answer { padding-block:.5rem 1rem; border-block-end:1px solid var(--tala-edge); }
-.tala-availability-answer > p,.tala-availability-answer > details { margin-block-start:0; }
-.tala-availability-answer .tala-task-heading h2 { font-size:1.5rem; line-height:1.25; font-weight:600; }
-.tala-availability-eyebrow { color:var(--tala-muted); font-size:.8125rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
-.tala-availability-due { margin-block-start:1rem !important; }
-.tala-availability-weekly { display:grid; gap:.75rem; padding-block:1rem; }
-.tala-availability-weekly h3 { font-size:1rem; font-weight:600; }
-.tala-availability-weekly > p,.tala-availability-whole-term { color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
-.tala-availability-weekly ul { display:grid; grid-template-columns:repeat(auto-fit,minmax(12rem,1fr)); gap:.75rem; }
-.tala-availability-weekly li { display:grid; gap:.25rem; padding:var(--tala-card-pad-compact) var(--tala-card-pad); border:1px solid var(--tala-selected-edge); background:color-mix(in srgb, var(--tala-brand) 8%, var(--tala-surface-raised)); border-radius:var(--tala-card-radius); }
-.tala-availability-weekly li span { font-variant-numeric:tabular-nums; }
-.tala-availability-history { padding-block:1rem; }
-.tala-availability-history > summary { cursor:pointer; font-weight:600; min-block-size:2.75rem; }
-.tala-availability-history > summary:focus-visible { outline:2px solid var(--tala-focus); outline-offset:3px; }
-.tala-schedule-note { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:.35rem 1rem; font-size:.875rem; }
-.tala-schedule-note p { line-height:1.5; }
-.tala-schedule-note details { max-inline-size:75ch; color:var(--tala-muted); }
+.tala-faculty-scope-bar__row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem 1.25rem; inline-size:100%; }
+.tala-faculty-scope-bar__row > .tala-term-picker { flex:1 1 20rem; max-inline-size:32rem; min-inline-size:0; }
+.tala-faculty-scope-bar__row .fi-select-input { padding-inline-end:2.25rem; text-overflow:ellipsis; }
+.tala-faculty-scope-bar__pill { display:inline-flex; align-items:center; gap:.375rem; padding:.375rem .75rem; border:1px solid var(--tala-edge-strong); border-radius:999px; background:var(--tala-surface-sunken); color:var(--tala-text); font-size:.8125rem; font-weight:500; line-height:1.4; }
+.tala-faculty-scope-bar__pill > .fi-icon { flex:none; color:var(--tala-muted); }
+
+/* Affected-by-change compact rows inside warning banners */
+.tala-faculty-affected-list { display:grid; gap:.5rem; list-style:none; margin:0; padding:0; }
+.tala-faculty-affected-row { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.25rem 1rem; padding:.5rem .75rem; border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface); font-size:.875rem; line-height:1.45; }
+.tala-faculty-affected-row__main { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; min-inline-size:0; }
+.tala-faculty-affected-row__detail { color:var(--tala-muted); font-size:.8125rem; }
+
+/* My schedule: 4-cell sunken metric tray + unified schedule card */
 .tala-schedule-work { min-inline-size:0; }
-.tala-faculty-schedule-figures { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; padding-block:.75rem 1rem; border-block-end:1px solid var(--tala-edge); }
-.tala-faculty-schedule-figures > div { display:grid; gap:.15rem; padding-inline-start:1rem; border-inline-start:1px solid var(--tala-edge); }
-.tala-faculty-schedule-figures dt { color:var(--tala-muted); font-size:var(--tala-type-caption); }
-.tala-faculty-schedule-figures dd { color:var(--tala-text); font-size:var(--tala-type-value); font-weight:700; line-height:1.15; font-variant-numeric:tabular-nums; }
-.tala-faculty-no-meetings { display:grid; justify-items:start; gap:.65rem; padding-block:2.5rem; max-inline-size:42rem; }
-.tala-faculty-no-meetings > svg { inline-size:2.5rem; block-size:2.5rem; color:var(--tala-muted); }
-.tala-faculty-no-meetings h2 { font-size:1.25rem; font-weight:600; color:var(--tala-text); }
-.tala-faculty-no-meetings p { color:var(--tala-muted); line-height:1.5; }
-.tala-schedule-filter-notice { color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
-.tala-schedule-filter-notice button { color:var(--tala-link); text-decoration:underline; text-underline-offset:.2em; }
+.tala-faculty-schedule-figures { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) minmax(13rem,1.45fr); gap:0; margin:0; border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface-sunken); overflow:hidden; }
+.tala-faculty-schedule-figures > div { display:grid; align-content:start; gap:.2rem; padding:var(--tala-card-pad-compact) var(--tala-card-pad); min-inline-size:0; }
+.tala-faculty-schedule-figures > div + div { border-inline-start:1px solid var(--tala-edge); }
+.tala-faculty-schedule-figures dt { color:var(--tala-muted); font-size:var(--tala-type-caption); font-weight:500; }
+.tala-faculty-schedule-figures dd { margin:0; color:var(--tala-text); font-size:var(--tala-type-value); font-weight:700; line-height:1.2; font-variant-numeric:tabular-nums; }
+.tala-faculty-schedule-figures__exam dd { font-size:1.0625rem; font-weight:600; line-height:1.35; }
+.tala-faculty-schedule-figures__caption { color:var(--tala-muted); font-size:.75rem; line-height:1.4; }
+.tala-schedule-surface { overflow:hidden; box-shadow:var(--tala-material-raised); }
+.tala-schedule-surface .fi-ta-ctn { border:0; border-radius:0; box-shadow:none; background:transparent; }
+.tala-faculty-schedule-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem 1rem; padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-end:1px solid var(--tala-edge); background:var(--tala-surface-sunken); }
+.tala-faculty-schedule-bar .tala-navigation { margin:0; }
+.tala-faculty-schedule-bar__tz { margin:0; color:var(--tala-muted); font-size:.75rem; line-height:1.4; }
+.tala-schedule-filter-notice { margin:0; padding:.625rem var(--tala-card-pad); border-block-end:1px solid var(--tala-edge); background:var(--tala-surface); color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
+.tala-schedule-filter-notice button { margin-inline-start:.375rem; color:var(--tala-link); font-weight:600; text-decoration:underline; text-underline-offset:.2em; }
 .tala-schedule-filter-notice button:focus-visible { outline:2px solid var(--tala-focus); outline-offset:3px; }
-.tala-schedule-week .fi-ta-header-toolbar > div:last-child { display:none; }
-@media(max-width:40rem) { .tala-faculty-schedule-figures { gap:.5rem; } .tala-faculty-schedule-figures > div { padding-inline-start:.5rem; } .tala-faculty-schedule-figures dd { font-size:1.35rem; } }
+@media(max-width:52rem) {
+    .tala-faculty-schedule-figures { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .tala-faculty-schedule-figures__exam { grid-column:1 / -1; border-inline-start:0 !important; border-block-start:1px solid var(--tala-edge); }
+}
+@media(max-width:36rem) {
+    .tala-faculty-schedule-figures { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .tala-faculty-schedule-figures > div:nth-child(3) { grid-column:1 / -1; border-inline-start:0; border-block-start:1px solid var(--tala-edge); }
+    .tala-faculty-schedule-figures dd { font-size:1.35rem; }
+    .tala-faculty-schedule-figures__exam dd { font-size:1rem; }
+}
+
+/* My availability: direct inline task surface + day-by-day checklist + flush sunken footer */
+.tala-availability-card { overflow:hidden; box-shadow:var(--tala-material-raised); }
+.tala-availability-card__body { display:grid; gap:1.25rem; padding:var(--tala-card-pad); }
+.tala-availability-header { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:.75rem 1.25rem; }
+.tala-availability-header__main { display:grid; gap:.25rem; min-inline-size:0; }
+.tala-availability-header__main h2 { margin:0; font-size:1.25rem; font-weight:700; line-height:1.25; color:var(--tala-text); }
+.tala-availability-header__meta { margin:0; font-size:.875rem; color:var(--tala-muted); line-height:1.45; }
+.tala-availability-hours-pill { margin:0; padding:.375rem .75rem; border:1px solid var(--tala-selected-edge); border-radius:999px; background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); font-size:.8125rem; font-weight:600; line-height:1.4; }
+.tala-availability-school-hours { gap:.25rem; }
+.tala-availability-school-hours__row { display:flex; flex-wrap:wrap; gap:.25rem .5rem; font-size:.875rem; line-height:1.5; color:var(--tala-text); }
+.tala-availability-school-hours__row strong { font-weight:600; }
+.tala-availability-school-hours__note { margin:0; font-size:.75rem; color:var(--tala-muted); line-height:1.45; }
+.tala-availability-form { display:grid; gap:1.25rem; }
+.tala-availability-fieldset { display:grid; gap:.625rem; margin:0; padding:0; border:0; min-inline-size:0; }
+.tala-availability-fieldset__legend { padding:0; font-size:.875rem; font-weight:600; color:var(--tala-text); }
+.tala-availability-modes { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.tala-availability-days { display:grid; gap:.75rem; }
+.tala-availability-days__header { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.25rem 1rem; }
+.tala-availability-days__header h3 { margin:0; font-size:.9375rem; font-weight:600; color:var(--tala-text); }
+.tala-availability-days__hint { font-size:.8125rem; color:var(--tala-muted); }
+.tala-availability-day-list { display:grid; gap:.5rem; list-style:none; margin:0; padding:0; }
+.tala-availability-day-row { display:grid; grid-template-columns:minmax(13rem,1fr) minmax(0,1.6fr); align-items:start; gap:.75rem 1.25rem; padding:.75rem 1rem; border:1px solid var(--tala-edge); border-radius:.625rem; background:var(--tala-surface-sunken); transition:border-color 140ms ease, background-color 140ms ease; }
+.tala-availability-day-row.is-enabled { background:var(--tala-surface); border-color:var(--tala-selected-edge); }
+.tala-availability-day-row.is-outside-grid { background:var(--tala-status-warning-bg); border-color:var(--tala-status-warning-border); }
+.tala-availability-day-row__identity { display:grid; gap:.25rem; min-inline-size:0; }
+.tala-availability-day-toggle { display:inline-flex; align-items:center; gap:.625rem; cursor:pointer; font-weight:600; font-size:.9375rem; color:var(--tala-text); min-block-size:1.75rem; }
+.tala-availability-day-toggle input[type='checkbox'] { inline-size:1.125rem; block-size:1.125rem; accent-color:var(--tala-brand); cursor:pointer; }
+.tala-availability-day-row__bounds { display:flex; flex-wrap:wrap; gap:.125rem .375rem; padding-inline-start:1.75rem; font-size:.75rem; color:var(--tala-muted); line-height:1.4; }
+.tala-availability-day-row__warning { display:flex; flex-wrap:wrap; align-items:center; gap:.375rem .5rem; padding-inline-start:1.75rem; margin-block-start:.25rem; font-size:.75rem; color:var(--tala-text); }
+.tala-availability-day-row__controls { display:grid; gap:.5rem; min-inline-size:0; justify-items:start; }
+.tala-availability-ranges { display:grid; gap:.5rem; inline-size:100%; }
+.tala-availability-range-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.tala-availability-time-field { display:inline-flex; flex:0 1 10.5rem; min-inline-size:8.25rem; }
+.tala-availability-select { inline-size:100%; min-block-size:2.375rem; padding:.375rem 2rem .375rem .75rem; border:1px solid var(--tala-control-border); border-radius:.5rem; background-color:var(--tala-surface); color:var(--tala-text); font-size:.875rem; line-height:1.4; }
+.tala-availability-range-sep { color:var(--tala-muted); font-weight:500; }
+.tala-availability-icon-btn { display:inline-grid; place-items:center; inline-size:2.25rem; block-size:2.25rem; border:1px solid var(--tala-edge-strong); border-radius:.5rem; background:var(--tala-surface); color:var(--tala-muted); cursor:pointer; }
+.tala-availability-icon-btn:hover { color:var(--tala-text); border-color:var(--tala-control-border); background:var(--tala-surface-sunken); }
+.tala-availability-day-actions { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem 1rem; }
+.tala-availability-inline-btn { padding:.125rem 0; border:0; background:transparent; color:var(--tala-link); font-size:.8125rem; font-weight:600; cursor:pointer; }
+.tala-availability-inline-btn:hover { text-decoration:underline; text-underline-offset:.2em; }
+.tala-availability-day-off { font-size:.875rem; color:var(--tala-muted); line-height:2.25rem; }
+.tala-availability-reason { display:grid; gap:.375rem; }
+.tala-availability-reason label { font-size:.875rem; font-weight:600; color:var(--tala-text); }
+.tala-availability-reason__help { margin:0; font-size:.8125rem; color:var(--tala-muted); line-height:1.45; }
+.tala-availability-textarea { inline-size:100%; padding:.625rem .75rem; border:1px solid var(--tala-control-border); border-radius:.5rem; background:var(--tala-surface); color:var(--tala-text); font-size:.875rem; line-height:1.5; resize:vertical; }
+.tala-availability-error { margin:0; font-size:.8125rem; font-weight:500; color:var(--danger-600, #9c1437); }
+.dark .tala-availability-error { color:var(--danger-400, #ffc0cc); }
+.tala-availability-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:.75rem; margin-inline:calc(var(--tala-card-pad) * -1); margin-block-end:calc(var(--tala-card-pad) * -1); padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-start:1px solid var(--tala-edge); background:var(--tala-surface-sunken); }
+.tala-availability-footer__actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:.625rem; }
+.tala-availability-legacy-list,
+.tala-availability-readonly-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(12rem,1fr)); gap:.5rem; list-style:none; margin:0; padding:0; font-size:.875rem; }
+.tala-availability-legacy-list li,
+.tala-availability-readonly-list li { display:flex; justify-content:space-between; gap:.5rem; padding:.5rem .75rem; border:1px solid var(--tala-edge); border-radius:.5rem; background:var(--tala-surface-sunken); }
+@media(max-width:48rem) {
+    .tala-availability-modes { grid-template-columns:minmax(0,1fr); }
+    .tala-availability-day-row { grid-template-columns:minmax(0,1fr); }
+    .tala-availability-day-off { line-height:1.4; padding-inline-start:1.75rem; }
+}
+@media(max-width:40rem) {
+    .tala-availability-card__body { padding:var(--tala-card-pad-compact); }
+    .tala-availability-footer { margin-inline:calc(var(--tala-card-pad-compact) * -1); margin-block-end:calc(var(--tala-card-pad-compact) * -1); padding:var(--tala-card-pad-compact); }
+    .tala-availability-select { min-block-size:2.75rem; font-size:1rem; }
+}
+@media(forced-colors:active) {
+    .tala-faculty-schedule-figures,
+    .tala-availability-day-row,
+    .tala-availability-footer,
+    .tala-faculty-affected-row { background:Canvas; color:CanvasText; border-color:CanvasText; box-shadow:none; }
+}
 .tala-task-work > .tala-work-toolbar { padding-block-end:.5rem; }
 @media(max-width:75rem) { .tala-calendar-specification { grid-template-columns:minmax(0,1fr); gap:1.75rem; } .tala-calendar-dates { padding-inline-start:0; border-inline-start:0; padding-block-start:1rem; border-block-start:1px solid var(--tala-edge); } }
 @media(max-width:40rem) { .tala-planning-context > .tala-term-picker { flex-basis:100%; } .tala-term-context-links { padding-block-end:0; } .tala-state-ledger { gap:.75rem 1rem; } .tala-state-ledger > div { flex-basis:8rem; } .tala-task-heading { align-items:start; } .tala-task-finding { padding:var(--tala-card-pad-compact); } }
@@ -1132,3 +1210,589 @@ details > .tala-planning-reveal { margin-block-start:.75rem; }
 @media(forced-colors:active) {
     .tala-studio-dock.tala-task-surface { border-color:CanvasText; box-shadow:none; }
 }
+
+/* Guided 4-step Term Planning progress bar */
+.tala-planning-stepper {
+    margin-block-start: 0.25rem;
+}
+
+.tala-planning-stepper__list {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.625rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tala-planning-stepper__item {
+    min-inline-size: 0;
+}
+
+.tala-planning-stepper__link {
+    display: grid;
+    align-content: start;
+    gap: 0.3125rem;
+    block-size: 100%;
+    padding: 0.6875rem 0.875rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: 0.625rem;
+    background: var(--tala-surface);
+    color: var(--tala-text);
+    text-decoration: none;
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.tala-planning-stepper__link:hover {
+    border-color: var(--tala-edge-strong);
+    background: var(--tala-surface-sunken);
+}
+
+.tala-planning-stepper__link:focus-visible {
+    outline: 2px solid var(--tala-focus);
+    outline-offset: 2px;
+}
+
+.tala-planning-stepper__item.is-current .tala-planning-stepper__link {
+    border-color: var(--tala-selected-edge, var(--tala-brand));
+    background: var(--tala-brand-tint, var(--tala-surface));
+}
+
+.tala-planning-stepper__item.is-viewing .tala-planning-stepper__link {
+    border-color: var(--tala-brand);
+    box-shadow: inset 0 0 0 1px var(--tala-brand);
+}
+
+.tala-planning-stepper__item.is-done .tala-planning-stepper__link {
+    border-color: var(--guide-green-edge, var(--tala-edge-strong));
+}
+
+.tala-planning-stepper__top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.375rem 0.5rem;
+}
+
+.tala-planning-stepper__title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+
+.tala-planning-stepper__summary {
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--tala-muted);
+}
+
+@media (max-width: 60rem) {
+    .tala-planning-stepper__list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 36rem) {
+    .tala-planning-stepper__list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (forced-colors: active) {
+    .tala-planning-stepper__link {
+        background: Canvas;
+        color: CanvasText;
+        border-color: CanvasText;
+    }
+
+    .tala-planning-stepper__item.is-viewing .tala-planning-stepper__link {
+        outline: 2px solid Highlight;
+    }
+}
+
+/* Shared Term Workspace inline context strip (zero disclosure triangles, zero redundant filler) */
+.tala-term-context-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    color: var(--tala-muted);
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.tala-term-context-strip__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    min-inline-size: 0;
+}
+
+.tala-term-context-strip__sep {
+    color: var(--tala-muted);
+    opacity: 0.7;
+}
+
+.tala-term-context-strip__dates {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.tala-term-context-strip__dates .fi-icon {
+    inline-size: 1rem;
+    block-size: 1rem;
+    flex: none;
+    color: var(--tala-muted);
+}
+
+/* Term Chooser: native TALA data table with docked status tabs, search & academic year filter */
+.tala-term-chooser-surface {
+    overflow: hidden;
+    min-inline-size: 0;
+}
+
+.tala-term-chooser__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    padding: 0.75rem 1.25rem;
+    border-block-end: 1px solid var(--tala-edge);
+    background: var(--tala-surface);
+}
+
+.tala-term-chooser__tabs {
+    margin: 0;
+}
+
+.tala-term-chooser__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    min-inline-size: 0;
+}
+
+.tala-term-chooser__search {
+    min-inline-size: 13rem;
+}
+
+.tala-term-chooser__year {
+    min-inline-size: 11rem;
+}
+
+.tala-term-chooser__controls .fi-input-wrp {
+    min-block-size: 2.375rem;
+}
+
+.tala-term-chooser__table-wrap.tala-data-table-scroll {
+    border: 0;
+    border-radius: 0;
+    max-block-size: none;
+}
+
+.tala-term-chooser-table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    text-align: start;
+}
+
+.tala-term-chooser-table thead {
+    background: var(--tala-surface-sunken);
+}
+
+.tala-term-chooser-table thead th {
+    padding: 0.75rem 1.25rem;
+    color: var(--tala-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: start;
+    border-block-end: 1px solid var(--tala-edge);
+}
+
+.tala-term-chooser-table tbody tr {
+    transition: background-color 120ms ease;
+}
+
+.tala-term-chooser-table tbody tr + tr {
+    border-block-start: 1px solid var(--tala-edge);
+}
+
+@media (hover: hover) {
+    .tala-term-chooser-table tbody tr:hover {
+        background: color-mix(in srgb, var(--tala-surface-sunken) 55%, var(--tala-surface));
+    }
+}
+
+.tala-term-chooser-table tbody :is(th, td) {
+    padding: 0.875rem 1.25rem;
+    vertical-align: middle;
+    text-align: start;
+    line-height: 1.45;
+}
+
+.tala-term-chooser-table tbody th {
+    font-weight: 400;
+}
+
+.tala-term-chooser-table tbody th strong {
+    display: block;
+    font-weight: 600;
+    color: var(--tala-text);
+}
+
+.tala-term-chooser-table tbody th small {
+    display: block;
+    margin-block-start: 0.125rem;
+    font-size: 0.75rem;
+    color: var(--tala-muted);
+}
+
+.tala-term-chooser-table__dates,
+.tala-term-chooser-table__scope {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.tala-term-chooser-table__muted {
+    color: var(--tala-muted);
+}
+
+.tala-term-chooser-table__action-col,
+.tala-term-chooser-table__action {
+    text-align: end;
+}
+
+.tala-term-chooser-table__action .fi-btn {
+    white-space: nowrap;
+}
+
+.tala-term-chooser__pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    border-block-start: 1px solid var(--tala-edge);
+    font-size: 0.8125rem;
+    color: var(--tala-muted);
+}
+
+.tala-term-chooser__pagination > p {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-term-chooser__pagination > nav:only-of-type {
+    margin: 0;
+}
+
+.tala-term-chooser__empty {
+    padding: 1.5rem 1.25rem;
+}
+
+@media (max-width: 56rem) {
+    .tala-term-chooser__toolbar {
+        padding: 0.75rem 1rem;
+    }
+
+    .tala-term-chooser__controls {
+        flex: 1 0 100%;
+    }
+
+    .tala-term-chooser__search {
+        flex: 1 1 12rem;
+    }
+
+    .tala-term-chooser-table thead {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .tala-term-chooser-table,
+    .tala-term-chooser-table tbody,
+    .tala-term-chooser-table tr,
+    .tala-term-chooser-table th,
+    .tala-term-chooser-table td {
+        display: block;
+    }
+
+    .tala-term-chooser-table tbody tr {
+        padding: 0.875rem 1rem;
+    }
+
+    .tala-term-chooser-table tbody :is(th, td) {
+        padding: 0.25rem 0;
+    }
+
+    .tala-term-chooser-table td[data-label] {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .tala-term-chooser-table td[data-label]::before {
+        content: attr(data-label);
+        color: var(--tala-muted);
+        font-size: 0.8125rem;
+    }
+
+    .tala-term-chooser-table__action {
+        margin-block-start: 0.5rem;
+        text-align: start;
+    }
+
+    .tala-term-chooser__pagination {
+        padding: 0.75rem 1rem;
+    }
+}
+
+/* De-bloated Term Overview: Needs your action / Ready strip + Full-width Programs & year levels table */
+.tala-overview-actions {
+    overflow: hidden;
+}
+
+.tala-overview-actions__header {
+    padding: var(--tala-card-pad);
+    border-block-end: 1px solid var(--tala-edge);
+}
+
+.tala-overview-actions__title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tala-overview-actions__header p {
+    margin-block-start: 0.25rem;
+}
+
+.tala-overview-actions__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tala-overview-actions__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1.25rem;
+    padding: var(--tala-card-pad);
+}
+
+.tala-overview-actions__item + .tala-overview-actions__item {
+    border-block-start: 1px solid var(--tala-edge);
+}
+
+.tala-overview-actions__copy {
+    flex: 1 1 24rem;
+    min-inline-size: 0;
+    display: grid;
+    gap: 0.375rem;
+}
+
+.tala-overview-actions__copy h3 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.tala-overview-actions__evidence {
+    margin-block-start: 0.25rem;
+    padding: var(--tala-card-pad-compact);
+    border: 1px solid var(--tala-edge);
+    border-radius: 0.5rem;
+    background: var(--tala-surface-sunken);
+    font-size: 0.8125rem;
+    display: grid;
+    gap: 0.25rem;
+}
+
+.tala-overview-actions__reason {
+    color: var(--tala-muted);
+}
+
+.tala-overview-actions__cta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tala-overview-ready {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1.25rem;
+    padding: var(--tala-card-pad);
+}
+
+.tala-overview-ready--compact {
+    padding: 0.75rem var(--tala-card-pad);
+}
+
+.tala-overview-ready__lead {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    flex: 1 1 24rem;
+    min-inline-size: 0;
+}
+
+.tala-overview-ready--compact .tala-overview-ready__lead {
+    align-items: center;
+}
+
+.tala-overview-ready__icon {
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    color: var(--tala-brand-foreground);
+    flex: none;
+    margin-block-start: 0.125rem;
+}
+
+.tala-overview-ready--compact .tala-overview-ready__icon {
+    margin-block-start: 0;
+}
+
+.tala-overview-ready__copy {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.tala-overview-ready__copy h2 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.tala-overview-ready__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.5rem;
+    margin: 0;
+    color: var(--tala-muted);
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.tala-overview-ready__line strong {
+    color: var(--tala-text);
+    font-weight: 600;
+}
+
+.tala-overview-ready__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tala-workspace-coverage__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    padding: var(--tala-card-pad) 1.25rem;
+    border-block-end: 1px solid var(--tala-edge);
+}
+
+.tala-workspace-coverage__heading {
+    display: grid;
+    gap: 0.25rem;
+    min-inline-size: 0;
+}
+
+.tala-workspace-coverage__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    min-inline-size: 0;
+}
+
+.tala-workspace-coverage__search {
+    min-inline-size: 14rem;
+}
+
+.tala-workspace-coverage__year {
+    min-inline-size: 10.5rem;
+}
+
+.tala-workspace-coverage__controls .fi-input-wrp {
+    min-block-size: 2.375rem;
+}
+
+.tala-workspace-coverage__table :is(th, td) {
+    padding: 0.875rem 1.25rem;
+}
+
+.tala-workspace-coverage__table .tala-workspace-coverage__num {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.tala-workspace-coverage__table .tala-workspace-coverage__action-col,
+.tala-workspace-coverage__table .tala-workspace-coverage__action {
+    text-align: end;
+}
+
+.tala-workspace-coverage__curriculum {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    margin-block-start: 0.125rem;
+}
+
+.tala-workspace-coverage__table tbody tr + tr {
+    border-block-start: 1px solid var(--tala-edge);
+}
+
+@media (hover: hover) {
+    .tala-workspace-coverage__table tbody tr:hover {
+        background: color-mix(in srgb, var(--tala-surface-sunken) 55%, var(--tala-surface));
+    }
+}
+
+@container (max-width: 57.99rem) {
+    .tala-workspace-coverage__toolbar {
+        padding: var(--tala-card-pad);
+    }
+
+    .tala-workspace-coverage__controls {
+        flex: 1 0 100%;
+    }
+
+    .tala-workspace-coverage__search {
+        flex: 1 1 12rem;
+    }
+
+    .tala-workspace-coverage__table .tala-workspace-coverage__num {
+        text-align: start;
+    }
+
+    .tala-workspace-coverage__table .tala-workspace-coverage__action {
+        text-align: start;
+    }
+}
+
+

@@ -144,6 +144,12 @@
                         $planOpenIndex = $planOpenIndex === false ? 0 : $planOpenIndex;
                         $planCurrentLabels = $planYears->where('current', true)->pluck('label');
                     @endphp
+                    @php
+                        $returnEnrollmentTerm = $this->enrollmentTerm ?: (request()->integer('enrollmentTerm') ?: null);
+                        $planEnrollmentUrl = $returnEnrollmentTerm
+                            ? \App\Filament\Student\Pages\Enrollment::getUrl(['term' => $returnEnrollmentTerm], panel: 'student')
+                            : $enrollmentUrl;
+                    @endphp
                     <section class="student-plan-overview" aria-label="Program and study plan progress">
                         <div class="student-plan-overview-program">
                             <h2>{{ $studyContext['program_name'] ?? 'Program unavailable' }}</h2>
@@ -154,6 +160,11 @@
                                     @endforeach
                                 </ul>
                             @endif
+                            <p style="margin-block-start: .5rem;">
+                                <x-filament::link :href="$planEnrollmentUrl" :icon="$returnEnrollmentTerm ? 'heroicon-o-arrow-left' : 'heroicon-o-clipboard-document-check'">
+                                    {{ $returnEnrollmentTerm ? 'Return to enrollment' : 'View enrollment' }}
+                                </x-filament::link>
+                            </p>
                         </div>
                         <div class="student-plan-overview-progress">
                             <p><strong>{{ $planCompletedUnits }}</strong>@if ($planTotalUnits > 0) of <strong>{{ $planTotalUnits }}</strong>@endif units completed</p>

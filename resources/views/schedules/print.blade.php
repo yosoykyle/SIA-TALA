@@ -24,7 +24,16 @@
         </div>
     @endif
 
-    @unless ($studentOutput)
+    @if ($facultyOutput)
+        <p class="schedule-owner">
+            Official teaching schedule for <strong>{{ $schedule['owner'] }}</strong> ({{ $schedule['version_label'] }}).
+            @if ($schedule['version_state'] === \App\Models\PublishedTimetableVersion::StateSuperseded)
+                <strong>Superseded version — not your current official schedule.</strong>
+            @else
+                Check My schedule in TALA for any later updates.
+            @endif
+        </p>
+    @elseif (! $studentOutput)
     <p class="schedule-owner">
         This A4 landscape output is bound to <strong>{{ $schedule['version_label'] }}</strong>
         for <strong>{{ $schedule['owner'] }}</strong>.
@@ -36,7 +45,7 @@
             Use the Student Hub or Faculty Workspace to confirm later revisions.
         @endif
     </p>
-    @endunless
+    @endif
     @if ($schedule['filter_description'] ?? null)
         <p><strong>Filtered schedule — this is a subset of your official assignments.</strong><br>{{ $schedule['filter_description'] }}</p>
     @endif
@@ -64,11 +73,16 @@
         <p>Check Class schedule in the Student Hub for later changes.</p>
         <p class="official-output-meta">Schedule source: {{ $schedule['version_label'] }} · {{ $schedule['version_state'] }}</p>
     @else
+        @php
+            $showRevisionColumn = ! $facultyOutput || collect($schedule['rows'])->contains(
+                fn (array $row): bool => filled($row['revision_marker'] ?? null) && $row['revision_marker'] !== 'Current',
+            );
+        @endphp
         <div class="official-output-table">
             <table class="schedule-table">
                 <thead>
                     <tr>
-                        <th colspan="{{ $facultyOutput ? 8 : 11 }}">{{ $schedule['identity_line'] ?? $schedule['version_label'] }}</th>
+                        <th colspan="{{ $facultyOutput ? ($showRevisionColumn ? 8 : 7) : 11 }}">{{ $schedule['identity_line'] ?? $schedule['version_label'] }}</th>
                     </tr>
                     <tr>
                         @unless ($facultyOutput)<th>Term</th>@endunless
@@ -81,7 +95,7 @@
                         <th>Room</th>
                         <th>Modality</th>
                         @unless ($facultyOutput)<th>Faculty</th>@endunless
-                        <th>Revision</th>
+                        @if ($showRevisionColumn)<th>Revision</th>@endif
                     </tr>
                 </thead>
                 <tbody>
@@ -97,7 +111,7 @@
                             <td>{{ $row['room'] }}</td>
                             <td>{{ $row['modality'] }}</td>
                             @unless ($facultyOutput)<td>{{ $row['faculty'] ?: 'Not assigned' }}</td>@endunless
-                            <td>{{ $row['revision_marker'] ?? 'Current' }}</td>
+                            @if ($showRevisionColumn)<td>{{ $row['revision_marker'] ?? 'Current' }}</td>@endif
                         </tr>
                     @endforeach
                 </tbody>

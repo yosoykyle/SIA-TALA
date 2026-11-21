@@ -2,6 +2,13 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Actions\Grades\ManageTeachingAssignment;
+use App\Actions\Grades\SynchronizeOfficialGradeRoster;
+use App\Filament\Resources\ScheduleGenerationRuns\Schemas\PublishedScheduleRevisionForm;
+use App\Models\ClassOfferingTeachingAssignment;
+use App\Models\CourseEnrollment;
+use App\Models\Enrollment;
+use App\Models\GradeRoster;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
@@ -37,10 +44,18 @@ final class PublishedScheduleRevisionService
         array $changes,
         string $reason,
         ?string $authorityReference = null,
+        ?string $reassignmentScope = null,
+        bool $addCoFaculty = false,
     ): EloquentCollection {
         Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
         $reason = $this->reason($reason);
-        $preview = $this->impactService->preview($run, $changeType, $changes);
+        [$sanitizedChanges, $resolvedScope, $resolvedAddCoFaculty] = $this->extractReassignmentOptions(
+            $changeType,
+            $changes,
+            $reassignmentScope,
+            $addCoFaculty,
+        );
+        $preview = $this->impactService->preview($run, $changeType, $sanitizedChanges);
         $this->assertPasses($preview);
         $currentVersion = $this->canonicalVersionForRun($run, $actor, CarbonImmutable::now(config('app.timezone')));
         $canonicalChanges = $this->canonicalChanges($currentVersion, $preview);
@@ -48,13 +63,34 @@ final class PublishedScheduleRevisionService
         $preparedRevision = $this->impactGuard->prepare($currentVersion, $actor, $canonicalChanges, $authority, $reason);
         DB::transaction(fn (): TimetableRevision => $this->impactGuard->assertReady($preparedRevision, $currentVersion, $canonicalChanges));
 
-        return DB::transaction(function () use ($run, $actor, $changeType, $changes, $reason, $authorityReference, $preparedRevision): EloquentCollection {
+        return DB::transaction(function () use (
+            $run,
+            $actor,
+            $changeType,
+            $sanitizedChanges,
+            $reason,
+            $authorityReference,
+            $authority,
+            $preparedRevision,
+            $resolvedScope,
+            $resolvedAddCoFaculty,
+        ): EloquentCollection {
             $lockedRun = $this->lockedPublishedRun($run);
             Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
-            $impact = $this->impactService->lockForRevision($lockedRun, $changeType, $changes);
+            $impact = $this->impactService->lockForRevision($lockedRun, $changeType, $sanitizedChanges);
             $this->assertPasses($impact);
             $timestamp = CarbonImmutable::now(config('app.timezone'));
             $events = $this->applyMeetingChanges($lockedRun, $actor, $reason, $timestamp, $impact, $authorityReference, $preparedRevision);
+
+            if ($changeType === ScheduleRevisionEvent::ChangeFacultyReassignment) {
+                $this->applyFacultyReassignmentScope(
+                    actor: $actor,
+                    impact: $impact,
+                    scope: $resolvedScope ?? PublishedScheduleRevisionForm::ScopeTemporarySubstitute,
+                    addCoFaculty: $resolvedAddCoFaculty,
+                    teachingAuthority: $authority ?? $reason,
+                );
+            }
 
             $this->recordActivity(
                 run: $lockedRun,
@@ -65,6 +101,8 @@ final class PublishedScheduleRevisionService
                 events: $events,
                 event: 'published_schedule_revised',
                 description: 'Published timetable successor created.',
+                reassignmentScope: $resolvedScope,
+                addCoFaculty: $resolvedAddCoFaculty,
             );
             DB::afterCommit(fn () => $this->notificationService->recordAndQueue($events));
 
@@ -339,6 +377,119 @@ final class PublishedScheduleRevisionService
     }
 
     /**
+     * @param  list<array<string, mixed>>  $changes
+     * @return array{0: list<array<string, mixed>>, 1: string|null, 2: bool}
+     */
+    private function extractReassignmentOptions(
+        string $changeType,
+        array $changes,
+        ?string $reassignmentScope,
+        bool $addCoFaculty,
+    ): array {
+        $sanitized = [];
+
+        foreach ($changes as $change) {
+            if (! is_array($change)) {
+                $sanitized[] = $change;
+
+                continue;
+            }
+
+            if ($reassignmentScope === null && array_key_exists('reassignment_scope', $change) && filled($change['reassignment_scope'])) {
+                $reassignmentScope = (string) $change['reassignment_scope'];
+            }
+
+            if (! $addCoFaculty && array_key_exists('add_co_faculty', $change)) {
+                $addCoFaculty = (bool) $change['add_co_faculty'];
+            }
+
+            unset($change['reassignment_scope'], $change['add_co_faculty']);
+            $sanitized[] = $change;
+        }
+
+        if ($changeType !== ScheduleRevisionEvent::ChangeFacultyReassignment) {
+            return [$sanitized, null, false];
+        }
+
+        $resolvedScope = PublishedScheduleRevisionForm::reassignmentScope([
+            'reassignment_scope' => $reassignmentScope,
+        ]);
+
+        return [
+            $sanitized,
+            $resolvedScope,
+            $resolvedScope === PublishedScheduleRevisionForm::ScopeTemporarySubstitute && $addCoFaculty,
+        ];
+    }
+
+    private function applyFacultyReassignmentScope(
+        User $actor,
+        ScheduleRevisionImpact $impact,
+        string $scope,
+        bool $addCoFaculty,
+        string $teachingAuthority,
+    ): void {
+        if ($scope === PublishedScheduleRevisionForm::ScopeTemporarySubstitute && ! $addCoFaculty) {
+            return;
+        }
+
+        $processed = [];
+
+        foreach ($impact->meetingChanges() as $change) {
+            $meetingId = (int) ($change['section_meeting_id'] ?? 0);
+            $facultyId = (int) ($change['new']['faculty_user_id'] ?? 0);
+            $meeting = SectionMeeting::query()
+                ->with('schedulingDemand.sectionDeliveryGroup.section')
+                ->findOrFail($meetingId);
+            $section = $meeting->schedulingDemand?->sectionDeliveryGroup?->section;
+            $faculty = User::query()->findOrFail($facultyId);
+
+            if (! $section instanceof Section) {
+                continue;
+            }
+
+            $key = $section->id.'|'.$faculty->id;
+
+            if (isset($processed[$key])) {
+                continue;
+            }
+
+            $processed[$key] = true;
+
+            if ($scope === PublishedScheduleRevisionForm::ScopePermanentTakeover) {
+                app(ManageTeachingAssignment::class)->designate($section, $faculty, $actor, $teachingAuthority);
+
+                if (! GradeRoster::query()->where('section_id', $section->id)->exists()
+                    && CourseEnrollment::query()
+                        ->where('term_offering_id', $section->term_offering_id)
+                        ->where('section_id', $section->id)
+                        ->where('status', CourseEnrollment::StatusActive)
+                        ->where('is_current', true)
+                        ->whereHas('enrollment', fn ($query) => $query
+                            ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled))
+                        ->exists()) {
+                    app(SynchronizeOfficialGradeRoster::class)->execute($section, $actor);
+                }
+
+                continue;
+            }
+
+            if ($addCoFaculty) {
+                $isAlreadyDesignated = ClassOfferingTeachingAssignment::query()
+                    ->where('section_id', $section->id)
+                    ->where('role', ClassOfferingTeachingAssignment::RoleDesignated)
+                    ->where('state', ClassOfferingTeachingAssignment::StateActive)
+                    ->where('faculty_user_id', $faculty->id)
+                    ->exists();
+
+                if (! $isAlreadyDesignated) {
+                    app(ManageTeachingAssignment::class)->addCoFaculty($section, $faculty, $actor, $teachingAuthority);
+                }
+            }
+        }
+    }
+
+    /**
      * @param  EloquentCollection<int, ScheduleRevisionEvent>  $events
      */
     private function recordActivity(
@@ -351,7 +502,26 @@ final class PublishedScheduleRevisionService
         string $event,
         string $description,
         ?int $sectionId = null,
+        ?string $reassignmentScope = null,
+        bool $addCoFaculty = false,
     ): void {
+        $properties = [
+            'term_id' => (int) $run->term_id,
+            'schedule_run_id' => (int) $run->id,
+            'section_id' => $sectionId,
+            'change_type' => $impact->changeType(),
+            'reason' => $reason,
+            'effective_date' => $timestamp->toDateString(),
+            'schedule_revision_event_ids' => $events->modelKeys(),
+            'section_meeting_ids' => collect($impact->meetingChanges())->pluck('section_meeting_id')->all(),
+            'impact' => $impact->toArray(),
+        ];
+
+        if ($reassignmentScope !== null) {
+            $properties['reassignment_scope'] = $reassignmentScope;
+            $properties['add_co_faculty'] = $addCoFaculty;
+        }
+
         DB::table('activity_log')->insert([
             'log_name' => 'scheduling',
             'description' => $description,
@@ -360,17 +530,7 @@ final class PublishedScheduleRevisionService
             'event' => $event,
             'causer_type' => User::class,
             'causer_id' => $actor->id,
-            'properties' => json_encode([
-                'term_id' => (int) $run->term_id,
-                'schedule_run_id' => (int) $run->id,
-                'section_id' => $sectionId,
-                'change_type' => $impact->changeType(),
-                'reason' => $reason,
-                'effective_date' => $timestamp->toDateString(),
-                'schedule_revision_event_ids' => $events->modelKeys(),
-                'section_meeting_ids' => collect($impact->meetingChanges())->pluck('section_meeting_id')->all(),
-                'impact' => $impact->toArray(),
-            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+            'properties' => json_encode($properties, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
             'created_at' => $timestamp->toDateTimeString(),
             'updated_at' => $timestamp->toDateTimeString(),
         ]);

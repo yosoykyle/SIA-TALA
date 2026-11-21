@@ -33,27 +33,54 @@
 }
 
 /* Header & subheading balance inside ReviewCurriculumVersion */
-@container tala-main (min-width: 38rem) {
-    .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 0.875rem 1.5rem;
-    }
+.tala-curriculum-heading {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.625rem;
+}
 
-    .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header > div:first-child:not(.fi-header-actions-ctn) {
-        flex: 1 1 20rem;
-        min-inline-size: 0;
+.tala-curriculum-heading__title {
+    min-inline-size: 0;
+}
+
+.fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem 1.5rem;
+}
+
+.fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header > div:first-child:not(.fi-header-actions-ctn) {
+    inline-size: 100%;
+    max-inline-size: none;
+    min-inline-size: 0;
+}
+
+.fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header-subheading {
+    max-inline-size: none;
+    margin-block-start: 0.25rem;
+    font-size: 0.9375rem;
+    line-height: 1.45;
+    color: var(--tala-muted);
+}
+
+@container tala-main (min-width: 44rem) {
+    .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
     }
 
     .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header-actions-ctn {
         width: auto;
-        flex: 0 1 auto;
+        flex: 0 0 auto;
+        align-self: center;
+        justify-self: end;
     }
 
     .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header-actions-ctn > .fi-ac {
         width: auto;
+        flex-wrap: wrap;
         justify-content: flex-end;
     }
 }
@@ -663,7 +690,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem 1rem;
+    gap: 0.5rem 0.625rem;
 }
 
 .tala-subject-editor-heading__links :is(a, button, .fi-link) {
@@ -674,17 +701,23 @@
     margin: 0;
 }
 
-.tala-inspector-footer {
+.tala-subject-editor-utilities {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    inline-size: 100%;
+    gap: 0.5rem 0.75rem;
+    padding-block-start: 0.875rem;
+    border-block-start: 1px solid var(--tala-edge);
 }
 
-.tala-inspector-footer__danger {
-    margin-inline-end: auto;
+.tala-inspector-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    inline-size: 100%;
 }
 
 .tala-inspector-footer__primary {
@@ -776,6 +809,404 @@
     }
 }
 
+/* CatalogCurriculaWorkbench: single balanced horizontal toolbar (tabs docked flush-left, Search + Filters aligned right at 2.375rem) */
+.fi-body .tala-curricula-workbench-table .fi-ta-header-ctn,
+.tala-curricula-workbench-table .fi-ta-header-ctn {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.625rem 1rem;
+    padding: 0.625rem 1rem;
+    background-color: var(--tala-surface-sunken);
+    border-block-end: 1px solid var(--tala-edge);
+}
+
+.fi-body .tala-curricula-workbench-table .tala-curricula-tabs-dock,
+.tala-curricula-workbench-table .tala-curricula-tabs-dock {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0;
+    margin-inline-end: auto;
+    padding: 0.1875rem;
+    min-block-size: 2.375rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: 0.5rem;
+    background-color: color-mix(in srgb, var(--tala-surface-sunken) 75%, var(--tala-canvas));
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-inset-shadow: 0 0 #0000;
+    --tw-shadow: 0 0 #0000;
+}
+
+.fi-body .tala-curricula-workbench-table .tala-curricula-tabs-dock .fi-tabs-item {
+    min-block-size: 1.9375rem;
+    padding: 0.25rem 0.75rem;
+    border: 0;
+    border-radius: 0.375rem;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: var(--tala-muted);
+    white-space: nowrap;
+}
+
+.fi-body .tala-curricula-workbench-table .tala-curricula-tabs-dock .fi-tabs-item:hover:not(.fi-active) {
+    background-color: color-mix(in srgb, var(--tala-surface) 60%, transparent);
+    color: var(--tala-text);
+}
+
+.fi-body .tala-curricula-workbench-table .tala-curricula-tabs-dock .fi-tabs-item.fi-active {
+    background-color: var(--tala-surface);
+    color: var(--tala-text);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.08), inset 0 0 0 1px var(--tala-edge-strong);
+}
+
+.dark .fi-body .tala-curricula-workbench-table .tala-curricula-tabs-dock .fi-tabs-item.fi-active {
+    background-color: var(--tala-overlay);
+    color: var(--tala-text);
+}
+
+.fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar,
+.tala-curricula-workbench-table .fi-ta-header-toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex: 0 1 auto;
+    margin-inline-start: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar > .fi-ta-actions:empty,
+.fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar > .fi-ta-actions:not(:has(*)) {
+    display: none;
+}
+
+.fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar > div:last-child {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.5rem;
+    width: auto;
+    min-inline-size: 0;
+}
+
+.fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar .fi-ta-search-field .fi-input-wrp {
+    min-block-size: 2.375rem;
+    block-size: 2.375rem;
+    align-items: center;
+}
+
+.fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar :is(.fi-ta-filters-trigger-action-ctn .fi-btn, .fi-btn) {
+    min-block-size: 2.375rem;
+    block-size: 2.375rem;
+    margin: 0;
+}
+
+.fi-body .tala-curricula-workbench-table .fi-ta-filter-indicators,
+.tala-curricula-workbench-table .fi-ta-filter-indicators {
+    flex: 1 0 100%;
+    padding-inline: 0;
+    padding-block: 0.25rem 0;
+    border: 0;
+}
+
+@media (max-width: 44rem) {
+    .fi-body .tala-curricula-workbench-table .fi-ta-header-ctn {
+        padding: 0.625rem 0.75rem;
+    }
+
+    .fi-body .tala-curricula-workbench-table .tala-curricula-tabs-dock {
+        inline-size: 100%;
+        justify-content: stretch;
+    }
+
+    .fi-body .tala-curricula-workbench-table .tala-curricula-tabs-dock .fi-tabs-item {
+        flex: 1 1 0;
+        justify-content: center;
+    }
+
+    .fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar,
+    .fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar > div:last-child {
+        flex: 1 1 100%;
+        inline-size: 100%;
+    }
+
+    .fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar .fi-ta-search-field {
+        flex: 1 1 auto;
+        min-inline-size: 0;
+    }
+}
+
+/* CoursesTable: prevent awkward mid-label wrapping on Year & term column */
+.fi-body .tala-courses-table :is(.tala-year-term-cell, .tala-year-term-col, .tala-year-term-cell .fi-ta-text-item-label) {
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: keep-all;
+}
+
+/* ViewProgram prospectus card & year header: sunken surface + hairline bottom border, zero left border stripe */
+.tala-prospectus-card {
+    display: grid;
+    gap: 1.25rem;
+    padding: var(--tala-card-pad);
+    min-inline-size: 0;
+}
+
+.tala-prospectus-card__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+}
+
+.tala-prospectus-card__identity {
+    display: grid;
+    gap: 0.25rem;
+    min-inline-size: 0;
+}
+
+.tala-prospectus-card__title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tala-prospectus-card__title-row h2 {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 650;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+
+.tala-prospectus-card__subtitle,
+.tala-prospectus-empty {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--tala-muted);
+}
+
+.tala-prospectus-years {
+    display: grid;
+    gap: 1.75rem;
+    min-inline-size: 0;
+}
+
+.tala-prospectus-year {
+    display: grid;
+    gap: 0.875rem;
+    min-inline-size: 0;
+}
+
+.fi-body .tala-prospectus-card .tala-prospectus-year__header,
+.tala-prospectus-year__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.375rem 1rem;
+    padding: 0.625rem 0.875rem;
+    border: 0;
+    border-inline-start: 0;
+    border-block-end: 1px solid var(--tala-edge);
+    border-radius: calc(var(--tala-card-radius) * 0.5) calc(var(--tala-card-radius) * 0.5) 0 0;
+    background: var(--tala-surface-sunken);
+}
+
+.fi-body .tala-prospectus-card .tala-prospectus-year__title,
+.tala-prospectus-year__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: var(--tala-weight-heading);
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+
+.fi-body .tala-prospectus-card .tala-prospectus-year__summary,
+.tala-prospectus-year__summary {
+    font-size: 0.8125rem;
+    font-weight: var(--tala-weight-emphasis);
+    font-variant-numeric: tabular-nums;
+    color: var(--tala-muted);
+}
+
+.tala-prospectus-semesters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: start;
+    min-inline-size: 0;
+}
+
+.tala-prospectus-semester {
+    border: 1px solid var(--tala-edge);
+    border-radius: 0.5rem;
+    background: var(--tala-surface);
+    overflow: hidden;
+    min-inline-size: 0;
+}
+
+.tala-prospectus-semester--full {
+    grid-column: 1 / -1;
+}
+
+.tala-prospectus-semester__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    border-block-end: 1px solid var(--tala-edge);
+    background: var(--tala-surface);
+}
+
+.tala-prospectus-semester__title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 650;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+
+.tala-prospectus-semester__count {
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--tala-muted);
+    white-space: nowrap;
+}
+
+.tala-prospectus-semester__empty {
+    margin: 0;
+    padding: 0.875rem;
+    font-size: 0.8125rem;
+    color: var(--tala-muted);
+}
+
+.tala-prospectus-table-wrap {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+}
+
+.tala-prospectus-table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    text-align: start;
+}
+
+.tala-prospectus-table thead tr {
+    border-block-end: 1px solid var(--tala-edge);
+    background: color-mix(in srgb, var(--tala-surface-sunken) 45%, var(--tala-surface));
+    color: var(--tala-muted);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.tala-prospectus-table th {
+    padding: 0.5rem 0.75rem;
+    font-weight: 650;
+    text-align: start;
+}
+
+.tala-prospectus-table__col-code,
+.tala-prospectus-table__col-units {
+    white-space: nowrap;
+}
+
+.tala-prospectus-table__col-units,
+.tala-prospectus-table__units {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.tala-prospectus-table tbody tr {
+    border-block-end: 1px solid var(--tala-edge);
+}
+
+.tala-prospectus-table td {
+    padding: 0.5625rem 0.75rem;
+    vertical-align: top;
+}
+
+.tala-prospectus-table__code {
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.tala-prospectus-table__code a {
+    color: var(--tala-brand-foreground);
+    text-decoration: none;
+}
+
+.tala-prospectus-table__code a:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+}
+
+.tala-prospectus-table__code a:focus-visible {
+    outline: 2px solid var(--tala-focus);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+}
+
+.tala-prospectus-table__subject {
+    color: var(--tala-text);
+}
+
+.tala-prospectus-table__title {
+    font-weight: 500;
+}
+
+.tala-prospectus-table__meta,
+.tala-prospectus-table__prereq {
+    margin-block-start: 0.125rem;
+    font-size: 0.75rem;
+    color: var(--tala-muted);
+}
+
+.tala-prospectus-table__units {
+    font-weight: 600;
+    color: var(--tala-text);
+}
+
+.tala-prospectus-table tfoot tr {
+    background: color-mix(in srgb, var(--tala-surface-sunken) 65%, var(--tala-surface));
+    font-weight: 700;
+    color: var(--tala-text);
+}
+
+.tala-prospectus-table tfoot td {
+    padding: 0.5625rem 0.75rem;
+    vertical-align: middle;
+}
+
+@media (max-width: 52rem) {
+    .tala-prospectus-semesters {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 40rem) {
+    .tala-prospectus-card {
+        padding: var(--tala-card-pad-compact);
+    }
+}
+
 @media (forced-colors: active) {
     .tala-semester-row.is-selected,
     .tala-year-card.is-active {
@@ -784,5 +1215,11 @@
 
     .tala-semester-row.is-incomplete:not(.is-selected) {
         outline: 2px dashed Highlight;
+    }
+
+    .fi-body .tala-prospectus-card .tala-prospectus-year__header,
+    .tala-prospectus-year__header {
+        border-inline-start: 0;
+        border-block-end: 1px solid CanvasText;
     }
 }

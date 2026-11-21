@@ -316,6 +316,183 @@ class CurriculumWorkbenchService
     }
 
     /**
+     * Create a new draft subject and optionally place it into chosen active programs' editable draft curricula.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{
+     *     specification: CourseSpecification,
+     *     course: Course,
+     *     added_curricula: int,
+     *     skipped_programs: list<string>
+     * }
+     */
+    public function createDraftSubjectAndAssignToCurricula(User $actor, array $data): array
+    {
+        return DB::transaction(function () use ($actor, $data): array {
+            $subject = $this->createDraftSubject($actor, $data);
+            $placementResult = $this->assignSpecificationToCurricula($actor, $subject, $data);
+
+            return [
+                'specification' => $subject,
+                'course' => $subject->course,
+                'added_curricula' => $placementResult['added_curricula'],
+                'skipped_programs' => $placementResult['skipped_programs'],
+            ];
+        });
+    }
+
+    /**
+     * Place an existing subject specification into active programs' editable draft curricula in one operation.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{
+     *     added_curricula: int,
+     *     skipped_programs: list<string>
+     * }
+     */
+    public function assignSpecificationToCurricula(User $actor, CourseSpecification $subject, array $data): array
+    {
+        return DB::transaction(function () use ($actor, $subject, $data): array {
+            $applyTo = (string) ($data['apply_to'] ?? 'none');
+
+            if ($applyTo === '' || $applyTo === 'none') {
+                return [
+                    'added_curricula' => 0,
+                    'skipped_programs' => [],
+                ];
+            }
+
+            $placements = $applyTo === 'custom'
+                ? $this->customSubjectPlacements($data)
+                : $this->uniformSubjectPlacements($applyTo, $data);
+
+            $addedCurricula = 0;
+            $skippedPrograms = [];
+
+            foreach ($placements as $placement) {
+                $program = $placement['program'];
+                $targetYear = $placement['year_level'];
+                $targetTermType = $placement['term_type'];
+
+                $draft = CurriculumVersion::query()
+                    ->where('program_id', $program->id)
+                    ->where('state', CurriculumVersion::StateDraft)
+                    ->orderByDesc('id')
+                    ->get()
+                    ->first(fn (CurriculumVersion $version): bool => $version->isEditableDraft());
+
+                if (! $draft instanceof CurriculumVersion) {
+                    $skippedPrograms[] = "{$program->code} (no editable draft curriculum)";
+
+                    continue;
+                }
+
+                $yearLimit = $this->yearLevelLimit($draft);
+
+                if ($targetYear > $yearLimit) {
+                    $skippedPrograms[] = "{$program->code} (program length is {$yearLimit} ".Str::plural('year', $yearLimit).')';
+
+                    continue;
+                }
+
+                $alreadyPlaced = CurriculumEntry::query()
+                    ->where('curriculum_version_id', $draft->id)
+                    ->whereHas('courseSpecification', fn ($query) => $query->where('course_id', $subject->course_id))
+                    ->exists();
+
+                if ($alreadyPlaced) {
+                    continue;
+                }
+
+                $this->createEntry($actor, $draft, [
+                    'course_specification_id' => $subject->id,
+                    'year_level' => $targetYear,
+                    'term_type' => $targetTermType,
+                    'requirement_group' => CurriculumEntry::RequirementGroupRequired,
+                ]);
+
+                $addedCurricula++;
+            }
+
+            return [
+                'added_curricula' => $addedCurricula,
+                'skipped_programs' => $skippedPrograms,
+            ];
+        });
+    }
+
+    /**
+     * Same year and term for every active program or for the selected programs.
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<array{program: Program, year_level: int, term_type: string}>
+     */
+    private function uniformSubjectPlacements(string $applyTo, array $data): array
+    {
+        /** @var array<string, mixed> $validated */
+        $validated = Validator::make([
+            'apply_to' => $applyTo,
+            'program_ids' => $data['program_ids'] ?? [],
+            'year_level' => $data['placement_year_level'] ?? ($data['year_level'] ?? null),
+            'term_type' => $data['placement_term_type'] ?? ($data['term_type'] ?? null),
+        ], [
+            'apply_to' => ['required', Rule::in(['all_active', 'selected'])],
+            'program_ids' => [Rule::requiredIf($applyTo === 'selected'), 'array'],
+            'program_ids.*' => ['integer', 'distinct', 'exists:programs,id'],
+            'year_level' => ['required', 'integer', 'min:1', 'max:8'],
+            'term_type' => ['required', Rule::in(array_keys(Term::typeOptions()))],
+        ])->validate();
+
+        $programs = $applyTo === 'all_active'
+            ? Program::query()->where('is_active', true)->orderBy('code')->get()
+            : Program::query()->whereIn('id', $validated['program_ids'])->orderBy('code')->get();
+
+        return $programs
+            ->map(fn (Program $program): array => [
+                'program' => $program,
+                'year_level' => (int) $validated['year_level'],
+                'term_type' => (string) $validated['term_type'],
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * One placement row per program, each with its own year and term.
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<array{program: Program, year_level: int, term_type: string}>
+     */
+    private function customSubjectPlacements(array $data): array
+    {
+        /** @var array<string, mixed> $validated */
+        $validated = Validator::make([
+            'placements' => array_values((array) ($data['placements'] ?? [])),
+        ], [
+            'placements' => ['required', 'array', 'min:1'],
+            'placements.*.program_id' => ['required', 'integer', 'distinct', 'exists:programs,id'],
+            'placements.*.year_level' => ['required', 'integer', 'min:1', 'max:8'],
+            'placements.*.term_type' => ['required', Rule::in(array_keys(Term::typeOptions()))],
+        ])->validate();
+
+        $programs = Program::query()
+            ->whereIn('id', array_column($validated['placements'], 'program_id'))
+            ->get()
+            ->keyBy('id');
+
+        return collect($validated['placements'])
+            ->map(fn (array $row): array => [
+                'program' => $programs->get((int) $row['program_id']),
+                'year_level' => (int) $row['year_level'],
+                'term_type' => (string) $row['term_type'],
+            ])
+            ->filter(fn (array $row): bool => $row['program'] instanceof Program)
+            ->sortBy(fn (array $row): string => $row['program']->code)
+            ->values()
+            ->all();
+    }
+
+    /**
      * Prepare a new subject and its placement as one guarded Draft operation.
      *
      * @param  array<string, mixed>  $data

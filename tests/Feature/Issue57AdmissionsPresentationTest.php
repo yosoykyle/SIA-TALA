@@ -210,7 +210,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
     {
         [, $applicant] = $this->application();
         $this->actingAs($applicant)->get('/applicant/missing-issue57-page')->assertNotFound()
-            ->assertSee('HTTP 404')->assertDontSee('Pause background animation')
+            ->assertSee('Page not found')->assertDontSee('HTTP 404')->assertDontSee('Pause background animation')
             ->assertSee('Back to home')->assertDontSee('Try submitting again');
     }
 

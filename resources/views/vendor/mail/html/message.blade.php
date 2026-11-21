@@ -21,7 +21,7 @@
 {{-- Footer --}}
 <x-slot:footer>
 <x-mail::footer>
-© {{ date('Y') }} {{ config('institution.name', 'Servitech Institute Asia Inc.') }} · Powered by {{ config('app.name', 'TALA') }}. {{ __('All rights reserved.') }}
+© {{ date('Y') }} {{ rtrim((string) config('institution.name', 'Servitech Institute Asia Inc.'), '.') }}. {{ __('All rights reserved.') }}
 </x-mail::footer>
 </x-slot:footer>
 </x-mail::layout>

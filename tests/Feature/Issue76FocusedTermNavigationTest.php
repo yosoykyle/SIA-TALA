@@ -57,9 +57,12 @@ class Issue76FocusedTermNavigationTest extends TestCase
 
         $this->assertSame(['Learner work', 'Academic setup'], array_map(fn ($group): ?string => $group->getLabel(), $groups));
         $this->assertSame(['Admissions', 'Students & Enrollment', 'Grades & Completion'], array_map(fn ($item): string => $item->getLabel(), $groups[0]->getItems()));
-        $this->assertSame(['Catalog & Curricula', 'Term Planning'], array_map(fn ($item): string => $item->getLabel(), $groups[1]->getItems()));
+        $this->assertSame(['Programs & Curricula', 'Term Planning'], array_map(fn ($item): string => $item->getLabel(), $groups[1]->getItems()));
         $items = $this->planningChildren();
-        $this->assertSame(['Term overview', 'Teaching calendar', 'Classes & student sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $items));
+        $this->assertSame(['Term overview', 'Teaching calendar', 'Classes & sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $items));
+        foreach ($items as $item) {
+            $this->assertNotNull($item->getIcon());
+        }
 
         foreach ($items as $item) {
             $this->assertStringContainsString('termId='.$termId, $item->getUrl());
@@ -110,8 +113,11 @@ class Issue76FocusedTermNavigationTest extends TestCase
         $this->assertCount(1, $groups);
         $this->assertSame(['Academic Oversight'], array_map(fn ($item): string => $item->getLabel(), $groups[0]->getItems()));
         $planningItems = $this->planningChildren();
-        $this->assertSame(['Term overview', 'Teaching calendar', 'Classes & student sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $planningItems));
+        $this->assertSame(['Term overview', 'Teaching calendar', 'Classes & sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $planningItems));
         $this->assertTrue($planningItems[2]->isActive());
+        foreach ($planningItems as $item) {
+            $this->assertNotNull($item->getIcon());
+        }
 
         foreach ($planningItems as $item) {
             $this->assertStringContainsString('termId='.$term->id, $item->getUrl());

@@ -7,6 +7,9 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\ExternalCompetencyRequirement;
 use App\Models\Program;
+use App\Models\ProgramShiftCreditEntry;
+use App\Models\RegistrationCreditEvaluation;
+use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermCohort;
@@ -255,28 +258,84 @@ class CurriculumVersionLifecycleService
         });
     }
 
+    public function canDiscardDraft(CurriculumVersion $curriculum): bool
+    {
+        if ($curriculum->state !== CurriculumVersion::StateDraft || $curriculum->isHistoricallyUsed()) {
+            return false;
+        }
+
+        return StudentLifecycleChange::query()->where('target_curriculum_version_id', $curriculum->id)->doesntExist()
+            && RegistrationCreditEvaluation::query()->where('curriculum_version_id', $curriculum->id)->doesntExist()
+            && ProgramShiftCreditEntry::query()
+                ->whereHas('curriculumEntry', fn ($query) => $query->where('curriculum_version_id', $curriculum->id))
+                ->doesntExist();
+    }
+
+    /**
+     * Permanently remove an unreferenced Draft curriculum and its draft placements.
+     */
+    public function discardDraft(CurriculumVersion $curriculum, User $actor): void
+    {
+        Gate::forUser($actor)->authorize('update', $curriculum);
+
+        DB::transaction(function () use ($curriculum, $actor): void {
+            $locked = CurriculumVersion::query()
+                ->lockForUpdate()
+                ->findOrFail($curriculum->id);
+
+            Gate::forUser($actor)->authorize('update', $locked);
+
+            if (! $this->canDiscardDraft($locked)) {
+                throw ValidationException::withMessages([
+                    'curriculum_version' => 'This draft curriculum is already referenced by student, cohort, or term records and cannot be discarded.',
+                ]);
+            }
+
+            $entriesDeleted = $locked->entries()->count();
+            $properties = [
+                'program_id' => $locked->program_id,
+                'version_code' => $locked->version_code,
+                'name' => $locked->name,
+                'entries_deleted' => $entriesDeleted,
+            ];
+
+            activity()
+                ->performedOn($locked)
+                ->causedBy($actor)
+                ->event('curriculum_version_draft_discarded')
+                ->withProperties($properties)
+                ->log('Draft curriculum discarded');
+
+            $locked->externalCompetencyRequirements()->delete();
+            $locked->entries()->delete();
+            $locked->delete();
+        });
+    }
+
     public function readinessErrors(CurriculumVersion $curriculumVersion): array
     {
         $entries = $curriculumVersion->entries()
-            ->with('courseSpecification.components')
+            ->with(['courseSpecification.course', 'courseSpecification.components'])
             ->get();
         $errors = [];
 
         if ($entries->isEmpty()) {
-            return ['At least one Curriculum Entry is required.'];
+            return ['Add at least one subject to this curriculum before activating it.'];
         }
 
         foreach ($entries as $entry) {
             $specification = $entry->courseSpecification;
 
             if (! $specification instanceof CourseSpecification) {
-                $errors[] = "Curriculum Entry {$entry->id} has no Course Specification.";
+                $errors[] = 'One of the curriculum rows is missing its subject details. Remove the row or pick a subject.';
 
                 continue;
             }
 
+            $subjectLabel = $this->subjectDisplayLabel($specification);
+
             if (! in_array($specification->state, [CourseSpecification::StateActive, CourseSpecification::StateDraft], true)) {
-                $errors[] = "{$specification->title} ({$specification->revision_code}) must be Active.";
+                $errors[] = "{$subjectLabel} is no longer active. Replace it with an active or draft revision.";
 
                 continue;
             }
@@ -285,10 +344,7 @@ class CurriculumVersionLifecycleService
 
             if ($specErrors !== []) {
                 foreach ($specErrors as $error) {
-                    $prefix = $specification->state === CourseSpecification::StateDraft
-                        ? "{$specification->title} ({$specification->revision_code}) must be Active or have complete teaching details"
-                        : "{$specification->title} ({$specification->revision_code})";
-                    $errors[] = "{$prefix}: {$error}";
+                    $errors[] = "{$subjectLabel}: {$error}";
                 }
             }
         }
@@ -324,14 +380,23 @@ class CurriculumVersionLifecycleService
             }
 
             if ($this->courseSpecifications->readinessErrors($specification) === []) {
-                $code = $specification->course?->code;
-                $labels[] = $code
-                    ? "{$code} · {$specification->title} ({$specification->revision_code})"
-                    : "{$specification->title} ({$specification->revision_code})";
+                $labels[] = $this->subjectDisplayLabel($specification);
             }
         }
 
         return array_values(array_unique($labels));
+    }
+
+    private function subjectDisplayLabel(CourseSpecification $specification): string
+    {
+        $code = trim((string) ($specification->course?->code ?? ''));
+        $title = trim((string) $specification->title);
+
+        if ($code !== '' && $title !== '') {
+            return "{$code} · {$title}";
+        }
+
+        return $code !== '' ? $code : ($title !== '' ? $title : 'This subject');
     }
 
     private function computeContentHash(CurriculumVersion $curriculumVersion): string

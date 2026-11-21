@@ -4,6 +4,8 @@ namespace App\Support;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
+use App\Filament\Pages\FacultyGradeRoster;
+use App\Filament\Pages\FacultyOverview;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\TermPlanningWorkbench;
@@ -61,10 +63,19 @@ class WorkspaceNavigationSearchProvider implements GlobalSearchProvider
                 $available = $contexts->availableContexts($user);
                 $selected = count($available) === 1 ? array_key_first($available) : null;
             }
-            if ($selected === User::StaffRoleFaculty && MyAvailability::canAccess()) {
-                $items[] = NavigationItem::make('My Availability')->url(MyAvailability::getUrl());
-                if (FacultySchedule::canAccess()) {
-                    $items[] = NavigationItem::make('My Schedule')->url(FacultySchedule::getUrl());
+            if ($selected === User::StaffRoleFaculty) {
+                $existingLabels = array_map(fn (NavigationItem $item): string => $item->getLabel(), $items);
+                $facultyPages = [
+                    'Overview' => FacultyOverview::class,
+                    'My schedule' => FacultySchedule::class,
+                    'My availability' => MyAvailability::class,
+                    'Class grades' => FacultyGradeRoster::class,
+                ];
+
+                foreach ($facultyPages as $label => $pageClass) {
+                    if (! in_array($label, $existingLabels, true) && $pageClass::canAccess()) {
+                        $items[] = NavigationItem::make($label)->url($pageClass::getUrl());
+                    }
                 }
             }
         }

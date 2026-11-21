@@ -45,7 +45,10 @@ class TermPlanningCluster extends Cluster
             }
             $items[] = NavigationItem::make(match ($key) {
                 'plan' => 'Term overview',
-                'classes' => 'Sections & classes',
+                'overview' => 'Teaching calendar',
+                'classes' => 'Classes & sections',
+                'resources' => 'Faculty & rooms',
+                'generate' => 'Timetable',
                 default => $page::getNavigationLabel(),
             })
                 ->url($page::getUrl(['termId' => $termId]))

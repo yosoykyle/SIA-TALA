@@ -79,7 +79,9 @@ class Issue76TermOverviewTasksTest extends TestCase
             app(RecordFacultyAvailabilityDeadline::class)->execute($term, auth()->user(), now()->addWeek()->toDateTimeString(), 'Approved deadline', null, 0);
         }
         $offering = TermOffering::factory()->for($term)->create();
-        $faculty = User::factory()->create();
+        $faculty = User::factory()->create(['status' => User::StatusActive]);
+        Role::findOrCreate(User::StaffRoleFaculty, 'web');
+        $faculty->assignRole(User::StaffRoleFaculty);
         FacultyQualification::factory()->create(['faculty_user_id' => $faculty->id, 'course_id' => $offering->course()->id]);
         OperationalEvent::factory()->create([
             'event_type' => OperationalEvent::TypeFacultyAvailabilityRequestedEmail,
@@ -92,9 +94,10 @@ class Issue76TermOverviewTasksTest extends TestCase
 
         $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class);
 
-        $this->assertSame($delivered, collect($page->viewData('overviewWaiting'))->contains('key', 'availability'));
-        $this->assertSame(! $delivered && $hasDeadline, collect($page->viewData('overviewWork'))->contains('key', 'availability'));
-        $this->assertSame(! $hasDeadline, collect($page->viewData('overviewWork'))->contains('key', 'deadline'));
+        $this->assertTrue(collect($page->viewData('overviewWaiting'))->contains('key', 'availability'));
+        $this->assertFalse(collect($page->viewData('overviewWork'))->contains('key', 'availability'));
+        $this->assertFalse(collect($page->viewData('overviewWork'))->contains('key', 'deadline'));
+        $page->assertSee('Teachers with no response will not be scheduled for new assignments until they reply.');
     }
 
     #[TestWith([ScheduleGenerationRun::StatusQueued, null, 'pending'])]
@@ -288,8 +291,7 @@ class Issue76TermOverviewTasksTest extends TestCase
         $this->assertArrayNotHasKey('faculty-'.$unrelatedFaculty->id, $defaultRows);
         $this->assertSame(2, $page->viewData('termFacultyCount'));
         $this->assertSame(1, $page->viewData('facultyResponseCount'));
-        $this->assertSame(0, $page->viewData('awaitingRequestedResponses'));
-        $this->assertSame(1, $page->viewData('notRequestedResponses'));
+        $this->assertSame(1, $page->viewData('noResponseCount'));
 
         $allRows = $page->filterTable('faculty_scope', 'all')->instance()->getTableRecords()->items();
 

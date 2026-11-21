@@ -52,8 +52,8 @@ final class PrepareTermClassProposal
             'course_code' => $entry->courseSpecification->course->code,
             'program' => $entry->curriculumVersion->program->name,
             'year_level' => $entry->year_level,
-            'curriculum_version' => $entry->curriculumVersion->version_code,
-            'label' => $entry->curriculumVersion->program->name.' · '.$entry->year_level.' · '.$entry->courseSpecification->title.' ('.$entry->courseSpecification->course->code.') · '.$entry->curriculumVersion->version_code.($entry->term_type !== $term->type ? ' · Additional only in this Term' : ''),
+            'curriculum_version' => $entry->curriculumVersion->name ?: $entry->curriculumVersion->version_code,
+            'label' => $entry->curriculumVersion->program->name.' · '.$entry->year_level.' · '.$entry->courseSpecification->title.' ('.$entry->courseSpecification->course->code.') · '.($entry->curriculumVersion->name ?: $entry->curriculumVersion->version_code).($entry->term_type !== $term->type ? ' · Additional only in this Term' : ''),
             'curriculum_id' => $entry->curriculum_version_id,
             'course_id' => $entry->courseSpecification->course_id,
             'term_type' => $entry->term_type,
@@ -121,6 +121,7 @@ final class PrepareTermClassProposal
             $existing = collect($preview['classes'])->keyBy('section_id');
             $cohorts = $preview['cohorts']->keyBy('id');
             $seen = [];
+            $allocatedCodes = [];
             $items = [];
             $cancelled = 0;
             foreach ($rows as $index => $row) {
@@ -156,14 +157,14 @@ final class PrepareTermClassProposal
                 }
                 $data = Validator::make($row, [
                     'entry_id' => ['required', 'integer', Rule::in(collect($preview['catalog'])->pluck('id')->all())],
-                    'code' => ['required', 'string', 'max:64'], 'capacity' => ['required', 'integer', 'min:1'],
+                    'code' => ['nullable', 'string', 'max:64'], 'capacity' => ['required', 'integer', 'min:1'],
                     'source' => ['required', Rule::in(array_keys(Section::confirmableSourceOptions()))],
                     'modality' => ['required', Rule::in(array_keys(TermOffering::modalityOptions()))],
                     'authority_reference' => ['nullable', 'string', 'max:255', 'required_if:source,'.Section::SourceAdditional],
                     'cohorts' => ['required', 'array', 'min:1'], 'cohorts.*.id' => ['required', 'integer', 'distinct'],
                     'cohorts.*.count' => ['required', 'integer', 'min:1'],
                 ])->validate();
-                $entry = CurriculumEntry::query()->with(['curriculumVersion', 'courseSpecification.components'])->findOrFail($data['entry_id']);
+                $entry = CurriculumEntry::query()->with(['curriculumVersion', 'courseSpecification.course', 'courseSpecification.components'])->findOrFail($data['entry_id']);
                 $revision = $entry->courseSpecification;
                 if ($entry->term_type !== $term->type && $data['source'] !== Section::SourceAdditional) {
                     throw ValidationException::withMessages(['classes' => 'A course outside this Term’s curriculum period requires an approved Additional class.']);
@@ -189,9 +190,29 @@ final class PrepareTermClassProposal
                 if ($class && ($class->confirmed_at || (int) $class->termOffering->curriculum_entry_id !== $entry->id || $class->capacity !== (int) $data['capacity'])) {
                     throw ValidationException::withMessages(['classes' => 'Retain confirmed classes unchanged. Correct a Draft capacity at its source, then reload the proposal.']);
                 }
+
+                $firstCohortId = (int) array_key_first($counts);
+                $firstCohort = $cohorts->get($firstCohortId);
+                $providedCode = trim((string) ($data['code'] ?? ''));
+
+                if ($providedCode !== '') {
+                    $code = $providedCode;
+                } elseif ($class instanceof Section && filled($class->class_reference ?: $class->code)) {
+                    $code = trim((string) ($class->class_reference ?: $class->code));
+                } else {
+                    $code = PrepareClassOffering::generateUniqueReference(
+                        $term,
+                        $revision->course?->code,
+                        $firstCohort?->reference,
+                        $allocatedCodes,
+                        $class?->id,
+                    );
+                }
+
                 if (! $class) {
-                    if (Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
-                        ->where(fn ($query) => $query->where('code', trim($data['code']))->orWhere('class_reference', trim($data['code'])))->exists()) {
+                    $duplicateInBatch = in_array(strtoupper($code), array_map('strtoupper', $allocatedCodes), true);
+                    if ($duplicateInBatch || Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
+                        ->where(fn ($query) => $query->where('code', $code)->orWhere('class_reference', $code))->exists()) {
                         throw ValidationException::withMessages(['classes' => 'Every class needs its own reference in this Term.']);
                     }
                     $offering = TermOffering::query()->firstOrCreate(['term_id' => $term->id, 'curriculum_entry_id' => $entry->id, 'delivery_variant' => TermOffering::ArrangementNormalClass], [
@@ -200,11 +221,12 @@ final class PrepareTermClassProposal
                     if ($offering->state !== TermOffering::StatePendingScheduling) {
                         throw ValidationException::withMessages(['classes' => 'This course source is already published or cancelled. Use its controlled revision path to change the class set.']);
                     }
-                    $class = Section::query()->create(['term_offering_id' => $offering->id, 'code' => trim($data['code']), 'capacity' => $data['capacity'], 'state' => Section::StatePlanned]);
-                    $class->deliveryGroups()->create(['name' => trim($data['code']), 'expected_count' => array_sum($counts), 'modality' => $data['modality'], 'state' => SectionDeliveryGroup::StatePlanned]);
+                    $class = Section::query()->create(['term_offering_id' => $offering->id, 'code' => $code, 'capacity' => $data['capacity'], 'state' => Section::StatePlanned]);
+                    $class->deliveryGroups()->create(['name' => $code, 'expected_count' => array_sum($counts), 'modality' => $data['modality'], 'state' => SectionDeliveryGroup::StateReady]);
                 }
+                $allocatedCodes[] = $code;
                 $class = app(PrepareClassOffering::class)->execute($term, $class, $actor, [
-                    'class_reference' => trim($data['code']), 'source' => $data['source'], 'delivery_mode' => $data['modality'], 'authority_reference' => $data['authority_reference'] ?? null,
+                    'class_reference' => $code, 'source' => $data['source'], 'delivery_mode' => $data['modality'], 'authority_reference' => $data['authority_reference'] ?? null,
                 ]);
                 $items[] = ['section' => $class, 'cohort_counts' => $counts, 'authority_reference' => $data['authority_reference'] ?? null];
             }

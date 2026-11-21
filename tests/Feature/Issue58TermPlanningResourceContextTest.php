@@ -591,9 +591,9 @@ class Issue58TermPlanningResourceContextTest extends TestCase
     public static function planningLists(): array
     {
         return [
-            'Offerings' => [ListTermOfferings::class, 'classes', 'Sections & classes'],
-            'Sections' => [ListSections::class, 'classes', 'Sections & classes'],
-            'Requirements' => [ListSchedulingDemands::class, 'classes', 'Sections & classes'],
+            'Offerings' => [ListTermOfferings::class, 'classes', 'Classes & student sections'],
+            'Sections' => [ListSections::class, 'classes', 'Classes & student sections'],
+            'Requirements' => [ListSchedulingDemands::class, 'classes', 'Classes & student sections'],
             'Rooms' => [ListRooms::class, 'resources', 'Faculty & rooms'],
             'Qualifications' => [ListFacultyQualifications::class, 'resources', 'Faculty & rooms'],
             'Loads' => [ListFacultyTermLoadOverrides::class, 'resources', 'Faculty & rooms'],

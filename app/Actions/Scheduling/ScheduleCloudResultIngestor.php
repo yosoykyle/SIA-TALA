@@ -118,6 +118,9 @@ final class ScheduleCloudResultIngestor
                 ->filter(fn (mixed $assignment): bool => is_array($assignment))
                 ->keyBy(fn (array $assignment): string => $assignment['scheduling_demand_id'].':'.($assignment['meeting_sequence'] ?? 1));
 
+            $rowsToInsert = [];
+            $timestamp = now()->toDateTimeString();
+
             foreach ($validation->candidateRows() as $candidateRow) {
                 $identity = $candidateRow['scheduling_demand_id'].':'.$candidateRow['meeting_sequence'];
                 $previous = $baseline->get($identity);
@@ -132,7 +135,39 @@ final class ScheduleCloudResultIngestor
                     $candidateRow['override_reason'] = $operation['reason'] ?? null;
                 }
 
-                CandidateScheduleRow::query()->create($candidateRow);
+                $rowsToInsert[] = [
+                    'schedule_run_id' => $candidateRow['schedule_run_id'] ?? $lockedRun->id,
+                    'supersedes_candidate_row_id' => $candidateRow['supersedes_candidate_row_id'] ?? null,
+                    'scheduling_demand_id' => $candidateRow['scheduling_demand_id'],
+                    'meeting_sequence' => $candidateRow['meeting_sequence'],
+                    'faculty_user_id' => $candidateRow['faculty_user_id'],
+                    'room_id' => $candidateRow['room_id'] ?? null,
+                    'day_of_week' => $candidateRow['day_of_week'],
+                    'starts_at' => $candidateRow['starts_at'],
+                    'ends_at' => $candidateRow['ends_at'],
+                    'time_block_key' => $candidateRow['time_block_key'] ?? null,
+                    'status' => $candidateRow['status'],
+                    'change_type' => $candidateRow['change_type'] ?? null,
+                    'scores' => is_array($candidateRow['scores'] ?? null)
+                        ? json_encode($candidateRow['scores'], JSON_THROW_ON_ERROR)
+                        : ($candidateRow['scores'] ?? null),
+                    'warnings' => is_array($candidateRow['warnings'] ?? null)
+                        ? json_encode($candidateRow['warnings'], JSON_THROW_ON_ERROR)
+                        : ($candidateRow['warnings'] ?? null),
+                    'violations' => is_array($candidateRow['violations'] ?? null)
+                        ? json_encode($candidateRow['violations'], JSON_THROW_ON_ERROR)
+                        : ($candidateRow['violations'] ?? null),
+                    'override_authority' => $candidateRow['override_authority'] ?? null,
+                    'override_reason' => $candidateRow['override_reason'] ?? null,
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ];
+            }
+
+            if ($rowsToInsert !== []) {
+                foreach (array_chunk($rowsToInsert, 1000) as $chunk) {
+                    CandidateScheduleRow::query()->insert($chunk);
+                }
             }
 
             $this->updateRun(

@@ -2,7 +2,40 @@
     $results = $profile['results'];
     $selected = $profile['selectedResult'];
     $curriculum = $profile['curriculum'];
+    $fromEnrollmentId = request()->integer('fromEnrollment') ?: null;
+    $returnEnrollment = $fromEnrollmentId
+        ? \App\Models\Enrollment::query()
+            ->whereKey($fromEnrollmentId)
+            ->where('student_profile_id', $student->id)
+            ->first()
+        : null;
+    $returnEnrollmentUrl = $returnEnrollment && \App\Filament\Resources\Enrollments\EnrollmentResource::canView($returnEnrollment)
+        ? \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $returnEnrollment])
+        : null;
+    $yearLevelLabel = static fn (?string $yearLevel): string => match (trim((string) $yearLevel)) {
+        '', '0' => 'Year not recorded',
+        '1', '1st Year', 'First Year' => 'Year 1',
+        '2', '2nd Year', 'Second Year' => 'Year 2',
+        '3', '3rd Year', 'Third Year' => 'Year 3',
+        '4', '4th Year', 'Fourth Year' => 'Year 4',
+        default => ctype_digit(trim((string) $yearLevel)) ? 'Year '.trim((string) $yearLevel) : trim((string) $yearLevel),
+    };
+    $satisfiedCourseIds = $curriculum && count($curriculum['required'])
+        ? app(\App\Actions\Enrollment\RegistrationAcademicEligibilityQuery::class)->satisfiedCourseIds($student)
+        : collect();
+    $curriculumGroups = $curriculum && count($curriculum['required'])
+        ? collect($curriculum['required'])
+            ->groupBy(fn (array $row): string => $yearLevelLabel($row['curriculum_entry']->year_level))
+            ->map(fn ($yearRows) => $yearRows->groupBy(fn (array $row): string => filled($row['curriculum_entry']->term_label) ? (string) $row['curriculum_entry']->term_label : 'Term not recorded'))
+        : collect();
 @endphp
+@if ($returnEnrollmentUrl)
+    <div style="margin-block-end: .75rem;">
+        <x-filament::link :href="$returnEnrollmentUrl" icon="heroicon-o-arrow-left">
+            Return to enrollment case{{ $returnEnrollment?->term?->label ? ' ('.$returnEnrollment->term->label.')' : '' }}
+        </x-filament::link>
+    </div>
+@endif
 <section class="tala-profile-ledger" aria-labelledby="profile-academic-heading">
     <header class="tala-profile-ledger__toolbar">
         <div><h2 id="profile-academic-heading">Academic record</h2><p class="tala-profile-muted">Released results for the selected term.</p></div>
@@ -64,8 +97,78 @@
 </section>
 @if ($curriculum && count($curriculum['required']))
     <section class="tala-profile-ledger" aria-label="Curriculum progress">
-        <header class="tala-profile-ledger__toolbar"><div><h2>Curriculum progress</h2><p class="tala-profile-muted">{{ $curriculum['completed_units'] }} units completed or credited across terms.</p></div></header>
-        <div class="tala-data-table-scroll tala-profile-table-wrap" role="region" aria-label="Required curriculum subjects" tabindex="0"><table class="tala-data-table tala-profile-table"><thead><tr><th scope="col">Required subject</th><th scope="col">Status</th><th scope="col">Credited units</th></tr></thead><tbody>@foreach ($curriculum['required'] as $row)<tr><th scope="row">{{ $row['curriculum_entry']->courseSpecification?->course?->code }} &middot; {{ $row['curriculum_entry']->courseSpecification?->title }}</th><td>{{ str($row['status'])->headline() }}</td><td class="tala-profile-numeric">{{ $row['credited_units'] }}</td></tr>@endforeach</tbody></table></div>
+        <header class="tala-profile-ledger__toolbar">
+            <div>
+                <h2>Curriculum progress</h2>
+                <p class="tala-profile-muted">{{ $curriculum['completed_units'] }} units completed or credited across terms.</p>
+            </div>
+            @if ($returnEnrollmentUrl)
+                <x-filament::link :href="$returnEnrollmentUrl" icon="heroicon-o-arrow-left">Return to enrollment case</x-filament::link>
+            @elseif ($profile['enrollmentUrl'] ?? null)
+                <x-filament::link :href="$profile['enrollmentUrl']" icon="heroicon-o-clipboard-document-check">View current enrollment</x-filament::link>
+            @endif
+        </header>
+        <div style="display: grid; gap: 1.25rem;">
+            @foreach ($curriculumGroups as $yearLabel => $termGroups)
+                @php
+                    $yearRows = collect($termGroups)->flatten(1);
+                    $yearDone = $yearRows->whereIn('status', ['Completed', 'Approved credit'])->count();
+                @endphp
+                <section aria-label="{{ $yearLabel }} curriculum progress" style="display: grid; gap: .75rem;">
+                    <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1rem;">
+                        <h3 style="margin: 0; font-size: 1rem; font-weight: 600;">{{ $yearLabel }}</h3>
+                        <p class="tala-profile-muted" style="margin: 0;">{{ $yearDone }} of {{ $yearRows->count() }} {{ $yearRows->count() === 1 ? 'subject' : 'subjects' }} completed</p>
+                    </div>
+                    @foreach ($termGroups as $termLabel => $rows)
+                        <div class="tala-data-table-scroll tala-profile-table-wrap" role="region" aria-label="{{ $yearLabel }} · {{ $termLabel }} required subjects" tabindex="0">
+                            <table class="tala-data-table tala-profile-table">
+                                <caption style="text-align: left; font-size: .8125rem; font-weight: 600; color: var(--tala-muted, #475569); padding: .5rem .75rem;">{{ $termLabel }}</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Required subject</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Credited units</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($rows as $row)
+                                        @php
+                                            $activeReqs = ($row['curriculum_entry']->courseSpecification?->requirements ?? collect())
+                                                ->filter(fn (\App\Models\CourseRequirement $req): bool => $req->state === \App\Models\CourseRequirement::StateActive
+                                                    && in_array($req->rule_type, [\App\Models\CourseRequirement::TypePrerequisite, \App\Models\CourseRequirement::TypeCorequisite], true))
+                                                ->groupBy(fn (\App\Models\CourseRequirement $req): string => $req->rule_type.':'.$req->group_key);
+                                            $rowDone = in_array($row['status'], ['Completed', 'Approved credit'], true);
+                                        @endphp
+                                        <tr>
+                                            <th scope="row">
+                                                <div>{{ $row['curriculum_entry']->courseSpecification?->course?->code }} &middot; {{ $row['curriculum_entry']->courseSpecification?->title }}</div>
+                                                @if ($activeReqs->isNotEmpty())
+                                                    <div class="tala-profile-muted" style="font-weight: 400; font-size: .8125rem; margin-block-start: .2rem;">
+                                                        @foreach ($activeReqs as $reqGroup)
+                                                            @php
+                                                                $ruleType = $reqGroup->first()?->rule_type;
+                                                                $typeLabel = \App\Models\CourseRequirement::typeOptions()[$ruleType] ?? 'Requirement';
+                                                                $codes = $reqGroup->pluck('relatedCourse.code')->filter()->implode(' or ');
+                                                                $groupSatisfied = $reqGroup->contains(fn (\App\Models\CourseRequirement $req): bool => $satisfiedCourseIds->contains((int) $req->related_course_id));
+                                                            @endphp
+                                                            <span style="display: block;">
+                                                                {{ $typeLabel }}: {{ $codes !== '' ? $codes : 'Subject not recorded' }}@if (! $rowDone) · {{ $groupSatisfied ? 'Satisfied' : 'Unmet' }}@endif
+                                                            </span>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            </th>
+                                            <td>{{ str($row['status'])->headline() }}</td>
+                                            <td class="tala-profile-numeric">{{ $row['credited_units'] }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endforeach
+                </section>
+            @endforeach
+        </div>
     </section>
 @else
     <p class="tala-profile-source-note"><x-filament::icon icon="heroicon-o-information-circle" />Curriculum progress unavailable. {{ $student->curriculumVersion ? 'This curriculum has no recorded subjects to evaluate.' : 'No curriculum is recorded for this student.' }}</p>

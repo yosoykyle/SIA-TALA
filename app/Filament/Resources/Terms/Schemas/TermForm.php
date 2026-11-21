@@ -74,12 +74,12 @@ class TermForm
                 ])
                 ->columns(2)
                 ->columnSpanFull(),
-            Section::make(fn (?Term $record): string => ($record?->hasActivatedCalendar() ?? false) ? 'Faculty teaching-load default' : 'Optional settings')
+            Section::make(fn (?Term $record): string => ($record?->hasActivatedCalendar() ?? false) ? 'Faculty teaching-load default' : 'Teaching-load & name settings')
                 ->collapsible(fn (?Term $record): bool => ! ($record?->hasActivatedCalendar() ?? false))
-                ->collapsed(fn (?Term $record): bool => $record === null)
+                ->collapsed(false)
                 ->description(fn (?Term $record): string => ($record?->hasActivatedCalendar() ?? false)
                     ? 'Recorded maximum teaching units for Faculty in this Term. An active Faculty load exception takes precedence; generation needs a default for eligible Faculty without an exception.'
-                    : 'Custom name and Faculty teaching-load default. You can set these later.')
+                    : 'Faculty teaching-load default (24 units by default) and optional custom Term name.')
 
                 ->schema([
                     TextInput::make('label')
@@ -92,10 +92,11 @@ class TermForm
                     TextInput::make('default_max_units')
                         ->label('Maximum teaching units per Faculty member')
                         ->numeric()
+                        ->default(24)
                         ->minValue(0)
                         ->suffix('units')
                         ->step(0.25)
-                        ->helperText('Used when a Faculty member has no active load exception. Leave blank when no Term default is recorded.'),
+                        ->helperText('Defaults to 24 units. Used when a Faculty member has no active load exception.'),
                 ])
                 ->columns(2)
                 ->columnSpanFull(),

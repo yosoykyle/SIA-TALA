@@ -25,10 +25,10 @@
         <div wire:loading class="flex items-center gap-2 text-sm" style="color: var(--tala-muted);" role="status">
             <x-filament::loading-indicator class="h-4 w-4" /> Updating enrollment details…
         </div>
-        @if ($enrollment !== null && ($academicGuidance['needs_attention'] ?? false))
+        @if ($isStudent && $enrollment !== null && ($academicGuidance['needs_attention'] ?? false))
             @include('filament.student.pages.academic-guidance', [
                 'effect' => $academicGuidance,
-                'enrollmentUrl' => \App\Filament\Student\Pages\Academics::getUrl(['view' => 'plan'], panel: 'student'),
+                'enrollmentUrl' => \App\Filament\Student\Pages\Academics::getUrl(array_filter(['view' => 'plan', 'enrollmentTerm' => $enrollment->term_id]), panel: 'student'),
                 'guidanceActionLabel' => 'View study plan',
             ])
         @endif
@@ -56,7 +56,9 @@
                         default => $entryContext['can_start'] ? 'Start your enrollment' : 'Enrollment is unavailable',
                     }" :description="$entryContext['reason'] ?? 'Review the subjects and fees prepared for this Term. The Registrar checks your classes before you confirm.'" :scope="$academicGuidance['scope_label'] ?? null" :office="in_array($entryContext['context_state'], ['academic_restriction', 'ambiguous'], true) ? 'Registrar Office' : null" :attention="in_array($entryContext['context_state'], ['academic_restriction', 'ambiguous'], true)">
                     @if ($entryContext['can_start']){{ $this->startRegistrationAction }}@endif
-                    <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(['view' => 'plan'], panel: 'student')" icon="heroicon-o-map">View study plan</x-filament::button>
+                    @if ($isStudent)
+                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(array_filter(['view' => 'plan', 'enrollmentTerm' => $entryContext['term']?->id]), panel: 'student')" icon="heroicon-o-map">View study plan</x-filament::button>
+                    @endif
                 </x-servitech-task-state>
             @else
                 <div class="student-enrollment-task-layout">
@@ -109,6 +111,8 @@
                     @if ($schedulePresentation && $schedulePresentation['meetings'] !== [])
                         <details class="learner-disclosure"><summary>{{ $confirmed ? 'Confirmed schedule' : 'Preview schedule' }}</summary><div><p class="student-registration-help">Seats remain temporary until official enrollment.@if ($reservationDeadline) Reserved until {{ $reservationDeadline->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}.@endif</p><x-enrollment-schedule :presentation="$schedulePresentation" :source-key="'proposal-'.$proposal->id" /></div></details>
                     @endif
+                @elseif ($enrollment)
+                    <x-enrollment-proposal-explanation :enrollment="$enrollment" :proposal="$proposal" :audience="$isStudent ? 'student' : 'applicant'" />
                 @endif
                 @include('filament.student.pages.enrollment-help')
                 @if ($isStudent && $corHistory !== [])<p class="student-registration-help"><x-filament::link :href="\App\Filament\Student\Pages\CorView::getUrl(panel: 'student')">View earlier registrations</x-filament::link></p>@endif

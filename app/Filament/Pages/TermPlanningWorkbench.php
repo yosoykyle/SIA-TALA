@@ -7,6 +7,7 @@ use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\TermCalendarPackageReadinessService;
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\FacultyAvailabilityRequestService;
+use App\Actions\Scheduling\FacultyAvailabilityStatusProjection;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\ReadyTermPlanningProjection;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeadline;
@@ -24,6 +25,7 @@ use App\Models\FacultyQualification;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
+use App\Models\SchedulingCommitment;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionMeeting;
@@ -1255,60 +1257,192 @@ class TermPlanningWorkbench extends Page
 
     }
 
-    public function recordFacultyDeadlineAction(): Action
+    public function sendAvailabilityReminderAction(): Action
     {
-
-        return Action::make('recordFacultyDeadline')
-
-            ->label(fn (): string => $this->activeCalendarPackage()?->facultyAvailabilityDueAt() ? 'Change reply deadline' : 'Set reply deadline')
-
-            ->modalSubmitActionLabel('Save reply deadline')
-
-            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->activeCalendarPackage() !== null)
-
-            ->modalDescription('Set when Faculty must respond. This does not email anyone. Corrections retain their source and history.')
-
+        return Action::make('sendAvailabilityReminder')
+            ->label('Send reminder & due date')
+            ->icon(Heroicon::OutlinedBell)
+            ->color('gray')
+            ->modalHeading('Send reminder & due date')
+            ->modalDescription('Faculty can already submit availability anytime once the teaching calendar is active. Set an optional reply-by date and send email reminders to faculty with no response.')
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalSubmitActionLabel('Save & send')
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null)
+            ->disabled(fn (): bool => ! $this->activeCalendarPackage() instanceof TermCalendarPackage)
+            ->tooltip(fn (): ?string => $this->activeCalendarPackage() instanceof TermCalendarPackage ? null : 'Activate the teaching calendar first.')
             ->fillForm(function (): array {
+                $term = $this->selectedTerm();
+                $package = $this->activeCalendarPackage();
+                $prior = FacultyAvailabilityDeadline::query()->where('term_id', $term->id)->latest('id')->first();
+                $projection = app(FacultyAvailabilityStatusProjection::class)->forTerm($term);
+                $noResponseIds = collect($projection['faculty_rows'])
+                    ->whereNull('declaration')
+                    ->pluck('faculty_user_id')
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->values()
+                    ->all();
 
-                $prior = FacultyAvailabilityDeadline::query()->where('term_id', $this->termId)->latest('id')->first();
-
-                return ['expected_id' => $prior?->id ?? 0, 'due_at' => $this->activeCalendarPackage()?->facultyAvailabilityDueAt()?->copy()->timezone((string) config('app.timezone'))->format('Y-m-d H:i:s'), 'authority_reference' => $prior?->authority_reference];
-
+                return [
+                    'package_id' => $package?->id,
+                    'package_token' => $package?->concurrencyToken(),
+                    'expected_deadline_id' => $prior?->id ?? 0,
+                    'original_due_at_utc' => $prior?->due_at?->copy()->timezone((string) config('app.timezone'))->format('Y-m-d H:i'),
+                    'original_due_at_display' => $prior?->due_at?->copy()->timezone('Asia/Manila')->format('Y-m-d H:i'),
+                    'due_at' => $prior?->due_at?->copy()->timezone((string) config('app.timezone'))->format('Y-m-d H:i:s'),
+                    'authority_reference' => $prior?->authority_reference,
+                    'faculty_user_ids' => $noResponseIds,
+                ];
             })
-
             ->schema([
+                Hidden::make('package_id')->required(),
+                Hidden::make('package_token')->required(),
+                Hidden::make('expected_deadline_id')->required(),
+                Hidden::make('original_due_at_utc'),
+                Hidden::make('original_due_at_display'),
+                Select::make('faculty_user_ids')
+                    ->label('Recipients (no response)')
+                    ->helperText('Pre-filled with Term faculty who have not replied yet. Clear to update only the due date.')
+                    ->options(function (): array {
+                        $term = $this->selectedTerm();
+                        $declaredIds = FacultyAvailabilityDeclaration::query()
+                            ->where('term_id', $term->id)
+                            ->pluck('faculty_user_id');
 
-                Hidden::make('expected_id')->required(),
-
-                DateTimePicker::make('due_at')->label('Reply by (Asia/Manila)')->timezone('Asia/Manila')->seconds(false)->required(),
-
-                TextInput::make('authority_reference')->label('Approval note or memo (optional)')->helperText('Add a note or memo if one was provided. TALA records who set this deadline and when.')->maxLength(255),
-
-                Textarea::make('correction_reason')->label('Reason for correction')->helperText('Required when a deadline is already recorded.')->maxLength(2000),
-
+                        return User::query()
+                            ->where('status', User::StatusActive)
+                            ->whereHas('roles', fn ($query) => $query->where('name', User::StaffRoleFaculty))
+                            ->whereNotIn('id', $declaredIds)
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->all();
+                    })
+                    ->multiple()
+                    ->searchable(),
+                DateTimePicker::make('due_at')
+                    ->label('Reply by (Asia/Manila, optional)')
+                    ->timezone('Asia/Manila')
+                    ->seconds(false)
+                    ->live()
+                    ->helperText('Shown to faculty as a due date. Faculty can still answer anytime while the teaching calendar is active.')
+                    ->required(fn (Get $get): bool => filled($get('faculty_user_ids')) && (int) $get('expected_deadline_id') === 0),
+                TextInput::make('authority_reference')
+                    ->label('Approval note or memo (optional)')
+                    ->helperText('Add a note or memo if one was provided. TALA records who set this due date and when.')
+                    ->maxLength(255),
+                Textarea::make('correction_reason')
+                    ->label('Reason for changing due date')
+                    ->helperText('Required when changing an existing due date.')
+                    ->maxLength(2000)
+                    ->visible(fn (Get $get): bool => (int) $get('expected_deadline_id') > 0 && $this->deadlineInputChanged($get('due_at'), $get('original_due_at_display'), 'Asia/Manila')),
             ])
-
             ->action(function (array $data): void {
-
                 $actor = auth()->user();
-
                 abort_unless($actor instanceof User, 403);
 
+                $term = $this->selectedTerm();
+                $package = TermCalendarPackage::query()->where('term_id', $term->id)->find($data['package_id'] ?? null);
+                abort_unless($package instanceof TermCalendarPackage, 409);
+
+                $expectedDeadlineId = (int) ($data['expected_deadline_id'] ?? 0);
+                $recipientIds = collect($data['faculty_user_ids'] ?? [])
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $dueAtChanged = $this->deadlineInputChanged($data['due_at'] ?? null, $data['original_due_at_utc'] ?? null, (string) config('app.timezone'));
+                $hasCorrectionReason = filled($data['correction_reason'] ?? null);
+                $shouldRecordDeadline = ($expectedDeadlineId === 0 && filled($data['due_at'] ?? null))
+                    || ($expectedDeadlineId > 0 && ($dueAtChanged || $hasCorrectionReason));
+
+                if (! $shouldRecordDeadline && $recipientIds === []) {
+                    $message = 'Select at least one recipient or enter a reply-by date.';
+                    Notification::make()->title('Nothing to send or save')->body($message)->danger()->persistent()->send();
+
+                    throw ValidationException::withMessages(['faculty_user_ids' => $message]);
+                }
+
+                $deadlineSaved = false;
+                $effectiveDeadlineId = $expectedDeadlineId;
+
                 try {
+                    if ($shouldRecordDeadline) {
+                        $savedDeadline = app(RecordFacultyAvailabilityDeadline::class)->execute(
+                            $term,
+                            $actor,
+                            (string) $data['due_at'],
+                            $data['authority_reference'] ?? null,
+                            $data['correction_reason'] ?? null,
+                            $expectedDeadlineId,
+                        );
+                        $deadlineSaved = true;
+                        $effectiveDeadlineId = (int) $savedDeadline->id;
+                    }
 
-                    app(RecordFacultyAvailabilityDeadline::class)->execute($this->selectedTerm(), $actor, $data['due_at'], $data['authority_reference'] ?? null, $data['correction_reason'] ?? null, (int) $data['expected_id']);
-
+                    $events = collect();
+                    if ($recipientIds !== []) {
+                        $events = app(FacultyAvailabilityRequestService::class)->request(
+                            $package->fresh(),
+                            $recipientIds,
+                            $actor,
+                            (string) $data['package_token'],
+                            $effectiveDeadlineId,
+                        );
+                    }
                 } catch (ValidationException $exception) {
-
-                    Notification::make()->title('Cannot record Faculty deadline')->body(collect($exception->errors())->flatten()->unique()->implode(' '))->danger()->persistent()->send();
+                    Notification::make()
+                        ->title('Cannot send availability reminder')
+                        ->body(collect($exception->errors())->flatten()->unique()->implode(' '))
+                        ->danger()
+                        ->persistent()
+                        ->send();
 
                     throw $exception;
                 }
 
-                Notification::make()->title('Faculty deadline recorded')->body('Teaching Resources, My Availability and new request records use this source.')->success()->send();
-
+                if ($deadlineSaved && $recipientIds !== []) {
+                    Notification::make()
+                        ->title('Due date saved and availability reminders queued')
+                        ->body($events->count().' reminder record(s) are available for delivery tracking.')
+                        ->success()
+                        ->send();
+                } elseif ($deadlineSaved) {
+                    Notification::make()
+                        ->title('Reply due date recorded')
+                        ->body('Faculty & rooms and My Availability now reflect this due date.')
+                        ->success()
+                        ->send();
+                } else {
+                    Notification::make()
+                        ->title('Availability reminders queued')
+                        ->body($events->count().' reminder record(s) are available for delivery tracking.')
+                        ->success()
+                        ->send();
+                }
             });
+    }
 
+    private function deadlineInputChanged(mixed $current, mixed $original, string $timezone): bool
+    {
+        if (blank($current)) {
+            return false;
+        }
+
+        if (blank($original)) {
+            return true;
+        }
+
+        try {
+            $currentNormalized = CarbonImmutable::parse((string) $current, $timezone)->format('Y-m-d H:i');
+            $originalNormalized = CarbonImmutable::parse((string) $original, $timezone)->format('Y-m-d H:i');
+
+            return $currentNormalized !== $originalNormalized;
+        } catch (Throwable) {
+            return trim((string) $current) !== trim((string) $original);
+        }
     }
 
     /** @return array<string, mixed> */
@@ -1352,131 +1486,6 @@ class TermPlanningWorkbench extends Page
             ])->all(),
 
         ];
-
-    }
-
-    public function requestFacultyAvailabilityAction(): Action
-    {
-
-        return Action::make('requestFacultyAvailability')
-
-            ->label('Request availability')
-
-            ->icon(Heroicon::OutlinedEnvelope)
-
-            ->modalHeading('Request Faculty availability')
-            ->modalWidth(Width::TwoExtraLarge)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
-
-            ->modalSubmitActionLabel('Send availability requests')
-
-            ->disabled(fn (): bool => $this->activeCalendarPackage()?->facultyAvailabilityDueAt() === null)
-
-            ->modalDescription(fn (): string => 'Reply by '.($this->activeCalendarPackage()?->facultyAvailabilityDueAt()?->copy()->timezone('Asia/Manila')->format('M j, Y g:i A') ?? 'deadline not recorded').' (Asia/Manila). Email selected Faculty a link to submit availability. Only active Faculty who have not responded are listed.')
-
-            ->fillForm(fn (): array => [
-
-                'package_id' => $this->activeCalendarPackage()?->id,
-
-                'package_token' => $this->activeCalendarPackage()?->concurrencyToken(),
-
-                'deadline_id' => FacultyAvailabilityDeadline::query()->where('term_id', $this->termId)->latest('id')->value('id') ?? 0,
-
-            ])
-
-            ->schema([
-
-                Hidden::make('package_id')->required(),
-
-                Hidden::make('package_token')->required(),
-
-                Hidden::make('deadline_id')->required(),
-
-                Select::make('faculty_user_ids')
-
-                    ->label('Recipients')
-
-                    ->options(function (): array {
-
-                        $term = $this->selectedTerm();
-
-                        $declaredIds = FacultyAvailabilityDeclaration::query()
-
-                            ->where('term_id', $term->id)
-
-                            ->pluck('faculty_user_id');
-
-                        return User::query()
-
-                            ->where('status', User::StatusActive)
-
-                            ->whereHas('roles', fn ($query) => $query->where('name', User::StaffRoleFaculty))
-
-                            ->whereNotIn('id', $declaredIds)
-
-                            ->orderBy('name')
-
-                            ->pluck('name', 'id')
-
-                            ->all();
-
-                    })
-
-                    ->multiple()
-
-                    ->searchable()
-
-                    ->required(),
-
-            ])
-
-            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->activeCalendarPackage() instanceof TermCalendarPackage)
-
-            ->action(function (array $data): void {
-
-                $actor = auth()->user();
-
-                abort_unless($actor instanceof User, 403);
-
-                $package = TermCalendarPackage::query()->where('term_id', $this->termId)->find($data['package_id']);
-
-                abort_unless($package instanceof TermCalendarPackage, 409);
-
-                try {
-
-                    $events = app(FacultyAvailabilityRequestService::class)->request(
-
-                        $package,
-
-                        $data['faculty_user_ids'] ?? [],
-
-                        $actor,
-
-                        (string) $data['package_token'],
-
-                        (int) $data['deadline_id'],
-
-                    );
-
-                } catch (ValidationException $exception) {
-
-                    Notification::make()->title('Cannot request Faculty availability')->body(collect($exception->errors())->flatten()->unique()->implode(' '))->danger()->persistent()->send();
-
-                    throw $exception;
-                }
-
-                Notification::make()
-
-                    ->title('Faculty availability requests recorded')
-
-                    ->body($events->count().' attributable request record(s) are available for delivery tracking and authorized resend.')
-
-                    ->success()
-
-                    ->send();
-
-            });
 
     }
 
@@ -2069,21 +2078,58 @@ class TermPlanningWorkbench extends Page
 
                 try {
 
-                    app(SchedulePublishService::class)->publish(
+                    $pinCommitments = SchedulingCommitment::query()
+                        ->where('term_id', $run->term_id)
+                        ->where('authority_reference', 'REGISTRAR-PIN')
+                        ->get()
+                        ->map(fn (SchedulingCommitment $c): array => $c->only([
+                            'term_id', 'section_id', 'faculty_user_id', 'room_id', 'day_of_week',
+                            'starts_at', 'ends_at', 'authority_reference', 'reason', 'recorded_by',
+                        ]))
+                        ->all();
 
-                        $run,
+                    if ($pinCommitments !== []) {
+                        SchedulingCommitment::query()
+                            ->where('term_id', $run->term_id)
+                            ->where('authority_reference', 'REGISTRAR-PIN')
+                            ->delete();
+                    }
 
-                        $actor,
+                    try {
+                        if ($run->contract_version === ScheduleGenerationRun::ContractVersion
+                            && $run->candidate_state !== 'Accepted') {
+                            $acceptReason = filled($data['publication_note'] ?? null)
+                                ? (string) $data['publication_note']
+                                : (filled($data['authority_reference'] ?? null)
+                                    ? 'Approved under '.$data['authority_reference']
+                                    : 'Approved for official timetable publication.');
+                            $run = app(ReviewTimetableCandidate::class)->accept($run, $actor, $acceptReason);
+                        }
 
-                        $data['publication_note'] ?? null,
+                        app(SchedulePublishService::class)->publish(
 
-                        authorityReference: $data['authority_reference'] ?? null,
+                            $run,
 
-                    );
+                            $actor,
+
+                            $data['publication_note'] ?? null,
+
+                            authorityReference: $data['authority_reference'] ?? null,
+
+                        );
+                    } finally {
+                        foreach ($pinCommitments as $commitmentPayload) {
+                            SchedulingCommitment::query()->create($commitmentPayload);
+                        }
+                    }
 
                     $this->viewTab = 'published';
 
                     $this->selectedVersionId = null;
+
+                    if ($this instanceof TermTimetable) {
+                        $this->timetableState = 'official';
+                    }
 
                     Notification::make()
 
@@ -2219,13 +2265,21 @@ class TermPlanningWorkbench extends Page
 
         $run = $this->activeScheduleRun();
 
-        return $actor instanceof User
+        if (! $actor instanceof User
+            || ! $run instanceof ScheduleGenerationRun
+            || ! Gate::forUser($actor)->allows('publish', $run)
+            || ! in_array($run->status, ScheduleGenerationRun::publishableStatuses(), true)
+            || in_array($run->candidate_state, ['Rejected', 'Stale', 'Superseded'], true)) {
+            return false;
+        }
 
-            && $run instanceof ScheduleGenerationRun
+        if ($run->canBePublished()) {
+            return true;
+        }
 
-            && Gate::forUser($actor)->allows('publish', $run)
+        $summary = $run->publicationSummary();
 
-            && $run->canBePublished();
+        return $summary['assignments'] > 0 && $summary['conflicts'] === 0;
 
     }
 
@@ -2721,19 +2775,19 @@ class TermPlanningWorkbench extends Page
 
         $qualifications = FacultyQualification::query()->active()->whereIn('course_id', $courseIds)->with(['faculty', 'course'])->get();
 
-        $declarations = $term ? FacultyAvailabilityDeclaration::query()->where('term_id', $term->id)->latest('version')->get()->unique('faculty_user_id')->keyBy('faculty_user_id') : collect();
+        $availabilityProjection = $term instanceof Term ? app(FacultyAvailabilityStatusProjection::class)->forTerm($term) : null;
 
-        $facultyRecords = $qualifications->groupBy('faculty_user_id')->map(fn ($qualifications, $facultyId): array => [
+        $facultyCourseCodes = $qualifications->groupBy('faculty_user_id')
+            ->map(fn (Collection $items): array => $items->pluck('course.code')->filter()->unique()->values()->all());
 
-            'faculty' => $qualifications->first()->faculty,
-
-            'courses' => $qualifications->pluck('course.code')->unique()->values()->all(),
-
-            'course_labels' => $qualifications->map(fn (FacultyQualification $qualification): string => ($courseTitles->get($qualification->course_id) ? $courseTitles->get($qualification->course_id).' ('.$qualification->course->code.')' : $qualification->course->code))->unique()->values()->all(),
-
-            'declaration' => $declarations->get($facultyId),
-
-        ])->filter(fn (array $row): bool => $row['faculty'] !== null)->values();
+        $facultyRecords = $availabilityProjection
+            ? collect($availabilityProjection['faculty_rows'])->map(fn (array $row): array => [
+                'faculty' => $row['faculty'],
+                'courses' => $facultyCourseCodes->get($row['faculty_user_id'], []),
+                'course_labels' => $row['course_labels'],
+                'declaration' => $row['declaration'],
+            ])->values()
+            : collect();
 
         $rooms = Room::query()->where('is_active', true)->orderBy('code')->get();
 
@@ -2753,11 +2807,11 @@ class TermPlanningWorkbench extends Page
 
         $missingQualifications = $courseIds->diff($qualifications->pluck('course_id')->unique())->count();
 
-        $missingDeclarations = $facultyRecords->filter(fn (array $row): bool => $row['declaration'] === null)->count();
+        $missingDeclarations = $availabilityProjection['no_response_count'] ?? 0;
 
-        if ($missingQualifications > 0 || $missingDeclarations > 0 || ($sourceClasses->contains(fn (Section $class): bool => $class->termOffering->modality === TermOffering::ModalityFaceToFace) && $rooms->isEmpty())) {
+        if ($missingQualifications > 0 || ($sourceClasses->contains(fn (Section $class): bool => $class->termOffering->modality === TermOffering::ModalityFaceToFace) && $rooms->isEmpty())) {
 
-            $needsAttention[] = ['tab' => 'resources', 'title' => 'Review teaching resources', 'detail' => $missingQualifications.' course(s) without an eligible Faculty record; '.$missingDeclarations.' Faculty response(s) not recorded.'];
+            $needsAttention[] = ['tab' => 'resources', 'title' => 'Review teaching resources', 'detail' => $missingQualifications.' course(s) without an eligible Faculty record.'];
 
         }
 
@@ -2784,6 +2838,8 @@ class TermPlanningWorkbench extends Page
             'demands' => $demands,
 
             'facultyRecords' => $facultyRecords,
+
+            'availabilityProjection' => $availabilityProjection,
 
             'rooms' => $rooms,
 

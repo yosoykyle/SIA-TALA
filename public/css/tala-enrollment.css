@@ -1150,9 +1150,10 @@
 .registrar-late-context p{margin-block-start:.375rem;font-weight:400;}
 
 .faculty-class-worklist{color:var(--tala-text);container-type:inline-size;}
-.faculty-class-intro{color:var(--tala-muted);line-height:1.6;margin:0;}
-.faculty-class-search{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) auto;align-items:end;gap:.75rem;margin-block:1.5rem 2rem;}
-.faculty-class-search label{display:block;font-size:.875rem;font-weight:var(--tala-weight-emphasis);margin-block-end:.5rem;}
+.faculty-class-scope-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr) minmax(0,1.25fr);align-items:end;gap:.75rem;inline-size:100%;}
+.faculty-class-scope-field{min-inline-size:0;}
+.faculty-class-scope-field .fi-select-input{padding-inline-end:2.25rem;text-overflow:ellipsis;}
+.faculty-class-scope-field label{display:block;font-size:var(--tala-type-caption);font-weight:var(--tala-weight-emphasis);color:var(--tala-muted);margin-block-end:.375rem;}
 .faculty-class-term-group+ .faculty-class-term-group{margin-block-start:2rem;}
 .faculty-class-term-group>header{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-block-end:1rem;}
 .faculty-class-term-group h2{display:flex;align-items:center;gap:.75rem;min-inline-size:0;font-size:var(--tala-type-section);line-height:1.4;font-weight:var(--tala-weight-emphasis);}
@@ -1167,13 +1168,15 @@
 .faculty-class-card-identity p{font-size:var(--tala-type-caption);font-weight:var(--tala-weight-emphasis);color:var(--tala-muted);line-height:1.5;margin-block-start:.375rem;overflow-wrap:anywhere;}
 .faculty-class-card-arrow{inline-size:1.25rem;block-size:1.25rem;align-self:center;color:var(--tala-control-icon);}
 .faculty-class-card-summary{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .75rem;color:var(--tala-muted);font-size:.875rem;font-variant-numeric:tabular-nums;}
+.faculty-class-card-progress{color:var(--tala-muted);font-size:.875rem;line-height:1.4;}
 .faculty-class-empty{display:grid;justify-items:start;gap:1rem;padding:2rem;margin-block-start:1.5rem;border-radius:.75rem;}
 .faculty-class-empty>.fi-icon{inline-size:2rem;block-size:2rem;color:var(--tala-control-icon);}
 .faculty-class-empty h2{font-size:1.25rem;line-height:1.4;font-weight:var(--tala-weight-heading);}
 .faculty-class-empty p{color:var(--tala-muted);font-size:.875rem;line-height:1.6;max-inline-size:65ch;}
 .faculty-class-pagination{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-block-start:1.5rem;color:var(--tala-muted);font-size:.875rem;font-variant-numeric:tabular-nums;}
 .faculty-class-pagination nav{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;}
-@container(max-width:36rem){.faculty-class-grid{grid-template-columns:minmax(0,1fr);}.faculty-class-search{grid-template-columns:minmax(0,1fr);}.faculty-class-empty{padding:1.5rem;}}
+@container(max-width:42rem){.faculty-class-scope-fields{grid-template-columns:minmax(0,1fr);}}
+@container(max-width:36rem){.faculty-class-grid{grid-template-columns:minmax(0,1fr);}.faculty-class-empty{padding:1.5rem;}}
 @media(forced-colors:active){.faculty-class-card{border:1px solid CanvasText;}}
 @media(prefers-reduced-motion:reduce){.faculty-class-card{transition:none;}}
 .faculty-result-progress{display:flex;gap:2.5rem;padding-block:1rem;}
@@ -1283,13 +1286,21 @@
 .student-finance-workspace .student-finance-records>.student-receipt-row:last-child,.student-payment-schedule>li:last-child{border-block-end:0;}
 @media(max-width:40rem){.student-study-summary{padding:1.25rem;gap:1rem;}.student-context-body{flex-basis:calc(100% - 4rem);}.student-study-summary .student-context-body h2{font-size:1.25rem;}.student-study-summary>.fi-btn{inline-size:100%;}.student-record-panel,.student-academic-current .student-academic-rail>section,.student-finance-workspace .student-finance-section,.student-finance-workspace .student-finance-records{padding:1.25rem;}.student-academic-current .student-academic-rail{grid-template-columns:minmax(0,1fr);}.student-cor-record .cor-identity{grid-template-columns:3rem minmax(0,1fr);gap:1rem;}.student-cor-record .cor-identity>.fi-badge{grid-column:2;white-space:normal;}.cor-subject-row{grid-template-columns:minmax(0,1fr);gap:.5rem;}.student-cor-record .cor-facts dd{font-size:1.25rem;}}
 
-.faculty-class-header{display:grid;gap:1.25rem;min-inline-size:0;}
+.faculty-class-header{display:grid;gap:1rem;min-inline-size:0;}
 .faculty-class-header-navigation{display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+.faculty-class-breadcrumb-current{font-size:.875rem;font-weight:var(--tala-weight-emphasis);color:var(--tala-muted);}
 .faculty-class-header-utilities{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:.5rem;}
-.faculty-class-header-identity{display:grid;justify-items:start;gap:.625rem;min-inline-size:0;}
+.faculty-class-header-identity{display:grid;justify-items:start;gap:.5rem;min-inline-size:0;}
 .faculty-class-header-identity .fi-header-heading{font-size:1.75rem;line-height:1.25;letter-spacing:-.02em;}
 .faculty-class-header-identity .fi-header-subheading{margin:0;color:var(--tala-muted);font-size:1rem;line-height:1.5;overflow-wrap:anywhere;}
-@media(max-width:45rem){.faculty-class-header-navigation{flex-direction:column;align-items:flex-start;gap:.75rem;}.faculty-class-header-utilities{justify-content:flex-start;}.faculty-class-header-identity .fi-header-heading{font-size:1.5rem;}}
+.faculty-class-header-badges{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;}
+.faculty-grade-entry-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem 1.25rem;padding:.625rem .875rem;border:1px solid var(--tala-edge);border-radius:calc(var(--tala-card-radius) / 2);background:var(--tala-surface-sunken);font-size:.875rem;line-height:1.45;color:var(--tala-muted);font-variant-numeric:tabular-nums;}
+.faculty-grade-entry-bar__item{display:inline-flex;flex-wrap:wrap;align-items:center;gap:.375rem;min-inline-size:0;}
+.faculty-grade-entry-bar__item strong{color:var(--tala-text);font-weight:var(--tala-weight-emphasis);}
+.faculty-grade-entry-bar__authority{font-size:.8125rem;}
+.faculty-class-handoff{margin-block-end:1rem;}
+.faculty-class-handoff>.tala-workflow-handoff{margin-block-start:0;}
+@media(max-width:45rem){.faculty-class-header-navigation{flex-direction:column;align-items:flex-start;gap:.75rem;}.faculty-class-header-utilities{justify-content:flex-start;}.faculty-class-header-identity .fi-header-heading{font-size:1.5rem;}.faculty-grade-entry-bar{padding:.625rem .75rem;}}
 
 .faculty-grade-window-heading{display:flex;align-items:center;justify-content:space-between;gap:.75rem;}
 .faculty-roster-details .faculty-grade-window-dates{grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-block-start:1rem;}

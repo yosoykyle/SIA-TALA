@@ -41,7 +41,13 @@ class SectionInfolist
                             ->numeric()
                             ->suffix(' seats'),
                         TextEntry::make('state')->label('Class status')
-                            ->badge()->color('gray')
+                            ->badge()
+                            ->color(fn (?string $state): string => match ($state) {
+                                Section::StateOpen => 'success',
+                                Section::StatePlanned => 'info',
+                                Section::StateCancelled => 'danger',
+                                default => 'gray',
+                            })
                             ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Section::stateOptions()[$state] ?? str($state)->headline()->toString())),
                         TextEntry::make('cohorts.reference')->label('Student sections served')->listWithLineBreaks()->placeholder('No student sections linked')
                             ->helperText(fn (Section $record): string => $record->cohorts->sum(fn ($cohort): int => (int) $cohort->pivot->expected_count).' learners linked to this class')->columnSpanFull(),

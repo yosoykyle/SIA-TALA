@@ -15,14 +15,17 @@ use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section as FormSection;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\HtmlString;
@@ -31,6 +34,19 @@ use Illuminate\Validation\ValidationException;
 
 final class PublishedScheduleRevisionForm
 {
+    public const ScopeTemporarySubstitute = 'temporary_substitute';
+
+    public const ScopePermanentTakeover = 'permanent_takeover';
+
+    /** @return array<string, string> */
+    public static function reassignmentScopeOptions(): array
+    {
+        return [
+            self::ScopeTemporarySubstitute => 'Temporary substitute / relief coverage',
+            self::ScopePermanentTakeover => 'Permanent takeover — also transfer class grades ownership',
+        ];
+    }
+
     /** @return list<Component> */
     public static function schema(ScheduleGenerationRun $run, bool $cancelClass = false): array
     {
@@ -68,7 +84,12 @@ final class PublishedScheduleRevisionForm
                             ])
                             ->required()
                             ->visible(fn (Get $get): bool => filled($get('section_meeting_ids')))
-                            ->live(),
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, ?string $state, Get $get): void {
+                                if ($state === ScheduleRevisionEvent::ChangeFacultyReassignment && blank($get('reassignment_scope'))) {
+                                    $set('reassignment_scope', self::ScopeTemporarySubstitute);
+                                }
+                            }),
                     Select::make('section_id')
                         ->label('Selected class')
                         ->helperText('All delivery groups and active official meetings of this class are included.')
@@ -101,6 +122,32 @@ final class PublishedScheduleRevisionForm
                         ->required(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment)
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment)
                         ->live(),
+                    Radio::make('reassignment_scope')
+                        ->label('Reassignment scope')
+                        ->options(self::reassignmentScopeOptions())
+                        ->descriptions([
+                            self::ScopeTemporarySubstitute => 'Updates timetable meetings and notifies affected faculty and students while keeping the original designated grading faculty intact.',
+                            self::ScopePermanentTakeover => 'Updates timetable meetings and designates the replacement faculty as the class grades owner.',
+                        ])
+                        ->default(self::ScopeTemporarySubstitute)
+                        ->afterStateHydrated(function (Radio $component, mixed $state): void {
+                            if (blank($state)) {
+                                $component->state(self::ScopeTemporarySubstitute);
+                            }
+                        })
+                        ->dehydrateStateUsing(fn (mixed $state): string => filled($state) ? (string) $state : self::ScopeTemporarySubstitute)
+                        ->extraAttributes(['class' => 'tala-choice-options'])
+                        ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment)
+                        ->live()
+                        ->columnSpanFull(),
+                    Checkbox::make('add_co_faculty')
+                        ->label('Also add replacement faculty as co-faculty for class list access')
+                        ->helperText('Adds the substitute as CO_FACULTY while keeping the original designated grading faculty intact.')
+                        ->default(false)
+                        ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment
+                            && ($get('reassignment_scope') ?: self::ScopeTemporarySubstitute) === self::ScopeTemporarySubstitute)
+                        ->live()
+                        ->columnSpanFull(),
                     Select::make('day_of_week')
                         ->label('Replacement day')
                         ->options(self::dayOptions($run))
@@ -176,7 +223,7 @@ final class PublishedScheduleRevisionForm
         return app(ScheduleRevisionImpactService::class)->preview(
             $run,
             (string) ($data['change_type'] ?? ''),
-            self::changes($run, $data),
+            self::impactChanges(self::changes($run, $data)),
         );
     }
 
@@ -206,6 +253,7 @@ final class PublishedScheduleRevisionForm
                 ->map(fn (int $meetingId): array => [
                     'section_meeting_id' => $meetingId,
                     'faculty_user_id' => self::requiredId($data, 'replacement_faculty_user_id', 'Select a replacement faculty member.'),
+                    ...self::facultyReassignmentMetadata($data),
                 ])
                 ->all(),
             ScheduleRevisionEvent::ChangeTime => collect($meetingIds)
@@ -221,6 +269,55 @@ final class PublishedScheduleRevisionForm
                 'change_type' => 'Select a supported published-schedule revision type.',
             ]),
         };
+    }
+
+    /** @param array<string, mixed> $data */
+    public static function reassignmentScope(array $data): string
+    {
+        $scope = trim((string) ($data['reassignment_scope'] ?? ''));
+
+        if ($scope === '') {
+            return self::ScopeTemporarySubstitute;
+        }
+
+        if (! array_key_exists($scope, self::reassignmentScopeOptions())) {
+            throw ValidationException::withMessages([
+                'reassignment_scope' => 'Select a supported faculty reassignment scope.',
+            ]);
+        }
+
+        return $scope;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $changes
+     * @return list<array<string, mixed>>
+     */
+    public static function impactChanges(array $changes): array
+    {
+        return array_map(function (array $change): array {
+            unset($change['reassignment_scope'], $change['add_co_faculty']);
+
+            return $change;
+        }, $changes);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private static function facultyReassignmentMetadata(array $data): array
+    {
+        if (! array_key_exists('reassignment_scope', $data) && ! array_key_exists('add_co_faculty', $data)) {
+            return [];
+        }
+
+        $scope = self::reassignmentScope($data);
+
+        return [
+            'reassignment_scope' => $scope,
+            'add_co_faculty' => $scope === self::ScopeTemporarySubstitute && (bool) ($data['add_co_faculty'] ?? false),
+        ];
     }
 
     /** @param array<string, mixed> $data */
@@ -250,6 +347,8 @@ final class PublishedScheduleRevisionForm
             'section_id' => $get('section_id'),
             'replacement_room_id' => $get('replacement_room_id'),
             'replacement_faculty_user_id' => $get('replacement_faculty_user_id'),
+            'reassignment_scope' => $get('reassignment_scope'),
+            'add_co_faculty' => $get('add_co_faculty'),
             'day_of_week' => $get('day_of_week'),
             'starts_at' => $get('starts_at'),
             'ends_at' => $get('ends_at'),
@@ -273,6 +372,18 @@ final class PublishedScheduleRevisionForm
             $impact->affectedStudents(),
             $impact->affectedFaculty(),
         );
+        $scopeNote = '';
+
+        if ($get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment) {
+            $scope = self::reassignmentScope($data);
+            $scopeSummary = $scope === self::ScopePermanentTakeover
+                ? 'Permanent takeover — also transfers designated class grades ownership to the replacement faculty.'
+                : ((bool) ($data['add_co_faculty'] ?? false)
+                    ? 'Temporary substitute / relief coverage — adds replacement faculty as co-faculty while keeping the original designated grading faculty intact.'
+                    : 'Temporary substitute / relief coverage — updates timetable meetings while keeping the original designated grading faculty intact.');
+            $scopeNote = '<p class="font-medium">'.e($scopeSummary).'</p>';
+        }
+
         $meetingRows = collect($impact->meetingChanges())
             ->map(fn (array $change): string => self::meetingChangeHtml($change))
             ->implode('');
@@ -288,6 +399,7 @@ final class PublishedScheduleRevisionForm
             <div class="space-y-3 text-sm">
                 <p class="font-semibold {$statusClass}">{$status}</p>
                 <p>{$summary}</p>
+                {$scopeNote}
                 <div class="space-y-2">{$meetingRows}</div>
                 <div>
                     <p class="font-medium">Validation findings</p>

@@ -4,9 +4,16 @@
     @if ($term)
         <section class="tala-task-surface tala-calendar-sheet" aria-labelledby="teaching-calendar-heading">
             @if ($overviewPackage)
+                @php
+                    $packageStateColor = match ($overviewPackage->state) {
+                        \App\Models\TermCalendarPackage::StateActive => 'success',
+                        \App\Models\TermCalendarPackage::StateDraft => 'warning',
+                        default => 'gray',
+                    };
+                @endphp
                 <header class="tala-calendar-sheet-heading">
                     <h2 id="teaching-calendar-heading"><x-filament::icon icon="heroicon-o-calendar-days" />Classes run</h2>
-                    <p><x-filament::badge color="gray">{{ $overviewPackage->state }}</x-filament::badge>@if ($overviewPackage->updated_at)<span>Updated {{ $overviewPackage->updated_at->timezone(config('app.display_timezone'))->format('M j, Y') }}</span>@endif</p>
+                    <p><x-filament::badge :color="$packageStateColor">{{ $overviewPackage->state }}</x-filament::badge>@if ($overviewPackage->updated_at)<span>Updated {{ $overviewPackage->updated_at->timezone(config('app.display_timezone'))->format('M j, Y') }}</span>@endif</p>
                 </header>
                 <div class="tala-calendar-date-range">
                     <dl><dt>Starts</dt><dd><time datetime="{{ $overviewPackage->classes_start_on?->toDateString() }}">{{ $overviewPackage->classes_start_on?->format('M j, Y') ?? 'Start date missing' }}</time></dd></dl>
@@ -14,6 +21,30 @@
                     <dl><dt>Ends</dt><dd><time datetime="{{ $overviewPackage->classes_end_on?->toDateString() }}">{{ $overviewPackage->classes_end_on?->format('M j, Y') ?? 'End date missing' }}</time></dd></dl>
                 </div>
                 @include('filament.pages.partials.term-teaching-week', ['teachingWeekRows' => $this->teachingWeekRows($overviewPackage)])
+                @php
+                    $teachingDayChips = $this->teachingDayChips($overviewPackage);
+                    $calendarMeta = implode(' · ', array_filter([
+                        '30-minute scheduling slots',
+                        $overviewPackage->authority_reference ? 'Approval note: '.$overviewPackage->authority_reference : null,
+                        $overviewPackage->authority_date ? 'Approved '.$overviewPackage->authority_date->format('M j, Y') : null,
+                        $term->type === \App\Models\Term::TypeSpecialTerm ? 'Special Term basis: '.($overviewPackage->special_term_schedule_basis ?: 'Not recorded') : null,
+                    ]));
+                @endphp
+                @if ($teachingDayChips !== [])
+                    <ul class="tala-availability-readonly-list mt-4 tabular-nums" aria-label="Daily teaching hours">
+                        @foreach ($teachingDayChips as $dayChip)
+                            <li>
+                                <span class="font-semibold">{{ $dayChip['short_day'] }}</span>
+                                <span class="text-right">
+                                    <span class="whitespace-nowrap">{{ $dayChip['hours'] }}</span>
+                                    @if ($dayChip['breaks'])
+                                        <span class="block text-xs text-gray-500 dark:text-gray-400">Break {{ $dayChip['breaks'] }}</span>
+                                    @endif
+                                </span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
                 @if (! $coreReadiness['ready'])
                     <div class="tala-task-finding" role="status"><ul>@foreach ($coreReadiness['blockers'] as $blocker)<li><strong>{{ $blocker['reason'] }}</strong> {{ $readOnly ? 'Responsible: '.$blocker['owner'] : $blocker['next_action'] }}</li>@endforeach</ul></div>
                 @elseif ($draftPackages->isNotEmpty())
@@ -24,29 +55,16 @@
                 @if ($overviewPackage->datedExceptions->isNotEmpty())
                     <div class="tala-calendar-exceptions"><h3>No-class days and exceptions</h3><ul>@foreach ($overviewPackage->datedExceptions as $exception)<li>{{ $exception->starts_on->format('M j') }} – {{ $exception->ends_on->format('M j, Y') }} · {{ $exception->label }} · {{ $exception->blocks_teaching ? 'No classes' : $exception->exception_type }}</li>@endforeach</ul></div>
                 @endif
+                <p class="tala-work-footnote mt-4 border-t border-gray-200 pt-3 dark:border-white/10">{{ $calendarMeta }}</p>
             @else
                 <div class="tala-calendar-first-use" id="teaching-calendar-heading">
-                    <x-servitech-empty-state illustrated heading="Set the teaching week" description="Record approved class dates and weekly teaching hours to prepare this Term." />
+                    <x-servitech-empty-state illustrated heading="Set the teaching week" description="Pre-filled from Term dates ({{ $term->starts_on->format('M j, Y') }} – {{ $term->ends_on->format('M j, Y') }}) and standard Mon–Sat 7:00 AM–7:00 PM teaching hours. Save & activate in one step." />
                 </div>
             @endif
             @if (! $readOnly)
                 <div class="tala-calendar-commands">
-                    @if ($draftPackages->isNotEmpty())
-                        {{ $this->correctDraftCalendarPackageAction->label('Edit draft')->color('gray')->icon('heroicon-o-pencil-square') }}
-                        {{ $this->activateCalendarPackageAction->label('Review and activate')->icon('heroicon-o-check') }}
-                    @else
-                        {{ $this->recordCalendarPackageAction->label($overviewPackage ? 'Change teaching calendar' : 'Record teaching calendar')->color($overviewPackage ? 'gray' : 'primary')->icon('heroicon-o-pencil-square') }}
-                    @endif
+                    {{ $this->saveAndActivateCalendarAction }}
                 </div>
-            @endif
-            @if ($overviewPackage)
-                <x-supporting-details summary="Teaching hours, source and calendar history" inset>
-                        <p>Meetings use 30-minute slots within the recorded teaching hours.</p>
-                        {{ $this->table }}
-                        @if ($overviewPackage->authority_reference || $overviewPackage->authority_date)<p>@if ($overviewPackage->authority_reference)Approval note: {{ $overviewPackage->authority_reference }}@endif @if ($overviewPackage->authority_date)Approved {{ $overviewPackage->authority_date->format('M j, Y') }}@endif</p>@endif
-                        @if ($term->type === \App\Models\Term::TypeSpecialTerm)<p>Special Term basis: {{ $overviewPackage->special_term_schedule_basis ?: 'Not recorded' }}</p>@endif
-                        <p>Changes create a new draft and preserve the active calendar’s history.</p>
-                </x-supporting-details>
             @endif
         </section>
         <section class="tala-task-surface tala-calendar-activities" aria-labelledby="activity-dates-heading">
@@ -54,7 +72,6 @@
                 <h2 id="activity-dates-heading"><x-filament::icon icon="heroicon-o-calendar" />Activity dates</h2>
                 @if (! $readOnly && $activePackage && $draftPackages->isEmpty()){{ $this->addOperationalDatesAction->label('Update activity dates')->color('gray')->icon('heroicon-o-pencil-square') }}@endif
             </header>
-            <p class="tala-work-footnote">Enrollment, grading and other activity dates · Separate from the teaching week.</p>
             <dl class="tala-calendar-activity-list">
                 @foreach ($operationalDates as $item)
                     @php($activityIcon = match ($item['type']) {
@@ -81,22 +98,7 @@
                     </div>
                 @endforeach
             </dl>
-            <x-supporting-details summary="What these dates control" inset>
-                    <p>Each date applies only to its named activity. These dates do not block class planning.</p>
-                    @foreach ($operationalDates as $item)
-                        @if (! $item['window'])
-                            <p><strong>{{ $item['label'] }}:</strong> {{ match ($item['type']) {
-                                \App\Models\TermCalendarWindow::TypeEnrollment => 'Standard registration start is unavailable.',
-                                \App\Models\TermCalendarWindow::TypeLateEnrollment => 'The ordinary late-registration period is unavailable.',
-                                \App\Models\TermCalendarWindow::TypeEnrollmentAdjustment => 'Ordinary enrollment changes are unavailable.',
-                                \App\Models\TermCalendarWindow::TypeCourseDrop => 'Ordinary course drops are unavailable.',
-                                \App\Models\TermCalendarWindow::TypeGradeEntry => 'Ordinary grade entry and submission are unavailable.',
-                                default => 'Contact Registrar or Faculty for examination information.',
-                            } }}</p>
-                        @endif
-                    @endforeach
-                    <p>Times use Asia/Manila. Without a cutoff time, the whole closing day is included. Approved exceptions follow their own authorization.</p>
-            </x-supporting-details>
+            <p class="tala-work-footnote mt-4 border-t border-gray-200 pt-3 dark:border-white/10">Times use Asia/Manila. Activity dates do not block class planning.</p>
         </section>
     @else
         <p>Choose a Term above to view its teaching calendar.</p>

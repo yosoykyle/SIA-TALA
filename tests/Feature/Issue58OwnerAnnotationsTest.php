@@ -139,7 +139,7 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $this->assertStringContainsString('Design, research and analysis', $record['detail']);
         $this->assertTrue($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
         $this->assertTrue($page->instance()->getTable()->getColumn('load')->isToggledHidden());
-        $page->assertSee('Faculty source count')->assertSee('2 eligible courses')->assertSee('Not requested');
+        $page->assertSee('Faculty source count')->assertSee('2 eligible courses')->assertSee('No response')->assertSee('Not sent');
         $page->searchTable('Design, research and analysis')->assertSee('Faculty source count');
     }
 
@@ -410,17 +410,20 @@ class Issue58OwnerAnnotationsTest extends TestCase
     {
         $this->staff();
         $term = Term::factory()->create();
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)->assertSee('Activate the teaching calendar before requesting availability.')
-            ->assertActionDisabled('requestFacultyAvailability');
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
+            ->assertSee('Activate the teaching calendar so Faculty can submit availability.')
+            ->assertActionDisabled('sendAvailabilityReminder');
         TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
         $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
-            ->assertSee('Set a reply deadline')->assertSee('Faculty need this Term’s teaching calendar and a deadline before requests can be sent.')->assertActionDisabled('requestFacultyAvailability');
+            ->assertSee('Faculty can already answer anytime while the teaching calendar is active.')
+            ->assertDontSee('Set a reply deadline')
+            ->assertActionEnabled('sendAvailabilityReminder');
         Mail::fake();
-        $page->callAction('recordFacultyDeadline', ['due_at' => now()->addDays(3)->format('Y-m-d H:i:s'), 'authority_reference' => 'Synthetic approved deadline'])
+        $page->callAction('sendAvailabilityReminder', ['faculty_user_ids' => [], 'due_at' => now()->addDays(3)->format('Y-m-d H:i:s'), 'authority_reference' => 'Synthetic approved deadline'])
             ->assertHasNoActionErrors();
         $this->assertDatabaseHas('faculty_availability_deadlines', ['term_id' => $term->id, 'authority_reference' => 'Synthetic approved deadline']);
         Mail::assertNothingOutgoing();
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)->assertActionEnabled('requestFacultyAvailability')->mountAction('requestFacultyAvailability')
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)->assertActionEnabled('sendAvailabilityReminder')->mountAction('sendAvailabilityReminder')
             ->assertMountedActionModalSee('Reply by')->assertMountedActionModalSee('Recipients');
     }
 
@@ -455,11 +458,12 @@ class Issue58OwnerAnnotationsTest extends TestCase
 
         if ($readOnly) {
             Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
-                ->assertSee('The Registrar must activate the teaching calendar before availability can be requested.');
+                ->assertSee('The Registrar must activate the teaching calendar before Faculty can submit availability.');
             TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
             Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
-                ->assertSee('No reply deadline recorded')
-                ->assertDontSee('Set a reply deadline');
+                ->assertSee('No due date set')
+                ->assertSee('Faculty can already answer anytime while the teaching calendar is active.')
+                ->assertDontSee('Send reminder & due date');
         }
     }
 

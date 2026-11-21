@@ -31,7 +31,7 @@ class HumanCenteredSharedThemeTest extends TestCase
         $response = $this->get('/admin/login')->assertOk()
             ->assertSee('Sign in')
             ->assertSee('<main', false)
-            ->assertSee('Back to home')
+            ->assertSee('Back to school site')
             ->assertSee('Contact support')
             ->assertDontSee('Remember me')
             ->assertDontSee('Remember device');

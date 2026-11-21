@@ -22,7 +22,9 @@ use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
 
 class ViewCourse extends ViewRecord
@@ -87,7 +89,7 @@ class ViewCourse extends ViewRecord
         ], fn (mixed $value): bool => $value !== null);
 
         return [
-            CatalogCurriculaWorkbench::getUrl($params) => 'Catalog & Curricula',
+            CatalogCurriculaWorkbench::getUrl($params) => 'Programs & Curricula',
             CourseResource::getUrl('index', $params) => 'Subjects',
             $course instanceof Course ? $course->code : 'Course',
         ];
@@ -122,18 +124,63 @@ class ViewCourse extends ViewRecord
                 ->visible(fn (): bool => $this->selectedRevision() !== null && $this->selectedRevision()?->state !== CourseSpecification::StateDraft),
             $this->createRevisionAction()
                 ->visible(fn (): bool => $this->selectedRevision() === null),
-            EditAction::make()
-                ->label('Edit code and status')
-                ->color('gray')
-                ->modal()
-                ->modalHeading('Edit code and status')
-                ->modalDescription('Update the subject code or active status.')
-                ->modalWidth(Width::Large)
-                ->stickyModalHeader()
-                ->stickyModalFooter()
-                ->schema(fn (Schema $schema): Schema => CourseForm::configure($schema))
-                ->visible(fn (): bool => auth()->user()?->can('update', $course) ?? false),
+            $this->editCourseDetailsAction(),
         ];
+    }
+
+    public function editCourseDetailsAction(): Action
+    {
+        return Action::make('editCourseDetails')
+            ->label('Update code & status')
+            ->icon(Heroicon::OutlinedPencilSquare)
+            ->color('gray')
+            ->modalHeading('Update code & status')
+            ->modalDescription('Update the subject code or active status.')
+            ->modalSubmitActionLabel('Save changes')
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->authorize(fn (): bool => auth()->user()?->can('update', $this->getRecord()) ?? false)
+            ->visible(fn (): bool => auth()->user()?->can('update', $this->getRecord()) ?? false)
+            ->fillForm(function (): array {
+                $course = $this->getRecord();
+                abort_unless($course instanceof Course, 404);
+
+                return [
+                    'code' => $course->code,
+                    'state' => $course->state,
+                ];
+            })
+            ->schema(fn (Schema $schema): Schema => CourseForm::configure($schema->model($this->getRecord())))
+            ->action(function (array $data): void {
+                $course = $this->getRecord();
+                $actor = auth()->user();
+                abort_unless($course instanceof Course, 404);
+                abort_unless($actor instanceof User, 403);
+                Gate::forUser($actor)->authorize('update', $course);
+
+                $normalizedCode = strtoupper(trim((string) ($data['code'] ?? '')));
+                $validated = Validator::make([
+                    'code' => $normalizedCode,
+                    'state' => $data['state'] ?? null,
+                ], [
+                    'code' => [
+                        'required',
+                        'string',
+                        'max:64',
+                        Rule::unique('courses', 'code')->ignore($course->id),
+                    ],
+                    'state' => ['required', Rule::in(array_keys(Course::stateOptions()))],
+                ])->validate();
+
+                $course->update($validated);
+                $course->refresh();
+
+                Notification::make()
+                    ->title('Subject code & status updated')
+                    ->success()
+                    ->send();
+            });
     }
 
     public function createRevisionAction(): CreateAction
@@ -156,7 +203,7 @@ class ViewCourse extends ViewRecord
 
     public function editRevisionAction(): EditAction
     {
-        return EditAction::make('editRevision')->label('Edit draft')->color('primary')
+        return EditAction::make('editRevision')->label('Edit subject')->color('primary')
             ->record(fn (): ?CourseSpecification => $this->selectedRevision())
             ->authorize(fn (?CourseSpecification $record): bool => $record !== null && (auth()->user()?->can('update', $record) ?? false))
             ->before(function (CourseSpecification $record): void {
@@ -169,20 +216,20 @@ class ViewCourse extends ViewRecord
                 'state' => $record->state, 'grading_profile_key' => $record->grading_profile_key,
                 'grading_profile_version' => $record->grading_profile_version,
             ])
-            ->modalHeading('Edit subject draft')->modalSubmitActionLabel('Save draft')
+            ->modalHeading('Edit subject')->modalSubmitActionLabel('Save changes')
             ->modalWidth(Width::FiveExtraLarge)->stickyModalHeader()->stickyModalFooter()->databaseTransaction()
             ->after(fn (CourseSpecification $record) => $this->refreshRevision($record->id));
     }
 
     public function reviseSubjectAction(): Action
     {
-        return Action::make('reviseSubject')->label('Prepare update')->icon(Heroicon::OutlinedDocumentDuplicate)
+        return Action::make('reviseSubject')->label('Edit teaching details')->icon(Heroicon::OutlinedDocumentDuplicate)
             ->record(fn (): ?CourseSpecification => $this->selectedRevision())
             ->authorize(fn (?CourseSpecification $record): bool => $record !== null && (auth()->user()?->can('copy', $record) ?? false))
-            ->requiresConfirmation()->modalHeading('Prepare an update to this subject?')
+            ->requiresConfirmation()->modalHeading('Edit teaching details?')
             ->modalWidth(Width::Large)->stickyModalHeader()->stickyModalFooter()
-            ->modalDescription('Copy these teaching details into an editable draft. Existing curriculum assignments stay unchanged.')
-            ->modalSubmitActionLabel('Create draft')
+            ->modalDescription('Opens an editable draft copy of units, weekly meetings, and prerequisites without altering active student records.')
+            ->modalSubmitActionLabel('Create editable draft')
             ->action(function (CourseSpecification $record): void {
                 $draft = app(CourseSpecificationLifecycleService::class)->copyToDraft(
                     auth()->user(), $record, (string) Str::ulid(),

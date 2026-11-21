@@ -53,25 +53,6 @@
             @endif
         @else
             <section class="tala-catalog-curricula-section" aria-label="Curricula overview">
-                @if (! $readOnly)
-                    <x-filament::tabs label="Curricula view" class="tala-segmented-tabs">
-                        <x-filament::tabs.item
-                            :active="$activeTab === 'draft'"
-                            :badge="$draftCurriculaCount"
-                            wire:click="switchTab('draft')"
-                        >
-                            Draft curricula
-                        </x-filament::tabs.item>
-                        <x-filament::tabs.item
-                            :active="$activeTab === 'active'"
-                            :badge="$activeCurriculaCount"
-                            wire:click="switchTab('active')"
-                        >
-                            Active curricula
-                        </x-filament::tabs.item>
-                    </x-filament::tabs>
-                @endif
-
                 {{ $this->table }}
             </section>
         @endif

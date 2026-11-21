@@ -33,7 +33,7 @@ class ListPrograms extends ListRecords
         return [
             CatalogCurriculaWorkbench::getUrl(array_filter([
                 'oversightTermId' => $this->oversightTermId,
-            ], fn (mixed $value): bool => $value !== null)) => 'Catalog & Curricula',
+            ], fn (mixed $value): bool => $value !== null)) => 'Programs & Curricula',
             'Programs',
         ];
     }

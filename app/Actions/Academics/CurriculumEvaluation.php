@@ -2,6 +2,7 @@
 
 namespace App\Actions\Academics;
 
+use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
 use App\Models\ProgramShiftCreditEntry;
@@ -18,11 +19,15 @@ class CurriculumEvaluation
     {
         $attempts = $this->results->forStudent($student);
         $acceptedCredits = ProgramShiftCreditEntry::query()
+            ->with('curriculumEntry.courseSpecification')
             ->where('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
+            ->where('state', ProgramShiftCreditEntry::StateRecorded)
+            ->whereHas('curriculumEntry', fn ($query) => $query->where('curriculum_version_id', $student->curriculum_version_id))
             ->whereHas('lifecycleChange', fn ($query) => $query
                 ->where('student_profile_id', $student->id)
                 ->where('state', StudentLifecycleChange::StateApplied))
             ->get()
+            ->filter(fn (ProgramShiftCreditEntry $credit): bool => $credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00)
             ->keyBy('curriculum_entry_id');
         $transferCredits = RegistrationCreditEvaluation::creditedEntryIdsForStudent($student);
         $rows = CurriculumEntry::query()
@@ -31,9 +36,12 @@ class CurriculumEvaluation
             ->orderBy('sequence')
             ->get()
             ->map(function (CurriculumEntry $entry) use ($attempts, $acceptedCredits, $transferCredits): array {
-                $entryAttempts = $attempts->filter(fn (array $attempt): bool => (int) $attempt['course_specification']?->id === (int) $entry->course_specification_id
-                );
-                $passed = $entryAttempts->contains(fn (array $attempt): bool => is_numeric($attempt['result']) && (float) $attempt['result'] <= 4.00
+                $courseId = $entry->courseSpecification?->course_id;
+                $entryAttempts = $attempts->filter(fn (array $attempt): bool => $courseId !== null
+                    ? (int) $attempt['course_specification']?->course_id === (int) $courseId
+                    : (int) $attempt['course_specification']?->id === (int) $entry->course_specification_id);
+                $passed = $entryAttempts->contains(
+                    fn (array $attempt): bool => RegistrationAcademicEligibilityQuery::isPassingResult($attempt['result'] ?? null),
                 );
                 $credited = $acceptedCredits->has($entry->id) || in_array((int) $entry->id, $transferCredits, true);
                 $inProgress = $entryAttempts->contains(fn (array $attempt): bool => $attempt['event'] === null

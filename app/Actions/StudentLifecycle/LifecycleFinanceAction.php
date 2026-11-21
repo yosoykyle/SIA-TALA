@@ -33,6 +33,7 @@ class LifecycleFinanceAction
                 'payload' => [
                     'student_profile_id' => $change->student_profile_id,
                     'enrollment_id' => $change->enrollment_id,
+                    'term_id' => $change->term_id,
                     'lifecycle_type' => $change->type,
                     'instruction' => 'Accounting must review any financial consequence separately. No amount, refund, credit, penalty, forfeiture, balance change, or hold is inferred.',
                 ],

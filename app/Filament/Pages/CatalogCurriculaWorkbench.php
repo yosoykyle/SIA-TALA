@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Actions\AcademicSetup\AcademicReadinessService;
+use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Resources\Courses\CourseResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\Programs\ProgramResource;
@@ -24,6 +25,7 @@ use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
@@ -31,13 +33,11 @@ use UnitEnum;
 
 final class CatalogCurriculaWorkbench extends Page implements HasTable
 {
+    use HasAcademicOversightReturn;
     use InteractsWithTable;
 
     #[Url]
     public ?int $programId = null;
-
-    #[Url]
-    public ?int $oversightTermId = null;
 
     #[Url(as: 'tab')]
     public string $activeTab = 'draft';
@@ -46,19 +46,22 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
 
     protected static string|UnitEnum|null $navigationGroup = 'Academic Planning';
 
-    protected static ?string $navigationLabel = 'Catalog & Curricula';
+    protected static ?string $navigationLabel = 'Programs & Curricula';
 
-    protected static ?string $title = 'Catalog & Curricula';
+    protected static ?string $title = 'Programs & Curricula';
 
     protected string $view = 'filament.pages.catalog-curricula-workbench';
 
     public function mount(): void
     {
         if ($this->programId !== null) {
-            $parameters = array_filter(['oversightTermId' => $this->oversightTermId], fn (mixed $value): bool => $value !== null);
-            $this->redirect(ProgramResource::getUrl('view', ['record' => $this->programId, ...$parameters]));
+            $this->redirect(ProgramResource::getUrl('view', ['record' => $this->programId, ...$this->oversightQueryParameters()]));
 
             return;
+        }
+
+        if ($this->isReadOnly() && ! \Filament\Support\original_request()->query->has('tab')) {
+            $this->activeTab = 'active';
         }
 
         $this->activeTab = $this->currentTab();
@@ -66,13 +69,6 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
 
     public function switchTab(string $tab): void
     {
-        if ($this->isReadOnly()) {
-            $this->activeTab = 'active';
-            $this->resetTable();
-
-            return;
-        }
-
         if (in_array($tab, ['draft', 'active'], true)) {
             $this->activeTab = $tab;
             $this->resetTable();
@@ -81,6 +77,10 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
 
     public function getSubheading(): ?string
     {
+        if ($this->isReadOnly()) {
+            return 'Read-only oversight of active and draft program study plans maintained by the Registrar.';
+        }
+
         return 'Prepare each program’s study plan and activate it for incoming students.';
     }
 
@@ -89,16 +89,8 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
      */
     protected function getHeaderActions(): array
     {
-        $oversightParameters = array_filter([
-            'termId' => $this->oversightTermId,
-        ], fn (mixed $value): bool => $value !== null);
-
         return [
-            Action::make('returnToOversight')
-                ->label('Return to Academic Oversight')
-                ->icon(Heroicon::OutlinedArrowLeft)
-                ->color('gray')
-                ->url(AcademicApprovals::getUrl($oversightParameters))
+            $this->returnToOversightAction('Academic Oversight')
                 ->visible(fn (): bool => $this->isReadOnly()),
         ];
     }
@@ -113,13 +105,13 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
 
     public function createProgramAction(): CreateAction
     {
-        return ProgramResource::createProgramAction('createProgram');
+        return ProgramResource::createProgramAction('createProgram')
+            ->visible(fn (): bool => ! $this->isReadOnly())
+            ->authorize(fn (): bool => ! $this->isReadOnly() && (auth()->user()?->can('create', Program::class) ?? false));
     }
 
     public function table(Table $table): Table
     {
-        $tab = $this->currentTab();
-
         return $table
             ->query(fn (): Builder => CurriculumVersion::query()
                 ->with(['program', 'effectiveEntryTerm.academicYear', 'entries.courseSpecification.components'])
@@ -165,15 +157,17 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
                     ->wrap()
                     ->placeholder('Not set'),
             ])
+            ->header(fn (): HtmlString => $this->renderDockedCurriculaTabs())
             ->filters([
                 SelectFilter::make('program_id')
                     ->label('Program')
+                    ->placeholder('All programs')
                     ->relationship('program', 'code'),
             ])
             ->filtersLayout(FiltersLayout::Dropdown)
-            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filters')->color('gray')->labeledFrom(null))
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filters')->color('gray'))
             ->deferFilters(false)
-            ->extraAttributes(['class' => 'tala-data-table'])
+            ->extraAttributes(['class' => 'tala-data-table tala-curricula-workbench-table'])
             ->stackedOnMobile()
             ->recordUrl(fn (CurriculumVersion $record): string => $this->reviewUrl($record))
             ->recordActions([
@@ -191,14 +185,21 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
                 : ($this->currentTab() === 'active' ? 'No active curricula yet' : 'No draft curricula in progress'))
             ->emptyStateDescription(fn (HasTable $livewire): string => filled($livewire->getTableSearch()) || $livewire->getTable()->isFiltered()
                 ? 'Try a different program filter or search term.'
-                : ($this->currentTab() === 'active'
-                    ? 'Activate a completed draft study plan to assign it to incoming students.'
-                    : 'Every study plan is up to date, or create a new draft curriculum for a program.'))
+                : ($this->isReadOnly()
+                    ? ($this->currentTab() === 'active'
+                        ? 'Active study plans appear here once the Registrar activates a draft curriculum.'
+                        : 'No draft curricula are currently in progress with the Registrar.')
+                    : ($this->currentTab() === 'active'
+                        ? 'Activate a completed draft study plan to assign it to incoming students.'
+                        : 'Every study plan is up to date, or create a new draft curriculum for a program.')))
             ->emptyStateActions([
                 CurriculumVersionResource::createDraftAction(name: 'emptyCreateCurriculum')
-                    ->visible(fn (HasTable $livewire): bool => $tab === 'draft'
+                    ->visible(fn (HasTable $livewire): bool => ! $this->isReadOnly()
+                        && $this->currentTab() === 'draft'
                         && ! filled($livewire->getTableSearch())
                         && ! $livewire->getTable()->isFiltered()
+                        && (auth()->user()?->can('create', CurriculumVersion::class) ?? false))
+                    ->authorize(fn (): bool => ! $this->isReadOnly()
                         && (auth()->user()?->can('create', CurriculumVersion::class) ?? false)),
             ])
             ->toolbarActions([])
@@ -210,7 +211,7 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
      */
     protected function getViewData(): array
     {
-        $query = array_filter(['oversightTermId' => $this->oversightTermId], fn (mixed $value): bool => $value !== null);
+        $query = $this->oversightQueryParameters();
         $readOnly = $this->isReadOnly();
         $hasPrograms = Program::query()->exists();
         $activeCurriculaCount = CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)->count();
@@ -291,17 +292,6 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
                 'featured' => $activeProgramCount > 0 && $programsWithActiveCount < $activeProgramCount,
             ],
             [
-                'key' => 'curricula',
-                'label' => 'Curricula',
-                'count' => $totalCurriculaCount,
-                'figure_label' => Str::plural('study plan', $totalCurriculaCount),
-                'summary' => $curriculaSummary,
-                'icon' => 'heroicon-o-clipboard-document-list',
-                'url' => CurriculumVersionResource::getUrl('index', $query),
-                'action_label' => 'Open curricula',
-                'featured' => $draftCurriculaCount > 0,
-            ],
-            [
                 'key' => 'subjects',
                 'label' => 'Subjects',
                 'count' => $courseCount,
@@ -311,6 +301,17 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
                 'url' => CourseResource::getUrl('index', $query),
                 'action_label' => 'Open subjects',
                 'featured' => $draftSubjectCount > 0,
+            ],
+            [
+                'key' => 'curricula',
+                'label' => 'Curricula',
+                'count' => $totalCurriculaCount,
+                'figure_label' => Str::plural('study plan', $totalCurriculaCount),
+                'summary' => $curriculaSummary,
+                'icon' => 'heroicon-o-clipboard-document-list',
+                'url' => CurriculumVersionResource::getUrl('index', $query),
+                'action_label' => 'Open curricula',
+                'featured' => $draftCurriculaCount > 0,
             ],
         ];
     }
@@ -350,20 +351,57 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
         ], fn (mixed $value): bool => $value !== null));
     }
 
+    private function renderDockedCurriculaTabs(): HtmlString
+    {
+        $activeTab = $this->currentTab();
+        $draftCount = CurriculumVersion::query()->where('state', CurriculumVersion::StateDraft)->count();
+        $activeCount = CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)->count();
+
+        return new HtmlString(Blade::render(<<<'BLADE'
+            <x-tala-navigation
+                label="Curricula view"
+                compact
+                role="tablist"
+                class="tala-curricula-tabs-dock"
+            >
+                <x-filament::tabs.item
+                    role="tab"
+                    :active="$activeTab === 'draft'"
+                    :aria-selected="$activeTab === 'draft' ? 'true' : 'false'"
+                    :badge="$draftCount"
+                    :badge-color="$activeTab === 'draft' ? 'primary' : 'gray'"
+                    wire:click="switchTab('draft')"
+                >
+                    Draft curricula
+                </x-filament::tabs.item>
+                <x-filament::tabs.item
+                    role="tab"
+                    :active="$activeTab === 'active'"
+                    :aria-selected="$activeTab === 'active' ? 'true' : 'false'"
+                    :badge="$activeCount"
+                    :badge-color="$activeTab === 'active' ? 'primary' : 'gray'"
+                    wire:click="switchTab('active')"
+                >
+                    Active curricula
+                </x-filament::tabs.item>
+            </x-tala-navigation>
+        BLADE, [
+            'activeTab' => $activeTab,
+            'draftCount' => $draftCount,
+            'activeCount' => $activeCount,
+        ]));
+    }
+
     private function currentTab(): string
     {
-        if ($this->isReadOnly()) {
-            return 'active';
-        }
-
         return in_array($this->activeTab, ['draft', 'active'], true)
             ? $this->activeTab
-            : 'draft';
+            : ($this->isReadOnly() ? 'active' : 'draft');
     }
 
     private function isReadOnly(): bool
     {
-        return auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? true;
+        return ! $this->isRegistrarActor();
     }
 
     public static function canAccess(): bool

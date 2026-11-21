@@ -52,7 +52,7 @@ class GradeRostersTable
                             ->description('Results recorded'),
                         TextColumn::make('incomplete_results_count')->label('Incomplete grades')
                             ->formatStateUsing(fn (int $state): string => $state > 0 ? $state.' INC' : '')->color('gray'),
-                        TextColumn::make('state')->badge()->color(fn (string $state): string => $state === GradeRoster::StateSubmitted ? 'primary' : 'gray')
+                        TextColumn::make('state')->badge()->color(fn (string $state): string => self::stateColor($state))
                             ->formatStateUsing(fn (string $state): string => $state === GradeRoster::StateReleased ? 'Released' : str($state)->lower()->headline()->toString()),
                     ])->grow(false)->space(1),
                 ])->from('md'),
@@ -82,6 +82,17 @@ class GradeRostersTable
             ->stackedOnMobile()
             ->searchPlaceholder('Course, class or Faculty')
             ->defaultSort('submitted_at', 'desc');
+    }
+
+    public static function stateColor(string $state): string
+    {
+        return match ($state) {
+            GradeRoster::StateReleased => 'success',
+            GradeRoster::StateReturned => 'warning',
+            GradeRoster::StateLateNotSubmitted => 'danger',
+            GradeRoster::StateSubmitted => 'info',
+            default => 'gray',
+        };
     }
 
     private static function rosterUrl(GradeRoster $record, HasTable $livewire): string

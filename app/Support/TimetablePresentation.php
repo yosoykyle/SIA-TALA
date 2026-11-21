@@ -100,6 +100,18 @@ class TimetablePresentation
 
             $captured = $capturedDemands->get($record->getAttribute('scheduling_demand_id'), []);
 
+            $meeting['sectionId'] ??= isset($captured['section_id']) ? (int) $captured['section_id'] : null;
+            $meeting['courseId'] ??= isset($captured['course_id']) ? (int) $captured['course_id'] : null;
+            if (($meeting['requiredRoomType'] ?? '') === '' && ! empty($captured['room_type_requirement'])) {
+                $meeting['requiredRoomType'] = (string) $captured['room_type_requirement'];
+            }
+            if (! $meeting['isPinned'] && (
+                ! empty($captured['scheduling_commitment_id'])
+                || (! empty($captured['fixed_day_of_week']) && ! empty($captured['fixed_start_time']))
+            )) {
+                $meeting['isPinned'] = true;
+            }
+
             $cohortIds = $captured['cohort_or_student_group_ids'] ?? [];
 
             $cohorts = $class && $class->relationLoaded('cohorts') ? $class->cohorts : collect();
@@ -185,10 +197,26 @@ class TimetablePresentation
         $slots = $start !== null && $end > $start ? (int) (($end - $start) / 30) : 0;
 
         $ticks = [];
+        $gridSlots = [];
 
         for ($slot = 0; $slot <= $slots && $slots > 0; $slot++) {
 
             $ticks[] = ['label' => self::clock($start + $slot * 30), 'offset' => $slot / $slots * 100];
+
+            if ($slot < $slots) {
+                $slotStart = $start + $slot * 30;
+                $slotEnd = $slotStart + 30;
+                $gridSlots[] = [
+                    'index' => $slot,
+                    'start' => $slotStart,
+                    'end' => $slotEnd,
+                    'startsAt' => self::time24($slotStart),
+                    'endsAt' => self::time24($slotEnd),
+                    'label' => self::clock($slotStart),
+                    'top' => $slot / $slots * 100,
+                    'height' => 1 / $slots * 100,
+                ];
+            }
 
         }
 
@@ -234,7 +262,9 @@ class TimetablePresentation
 
             'days' => $days->unique()->sort()->map(fn (int $day): array => ['number' => $day, 'label' => self::Days[$day]])->values()->all(),
 
-            'ticks' => $ticks, 'slots' => $slots, 'blockedPeriods' => $blockedPeriods, 'meetings' => $meetings, 'filters' => $filters];
+            'ticks' => $ticks, 'slots' => $slots, 'gridSlots' => $gridSlots, 'axisStart' => $start, 'axisEnd' => $end,
+
+            'blockedPeriods' => $blockedPeriods, 'meetings' => $meetings, 'filters' => $filters];
 
     }
 
@@ -268,11 +298,53 @@ class TimetablePresentation
 
         $modality = $record->getAttribute('modality') ?? $demand?->modality;
 
+        $componentType = $component?->component_type ?? $source['component_type'] ?? null;
+
+        $componentLabel = match ($componentType) {
+
+            'LECTURE' => 'Lecture', 'LABORATORY' => 'Laboratory', default => 'Meeting'
+
+        };
+
+        $componentBadge = match ($componentType) {
+
+            'LABORATORY' => 'LAB', 'LECTURE' => 'LEC', default => ($componentLabel === 'Laboratory' ? 'LAB' : 'LEC')
+
+        };
+
+        $isPinned = (bool) data_get($record->getAttribute('scores'), 'pinned', false)
+            || $record->getAttribute('change_type') === 'Pinned'
+            || ($demand?->getAttribute('fixed_day_of_week') !== null && $demand?->getAttribute('fixed_start_time') !== null);
+
         return [
 
             'id' => (string) ($record->getKey() ?? 'meeting-'.$index),
 
+            'rowId' => is_numeric($record->getKey()) ? (int) $record->getKey() : null,
+
+            'schedulingDemandId' => $record->getAttribute('scheduling_demand_id') !== null ? (int) $record->getAttribute('scheduling_demand_id') : null,
+
+            'meetingSequence' => $record->getAttribute('meeting_sequence') !== null ? (int) $record->getAttribute('meeting_sequence') : 1,
+
+            'sectionId' => $section?->getKey() !== null ? (int) $section->getKey() : ($record->getAttribute('section_id') !== null ? (int) $record->getAttribute('section_id') : (isset($source['section_id']) ? (int) $source['section_id'] : null)),
+
+            'courseId' => $course?->getKey() !== null ? (int) $course->getKey() : (isset($source['course_id']) ? (int) $source['course_id'] : null),
+
+            'facultyId' => $record->getAttribute('faculty_user_id') !== null ? (int) $record->getAttribute('faculty_user_id') : ($faculty?->getKey() !== null ? (int) $faculty->getKey() : null),
+
+            'roomId' => $record->getAttribute('room_id') !== null ? (int) $record->getAttribute('room_id') : ($room?->getKey() !== null ? (int) $room->getKey() : null),
+
+            'roomType' => (string) ($room?->getAttribute('room_type') ?? $source['room_type_requirement'] ?? $component?->getAttribute('room_type_default') ?? ''),
+
+            'requiredRoomType' => (string) ($source['room_type_requirement'] ?? $component?->getAttribute('room_type_default') ?? ($componentBadge === 'LAB' ? 'LABORATORY' : 'LECTURE')),
+
             'day' => $day, 'dayLabel' => self::Days[$day] ?? 'Day unavailable', 'start' => $start, 'end' => $end,
+
+            'startsAt' => $start !== null ? self::time24($start) : null,
+
+            'endsAt' => $end !== null ? self::time24($end) : null,
+
+            'durationMinutes' => $start !== null && $end !== null && $end > $start ? ($end - $start) : 60,
 
             'time' => $start !== null && $end !== null ? self::clock($start).'–'.self::clock($end) : 'Time unavailable',
 
@@ -294,11 +366,11 @@ class TimetablePresentation
 
             },
 
-            'component' => match ($component?->component_type ?? $source['component_type'] ?? null) {
+            'component' => $componentLabel,
 
-                'LECTURE' => 'Lecture', 'LABORATORY' => 'Laboratory', default => 'Meeting'
+            'componentBadge' => $componentBadge,
 
-            },
+            'isPinned' => $isPinned,
 
             'status' => match ($record->getAttribute('status')) {
 
@@ -464,5 +536,10 @@ class TimetablePresentation
 
         return sprintf('%d:%02d %s', $hour % 12 ?: 12, $minutes % 60, $hour < 12 ? 'AM' : 'PM');
 
+    }
+
+    private static function time24(int $minutes): string
+    {
+        return sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
     }
 }

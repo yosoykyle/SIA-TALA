@@ -8,10 +8,10 @@
     --tala-on-brand: #ffffff;
     --tala-link: #1e3a8a;
     --tala-accent: #facc15;
-    --tala-canvas: #f1f3f5;
+    --tala-canvas: #e9edf0;
     --tala-chrome: #ececee;
     --tala-chrome-divider: #d4d4d8;
-    --tala-surface: #ffffff;
+    --tala-surface: #f9fbfc;
     --tala-surface-raised: #ffffff;
     --tala-surface-sunken: #e9ecef;
     --tala-overlay: #ffffff;
@@ -19,8 +19,8 @@
     --tala-muted: #52525c;
     --tala-border: #d4d4d8;
     --tala-control-border: #71717b;
-    --tala-edge: rgb(9 9 11 / 9%);
-    --tala-edge-strong: rgb(9 9 11 / 14%);
+    --tala-edge: rgb(9 9 11 / 12%);
+    --tala-edge-strong: rgb(9 9 11 / 20%);
     --tala-rim: rgb(255 255 255 / 55%);
     --tala-selected-edge: color-mix(in srgb, var(--primary-600, #2f7d3b) 28%, transparent);
     --tala-card-radius: 0.625rem;

@@ -20,18 +20,43 @@ class RegistrationAcademicEligibilityQuery
 {
     public function __construct(private readonly OfficialCourseResultProjection $results) {}
 
+    public static function isPassingResult(mixed $code): bool
+    {
+        if (! is_string($code) && ! is_numeric($code)) {
+            return false;
+        }
+
+        $normalized = is_string($code) ? trim($code) : (string) $code;
+
+        return in_array($normalized, ['TC', 'CREDIT'], true)
+            || (is_numeric($normalized) && (float) $normalized <= 4.00);
+    }
+
     /** @return Collection<int, int> */
     public function satisfiedCourseIds(StudentProfile $profile): Collection
     {
-        $results = $this->results->forStudent($profile)
-            ->filter(fn (array $result): bool => $result['course_specification']?->course_id !== null)
-            ->sortBy([['term.starts_on', 'asc'], ['course_enrollment.id', 'asc']])
-            ->keyBy('course_specification.course_id');
+        $passedCourseIds = $this->results->forStudent($profile)
+            ->filter(fn (array $result): bool => $result['course_specification']?->course_id !== null
+                && self::isPassingResult($result['result'] ?? null))
+            ->pluck('course_specification.course_id');
 
-        return $results->filter(fn (array $result): bool => $result['result'] === 'TC'
-            || (is_numeric($result['result']) && (float) $result['result'] <= 4.00))
-            ->keys()->merge(CurriculumEntry::query()->with('courseSpecification')->whereIn('id', RegistrationCreditEvaluation::creditedEntryIdsForStudent($profile))->get()->pluck('courseSpecification.course_id'))->merge($this->acceptedCredits($profile)->filter(fn (ProgramShiftCreditEntry $credit): bool => $credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00)->pluck('curriculumEntry.courseSpecification.course_id'))
-            ->filter()->map(fn ($id): int => (int) $id)->unique()->values();
+        $transferCourseIds = CurriculumEntry::query()
+            ->with('courseSpecification')
+            ->whereIn('id', RegistrationCreditEvaluation::creditedEntryIdsForStudent($profile))
+            ->get()
+            ->pluck('courseSpecification.course_id');
+
+        $shiftCreditCourseIds = $this->acceptedCredits($profile)
+            ->filter(fn (ProgramShiftCreditEntry $credit): bool => $credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00)
+            ->pluck('curriculumEntry.courseSpecification.course_id');
+
+        return $passedCourseIds
+            ->merge($transferCourseIds)
+            ->merge($shiftCreditCourseIds)
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
     }
 
     /**
@@ -100,23 +125,18 @@ class RegistrationAcademicEligibilityQuery
             return;
         }
 
-        $currentResults = $profile instanceof StudentProfile
-            ? $this->results->forStudent($profile)
-                ->filter(fn (array $result): bool => $result['course_specification']?->course_id !== null)
-                ->sortBy([['term.starts_on', 'asc'], ['course_enrollment.id', 'asc']])
-                ->keyBy('course_specification.course_id')
-            : collect();
-        $acceptedCredits = $profile instanceof StudentProfile
-            ? $this->acceptedCredits($profile)
-            : collect();
+        $satisfiedCourseIds = collect($transferCourseIds)
+            ->merge($profile instanceof StudentProfile ? $this->satisfiedCourseIds($profile) : collect())
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
 
         foreach ($requirements as $alternatives) {
             $passes = $alternatives->contains(fn (CourseRequirement $requirement): bool => $this->alternativePasses(
                 $requirement,
                 $selectedCourseIds,
-                $currentResults,
-                $acceptedCredits,
-                $transferCourseIds,
+                $satisfiedCourseIds,
             ));
 
             if (! $passes) {
@@ -159,32 +179,18 @@ class RegistrationAcademicEligibilityQuery
 
     /**
      * @param  Collection<int, int>  $selectedCourseIds
-     * @param  Collection<int, array<string, mixed>>  $currentResults
-     * @param  Collection<int, ProgramShiftCreditEntry>  $acceptedCredits
+     * @param  Collection<int, int>  $satisfiedCourseIds
      */
     private function alternativePasses(
         CourseRequirement $requirement,
         Collection $selectedCourseIds,
-        Collection $currentResults,
-        Collection $acceptedCredits,
-        Collection $transferCourseIds,
+        Collection $satisfiedCourseIds,
     ): bool {
         if ($requirement->rule_type === CourseRequirement::TypeCorequisite
             && $selectedCourseIds->contains((int) $requirement->related_course_id)) {
             return true;
         }
 
-        if ($transferCourseIds->contains((int) $requirement->related_course_id)) {
-            return true;
-        }
-
-        $result = $currentResults->get((int) $requirement->related_course_id);
-        $code = $result['result'] ?? null;
-        if ($code === 'TC' || (is_numeric($code) && (float) $code <= 4.00)) {
-            return true;
-        }
-
-        return $acceptedCredits->contains(fn (ProgramShiftCreditEntry $credit): bool => (int) $credit->curriculumEntry?->courseSpecification?->course_id === (int) $requirement->related_course_id
-            && ($credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00));
+        return $satisfiedCourseIds->contains((int) $requirement->related_course_id);
     }
 }

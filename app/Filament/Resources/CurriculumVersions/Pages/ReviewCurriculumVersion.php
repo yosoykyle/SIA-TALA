@@ -33,12 +33,14 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\HtmlString;
@@ -283,21 +285,6 @@ class ReviewCurriculumVersion extends Page
         ));
     }
 
-    public function moveSelectedSubject(string $direction): void
-    {
-        $curriculum = $this->curriculumVersion();
-        Gate::forUser($this->actor())->authorize('update', $curriculum);
-
-        if ($this->selectedEntryId === null) {
-            return;
-        }
-
-        $entry = $this->selectedSubject();
-        app(CurriculumWorkbenchService::class)->moveEntrySequence($this->actor(), $entry, $direction);
-        $this->flushRenderCache();
-        $this->getRecord()->refresh();
-    }
-
     public function sortSemesterEntry(int|string $id, int $position): void
     {
         $curriculum = $this->curriculumVersion();
@@ -384,25 +371,32 @@ class ReviewCurriculumVersion extends Page
             array_map(fn (int $year): string => "Year {$year}", range(1, $maxYear)),
         );
 
-        $placement = [
-            Grid::make(2)->schema([
-                Select::make('year_level')
-                    ->label('Year level')
-                    ->placeholder('Choose year')
-                    ->options($yearChoices)
-                    ->required(),
-                Select::make('term_type')
-                    ->label('Semester')
-                    ->placeholder('Choose semester')
-                    ->options(self::semesterFieldOptions())
-                    ->required(),
-                Select::make('requirement_group')
-                    ->label('Subject requirement')
-                    ->options(CurriculumEntry::requirementGroupOptions())
-                    ->required()
-                    ->columnSpanFull(),
-            ]),
-        ];
+        $placementGrid = Grid::make(2)->schema([
+            Select::make('year_level')
+                ->label('Year level')
+                ->placeholder('Choose year')
+                ->options($yearChoices)
+                ->required(),
+            Select::make('term_type')
+                ->label('Semester')
+                ->placeholder('Choose semester')
+                ->options(self::semesterFieldOptions())
+                ->required(),
+            Select::make('requirement_group')
+                ->label('Subject type')
+                ->options(CurriculumEntry::requirementGroupOptions())
+                ->required()
+                ->columnSpanFull(),
+        ]);
+
+        $placement = $this->selectedEntryId !== null
+            ? [
+                Section::make('Placement in this curriculum')
+                    ->description('Move this subject to another year or semester, or change whether it is required or elective.')
+                    ->compact()
+                    ->schema([$placementGrid]),
+            ]
+            : [$placementGrid];
 
         return $schema->components([...$placement, ...$fields])->statePath('subjectData')->columns(1);
     }
@@ -458,7 +452,7 @@ class ReviewCurriculumVersion extends Page
         $entry = $this->curriculumVersion()->entries()->with('courseSpecification.components')->findOrFail($entryId);
         $this->selectedEntryId = $entry->id;
         $this->subjectEditorOpen = true;
-        $this->activeYear = max(1, (int) $entry->year_level);
+        $this->activeYear = max(1, $this->parseYearNumber($entry->year_level));
         $this->dispatch('close-modal', id: 'add-curriculum-subjects');
 
         if (! $this->currentUserCan('update')) {
@@ -475,7 +469,7 @@ class ReviewCurriculumVersion extends Page
         $this->subjectForm->fill([
             ...$this->newSubjectDefaults(),
             ...$this->specificationFormDefaults($entry),
-            'year_level' => (int) $entry->year_level,
+            'year_level' => max(1, $this->parseYearNumber($entry->year_level)),
             'term_type' => $entry->term_type,
             'requirement_group' => $entry->requirement_group,
         ]);
@@ -562,6 +556,28 @@ class ReviewCurriculumVersion extends Page
         return $this->curriculumVersion()->name;
     }
 
+    public function getHeading(): string|Htmlable
+    {
+        $curriculum = $this->loadedCurriculum();
+        $stateLabel = CurriculumVersion::stateOptions()[$curriculum->state] ?? $curriculum->state;
+        $badgeColor = match ($curriculum->state) {
+            CurriculumVersion::StateActive => 'success',
+            CurriculumVersion::StateDraft => 'warning',
+            default => 'gray',
+        };
+
+        return new HtmlString(Blade::render(<<<'BLADE'
+            <span class="tala-curriculum-heading">
+                <span class="tala-curriculum-heading__title">{{ $name }}</span>
+                <x-filament::badge :color="$badgeColor" size="sm">{{ $stateLabel }}</x-filament::badge>
+            </span>
+        BLADE, [
+            'name' => $curriculum->name,
+            'stateLabel' => $stateLabel,
+            'badgeColor' => $badgeColor,
+        ]));
+    }
+
     public function getSubheading(): string|Htmlable
     {
         $curriculum = $this->loadedCurriculum();
@@ -571,23 +587,15 @@ class ReviewCurriculumVersion extends Page
         $years = $curriculum->program?->duration_years;
         $intake = $curriculum->effectiveEntryTerm instanceof Term
             ? 'First intake: '.collect([$curriculum->effectiveEntryTerm->label, $curriculum->effectiveEntryTerm->academicYear?->label])->filter()->implode(', ')
-            : 'First intake not set';
+            : null;
 
-        $items = collect([
-            CurriculumVersion::stateOptions()[$curriculum->state] ?? $curriculum->state,
+        return collect([
             $curriculum->program?->name,
             $years ? $years.' '.Str::plural('year', $years) : null,
             $subjects.' '.Str::plural('subject', $subjects),
             $units.' units',
             $intake,
-        ])->filter()->values();
-
-        $lastIndex = $items->count() - 1;
-        $clauses = $items
-            ->map(fn (string $clause, int $index): string => '<span class="tala-subheading-item">'.e($clause).($index < $lastIndex ? '&#160;·' : '').'</span>')
-            ->implode(' ');
-
-        return new HtmlString($clauses);
+        ])->filter()->implode(' · ');
     }
 
     public function getBreadcrumbs(): array
@@ -599,7 +607,7 @@ class ReviewCurriculumVersion extends Page
         ], fn (mixed $value): bool => $value !== null);
 
         $breadcrumbs = [
-            CatalogCurriculaWorkbench::getUrl($params) => 'Catalog & Curricula',
+            CatalogCurriculaWorkbench::getUrl($params) => 'Programs & Curricula',
             CurriculumVersionResource::getUrl('index', $params) => 'Curricula',
         ];
 
@@ -630,6 +638,7 @@ class ReviewCurriculumVersion extends Page
                 ->url(AcademicApprovals::getUrl($oversightParameters))
                 ->visible(fn (): bool => $readOnly),
             $this->planSettingsAction(),
+            $this->discardDraftAction(),
             $this->activateCurriculumAction(),
             $this->copyToDraftAction(),
         ];
@@ -733,8 +742,11 @@ class ReviewCurriculumVersion extends Page
     {
         return Action::make('removeSelectedSubject')
             ->label('Remove from plan')
+            ->button()
+            ->size('sm')
             ->color('danger')
             ->outlined()
+            ->icon(Heroicon::OutlinedTrash)
             ->visible(fn (): bool => $this->selectedEntryId !== null && $this->currentUserCan('update'))
             ->requiresConfirmation()
             ->modalWidth(Width::Large)
@@ -754,9 +766,11 @@ class ReviewCurriculumVersion extends Page
     public function copySelectedSubjectAction(): Action
     {
         return Action::make('copySelectedSubject')
-            ->label('Revise subject for this curriculum')
-            ->link()
+            ->label('Edit teaching details')
+            ->button()
+            ->size('sm')
             ->color('primary')
+            ->icon(Heroicon::OutlinedPencilSquare)
             ->visible(fn (): bool => $this->selectedEntryId !== null && $this->currentUserCan('update') && $this->subjectMode === 'placement')
             ->requiresConfirmation()
             ->modalWidth(Width::Large)
@@ -783,6 +797,104 @@ class ReviewCurriculumVersion extends Page
                 Notification::make()
                     ->title('Editable subject copy linked to curriculum')
                     ->body('You can now edit its units, class schedule, and teaching details directly.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public function replaceSelectedSubjectAction(): Action
+    {
+        return Action::make('replaceSelectedSubject')
+            ->label('Replace subject')
+            ->button()
+            ->size('sm')
+            ->color('gray')
+            ->icon(Heroicon::OutlinedArrowsRightLeft)
+            ->visible(fn (): bool => $this->selectedEntryId !== null && $this->currentUserCan('update'))
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalHeading('Replace subject in this curriculum')
+            ->modalDescription('Keep this year, semester, and sequence position while swapping in a different catalog subject.')
+            ->modalSubmitActionLabel('Replace subject')
+            ->fillForm(fn (): array => [
+                'course_specification_id' => $this->selectedEntryId !== null
+                    ? $this->selectedSubject()->course_specification_id
+                    : null,
+            ])
+            ->schema([
+                Select::make('course_specification_id')
+                    ->label('Replacement subject')
+                    ->options(fn (): array => $this->courseSpecificationOptions())
+                    ->searchable()
+                    ->preload()
+                    ->required(),
+            ])
+            ->action(function (array $data): void {
+                $curriculum = $this->curriculumVersion();
+                Gate::forUser($this->actor())->authorize('update', $curriculum);
+                $entry = $this->selectedSubject();
+                $replacementSpecId = (int) ($data['course_specification_id'] ?? 0);
+
+                if ($replacementSpecId === (int) $entry->course_specification_id) {
+                    Notification::make()->title('No change made')->info()->send();
+
+                    return;
+                }
+
+                try {
+                    DB::transaction(function () use ($entry, $replacementSpecId): void {
+                        $lockedEntry = CurriculumEntry::query()
+                            ->with('curriculumVersion')
+                            ->lockForUpdate()
+                            ->findOrFail($entry->id);
+                        Gate::forUser($this->actor())->authorize('update', $lockedEntry->curriculumVersion);
+
+                        $replacementSpec = CourseSpecification::query()->findOrFail($replacementSpecId);
+
+                        $duplicateExists = CurriculumEntry::query()
+                            ->where('curriculum_version_id', $lockedEntry->curriculum_version_id)
+                            ->where('course_specification_id', $replacementSpec->id)
+                            ->where('year_level', $lockedEntry->year_level)
+                            ->where('term_label', $lockedEntry->term_label)
+                            ->whereKeyNot($lockedEntry->id)
+                            ->exists();
+
+                        if ($duplicateExists) {
+                            throw ValidationException::withMessages([
+                                'course_specification_id' => 'That subject is already placed in this same year and semester.',
+                            ]);
+                        }
+
+                        $previousSpecId = $lockedEntry->course_specification_id;
+                        $lockedEntry->update(['course_specification_id' => $replacementSpec->id]);
+
+                        activity()
+                            ->performedOn($lockedEntry)
+                            ->causedBy($this->actor())
+                            ->event('curriculum_workbench_row_replaced')
+                            ->withProperties([
+                                'curriculum_version_id' => $lockedEntry->curriculum_version_id,
+                                'previous_course_specification_id' => $previousSpecId,
+                                'new_course_specification_id' => $replacementSpec->id,
+                            ])
+                            ->log('Curriculum subject replaced');
+                    });
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->title('Cannot replace subject')
+                        ->body(collect($exception->errors())->flatten()->implode(' '))
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $this->flushRenderCache();
+                $this->getRecord()->refresh();
+                $this->selectCurriculumSubject($entry->id);
+                Notification::make()
+                    ->title('Subject replaced in curriculum')
                     ->success()
                     ->send();
             });
@@ -872,6 +984,45 @@ class ReviewCurriculumVersion extends Page
         return ActivateCurriculumAction::make()->record(fn (): CurriculumVersion => $this->curriculumVersion());
     }
 
+    public function discardDraftAction(): Action
+    {
+        return Action::make('discardDraft')
+            ->label('Discard draft')
+            ->icon(Heroicon::OutlinedTrash)
+            ->color('danger')
+            ->outlined()
+            ->requiresConfirmation()
+            ->modalHeading('Discard this draft curriculum?')
+            ->modalDescription('Its draft subject placements will be permanently removed. Active curricula and student records are not affected.')
+            ->modalSubmitActionLabel('Discard draft')
+            ->authorize(fn (): bool => $this->currentUserCan('update')
+                && app(CurriculumVersionLifecycleService::class)->canDiscardDraft($this->curriculumVersion()))
+            ->visible(fn (): bool => $this->currentUserCan('update')
+                && app(CurriculumVersionLifecycleService::class)->canDiscardDraft($this->curriculumVersion()))
+            ->action(function (): void {
+                try {
+                    app(CurriculumVersionLifecycleService::class)->discardDraft($this->curriculumVersion(), $this->actor());
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->title('Draft curriculum cannot be discarded')
+                        ->body(collect($exception->errors())->flatten()->implode(' '))
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('Draft curriculum discarded')
+                    ->success()
+                    ->send();
+
+                $this->redirect(CurriculumVersionResource::getUrl('index', array_filter([
+                    'oversightTermId' => $this->oversightTermId,
+                ], fn (mixed $value): bool => $value !== null)));
+            });
+    }
+
     public function externalQualificationsAction(): Action
     {
         return Action::make('externalQualifications')
@@ -905,15 +1056,15 @@ class ReviewCurriculumVersion extends Page
     public function copyToDraftAction(): Action
     {
         return Action::make('copyToDraft')
-            ->label('Create revised draft')
+            ->label('Duplicate curriculum')
             ->icon(Heroicon::OutlinedDocumentDuplicate)
             ->color('primary')
-            ->modalHeading('Create a revised curriculum draft')
+            ->modalHeading('Duplicate curriculum into a new draft')
             ->modalWidth(Width::TwoExtraLarge)
             ->stickyModalHeader()
             ->stickyModalFooter()
             ->modalDescription('Start with the subjects in this plan. Changes are saved in a new draft; this curriculum and its student assignments stay unchanged.')
-            ->modalSubmitActionLabel('Create draft')
+            ->modalSubmitActionLabel('Duplicate curriculum')
             ->fillForm(fn (): array => [
                 'name' => $this->curriculumVersion()->name.' (Draft)',
                 'effective_entry_term_id' => $this->curriculumVersion()->effective_entry_term_id,
@@ -1006,19 +1157,6 @@ class ReviewCurriculumVersion extends Page
         $programId = $this->programId ?? $curriculum->program_id;
         $selectedCourse = $selectedEntry?->courseSpecification?->course;
 
-        $selectedPosition = null;
-        $selectedSemesterCount = 0;
-
-        if ($selectedEntry instanceof CurriculumEntry) {
-            $siblings = $allEntries
-                ->filter(fn (CurriculumEntry $item): bool => (int) $item->year_level === (int) $selectedEntry->year_level
-                    && $item->term_type === $selectedEntry->term_type)
-                ->values();
-            $foundIndex = $siblings->search(fn (CurriculumEntry $item): bool => $item->id === $selectedEntry->id);
-            $selectedSemesterCount = $siblings->count();
-            $selectedPosition = $foundIndex !== false ? $foundIndex + 1 : null;
-        }
-
         $selectedReadiness = $selectedEntry instanceof CurriculumEntry
             ? $this->entryReadiness($selectedEntry)
             : null;
@@ -1042,8 +1180,6 @@ class ReviewCurriculumVersion extends Page
             'regularSemesters' => $regularSemesters,
             'summerPanel' => $summerPanel,
             'selectedSubject' => $selectedEntry,
-            'selectedPosition' => $selectedPosition,
-            'selectedSemesterCount' => $selectedSemesterCount,
             'selectedSubjectWarning' => ($selectedReadiness !== null && $selectedReadiness['status'] !== 'Specification ready')
                 ? $this->entryWarning($selectedEntry, $selectedReadiness['status'])
                 : null,
@@ -1078,6 +1214,16 @@ class ReviewCurriculumVersion extends Page
             7 => 'Seventh Year',
             8 => 'Eighth Year',
             default => "Year {$year}",
+        };
+    }
+
+    private function shortOrdinalYearLabel(int $year): string
+    {
+        return match ($year) {
+            1 => '1st Year',
+            2 => '2nd Year',
+            3 => '3rd Year',
+            default => $year > 0 ? "{$year}th Year" : 'Year 1',
         };
     }
 
@@ -1176,7 +1322,7 @@ class ReviewCurriculumVersion extends Page
         $summerYearsFromEntries = $curriculum->entries
             ->where('term_type', Term::TypeSpecialTerm)
             ->pluck('year_level')
-            ->map(fn (mixed $year): int => (int) $year)
+            ->map(fn (mixed $year): int => $this->parseYearNumber($year))
             ->filter(fn (int $year): bool => $year >= 1)
             ->unique()
             ->values()
@@ -1222,6 +1368,9 @@ class ReviewCurriculumVersion extends Page
             str_contains($normalized, 'third') => 3,
             str_contains($normalized, 'fourth') => 4,
             str_contains($normalized, 'fifth') => 5,
+            str_contains($normalized, 'sixth') => 6,
+            str_contains($normalized, 'seventh') => 7,
+            str_contains($normalized, 'eighth') => 8,
             default => 0,
         };
     }
@@ -1275,7 +1424,7 @@ class ReviewCurriculumVersion extends Page
 
         $specification->loadMissing(['components', 'requirements.relatedCourse']);
         $teaching = $specification->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged
-            ? 'Arranged outside the weekly timetable'
+            ? 'Arranged / flexible schedule'
             : $specification->components->sortBy('sequence')->map(fn (CourseComponent $component): string => sprintf(
                 '%s %s h/week',
                 CourseComponent::typeOptions()[$component->component_type] ?? $component->component_type,
@@ -1294,12 +1443,13 @@ class ReviewCurriculumVersion extends Page
 
         if (! $this->currentUserCan('update') && $entry instanceof CurriculumEntry) {
             $semester = self::semesterFieldOptions()[$entry->term_type] ?? ($entry->term_label ?: $entry->term_type);
-            $facts['Placement'] = 'Year '.(int) $entry->year_level.' · '.$semester;
-            $facts['Requirement'] = CurriculumEntry::requirementGroupOptions()[$entry->requirement_group] ?? $entry->requirement_group;
+            $yearNumber = max(1, $this->parseYearNumber($entry->year_level));
+            $facts['Placement'] = $this->shortOrdinalYearLabel($yearNumber).' · '.$semester;
+            $facts['Type'] = CurriculumEntry::requirementGroupOptions()[$entry->requirement_group] ?? $entry->requirement_group;
         }
 
         $facts['Units'] = $this->formatUnits((float) $specification->credit_units);
-        $facts['Teaching'] = $teaching !== '' ? $teaching : 'Not set yet';
+        $facts['Weekly schedule'] = $teaching !== '' ? $teaching : 'Not set yet';
         $facts['Delivery modes'] = $deliveryModes;
         $facts['Prerequisites'] = $prerequisites !== '' ? $prerequisites : 'None';
 
@@ -1400,13 +1550,13 @@ class ReviewCurriculumVersion extends Page
         $curriculum = $this->loadedCurriculum();
         $entryOptions = $curriculum->entries
             ->sortBy([
-                fn (CurriculumEntry $a, CurriculumEntry $b): int => (int) $a->year_level <=> (int) $b->year_level,
+                fn (CurriculumEntry $a, CurriculumEntry $b): int => $this->parseYearNumber($a->year_level) <=> $this->parseYearNumber($b->year_level),
                 fn (CurriculumEntry $a, CurriculumEntry $b): int => $this->termOrder($a->term_type) <=> $this->termOrder($b->term_type),
                 fn (CurriculumEntry $a, CurriculumEntry $b): int => $a->sequence <=> $b->sequence,
             ])
             ->mapWithKeys(fn (CurriculumEntry $entry): array => [
                 $entry->id => collect([
-                    "Year {$entry->year_level}",
+                    $this->shortOrdinalYearLabel(max(1, $this->parseYearNumber($entry->year_level))),
                     $entry->term_label,
                     $entry->courseSpecification?->course?->code,
                     $entry->courseSpecification?->title,
@@ -1520,8 +1670,8 @@ class ReviewCurriculumVersion extends Page
 
     private function maxPlacedYear(): int
     {
-        return (int) $this->loadedCurriculum()->entries
-            ->max(fn (CurriculumEntry $entry): int => (int) $entry->year_level);
+        return (int) ($this->loadedCurriculum()->entries
+            ->max(fn (CurriculumEntry $entry): int => $this->parseYearNumber($entry->year_level)) ?? 0);
     }
 
     private function yearLevelLimit(): int

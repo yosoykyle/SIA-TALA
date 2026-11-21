@@ -308,7 +308,7 @@ final class Issue58ExactTermPreparationTest extends TestCase
             ->assertSee('Choose an academic term')
             ->assertSee('Select an academic year and term to view its calendar, enrollment and class rosters.')
             ->assertSee('Institution-wide records')
-            ->assertSee('Catalog & Curricula', false)->assertSee('Grade Review')->assertSee('Lifecycle Exceptions')->assertSee('Student academic records')
+            ->assertSee('Catalog & Curricula', false)->assertSee('Class rosters')->assertSee('Lifecycle Exceptions')->assertSee('Completion & TOR')->assertSee('Student academic records')
             ->assertDontSeeHtml('class="oversight-board"');
         $this->assertSame(1, substr_count($page->html(), 'Academic Year and Term'));
 

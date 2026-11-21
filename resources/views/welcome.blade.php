@@ -609,19 +609,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close privacy notice"></button>
                 </div>
                 <div class="modal-body privacy-notice-copy">
-                    <h3 class="h5">Applicant accounts</h3>
-                    <p>TALA collects the information needed to create and secure an Applicant account: your email address, a protected password representation, your Privacy Notice acknowledgement, and security and email-verification events.</p>
-                    <h3 class="h5">How the information is used</h3>
-                    <ul>
-                        <li>To create one Applicant credential and prevent duplicate accounts.</li>
-                        <li>To verify email ownership, authorize workspace access, and support account recovery.</li>
-                        <li>To keep security and accountability evidence required for the account journey.</li>
-                    </ul>
-                    <p>Account creation does not create an Application or Student record. Authorized TALA users and services may access account information only for their permitted tasks. TALA does not display your password and does not ask for application documents during registration.</p>
-                    <h3 class="h5">Application status requests</h3>
-                    <p>Application updates, requirements and corrections are available only through your signed-in Applicant account. Access to private application records and evidence is checked against the account and the authorized school role.</p>
-                    <h3 class="h5">Questions and requests</h3>
-                    <p class="mb-0">Use the Support information on this page for privacy questions or requests. Applicable institutional and legal review still governs retention, correction, access, and lawful disposal.</p>
+                    @include('components.tala-privacy-notice-content')
                     <button type="button" class="btn btn-secondary-custom mt-3" data-bs-toggle="modal" data-bs-target="#supportModal">
                         <x-filament::icon icon="heroicon-o-lifebuoy" class="tala-public-icon" aria-hidden="true" />
                         <span>Contact Support</span>

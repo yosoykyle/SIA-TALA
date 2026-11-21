@@ -4,17 +4,47 @@
             $classesView === 'classes' && ! $activePackage
                 ? \Filament\Actions\Action::make('openCalendar')->label('Calendar')->color('gray')->icon('heroicon-o-calendar-days')->url(\App\Filament\Pages\TermCalendar::getUrl(['termId' => $term->id]))
                 : null,
-            \Filament\Actions\Action::make('toggleClassesView')
-                ->label($classesView === 'classes' ? 'View student sections' : 'View classes')
-                ->color('gray')
-                ->icon($classesView === 'classes' ? 'heroicon-o-user-group' : 'heroicon-o-book-open')
-                ->url(\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id, ...($classesView === 'classes' ? ['classesView' => 'cohorts'] : [])])),
+            $classesView === 'classes' && \App\Filament\Resources\SchedulingDemands\SchedulingDemandResource::canAccess()
+                ? \Filament\Actions\Action::make('scheduleRequirements')
+                    ->label('Schedule requirements')
+                    ->color('gray')
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->url(\App\Filament\Resources\SchedulingDemands\SchedulingDemandResource::getUrl('index', [
+                        'termId' => $term->id,
+                        'filters' => ['term_id' => ['value' => $term->id]],
+                    ]))
+                : null,
         ])) : [];
     @endphp
     @include('filament.pages.partials.term-workspace-header', ['extraHeaderActions' => $extraHeaderActions])
     @if ($term)
         <section class="tala-task-work {{ $classesView === 'cohorts' ? 'tala-term-cohorts' : '' }}" aria-label="Classes and student sections">
-            <p class="tala-work-summary">{{ $classesView === 'cohorts' ? 'Groups of learners who take classes together.' : 'Review the classes that will run and the meetings they need.' }}</p>
+            <div class="tala-work-toolbar">
+                <x-tala-navigation label="Classes view" compact>
+                    <x-filament::tabs.item
+                        tag="a"
+                        :href="\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id])"
+                        :active="$classesView === 'classes'"
+                        icon="heroicon-o-book-open"
+                        wire:click.prevent="chooseClassesView('classes')"
+                        wire:loading.attr="disabled"
+                        wire:target="chooseClassesView"
+                    >
+                        Classes
+                    </x-filament::tabs.item>
+                    <x-filament::tabs.item
+                        tag="a"
+                        :href="\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id, 'classesView' => 'cohorts'])"
+                        :active="$classesView === 'cohorts'"
+                        icon="heroicon-o-user-group"
+                        wire:click.prevent="chooseClassesView('cohorts')"
+                        wire:loading.attr="disabled"
+                        wire:target="chooseClassesView"
+                    >
+                        Student sections
+                    </x-filament::tabs.item>
+                </x-tala-navigation>
+            </div>
             @if ($classesView === 'classes' && ! $activePackage)
                 <p class="tala-work-footnote" role="status">Preparing and confirming classes requires an active teaching calendar. Student sections can be recorded now.</p>
             @endif

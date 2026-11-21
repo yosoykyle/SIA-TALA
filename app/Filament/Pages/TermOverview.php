@@ -4,10 +4,12 @@ namespace App\Filament\Pages;
 
 use App\Actions\Scheduling\TermCoverageProjection;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
-use App\Models\OperationalEvent;
+use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Models\ScheduleGenerationRun;
+use App\Models\Section;
 use App\Models\Term;
-use App\Models\TermCalendarPackage;
+use App\Models\TermOffering;
+use Carbon\CarbonImmutable;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -24,6 +26,15 @@ class TermOverview extends TermPlanningWorkbench
 
     #[Url]
     public string $coverageYear = '';
+
+    #[Url]
+    public string $termSearch = '';
+
+    #[Url]
+    public string $termStateFilter = 'all';
+
+    #[Url]
+    public string $termAcademicYear = '';
 
     protected static ?string $cluster = TermPlanningCluster::class;
 
@@ -49,26 +60,200 @@ class TermOverview extends TermPlanningWorkbench
         $data = parent::getViewData();
         $work = [];
         $waiting = [];
+        $actionItems = [];
+        $reassurance = null;
         $timetable = ['official' => null, 'attempt' => null];
         $counts = ['recorded' => 0, 'confirmed' => 0, 'current' => 0, 'student_sections' => 0];
 
         if (! $data['term']) {
-            return $data + ['overviewWork' => $work, 'overviewWaiting' => $waiting, 'overviewTimetable' => $timetable, 'overviewCounts' => $counts];
+            $allTerms = $data['terms'];
+            $termStateCounts = [
+                'all' => $allTerms->count(),
+                Term::StateActive => $allTerms->where('state', Term::StateActive)->count(),
+                Term::StateDraft => $allTerms->where('state', Term::StateDraft)->count(),
+                Term::StateClosed => $allTerms->where('state', Term::StateClosed)->count(),
+            ];
+            $termAcademicYearOptions = $allTerms
+                ->pluck('academicYear')
+                ->filter()
+                ->unique('id')
+                ->sortByDesc('label')
+                ->mapWithKeys(fn ($year): array => [(string) $year->id => (string) $year->label])
+                ->all();
+            $termClassCounts = Section::query()
+                ->join('term_offerings', 'term_offerings.id', '=', 'sections.term_offering_id')
+                ->where('term_offerings.state', '!=', TermOffering::StateCancelled)
+                ->whereNotIn('sections.state', [Section::StateCancelled, Section::StateClosed])
+                ->groupBy('term_offerings.term_id')
+                ->selectRaw('term_offerings.term_id, count(sections.id) as aggregate')
+                ->pluck('aggregate', 'term_offerings.term_id');
+
+            $activeStateFilter = in_array($this->termStateFilter, ['all', Term::StateActive, Term::StateDraft, Term::StateClosed], true)
+                ? $this->termStateFilter
+                : 'all';
+            $needle = mb_strtolower(trim($this->termSearch));
+            $filteredTerms = $allTerms->filter(function (Term $availableTerm) use ($activeStateFilter, $needle): bool {
+                if ($activeStateFilter !== 'all' && $availableTerm->state !== $activeStateFilter) {
+                    return false;
+                }
+
+                if ($this->termAcademicYear !== '' && (string) ($availableTerm->academic_year_id ?? '') !== $this->termAcademicYear) {
+                    return false;
+                }
+
+                if ($needle === '') {
+                    return true;
+                }
+
+                $haystack = mb_strtolower(implode(' ', array_filter([
+                    $availableTerm->typeLabel(),
+                    $availableTerm->label,
+                    $availableTerm->academicYear?->label,
+                    Term::stateOptions()[$availableTerm->state] ?? $availableTerm->state,
+                ])));
+
+                return str_contains($haystack, $needle);
+            })->values();
+
+            $perPage = 15;
+            $page = min(max(1, $this->getPage('termsPage')), max(1, (int) ceil($filteredTerms->count() / $perPage)));
+            $chooserPage = new LengthAwarePaginator(
+                $filteredTerms->forPage($page, $perPage),
+                $filteredTerms->count(),
+                $perPage,
+                $page,
+                [
+                    'path' => request()->url(),
+                    'pageName' => 'termsPage',
+                ],
+            );
+
+            return $data + [
+                'overviewWork' => $work,
+                'overviewWaiting' => $waiting,
+                'overviewTimetable' => $timetable,
+                'overviewCounts' => $counts,
+                'overviewActionItems' => $actionItems,
+                'overviewReassurance' => $reassurance,
+                'chooserPage' => $chooserPage,
+                'termStateCounts' => $termStateCounts,
+                'termAcademicYearOptions' => $termAcademicYearOptions,
+                'termClassCounts' => $termClassCounts,
+                'activeTermStateFilter' => $activeStateFilter,
+            ];
         }
 
-        $parameters = ['termId' => $data['term']->id];
-        $readOnly = $data['readOnly'];
+        /** @var Term $term */
+        $term = $data['term'];
+        $parameters = ['termId' => $term->id];
+        $readOnly = (bool) $data['readOnly'];
         $calendarUrl = TermCalendar::getUrl($parameters);
         $classesUrl = TermClasses::getUrl($parameters);
         $sectionsUrl = TermClasses::getUrl([...$parameters, 'classesView' => 'cohorts']);
         $resourcesUrl = TermResources::getUrl($parameters);
+        $qualificationsUrl = FacultyQualificationResource::getUrl('index', $parameters);
         $resultUrl = TermTimetable::getUrl($parameters);
+        $officialRevisionUrl = TermTimetable::getUrl([
+            ...$parameters,
+            'timetableState' => 'official',
+            ...($data['currentVersion'] ? ['selectedVersionId' => $data['currentVersion']->id] : []),
+        ]);
+
         $counts = [
             'recorded' => $data['sourceClasses']->count(),
             'confirmed' => $data['sourceClasses']->whereNotNull('confirmed_at')->count(),
             'current' => $data['contextClasses']->count(),
             'student_sections' => $data['cohorts']->count(),
         ];
+
+        $availability = $data['availabilityProjection'] ?? [];
+        $readinessProjection = $data['readiness'] ?? ['ready' => false, 'blockers' => [], 'advisories' => []];
+        $tz = (string) config('app.display_timezone', 'Asia/Manila');
+
+        foreach ($availability['unresolved_late_impacts'] ?? [] as $impact) {
+            $meetingCount = count($impact['affected_meetings'] ?? []);
+            $recordedAt = $impact['recorded_at']
+                ? CarbonImmutable::parse($impact['recorded_at'])->timezone($tz)->format('M j, Y')
+                : null;
+
+            $actionItems[] = [
+                'kind' => 'late_impact',
+                'severity' => 'warning',
+                'badge' => 'Affects the official timetable',
+                'title' => $impact['faculty_name'].' changed availability after publication',
+                'summary' => ($recordedAt ? "Changed {$recordedAt} · " : '')
+                    .$meetingCount.' official '.str('meeting')->plural($meetingCount)
+                    .' '.($meetingCount === 1 ? 'is' : 'are').' now outside '.$impact['mode_label'].'.',
+                'reason' => $impact['reason'] ?? null,
+                'meetings' => $impact['affected_meetings'] ?? [],
+                'primary_action' => $readOnly
+                    ? ['label' => 'Inspect official timetable', 'url' => $officialRevisionUrl, 'color' => 'gray']
+                    : ['label' => 'Start timetable revision', 'url' => $officialRevisionUrl, 'color' => 'primary'],
+                'secondary_action' => ['label' => 'View faculty', 'url' => $resourcesUrl],
+            ];
+        }
+
+        foreach ($readinessProjection['blockers'] ?? [] as $blocker) {
+            if (! in_array($blocker['code'], [
+                'fixed_faculty_availability_missing',
+                'fixed_faculty_cannot_teach',
+                'fixed_faculty_no_usable_time',
+                'faculty_demand_uncovered',
+                'faculty_qualifications_missing',
+            ], true)) {
+                continue;
+            }
+
+            $isQualification = $blocker['code'] === 'faculty_qualifications_missing';
+
+            $actionItems[] = [
+                'kind' => 'teacher_blocker',
+                'severity' => 'danger',
+                'badge' => "Can't be scheduled",
+                'title' => $blocker['reason'],
+                'summary' => $readOnly ? 'Responsible: '.$blocker['owner'] : $blocker['next_action'],
+                'reason' => null,
+                'meetings' => [],
+                'primary_action' => $isQualification
+                    ? ['label' => $readOnly ? 'View qualifications' : 'Add qualification', 'url' => $qualificationsUrl, 'color' => 'gray']
+                    : ['label' => 'Review faculty', 'url' => $resourcesUrl, 'color' => 'gray'],
+                'secondary_action' => $isQualification
+                    ? ['label' => 'Faculty & rooms', 'url' => $resourcesUrl]
+                    : ['label' => 'Review classes', 'url' => $classesUrl],
+            ];
+        }
+
+        if (($availability['needs_grid_review_count'] ?? 0) > 0) {
+            $reviewNames = collect($availability['faculty_rows'] ?? [])
+                ->where('needs_grid_review', true)
+                ->pluck('name')
+                ->values()
+                ->all();
+
+            $actionItems[] = [
+                'kind' => 'grid_review',
+                'severity' => 'warning',
+                'badge' => 'Review needed',
+                'title' => 'Teaching times outside updated hours for '.implode(', ', $reviewNames),
+                'summary' => 'Chosen teaching windows fall outside the updated teaching grid or overlap a break. Outside hours remain excluded until updated on My Availability.',
+                'reason' => null,
+                'meetings' => [],
+                'primary_action' => ['label' => 'Review faculty', 'url' => $resourcesUrl, 'color' => 'gray'],
+                'secondary_action' => null,
+            ];
+        }
+
+        $noResponseCount = (int) ($availability['no_response_count'] ?? 0);
+        if ($actionItems === [] && ! empty($availability['has_active_core_calendar']) && $noResponseCount > 0) {
+            $reassurance = [
+                'heading' => 'No blockers in classes or faculty replies',
+                'body' => $noResponseCount.' '.str('teacher')->plural($noResponseCount).' '
+                    .($noResponseCount === 1 ? 'has' : 'have').' no response yet. '
+                    .'Teachers with no response will not be scheduled for new assignments until they reply.',
+                'action_label' => 'Faculty & rooms',
+                'action_url' => $resourcesUrl,
+            ];
+        }
 
         if (! $data['activePackage'] || $data['draftPackages']->isNotEmpty()) {
             $work[] = $this->overviewEntry('calendar', $readOnly ? 'Inspect teaching calendar' : ($data['activePackage'] ? 'Review proposed calendar' : 'Set teaching calendar'), $data['activePackage'] ? 'An active calendar remains in use while the proposed calendar is reviewed.' : 'Record and activate this Term’s teaching dates and hours.', $calendarUrl, 'heroicon-o-calendar-days');
@@ -84,35 +269,41 @@ class TermOverview extends TermPlanningWorkbench
         if ($data['missingQualifications'] > 0) {
             $work[] = $this->overviewEntry('resources', $readOnly ? 'Inspect Faculty qualifications' : 'Review eligible teachers', $data['missingQualifications'].' course(s) have no active eligible Faculty record.', $resourcesUrl, 'heroicon-o-academic-cap');
         }
-        if ($data['missingDeclarations'] > 0) {
-            $requests = OperationalEvent::query()->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)
-                ->where('related_record_type', TermCalendarPackage::class)
-                ->whereIn('related_record_id', $data['activePackage']?->compatibleCoreSourceIds() ?? [])
-                ->latest('id')->get()->unique('user_id')->keyBy('user_id');
-            $missingResponses = $data['facultyRecords']->filter(fn (array $row): bool => $row['declaration'] === null);
-            $awaiting = $missingResponses->filter(function (array $row) use ($requests): bool {
-                $request = $requests->get($row['faculty']->id);
-
-                return $request?->status === OperationalEvent::StatusProcessed && $request->sent_at !== null;
-            })->count();
-            $unrequested = $missingResponses->count() - $awaiting;
-            if (! $data['facultyDeadline']) {
-                $work[] = $this->overviewEntry('deadline', $readOnly ? 'Inspect reply deadline' : 'Set a reply deadline', 'Record a reply deadline before requesting Faculty availability.', $resourcesUrl, 'heroicon-o-clock');
-            } elseif ($unrequested > 0) {
-                $work[] = $this->overviewEntry('availability', $readOnly ? 'Inspect availability requests' : 'Review availability requests', $unrequested.' '.str('teacher')->plural($unrequested).' '.($unrequested === 1 ? 'has' : 'have').' no delivered request yet. Check request delivery.', $resourcesUrl, 'heroicon-o-envelope');
-            }
-            if ($awaiting > 0) {
-                $waiting[] = $this->overviewEntry('availability', 'Waiting for Faculty availability', $awaiting.' '.str('teacher')->plural($awaiting).' '.($awaiting === 1 ? 'has' : 'have').' not replied.', $resourcesUrl, 'heroicon-o-clock');
-            }
+        if ($noResponseCount > 0) {
+            $waiting[] = $this->overviewEntry('availability', 'Waiting for Faculty availability', $noResponseCount.' '.str('teacher')->plural($noResponseCount).' '.($noResponseCount === 1 ? 'has' : 'have').' no response yet.', $resourcesUrl, 'heroicon-o-clock');
         }
 
         $readiness = $this->generationReadiness();
         if (! $readiness['ready'] && ($readiness['tab'] ?? null) === 'resources' && $data['missingQualifications'] === 0) {
             $work[] = $this->overviewEntry('resources', 'Review teaching resources', $readiness['reason'], $resourcesUrl, 'heroicon-o-building-office');
+
+            $hasFacultyBlocker = collect($actionItems)->contains(fn (array $item): bool => $item['kind'] === 'teacher_blocker');
+            if (! $hasFacultyBlocker) {
+                $roomsOnly = collect($readinessProjection['blockers'] ?? [])
+                    ->pluck('code')
+                    ->intersect(['rooms_unavailable', 'rooms_unsuitable'])
+                    ->isNotEmpty();
+
+                $actionItems[] = [
+                    'kind' => 'resource_blocker',
+                    'severity' => 'danger',
+                    'badge' => "Can't be scheduled",
+                    'title' => 'Review teaching resources',
+                    'summary' => $readiness['reason'],
+                    'reason' => null,
+                    'meetings' => [],
+                    'primary_action' => [
+                        'label' => $roomsOnly ? 'Review rooms' : 'Review faculty & rooms',
+                        'url' => $roomsOnly ? TermResources::getUrl([...$parameters, 'resourceView' => 'rooms']) : $resourcesUrl,
+                        'color' => 'gray',
+                    ],
+                    'secondary_action' => null,
+                ];
+            }
         }
 
         if ($version = $data['currentVersion']) {
-            $timetable['official'] = ['state' => 'official', 'label' => 'Official timetable'.($version->published_at ? ' · Published '.$version->published_at->timezone(config('app.display_timezone'))->format('M j, Y') : ''), 'description' => 'The published timetable remains official while separate work is prepared.', 'url' => TermTimetable::getUrl([...$parameters, 'selectedVersionId' => $version->id])];
+            $timetable['official'] = ['state' => 'official', 'label' => 'Official timetable'.($version->published_at ? ' · Published '.$version->published_at->timezone($tz)->format('M j, Y') : ''), 'description' => 'The published timetable remains official while separate work is prepared.', 'url' => TermTimetable::getUrl([...$parameters, 'selectedVersionId' => $version->id])];
         }
         $run = $data['activeRun'];
         if ($run && $run->status !== ScheduleGenerationRun::StatusPublished) {
@@ -136,13 +327,45 @@ class TermOverview extends TermPlanningWorkbench
             $work[] = $this->overviewEntry('generate', $readOnly ? 'Inspect generation readiness' : 'Prepare timetable generation', 'Open Timetable to review whole-Term generation. Generation checks the captured sources.', $resultUrl, 'heroicon-o-table-cells');
         }
 
-        return $data + ['overviewWork' => $work, 'overviewWaiting' => $waiting, 'overviewTimetable' => $timetable, 'overviewCounts' => $counts];
+        return $data + [
+            'overviewWork' => $work,
+            'overviewWaiting' => $waiting,
+            'overviewTimetable' => $timetable,
+            'overviewCounts' => $counts,
+            'overviewActionItems' => $actionItems,
+            'overviewReassurance' => $reassurance,
+        ];
     }
 
     /** @return array{key:string,label:string,description:string,url:string,icon:string} */
     private function overviewEntry(string $key, string $label, string $description, string $url, string $icon): array
     {
         return compact('key', 'label', 'description', 'url', 'icon');
+    }
+
+    public function setTermStateFilter(string $state): void
+    {
+        $this->termStateFilter = in_array($state, ['all', Term::StateActive, Term::StateDraft, Term::StateClosed], true)
+            ? $state
+            : 'all';
+        $this->resetPage('termsPage');
+    }
+
+    public function updatedTermSearch(): void
+    {
+        $this->resetPage('termsPage');
+    }
+
+    public function updatedTermAcademicYear(): void
+    {
+        $this->resetPage('termsPage');
+    }
+
+    public function clearTermFilters(): void
+    {
+        $this->reset('termSearch', 'termAcademicYear');
+        $this->termStateFilter = 'all';
+        $this->resetPage('termsPage');
     }
 
     public function updatedCoverageSearch(): void
@@ -185,7 +408,7 @@ class TermOverview extends TermPlanningWorkbench
     public function coveragePage(): LengthAwarePaginator
     {
         $needle = mb_strtolower(trim($this->coverageSearch));
-        $rows = $this->coverageEntries->filter(fn (array $row): bool => ($needle === '' || str_contains(mb_strtolower($row['program_name'].' '.$row['curriculum_label']), $needle))
+        $rows = $this->coverageEntries->filter(fn (array $row): bool => ($needle === '' || str_contains(mb_strtolower($row['program_name'].' '.$row['curriculum_label'].' '.($row['curriculum_version_code'] ?? '')), $needle))
             && ($this->coverageYear === '' || ($row['year_level'] ?? 'unassigned') === $this->coverageYear)
         )->values();
         $page = min(max(1, $this->getPage('coveragePage')), max(1, (int) ceil($rows->count() / 10)));
@@ -199,10 +422,8 @@ class TermOverview extends TermPlanningWorkbench
     #[Computed]
     public function coverage(): ?array
     {
-
         $term = $this->termId ? Term::find($this->termId) : null;
 
         return $term ? app(TermCoverageProjection::class)->forTerm($term) : null;
-
     }
 }

@@ -10,7 +10,7 @@ use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
-use App\Filament\Pages\FacultySchedule;
+use App\Filament\Pages\FacultyOverview;
 use App\Models\AdmissionApplication;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -358,7 +358,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->set('data.multiFactor.app.recoveryCode', 'single-use-recovery')
             ->call('authenticate')
             ->assertHasNoErrors()
-            ->assertRedirect(FacultySchedule::getUrl(panel: 'admin'));
+            ->assertRedirect(FacultyOverview::getUrl(panel: 'admin'));
 
         $this->assertSame([], $staff->fresh()->getAppAuthenticationRecoveryCodes());
     }
@@ -435,7 +435,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->set('data.multiFactor.app.code', $currentCode)
             ->call('authenticate')
             ->assertHasNoErrors()
-            ->assertRedirect(FacultySchedule::getUrl(panel: 'admin'));
+            ->assertRedirect(FacultyOverview::getUrl(panel: 'admin'));
 
         $this->assertSame(0, RateLimiter::attempts($mfaKey));
     }

@@ -5,7 +5,7 @@ namespace App\Filament\Resources\GradeRosters\Pages;
 use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
-use App\Models\User;
+use App\Models\GradeRoster;
 use Filament\Resources\Pages\ListRecords;
 use Livewire\Attributes\Url;
 
@@ -22,7 +22,7 @@ class ListGradeRosters extends ListRecords
     {
         parent::mount();
 
-        if (auth()->user()?->hasRole(User::StaffRoleRegistrar)) {
+        if ($this->isRegistrarActor()) {
             $this->redirect(GradesAndCompletion::getUrl([
                 'viewTab' => 'grade-review',
                 ...GradesAndCompletion::classQueueParameters(request()->query()),
@@ -32,7 +32,7 @@ class ListGradeRosters extends ListRecords
 
     public function getTitle(): string
     {
-        if ($this->isHeadReader()) {
+        if ($this->isAcademicHeadReader()) {
             return 'Class rosters';
         }
 
@@ -41,7 +41,7 @@ class ListGradeRosters extends ListRecords
 
     public function getSubheading(): ?string
     {
-        if ($this->isHeadReader()) {
+        if ($this->isAcademicHeadReader()) {
             return 'Find a class, check official membership and inspect released results. Use the filters to select a term.';
         }
 
@@ -50,27 +50,34 @@ class ListGradeRosters extends ListRecords
 
     public function getBreadcrumbs(): array
     {
-        if (! $this->isHeadReader()) {
-            return [GradesAndCompletion::getUrl() => 'Grades & Completion', 'Class grades'];
+        if ($this->isAcademicHeadReader()) {
+            return [
+                $this->oversightReturnUrl() => 'Academic Oversight',
+                'Class rosters',
+            ];
         }
 
-        return parent::getBreadcrumbs();
+        return [GradesAndCompletion::getUrl() => 'Grades & Completion', 'Class grades'];
     }
 
-    private function isHeadReader(): bool
+    public function headRosterUrl(GradeRoster $roster): string
     {
-        return (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? false)
-            && ! auth()->user()->hasRole(User::StaffRoleRegistrar);
+        return GradeRosterResource::getUrl('view', array_filter([
+            'record' => $roster,
+            'oversightTermId' => $this->resolvedOversightTermId(),
+            'returnFilters' => ($this->tableFilters ?? []) !== [] ? $this->tableFilters : null,
+            'returnSearch' => filled($this->getTableSearch()) ? $this->getTableSearch() : null,
+        ], fn (mixed $value): bool => $value !== null));
     }
 
     public function getExtraBodyAttributes(): array
     {
-        return $this->isHeadReader() ? ['class' => 'tala-head-rosters-page'] : parent::getExtraBodyAttributes();
+        return $this->isAcademicHeadReader() ? ['class' => 'tala-head-rosters-page'] : parent::getExtraBodyAttributes();
     }
 
     protected function getHeaderActions(): array
     {
-        return $this->isAcademicHead()
+        return $this->isAcademicHeadReader()
             ? [$this->returnToOversightAction()]
             : [];
     }

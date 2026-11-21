@@ -38,6 +38,7 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\Program;
@@ -347,8 +348,8 @@ final class TermPlanningRedesignTest extends TestCase
             $term = Term::factory()->create();
             $areas = [
                 'Term overview' => TermOverview::class,
-                'Calendar' => TermCalendar::class,
-                'Sections & classes' => TermClasses::class,
+                'Teaching calendar' => TermCalendar::class,
+                'Classes & sections' => TermClasses::class,
                 'Faculty & rooms' => TermResources::class,
                 'Timetable' => TermTimetable::class,
             ];
@@ -775,7 +776,15 @@ final class TermPlanningRedesignTest extends TestCase
             ->assertSee(e(TermResources::getUrl(['termId' => $term->id, 'resourceView' => 'rooms'])), false);
 
         $faculty = User::factory()->create(['status' => User::StatusActive]);
+        $faculty->assignRole(Role::findOrCreate(User::StaffRoleFaculty, 'web'));
         FacultyQualification::factory()->for($faculty, 'faculty')->for($course)->create(['is_active' => true]);
+        FacultyAvailabilityDeclaration::factory()->create([
+            'term_id' => $term->id,
+            'faculty_user_id' => $faculty->id,
+            'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
+            'availability_mode' => FacultyAvailabilityDeclaration::ModeAnyApproved,
+            'hard_unavailability' => [],
+        ]);
         Room::factory()->create([
             'room_type' => Room::TypeLaboratory,
             'capacity' => 30,

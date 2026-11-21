@@ -2,12 +2,15 @@
 
 namespace App\Filament\Resources\Programs\RelationManagers;
 
+use App\Actions\AcademicSetup\CurriculumVersionLifecycleService;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Models\CurriculumVersion;
 use App\Models\Program;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\FiltersLayout;
@@ -44,7 +47,7 @@ class CurriculumVersionsRelationManager extends RelationManager
 
         return $table
             ->recordTitleAttribute('name')
-            ->extraAttributes(['class' => 'tala-data-table'])
+            ->extraAttributes(['class' => 'tala-data-table tala-program-curricula-table'])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
                 ->with('effectiveEntryTerm.academicYear')
                 ->withCount('entries')
@@ -67,6 +70,7 @@ class CurriculumVersionsRelationManager extends RelationManager
             ->defaultGroup('state')
             ->groupingSettingsHidden()
             ->heading('Curricula')
+            ->description('Curricula for this program. Open any row to view or edit its subjects, or start a new batch curriculum.')
             ->columns([
                 TextColumn::make('name')->label('Curriculum')->weight('semibold')->wrap()
                     ->description(fn (CurriculumVersion $record): string => $record->entries_count.' '.str('subject')->plural($record->entries_count)),
@@ -86,10 +90,11 @@ class CurriculumVersionsRelationManager extends RelationManager
             ->filters([
                 SelectFilter::make('state')
                     ->label('Status')
+                    ->placeholder('All statuses')
                     ->options(CurriculumVersion::stateOptions()),
             ])
             ->filtersLayout(FiltersLayout::Dropdown)
-            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filters')->color('gray')->labeledFrom(null))
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filters')->color('gray'))
             ->deferFilters(false)
             ->stackedOnMobile()
             ->headerActions([
@@ -98,6 +103,25 @@ class CurriculumVersionsRelationManager extends RelationManager
             ])
             ->recordUrl(fn (CurriculumVersion $record): string => $curriculumUrl($record))
             ->recordActions([
+                Action::make('discardDraft')
+                    ->label('Discard draft')
+                    ->button()
+                    ->color('danger')
+                    ->icon(Heroicon::OutlinedTrash)
+                    ->authorize(fn (CurriculumVersion $record): bool => $this->canManage() && $record->isEditableDraft())
+                    ->visible(fn (CurriculumVersion $record): bool => $this->canManage() && $record->isEditableDraft())
+                    ->requiresConfirmation()
+                    ->modalHeading('Discard this draft curriculum?')
+                    ->modalDescription('Its draft subject placements will be permanently removed. Active curricula and student records are not affected.')
+                    ->modalSubmitActionLabel('Discard draft')
+                    ->action(function (CurriculumVersion $record): void {
+                        app(CurriculumVersionLifecycleService::class)->discardDraft($record, $this->actor());
+
+                        Notification::make()
+                            ->title('Draft curriculum discarded')
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('openCurriculumSheet')
                     ->button()
                     ->color('gray')

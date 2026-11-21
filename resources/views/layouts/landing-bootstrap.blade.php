@@ -18,7 +18,8 @@
     <link href="{{ asset('landing/css/styles.css') }}" rel="stylesheet">
     <link href="{{ asset('fonts/filament/filament/inter/index.css') }}" rel="stylesheet">
     <link href="{{ asset('css/tala-foundation.css') }}" rel="stylesheet">
-    <link rel="icon" type="image/webp" href="{{ asset('images/brand/servitech-crest-outlined-192.webp') }}">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
+    <link rel="icon" type="image/png" href="{{ asset('images/brand/servitech-crest-favicon.png') }}">
 </head>
 <body>
     @yield('content')

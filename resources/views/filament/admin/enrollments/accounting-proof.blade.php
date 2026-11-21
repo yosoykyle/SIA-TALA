@@ -44,17 +44,17 @@
                 </div>
             @endif
         </section>
+        <footer class="registrar-case-task-actions accounting-comparison-actions" style="grid-column:1/-1;padding-block-start:var(--tala-card-gap);border-block-start:1px solid var(--tala-edge);">
+            @if ($sourceCurrent)
+                {{ $this->getAction('verifyPaymentEvidence', isMounting: false) }}
+            @else
+                <x-filament::button color="gray" icon="heroicon-o-check-circle" aria-describedby="accounting-proof-blocker" disabled>Verify payment</x-filament::button>
+            @endif
+            {{ $this->getAction('rejectPaymentEvidence', isMounting: false)->color('gray') }}
+        </footer>
     </div>
     @if ($proof->possible_duplicate)
         <div class="tala-warning-banner accounting-source-warning" role="status"><h3>Possible duplicate receipt</h3><p>Check the recorded payments before recording this receipt.</p><x-filament::link :href="$this->enrollmentUrl(['view' => 'history'])">View account history</x-filament::link></div>
     @endif
     <p class="accounting-comparison-note">The receipt has not been recorded as a payment.</p>
-    <footer class="registrar-case-task-actions accounting-comparison-actions">
-        @if ($sourceCurrent)
-            {{ $this->getAction('verifyPaymentEvidence', isMounting: false) }}
-        @else
-            <x-filament::button color="gray" icon="heroicon-o-check-circle" aria-describedby="accounting-proof-blocker" disabled>Verify payment</x-filament::button>
-        @endif
-        {{ $this->getAction('rejectPaymentEvidence', isMounting: false)->color('gray') }}
-    </footer>
 </div>

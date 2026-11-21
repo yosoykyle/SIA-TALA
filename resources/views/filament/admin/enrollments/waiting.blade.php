@@ -32,6 +32,7 @@
             </div>
             <p class="registrar-case-meta">{{ $proposal->items->count() }} subjects · {{ (float) $proposal->items->sum('units_snapshot') }} units</p>
             <p class="registrar-subject-change-note">Saving subject changes releases current class places. Charges need checking, and the student must confirm again.</p>
+            <x-enrollment-proposal-explanation :enrollment="$case" :proposal="$proposal" audience="registrar" />
             @include('filament.admin.enrollments.subjects', ['sourceKey' => 'waiting'])
             @foreach ($proposal->items->where('scheduling_treatment_snapshot', \App\Models\CourseSpecification::SchedulingExternallyArranged) as $item)
                 <p class="registrar-case-meta">{{ $item->course_code_snapshot }} is externally arranged and has no recurring meeting.</p>

@@ -29,7 +29,7 @@ use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\CompletionAndTor;
 use App\Filament\Pages\FacultyGradeRoster;
-use App\Filament\Pages\FacultySchedule;
+use App\Filament\Pages\FacultyOverview;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GradeRosters\Pages\ListGradeRosters;
@@ -382,7 +382,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertSame($event->id, $successor->predecessor_event_id);
         $this->assertSame('INC', $event->fresh()->result_code);
         $this->assertSame(IncDeadlineService::StateResolved, app(IncDeadlineService::class)->state($event));
-        $this->assertImpactReviewCount($nextCase, 2);
+        $this->assertImpactReviewCount($nextCase, 1);
 
         $corrected = app(RecordApprovedGradeCorrection::class)->execute(
             $event->row, '2.25', 'Approved correction.', $fixture['registrar'],
@@ -396,7 +396,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertSame($successor->id, $correction->predecessor_event_id);
         $this->assertSame('2.25', $corrected->current_outcome_code);
         $this->assertSame(3, $corrected->outcomeEvents()->count());
-        $this->assertImpactReviewCount($nextCase, 3);
+        $this->assertImpactReviewCount($nextCase, 1);
         $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeIncResolvedEmail)->count());
         $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeGradeCorrectionReleasedEmail)->count());
 
@@ -959,7 +959,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             'same-term-corequisite-correction',
         );
 
-        $this->assertImpactReviewCount($case, 2);
+        $this->assertImpactReviewCount($case, 1);
         $this->assertSame(2, $corrected->outcomeEvents()->count());
         $this->assertSame($before, $case->fresh()->only(array_keys($before)));
         $this->assertSame($courses, $case->courseEnrollments()->orderBy('id')->get()->map->only(['id', 'status', 'is_current', 'units_snapshot'])->all());
@@ -997,7 +997,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $otherCase = $this->pendingRegistrationCaseFor($otherLearner, $overlap);
         $before = $affected->only(['canonical_outcome', 'status', 'current_proposal_version_id', 'current_cor_version_id']);
 
-        $event = $this->releaseResult($source, '2.00');
+        $event = $this->releaseResult($source, '5.00');
         app(OpenRegistrationImpactReviewsForGradeOutcome::class)->execute($event->row, $event, $source['registrar']);
 
         $this->assertImpactReviewCount($affected, 1);
@@ -1205,8 +1205,8 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             ->assertSee('BOARD-CALENDAR-2026-03')
             ->assertSee('Class-level examination arrangements are not inferred.');
 
-        Livewire::withQueryParams(['termId' => $fixture['term']->id])->actingAs($fixture['faculty'])->test(FacultySchedule::class)
-            ->assertSee('Examination period:')->assertSee('BOARD-CALENDAR-2026-03');
+        Livewire::withQueryParams(['termId' => $fixture['term']->id])->actingAs($fixture['faculty'])->test(FacultyOverview::class)
+            ->assertSee('Exam period:')->assertSee('May 10–May 15, 2027');
         Livewire::withQueryParams([]);
 
         Filament::setCurrentPanel(Filament::getPanel('student'));
@@ -1923,7 +1923,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->get(route('grade-rosters.student-photo', ['roster' => $roster, 'row' => PHP_INT_MAX]))->assertNotFound();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($fixture['faculty'])->test(FacultyGradeRoster::class)
-            ->assertSee($url, escape: false)->assertDontSee($path)->assertSee('Class details')->assertDontSee('Examination dates · information only');
+            ->assertSee($url, escape: false)->assertDontSee($path)->assertSee('Grade entry open')->assertDontSee('Class details')->assertDontSee('Examination dates · information only');
 
         $student->forceFill(['avatar_path' => 'profile-photos/'.$fixture['faculty']->id.'/portrait.png'])->save();
         $this->actingAs($fixture['faculty'])->get($url)->assertNotFound();
@@ -1991,7 +1991,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertSame(100, $roster->rows()->whereNotNull('final_result')->count());
 
         $page->set('studentSearch', $last['student_number'])->callAction('submit')
-            ->assertHasNoErrors()->assertNotified('Roster submitted for Registrar review');
+            ->assertHasNoErrors()->assertNotified('Class grades submitted for Registrar review');
 
         $this->assertSame(GradeRoster::StateSubmitted, $roster->fresh()->state);
         $this->assertSame(100, $roster->versions()->sole()->rows()->count());
@@ -2036,7 +2036,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             ->set('data.rows.'.$unchangedKey.'.final_result', '2.00')
             ->assertSet('draftSaveError', null)
             ->set('needsChangesOnly', true)->assertSet('data.rows.'.$returnedKey.'.final_result', '2.25')
-            ->callAction('submit')->assertHasNoErrors()->assertNotified('Roster submitted for Registrar review');
+            ->callAction('submit')->assertHasNoErrors()->assertNotified('Class grades submitted for Registrar review');
 
         $this->assertSame(2, $roster->fresh()->current_version_number);
         $this->assertSame(2, $roster->versions()->where('version_number', 2)->sole()->rows()->count());
@@ -2097,7 +2097,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             ->assertDontSee($fixture['section']->code)->assertSee('No classes match your filters');
         $fixture['course_enrollment']->update(['is_current' => false]);
         Livewire::withQueryParams(['classes' => 1])->actingAs($fixture['faculty'])->test(FacultyGradeRoster::class)
-            ->assertSee('Roster needs update')->assertDontSee($fixture['student']->student_number)
+            ->assertSee('Class list needs update')->assertDontSee($fixture['student']->student_number)
             ->assertViewHas('classRows', fn ($rows): bool => $rows->sole()['count'] === null);
         Livewire::withQueryParams([]);
     }
@@ -2288,7 +2288,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $page = Livewire::actingAs($coFaculty)->test(FacultyGradeRoster::class)
-            ->assertSee('View-only co-faculty')->assertSee('CO-FACULTY-001')->assertSee('Santos, Mira A')
+            ->assertSee('View-only access')->assertSee('CO-FACULTY-001')->assertSee('Santos, Mira A')
             ->assertSee('2.00')->assertDontSee('Save draft')->assertActionHidden('submit');
 
         $this->assertFalse($page->instance()->canEditSelectedRoster());

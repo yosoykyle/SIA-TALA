@@ -3,12 +3,11 @@
     $isProposal = $this instanceof \App\Filament\Pages\TermClassProposal;
     $taskTitle = match ($viewTab) {
         'overview' => $readOnly || $overviewPackage ? 'Teaching calendar' : 'Set the teaching week',
-        'classes' => $isProposal ? 'Prepare classes' : ($classesView === 'cohorts' ? 'Student sections' : 'Classes & student sections'),
+        'classes' => $isProposal ? 'Prepare classes' : ($classesView === 'cohorts' ? 'Student sections' : 'Classes & sections'),
         'resources' => $resourceView === 'rooms' ? 'Rooms' : 'Faculty & rooms',
         'generate', 'published' => 'Timetable',
         default => 'Term planning',
     };
-    $termContext = $term ? collect([$term->typeLabel(), $term->academicYear?->label])->filter()->unique()->implode(' · ') : null;
     $taskBreadcrumbs = $term ? [
         \App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
         ...($viewTab !== 'plan' ? [\App\Filament\Pages\TermOverview::getUrl(['termId' => $term->id]) => $term->typeLabel()] : []),
@@ -18,29 +17,51 @@
     if ($readOnly) {
         $taskBreadcrumbs = [\App\Filament\Pages\AcademicApprovals::getUrl(['termId' => $term?->id]) => 'Academic oversight', ...($taskBreadcrumbs ?: ['Term planning'])];
     }
+    $termStateColor = $term ? match ($term->state) {
+        \App\Models\Term::StateActive => 'success',
+        \App\Models\Term::StateDraft => 'info',
+        default => 'gray',
+    } : 'gray';
+    $termStateLabel = $term ? (\App\Models\Term::stateOptions()[$term->state] ?? $term->state) : null;
+    $termStartFormatted = $term ? ($term->starts_on->year === $term->ends_on->year ? $term->starts_on->format('M j') : $term->starts_on->format('M j, Y')) : null;
 @endphp
 <div class="tala-planning-heading">
     <x-filament-panels::header
         :heading="$isTermChooser ? 'Term planning' : ($viewTab === 'plan' ? $term->typeLabel() : $taskTitle)"
-        :subheading="$isTermChooser ? ($terms->isEmpty() ? null : 'Choose a Term to plan.') : ($viewTab === 'plan' ? $term->academicYear?->label : $termContext)"
+        :subheading="$isTermChooser ? ($terms->isEmpty() ? null : 'Choose a Term to plan.') : null"
         :breadcrumbs="$taskBreadcrumbs"
         :actions="$term ? [...($isProposal ? [$this->addCoursesAction] : []), ...($extraHeaderActions ?? []), \Filament\Actions\Action::make('changeTerm')->label('Change Term')->color('gray')->icon('heroicon-o-arrows-right-left')->url(\App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]))] : ($terms->isNotEmpty() && ! $readOnly ? [\Filament\Actions\Action::make('addTerm')->label('Add Term')->icon('heroicon-o-plus')->url(\App\Filament\Resources\Terms\TermResource::getUrl('create', ['viewTab' => 'plan']))] : [])"
     />
     @if ($term)
-        <div class="tala-planning-context-note">
-            <span><x-filament::icon icon="heroicon-o-globe-alt" />School-wide planning · All programs and year levels</span>
-            <x-supporting-details summary="Term details" class="w-full">
-                <dl class="grid gap-4 text-sm sm:grid-cols-2">
-                    <div><dt class="text-gray-600 dark:text-gray-300">Term dates</dt><dd class="mt-1 font-semibold"><time datetime="{{ $term->starts_on->toDateString() }}">{{ $term->starts_on->format('M j, Y') }}</time> – <time datetime="{{ $term->ends_on->toDateString() }}">{{ $term->ends_on->format('M j, Y') }}</time></dd></div>
-                    <div><dt class="text-gray-600 dark:text-gray-300">Record status</dt><dd class="mt-1 font-semibold">{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</dd></div>
-                    @if ($term->label !== $term->typeLabel())<div class="sm:col-span-2"><dt class="text-gray-600 dark:text-gray-300">Recorded name</dt><dd class="mt-1">{{ $term->label }}</dd></div>@endif
-                </dl>
-                <p>A Term is the shared academic period; its recorded classes determine the timetable.</p>
-            </x-supporting-details>
+        <div class="tala-term-context-strip">
+            <div class="tala-term-context-strip__meta">
+                @if ($viewTab !== 'plan')
+                    <span>{{ $term->typeLabel() }}</span>
+                    <span class="tala-term-context-strip__sep" aria-hidden="true">·</span>
+                @endif
+                @if ($term->label !== $term->typeLabel())
+                    <span>{{ $term->label }}</span>
+                    <span class="tala-term-context-strip__sep" aria-hidden="true">·</span>
+                @endif
+                @if ($term->academicYear?->label)
+                    <span>{{ $term->academicYear->label }}</span>
+                    <span class="tala-term-context-strip__sep" aria-hidden="true">·</span>
+                @endif
+                <span class="tala-term-context-strip__dates">
+                    <x-filament::icon icon="heroicon-o-calendar-days" />
+                    <time datetime="{{ $term->starts_on->toDateString() }}">{{ $termStartFormatted }}</time>
+                    <span aria-hidden="true">–</span>
+                    <time datetime="{{ $term->ends_on->toDateString() }}">{{ $term->ends_on->format('M j, Y') }}</time>
+                </span>
+            </div>
+            <x-filament::badge :color="$termStateColor" size="sm">{{ $termStateLabel }}</x-filament::badge>
         </div>
-        @if ($this->termAutoSelected)<p class="tala-work-footnote">Opened automatically: the only Term with an active teaching calendar.</p>@endif
-    @endif
-    @if ($readOnly && $viewTab !== 'plan')
-        <p class="tala-work-footnote">Read-only · Registrar maintains these records.</p>
+        @if ($this->termAutoSelected)
+            <p class="tala-work-footnote">Opened automatically: the only Term with an active teaching calendar.</p>
+        @endif
+        @if ($readOnly)
+            <p class="tala-work-footnote">{{ $viewTab === 'plan' ? 'Read-only · The Registrar maintains these records.' : 'Read-only · Registrar maintains these records.' }}</p>
+        @endif
+        @include('filament.pages.partials.term-planning-stepper')
     @endif
 </div>

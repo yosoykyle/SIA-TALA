@@ -9,6 +9,7 @@ use App\Models\Section;
 use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -34,7 +35,7 @@ trait HasClassPreparationActions
             ->schema([
                 Select::make('curriculum_version_id')->label('Active curriculum')
                     ->options(fn (): array => CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)->with('program')->get()
-                        ->mapWithKeys(fn (CurriculumVersion $curriculum): array => [$curriculum->id => $curriculum->program?->name.' · '.$curriculum->version_code])->all())
+                        ->mapWithKeys(fn (CurriculumVersion $curriculum): array => [$curriculum->id => $curriculum->program?->name.' · '.($curriculum->name ?: $curriculum->version_code)])->all())
                     ->required()->searchable(),
                 Grid::make(['default' => 1, 'md' => 2])->schema([
                     TextInput::make('reference')->label('Student section reference')->required()->maxLength(64),
@@ -66,19 +67,20 @@ trait HasClassPreparationActions
             ->stickyModalHeader()
             ->stickyModalFooter()
             ->visible(fn (): bool => $this->termId !== null && (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar))
-            ->modalDescription('Review this class’s course and active teaching calendar, then confirm its linked student sections.')
+            ->modalDescription('Review this class’s course and active teaching calendar, then confirm its linked student sections. The class reference is generated automatically.')
             ->fillForm(fn (array $arguments, ?Section $record = null): array => ['section_id' => $record?->id ?? $arguments['sectionId'] ?? null, 'class_reference' => $record?->class_reference ?: $record?->code, 'source' => $record?->source, 'delivery_mode' => $record?->delivery_mode])
             ->schema(fn (array $arguments, ?Section $record = null): array => [
                 Select::make('section_id')->label('Class')->disabled($record !== null || isset($arguments['sectionId']))->dehydrated()
                     ->options(fn (): array => Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $this->termId))
-                        ->whereNull('confirmed_at')->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])->orderBy('code')->pluck('code', 'id')->all())
+                        ->whereNull('confirmed_at')->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])->orderBy('code')->get()
+                        ->mapWithKeys(fn (Section $section): array => [$section->id => filled($section->code) ? $section->code : "Draft class #{$section->id}"])->all())
                     ->required()->searchable(),
+                Hidden::make('class_reference')->dehydrated(),
                 Grid::make(['default' => 1, 'md' => 2])->schema([
-                    TextInput::make('class_reference')->label('Stable class reference')->required()->maxLength(64),
                     Select::make('source')->options(Section::confirmableSourceOptions())->required(),
                     Select::make('delivery_mode')->label('Delivery mode')->options(TermOffering::modalityOptions())->required(),
                     TextInput::make('authority_reference')->label('Additional class authority reference')
-                        ->helperText('Required for an externally approved Additional class.')->maxLength(255),
+                        ->helperText('Required for an externally approved Additional class.')->maxLength(255)->columnSpanFull(),
                 ]),
             ])
             ->action(function (array $data, Schema $schema): void {
@@ -87,10 +89,13 @@ trait HasClassPreparationActions
                 try {
                     app(PrepareClassOffering::class)->execute($this->selectedTerm(), Section::query()->findOrFail((int) $data['section_id']), $actor, $data);
                 } catch (ValidationException $exception) {
-                    $sourceErrors = collect($exception->errors())->only(['calendar_package', 'course_revision'])->flatten();
-                    if ($sourceErrors->isNotEmpty()) {
-                        Notification::make()->title('Cannot prepare class')->body($sourceErrors->first())->danger()->persistent()->send();
-                    }
+                    $firstMessage = collect($exception->errors())->flatten()->first();
+                    Notification::make()
+                        ->title('Cannot prepare class')
+                        ->body(is_string($firstMessage) ? $firstMessage : 'Review the class details and try again.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
                     throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn (array $messages, string $field): array => [$schema->getStatePath().'.'.$field => $messages])->all());
                 }
                 Notification::make()->title('Class prepared')->body('Review its linked student sections, then confirm the class.')->success()->send();

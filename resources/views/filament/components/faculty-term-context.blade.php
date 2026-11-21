@@ -1,35 +1,23 @@
 @if (! $term)
-<section class="tala-record-picker servitech-journey-scene" aria-labelledby="faculty-term-chooser-heading">
-    <x-servitech-journey-scenery />
-    <div class="servitech-picker-content">
-    <header class="tala-record-picker-heading">
-    <x-filament::icon icon="heroicon-o-calendar-days" class="tala-record-picker-icon" aria-hidden="true" />
-    <h2 id="faculty-term-chooser-heading">{{ $emptyHeading ?? 'Choose a Term' }}</h2>
-    <p>{{ $terms->isEmpty() ? 'No Term is available. Contact the Registrar.' : ($emptyDescription ?? 'Select an Academic Year and Term to continue.') }}</p>
-    </header>
-    @if ($terms->isNotEmpty())
-        <div class="tala-term-picker">@include('filament.components.faculty-term-select')</div>
-    @endif
-    </div>
-</section>
+    <x-servitech-term-gate
+        :heading="$emptyHeading ?? 'Choose a Term'"
+        :description="$terms->isEmpty() ? 'No Term is available. Contact the Registrar.' : ($emptyDescription ?? 'Select an Academic Year and Term to continue.')"
+        heading-id="faculty-term-chooser-heading"
+    >
+        @if ($terms->isNotEmpty())
+            <div class="tala-term-picker">@include('filament.components.faculty-term-select')</div>
+        @endif
+    </x-servitech-term-gate>
 @else
-<header class="tala-planning-context tala-faculty-term-context">
-    <div class="tala-faculty-scope">
-    <div class="tala-term-picker">@include('filament.components.faculty-term-select', ['termSelectorLabel' => 'Academic Year and Term'])</div>
-    @if ($contextStatus ?? null)
-        <p class="tala-term-context-links text-sm" role="status">
-            {{ $contextStatus }}
-            @if ($syntheticReview ?? false)
-                · Synthetic review data
+    <x-record-scope-bar label="Selected Term" class="tala-faculty-scope-bar">
+        <div class="tala-faculty-scope-bar__row">
+            <div class="tala-term-picker">@include('filament.components.faculty-term-select')</div>
+            @if (filled($scopePill ?? null))
+                <div class="tala-faculty-scope-bar__pill" role="status">
+                    <x-filament::icon icon="heroicon-o-clock" class="h-4 w-4" aria-hidden="true" />
+                    <span class="tabular-nums">{{ $scopePill }}</span>
+                </div>
             @endif
-        </p>
-    @endif
-    </div>
-@if ($showExaminationContext ?? false)<div class="tala-faculty-examination-context text-sm">
-    <p><strong>Examination period: {{ $examinationPeriod ? $examinationPeriod->opens_on->format('M j').'–'.$examinationPeriod->closes_on->format('M j, Y') : 'Dates not configured' }}</strong>@unless ($examinationPeriod) · Contact the Registrar for approved dates.@endunless</p>
-    @if ($examinationPeriod)<x-supporting-details summary="Examination source details" inset>
-        <p>{{ collect([$examinationSource->authority_reference, 'Active calendar', 'Registrar', 'As of '.$asOf.' (Asia/Manila)'])->filter()->implode(' · ') }}</p><p>Arrange exact class examinations with your students.</p>
-    </x-supporting-details>@endif
-</div>@endif
-</header>
+        </div>
+    </x-record-scope-bar>
 @endif

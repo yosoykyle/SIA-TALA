@@ -16,6 +16,7 @@ use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
@@ -102,7 +103,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->assertSee($owned['course']->code)
             ->assertSee($owned['section']->code)
             ->assertSee('Monday')
-            ->assertSee('8:00 AM - 11:00 AM')
+            ->assertSee('8:00 AM–11:00 AM')
             ->assertSee($owned['room']->code)
             ->assertSee('Face-to-Face');
     }
@@ -193,6 +194,14 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->for($replacementFaculty, 'faculty')
             ->for($fixture['course'])
             ->create(['is_active' => true]);
+        FacultyAvailabilityDeclaration::factory()->create([
+            'term_id' => $fixture['term']->id,
+            'faculty_user_id' => $replacementFaculty->id,
+            'version' => 1,
+            'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
+            'availability_mode' => FacultyAvailabilityDeclaration::ModeAnyApproved,
+            'hard_unavailability' => [],
+        ]);
 
         $events = $this->publishPreparedRevision(
             $fixture['run'],
@@ -243,7 +252,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->set('scheduleView', 'list')
             ->assertCanSeeTableRecords([$currentMeeting])
             ->assertSee('Tuesday')
-            ->assertSee('9:00 AM - 12:00 PM')
+            ->assertSee('9:00 AM–12:00 PM')
             ->assertSee($replacementRoom->code);
 
         Livewire::actingAs($fixture['student'])

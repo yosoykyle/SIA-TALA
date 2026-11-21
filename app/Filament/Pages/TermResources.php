@@ -6,15 +6,9 @@ use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\Rooms\Schemas\RoomInfolist;
-use App\Models\CourseSpecification;
 use App\Models\FacultyAvailabilityDeclaration;
-use App\Models\FacultyQualification;
-use App\Models\FacultyTermLoadOverride;
-use App\Models\OperationalEvent;
-use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\SectionMeeting;
-use App\Models\TermCalendarPackage;
 use App\Models\User;
 use App\Support\PlanningTableRecords;
 use Carbon\CarbonImmutable;
@@ -85,64 +79,147 @@ class TermResources extends TermPlanningWorkbench implements HasTable
     {
         if ($this->resourceViewData === null) {
             $this->resourceViewData = parent::getViewData();
-            $this->resourceViewData['facultyPlanningRows'] = $this->facultyPlanningRows($this->resourceViewData['offerings']->map(fn ($offering): ?int => $offering->course()?->id)->filter()->unique()->all());
-            $rows = collect($this->resourceViewData['facultyPlanningRows'])->where('in_term', true);
-            $this->resourceViewData['termFacultyCount'] = $rows->count();
-            $this->resourceViewData['facultyResponseCount'] = $rows->whereIn('status', ['Can teach this Term', 'Cannot teach this Term'])->count();
-            $this->resourceViewData['awaitingRequestedResponses'] = $rows->where('status', 'Awaiting response')->count();
-            $this->resourceViewData['notRequestedResponses'] = $rows->where('status', 'Not requested')->count();
+            $projection = $this->resourceViewData['availabilityProjection'] ?? null;
+
+            $rows = collect($projection['all_faculty_rows'] ?? [])
+                ->map(fn (array $row): array => $this->enrichFacultyRow($row))
+                ->values()
+                ->all();
+
+            $this->resourceViewData['facultyPlanningRows'] = $rows;
+            $this->resourceViewData['termFacultyCount'] = (int) ($projection['total_faculty'] ?? 0);
+            $this->resourceViewData['facultyResponseCount'] = (int) ($projection['replied_count'] ?? 0);
+            $this->resourceViewData['noResponseCount'] = (int) ($projection['no_response_count'] ?? 0);
+            $this->resourceViewData['cannotTeachCount'] = (int) ($projection['cannot_teach_count'] ?? 0);
+            $this->resourceViewData['needsGridReviewCount'] = (int) ($projection['needs_grid_review_count'] ?? 0);
+            $this->resourceViewData['lateImpactCount'] = (int) ($projection['late_impact_count'] ?? 0);
+            $this->resourceViewData['unresolvedLateImpacts'] = $projection['unresolved_late_impacts'] ?? [];
         }
 
         return $this->resourceViewData;
     }
 
-    /**
-     * @param  list<int>  $courseIds
-     * @return list<array<string, mixed>>
-     */
-    private function facultyPlanningRows(array $courseIds): array
+    public function addRoomAction(): Action
     {
-        $qualifications = FacultyQualification::query()->active()->with(['course.specifications' => fn ($query) => $query->where('state', CourseSpecification::StateActive)->latest('id')])->get()->groupBy('faculty_user_id');
-        $overrides = FacultyTermLoadOverride::query()->where('term_id', $this->termId)->where('is_active', true)->get()->keyBy('faculty_user_id');
-        $declarations = FacultyAvailabilityDeclaration::query()->where('term_id', $this->termId)->latest('version')->get()->unique('faculty_user_id')->keyBy('faculty_user_id');
-        $packageIds = $this->activeCalendarPackage()?->compatibleCoreSourceIds() ?? [];
-        $requests = OperationalEvent::query()->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)
-            ->where('related_record_type', TermCalendarPackage::class)->whereIn('related_record_id', $packageIds)->latest('id')->get()->unique('user_id')->keyBy('user_id');
-        $official = PublishedTimetableVersion::query()->where('term_id', $this->termId)->where('state', PublishedTimetableVersion::StatePublished)->with('meetings.classOffering.courseRevision')->first();
-        $assignments = $official?->meetings->groupBy('faculty_user_id') ?? collect();
-        $term = $this->selectedTerm();
+        return Action::make('addRoom')
+            ->label('Add room')
+            ->icon('heroicon-o-plus')
+            ->color('gray')
+            ->url(fn (): string => RoomResource::getUrl('create', ['termId' => $this->termId]))
+            ->visible(fn (): bool => ! (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? true)
+                && $this->termId !== null
+                && RoomResource::canCreate());
+    }
 
-        return User::query()->where('status', User::StatusActive)->role(User::StaffRoleFaculty)->orderBy('name')->get()->map(function (User $faculty) use ($qualifications, $overrides, $declarations, $requests, $assignments, $official, $term, $courseIds): array {
-            $declaration = $declarations->get($faculty->id);
-            $request = $requests->get($faculty->id);
-            $eligibleCourses = $qualifications->get($faculty->id, collect())->unique('course_id');
-            $termCourseCount = $eligibleCourses->whereIn('course_id', $courseIds)->count();
-            $classes = $assignments->get($faculty->id, collect())->pluck('classOffering')->filter()->unique('id');
-            $limit = $overrides->get($faculty->id)?->allowedLoadUnits() ?? $term->default_max_units;
-            $load = $classes->sum(fn ($class): float => (float) $class->courseRevision?->credit_units);
-            $status = $declaration ? ($declaration->declaration === FacultyAvailabilityDeclaration::DeclarationUnavailable ? 'Cannot teach this Term' : 'Can teach this Term')
-                : match ($request?->status) {
-                    OperationalEvent::StatusProcessed => $request->sent_at ? 'Awaiting response' : 'Request recorded',
-                    OperationalEvent::StatusPending => 'Request queued',
-                    OperationalEvent::StatusFailed => 'Request failed',
-                    default => 'Not requested',
-                };
+    public function manageTeachingQualificationsAction(): Action
+    {
+        return Action::make('manageTeachingQualifications')
+            ->label('Manage teaching qualifications')
+            ->icon('heroicon-o-academic-cap')
+            ->color('gray')
+            ->url(fn (): string => FacultyQualificationResource::getUrl('index', ['termId' => $this->termId]))
+            ->visible(fn (): bool => ! (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? true)
+                && $this->termId !== null
+                && FacultyQualificationResource::canAccess());
+    }
 
-            return [
-                'kind' => 'Faculty', 'faculty_id' => $faculty->id, 'name' => $faculty->name,
-                'eligible_course_count' => $eligibleCourses->count(),
-                'term_course_count' => $termCourseCount,
-                'in_term' => $termCourseCount > 0 || $declaration !== null || $request !== null || $classes->isNotEmpty(),
-                'detail' => $eligibleCourses->map(fn ($qualification): string => ($qualification->course->specifications->first()?->title ?? $qualification->course->code).' ('.$qualification->course->code.')')->implode(', ') ?: 'No eligible courses recorded',
-                'status' => $status,
-                'load' => $official ? $load.' / '.($limit ?? 'not recorded').' units' : 'Unassigned · limit '.($limit ?? 'not recorded').' units',
-                'load_source' => $overrides->has($faculty->id) ? 'Faculty-specific approved load' : 'Term teaching-load default',
-                'course_count' => $official ? $classes->pluck('courseRevision.course_id')->unique()->count().' courses · official schedule' : 'No official assignments yet',
-                'evidence' => $declaration ? 'Responded · '.$declaration->declared_at?->format('M j, Y') : ($request ? 'Request '.strtolower($request->status).' · '.$request->occurred_at?->format('M j, Y') : 'No request sent for this calendar'),
-                'availability' => $declaration === null ? null : ($declaration->declaration === FacultyAvailabilityDeclaration::DeclarationUnavailable ? 'Unavailable for the whole Term' : (empty($declaration->hard_unavailability) ? 'No weekly unavailable times' : collect($declaration->hard_unavailability)->map(fn (array $interval): string => (SectionMeeting::dayOptions()[(int) $interval['day_of_week']] ?? 'Unknown day').' '.CarbonImmutable::parse($interval['starts_at'])->format('g:i A').'–'.CarbonImmutable::parse($interval['ends_at'])->format('g:i A'))->implode('; '))),
-                'url' => FacultyQualificationResource::getUrl('index', ['termId' => $this->termId, 'filters' => ['faculty_user_id' => ['value' => $faculty->id]]]),
-            ];
-        })->all();
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function enrichFacultyRow(array $row): array
+    {
+        $facultyId = (int) $row['faculty_user_id'];
+        $declaration = $row['declaration'] ?? null;
+        $tz = (string) config('app.display_timezone', 'Asia/Manila');
+
+        $cues = [];
+        if (! empty($row['has_official_impact'])) {
+            $cues[] = 'Official impact';
+        }
+        if (! empty($row['needs_grid_review'])) {
+            $cues[] = 'Review needed';
+        }
+
+        $reminderDate = $row['reminder_at']
+            ? CarbonImmutable::parse($row['reminder_at'])->timezone($tz)->format('M j, Y · g:i A')
+            : null;
+
+        $evidence = $declaration instanceof FacultyAvailabilityDeclaration
+            ? 'Responded · '.$declaration->declared_at?->timezone($tz)->format('M j, Y')
+            : $row['reminder_status'].($reminderDate ? ' · '.$reminderDate : '');
+
+        return [
+            ...$row,
+            'cues' => $cues,
+            'reminder_date' => $reminderDate,
+            'evidence' => $evidence,
+            'availability' => $this->formatAvailabilityDescription($row),
+            'url' => FacultyQualificationResource::getUrl('index', [
+                'termId' => $this->termId,
+                'filters' => ['faculty_user_id' => ['value' => $facultyId]],
+            ]),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function formatAvailabilityDescription(array $row): ?string
+    {
+        $mode = $row['effective_mode'] ?? null;
+
+        if ($mode === null) {
+            return null;
+        }
+
+        $dayNames = SectionMeeting::dayOptions();
+
+        return match ($mode) {
+            FacultyAvailabilityDeclaration::ModeWindows => $this->formatTeachingWindows($row['teaching_windows'] ?? [], $dayNames),
+            FacultyAvailabilityDeclaration::ModeAnyApproved => 'Available during any approved teaching hour',
+            FacultyAvailabilityDeclaration::ModeCannotTeach => 'Will not be scheduled this Term',
+            FacultyAvailabilityDeclaration::ModeLegacyUnavailability => $this->formatLegacyUnavailability($row['hard_unavailability'] ?? [], $dayNames),
+            default => null,
+        };
+    }
+
+    /**
+     * @param  list<array{day_of_week:int,start_time:string,end_time:string}>  $windows
+     * @param  array<int, string>  $dayNames
+     */
+    private function formatTeachingWindows(array $windows, array $dayNames): string
+    {
+        if ($windows === []) {
+            return 'No teaching windows recorded';
+        }
+
+        return collect($windows)
+            ->groupBy('day_of_week')
+            ->map(function ($dayWindows, int $day) use ($dayNames): string {
+                $shortDay = substr($dayNames[$day] ?? 'Day', 0, 3);
+                $ranges = collect($dayWindows)
+                    ->map(fn (array $w): string => CarbonImmutable::parse($w['start_time'])->format('g:i A').'–'.CarbonImmutable::parse($w['end_time'])->format('g:i A'))
+                    ->implode(', ');
+
+                return $shortDay.' '.$ranges;
+            })
+            ->implode('; ');
+    }
+
+    /**
+     * @param  list<array{day_of_week:int,starts_at:string,ends_at:string}>  $intervals
+     * @param  array<int, string>  $dayNames
+     */
+    private function formatLegacyUnavailability(array $intervals, array $dayNames): string
+    {
+        if ($intervals === []) {
+            return 'No weekly unavailable times';
+        }
+
+        return 'Unavailable: '.collect($intervals)
+            ->map(fn (array $interval): string => substr($dayNames[(int) $interval['day_of_week']] ?? 'Day', 0, 3).' '.CarbonImmutable::parse($interval['starts_at'])->format('g:i A').'–'.CarbonImmutable::parse($interval['ends_at'])->format('g:i A'))
+            ->implode('; ');
     }
 
     public function table(Table $table): Table
@@ -150,8 +227,23 @@ class TermResources extends TermPlanningWorkbench implements HasTable
         return $table->records(function (?string $search, ?string $sortColumn, ?string $sortDirection, int $page, int $recordsPerPage, ?array $filters): LengthAwarePaginator {
             $data = $this->getViewData();
             $records = [];
+            $scope = $filters['faculty_scope']['value'] ?? 'all';
+            $statusFilter = $filters['availability_status']['value'] ?? 'all';
+
             foreach ($data['facultyPlanningRows'] as $row) {
-                if (($filters['faculty_scope']['value'] ?? 'all') === 'all' || $row['in_term']) {
+                if ($scope !== 'all' && ! $row['in_term']) {
+                    continue;
+                }
+
+                $matchesStatus = match ($statusFilter) {
+                    'replied' => $row['declaration'] !== null,
+                    'no_response' => $row['declaration'] === null,
+                    'cannot_teach' => $row['effective_mode'] === FacultyAvailabilityDeclaration::ModeCannotTeach,
+                    'needs_review' => ! empty($row['needs_grid_review']) || ! empty($row['has_official_impact']),
+                    default => true,
+                };
+
+                if ($matchesStatus) {
                     $records['faculty-'.$row['faculty_id']] = $row;
                 }
             }
@@ -165,17 +257,50 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                 ];
             }
 
-            return PlanningTableRecords::paginate(array_filter($records, fn (array $row): bool => $row['kind'] === ($this->resourceView === 'rooms' ? 'Rooms' : 'Faculty')), ['name', 'detail', 'evidence', 'status'], $search, in_array($sortColumn, ['room_capacity', 'eligible_courses'], true) ? 'detail' : $sortColumn, $sortDirection, $page, $recordsPerPage);
+            return PlanningTableRecords::paginate(array_filter($records, fn (array $row): bool => $row['kind'] === ($this->resourceView === 'rooms' ? 'Rooms' : 'Faculty')), ['name', 'detail', 'evidence', 'status', 'availability', 'reminder_status'], $search, in_array($sortColumn, ['room_capacity', 'eligible_courses'], true) ? 'detail' : $sortColumn, $sortDirection, $page, $recordsPerPage);
         })->columns([
             TextColumn::make('name')->label(fn (): string => $this->resourceView === 'rooms' ? 'Room' : 'Faculty')->weight('bold')->sortable()->wrap()
                 ->description(fn (array $record): ?string => $record['kind'] === 'Faculty' ? ($record['term_course_count'] > 0 ? $record['term_course_count'].' '.str('eligible course')->plural($record['term_course_count']).' this Term' : $record['eligible_course_count'].' '.str('eligible course')->plural($record['eligible_course_count']).' in catalog') : null),
             TextColumn::make('room_capacity')->label('Room capacity')->state(fn (array $record): string => $record['detail'])->visible(fn (): bool => $this->resourceView === 'rooms')->sortable()->wrap(),
             TextColumn::make('eligible_courses')->label('Eligible courses')->state(fn (array $record): string => $record['detail'])->visible(fn (): bool => $this->resourceView === 'faculty')->sortable()->wrap()->toggleable(isToggledHiddenByDefault: true),
             TextColumn::make('load')->label('Teaching load')->description(fn (array $record): ?string => isset($record['load_source']) ? $record['course_count'].' · '.$record['load_source'] : null)->visible(fn (): bool => $this->resourceView === 'faculty')->wrap()->toggleable(isToggledHiddenByDefault: true),
-            TextColumn::make('status')->label(fn (): string => $this->resourceView === 'rooms' ? 'Catalog state' : 'Recorded availability')->description(fn (array $record): ?string => $record['availability'] ?? null)->badge()->color('gray')->wrap(),
+            TextColumn::make('status')->label(fn (): string => $this->resourceView === 'rooms' ? 'Catalog state' : 'Availability')
+                ->description(fn (array $record): ?string => $record['availability'] ?? null)
+                ->badge()
+                ->color(fn (array $record, string $state): string => match ($state) {
+                    'No response', 'Active room' => 'gray',
+                    'Cannot teach this Term' => 'danger',
+                    default => 'success',
+                })
+                ->wrap(),
+            TextColumn::make('cues')->label('Review cues')
+                ->state(fn (array $record): array => $record['cues'] ?? [])
+                ->badge()
+                ->color(fn (string $state): string => $state === 'Official impact' ? 'danger' : 'warning')
+                ->placeholder('—')
+                ->visible(fn (): bool => $this->resourceView === 'faculty')
+                ->wrap(),
+            TextColumn::make('reminder_status')->label('Reminder')
+                ->state(fn (array $record): string => (string) ($record['reminder_status'] ?? 'Not sent'))
+                ->description(fn (array $record): ?string => $record['reminder_date'] ?? null)
+                ->badge()
+                ->color(fn (string $state): string => match ($state) {
+                    'Reminder failed' => 'danger',
+                    'Reminder sent' => 'info',
+                    default => 'gray',
+                })
+                ->visible(fn (): bool => $this->resourceView === 'faculty')
+                ->wrap(),
             TextColumn::make('evidence')->label('Source evidence')->wrap()->toggleable(isToggledHiddenByDefault: true),
         ])->filters([
             SelectFilter::make('faculty_scope')->label('Show faculty')->options(['term' => 'This Term', 'all' => 'All active faculty'])->default('term')->selectablePlaceholder(false)->visible(fn (): bool => $this->resourceView === 'faculty'),
+            SelectFilter::make('availability_status')->label('Response status')->options([
+                'all' => 'All statuses',
+                'replied' => 'Replied',
+                'no_response' => 'No response',
+                'cannot_teach' => 'Cannot teach this Term',
+                'needs_review' => 'Review needed',
+            ])->default('all')->selectablePlaceholder(false)->visible(fn (): bool => $this->resourceView === 'faculty'),
         ])->searchable()->defaultSort('name')
             ->headerActions([
                 Action::make('rooms')->label(fn (): string => auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? 'View room catalog' : 'Manage rooms')->icon('heroicon-o-building-office')->url(fn (): string => RoomResource::getUrl('index', ['termId' => $this->termId]))->color('gray')->visible(fn (): bool => $this->resourceView === 'rooms'),
@@ -194,7 +319,6 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                             ->url(RoomResource::getUrl('edit', ['record' => $record['room_id'], 'termId' => $this->termId, 'returnToResources' => true]))
                             ->visible(RoomResource::canEdit($this->inspectionRoom($record))),
                     ])
-
                     ->modalSubmitAction(false)->modalCancelActionLabel('Close')->unsavedChangesAlert(false),
             ])->emptyState(view('filament.partials.collection-empty-state'))
             ->emptyStateHeading(fn (): string => filled($this->getTableSearch())

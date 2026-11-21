@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Auth;
 
 use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Pages\Auth\Concerns\HasAuthRateLimitCountdown;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Pages\Auth\Login;
 use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
@@ -14,6 +15,9 @@ use Filament\Facades\Filament;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\RenderHook;
+use Filament\Schemas\Schema;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\QueryException;
@@ -26,10 +30,25 @@ use LogicException;
 
 class ContextualLogin extends Login
 {
+    use HasAuthRateLimitCountdown;
+
+    public function content(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                RenderHook::make(PanelsRenderHook::AUTH_LOGIN_FORM_BEFORE),
+                $this->getRateLimitCountdownContentComponent(),
+                $this->getFormContentComponent(),
+                $this->getMultiFactorChallengeFormContentComponent(),
+                RenderHook::make(PanelsRenderHook::AUTH_LOGIN_FORM_AFTER),
+            ]);
+    }
+
     public function getFormContentComponent(): Component
     {
         return parent::getFormContentComponent()
-            ->extraAttributes(['novalidate' => true]);
+            ->extraAttributes(['novalidate' => true])
+            ->visible(fn (): bool => blank($this->userUndertakingMultiFactorAuthentication) && ! $this->isAuthRateLimited());
     }
 
     public function getMultiFactorChallengeFormContentComponent(): Component
@@ -38,7 +57,13 @@ class ContextualLogin extends Login
             ->extraAttributes([
                 'novalidate' => true,
                 'class' => 'tala-auth-verify-card tala-auth-mfa-card',
-            ]);
+            ])
+            ->visible(fn (): bool => filled($this->userUndertakingMultiFactorAuthentication) && ! $this->isAuthRateLimited());
+    }
+
+    protected function shouldShowRateLimitUseAnotherAccount(): bool
+    {
+        return true;
     }
 
     protected function getEmailFormComponent(): TextInput
@@ -184,17 +209,22 @@ class ContextualLogin extends Login
         $user = User::query()->where('email', $email)->first();
         $rateLimitingKey = 'tala-login:'.$email.'|'.request()->ip();
         $wasMultiFactorChallenge = filled($this->userUndertakingMultiFactorAuthentication);
+        $mfaUser = $wasMultiFactorChallenge ? $this->getUserUndertakingMultiFactorAuthentication() : null;
 
-        if (RateLimiter::tooManyAttempts($rateLimitingKey, maxAttempts: 5)) {
-            $this->getRateLimitedNotification(new TooManyRequestsException(
-                static::class,
-                'authenticate',
-                request()->ip(),
-                RateLimiter::availableIn($rateLimitingKey),
-            ))?->send();
+        if ($wasMultiFactorChallenge && (bool) ($this->data['multiFactor']['app']['useRecoveryCode'] ?? false)) {
+            $this->data['multiFactor']['app']['code'] = null;
+            $this->resetValidation('data.multiFactor.app.code');
+        }
+
+        if (! $wasMultiFactorChallenge && RateLimiter::tooManyAttempts($rateLimitingKey, maxAttempts: 5)) {
+            $this->triggerLoginRateLimitCountdown($rateLimitingKey);
+            $this->resetErrorBag();
+            $this->resetValidation();
 
             return null;
         }
+
+        $this->clearAuthRateLimit();
 
         if ($user?->isStaffCapable()) {
             $this->data['remember'] = false;
@@ -208,9 +238,31 @@ class ContextualLogin extends Login
 
             $response = parent::authenticate();
         } catch (ValidationException $exception) {
-            RateLimiter::hit($rateLimitingKey, 60);
+            if ($wasMultiFactorChallenge && $mfaUser instanceof Authenticatable) {
+                $mfaRateLimitingKey = $this->multiFactorRateLimitingKey($mfaUser);
+                $remainingMfaAttempts = RateLimiter::remaining($mfaRateLimitingKey, maxAttempts: 5);
 
-            throw $exception;
+                if ($remainingMfaAttempts <= 0) {
+                    $this->startFullCooldownWindow($mfaRateLimitingKey);
+                    $this->triggerMfaRateLimitCountdown($mfaRateLimitingKey);
+
+                    throw $exception;
+                }
+
+                throw $this->appendRateLimitRemainingWarning($exception, $remainingMfaAttempts);
+            }
+
+            RateLimiter::hit($rateLimitingKey, 60);
+            $remainingLoginAttempts = RateLimiter::remaining($rateLimitingKey, maxAttempts: 5);
+
+            if ($remainingLoginAttempts <= 0) {
+                $this->startFullCooldownWindow($rateLimitingKey);
+                $this->triggerLoginRateLimitCountdown($rateLimitingKey);
+
+                throw $exception;
+            }
+
+            throw $this->appendRateLimitRemainingWarning($exception, $remainingLoginAttempts);
         } finally {
             session()->forget(self::AuthenticatingSessionKey);
         }
@@ -260,19 +312,55 @@ class ContextualLogin extends Login
         $rateLimitingKey = $this->multiFactorRateLimitingKey($user);
 
         if (RateLimiter::tooManyAttempts($rateLimitingKey, maxAttempts: 5)) {
-            $this->getRateLimitedNotification(new TooManyRequestsException(
-                static::class,
-                'authenticate',
-                request()->ip(),
-                RateLimiter::availableIn($rateLimitingKey),
-            ))?->send();
+            $this->triggerMfaRateLimitCountdown($rateLimitingKey);
+            $this->resetErrorBag();
+            $this->resetValidation();
 
             return true;
         }
 
+        $this->clearAuthRateLimit();
+
         RateLimiter::hit($rateLimitingKey, 60);
 
         return false;
+    }
+
+    private function startFullCooldownWindow(string $rateLimitingKey, int $maxAttempts = 5, int $cooldownSeconds = 60): void
+    {
+        RateLimiter::clear($rateLimitingKey);
+        RateLimiter::increment($rateLimitingKey, $cooldownSeconds, $maxAttempts);
+    }
+
+    private function triggerLoginRateLimitCountdown(string $rateLimitingKey): void
+    {
+        $secondsUntilAvailable = RateLimiter::availableIn($rateLimitingKey);
+        $this->data['email'] = null;
+        $this->data['password'] = null;
+        $this->data['remember'] = false;
+        $this->form->fill($this->data);
+        $this->startAuthRateLimitCountdown($secondsUntilAvailable, 'login', 60);
+
+        $this->getRateLimitedNotification(new TooManyRequestsException(
+            static::class,
+            'authenticate',
+            request()->ip(),
+            $secondsUntilAvailable,
+        ))?->send();
+    }
+
+    private function triggerMfaRateLimitCountdown(string $rateLimitingKey): void
+    {
+        $secondsUntilAvailable = RateLimiter::availableIn($rateLimitingKey);
+        $this->multiFactorChallengeForm->fill([]);
+        $this->startAuthRateLimitCountdown($secondsUntilAvailable, 'mfa', 60);
+
+        $this->getRateLimitedNotification(new TooManyRequestsException(
+            static::class,
+            'authenticate',
+            request()->ip(),
+            $secondsUntilAvailable,
+        ))?->send();
     }
 
     private function multiFactorRateLimitingKey(Authenticatable $user): string
@@ -310,6 +398,7 @@ class ContextualLogin extends Login
 
     public function restartAuthentication(): void
     {
+        $this->clearAuthRateLimit();
         $this->userUndertakingMultiFactorAuthentication = null;
 
         $this->data = [

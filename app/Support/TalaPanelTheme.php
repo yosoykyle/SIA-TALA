@@ -33,7 +33,7 @@ class TalaPanelTheme
         return $config
             ->media(is_file(public_path('images/auth/admin.webp')) ? asset('images/auth/admin.webp') : null, alt: '')
             ->mediaPosition(MediaPosition::Top)
-            ->mediaSize('clamp(8rem, 35svh, 24rem)');
+            ->mediaSize('clamp(10rem, 31svh, 21rem)');
     }
 
     /** Connect the native dialog label when the vendor heading omits its referenced id. */
@@ -92,6 +92,12 @@ class TalaPanelTheme
             ->spa()
             ->spaUrlExceptions(fn (): array => [
                 url('/'),
+                url('/?*'),
+                url('/').'/?*',
+                url('/#*'),
+                url('/').'/#*',
+                url('/sign-in*'),
+                url('/apply*'),
                 url('/workspace-chooser*'),
                 url('/outputs/*'),
                 url('/finance/*'),
@@ -109,7 +115,7 @@ class TalaPanelTheme
             ->viteTheme('resources/css/filament/tala/theme.css')
             ->brandLogo(fn (): View => self::brand($panel))
             ->brandLogoHeight('auto')
-            ->favicon(asset('images/brand/servitech-crest-outlined-192.webp'))
+            ->favicon(asset('images/brand/servitech-crest-favicon.png'))
             ->colors(['primary' => Color::generatePalette('#2F7D3B'), 'gray' => Color::Zinc, 'info' => Color::generatePalette('#0C53C1')])
             ->maxContentWidth(Width::Full)
             ->unsavedChangesAlerts()

@@ -38,7 +38,11 @@ class CurriculumVersionForm
     public static function planFields(): array
     {
         return [
-            TextInput::make('name')->label('Curriculum name')->required()->maxLength(255),
+            TextInput::make('name')
+                ->label('Curriculum name')
+                ->placeholder('e.g. BSIT Curriculum — Batch 2026')
+                ->required()
+                ->maxLength(255),
             Select::make('effective_entry_term_id')->label('First student intake')
                 ->helperText('New students starting from this intake will use the plan. Class dates are set in Term Planning.')
                 ->options(fn (): array => self::termOptions())->searchable()->preload()->nullable(),

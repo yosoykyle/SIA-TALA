@@ -281,6 +281,11 @@
                                                 </li>
                                             @endforeach
                                         </ul>
+                                        <div class="tala-semester-total" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(4rem, auto) 3.75rem; align-items: center; gap: 0.625rem; padding: 0.5625rem 0.875rem; border-block-start: 1px solid var(--tala-edge); background: color-mix(in srgb, var(--tala-surface-sunken) 70%, var(--tala-surface)); font-size: 0.8125rem; font-weight: 700; color: var(--tala-text);">
+                                            <span>Total</span>
+                                            <span></span>
+                                            <span style="font-variant-numeric: tabular-nums; white-space: nowrap;">{{ $semester['total_units'] }} units</span>
+                                        </div>
                                     @elseif ($isSearching)
                                         <p class="tala-semester-search-empty">No matches in {{ $semester['label'] }}.</p>
                                     @else
@@ -404,6 +409,11 @@
                                             </li>
                                         @endforeach
                                     </ul>
+                                    <div class="tala-semester-total" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(4rem, auto) 3.75rem; align-items: center; gap: 0.625rem; padding: 0.5625rem 0.875rem; border-block-start: 1px solid var(--tala-edge); background: color-mix(in srgb, var(--tala-surface-sunken) 70%, var(--tala-surface)); font-size: 0.8125rem; font-weight: 700; color: var(--tala-text);">
+                                        <span>Total</span>
+                                        <span></span>
+                                        <span style="font-variant-numeric: tabular-nums; white-space: nowrap;">{{ $summerPanel['total_units'] }} units</span>
+                                    </div>
                                 @elseif ($isSearching)
                                     <p class="tala-semester-search-empty">No matches in Special Term (Summer).</p>
                                 @else
@@ -504,23 +514,36 @@
 
                     @if (($selectedSubjectUrl ?? null) || ($canEdit && $subjectMode === 'placement'))
                         <div class="tala-subject-editor-heading__links">
-                            @if ($selectedSubjectUrl ?? null)
-                                <a class="tala-workspace-text-link" {{ \Filament\Support\generate_href_html($selectedSubjectUrl) }}>Open in Subjects</a>
-                            @endif
                             @if ($canEdit && $subjectMode === 'placement')
                                 {{ $this->copySelectedSubjectAction }}
+                            @endif
+                            @if ($selectedSubjectUrl ?? null)
+                                <x-filament::button
+                                    tag="a"
+                                    size="sm"
+                                    color="gray"
+                                    icon="heroicon-m-arrow-top-right-on-square"
+                                    :href="$selectedSubjectUrl"
+                                >
+                                    Open subject
+                                </x-filament::button>
                             @endif
                         </div>
                     @endif
 
                     @if ($canEdit && $subjectMode === 'placement')
-                        <p class="tala-subject-editor-heading__hint">These teaching details are shared across curricula. Here you can move the subject within this plan, or revise it for this curriculum.</p>
+                        <p class="tala-subject-editor-heading__hint">Move or replace this placement below, or make an editable copy for this curriculum to adjust its units and weekly meetings.</p>
                     @endif
 
                     @if ($canEdit)
                         <form id="curriculum-subject-form" wire:submit="saveCurriculumSubject" novalidate>
                             {{ $this->subjectForm }}
                         </form>
+
+                        <div class="tala-subject-editor-utilities" aria-label="Placement actions">
+                            {{ $this->replaceSelectedSubjectAction }}
+                            {{ $this->removeSelectedSubjectAction }}
+                        </div>
                     @endif
                 </div>
             @endif
@@ -528,9 +551,6 @@
             <x-slot:footer>
                 <div class="tala-inspector-footer">
                     @if ($canEdit && $selectedSubject)
-                        <div class="tala-inspector-footer__danger">
-                            {{ $this->removeSelectedSubjectAction }}
-                        </div>
                         <div class="tala-inspector-footer__primary">
                             <x-filament::button type="button" color="gray" wire:click="closeSubjectEditor">Cancel</x-filament::button>
                             <x-filament::button type="submit" form="curriculum-subject-form" wire:loading.attr="disabled" wire:target="saveCurriculumSubject">
