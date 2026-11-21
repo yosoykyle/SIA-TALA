@@ -56,7 +56,6 @@ class AdmissionDecisionAuthorityTest extends TestCase
         $this->assertSame($outcome, $application->fresh()->application_state);
         $event = $application->events()->where('event_type', AdmissionApplicationEvent::TypeDecisionRecorded)->sole();
         $this->assertSame($registrar->id, $event->actor_id);
-        $this->assertFalse($event->payload['requires_external_approval']);
         $notice = OperationalEvent::query()->where('external_id', 'admissions:'.($outcome === AdmissionDecision::DecisionAdmitted
             ? OperationalEvent::TypeAdmissionApplicationAdmitted
             : OperationalEvent::TypeAdmissionApplicationNotAdmitted).':admission-decision:'.$decision->id)->sole();
@@ -77,12 +76,12 @@ class AdmissionDecisionAuthorityTest extends TestCase
     }
 
     #[DataProvider('requiredReferences')]
-    public function test_replacement_or_exception_missing_reference_changes_nothing(bool $replacement, ?string $reference): void
+    public function test_replacement_missing_reference_changes_nothing(?string $reference): void
     {
         [$application, $registrar] = $this->application();
-        $previous = $replacement ? app(RecordAdmissionDecision::class)->execute(
+        $previous = app(RecordAdmissionDecision::class)->execute(
             $application, $registrar, AdmissionDecision::DecisionNotAdmitted, 'Original private basis', null, 'Original safe explanation',
-        ) : null;
+        );
         $application->refresh();
         $state = $application->application_state;
         $decisions = $application->decisions()->count();
@@ -92,8 +91,7 @@ class AdmissionDecisionAuthorityTest extends TestCase
         try {
             app(RecordAdmissionDecision::class)->execute(
                 $application, $registrar, AdmissionDecision::DecisionAdmitted, 'New private basis', $reference, 'New safe explanation',
-                expectedCurrentDecisionId: $previous?->id,
-                requiresExternalApproval: ! $replacement,
+                expectedCurrentDecisionId: $previous->id,
             );
             $this->fail('A separate approval reference must be required.');
         } catch (ValidationException $exception) {
@@ -106,28 +104,13 @@ class AdmissionDecisionAuthorityTest extends TestCase
         $this->assertSame($notices, OperationalEvent::query()->where('related_record_type', AdmissionApplication::class)->where('related_record_id', $application->id)->count());
     }
 
-    /** @return array<string, array{bool, ?string}> */
+    /** @return array<string, array{?string}> */
     public static function requiredReferences(): array
     {
         return [
-            'replacement null' => [true, null],
-            'replacement whitespace' => [true, '   '],
-            'exception null' => [false, null],
-            'exception whitespace' => [false, '   '],
+            'replacement null' => [null],
+            'replacement whitespace' => ['   '],
         ];
-    }
-
-    public function test_exception_records_its_reference_and_classification(): void
-    {
-        [$application, $registrar] = $this->application();
-        $decision = app(RecordAdmissionDecision::class)->execute(
-            $application, $registrar, AdmissionDecision::DecisionAdmitted, 'Private exception basis', ' School approval 123 ', 'Safe explanation',
-            requiresExternalApproval: true,
-        );
-
-        $this->assertSame('School approval 123', $decision->authority_reference);
-        $event = $application->events()->where('event_type', AdmissionApplicationEvent::TypeDecisionRecorded)->sole();
-        $this->assertTrue($event->payload['requires_external_approval']);
     }
 
     public function test_replacement_preserves_original_registrar_decision_without_inventing_a_reference(): void
@@ -149,7 +132,7 @@ class AdmissionDecisionAuthorityTest extends TestCase
     }
 
     #[DataProvider('admissionBlockers')]
-    public function test_exception_reference_does_not_waive_admission_safeguards(bool $identityWarning): void
+    public function test_admission_safeguards_block_the_decision(bool $identityWarning): void
     {
         [$application, $registrar] = $this->application(acceptedCopy: $identityWarning);
         if ($identityWarning) {
@@ -158,10 +141,9 @@ class AdmissionDecisionAuthorityTest extends TestCase
 
         try {
             app(RecordAdmissionDecision::class)->execute(
-                $application, $registrar, AdmissionDecision::DecisionAdmitted, 'Private basis', 'School exception 789', 'Safe explanation',
-                requiresExternalApproval: true,
+                $application, $registrar, AdmissionDecision::DecisionAdmitted, 'Private basis', null, 'Safe explanation',
             );
-            $this->fail('Exceptional approval must preserve admission safeguards.');
+            $this->fail('Admission safeguards must block the decision.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey($identityWarning ? 'identity_match' : 'preliminary_evidence', $exception->errors());
         }
@@ -204,32 +186,57 @@ class AdmissionDecisionAuthorityTest extends TestCase
         $this->assertSame(AdmissionApplication::StateAdmitted, $application->fresh()->application_state);
     }
 
-    #[DataProvider('formReferenceRequirements')]
-    public function test_registrar_form_requires_a_reference_for_replacement_or_exception(bool $replacement): void
+    public function test_registrar_form_asks_for_review_reasons_only_when_not_admitted(): void
     {
         [$application, $registrar] = $this->application();
-        if ($replacement) {
-            app(RecordAdmissionDecision::class)->execute(
-                $application, $registrar, AdmissionDecision::DecisionNotAdmitted, 'Original basis', null, 'Original safe explanation',
-            );
-        }
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->mountAction('recordDecision')
+            ->fillForm(['decision' => AdmissionDecision::DecisionAdmitted])
+            ->assertSchemaComponentHidden('decision_reason', 'mountedActionSchema0')
+            ->assertSchemaComponentHidden('reason', 'mountedActionSchema0')
+            ->assertSchemaComponentHidden('applicant_explanation', 'mountedActionSchema0')
+            ->fillForm(['decision' => AdmissionDecision::DecisionNotAdmitted])
+            ->assertSchemaComponentVisible('decision_reason', 'mountedActionSchema0')
+            ->assertSchemaComponentVisible('reason', 'mountedActionSchema0')
+            ->assertSchemaComponentVisible('applicant_explanation', 'mountedActionSchema0');
+    }
+
+    public function test_registrar_form_records_admitted_without_reasons_and_requires_them_for_not_admitted(): void
+    {
+        [$application, $registrar] = $this->application();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->callAction('recordDecision', data: ['decision' => AdmissionDecision::DecisionNotAdmitted])
+            ->assertHasActionErrors(['reason' => 'required', 'applicant_explanation' => 'required']);
+        $this->assertSame(0, $application->decisions()->count());
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->callAction('recordDecision', data: ['decision' => AdmissionDecision::DecisionAdmitted])
+            ->assertHasNoActionErrors();
+
+        $decision = $application->decisions()->sole();
+        $this->assertSame(AdmissionDecision::DecisionAdmitted, $decision->decision);
+        $this->assertNotEmpty($decision->reason);
+        $this->assertNotEmpty($decision->applicant_explanation);
+    }
+
+    public function test_registrar_form_requires_a_reference_for_a_replacement_decision(): void
+    {
+        [$application, $registrar] = $this->application();
+        app(RecordAdmissionDecision::class)->execute(
+            $application, $registrar, AdmissionDecision::DecisionNotAdmitted, 'Original basis', null, 'Original safe explanation',
+        );
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
             ->callAction('recordDecision', data: [
                 'decision' => AdmissionDecision::DecisionAdmitted,
                 'reason' => 'Private review basis',
                 'applicant_explanation' => 'Safe explanation',
-                'requires_external_approval' => ! $replacement,
             ])
             ->assertHasActionErrors(['authority_reference' => 'required']);
 
-        $this->assertSame($replacement ? 1 : 0, $application->decisions()->count());
-    }
-
-    /** @return array<string, array{bool}> */
-    public static function formReferenceRequirements(): array
-    {
-        return ['replacement' => [true], 'exception' => [false]];
+        $this->assertSame(1, $application->decisions()->count());
     }
 
     /** @return array{AdmissionApplication, User} */

@@ -129,4 +129,14 @@ class Assessment extends Model
     {
         return $this->belongsTo(User::class, 'activated_by');
     }
+
+    public function stateColor(): string
+    {
+        return match ($this->state) {
+            self::StatePendingReview => 'info',
+            self::StateActive, self::StateLocked => 'success',
+            self::StateCancelled => 'danger',
+            default => 'gray',
+        };
+    }
 }

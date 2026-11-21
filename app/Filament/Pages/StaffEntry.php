@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Clusters\Admissions;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Models\AdmissionApplication;
 use App\Models\User;
@@ -58,7 +59,9 @@ class StaffEntry extends Dashboard
                 }
             }
 
-            $this->redirect(AdmissionApplicationResource::getUrl('index'));
+            // No specific application to deep-link to: land on the Admissions dashboard, not
+            // straight into the Application queue (#80).
+            $this->redirect(Admissions::getUrl());
 
             return;
         }

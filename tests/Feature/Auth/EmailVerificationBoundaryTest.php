@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
+use App\Filament\Clusters\Admissions;
 use App\Http\Responses\ApplicantRegistrationResponse;
 use App\Http\Responses\RoleAwareLoginResponse;
 use App\Models\StudentProfile;
@@ -133,12 +133,12 @@ class EmailVerificationBoundaryTest extends TestCase
 
         if ($panel === 'admin') {
             $this->actingAs($user)->get('/admin')
-                ->assertRedirect(AdmissionApplicationResource::getUrl(panel: 'admin'));
+                ->assertRedirect(Admissions::getUrl(panel: 'admin'));
         }
 
         $this->actingAs($user)
             ->get($panel === 'admin'
-                ? AdmissionApplicationResource::getUrl(panel: 'admin')
+                ? Admissions::getUrl(panel: 'admin')
                 : "/{$panel}")
             ->assertOk();
     }

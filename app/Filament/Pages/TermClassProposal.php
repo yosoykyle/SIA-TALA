@@ -45,6 +45,8 @@ class TermClassProposal extends TermPlanningWorkbench
     /** @var array<string, mixed> */
     public array $proposal = [];
 
+    public bool $revealProposalErrors = false;
+
     /** @var array<string, mixed>|null */
     private ?array $proposalPreview = null;
 
@@ -75,7 +77,8 @@ class TermClassProposal extends TermPlanningWorkbench
         $cohorts = $this->currentPreview()['cohorts']->mapWithKeys(fn ($cohort): array => [$cohort->id => $cohort->reference.' · '.$cohort->confirmed_count.' confirmed learners'])->all();
 
         return $schema->statePath('proposal')->components([
-            Repeater::make('classes')->label('Term class decisions')->defaultItems(0)->reorderable(false)->collapsible()->collapsed()
+            Repeater::make('classes')->label('Term class decisions')->defaultItems(0)->reorderable(false)->collapsible()
+                ->collapsed(fn (): bool => ! $this->revealProposalErrors)
                 ->itemLabel(function (array $state) use ($catalogRows): HtmlString|string {
                     $course = $catalogRows->get((int) ($state['entry_id'] ?? 0));
                     $decision = match ($state['action'] ?? 'skip') {
@@ -197,8 +200,28 @@ class TermClassProposal extends TermPlanningWorkbench
             ->modalDescription('Prepared classes and cancellations are checked and saved together. Skipped courses and retained classes stay unchanged. Faculty and room readiness are checked before generation.')
             ->modalSubmitActionLabel('Confirm proposal')
             ->action(function (): void {
-                $state = $this->form->getState();
-                $result = app(PrepareTermClassProposal::class)->confirm($this->selectedTerm(), auth()->user(), array_values($state['classes'] ?? []), $this->proposalSource);
+                try {
+                    $state = $this->form->getState();
+                    $result = app(PrepareTermClassProposal::class)->confirm($this->selectedTerm(), auth()->user(), array_values($state['classes'] ?? []), $this->proposalSource);
+                } catch (ValidationException $exception) {
+                    // Each class decision is a collapsed Repeater item; a required field left blank inside
+                    // one fails validation silently unless the item is expanded to reveal it. Re-throwing here
+                    // crashes the schema-less confirmation modal (it has no field to attach the error to), so
+                    // the error bag is populated by hand instead and the exception is swallowed (#80 report).
+                    $this->revealProposalErrors = true;
+                    foreach ($exception->errors() as $key => $messages) {
+                        foreach ($messages as $message) {
+                            $this->addError($key, $message);
+                        }
+                    }
+                    Notification::make()
+                        ->title('This class proposal could not be confirmed')
+                        ->body(collect($exception->errors())->flatten()->unique()->implode(' '))
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
                 Notification::make()->title($result['confirmed'].' '.Str::plural('class', $result['confirmed']).' confirmed · '.$result['cancelled'].' '.Str::plural('class', $result['cancelled']).' cancelled')->success()->send();
                 $this->redirect(TermClasses::getUrl(['termId' => $this->termId]));
             });

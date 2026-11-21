@@ -164,7 +164,7 @@ class Application extends Page
                 ->button()
                 ->color('gray')
                 ->extraAttributes(['data-application-options' => true])
-                ->visible(fn (): bool => ! $this->requiresCompleteSubmission())
+                ->visible(fn (): bool => $this->showsSaveAndExitAction() && ! $this->requiresCompleteSubmission())
                 ->disabled(fn (): bool => ! $this->draftWorkIsAvailable())
                 ->action(function (): void {
                     $this->saveAndExit();
@@ -285,43 +285,6 @@ class Application extends Page
                                         ->required(fn (): bool => ! $this->savingDraft),
                                 ])
                                 ->columns(['default' => 1, 'md' => 2])->columnSpanFull(),
-                            Section::make('Optional identity details')
-                                ->description('The Registrar uses these optional details to compare your identity records. You can continue your application without providing them.')
-                                ->schema([
-                                    Checkbox::make('optional_identity_consent')
-                                        ->label('I agree to the use of my optional sex and civil-status details for identity-record comparison')
-                                        ->live()
-                                        ->afterStateUpdatedJs(<<<'JS'
-                                            if (! $state) {
-                                                $set('gender', null);
-                                                $set('civil_status', null);
-                                            }
-                                            JS)
-                                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
-                                            if ($state !== true) {
-                                                $set('gender', null);
-                                                $set('civil_status', null);
-                                                $application = $this->currentApplication();
-                                                if ($application?->application_state === AdmissionApplication::StateDraft) {
-                                                    $this->saveApplication(['admission_cycle_id' => $application->admission_cycle_id, 'optional_identity_consent' => false]);
-                                                    $this->saveStatusMessage = 'Optional identity details were cleared from this Draft.';
-                                                }
-                                            }
-                                        })->columnSpanFull(),
-                                    Select::make('gender')->label('Sex (optional)')
-                                        ->options(fn (Get $get): array => $this->optionsKeepingRecordedValue(AdmissionApplication::SexChoices, $get('gender')))
-                                        ->placeholder('Select sex')
-                                        ->visible(fn (Get $get): bool => $get('optional_identity_consent') === true)
-                                        ->disabled(fn (): bool => ! $this->fieldIsEditable('gender')),
-                                    Select::make('civil_status')->label('Civil status (optional)')
-                                        ->options(fn (Get $get): array => $this->optionsKeepingRecordedValue(AdmissionApplication::CivilStatusChoices, $get('civil_status')))
-                                        ->placeholder('Select civil status')
-                                        ->visible(fn (Get $get): bool => $get('optional_identity_consent') === true)
-                                        ->disabled(fn (): bool => ! $this->fieldIsEditable('civil_status')),
-                                ])
-                                ->visible(fn (): bool => $this->actingUser()?->id === $this->applicationOwner()?->id
-                                    && ($this->fieldIsEditable('gender') || $this->fieldIsEditable('civil_status')))
-                                ->columns(['default' => 1, 'md' => 2])->columnSpanFull(),
                             Section::make('Contact and address')
                                 ->schema([
                                     TextInput::make('email')->label('Email address (verified)')->email()->disabled()->dehydrated(),
@@ -360,12 +323,50 @@ class Application extends Page
                                         ->live(onBlur: true)
                                         ->regex('/^09\d{9}$/')
                                         ->validationMessages(['regex' => 'Enter an 11-digit Philippine mobile number beginning with 09.'])
+                                        ->afterStateUpdated(fn (TextInput $component, ?string $state) => $this->revalidateFieldOnBlur($component, $state))
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('guardian_mobile'))
                                         ->required(fn (Get $get): bool => $this->guardianContactIsRequired($get))
                                         ->maxLength(11),
                                 ])
                                 ->columns(1)
                                 ->columnSpanFull(),
+                            Section::make('Optional identity details')
+                                ->description('The Registrar uses these optional details to compare your identity records. You can continue your application without providing them.')
+                                ->schema([
+                                    Checkbox::make('optional_identity_consent')
+                                        ->label('I agree to the use of my optional sex and civil-status details for identity-record comparison')
+                                        ->live()
+                                        ->afterStateUpdatedJs(<<<'JS'
+                                            if (! $state) {
+                                                $set('gender', null);
+                                                $set('civil_status', null);
+                                            }
+                                            JS)
+                                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
+                                            if ($state !== true) {
+                                                $set('gender', null);
+                                                $set('civil_status', null);
+                                                $application = $this->currentApplication();
+                                                if ($application?->application_state === AdmissionApplication::StateDraft) {
+                                                    $this->saveApplication(['admission_cycle_id' => $application->admission_cycle_id, 'optional_identity_consent' => false]);
+                                                    $this->saveStatusMessage = 'Optional identity details were cleared from this Draft.';
+                                                }
+                                            }
+                                        })->columnSpanFull(),
+                                    Select::make('gender')->label('Sex (optional)')
+                                        ->options(fn (Get $get): array => $this->optionsKeepingRecordedValue(AdmissionApplication::SexChoices, $get('gender')))
+                                        ->placeholder('Select sex')
+                                        ->visible(fn (Get $get): bool => $get('optional_identity_consent') === true)
+                                        ->disabled(fn (): bool => ! $this->fieldIsEditable('gender')),
+                                    Select::make('civil_status')->label('Civil status (optional)')
+                                        ->options(fn (Get $get): array => $this->optionsKeepingRecordedValue(AdmissionApplication::CivilStatusChoices, $get('civil_status')))
+                                        ->placeholder('Select civil status')
+                                        ->visible(fn (Get $get): bool => $get('optional_identity_consent') === true)
+                                        ->disabled(fn (): bool => ! $this->fieldIsEditable('civil_status')),
+                                ])
+                                ->visible(fn (): bool => $this->actingUser()?->id === $this->applicationOwner()?->id
+                                    && ($this->fieldIsEditable('gender') || $this->fieldIsEditable('civil_status')))
+                                ->columns(['default' => 1, 'md' => 2])->columnSpanFull(),
                         ]),
                     Step::make('Education')
                         ->afterValidation(fn () => $this->saveBeforeContinuing())
@@ -617,6 +618,31 @@ class Application extends Page
     {
         if ($this->persistDraft()) {
             $this->redirect($this->afterSaveAndExitUrl(), navigate: true);
+        }
+    }
+
+    /**
+     * The Applicant form keeps "Save and continue" as its single save action;
+     * the leave-confirmation modal still offers saving before exit.
+     */
+    protected function showsSaveAndExitAction(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Clears a stale error once a live-on-blur field changes, and re-checks it
+     * only when filled so an emptied field waits for the next save.
+     */
+    protected function revalidateFieldOnBlur(Field $component, mixed $state): void
+    {
+        $this->resetErrorBag($component->getStatePath());
+
+        if (filled($state)) {
+            $messages = [];
+            $component->dehydrateValidationMessages($messages);
+
+            $this->validateOnly($component->getStatePath(), messages: $messages);
         }
     }
 

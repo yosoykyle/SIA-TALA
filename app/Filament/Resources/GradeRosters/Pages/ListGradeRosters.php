@@ -51,7 +51,7 @@ class ListGradeRosters extends ListRecords
     public function getBreadcrumbs(): array
     {
         if (! $this->isHeadReader()) {
-            return [GradesAndCompletion::getUrl() => 'Grades & Completion', 'Class grades'];
+            return [GradesAndCompletion::getUrl() => 'Students Record', 'Class grades'];
         }
 
         return parent::getBreadcrumbs();

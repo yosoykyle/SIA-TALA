@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\AdmissionCycles\Pages;
 
-use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
+use App\Filament\Clusters\Admissions;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
@@ -16,10 +16,16 @@ class ListAdmissionCycles extends ListRecords
         return 'Admission cycles';
     }
 
+    /**
+     * Linked to the Admissions dashboard, not the Application queue: this page's "Admissions"
+     * crumb previously pointed at the queue list, leaving no way back to the dashboard (#80).
+     *
+     * @return array<string>
+     */
     public function getBreadcrumbs(): array
     {
         return [
-            ...(AdmissionApplicationResource::canAccess() ? [AdmissionApplicationResource::getUrl() => 'Admissions'] : []),
+            ...(Admissions::canAccess() ? [Admissions::getUrl() => 'Admissions'] : []),
             'Admission cycles',
         ];
     }

@@ -78,6 +78,8 @@ class RegisterApplicant extends Register
 
             return parent::register();
         } catch (ValidationException $exception) {
+            $exception = $this->withSchemaStatePathKeys($exception);
+
             $firstInvalidField = $this->firstInvalidField($exception);
 
             if ($firstInvalidField !== null) {
@@ -86,6 +88,24 @@ class RegisterApplicant extends Register
 
             throw $exception;
         }
+    }
+
+    /**
+     * CreateNewUser (and any other Fortify-contract action) reports failures by plain field name
+     * ('email'), since that is the Fortify convention and what its own tests assert. Filament's
+     * schema binds each field at 'data.<field>', so a bare key never attaches to the matching
+     * input and the error is dropped silently instead of showing under the field (#80-style fix,
+     * analogous bug). Re-key here, once, rather than changing CreateNewUser's established contract.
+     */
+    private function withSchemaStatePathKeys(ValidationException $exception): ValidationException
+    {
+        $errors = collect($exception->errors())
+            ->mapWithKeys(fn (array $messages, string $key): array => [
+                Str::startsWith($key, 'data.') ? $key : 'data.'.$key => $messages,
+            ])
+            ->all();
+
+        return ValidationException::withMessages($errors);
     }
 
     private function firstInvalidField(ValidationException $exception): ?string

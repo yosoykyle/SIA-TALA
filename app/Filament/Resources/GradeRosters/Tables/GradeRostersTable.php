@@ -52,7 +52,7 @@ class GradeRostersTable
                             ->description('Results recorded'),
                         TextColumn::make('incomplete_results_count')->label('Incomplete grades')
                             ->formatStateUsing(fn (int $state): string => $state > 0 ? $state.' INC' : '')->color('gray'),
-                        TextColumn::make('state')->badge()->color(fn (string $state): string => $state === GradeRoster::StateSubmitted ? 'primary' : 'gray')
+                        TextColumn::make('state')->badge()->color(fn (GradeRoster $record): string => $record->stateColor())
                             ->formatStateUsing(fn (string $state): string => $state === GradeRoster::StateReleased ? 'Released' : str($state)->lower()->headline()->toString()),
                     ])->grow(false)->space(1),
                 ])->from('md'),

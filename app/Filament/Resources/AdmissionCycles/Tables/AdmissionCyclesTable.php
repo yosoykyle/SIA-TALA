@@ -19,6 +19,7 @@ class AdmissionCyclesTable
     {
         return $table
             ->extraAttributes(['class' => 'tala-admissions-table'])
+            ->striped()
             ->searchPlaceholder('Search cycle name or code')
             ->columns([
                 Split::make([
@@ -29,6 +30,7 @@ class AdmissionCyclesTable
                     ])->space(1),
                     TextColumn::make('availability')->label('Public applications')
                         ->prefix('Applications: ')
+                        ->badge()
                         ->state(fn (AdmissionCycle $record): string => match (true) {
                             $record->state === AdmissionCycle::StateDraft => 'Draft',
                             $record->state === AdmissionCycle::StateCancelled => 'Cancelled',
@@ -36,6 +38,13 @@ class AdmissionCyclesTable
                             $record->opens_at->isFuture() => 'Scheduled',
                             $record->closes_at <= now() => 'Closed',
                             default => 'Open',
+                        })
+                        ->color(fn (string $state): string => match ($state) {
+                            'Open' => 'success',
+                            'Scheduled' => 'info',
+                            'Cancelled' => 'danger',
+                            'Window unavailable' => 'warning',
+                            default => 'gray',
                         })
                         ->description(fn (AdmissionCycle $record): string => match (true) {
                             $record->state !== AdmissionCycle::StatePublished => 'First submissions unavailable',
@@ -47,15 +56,27 @@ class AdmissionCyclesTable
                 ])->from('md'),
                 Panel::make([
                     Stack::make([
-                        TextColumn::make('state')->label('Lifecycle')->prefix('Lifecycle: ')->badge()->color(fn (string $state): string => match ($state) {
-                            AdmissionCycle::StatePublished => 'info',
-                            default => 'gray',
-                        })->sortable(),
-                        TextColumn::make('opens_at')->label('Applications open')->prefix('Opens: ')->dateTime('M j, Y · g:i A')->timezone(config('app.display_timezone'))->wrap()->sortable(),
-                        TextColumn::make('closes_at')->label('Public closing')->prefix('Public closing: ')->dateTime('M j, Y · g:i A')->timezone(config('app.display_timezone'))->wrap()->sortable(),
-                        TextColumn::make('correction_closes_at')->label('Correction requests end')->prefix('New correction requests end: ')->dateTime('M j, Y · g:i A')->timezone(config('app.display_timezone'))->wrap()->placeholder('Not set'),
-                        TextColumn::make('programs_count')->counts('programs')->label('Programs')->prefix('Programs: '),
-                    ])->space(1),
+                        Split::make([
+                            TextColumn::make('lifecycle_field_label')->state('Lifecycle')->grow(false),
+                            TextColumn::make('state')->label('Lifecycle')->alignEnd()->sortable(),
+                        ])->from('sm'),
+                        Split::make([
+                            TextColumn::make('opens_field_label')->state('Opens')->grow(false),
+                            TextColumn::make('opens_at')->label('Applications open')->dateTime('M j, Y · g:i A')->timezone(config('app.display_timezone'))->alignEnd()->sortable(),
+                        ])->from('sm'),
+                        Split::make([
+                            TextColumn::make('closes_field_label')->state('Public closing')->grow(false),
+                            TextColumn::make('closes_at')->label('Public closing')->dateTime('M j, Y · g:i A')->timezone(config('app.display_timezone'))->alignEnd()->sortable(),
+                        ])->from('sm'),
+                        Split::make([
+                            TextColumn::make('correction_field_label')->state('New correction requests end')->grow(false),
+                            TextColumn::make('correction_closes_at')->label('Correction requests end')->dateTime('M j, Y · g:i A')->timezone(config('app.display_timezone'))->alignEnd()->placeholder('Not set'),
+                        ])->from('sm'),
+                        Split::make([
+                            TextColumn::make('programs_field_label')->state('Programs')->grow(false),
+                            TextColumn::make('programs_count')->counts('programs')->label('Programs')->alignEnd(),
+                        ])->from('sm'),
+                    ])->space(3),
                 ])->collapsible(),
             ])
             ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter cycles')->tooltip('Narrow this cycle list by state or target term'))

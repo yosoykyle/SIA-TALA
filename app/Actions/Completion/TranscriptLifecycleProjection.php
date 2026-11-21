@@ -86,4 +86,14 @@ class TranscriptLifecycleProjection
 
         return $snapshot->events()->get();
     }
+
+    public static function statusColor(string $status): string
+    {
+        return match ($status) {
+            TranscriptIssuanceEvent::TypeIssued => 'success',
+            TranscriptIssuanceEvent::TypeReplacement => 'info',
+            TranscriptIssuanceEvent::TypeVoided => 'danger',
+            default => 'gray',
+        };
+    }
 }
