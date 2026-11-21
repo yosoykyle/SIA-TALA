@@ -5,6 +5,7 @@ namespace App\Filament\Applicant\Pages;
 use App\Actions\Admissions\AdmissionNotificationLedger;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
 use App\Actions\Admissions\ResolveAdmissionRequirementSet;
+use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Finance\StudentTermAccountPresenter;
 use App\Models\AdmissionApplication;
@@ -48,6 +49,13 @@ class Dashboard extends BaseDashboard implements HasTable
     public function getTitle(): string
     {
         return 'Applicant Home';
+    }
+
+    public function mount(): void
+    {
+        if ($this->shouldShowHomeNoticeModal()) {
+            $this->dispatch('open-modal', id: 'applicant-home-notice');
+        }
     }
 
     protected function getHeaderActions(): array
@@ -416,6 +424,33 @@ class Dashboard extends BaseDashboard implements HasTable
         ]));
     }
 
+    /**
+     * True only for a real date-based fact (not the generic decision note), so an empty cycle/correction
+     * does not force the login notice open on its own.
+     */
+    public function hasImportantDates(?AdmissionApplication $application): bool
+    {
+        if (! $application instanceof AdmissionApplication) {
+            return false;
+        }
+
+        $cycle = $application->admissionCycle;
+        $correction = $application->correctionRequests
+            ->where('state', ApplicationCorrectionRequest::StateActive)
+            ->sortByDesc('sequence')
+            ->first();
+
+        return $cycle?->opens_at !== null || $cycle?->closes_at !== null || $correction?->due_at !== null;
+    }
+
+    /**
+     * The login notice opens only when there is something to say: a real date, or an announcement.
+     */
+    public function shouldShowHomeNoticeModal(): bool
+    {
+        return $this->hasImportantDates($this->currentApplication()) || $this->schoolAnnouncements()->isNotEmpty();
+    }
+
     public function getHeading(): string
     {
         $firstName = Auth::user()?->first_name ?: $this->currentApplication()?->first_name;
@@ -577,6 +612,17 @@ class Dashboard extends BaseDashboard implements HasTable
     public function responsibleParty(AdmissionApplication $application): string
     {
         return app(ReadyApplicantProjectionQuery::class)->responsibleParty($application);
+    }
+
+    /**
+     * The school's public contact channels, shown in the in-panel Support modal so a signed-in
+     * applicant never gets bounced out to the public site just to ask for help.
+     *
+     * @return array{support: ?string, support_phone: string, support_phone_uri: string}
+     */
+    public function officialReferences(): array
+    {
+        return app(ApplicantEntryReadinessService::class)->officialReferences();
     }
 
     public function nextAction(AdmissionApplication $application): string

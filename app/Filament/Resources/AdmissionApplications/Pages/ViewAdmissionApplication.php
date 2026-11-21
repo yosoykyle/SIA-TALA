@@ -47,6 +47,10 @@ use Livewire\Attributes\Url;
 
 class ViewAdmissionApplication extends ViewRecord
 {
+    private const AdmittedDecisionReason = 'Required evidence is acceptable';
+
+    private const AdmittedApplicantExplanation = 'Your application has been admitted. Admissions will contact you about the next steps.';
+
     protected static string $resource = AdmissionApplicationResource::class;
 
     #[Url]
@@ -78,18 +82,14 @@ class ViewAdmissionApplication extends ViewRecord
 
     public function getBreadcrumbs(): array
     {
-        $queue = $this->queue ?? request()->query('queue');
-        $breadcrumbs = parent::getBreadcrumbs();
+        $original = AdmissionApplicationResource::getUrl();
+        $queue = $this->queueContext() ?? request()->query('queue');
+        $queue = in_array($queue, ['needs_review', 'waiting_for_applicant', 'official_credentials', 'ready_for_enrollment', 'history'], true) ? $queue : null;
+        $target = $queue === null ? $original : ListAdmissionApplications::getUrl(['tab' => $queue]);
 
-        if (in_array($queue, ['needs_review', 'waiting_for_applicant', 'official_credentials', 'ready_for_enrollment', 'history'], true)) {
-            $original = AdmissionApplicationResource::getUrl();
-            $contextual = ListAdmissionApplications::getUrl(['tab' => $queue]);
-            $breadcrumbs = collect($breadcrumbs)->mapWithKeys(fn (string $label, int|string $url): array => [
-                $url === $original ? $contextual : $url => $url === $original ? 'Application queue' : $label,
-            ])->all();
-        }
-
-        return $breadcrumbs;
+        return collect(parent::getBreadcrumbs())->mapWithKeys(fn (string $label, int|string $url): array => [
+            $url === $original ? $target : $url => $url === $original ? 'Application queue' : $label,
+        ])->all();
     }
 
     protected function getHeaderActions(): array
@@ -415,7 +415,7 @@ class ViewAdmissionApplication extends ViewRecord
 
                         return $isReplacement
                             ? "Replace the current {$currentOutcome} decision for {$this->application()->application_reference}. An approval reference is required. Previous decisions remain in history; readiness is recalculated."
-                            : "Record the first decision for {$this->application()->application_reference} under your Registrar authority. The Applicant receives your explanation. The decision is retained and readiness is recalculated.";
+                            : "Record the first decision for {$this->application()->application_reference} under your Registrar authority. The Applicant is told the outcome; Not admitted also needs a review basis and an explanation. The decision is retained and readiness is recalculated.";
                     })
                     ->schema([
                         Hidden::make('expected_current_decision_id')->default(fn (): ?int => $this->application()->decisions()->whereDoesntHave('successor')->value('id')),
@@ -447,25 +447,23 @@ class ViewAdmissionApplication extends ViewRecord
                                 if (filled($state) && $state !== 'Other') {
                                     $set('reason', $state);
                                 }
-                            }),
+                            })
+                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionNotAdmitted),
                         Textarea::make('reason')->label('Private review reason')
                             ->helperText('Record the basis for the decision. This note is for authorized staff.')
                             ->placeholder('Summarize the reviewed evidence and the reason for this outcome.')
-                            ->rows(3)->required()->maxLength(1500),
+                            ->rows(3)->required()->maxLength(1500)
+                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionNotAdmitted),
                         Textarea::make('applicant_explanation')->label('Applicant explanation')
                             ->helperText('Shown to the Applicant. Explain the outcome and a safe next step without private identity or staff details.')
                             ->placeholder('Explain what happens next or how to contact Admissions for help.')
-                            ->rows(3)->required()->maxLength(1500),
-                        Checkbox::make('requires_external_approval')
-                            ->label('This decision records an exceptional approval')
-                            ->helperText('Select only when a verified school policy requires approval beyond the routine Registrar decision. Admission safeguards still apply.')
-                            ->default(false)
-                            ->live(),
+                            ->rows(3)->required()->maxLength(1500)
+                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionNotAdmitted),
                         TextInput::make('authority_reference')
                             ->label('Separate approval reference')
-                            ->helperText('Required for a replacement decision or exceptional approval. Enter the school approval or recorded authorization reference; an ordinary first decision uses your recorded Registrar authority.')
-                            ->required(fn (Get $get): bool => filled($get('expected_current_decision_id')) || (bool) $get('requires_external_approval'))
-                            ->visible(fn (Get $get): bool => filled($get('expected_current_decision_id')) || (bool) $get('requires_external_approval'))
+                            ->helperText('Required for a replacement decision. Enter the school approval or recorded authorization reference; an ordinary first decision uses your recorded Registrar authority.')
+                            ->required(fn (Get $get): bool => filled($get('expected_current_decision_id')))
+                            ->visible(fn (Get $get): bool => filled($get('expected_current_decision_id')))
                             ->maxLength(255),
                     ])
                     ->visible(fn (): bool => $this->canReview()
@@ -499,12 +497,11 @@ class ViewAdmissionApplication extends ViewRecord
                             $this->application(),
                             $actor,
                             (string) $data['decision'],
-                            (string) $data['reason'],
+                            (string) ($data['reason'] ?? self::AdmittedDecisionReason),
                             filled($data['authority_reference'] ?? null) ? (string) $data['authority_reference'] : null,
-                            (string) $data['applicant_explanation'],
+                            (string) ($data['applicant_explanation'] ?? self::AdmittedApplicantExplanation),
                             $expectedDecisionId,
                             $expectedSubmissionVersionId,
-                            requiresExternalApproval: (bool) ($data['requires_external_approval'] ?? false),
                             papersConfirmed: (bool) ($data['papers_confirmed'] ?? false) && (bool) ($data['external_checks_confirmed'] ?? false),
                         );
                     }, 'Admission decision recorded', $action)),

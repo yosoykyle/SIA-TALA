@@ -28,44 +28,10 @@
                 </section>
             @endif
             <div class="tala-home">
-                <div class="tala-home__summary">
-                    <x-filament::section class="tala-home-summary" icon="heroicon-o-document-text" icon-color="primary">
-                        <x-slot name="heading">Application status</x-slot>
-                        @if ($application)
-                            <div class="tala-home-status">
-                                <x-filament::badge :color="$this->statusColor($application->application_state)">{{ $this->statusLabel($application->application_state) }}</x-filament::badge>
-                                <p>{{ $this->statusExplanation($application) }}</p>
-                            </div>
-                            <dl class="tala-home-facts">
-                                <div><dt>Application number</dt><dd><x-application-reference :value="$application->application_reference" /></dd></div>
-                                <div><dt>Program</dt><dd>{{ $application->program ? \App\Models\Program::applicantName($application->program->name) : 'Program not selected' }}</dd></div>
-                                <div><dt>Student type</dt><dd>{{ \App\Models\AdmissionCycle::studentTypeLabel($application->application_path) }}</dd></div>
-                            </dl>
-                            @if ($this->canWithdraw())
-                                <div class="tala-home-card-footer">
-                                    {{ $this->withdrawApplicationAction }}
-                                </div>
-                            @endif
-                        @else
-                            <div class="tala-home-status">
-                                <x-filament::badge color="gray">Not started</x-filament::badge>
-                                <p>You haven't started an application yet.</p>
-                            </div>
-                        @endif
-                    </x-filament::section>
-
-                    <x-filament::section class="tala-home-summary" icon="heroicon-o-calendar-days" icon-color="primary">
-                        <x-slot name="heading">Application deadline</x-slot>
-                        <div class="tala-home-deadline">
-                            <p class="tala-home-deadline__label">{{ $deadline['label'] }}</p>
-                            <p class="tala-home-deadline__value">{{ $deadline['value'] ?? 'No deadline' }}</p>
-                            <p class="tala-home-deadline__note">{{ $deadline['note'] }}</p>
-                        </div>
-                    </x-filament::section>
-                </div>
-
                 <x-filament::section class="tala-journey-card tala-home__journey">
                     <x-slot name="heading">Your application journey</x-slot>
+
+                    <p class="tala-journey-step-top">Step {{ $stepNumber }} of {{ count($stages) }} · {{ $stages[$stepNumber - 1]['label'] }}</p>
 
                     <ol class="tala-journey" aria-label="Application journey">
                         @foreach ($stages as $index => $stage)
@@ -91,7 +57,6 @@
 
                     <div class="tala-journey-next">
                         <div class="tala-journey-next__copy">
-                            <p class="tala-journey-next__step">Step {{ $stepNumber }} of {{ count($stages) }} · {{ $stages[$stepNumber - 1]['label'] }}</p>
                             @if (! $application)
                                 <p class="tala-application-next-action">
                                     {{ $this->admissionsAreOpen() ? 'Start an application for an open admission cycle.' : 'Applications are currently closed. Check the school home page for the next admission cycle.' }}
@@ -104,7 +69,7 @@
                                     <p>{{ collect($projection['blockers'])->firstWhere('source', 'Registrar enrollment clearance')['recovery'] ?? '' }}</p>
                                 @endif
                                 @if ($currentDecision?->applicant_explanation)
-                                    <p><strong>Admission decision remarks:</strong> {{ $currentDecision->applicant_explanation }}</p>
+                                    <p class="tala-application-next-action"><strong>Admission decision remarks:</strong> {{ $currentDecision->applicant_explanation }}</p>
                                 @endif
                             @endif
                         </div>
@@ -131,71 +96,82 @@
                     </div>
                 </x-filament::section>
 
-                <div class="tala-home__rail">
-                    <x-filament::section class="tala-home-checklist" icon="heroicon-o-clipboard-document-list" icon-color="primary">
-                        <x-slot name="heading">Requirements checklist</x-slot>
-                        @if (! $application)
-                            <p class="tala-home-muted">Your required documents appear here once you start an application.</p>
-                        @elseif ($checklist['items'] === [])
-                            <p class="tala-home-muted">No document uploads are required for this application.</p>
-                        @else
-                            <ul class="tala-checklist" aria-label="Required documents">
-                                @foreach ($checklist['items'] as $item)
-                                    <li class="tala-checklist__item">
-                                        <span class="tala-checklist__mark tala-checklist__mark--{{ $item['color'] }}" aria-hidden="true">
-                                            @if (in_array($item['color'], ['success', 'info'], true))
-                                                <x-filament::icon icon="heroicon-m-check" class="size-3.5" />
-                                            @elseif ($item['color'] === 'warning')
-                                                <x-filament::icon icon="heroicon-m-exclamation-triangle" class="size-3" />
-                                            @endif
-                                        </span>
-                                        <span class="tala-checklist__label">{{ $item['label'] }}</span>
-                                        <x-filament::badge size="sm" :color="$item['color']">{{ $item['state'] }}</x-filament::badge>
-                                    </li>
-                                @endforeach
-                            </ul>
-                            <p class="tala-checklist__summary">{{ count($checklist['items']) }} {{ str('document')->plural(count($checklist['items'])) }} required · <a class="tala-home-link" {{ \Filament\Support\generate_href_html($checklist['url']) }}>{{ $checklist['linkLabel'] }}</a></p>
-                        @endif
-                    </x-filament::section>
+                <x-filament::section class="tala-home-checklist" icon="heroicon-o-clipboard-document-list" icon-color="primary">
+                    <x-slot name="heading">Requirements checklist</x-slot>
+                    @if (! $application)
+                        <p class="tala-home-muted">Your required documents appear here once you start an application.</p>
+                    @elseif ($checklist['items'] === [])
+                        <p class="tala-home-muted">No document uploads are required for this application.</p>
+                    @else
+                        <ul class="tala-checklist" aria-label="Required documents">
+                            @foreach ($checklist['items'] as $item)
+                                <li class="tala-checklist__item">
+                                    <span class="tala-checklist__mark tala-checklist__mark--{{ $item['color'] }}" aria-hidden="true">
+                                        @if (in_array($item['color'], ['success', 'info'], true))
+                                            <x-filament::icon icon="heroicon-m-check" class="size-3.5" />
+                                        @elseif ($item['color'] === 'warning')
+                                            <x-filament::icon icon="heroicon-m-exclamation-triangle" class="size-3" />
+                                        @endif
+                                    </span>
+                                    <span class="tala-checklist__label">{{ $item['label'] }}</span>
+                                    <x-filament::badge size="sm" :color="$item['color']">{{ $item['state'] }}</x-filament::badge>
+                                </li>
+                            @endforeach
+                        </ul>
+                        <p class="tala-checklist__summary">{{ count($checklist['items']) }} {{ str('document')->plural(count($checklist['items'])) }} required · <a class="tala-home-link" {{ \Filament\Support\generate_href_html($checklist['url']) }}>{{ $checklist['linkLabel'] }}</a></p>
+                    @endif
+                </x-filament::section>
 
-                    <x-filament::section class="tala-home-dates" icon="heroicon-o-megaphone" icon-color="primary">
-                        <x-slot name="heading">Important dates</x-slot>
-                        @if ($application)
-                            <dl class="tala-home-facts">
-                                @foreach ($this->importantDates($application) as $date)
-                                    <div><dt>{{ $date['label'] }}</dt><dd>{{ $date['value'] }}</dd></div>
-                                @endforeach
-                            </dl>
-                        @endif
-                        <div class="tala-announcements">
-                            <h3 class="tala-announcements__heading">Announcements</h3>
-                            @forelse ($announcements as $notice)
-                                <article class="tala-announcement">
-                                    <h4 class="tala-announcement__title">{{ $notice->title }}</h4>
-                                    @if ($notice->published_at)
-                                        <p class="tala-announcement__date">Published {{ $notice->published_at->timezone(config('app.display_timezone'))->format('M j, Y') }}</p>
-                                    @endif
-                                    <p class="tala-announcement__message">{{ str($notice->message)->limit(180) }}</p>
-                                    @if ($notice->link_url && $notice->link_label)
-                                        <a class="tala-home-link" href="{{ $notice->link_url }}">{{ $notice->link_label }}</a>
-                                    @endif
-                                </article>
-                            @empty
-                                <p class="tala-home-muted">No announcements yet.</p>
-                            @endforelse
+                <x-filament::section class="tala-home-deadline-card" icon="heroicon-o-calendar-days" icon-color="primary">
+                    <x-slot name="heading">Application deadline</x-slot>
+                    <div class="tala-home-deadline">
+                        <p class="tala-home-deadline__label">{{ $deadline['label'] }}</p>
+                        <p class="tala-home-deadline__value">{{ $deadline['value'] ?? 'No deadline' }}</p>
+                        <p class="tala-home-deadline__note">{{ $deadline['note'] }}</p>
+                    </div>
+                </x-filament::section>
+
+                <x-filament::section class="tala-home-status-card" icon="heroicon-o-document-text" icon-color="primary">
+                    <x-slot name="heading">Application status</x-slot>
+                    @if ($application)
+                        <div class="tala-home-status">
+                            <x-filament::badge :color="$this->statusColor($application->application_state)">{{ $this->statusLabel($application->application_state) }}</x-filament::badge>
+                            <p>{{ $this->statusExplanation($application) }}</p>
                         </div>
-                    </x-filament::section>
-                </div>
+                        <dl class="tala-home-facts">
+                            <div><dt>Application number</dt><dd><x-application-reference :value="$application->application_reference" /></dd></div>
+                            <div><dt>Program</dt><dd>{{ $application->program ? \App\Models\Program::applicantName($application->program->name) : 'Program not selected' }}</dd></div>
+                            <div><dt>Student type</dt><dd>{{ \App\Models\AdmissionCycle::studentTypeLabel($application->application_path) }}</dd></div>
+                        </dl>
+                        @if ($this->canWithdraw())
+                            <div class="tala-home-card-footer">
+                                {{ $this->withdrawApplicationAction }}
+                            </div>
+                        @endif
+                    @else
+                        <div class="tala-home-status">
+                            <x-filament::badge color="gray">Not started</x-filament::badge>
+                            <p>You haven't started an application yet.</p>
+                        </div>
+                    @endif
+                </x-filament::section>
 
                 @if ($support)
+                    @php($supportModalRoute = route('home', ['modal' => 'support']))
                     <section class="tala-home-help" aria-labelledby="tala-home-help-title">
                         <span class="tala-home-help__icon" aria-hidden="true"><x-filament::icon icon="heroicon-o-lifebuoy" class="size-6" /></span>
                         <div class="tala-home-help__copy">
                             <h2 id="tala-home-help-title">Need help?</h2>
                             <p>Questions about your application? Contact admissions support.</p>
-                            <p class="tala-home-help__contact"><a class="tala-home-link" href="{{ $support['href'] }}">{{ $support['text'] }}</a></p>
+                            <p class="tala-home-help__contact">
+                                @if ($support['href'] === $supportModalRoute)
+                                    <a class="tala-home-link" href="#" x-on:click.prevent="$dispatch('open-modal', { id: 'applicant-support-contact' })">{{ $support['text'] }}</a>
+                                @else
+                                    <a class="tala-home-link" href="{{ $support['href'] }}">{{ $support['text'] }}</a>
+                                @endif
+                            </p>
                         </div>
-                        <x-filament::button :href="route('home', ['modal' => 'support'])" tag="a" color="gray" icon="heroicon-m-chat-bubble-left-right">Contact support</x-filament::button>
+                        <x-filament::button color="gray" icon="heroicon-m-chat-bubble-left-right" x-on:click="$dispatch('open-modal', { id: 'applicant-support-contact' })">Contact support</x-filament::button>
                     </section>
                 @endif
             </div>
@@ -209,5 +185,66 @@
             @endif
 
         </div>
+
+        @php($hasDates = $application && $this->hasImportantDates($application))
+        <x-filament::modal id="applicant-home-notice" width="lg" icon="heroicon-o-megaphone" icon-color="primary" :sticky-header="true">
+            <x-slot name="heading">Important updates</x-slot>
+
+            @if ($hasDates)
+                <h3 class="tala-announcements__heading">Important dates</h3>
+                <dl class="tala-home-facts">
+                    @foreach ($this->importantDates($application) as $date)
+                        @continue ($date['label'] === 'Decision')
+                        <div><dt>{{ $date['label'] }}</dt><dd>{{ $date['value'] }}</dd></div>
+                    @endforeach
+                </dl>
+            @endif
+
+            @if ($announcements->isNotEmpty())
+                <div class="tala-announcements">
+                    <h3 class="tala-announcements__heading">Announcements</h3>
+                    @foreach ($announcements as $notice)
+                        <article class="tala-announcement">
+                            <h4 class="tala-announcement__title">{{ $notice->title }}</h4>
+                            @if ($notice->published_at)
+                                <p class="tala-announcement__date">Published {{ $notice->published_at->timezone(config('app.display_timezone'))->format('M j, Y') }}</p>
+                            @endif
+                            <p class="tala-announcement__message">{{ str($notice->message)->limit(180) }}</p>
+                            @if ($notice->link_url && $notice->link_label)
+                                <a class="tala-home-link" href="{{ $notice->link_url }}">{{ $notice->link_label }}</a>
+                            @endif
+                        </article>
+                    @endforeach
+                </div>
+            @endif
+
+            <x-slot:footer>
+                <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'applicant-home-notice' })">Got it</x-filament::button>
+            </x-slot:footer>
+        </x-filament::modal>
+
+        @php($officialReferences = $this->officialReferences())
+        <x-filament::modal id="applicant-support-contact" width="lg" icon="heroicon-o-lifebuoy" icon-color="primary">
+            <x-slot name="heading">Support</x-slot>
+
+            <p>Contact Servitech for admissions, campus location, account access, privacy questions, or accessibility assistance.</p>
+
+            <div class="tala-support-modal__actions">
+                @if ($officialReferences['support'])
+                    <x-filament::button :href="$officialReferences['support']" target="_blank" tag="a" color="gray" icon="heroicon-o-chat-bubble-left-right">
+                        Open Servitech Facebook
+                    </x-filament::button>
+                @endif
+                <x-filament::button :href="$officialReferences['support_phone_uri']" tag="a" color="gray" icon="heroicon-o-phone">
+                    Call {{ $officialReferences['support_phone'] }}
+                </x-filament::button>
+            </div>
+
+            <p class="tala-home-muted">These are the school's public contact channels. Response times depend on the school.</p>
+
+            <x-slot:footer>
+                <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'applicant-support-contact' })">Close</x-filament::button>
+            </x-slot:footer>
+        </x-filament::modal>
 
 </x-filament-panels::page>

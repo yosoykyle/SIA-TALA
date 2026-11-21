@@ -2,9 +2,9 @@
 
 namespace App\Actions\Authentication;
 
+use App\Filament\Clusters\Admissions;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\FacultySchedule;
-use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Users\UserResource;
 use App\Models\AdmissionApplication;
@@ -49,7 +49,7 @@ class WorkspaceContextResolver
         foreach (User::staffRoleOptions() as $role => $label) {
             if ($user->hasAssignedRole($role)) {
                 $destination = match ($role) {
-                    User::StaffRoleRegistrar => AdmissionApplicationResource::getUrl(panel: 'admin', isAbsolute: false),
+                    User::StaffRoleRegistrar => Admissions::getUrl(panel: 'admin', isAbsolute: false),
                     User::StaffRoleAccounting => EnrollmentResource::getUrl(panel: 'admin', isAbsolute: false),
                     User::StaffRoleFaculty => FacultySchedule::getUrl(panel: 'admin', isAbsolute: false),
                     User::StaffRoleAcademicHead => AcademicApprovals::getUrl(panel: 'admin', isAbsolute: false),

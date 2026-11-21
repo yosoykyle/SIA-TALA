@@ -133,4 +133,13 @@ class Term extends Model
             self::StateClosed => 'Closed',
         ];
     }
+
+    public function stateColor(): string
+    {
+        return match ($this->state) {
+            self::StateActive => 'success',
+            self::StateClosed => 'warning',
+            default => 'gray',
+        };
+    }
 }

@@ -107,7 +107,7 @@
         <x-slot name="footer">
             <div class="fi-modal-footer-actions">
                 @if (! $this->requiresCompleteSubmission())
-                    <x-filament::button type="button" wire:click="mountAction('saveAndExit')" wire:loading.attr="disabled" x-on:click="$dispatch('close-modal', { id: 'tala-leave-application' })" autofocus>
+                    <x-filament::button type="button" wire:click="saveAndExit" wire:loading.attr="disabled" x-on:click="$dispatch('close-modal', { id: 'tala-leave-application' })" autofocus>
                         Save and exit
                     </x-filament::button>
                 @endif

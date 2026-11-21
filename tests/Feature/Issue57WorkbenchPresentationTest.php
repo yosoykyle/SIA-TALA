@@ -200,12 +200,13 @@ class Issue57WorkbenchPresentationTest extends TestCase
             ->assertCanNotSeeTableRecords([$older]);
     }
 
+    /** @see TalaPanelTheme::isRegistrarWorkspace() The Registrar workspace shows the school identity through its own top bar (#80) instead of the shared mobile-only div other staff workspaces still use. */
     public function test_native_content_hook_exposes_school_workspace_identity_outside_the_drawer(): void
     {
         $this->withoutMiddleware(EnsureStaffMfaIsEnabled::class);
         $registrar = $this->registrar();
         $response = $this->actingAs($registrar)->get(ListAdmissionApplications::getUrl());
-        $response->assertOk()->assertSee('tala-mobile-workspace-identity', false)
+        $response->assertOk()->assertSee('tala-registrar-topbar', false)
             ->assertSee('Servitech Institute Asia — Staff Workspace')
             ->assertSee('The latest request could not be confirmed')
             ->assertSee('Reload workbench');
@@ -213,7 +214,7 @@ class Issue57WorkbenchPresentationTest extends TestCase
         $document = new \DOMDocument;
         @$document->loadHTML($html);
         $xpath = new \DOMXPath($document);
-        $identities = $xpath->query('//main//*[contains(concat(" ", normalize-space(@class), " "), " tala-mobile-workspace-identity ")]');
+        $identities = $xpath->query('//*[contains(concat(" ", normalize-space(@class), " "), " tala-registrar-topbar__identity ")]');
 
         $this->assertCount(1, $identities);
         $this->assertSame('Servitech Institute Asia', trim(preg_replace('/\s+/u', ' ', $identities->item(0)->textContent)));

@@ -16,6 +16,7 @@ use App\Actions\Finance\PaymentPostedNotificationService;
 use App\Actions\Finance\PublishFeePlan;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
+use App\Actions\Finance\RecordCounterCashPayment;
 use App\Actions\Finance\RevalidateAssessmentEffects;
 use App\Actions\Finance\ReverseApprovedCoverage;
 use App\Actions\Finance\ReversePaymentPosting;
@@ -69,6 +70,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
@@ -183,6 +185,57 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
             ->where('payment_id', $first->id)
             ->where('assessment_obligation_id', $fixture['obligations'][0]->id)
             ->sum('amount'));
+    }
+
+    public function test_accounting_can_record_a_counter_cash_payment_without_applicant_uploaded_evidence(): void
+    {
+        $fixture = $this->accountFixture();
+
+        $payment = app(RecordCounterCashPayment::class)->execute(
+            $fixture['account'],
+            $fixture['accounting'],
+            '12000.00',
+            'OR-0001',
+            now(),
+        );
+
+        $evidence = PaymentEvidenceVersion::query()->findOrFail($payment->payment_evidence_version_id);
+        $this->assertSame(PaymentEvidenceVersion::StateVerified, $evidence->state);
+        $this->assertSame(PaymentEvidenceVersion::SourceAccountingCounter, $evidence->source);
+        $this->assertNull($evidence->disk);
+        $this->assertNull($evidence->path);
+        $this->assertSame($fixture['accounting']->id, $evidence->submitted_by);
+        $this->assertSame('cash', $evidence->channel);
+        $this->assertSame('OR-0001', $evidence->payment_reference);
+        $this->assertSame('cash', $payment->channel);
+        $this->assertSame('verified', $payment->evidence_status);
+        $this->assertSame('OR-0001', $payment->external_check_reference);
+        $this->assertSame('12000.00', $payment->amount);
+        $this->assertSame('12000.00', PaymentAllocation::query()
+            ->where('payment_id', $payment->id)
+            ->where('assessment_obligation_id', $fixture['obligations'][0]->id)
+            ->sum('amount'));
+    }
+
+    public function test_counter_cash_payment_rejects_a_duplicate_official_receipt_number(): void
+    {
+        $first = $this->accountFixture();
+        $second = $this->accountFixture();
+
+        app(RecordCounterCashPayment::class)->execute($first['account'], $first['accounting'], '12000.00', 'OR-DUPLICATE', now());
+
+        $this->expectException(ValidationException::class);
+
+        app(RecordCounterCashPayment::class)->execute($second['account'], $second['accounting'], '12000.00', 'OR-DUPLICATE', now());
+    }
+
+    public function test_only_accounting_staff_may_record_a_counter_cash_payment(): void
+    {
+        $fixture = $this->accountFixture();
+
+        $this->expectException(AuthorizationException::class);
+
+        app(RecordCounterCashPayment::class)->execute($fixture['account'], $fixture['learner'], '12000.00', 'OR-0002', now());
     }
 
     public function test_payment_notification_is_after_commit_and_duplicate_safe_for_the_account_owner(): void

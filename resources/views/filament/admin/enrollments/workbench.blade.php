@@ -11,7 +11,7 @@
         <p class="tala-workspace-launcher__scope">Current enrollment cases across all terms</p>
         <nav class="tala-workspace-launcher__main" aria-label="Registrar enrollment work">
             @foreach ([
-                ['ready_to_prepare', 'prepare', 'heroicon-o-document-text', 'Prepare subjects', 'Drafts and subjects not yet issued', 'Prepare subjects'],
+                ['ready_to_prepare', 'prepare', 'heroicon-o-document-text', 'New enrollments to prepare', 'Review these and send the student their class schedule.', 'Prepare subjects'],
                 ['placement_shortages', 'issues', 'heroicon-o-exclamation-circle', 'Resolve enrollment issues', 'Review current classes or requirements that need attention.', 'Review issues'],
                 ['ready_to_finalize', 'ready', 'heroicon-o-check-circle', 'Make enrollment official', 'Confirmed and cleared for final review.', 'Review enrollments'],
             ] as [$queue, $countKey, $icon, $label, $description, $action])

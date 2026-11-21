@@ -56,7 +56,7 @@ class Issue76FocusedTermNavigationTest extends TestCase
         $groups = $this->staffNavigation()->getNavigation();
 
         $this->assertSame(['Learner work', 'Academic setup'], array_map(fn ($group): ?string => $group->getLabel(), $groups));
-        $this->assertSame(['Admissions', 'Students & Enrollment', 'Grades & Completion'], array_map(fn ($item): string => $item->getLabel(), $groups[0]->getItems()));
+        $this->assertSame(['Admissions', 'Students & Enrollment', 'Students Record'], array_map(fn ($item): string => $item->getLabel(), $groups[0]->getItems()));
         $this->assertSame(['Catalog & Curricula', 'Term Planning'], array_map(fn ($item): string => $item->getLabel(), $groups[1]->getItems()));
         $items = $this->planningChildren();
         $this->assertSame(['Term overview', 'Teaching calendar', 'Classes & student sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $items));

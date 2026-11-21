@@ -18,7 +18,7 @@
                     :actions="[\Filament\Actions\Action::make('changeTerm')->label('Change Term')->color('gray')->icon('heroicon-o-arrows-right-left')->url(\App\Filament\Pages\TermOverview::getUrl(['chooseTerm' => true]))]" />
                 <div class="tala-workspace-overview__context">
                     <span><x-filament::icon icon="heroicon-o-calendar-days" /><time datetime="{{ $term->starts_on->toDateString() }}">{{ $term->starts_on->format('M j') }}</time> – <time datetime="{{ $term->ends_on->toDateString() }}">{{ $term->ends_on->format('M j, Y') }}</time></span>
-                    <span>Record status: <x-filament::badge color="gray">{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge></span>
+                    <span>Record status: <x-filament::badge :color="$term->stateColor()">{{ \App\Models\Term::stateOptions()[$term->state] ?? $term->state }}</x-filament::badge></span>
                     <span><x-filament::icon icon="heroicon-o-globe-alt" />School-wide · All programs and year levels</span>
                 </div>
                 @if ($this->termAutoSelected)<p class="tala-work-footnote">Opened automatically: the only Term with an active teaching calendar.</p>@endif
@@ -147,34 +147,47 @@
                     </x-servitech-empty-state>
                 </section>
             @else
-                @if ($terms->count() > 6)
-                    <div class="tala-term-chooser-search">{{ $this->termSelection }}<p>Search by academic year or Term.</p></div>
-                @endif
-                <div class="tala-term-selection" aria-label="Recorded Terms">
-                    @foreach ($terms->groupBy(fn (\App\Models\Term $availableTerm): string => (string) ($availableTerm->academic_year_id ?? 'unrecorded')) as $yearTerms)
-                        @php($academicYear = $yearTerms->first()->academicYear)
-                        <section class="tala-term-year-group">
-                            <div class="tala-term-year-heading">
+                <div class="tala-term-chooser-search">{{ $this->academicYearFilterSelection }}<p>Choose an academic year to see its Terms.</p></div>
+                @if ($this->academicYearId === null)
+                    <section class="tala-task-surface tala-task-work tala-planning-first-use" aria-labelledby="choose-academic-year-heading">
+                        <x-filament::icon icon="heroicon-o-calendar-days" />
+                        <h2 id="choose-academic-year-heading">Choose an academic year</h2>
+                        <p>Pick an academic year above to see its recorded Terms.</p>
+                    </section>
+                @else
+                    @php($yearTerms = $terms->where('academic_year_id', $this->academicYearId))
+                    <div class="tala-term-selection" aria-label="Recorded Terms">
+                        @if ($yearTerms->isEmpty())
+                            <section class="tala-task-surface tala-task-work tala-planning-first-use" aria-labelledby="no-terms-for-year-heading">
                                 <x-filament::icon icon="heroicon-o-calendar-days" />
-                                <div><h2>{{ $academicYear?->label ?? 'Academic year not recorded' }}</h2><p>Academic year · {{ $yearTerms->count().' '.\Illuminate\Support\Str::plural('Term', $yearTerms->count()) }}</p></div>
-                            </div>
-                            <ul class="tala-task-surface tala-term-selection-list">
-                                @foreach ($yearTerms as $availableTerm)
-                                    <li class="tala-term-option">
-                                        <div class="tala-term-option-copy">
-                                            <div class="tala-term-option-title"><h3>{{ $availableTerm->typeLabel() }}</h3><x-filament::badge :color="$availableTerm->state === \App\Models\Term::StateActive ? 'success' : 'gray'">{{ \App\Models\Term::stateOptions()[$availableTerm->state] ?? $availableTerm->state }}</x-filament::badge></div>
-                                            <p class="tala-term-option-dates"><time datetime="{{ $availableTerm->starts_on->toDateString() }}">{{ $availableTerm->starts_on->format('M j, Y') }}</time> – <time datetime="{{ $availableTerm->ends_on->toDateString() }}">{{ $availableTerm->ends_on->format('M j, Y') }}</time></p>
-                                            @if ($availableTerm->label !== $availableTerm->typeLabel())<p class="tala-term-option-name">{{ $availableTerm->label }}</p>@endif
-                                            <p class="tala-term-option-count">{{ $availableTerm->term_offerings_count ? $availableTerm->term_offerings_count.' course offerings with recorded classes' : 'No classes recorded' }}</p>
-                                        </div>
-                                        <x-filament::button tag="a" color="gray" size="sm" icon="heroicon-o-arrow-right" icon-position="after" :aria-label="'Open Term: '.$availableTerm->label" :href="\App\Filament\Pages\TermOverview::getUrl(['termId' => $availableTerm->id])">Open Term</x-filament::button>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        </section>
-                    @endforeach
-                    <p class="tala-work-footnote tala-term-selection-scope"><x-filament::icon icon="heroicon-o-globe-alt" />Each Term covers the school’s programs and year levels.</p>
-                </div>
+                                <h2 id="no-terms-for-year-heading">No Terms recorded for this academic year</h2>
+                                @if (! $readOnly)<x-filament::button tag="a" icon="heroicon-o-plus" :href="\App\Filament\Resources\Terms\TermResource::getUrl('create', ['viewTab' => 'plan'])">Add Term</x-filament::button>@endif
+                            </section>
+                        @else
+                            @php($academicYear = $yearTerms->first()->academicYear)
+                            <section class="tala-term-year-group">
+                                <div class="tala-term-year-heading">
+                                    <x-filament::icon icon="heroicon-o-calendar-days" />
+                                    <div><h2>{{ $academicYear?->label ?? 'Academic year not recorded' }}</h2><p>Academic year · {{ $yearTerms->count().' '.\Illuminate\Support\Str::plural('Term', $yearTerms->count()) }}</p></div>
+                                </div>
+                                <ul class="tala-task-surface tala-term-selection-list">
+                                    @foreach ($yearTerms as $availableTerm)
+                                        <li class="tala-term-option">
+                                            <div class="tala-term-option-copy">
+                                                <div class="tala-term-option-title"><h3>{{ $availableTerm->typeLabel() }}</h3><x-filament::badge :color="$availableTerm->stateColor()">{{ \App\Models\Term::stateOptions()[$availableTerm->state] ?? $availableTerm->state }}</x-filament::badge></div>
+                                                <p class="tala-term-option-dates"><time datetime="{{ $availableTerm->starts_on->toDateString() }}">{{ $availableTerm->starts_on->format('M j, Y') }}</time> – <time datetime="{{ $availableTerm->ends_on->toDateString() }}">{{ $availableTerm->ends_on->format('M j, Y') }}</time></p>
+                                                @if ($availableTerm->label !== $availableTerm->typeLabel())<p class="tala-term-option-name">{{ $availableTerm->label }}</p>@endif
+                                                <p class="tala-term-option-count">{{ $availableTerm->term_offerings_count ? $availableTerm->term_offerings_count.' course offerings with recorded classes' : 'No classes recorded' }}</p>
+                                            </div>
+                                            <x-filament::button tag="a" color="gray" size="sm" icon="heroicon-o-arrow-right" icon-position="after" :aria-label="'Open Term: '.$availableTerm->label" :href="\App\Filament\Pages\TermOverview::getUrl(['termId' => $availableTerm->id])">Open Term</x-filament::button>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </section>
+                        @endif
+                        <p class="tala-work-footnote tala-term-selection-scope"><x-filament::icon icon="heroicon-o-globe-alt" />Each Term covers the school’s programs and year levels.</p>
+                    </div>
+                @endif
             @endif
         </div>
     @endif

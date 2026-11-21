@@ -71,7 +71,7 @@
                     @endif
                     @if ($timetablePresentation['synthetic'] ?? false)<p class="tala-studio-record">Synthetic review data</p>@endif
                     @if ($readOnly)<p class="tala-studio-record">Read-only · Registrar maintains these records.</p>@endif
-                    @if ($solverFailure || ! empty($solverOutcome['message']))<p class="tala-guide-info tala-guide-warning" role="status">{{ $solverFailure['message'] ?? $solverOutcome['message'] }}</p>@endif
+                    @if ($solverFailure || ! empty($solverOutcome['message']))<p class="tala-guide-info tala-guide-warning" role="status">{{ \App\Actions\Scheduling\TimetableFailureLanguage::forSolverFailureMessage($solverFailure['message'] ?? $solverOutcome['message'])['explanation'] }} {{ \App\Actions\Scheduling\TimetableFailureLanguage::forSolverFailureMessage($solverFailure['message'] ?? $solverOutcome['message'])['nextStep'] }}</p><details class="tala-planning-coverage"><summary>Technical details</summary><div class="tala-planning-reveal"><p class="tala-work-footnote">{{ $solverFailure['message'] ?? $solverOutcome['message'] }}</p></div></details>@endif
 
                 </section>
             @endif
@@ -100,7 +100,7 @@
                                     ? 'Resolve '.count($readinessBlockers).' remaining prerequisites below before generating a whole-Term timetable.'
                                     : ($readiness['reason'] ?? 'Complete the remaining prerequisite before generating a timetable.')));
                     @endphp
-                    <div class="tala-guide-empty-work tala-planning-timetable-empty">
+                    <div class="tala-guide-empty-work">
                         <x-servitech-empty-state :illustrated="! ($activeRun && ! $showOfficial)" :heading="$activeRun && ! $showOfficial ? (in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) ? 'Preparing the meetings' : 'No meetings are available from this draft.') : 'No timetable yet'" :description="$emptyDescription">
                             @if ($activeRun && ! $showOfficial)<x-filament::button tag="a" color="gray" icon="heroicon-o-clipboard-document-check" :href="$this->timetableReviewUrl($activeRun->id)">Review findings and recovery</x-filament::button>@endif
                             @if (! $activeRun && ! $readOnly && $readiness['ready']){{ $this->generateTimetableAction }}@endif
@@ -111,7 +111,7 @@
                                 :heading="count($readinessBlockers) === 1 ? '1 prerequisite remaining' : count($readinessBlockers).' prerequisites remaining'"
                                 description="Complete each item below before generating a whole-Term timetable."
                                 compact
-                                style="inline-size: 100%; max-inline-size: 48rem; text-align: start;"
+                                style="inline-size: 100%; max-inline-size: 48rem; margin-inline: auto; text-align: start;"
                             >
                                 @if ($this->syncSchedulingDemandsAction->isVisible())
                                     <x-slot name="afterHeader">
@@ -260,12 +260,14 @@
                                     <x-filament::button tag="a" color="gray" icon="heroicon-o-document-text" :href="$this->timetableReviewUrl($selectedVersion->schedule_run_id)">Publication record</x-filament::button>
                                 </div>
                             @elseif ($activeRun)
+                                <p class="tala-evidence-meaning">{{ \App\Actions\Scheduling\TimetableFailureLanguage::forOutcome($reviewEvidence['outcome'])['explanation'] }}</p>
                                 <dl class="tala-evidence-checks">
-                                    <div><x-filament::icon icon="heroicon-o-cpu-chip" /><div><dt>Solver result</dt><dd>{{ $reviewEvidence['outcome'] }}</dd></div></div>
-                                    <div><x-filament::icon icon="heroicon-o-calendar-days" /><div><dt>Meeting completeness</dt><dd>{{ $reviewEvidence['coverage'] }}</dd></div></div>
-                                    <div><x-filament::icon icon="heroicon-o-shield-check" /><div><dt>Conflict checks</dt><dd>{{ $reviewEvidence['conflicts'] }}</dd></div></div>
+                                    <div><x-filament::icon icon="heroicon-o-cpu-chip" /><div><dt>Solver result</dt><dd>{{ \App\Actions\Scheduling\TimetableFailureLanguage::forOutcome($reviewEvidence['outcome'])['label'] }}</dd></div></div>
+                                    <div><x-filament::icon icon="heroicon-o-calendar-days" /><div><dt>Meeting completeness</dt><dd>{{ str_contains($reviewEvidence['coverage'], 'not established') ? \App\Actions\Scheduling\TimetableFailureLanguage::meetingCompletenessNotEstablished() : $reviewEvidence['coverage'] }}</dd></div></div>
+                                    <div><x-filament::icon icon="heroicon-o-shield-check" /><div><dt>Conflict checks</dt><dd>{{ str_contains($reviewEvidence['conflicts'], 'not established') ? \App\Actions\Scheduling\TimetableFailureLanguage::conflictChecksNotEstablished() : $reviewEvidence['conflicts'] }}</dd></div></div>
                                 </dl>
                                 <p class="tala-evidence-meaning">{{ $reviewEvidence['meaning'] }}</p>
+                                <details class="tala-planning-coverage"><summary>Technical details</summary><div class="tala-planning-reveal"><p class="tala-work-footnote">Solver outcome code: {{ $reviewEvidence['outcome'] }}</p></div></details>
                                 <div class="tala-evidence-actions"><x-filament::button tag="a" color="primary" icon="heroicon-o-magnifying-glass" :href="$this->timetableReviewUrl($activeRun->id)">{{ $scopeMeetingCount ? 'Inspect assignments and validation' : 'Inspect generation diagnostics and validation findings' }}</x-filament::button></div>
                             @endif
                             @if ($showOfficial && $workingRun)
@@ -304,6 +306,7 @@
                     <x-slot name="footerActions"><x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })">Close</x-filament::button></x-slot>
                 </x-filament::modal>
             @endif
+            @include('filament.pages.partials.timetable-generation-failure-modal')
         </div>
     @else
         @include('filament.pages.partials.term-workspace-header')

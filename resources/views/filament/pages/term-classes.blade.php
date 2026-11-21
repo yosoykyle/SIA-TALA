@@ -9,12 +9,18 @@
                 ->color('gray')
                 ->icon($classesView === 'classes' ? 'heroicon-o-user-group' : 'heroicon-o-book-open')
                 ->url(\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id, ...($classesView === 'classes' ? ['classesView' => 'cohorts'] : [])])),
+            \App\Filament\Resources\SchedulingDemands\SchedulingDemandResource::canAccess()
+                ? \Filament\Actions\Action::make('scheduleRequirements')->label('Schedule requirements')->color('gray')->outlined()->icon('heroicon-o-clipboard-document-check')->url(\App\Filament\Resources\SchedulingDemands\SchedulingDemandResource::getUrl('index', ['filters' => ['term_id' => ['value' => $term->id]]]))
+                : null,
         ])) : [];
     @endphp
     @include('filament.pages.partials.term-workspace-header', ['extraHeaderActions' => $extraHeaderActions])
     @if ($term)
         <section class="tala-task-work {{ $classesView === 'cohorts' ? 'tala-term-cohorts' : '' }}" aria-label="Classes and student sections">
             <p class="tala-work-summary">{{ $classesView === 'cohorts' ? 'Groups of learners who take classes together.' : 'Review the classes that will run and the meetings they need.' }}</p>
+            @if ($classesView === 'cohorts' && ! $readOnly)
+                <div class="tala-task-commands">{{ $this->recordCohortAction }}</div>
+            @endif
             @if ($classesView === 'classes' && ! $activePackage)
                 <p class="tala-work-footnote" role="status">Preparing and confirming classes requires an active teaching calendar. Student sections can be recorded now.</p>
             @endif

@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\AdmissionCycles;
 
-use App\Filament\Clusters\Admissions;
 use App\Filament\Resources\AdmissionCycles\Pages\CreateAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\Pages\EditAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\Pages\ListAdmissionCycles;
@@ -22,8 +21,6 @@ use Illuminate\Database\Eloquent\Builder;
 class AdmissionCycleResource extends Resource
 {
     protected static ?string $model = AdmissionCycle::class;
-
-    protected static ?string $cluster = Admissions::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDateRange;
 

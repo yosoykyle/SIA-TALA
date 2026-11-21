@@ -115,4 +115,15 @@ class GradeRoster extends Model
     {
         return $this->state === self::StateReleased && $this->released_at !== null;
     }
+
+    public function stateColor(): string
+    {
+        return match ($this->state) {
+            self::StateSubmitted => 'info',
+            self::StateReturned => 'warning',
+            self::StateReleased => 'success',
+            self::StateLateNotSubmitted => 'warning',
+            default => 'gray',
+        };
+    }
 }

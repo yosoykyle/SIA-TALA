@@ -170,6 +170,7 @@ final class RevisePublishedTimetable
 
                 $payload = $payloads->first(
                     fn (array $candidate): bool => (int) $candidate['section_id'] === (int) $meeting->section_id
+                        && (int) ($candidate['scheduling_demand_id'] ?? 0) === (int) $meeting->scheduling_demand_id
                         && (int) $candidate['meeting_sequence'] === (int) $meeting->meeting_sequence,
                 );
                 $successorMeeting = PublishedTimetableMeeting::query()->create([
