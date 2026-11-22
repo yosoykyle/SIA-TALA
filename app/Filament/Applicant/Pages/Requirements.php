@@ -223,16 +223,25 @@ class Requirements extends Page implements HasTable
         }
 
         $isCleared = app(ReadyApplicantProjectionQuery::class)->forApplication($application)['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared;
+        $held = $application->credentialResults()
+            ->whereDoesntHave('successor')
+            ->where('result', OfficialCredentialResult::ResultAuthorizedException)
+            ->get()
+            ->keyBy('admission_requirement_id');
 
         return $requirements->map(fn (AdmissionRequirement $requirement): array => [
             'requirement_id' => (int) $requirement->id,
             'label' => $requirement->label,
             'onsite' => true,
-            'due' => $requirement->dueStageLabel(),
+            'due' => $held->has($requirement->id)
+                ? 'Still owed · bring it by '.$held->get($requirement->id)->exception_expires_at?->timezone(config('app.display_timezone'))->format('M j, Y')
+                : $requirement->dueStageLabel(),
             'instructions' => $requirement->applicant_instructions,
-            ...($isCleared && $requirement->due_stage !== AdmissionRequirement::DuePostEnrollmentFollowUp
-                ? ['state' => 'Passed on-site', 'color' => 'success']
-                : ['state' => 'To be passed on-site', 'color' => 'gray']),
+            ...match (true) {
+                $held->has($requirement->id) => ['state' => 'On hold', 'color' => 'warning'],
+                $isCleared && $requirement->due_stage !== AdmissionRequirement::DuePostEnrollmentFollowUp => ['state' => 'Passed on-site', 'color' => 'success'],
+                default => ['state' => 'To be passed on-site', 'color' => 'gray'],
+            },
         ])->values()->all();
     }
 
@@ -243,6 +252,7 @@ class Requirements extends Page implements HasTable
             'NotSubmitted' => 'No copy received',
             'LegacyReviewRecorded' => 'Earlier copy review recorded',
             PreliminaryEvidenceReview::ResultAccepted => 'Review copy accepted',
+            OfficialCredentialResult::ResultAuthorizedException => 'On hold — still owed',
             default => ucfirst(str($result)->headline()->lower()->toString()),
         };
     }
@@ -251,8 +261,8 @@ class Requirements extends Page implements HasTable
     {
         return match ($result) {
             PreliminaryEvidenceReview::ResultAccepted,
-            OfficialCredentialResult::ResultVerified,
-            OfficialCredentialResult::ResultAuthorizedException => 'success',
+            OfficialCredentialResult::ResultVerified => 'success',
+            OfficialCredentialResult::ResultAuthorizedException,
             PreliminaryEvidenceReview::ResultActionNeeded,
             OfficialCredentialResult::ResultActionNeeded => 'warning',
             OfficialCredentialResult::ResultNotYetDue => 'gray',

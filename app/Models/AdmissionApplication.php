@@ -134,6 +134,8 @@ class AdmissionApplication extends Model
             'optional_identity_consented_at' => 'datetime',
             'accuracy_declared_at' => 'datetime',
             'submitted_at' => 'datetime',
+            'requirements_due_at' => 'datetime',
+            'payment_due_at' => 'datetime',
         ];
     }
 

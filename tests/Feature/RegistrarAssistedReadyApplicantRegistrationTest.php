@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Enrollment\PrepareRegistrationProposal;
 use App\Actions\Enrollment\RegistrationWindowApplicability;
 use App\Actions\Enrollment\StartRegistrationCase;
+use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
@@ -46,6 +47,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -1109,7 +1111,67 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         return $term;
     }
 
-    private function createReadyApplicant(Term $term): AdmissionApplication
+    public function test_registrar_starts_a_cleared_applicants_enrollment_from_the_admission_record_without_the_applicant(): void
+    {
+        $registrar = $this->createRegistrar();
+        $registrar->givePermissionTo(Permission::findOrCreate('approve-documents', 'web'));
+        $term = $this->createTermWithOpenEnrollmentWindow();
+        $application = $this->createReadyApplicant($term);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->assertActionVisible('startEnrollment')
+            ->assertActionHidden('openEnrollment');
+        $this->assertSame('startEnrollment', $page->instance()->getCachedHeaderActions()[0]->getName());
+
+        $page->callAction('startEnrollment')->assertNotified('Enrollment started');
+
+        $enrollment = Enrollment::query()->where('admission_application_id', $application->id)->sole();
+        $this->assertSame('RegistrarAssisted', $enrollment->start_method);
+        $this->assertSame($registrar->id, $enrollment->started_by);
+        $this->assertSame($application->user_id, $enrollment->credential_user_id);
+        $page->assertRedirect(EnrollmentResource::getUrl('view', ['record' => $enrollment]));
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->assertActionHidden('startEnrollment')
+            ->assertActionVisible('openEnrollment');
+    }
+
+    public function test_registrar_records_clearance_and_starts_enrollment_in_one_step(): void
+    {
+        $registrar = $this->createRegistrar();
+        $registrar->givePermissionTo(Permission::findOrCreate('approve-documents', 'web'));
+        $term = $this->createTermWithOpenEnrollmentWindow();
+        $application = $this->createReadyApplicant($term, cleared: false);
+        $paper = $application->currentSubmissionVersion->requirementSet->requirements->first();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->callAction('recordEnrollmentClearance', ['checklist_InPerson' => [$paper->id]], ['result' => RegistrarEnrollmentClearance::ResultCleared, 'start_enrollment' => true])
+            ->assertNotified('Enrollment started');
+
+        $this->assertSame(RegistrarEnrollmentClearance::ResultCleared, $application->enrollmentClearances()->sole()->result);
+        $this->assertSame('RegistrarAssisted', Enrollment::query()->where('admission_application_id', $application->id)->sole()->start_method);
+    }
+
+    public function test_clear_and_start_keeps_the_clearance_when_the_enrollment_window_is_closed(): void
+    {
+        $registrar = $this->createRegistrar();
+        $registrar->givePermissionTo(Permission::findOrCreate('approve-documents', 'web'));
+        $term = Term::factory()->create();
+        $application = $this->createReadyApplicant($term, cleared: false);
+        $paper = $application->currentSubmissionVersion->requirementSet->requirements->first();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->callAction('recordEnrollmentClearance', ['checklist_InPerson' => [$paper->id]], ['result' => RegistrarEnrollmentClearance::ResultCleared, 'start_enrollment' => true])
+            ->assertNotified('Enrollment not started');
+
+        $this->assertSame(RegistrarEnrollmentClearance::ResultCleared, $application->enrollmentClearances()->sole()->result);
+        $this->assertFalse(Enrollment::query()->where('admission_application_id', $application->id)->exists());
+    }
+
+    private function createReadyApplicant(Term $term, bool $cleared = true): AdmissionApplication
     {
         $cycle = AdmissionCycle::factory()->for($term)->create();
         $requirementSet = AdmissionRequirementSet::factory()->for($cycle)->create([
@@ -1152,6 +1214,10 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
             'application_submission_version_id' => $version->id,
             'decision' => AdmissionDecision::DecisionAdmitted,
         ]);
+        if (! $cleared) {
+            return $application->fresh();
+        }
+
         RegistrarEnrollmentClearance::factory()->forAdmittedApplication($application)->create([
             'result' => RegistrarEnrollmentClearance::ResultCleared,
             'external_checks_confirmed' => true,

@@ -190,6 +190,42 @@ class ViewAdmissionCycle extends ViewRecord
                     'Correction boundary extended',
                     $action,
                 )),
+            Action::make('setDeadlines')
+                ->label('Set admission deadlines')
+                ->modalSubmitActionLabel('Save deadlines')
+                ->color('gray')->outlined()
+                ->icon('heroicon-o-calendar-days')
+                ->modalDescription('Physical papers and the enrollment payment must be done by these times, or the application expires until the Registrar extends it. When the admission period ends, unfinished applications close for good and applicants create a new account for a later term. Times are Asia/Manila; leave a date blank if the school has not set it.')
+                ->modalWidth(Width::ThreeExtraLarge)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
+                ->fillForm(fn (): array => [
+                    'requirements_due_at' => $this->cycle()->requirements_due_at,
+                    'payment_due_at' => $this->cycle()->payment_due_at,
+                    'period_ends_at' => $this->cycle()->period_ends_at,
+                ])
+                ->schema([
+                    Grid::make(['default' => 1, 'md' => 3])->schema([
+                        $this->deadlinePicker('requirements_due_at', 'Physical papers due', 'heroicon-o-document-check'),
+                        $this->deadlinePicker('payment_due_at', 'Enrollment payment due', 'heroicon-o-banknotes'),
+                        $this->deadlinePicker('period_ends_at', 'Admission period ends', 'heroicon-o-lock-closed'),
+                    ]),
+                    ...$this->authoritySchema(),
+                ])
+                ->visible(fn (): bool => $this->cycle()->state !== AdmissionCycle::StateCancelled)
+                ->action(fn (array $data, Action $action): mixed => $this->runCycleAction(
+                    fn (AdmissionCycle $cycle, User $actor): AdmissionCycle => app(ChangeAdmissionCycle::class)->setDeadlines(
+                        $cycle,
+                        $actor,
+                        filled($data['requirements_due_at'] ?? null) ? CarbonImmutable::parse((string) $data['requirements_due_at']) : null,
+                        filled($data['payment_due_at'] ?? null) ? CarbonImmutable::parse((string) $data['payment_due_at']) : null,
+                        filled($data['period_ends_at'] ?? null) ? CarbonImmutable::parse((string) $data['period_ends_at']) : null,
+                        (string) $data['reason'],
+                        (string) $data['authority_reference'],
+                    ),
+                    'Admission deadlines saved',
+                    $action,
+                )),
             Action::make('cancel')
                 ->label('Cancel cycle')
                 ->modalSubmitActionLabel('Cancel cycle')
@@ -211,7 +247,18 @@ class ViewAdmissionCycle extends ViewRecord
                 )),
         ];
 
-        return [$actions[0], $actions[1], $actions[3], $actions[4], $actions[5], $actions[2], $actions[6]];
+        return [$actions[0], $actions[1], $actions[3], $actions[4], $actions[5], $actions[6], $actions[2], $actions[7]];
+    }
+
+    private function deadlinePicker(string $name, string $label, string $icon): DateTimePicker
+    {
+        return DateTimePicker::make($name)
+            ->label($label)
+            ->displayFormat('M j, Y · g:i A')
+            ->timezone('Asia/Manila')
+            ->prefixIcon($icon)
+            ->placeholder('Not set')
+            ->native(false);
     }
 
     /** @return list<TextInput|Textarea> */
@@ -279,7 +326,7 @@ class ViewAdmissionCycle extends ViewRecord
         try {
             $operation($this->cycle(), $actor);
             Notification::make()->title($successTitle)->success()->send();
-            $this->refreshFormData(['state', 'opens_at', 'closes_at', 'correction_closes_at']);
+            $this->refreshFormData(['state', 'opens_at', 'closes_at', 'correction_closes_at', 'requirements_due_at', 'payment_due_at', 'period_ends_at']);
         } catch (ValidationException $exception) {
             Notification::make()
                 ->title('Admission Cycle action blocked')

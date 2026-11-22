@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Admissions\AdmissionEvidenceService;
 use App\Actions\Admissions\AdmissionReviewGuard;
+use App\Actions\Admissions\ChangeAdmissionCycle;
 use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Actions\Admissions\RecordAdmissionDecision;
 use App\Actions\Admissions\RecordRegistrarEnrollmentClearance;
@@ -21,6 +22,7 @@ use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
 use App\Filament\Resources\AdmissionCycles\Pages\ListAdmissionCycles;
 use App\Filament\Resources\AdmissionCycles\Pages\ViewAdmissionCycle;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirement;
@@ -31,12 +33,15 @@ use App\Models\ApplicationSubmissionVersion;
 use App\Models\DocumentEvidence;
 use App\Models\Enrollment;
 use App\Models\IdentityMatchReview;
+use App\Models\OfficialCredentialResult;
+use App\Models\OperationalEvent;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\RegistrarEnrollmentClearance;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
 use App\Models\User;
+use App\Queries\Admissions\AdmissionDeadlineStatus;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Carbon\CarbonImmutable;
 use Filament\Actions\ActionGroup;
@@ -48,6 +53,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -206,7 +212,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertSame('Review application', $record->instance()->getBreadcrumb());
         $record->assertSee('Personal Information')->assertSee('Educational Information')->assertSee('Application Choice')
             ->assertSee($application->email)->assertDontSee('Version / Uploaded')
-            ->assertSee('Admission decisions')->assertSee('Registrar enrollment clearance');
+            ->assertSee('Record events')->assertDontSee('Admission decisions');
         $this->assertContains('Application queue', $record->instance()->getBreadcrumbs());
     }
 
@@ -237,16 +243,16 @@ class Issue57AdmissionsPresentationTest extends TestCase
             ->assertSee('Back to home')->assertDontSee('Try submitting again');
     }
 
-    public function test_current_review_copies_are_separated_from_retained_earlier_versions(): void
+    public function test_current_review_copies_show_only_the_latest_version(): void
     {
         [$application, , $requirement] = $this->application();
         $earlier = DocumentEvidence::factory()->canonical($application, $requirement)->create();
         $current = DocumentEvidence::factory()->canonical($application, $requirement)->create();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $page = Livewire::actingAs($this->registrar())->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->assertSee('Current evidence')->assertSee('Earlier evidence versions')->assertSee('Superseded — retained history');
+            ->assertSee('Current evidence')->assertDontSee('Earlier evidence versions');
         $this->assertSame([$current->id], $page->instance()->infolist->getComponentByStatePath('evidenceVersions')->getState()->modelKeys());
-        $this->assertSame([$earlier->id], $page->instance()->infolist->getComponentByStatePath('earlier_evidence')->getState()->modelKeys());
+        $this->assertNotContains($earlier->id, $page->instance()->infolist->getComponentByStatePath('evidenceVersions')->getState()->modelKeys());
     }
 
     public function test_queue_readiness_uses_current_evidence_and_date_time_filters(): void
@@ -412,7 +418,8 @@ class Issue57AdmissionsPresentationTest extends TestCase
             expectedSubmissionVersionId: $application->current_submission_version_id,
         );
         $ready = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        $this->assertSame('reviewReadiness', $ready->instance()->getCachedHeaderActions()[0]->getName());
+        // A cleared Applicant's next step is enrollment, which the Registrar can start at the desk; readiness stays reachable.
+        $this->assertSame('startEnrollment', $ready->instance()->getCachedHeaderActions()[0]->getName());
         $this->assertSame('Enrollment clearance is complete. Follow the published enrollment availability.',
             $ready->instance()->infolist->getComponentByStatePath('applicant_instruction')->getState());
         $ready->mountAction('reviewReadiness')->assertActionMounted('reviewReadiness');
@@ -505,6 +512,27 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertFalse($page->instance()->form->getComponentByStatePath('phone')->isDisabled());
         $this->assertTrue($page->instance()->form->getComponentByStatePath('first_name')->isDisabled());
         $page->assertSee('Corrections are still open')->assertSee('Correct the phone.');
+    }
+
+    public function test_evidence_review_remarks_show_only_for_under_review_or_action_needed(): void
+    {
+        [$application, , $requirement] = $this->application(preDecision: true);
+        $evidence = DocumentEvidence::factory()->canonical($application, $requirement)->create();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($this->registrar())->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->mountAction('reviewEvidence', ['document_evidence_id' => $evidence->id])
+            ->setActionData(['result' => PreliminaryEvidenceReview::ResultUnderReview])
+            ->assertActionDataSet(['result' => PreliminaryEvidenceReview::ResultUnderReview])
+            ->assertFormFieldVisible('reason')
+            ->setActionData(['result' => PreliminaryEvidenceReview::ResultActionNeeded])
+            ->assertFormFieldVisible('reason')
+            ->setActionData(['result' => PreliminaryEvidenceReview::ResultAccepted, 'reason' => 'Should not be kept'])
+            ->assertFormFieldHidden('reason')
+            ->callMountedAction()
+            ->assertNotified('Preliminary evidence review recorded');
+
+        $this->assertNull($evidence->preliminaryReviews()->sole()->reason);
     }
 
     public function test_submitted_primary_promotes_decision_after_current_reviews_and_identity_resolution(): void
@@ -1642,13 +1670,10 @@ class Issue57AdmissionsPresentationTest extends TestCase
             'applicant_explanation' => 'Stale explanation',
         ])->callMountedAction();
 
-        $decisionComponent->assertNotified('Registrar action blocked');
-        $decisionComponent->assertActionMounted('recordDecision');
-        $decisionComponent->assertActionDataSet([
-            'reason' => 'Stale attempt reason',
-            'authority_reference' => 'AUTH-STALE-DEC',
-            'applicant_explanation' => 'Stale explanation',
-        ]);
+        // The concurrent Not admitted decision is final (QA workflow), so the stale form can no longer record anything.
+        Livewire::actingAs($registrar)
+            ->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->assertActionHidden('recordDecision');
         $this->assertSame($recordCount, $application->fresh()->decisions()->count());
         $this->assertSame($concurrentDecision->id, $application->fresh()->decisions()->whereDoesntHave('successor')->value('id'));
 
@@ -1710,8 +1735,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
         // Submit mounted clearance form with stale captured snapshot
         $clearanceComponent->setActionData([
-            'result' => RegistrarEnrollmentClearance::ResultCleared,
-            'external_checks_confirmed' => true,
+            'checklist_InPerson' => [$clearanceReq->id],
             'reason' => 'Stale clearance replacement attempt',
             'authority_reference' => 'AUTH-STALE-CLEAR',
         ])->callMountedAction();
@@ -1726,7 +1750,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertSame($concurrentClearance->id, $clearanceApp->fresh()->enrollmentClearances()->whereDoesntHave('successor')->value('id'));
     }
 
-    public function test_admission_decision_summary_identifies_matching_and_earlier_retained_submission_source(): void
+    public function test_record_history_tab_shows_only_activity_delivery_and_technical_evidence(): void
     {
         [$application, , $requirement] = $this->application(preDecision: true);
         $registrar = $this->registrar();
@@ -1750,29 +1774,271 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        // 1. Current submitted version match: Record history lists the decision without an earlier-source flag.
         $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        $page->assertDontSee('Earlier submission')
-            ->assertSee('Admitted')
-            ->assertSee('Admitted with verified documents')
-            ->assertSee($registrar->name);
+        $page->assertSee('Record history')
+            ->assertSee('Record events')
+            ->assertSee('Current submission')->assertDontSee('Internal application ID')->assertDontSee('Requirement Set version')
+            ->assertSee('Decision Recorded')
+            ->assertDontSee('Decisions and clearance')
+            ->assertDontSee('Activity, delivery, and technical evidence')
+            ->assertDontSee('Acknowledgment');
+    }
 
-        // 2. Application updated with newer submission version: decision retains earlier submitted version indicator
-        $cycle = $application->admissionCycle;
-        $set = $application->currentSubmissionVersion->requirementSet;
-        $submissionVersion2 = ApplicationSubmissionVersion::factory()->create([
-            'admission_application_id' => $application->id,
-            'admission_requirement_set_id' => $set->id,
-            'version' => 2,
-            'submitted_by' => $application->user_id,
+    public function test_process_evaluation_checks_off_steps_in_order_and_names_the_current_action(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+        [$fresh] = $this->application(reviewed: false);
+
+        $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $fresh->id])
+            ->assertSee('Process evaluation');
+        $steps = collect($page->instance()->processEvaluation())->pluck('state', 'key')->all();
+        $this->assertSame(['review' => 'current', 'evidence' => 'upcoming', 'screening' => 'upcoming', 'clearance' => 'upcoming', 'readiness' => 'upcoming', 'payment' => 'upcoming', 'enrolled' => 'upcoming'], $steps);
+        $this->assertSame('startReview', $page->instance()->processEvaluation()[0]['action']);
+
+        [$admitted] = $this->admittedApplication($registrar);
+        $evaluation = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $admitted->id])
+            ->instance()->processEvaluation();
+        $this->assertSame(['done', 'done', 'done', 'current', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
+        $this->assertSame('recordEnrollmentClearance', $evaluation[3]['action']);
+        $this->assertSame('Application screening', $evaluation[2]['label']);
+    }
+
+    public function test_preliminary_evidence_review_follows_start_review_and_holds_screening_until_copies_are_accepted(): void
+    {
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+        [$application, , $requirement] = $this->application();
+        $evidence = DocumentEvidence::factory()->canonical($application, $requirement)->create();
+
+        $evaluation = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->instance()->processEvaluation();
+        $this->assertSame(['done', 'current', 'upcoming', 'upcoming', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
+        $this->assertSame('Preliminary evidence review', $evaluation[1]['label']);
+        $this->assertSame('reviewEvidence', $evaluation[1]['action']);
+        $this->assertStringContainsString('School review copy (awaiting review)', (string) $evaluation[1]['blocker']);
+
+        PreliminaryEvidenceReview::factory()->create([
+            'document_evidence_id' => $evidence->id,
+            'reviewed_by' => $registrar->id,
+            'result' => PreliminaryEvidenceReview::ResultAccepted,
         ]);
-        $application->update(['current_submission_version_id' => $submissionVersion2->id]);
+        $evaluation = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->instance()->processEvaluation();
+        $this->assertSame(['done', 'done', 'current', 'upcoming', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
+    }
 
-        $pageUpdated = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        $pageUpdated->assertSee('Earlier submission')
-            ->assertSee('Admitted')
-            ->assertSee('Admitted with verified documents')
-            ->assertSee($registrar->name);
+    public function test_registrar_notifies_the_applicant_with_a_step_remark_and_blank_remarks_are_blocked(): void
+    {
+        Mail::fake();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+        [$application] = $this->application();
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->callAction('sendProcessRemark', arguments: ['step' => 'screening'])
+            ->assertNotified('Registrar action blocked');
+        $this->assertFalse($application->events()->where('event_type', AdmissionApplicationEvent::TypeProcessRemarkSent)->exists());
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->set('processRemarks.screening', 'Upload a clearer copy of your Form 138.')
+            ->callAction('sendProcessRemark', arguments: ['step' => 'screening'])
+            ->assertNotified('Applicant notified');
+
+        $event = $application->events()->where('event_type', AdmissionApplicationEvent::TypeProcessRemarkSent)->sole();
+        $this->assertSame(['step' => 'screening', 'remark' => 'Upload a clearer copy of your Form 138.'], $event->payload);
+        $this->assertSame($registrar->id, $event->actor_id);
+        $this->assertTrue(OperationalEvent::query()
+            ->where('event_type', OperationalEvent::TypeAdmissionProcessRemarkSent)
+            ->where('related_record_id', $application->id)
+            ->exists());
+    }
+
+    public function test_enrollment_clearance_checklist_records_paper_results_and_requires_every_required_paper(): void
+    {
+        Mail::fake();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+        [$application, $requirement] = $this->admittedApplication($registrar);
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->mountAction('recordEnrollmentClearance')
+            ->setActionData(['checklist_InPerson' => []])
+            ->callMountedAction()
+            ->assertNotified('Registrar action blocked');
+        $this->assertSame(0, $application->enrollmentClearances()->count());
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->callAction('recordEnrollmentClearance', ['checklist_InPerson' => [], 'safe_instruction' => 'Bring the original with the dry seal.'], ['result' => RegistrarEnrollmentClearance::ResultActionNeeded])
+            ->assertNotified('Applicant notified of deficiencies');
+        $this->assertSame(RegistrarEnrollmentClearance::ResultActionNeeded, $application->enrollmentClearances()->sole()->result);
+        $this->assertSame(OfficialCredentialResult::ResultActionNeeded, $application->credentialResults()->where('admission_requirement_id', $requirement->id)->whereDoesntHave('successor')->value('result'));
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->callAction('recordEnrollmentClearance', ['checklist_InPerson' => [$requirement->id], 'reason' => 'Original paper received on-site.'])
+            ->assertNotified('Enrollment clearance recorded');
+        $this->assertSame(RegistrarEnrollmentClearance::ResultCleared, $application->enrollmentClearances()->whereDoesntHave('successor')->value('result'));
+        $this->assertSame(OfficialCredentialResult::ResultVerified, $application->credentialResults()->where('admission_requirement_id', $requirement->id)->whereDoesntHave('successor')->value('result'));
+    }
+
+    public function test_missed_paper_deadline_expires_the_application_until_the_registrar_readmits_it(): void
+    {
+        Mail::fake();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+        [$application] = $this->admittedApplication($registrar);
+        $application->admissionCycle->update(['requirements_due_at' => now()->subHour(), 'period_ends_at' => now()->addMonth()]);
+
+        $status = app(AdmissionDeadlineStatus::class)->for($application->fresh());
+        $this->assertSame(AdmissionDeadlineStatus::Expired, $status['status']);
+        $this->assertSame(AdmissionDeadlineStatus::KindRequirements, $status['kind']);
+        $this->assertContains($application->id, app(AdmissionDeadlineStatus::class)->idsWith(AdmissionDeadlineStatus::Expired));
+
+        $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->assertActionHidden('recordEnrollmentClearance')
+            ->assertActionVisible('extendDeadline');
+        $this->assertSame('extendDeadline', $page->instance()->getCachedHeaderActions()[0]->getName());
+        $this->assertSame('expired', $page->instance()->processEvaluation()[3]['state']);
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->callAction('extendDeadline', ['kind' => AdmissionDeadlineStatus::KindRequirements, 'deadline' => now()->addWeek()->toDateTimeString(), 'reason' => 'Waiting on the original Form 138.'])
+            ->assertNotified('Deadline saved');
+
+        $this->assertNull(app(AdmissionDeadlineStatus::class)->for($application->fresh())['status']);
+        $event = $application->events()->where('event_type', AdmissionApplicationEvent::TypeDeadlineExtended)->sole();
+        $this->assertTrue($event->payload['readmitted']);
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->assertActionVisible('recordEnrollmentClearance');
+    }
+
+    public function test_cleared_applicant_without_a_verified_payment_expires_after_the_payment_deadline(): void
+    {
+        $registrar = $this->registrar();
+        [$application] = $this->admittedApplication($registrar);
+        RegistrarEnrollmentClearance::factory()->forAdmittedApplication($application)->create([
+            'result' => RegistrarEnrollmentClearance::ResultCleared,
+            'external_checks_confirmed' => true,
+            'recorded_by' => $registrar->id,
+        ]);
+        $application->admissionCycle->update(['payment_due_at' => now()->subHour()]);
+
+        $status = app(AdmissionDeadlineStatus::class)->for($application->fresh());
+        $this->assertSame(AdmissionDeadlineStatus::Expired, $status['status']);
+        $this->assertSame(AdmissionDeadlineStatus::KindPayment, $status['kind']);
+
+        $application->admissionCycle->update(['payment_due_at' => now()->addDay()]);
+        $this->assertNull(app(AdmissionDeadlineStatus::class)->for($application->fresh())['status']);
+    }
+
+    public function test_ended_admission_period_closes_unfinished_applications_for_good(): void
+    {
+        Mail::fake();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+        [$application, $applicant] = $this->application();
+        $application->admissionCycle->update(['period_ends_at' => now()->subMinute()]);
+
+        $this->assertSame(AdmissionDeadlineStatus::Closed, app(AdmissionDeadlineStatus::class)->for($application->fresh())['status']);
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->assertActionHidden('recordDecision')
+            ->assertActionHidden('reviewEvidence')
+            ->assertActionHidden('requestCorrection');
+        Livewire::actingAs($registrar)->test(ListAdmissionApplications::class, ['activeTab' => 'history'])
+            ->assertCanSeeTableRecords([$application]);
+        Livewire::actingAs($registrar)->test(ListAdmissionApplications::class, ['activeTab' => 'needs_review'])
+            ->assertCanNotSeeTableRecords([$application]);
+
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $home = Livewire::actingAs($applicant)->test(Dashboard::class)
+            ->assertSee('Application closed')
+            ->assertSee('Admission period ended');
+        $this->assertFalse($home->instance()->canWithdraw());
+        $this->assertSame('Application closed', $home->instance()->finalNotice($application->fresh())['title']);
+        $this->assertSame('Application closed', $home->instance()->homeStatusLabel($application->fresh()));
+    }
+
+    public function test_rejection_is_final_and_home_shows_the_registrar_reason(): void
+    {
+        Mail::fake();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+        [$application, $applicant] = $this->application(preDecision: true);
+        app(RecordAdmissionDecision::class)->execute($application, $registrar, AdmissionDecision::DecisionNotAdmitted, 'Documents do not match', null, 'Your Form 138 does not match the current curriculum.');
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->assertActionHidden('recordDecision');
+
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $notice = Livewire::actingAs($applicant)->test(Dashboard::class)->instance()->finalNotice($application->fresh());
+        $this->assertSame('Application rejected', $notice['title']);
+        $this->assertStringContainsString('does not match the current curriculum', $notice['body']);
+        $this->assertStringContainsString('final', $notice['body']);
+    }
+
+    public function test_cycle_deadlines_are_set_by_admission_setup_and_must_fit_the_admission_period(): void
+    {
+        $registrar = $this->registrar();
+        $registrar->givePermissionTo(Permission::findOrCreate('manage-admission-setup'));
+        [$application] = $this->application();
+        $cycle = $application->admissionCycle;
+
+        try {
+            app(ChangeAdmissionCycle::class)->setDeadlines($cycle, $registrar, now()->addWeeks(3), null, now()->addWeeks(2), 'Set school calendar', 'Memo 2026-21');
+            $this->fail('A paper deadline after the period end must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('requirements_due_at', $exception->errors());
+        }
+
+        app(ChangeAdmissionCycle::class)->setDeadlines($cycle, $registrar, now()->addWeek(), now()->addWeeks(2), now()->addWeeks(3), 'Set school calendar', 'Memo 2026-21');
+        $cycle->refresh();
+        $this->assertNotNull($cycle->requirements_due_at);
+        $this->assertNotNull($cycle->payment_due_at);
+        $this->assertNotNull($cycle->period_ends_at);
+    }
+
+    public function test_registrar_clears_with_a_permitted_paper_on_hold_and_the_applicant_sees_it_still_owed(): void
+    {
+        Mail::fake();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+        [$application, $requirement] = $this->admittedApplication($registrar, withHoldablePaper: true);
+        $psa = $application->currentSubmissionVersion->requirementSet->requirements->firstWhere('label', 'PSA birth certificate');
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->callAction('recordEnrollmentClearance', ['checklist_InPerson' => [$requirement->id], 'held_papers' => [$psa->id]])
+            ->assertNotified('Registrar action blocked');
+        $this->assertSame(0, $application->enrollmentClearances()->count());
+
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->callAction('recordEnrollmentClearance', ['checklist_InPerson' => [$requirement->id], 'held_papers' => [$psa->id], 'hold_until' => now()->addWeek()->toDateTimeString()])
+            ->assertNotified('Enrollment clearance recorded');
+
+        $this->assertSame(RegistrarEnrollmentClearance::ResultCleared, $application->enrollmentClearances()->sole()->result);
+        $held = $application->credentialResults()->where('admission_requirement_id', $psa->id)->sole();
+        $this->assertSame(OfficialCredentialResult::ResultAuthorizedException, $held->result);
+        $this->assertNotNull($held->exception_expires_at);
+
+        $onSite = collect(app(Requirements::class)->onSiteItems($application->fresh()))->keyBy('label');
+        $this->assertSame('On hold', $onSite['PSA birth certificate']['state']);
+        $this->assertSame('Passed on-site', $onSite['School review copy']['state']);
+        $this->assertStringContainsString('On hold: PSA birth certificate', Livewire::actingAs($registrar)
+            ->test(ViewAdmissionApplication::class, ['record' => $application->id])->instance()->processEvaluation()[3]['summary']);
+    }
+
+    /** @return array{AdmissionApplication, AdmissionRequirement} */
+    private function admittedApplication(User $registrar, bool $withHoldablePaper = false): array
+    {
+        [$application, , $requirement] = $this->application(preDecision: true, withHoldablePaper: $withHoldablePaper);
+        $evidence = DocumentEvidence::factory()->canonical($application, $requirement)->create();
+        PreliminaryEvidenceReview::factory()->create([
+            'document_evidence_id' => $evidence->id,
+            'reviewed_by' => $registrar->id,
+            'result' => PreliminaryEvidenceReview::ResultAccepted,
+            'reviewed_at' => now(),
+        ]);
+        app(RecordAdmissionDecision::class)->execute($application, $registrar, AdmissionDecision::DecisionAdmitted, 'Admitted for process test', null, 'Process admitted basis');
+
+        return [$application->fresh(), $requirement];
     }
 
     /** @return array{AdmissionApplication, User, AdmissionRequirement} */
@@ -1786,7 +2052,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
     }
 
     /** @return array{AdmissionApplication, User, AdmissionRequirement} */
-    private function application(bool $preDecision = false, bool $submitted = true, bool $withPaperRequirement = false, bool $reviewed = true): array
+    private function application(bool $preDecision = false, bool $submitted = true, bool $withPaperRequirement = false, bool $reviewed = true, bool $withHoldablePaper = false): array
     {
         $applicant = User::factory()->create(['status' => User::StatusActive]);
         $applicant->assignRole('applicant');
@@ -1799,6 +2065,16 @@ class Issue57AdmissionsPresentationTest extends TestCase
                 'admission_requirement_set_id' => $set->id,
                 'label' => 'External school-paper instruction',
                 'requires_preliminary_evidence' => false,
+            ]);
+        }
+        if ($withHoldablePaper) {
+            AdmissionRequirement::factory()->create([
+                'admission_requirement_set_id' => $set->id,
+                'label' => 'PSA birth certificate',
+                'requires_preliminary_evidence' => false,
+                'credential_classification' => AdmissionRequirement::ClassificationNonCore,
+                'exception_permitted' => true,
+                'required_approving_authority' => 'Registrar',
             ]);
         }
         $set->update(['state' => AdmissionRequirementSet::StatePublished, 'published_at' => now(), 'effective_at' => now()]);

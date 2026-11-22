@@ -224,13 +224,14 @@ class AdmissionDecisionAuthorityTest extends TestCase
     public function test_registrar_form_requires_a_reference_for_a_replacement_decision(): void
     {
         [$application, $registrar] = $this->application();
+        // Not admitted is final (QA workflow), so the replacement rule is exercised on an Admitted decision.
         app(RecordAdmissionDecision::class)->execute(
-            $application, $registrar, AdmissionDecision::DecisionNotAdmitted, 'Original basis', null, 'Original safe explanation',
+            $application, $registrar, AdmissionDecision::DecisionAdmitted, 'Original basis', null, 'Original safe explanation',
         );
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
             ->callAction('recordDecision', data: [
-                'decision' => AdmissionDecision::DecisionAdmitted,
+                'decision' => AdmissionDecision::DecisionNotAdmitted,
                 'reason' => 'Private review basis',
                 'applicant_explanation' => 'Safe explanation',
             ])

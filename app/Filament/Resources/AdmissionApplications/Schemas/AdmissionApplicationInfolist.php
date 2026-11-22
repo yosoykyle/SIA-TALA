@@ -6,12 +6,9 @@ use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionCycle;
-use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirement;
 use App\Models\ApplicationCorrectionRequest;
-use App\Models\ApplicationSubmissionVersion;
 use App\Models\DocumentEvidence;
-use App\Models\OfficialCredentialResult;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\RegistrarEnrollmentClearance;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
@@ -53,15 +50,6 @@ class AdmissionApplicationInfolist
         return $schema
             ->columns(['default' => 1, 'xl' => 2])
             ->components([
-                Section::make()
-                    ->key('applicant')
-                    ->columnSpanFull()
-                    ->columns(['default' => 1, 'md' => 3])
-                    ->schema([
-                        TextEntry::make('application_reference')->label('Application reference')->copyable(),
-                        TextEntry::make('email')->label('Verified account email')->copyable(),
-                        TextEntry::make('birth_date')->label('Birth date')->date()->placeholder('Not provided'),
-                    ]),
                 Tabs::make('ApplicantRecord')
                     ->extraAttributes(['class' => 'tala-applicant-record-tabs'])
                     ->tabs([
@@ -184,117 +172,24 @@ class AdmissionApplicationInfolist
                                     ->visible(fn (AdmissionApplication $record): bool => $record->decisions->isNotEmpty())
                                     ->compact()->collapsible()->collapsed(),
                             ]),
+                        Tab::make('Process evaluation')
+                            ->icon('heroicon-o-list-bullet')
+                            ->schema([
+                                View::make('filament.admin.admission-applications.process-evaluation')
+                                    ->viewData(fn (AdmissionApplication $record, ViewAdmissionApplication $livewire): array => [
+                                        'steps' => $livewire->processEvaluation(),
+                                        'canNotify' => (bool) auth()->user()?->can('review', $record),
+                                    ]),
+                            ]),
                         Tab::make('Record history')
                             ->icon('heroicon-o-clock')
                             ->schema([
-                                Section::make('Submissions')
-                                    ->contained(false)
-                                    ->compact()
-                                    ->schema([
-                                        View::make('filament.admin.admission-applications.record-history-submissions')
-                                            ->viewData(fn (AdmissionApplication $record, ViewAdmissionApplication $livewire): array => self::recordHistory($record, $livewire)),
+                                View::make('filament.admin.admission-applications.activity-evidence')
+                                    ->viewData(fn (AdmissionApplication $record): array => [
+                                        'application' => $record,
+                                        'events' => $record->events->sortByDesc('occurred_at')->values(),
+                                        'timezone' => config('app.display_timezone'),
                                     ]),
-                                Section::make('Earlier evidence versions')
-                                    ->schema([
-                                        RepeatableEntry::make('earlier_evidence')
-                                            ->hiddenLabel()
-                                            ->state(fn (AdmissionApplication $record) => $record->evidenceVersions->whereNotIn('id', self::currentEvidence($record)->pluck('id')->filter()->all())->values())
-                                            ->table([
-                                                TableColumn::make('Requirement'),
-                                                TableColumn::make('Copy / Uploaded'),
-                                                TableColumn::make('Review result'),
-                                                TableColumn::make('Actions')->hiddenHeaderLabel(),
-                                            ])
-                                            ->schema(self::evidenceSchema())
-                                            ->extraAttributes(['class' => 'tala-evidence-table'])
-                                            ->columnSpanFull(),
-                                    ])
-                                    ->visible(fn (AdmissionApplication $record): bool => $record->evidenceVersions->whereNotIn('id', self::currentEvidence($record)->pluck('id')->filter()->all())->isNotEmpty())
-                                    ->collapsible()
-                                    ->collapsed(),
-                                Section::make('Superseded preliminary reviews')
-                                    ->schema([
-                                        TextEntry::make('superseded_reviews')
-                                            ->hiddenLabel()
-                                            ->state(function (AdmissionApplication $record): string {
-                                                $superseded = $record->evidenceVersions
-                                                    ->flatMap->preliminaryReviews
-                                                    ->filter(fn (PreliminaryEvidenceReview $review): bool => $review->successor !== null)
-                                                    ->sortByDesc('reviewed_at');
-
-                                                if ($superseded->isEmpty()) {
-                                                    return 'No superseded preliminary reviews.';
-                                                }
-
-                                                return $superseded->map(fn (PreliminaryEvidenceReview $review): string => sprintf(
-                                                    '%s — %s — %s (%s)%s',
-                                                    $review->documentEvidence->admissionRequirement->label,
-                                                    $review->result === PreliminaryEvidenceReview::ResultAccepted ? 'Accepted' : str($review->result)->headline(),
-                                                    $review->reviewer?->getFilamentName() ?? 'Reviewer unavailable',
-                                                    $review->reviewed_at?->timezone(config('app.display_timezone'))->format('M j, Y g:i A'),
-                                                    filled($review->reason) ? ' — '.$review->reason : '',
-                                                ))->implode("\n");
-                                            })
-                                            ->listWithLineBreaks(),
-                                    ])
-                                    ->visible(fn (AdmissionApplication $record): bool => $record->evidenceVersions->flatMap->preliminaryReviews->contains(fn (PreliminaryEvidenceReview $review): bool => $review->successor !== null))
-                                    ->collapsible()
-                                    ->collapsed(),
-                                Section::make('Decisions and clearance')
-                                    ->contained(false)
-                                    ->compact()
-                                    ->schema([
-                                        View::make('filament.admin.admission-applications.record-history-decisions')
-                                            ->viewData(fn (AdmissionApplication $record, ViewAdmissionApplication $livewire): array => self::recordHistory($record, $livewire)),
-                                    ]),
-                                Section::make('Retained credential history')
-                                    ->schema([
-                                        TextEntry::make('credential_history')
-                                            ->label('Current and historical results')
-                                            ->state(fn (AdmissionApplication $record): string => $record->credentialResults
-                                                ->sortByDesc('recorded_at')
-                                                ->map(fn (OfficialCredentialResult $result): string => sprintf(
-                                                    '%s — %s — %s',
-                                                    $result->requirement->label,
-                                                    str($result->result)->headline(),
-                                                    $result->recorded_at->timezone(config('app.display_timezone'))->format('M j, Y g:i A'),
-                                                ))
-                                                ->implode("\n") ?: 'No official credential result recorded.')
-                                            ->listWithLineBreaks(),
-                                    ])
-                                    ->visible(fn (AdmissionApplication $record): bool => $record->credentialResults->isNotEmpty())
-                                    ->collapsible()
-                                    ->collapsed(),
-                                Section::make('Correction request history')
-                                    ->schema([
-                                        TextEntry::make('correction_history')
-                                            ->label('Correction requests')
-                                            ->state(fn (AdmissionApplication $record): string => $record->correctionRequests
-                                                ->sortByDesc('created_at')
-                                                ->map(fn (ApplicationCorrectionRequest $request): string => sprintf(
-                                                    '%s — Sequence #%d — State: %s — Due: %s%s',
-                                                    $request->created_at->timezone(config('app.display_timezone'))->format('M j, Y g:i A'),
-                                                    $request->sequence,
-                                                    str($request->state)->headline(),
-                                                    $request->due_at->timezone(config('app.display_timezone'))->format('M j, Y g:i A'),
-                                                    ' — Requested by '.($request->requester?->getFilamentName() ?? 'Registrar unavailable').' — '.$request->applicant_instruction,
-                                                ))
-                                                ->implode("\n") ?: 'No correction request recorded.')
-                                            ->listWithLineBreaks(),
-                                    ])
-                                    ->visible(fn (AdmissionApplication $record): bool => $record->correctionRequests->isNotEmpty())
-                                    ->compact(),
-                                Section::make('Activity, delivery, and technical evidence')
-                                    ->schema([
-                                        View::make('filament.admin.admission-applications.activity-evidence')
-                                            ->viewData(fn (AdmissionApplication $record): array => [
-                                                'application' => $record,
-                                                'events' => $record->events->sortByDesc('occurred_at')->values(),
-                                                'timezone' => config('app.display_timezone'),
-                                            ]),
-                                    ])
-                                    ->collapsible()
-                                    ->collapsed(),
                             ]),
                     ])
                     ->columnSpan(['default' => 'full', 'xl' => 1]),
@@ -304,6 +199,18 @@ class AdmissionApplicationInfolist
                         Tab::make('Applicant details')
                             ->icon('heroicon-o-user')
                             ->schema([
+                                Group::make([
+                                    TextEntry::make('application_reference')
+                                        ->label('Application reference')
+                                        ->copyable()
+                                        ->extraAttributes(['class' => 'tala-applicant-identity-reference'])
+                                        ->columnSpanFull(),
+                                    TextEntry::make('email')->label('Verified account email')->copyable(),
+                                    TextEntry::make('birth_date')->label('Birth date')->date()->placeholder('Not provided'),
+                                ])
+                                    ->key('applicant')
+                                    ->columns(['default' => 1, 'sm' => 2])
+                                    ->extraAttributes(['class' => 'tala-applicant-identity']),
                                 Section::make('Personal Information')
                                     ->schema([
                                         TextEntry::make('legal_name')
@@ -314,8 +221,6 @@ class AdmissionApplicationInfolist
                                                 $record->last_name,
                                                 $record->extension_name,
                                             ])->filter()->implode(' ')),
-                                        TextEntry::make('email')->label('Verified account email'),
-                                        TextEntry::make('birth_date')->date(),
                                         TextEntry::make('phone')->label('Mobile'),
                                         TextEntry::make('current_locality')
                                             ->label('Current locality')
@@ -404,60 +309,6 @@ class AdmissionApplicationInfolist
                     ? 'Admission, identity review and Registrar clearance are complete. Official enrollment is separate.'
                     : 'Complete the remaining admissions checks shown in Next action.',
             ] : null,
-        ];
-    }
-
-    /**
-     * @return array{submissions: list<array<string, mixed>>, decisions: list<array<string, mixed>>, clearances: list<array<string, mixed>>}
-     */
-    private static function recordHistory(AdmissionApplication $application, ViewAdmissionApplication $livewire): array
-    {
-        $timezone = (string) config('app.display_timezone');
-        $format = fn ($moment): ?string => $moment?->timezone($timezone)->format('M j, Y · g:i A');
-        $isEarlierSource = fn (?int $submissionId): bool => filled($submissionId)
-            && (int) $submissionId !== (int) $application->current_submission_version_id;
-
-        return [
-            'submissions' => $application->submissionVersions->sortByDesc('version')->values()->map(fn (ApplicationSubmissionVersion $version): array => [
-                'number' => $version->version,
-                'current' => (int) $version->id === (int) $application->current_submission_version_id,
-                'by' => $version->submitter?->getFilamentName() ?? 'Applicant unavailable',
-                'at' => $format($version->submitted_at),
-                'url' => route('admissions.application.acknowledgment', ['application' => $version->admission_application_id, 'version' => $version->id, 'queue' => $livewire->queueContext()]),
-            ])->all(),
-            'decisions' => $application->decisions->sortByDesc('decided_at')->values()->map(fn (AdmissionDecision $decision): array => [
-                'label' => str($decision->decision)->headline()->toString(),
-                'color' => match ($decision->decision) {
-                    AdmissionDecision::DecisionAdmitted => 'success',
-                    AdmissionDecision::DecisionNotAdmitted => 'danger',
-                    default => 'info',
-                },
-                'by' => $decision->decisionMaker?->getFilamentName() ?? 'Registrar unavailable',
-                'at' => $format($decision->decided_at),
-                'superseded' => $decision->successor !== null,
-                'earlier_source' => $isEarlierSource($decision->application_submission_version_id),
-                'replaces' => $decision->supersededDecision === null ? null
-                    : str($decision->supersededDecision->decision)->headline().' recorded '.$format($decision->supersededDecision->decided_at),
-                'approval_reference' => filled($decision->authority_reference) ? $decision->authority_reference : null,
-                'basis' => $decision->reason,
-                'told_to_applicant' => $decision->decision === AdmissionDecision::DecisionNotAdmitted ? $decision->applicant_explanation : null,
-            ])->all(),
-            'clearances' => $application->enrollmentClearances->sortByDesc('recorded_at')->values()->map(fn (RegistrarEnrollmentClearance $clearance): array => [
-                'label' => str($clearance->result)->headline()->toString(),
-                'color' => match ($clearance->result) {
-                    RegistrarEnrollmentClearance::ResultCleared => 'success',
-                    RegistrarEnrollmentClearance::ResultActionNeeded => 'warning',
-                    default => 'gray',
-                },
-                'by' => $clearance->recorder?->getFilamentName() ?? 'Registrar unavailable',
-                'at' => $format($clearance->recorded_at),
-                'superseded' => $clearance->successor !== null,
-                'earlier_source' => $isEarlierSource($clearance->application_submission_version_id),
-                'replaces' => $clearance->supersedes_clearance_id !== null ? 'an earlier retained clearance' : null,
-                'approval_reference' => filled($clearance->authority_reference) ? $clearance->authority_reference : null,
-                'basis' => $clearance->reason,
-                'instruction' => filled($clearance->safe_instruction) ? $clearance->safe_instruction : 'No additional instruction',
-            ])->all(),
         ];
     }
 

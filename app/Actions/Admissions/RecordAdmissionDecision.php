@@ -13,6 +13,7 @@ use App\Models\PreliminaryEvidenceReview;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -239,18 +240,30 @@ class RecordAdmissionDecision
     }
 
     /** @return list<string> */
+    /**
+     * The approval notice names each physical paper to pass and, when the cycle sets one, the paper deadline.
+     *
+     * @return list<string>
+     */
     private function credentialInstructions(AdmissionApplication $application): array
     {
-        return $application->currentSubmissionVersion()
+        $requirements = $application->currentSubmissionVersion()
             ->firstOrFail()
             ->requirementSet()
             ->firstOrFail()
             ->requirements()
-            ->whereNotNull('applicant_instructions')
             ->orderBy('display_order')
-            ->pluck('applicant_instructions')
-            ->filter(fn (mixed $instruction): bool => is_string($instruction) && filled($instruction))
-            ->values()
-            ->all();
+            ->get();
+
+        $papers = $requirements
+            ->filter(fn (AdmissionRequirement $requirement): bool => $requirement->official_submission_method !== AdmissionRequirement::SubmissionNone)
+            ->map(fn (AdmissionRequirement $requirement): string => 'Physical paper: '.$requirement->label.' ('.$requirement->dueStageLabel().')'
+                .(filled($requirement->applicant_instructions) ? ' — '.$requirement->applicant_instructions : ''));
+        $deadline = $application->requirements_due_at ?? $application->admissionCycle()->value('requirements_due_at');
+
+        return [
+            ...$papers->values()->all(),
+            ...($deadline !== null ? ['Pass the physical papers to the Registrar by '.Carbon::parse($deadline)->timezone((string) config('app.display_timezone'))->format('M j, Y g:i A').' (Asia/Manila).'] : []),
+        ];
     }
 }

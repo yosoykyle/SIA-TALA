@@ -27,6 +27,19 @@
                     </div>
                 </section>
             @endif
+            @php($finalNotice = $this->finalNotice($application))
+            @if ($finalNotice)
+                <section @class(['tala-home-final-notice', 'tala-home-final-notice--'.$finalNotice['tone']]) role="status" aria-labelledby="tala-final-notice-title">
+                    <x-filament::icon :icon="match ($finalNotice['tone']) { 'warning' => 'heroicon-o-clock', 'danger' => 'heroicon-o-x-circle', default => 'heroicon-o-lock-closed' }" class="tala-home-final-notice__icon" />
+                    <div>
+                        <h2 id="tala-final-notice-title">{{ $finalNotice['title'] }}</h2>
+                        <p>{{ $finalNotice['body'] }}</p>
+                        @if ($support && $finalNotice['tone'] !== 'danger' && preg_match('/[\pL\pN]/u', $support['text']))
+                            <p class="tala-home-final-notice__support">Admissions support: <a href="{{ $support['href'] }}">{{ $support['text'] }}</a></p>
+                        @endif
+                    </div>
+                </section>
+            @endif
             <div class="tala-home">
                 <x-filament::section class="tala-journey-card tala-home__journey">
                     <x-slot name="heading">Your application journey</x-slot>
@@ -138,7 +151,7 @@
                     <x-slot name="heading">Application status</x-slot>
                     @if ($application)
                         <div class="tala-home-status">
-                            <x-filament::badge :color="$this->statusColor($application->application_state)">{{ $this->statusLabel($application->application_state) }}</x-filament::badge>
+                            <x-filament::badge :color="$this->homeStatusColor($application)">{{ $this->homeStatusLabel($application) }}</x-filament::badge>
                             <p>{{ $this->statusExplanation($application) }}</p>
                         </div>
                         <dl class="tala-home-facts">

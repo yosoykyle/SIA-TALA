@@ -57,6 +57,9 @@ class AdmissionCycle extends Model
         'opens_at',
         'closes_at',
         'correction_closes_at',
+        'requirements_due_at',
+        'payment_due_at',
+        'period_ends_at',
         'applicant_instructions',
         'support_contact',
         'privacy_notice_reference',
@@ -75,6 +78,9 @@ class AdmissionCycle extends Model
             'opens_at' => 'datetime',
             'closes_at' => 'datetime',
             'correction_closes_at' => 'datetime',
+            'requirements_due_at' => 'datetime',
+            'payment_due_at' => 'datetime',
+            'period_ends_at' => 'datetime',
         ];
     }
 
