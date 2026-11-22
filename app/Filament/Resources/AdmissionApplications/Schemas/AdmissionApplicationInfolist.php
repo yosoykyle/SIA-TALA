@@ -11,7 +11,6 @@ use App\Models\AdmissionRequirement;
 use App\Models\ApplicationCorrectionRequest;
 use App\Models\ApplicationSubmissionVersion;
 use App\Models\DocumentEvidence;
-use App\Models\IdentityMatchReview;
 use App\Models\OfficialCredentialResult;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\RegistrarEnrollmentClearance;
@@ -52,21 +51,19 @@ class AdmissionApplicationInfolist
         }
 
         return $schema
+            ->columns(['default' => 1, 'xl' => 2])
             ->components([
-                Section::make('Applicant')
-                    ->description('The person who applied. Application records for this Applicant are shown below.')
+                Section::make()
+                    ->key('applicant')
                     ->columnSpanFull()
-                    ->columns(['default' => 1, 'md' => 4])
+                    ->columns(['default' => 1, 'md' => 3])
                     ->schema([
-                        TextEntry::make('applicant_identity')
-                            ->label('Legal name')
-                            ->weight('semibold')
-                            ->state(fn (AdmissionApplication $record): string => self::legalName($record)),
+                        TextEntry::make('application_reference')->label('Application reference')->copyable(),
                         TextEntry::make('email')->label('Verified account email')->copyable(),
                         TextEntry::make('birth_date')->label('Birth date')->date()->placeholder('Not provided'),
-                        TextEntry::make('application_reference')->label('Application reference')->copyable(),
                     ]),
                 Tabs::make('ApplicantRecord')
+                    ->extraAttributes(['class' => 'tala-applicant-record-tabs'])
                     ->tabs([
                         Tab::make('Current work')
                             ->icon('heroicon-o-clipboard-document-check')
@@ -154,6 +151,7 @@ class AdmissionApplicationInfolist
                                                 TableColumn::make('Actions')->hiddenHeaderLabel(),
                                             ])
                                             ->schema(self::evidenceSchema())
+                                            ->extraAttributes(['class' => 'tala-evidence-table'])
                                             ->placeholder('No preliminary review copy submitted.')
                                             ->columnSpanFull(),
                                     ]),
@@ -185,75 +183,6 @@ class AdmissionApplicationInfolist
                                     ])
                                     ->visible(fn (AdmissionApplication $record): bool => $record->decisions->isNotEmpty())
                                     ->compact()->collapsible()->collapsed(),
-                                Section::make('Identity review')
-                                    ->schema([
-                                        TextEntry::make('identity_warning')
-                                            ->label('Identity integrity review')
-                                            ->state(function (AdmissionApplication $record): string {
-                                                $pending = $record->identityMatchReviews
-                                                    ->where('outcome', IdentityMatchReview::OutcomePending)
-                                                    ->count();
-
-                                                return $pending > 0
-                                                    ? "{$pending} private identity warning(s) require resolution before admission."
-                                                    : 'No unresolved identity warning.';
-                                            }),
-                                    ])
-                                    ->compact()
-                                    ->collapsible()
-                                    ->collapsed(fn (AdmissionApplication $record): bool => ! $record->identityMatchReviews->contains('outcome', IdentityMatchReview::OutcomePending)),
-                            ]),
-                        Tab::make('Applicant details')
-                            ->icon('heroicon-o-user')
-                            ->schema([
-                                Section::make('Personal Information')
-                                    ->schema([
-                                        TextEntry::make('legal_name')
-                                            ->label('Legal name')
-                                            ->state(fn (AdmissionApplication $record): string => collect([
-                                                $record->first_name,
-                                                $record->middle_name,
-                                                $record->last_name,
-                                                $record->extension_name,
-                                            ])->filter()->implode(' ')),
-                                        TextEntry::make('email')->label('Verified account email'),
-                                        TextEntry::make('birth_date')->date(),
-                                        TextEntry::make('phone')->label('Mobile'),
-                                        TextEntry::make('current_locality')
-                                            ->label('Current locality')
-                                            ->state(fn (AdmissionApplication $record): string => collect([
-                                                $record->current_city_municipality,
-                                                $record->current_province,
-                                            ])->filter()->implode(', ')),
-                                    ])
-                                    ->columns(2),
-                                Section::make('Educational Information')
-                                    ->schema([
-                                        TextEntry::make('prior_school_name')->label('Previous school attended'),
-                                        TextEntry::make('credential_basis')->label('Admission qualification')
-                                            ->formatStateUsing(fn (string $state, AdmissionApplication $record): string => AdmissionApplication::admissionQualificationOptions((string) $record->application_path)[$state]
-                                                ?? str($state)->lower()->headline()->toString()),
-                                        TextEntry::make('prior_school_completion_year')->label('Graduation year')->placeholder('Not provided'),
-                                        TextEntry::make('lrn_availability')->label('LRN availability')->placeholder('Not recorded')
-                                            ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
-                                        TextEntry::make('lrn')->label('LRN')->placeholder('No identifier provided'),
-                                    ])
-                                    ->columns(2),
-                                Section::make('Application Choice')
-                                    ->schema([
-                                        TextEntry::make('admissionCycle.label')->label('Admission cycle'),
-                                        TextEntry::make('term.label')->label('Target term'),
-                                        TextEntry::make('program.name')->label('Program'),
-                                        TextEntry::make('application_path')->label('Student type')->formatStateUsing(fn (string $state): string => AdmissionCycle::studentTypeLabel($state)),
-                                    ])
-                                    ->columns(2),
-                                Section::make('Emergency Contact')
-                                    ->schema([
-                                        TextEntry::make('guardian_full_name')->label('Parent, guardian or emergency contact')->placeholder('Not provided'),
-                                        TextEntry::make('guardian_relationship')->label('Relationship')->placeholder('Not provided'),
-                                        TextEntry::make('guardian_mobile')->label('Contact mobile')->placeholder('Not provided'),
-                                    ])
-                                    ->columns(2),
                             ]),
                         Tab::make('Record history')
                             ->icon('heroicon-o-clock')
@@ -277,6 +206,7 @@ class AdmissionApplicationInfolist
                                                 TableColumn::make('Actions')->hiddenHeaderLabel(),
                                             ])
                                             ->schema(self::evidenceSchema())
+                                            ->extraAttributes(['class' => 'tala-evidence-table'])
                                             ->columnSpanFull(),
                                     ])
                                     ->visible(fn (AdmissionApplication $record): bool => $record->evidenceVersions->whereNotIn('id', self::currentEvidence($record)->pluck('id')->filter()->all())->isNotEmpty())
@@ -367,12 +297,77 @@ class AdmissionApplicationInfolist
                                     ->collapsed(),
                             ]),
                     ])
-                    ->columnSpanFull(),
+                    ->columnSpan(['default' => 'full', 'xl' => 1]),
+                Tabs::make('ApplicantDetails')
+                    ->extraAttributes(['class' => 'tala-applicant-record-tabs tala-applicant-details-panel'])
+                    ->tabs([
+                        Tab::make('Applicant details')
+                            ->icon('heroicon-o-user')
+                            ->schema([
+                                Section::make('Personal Information')
+                                    ->schema([
+                                        TextEntry::make('legal_name')
+                                            ->label('Legal name')
+                                            ->state(fn (AdmissionApplication $record): string => collect([
+                                                $record->first_name,
+                                                $record->middle_name,
+                                                $record->last_name,
+                                                $record->extension_name,
+                                            ])->filter()->implode(' ')),
+                                        TextEntry::make('email')->label('Verified account email'),
+                                        TextEntry::make('birth_date')->date(),
+                                        TextEntry::make('phone')->label('Mobile'),
+                                        TextEntry::make('current_locality')
+                                            ->label('Current locality')
+                                            ->state(fn (AdmissionApplication $record): string => collect([
+                                                $record->current_city_municipality,
+                                                $record->current_province,
+                                            ])->filter()->implode(', ')),
+                                    ])
+                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->contained(false)
+                                    ->compact(),
+                                Section::make('Educational Information')
+                                    ->schema([
+                                        TextEntry::make('prior_school_name')->label('Previous school attended'),
+                                        TextEntry::make('credential_basis')->label('Admission qualification')
+                                            ->formatStateUsing(fn (string $state, AdmissionApplication $record): string => AdmissionApplication::admissionQualificationOptions((string) $record->application_path)[$state]
+                                                ?? str($state)->lower()->headline()->toString()),
+                                        TextEntry::make('prior_school_completion_year')->label('Graduation year')->placeholder('Not provided'),
+                                        TextEntry::make('lrn_availability')->label('LRN availability')->placeholder('Not recorded')
+                                            ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
+                                        TextEntry::make('lrn')->label('LRN')->placeholder('No identifier provided'),
+                                    ])
+                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->contained(false)
+                                    ->compact(),
+                                Section::make('Application Choice')
+                                    ->schema([
+                                        TextEntry::make('admissionCycle.label')->label('Admission cycle'),
+                                        TextEntry::make('term.label')->label('Target term'),
+                                        TextEntry::make('program.name')->label('Program'),
+                                        TextEntry::make('application_path')->label('Student type')->formatStateUsing(fn (string $state): string => AdmissionCycle::studentTypeLabel($state)),
+                                    ])
+                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->contained(false)
+                                    ->compact(),
+                                Section::make('Emergency Contact')
+                                    ->schema([
+                                        TextEntry::make('guardian_full_name')->label('Parent, guardian or emergency contact')->placeholder('Not provided'),
+                                        TextEntry::make('guardian_relationship')->label('Relationship')->placeholder('Not provided'),
+                                        TextEntry::make('guardian_mobile')->label('Contact mobile')->placeholder('Not provided'),
+                                    ])
+                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->contained(false)
+                                    ->compact(),
+                            ]),
+                    ])
+                    ->columnSpan(['default' => 'full', 'xl' => 1]),
             ]);
     }
 
     /**
-     * @return array{review: array<string, mixed>, decision: array<string, mixed>, clearance: array<string, mixed>|null, timezone: string}
+     * @return array{review: array<string, mixed>, clearance: array<string, mixed>|null}
      */
     private static function supportingFacts(AdmissionApplication $application): array
     {
@@ -385,12 +380,7 @@ class AdmissionApplicationInfolist
         $startedVersion = $start !== null ? $application->submissionVersions()->whereKey($start->source_id)->value('version') : null;
         $activeCorrection = $application->correctionRequests->where('state', ApplicationCorrectionRequest::StateActive)->sortByDesc('sequence')->first();
 
-        $decision = $application->decisions->whereNull('successor')->sortByDesc('decided_at')->first();
-        $decisionVersion = $decision !== null ? $application->submissionVersions->firstWhere('id', $decision->application_submission_version_id) : null;
-        $decisionNumber = $decisionVersion?->version ?? $decision?->application_submission_version_id;
-
         return [
-            'timezone' => $timezone,
             'review' => [
                 'started_by' => $start !== null ? ($start->actor?->getFilamentName() ?? 'Recorded Registrar') : null,
                 'started_at' => $start !== null ? $format($start->occurred_at) : null,
@@ -401,30 +391,6 @@ class AdmissionApplicationInfolist
                 'received' => $format($application->submitted_at) ?? 'Not submitted',
                 'closing' => $format($application->admissionCycle?->closes_at) ?? 'Not set',
                 'correction_due' => $format($activeCorrection?->due_at),
-            ],
-            'decision' => [
-                'label' => $decision !== null
-                    ? str($decision->decision)->headline()->toString()
-                    : match ($application->application_state) {
-                        AdmissionApplication::StateDraft => 'Draft — not submitted',
-                        AdmissionApplication::StateSubmitted => 'Undecided — review pending',
-                        AdmissionApplication::StateActionNeeded => 'Undecided — correction pending',
-                        AdmissionApplication::StateWithdrawn => 'None — withdrawn',
-                        default => 'No decision recorded',
-                    },
-                'color' => match ($decision?->decision) {
-                    AdmissionDecision::DecisionAdmitted => 'success',
-                    AdmissionDecision::DecisionNotAdmitted => 'danger',
-                    null => 'gray',
-                    default => 'info',
-                },
-                'decided_by' => $decision?->decisionMaker?->getFilamentName() ?? ($decision !== null ? 'Registrar' : null),
-                'decided_at' => $decision !== null ? $format($decision->decided_at).($decision->supersedes_admission_decision_id ? ' (superseding)' : '') : null,
-                'source' => $decision !== null
-                    ? ($decisionNumber ? 'Submission #'.$decisionNumber : 'Submission version unavailable')
-                        .' · '.(filled($decision->application_submission_version_id) && (int) $decision->application_submission_version_id === (int) $application->current_submission_version_id
-                            ? 'Current submitted version' : 'Earlier submitted version (retained)')
-                    : null,
             ],
             'clearance' => $isAdmitted ? [
                 'result' => match ($projection['clearance_result']) {
@@ -493,16 +459,6 @@ class AdmissionApplicationInfolist
                 'instruction' => filled($clearance->safe_instruction) ? $clearance->safe_instruction : 'No additional instruction',
             ])->all(),
         ];
-    }
-
-    private static function legalName(AdmissionApplication $application): string
-    {
-        return collect([
-            $application->first_name,
-            $application->middle_name,
-            $application->last_name,
-            $application->extension_name,
-        ])->filter()->implode(' ');
     }
 
     private static function currentEvidence(AdmissionApplication $application): Collection
@@ -625,10 +581,6 @@ class AdmissionApplicationInfolist
                     ])->filter()->implode("\n");
                 }),
             Actions::make([
-                Action::make('viewEvidence')->label('View')->button()->color('gray')->icon('heroicon-o-eye')
-                    ->extraAttributes(fn (DocumentEvidence $record): array => ['aria-label' => e('View '.($record->admissionRequirement?->label ?? 'evidence').' copy '.$record->id)])
-                    ->visible(fn (DocumentEvidence $record): bool => (bool) $record->exists && $record->id !== null)
-                    ->url(fn (DocumentEvidence $record): ?string => $record->id ? route('admissions.evidence.view', ['evidence' => $record]) : null)->openUrlInNewTab(),
                 Action::make('reviewEvidenceRow')
                     ->label('Review')
                     ->extraAttributes(fn (DocumentEvidence $record): array => ['aria-label' => e('Review '.($record->admissionRequirement?->label ?? 'evidence').' copy '.$record->id)])
@@ -642,7 +594,11 @@ class AdmissionApplicationInfolist
                     )
                     ->action(fn (DocumentEvidence $record, ViewAdmissionApplication $livewire) => $livewire->replaceMountedAction('reviewEvidence', ['document_evidence_id' => $record->id])
                     ),
-                Action::make('downloadEvidence')->label('Download')->button()->color('gray')->icon('heroicon-o-arrow-down-tray')
+                Action::make('viewEvidence')->label('View')->iconButton()->tooltip('View copy')->color('gray')->icon('heroicon-o-eye')
+                    ->extraAttributes(fn (DocumentEvidence $record): array => ['aria-label' => e('View '.($record->admissionRequirement?->label ?? 'evidence').' copy '.$record->id)])
+                    ->visible(fn (DocumentEvidence $record): bool => (bool) $record->exists && $record->id !== null)
+                    ->url(fn (DocumentEvidence $record): ?string => $record->id ? route('admissions.evidence.view', ['evidence' => $record]) : null)->openUrlInNewTab(),
+                Action::make('downloadEvidence')->label('Download')->iconButton()->tooltip('Download copy')->color('gray')->icon('heroicon-o-arrow-down-tray')
                     ->extraAttributes(fn (DocumentEvidence $record): array => ['aria-label' => e('Download '.($record->admissionRequirement?->label ?? 'evidence').' copy '.$record->id)])
                     ->visible(fn (DocumentEvidence $record): bool => (bool) $record->exists && $record->id !== null)
                     ->url(fn (DocumentEvidence $record): ?string => $record->id ? route('admissions.evidence.download', ['evidence' => $record]) : null)->openUrlInNewTab(),

@@ -268,9 +268,13 @@ class SubmitAdmissionApplication
             'prior_school_name' => ['required', 'string', 'between:1,160'],
             'prior_school_country_code' => ['required', 'string', 'size:2'],
             'prior_school_completion_year' => [Rule::requiredIf($application->application_path !== AdmissionApplication::PathTransferee), 'nullable', 'integer', 'digits:4', 'max:'.now('Asia/Manila')->year],
-            // First submissions require an LRN (owner decision, October 14, 2026); recorded NotIssued/NotAvailable facts remain valid for corrections.
-            'lrn_availability' => ['required', Rule::in($application->current_submission_version_id === null ? ['Provided'] : ['Provided', 'NotIssued', 'NotAvailable'])],
-            'lrn' => [Rule::requiredIf($application->current_submission_version_id === null || $application->lrn_availability === 'Provided'), 'nullable', 'regex:/^\\d{12}$/',
+            // First submissions require an LRN (owner decision, October 14, 2026), except a Transferee whose LRN was never issued
+            // (owner decision, November 22, 2026); recorded NotIssued/NotAvailable facts remain valid for corrections.
+            'lrn_availability' => ['required', Rule::in($application->current_submission_version_id !== null
+                ? ['Provided', 'NotIssued', 'NotAvailable']
+                : ($application->application_path === AdmissionApplication::PathTransferee ? ['Provided', 'NotIssued'] : ['Provided']))],
+            'lrn' => [Rule::requiredIf($application->lrn_availability === 'Provided'
+                || ($application->current_submission_version_id === null && $application->lrn_availability !== 'NotIssued')), 'nullable', 'regex:/^\\d{12}$/',
                 Rule::prohibitedIf(in_array($application->lrn_availability, ['NotIssued', 'NotAvailable'], true))],
             // Fixed PSA-style choices (#61 F84); a value already recorded on this application stays valid.
             'gender' => ['nullable', 'string', 'between:1,40', Rule::in(AdmissionApplication::choicesKeepingRecorded(AdmissionApplication::SexChoices, $application->getRawOriginal('gender')))],

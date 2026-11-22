@@ -1267,6 +1267,24 @@
 .tala-home-status-card .tala-home-facts { gap: 0.625rem; }
 .tala-home-status-card .tala-home-facts > div, .tala-home-dates .tala-home-facts > div { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; }
 .tala-home-facts { display: grid; gap: 0.875rem; margin: 0; }
+/* Status card spends its full width: the badge sits beside its sentence and the three facts share one row once there is room. */
+.tala-home-status-card { container-type: inline-size; }
+@container (min-width: 36rem) {
+    .tala-home-status-card .tala-home-status { grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 0.875rem; }
+    .tala-home-status-card .tala-home-status p { font-size: 0.875rem; }
+    .tala-home-status-card .tala-home-facts {
+        grid-template-columns: max-content minmax(0, 2fr) minmax(0, 1fr);
+        column-gap: 0;
+        padding-block: 1rem;
+        border-block: 1px solid var(--tala-edge);
+    }
+    .tala-home-status-card .tala-home-facts > div { padding-inline: 1.5rem; align-content: start; }
+    .tala-home-status-card .tala-home-facts > div:first-child { padding-inline-start: 0; }
+    .tala-home-status-card .tala-home-facts > div:last-child { padding-inline-end: 0; }
+    .tala-home-status-card .tala-home-facts > div + div { border-inline-start: 1px solid var(--tala-edge); }
+    .tala-home-status-card .tala-home-facts dd { font-size: 1rem; font-weight: 600; }
+    .tala-home-status-card .tala-home-facts + .tala-home-card-footer { border-block-start: 0; margin-block-start: 0; }
+}
 .tala-home-facts > div { display: grid; grid-template-columns: minmax(7rem, 10rem) minmax(0, 1fr); gap: 0.75rem; }
 .tala-home-facts dt { font-size: 0.875rem; color: var(--tala-muted); }
 .tala-home-facts dd { margin: 0; font-size: 0.875rem; font-weight: 500; overflow-wrap: anywhere; }
@@ -1294,6 +1312,18 @@
 .dark .tala-checklist__mark--warning { color: var(--warning-400); }
 .tala-checklist__label { font-size: 0.875rem; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
 .tala-checklist__summary { margin: 0.875rem 0 0; font-size: 0.875rem; line-height: 1.6; color: var(--tala-muted); }
+/* On-site papers follow the online copies on their own row, with a dashed edge for a physical hand-over. */
+.tala-checklist__item--onsite { border-style: dashed; }
+.tala-checklist__item--onsite-start { grid-column-start: 1; }
+.tala-checklist__item--onsite .tala-checklist__mark--gray { border-style: dashed; color: var(--tala-muted); }
+/* Requirements page: read-only list of official papers handed over in person. */
+.tala-onsite-list { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+.tala-onsite-item { display: grid; gap: 0.25rem; padding: 0.875rem 1rem; border: 1px dashed var(--tala-edge); border-radius: 0.75rem; background: var(--tala-surface-sunken); }
+.tala-onsite-item__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 0.75rem; }
+.tala-onsite-item__label { font-weight: 600; overflow-wrap: anywhere; }
+.tala-onsite-item__due { font-size: 0.875rem; font-weight: 500; color: var(--primary-700); }
+.dark .tala-onsite-item__due { color: var(--primary-300); }
+.tala-onsite-item__instructions { font-size: 0.875rem; line-height: 1.55; color: var(--tala-muted); max-inline-size: 70ch; }
 .tala-announcements { display: grid; gap: 0.875rem; }
 .tala-home-facts + .tala-announcements { margin-block-start: 1.25rem; padding-block-start: 1.25rem; border-top: 1px solid var(--gray-200); }
 .dark .tala-home-facts + .tala-announcements { border-color: var(--gray-800); }
@@ -1303,7 +1333,7 @@
 .tala-announcement p { margin: 0; }
 .tala-announcement__title { margin: 0; font-size: 0.875rem; font-weight: 600; line-height: 1.45; }
 .tala-announcement__date { font-size: 0.8125rem; color: var(--tala-muted); }
-.tala-announcement__message { font-size: 0.875rem; line-height: 1.55; overflow-wrap: anywhere; }
+.tala-announcement__message { font-size: 0.875rem; line-height: 1.55; overflow-wrap: anywhere; text-align: justify; text-justify: inter-word; hyphens: auto; }
 .tala-home-help { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.25rem; padding: 1.25rem 1.5rem; border: 1px solid var(--primary-200); border-radius: 0.75rem; background: var(--primary-50); box-shadow: var(--tala-shadow-detail); }
 .dark .tala-home-help { border-color: var(--primary-900); background: color-mix(in oklab, var(--primary-950) 55%, #242429); }
 .tala-home-help__icon { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 3rem; height: 3rem; border-radius: 9999px; background: #fff; color: var(--primary-700); box-shadow: inset 0 0 0 1px var(--primary-200); }
@@ -1352,8 +1382,18 @@
 .fi-body .fi-sc:has(.tala-registrar-current-task) { align-items: start; }
 .tala-registrar-current-task .fi-in-text { line-height: 1.45; }
 .tala-registrar-current-task .fi-in-text-item { overflow-wrap: anywhere; }
-.tala-evidence-actions .fi-ac { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tala-evidence-actions .fi-ac { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.375rem; }
 .tala-evidence-actions .fi-btn { justify-content: center; white-space: nowrap; }
+/* Applicant record: in-tab section headings use the shared section size, and evidence rows keep one even rhythm. */
+.tala-applicant-record-tabs .fi-section-not-contained > .fi-section-header .fi-section-header-heading { font-size: 1.125rem; font-weight: 600; line-height: 1.3; }
+.tala-evidence-table :is(th, td) { padding: 0.75rem; vertical-align: middle; }
+.tala-evidence-table th { font-size: 0.8125rem; font-weight: 500; color: var(--tala-muted); }
+.tala-evidence-table td .fi-in-text-item, .tala-evidence-table td .fi-in-text { font-size: 0.875rem; line-height: 1.4; }
+.tala-evidence-table td .fi-in-entry-helper-text, .tala-evidence-table td .fi-sc-text { font-size: 0.8125rem; line-height: 1.4; color: var(--tala-muted); }
+.tala-evidence-table td:last-child { inline-size: 1%; white-space: nowrap; }
+.tala-evidence-table td:last-child .tala-evidence-actions .fi-ac { flex-wrap: nowrap; }
+.tala-evidence-actions .fi-icon-btn { margin: 0; }
+.tala-evidence-table .fi-badge { max-inline-size: 100%; white-space: normal; overflow: visible; text-overflow: clip; text-align: start; overflow-wrap: anywhere; }
 .tala-current-task-facts { padding-block-start: 1rem; border-block-start: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
 .tala-current-task-facts .fi-in-entry-label { font-size: 0.75rem; font-weight: 400; color: var(--gray-500); }
 .tala-facts-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; align-items: start; }
@@ -1364,7 +1404,6 @@
 .tala-facts-groups dt { margin: 0 0 0.125rem; font-size: 0.75rem; color: color-mix(in srgb, currentColor 72%, transparent); }
 .tala-facts-groups dd { margin: 0; font-size: 0.875rem; line-height: 1.45; overflow-wrap: anywhere; }
 .tala-facts-groups dd small { display: block; margin-top: 0.125rem; font-size: 0.75rem; color: color-mix(in srgb, currentColor 72%, transparent); }
-.tala-facts-note { margin: 1rem 0 0; font-size: 0.75rem; color: color-mix(in srgb, currentColor 60%, transparent); }
 .tala-activity-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 1rem 1.5rem; margin: 0; }
 .tala-activity-facts dt, .tala-activity-footnote { font-size: 0.75rem; color: color-mix(in srgb, currentColor 72%, transparent); }
 .tala-activity-facts dd { margin: 0.125rem 0 0; font-size: 0.875rem; font-weight: 500; overflow-wrap: anywhere; }
@@ -2238,10 +2277,77 @@ dialog::backdrop,
 .tala-application-page :is(.fi-section-header-description, .fi-fo-field-wrp-helper-text) {
     text-wrap: pretty;
 }
+/* Secondary gray guidance reads as italic so it stays distinct from labels and answers. */
+.tala-application-page :is(.fi-section-header-description, .fi-fo-field-wrp-helper-text, .fi-fo-radio-label-description, .fi-sc-text) {
+    font-style: italic;
+}
 .fi-body .tala-application-page .fi-sc-wizard-footer {
     padding-inline: var(--tala-application-inset);
     flex-wrap: wrap;
     gap: 0.75rem;
+}
+/* Applicant record: the applicant's submitted details sit beside the work tabs on wide screens. */
+.tala-applicant-details-panel { align-self: start; }
+/* A single always-open panel needs no tab switcher; the panel keeps its accessible name from the hidden tab. */
+.tala-applicant-details-panel > .fi-tabs { display: none; }
+.tala-applicant-details-panel .fi-sc-tabs-tab > .fi-grid > .fi-grid-col + .fi-grid-col .fi-section-not-contained { padding-block-start: 1rem; border-block-start: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+.tala-applicant-details-panel .fi-in-entry-label { font-size: 0.75rem; font-weight: 400; color: var(--gray-500); }
+.tala-applicant-details-panel .fi-in-text-item { font-weight: 500; overflow-wrap: anywhere; }
+/* Submission receipt: the application reference is the one fact the applicant must keep. */
+.tala-receipt-reference {
+    display: grid;
+    gap: 0.375rem;
+    justify-items: start;
+    padding: 1rem 1.25rem;
+    border-radius: 0.75rem;
+    background-color: var(--tala-surface-sunken);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary-600) 35%, transparent);
+}
+.tala-receipt-reference-label { font-size: 0.8125rem; font-weight: 500; color: var(--tala-muted); }
+.tala-receipt-reference .tala-reference { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.tala-receipt-reference .tala-reference-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--primary-700);
+    overflow-wrap: anywhere;
+}
+.dark .tala-receipt-reference .tala-reference-value { color: var(--primary-400); }
+@media (max-width: 39.999rem) {
+    .tala-receipt-reference { padding: 0.875rem 1rem; }
+    .tala-receipt-reference .tala-reference-value { font-size: 1.25rem; letter-spacing: 0; }
+    .fi-body .tala-receipt-reference ~ * { margin-inline: 1rem; }
+}
+.tala-receipt-reference-hint { font-size: 0.875rem; font-style: italic; color: var(--tala-muted); }
+/* Receipt details below the reference share the reference panel's inner indent and its label-above-value grammar. */
+.tala-receipt-reference ~ * { margin-inline: 1.25rem; }
+.tala-receipt-facts {
+    display: grid;
+    gap: 1rem 2rem;
+    margin-block-start: 1.5rem;
+}
+@media (min-width: 40rem) {
+    .tala-receipt-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tala-receipt-fact--wide { grid-column: 1 / -1; }
+}
+.tala-receipt-fact { display: grid; gap: 0.125rem; min-inline-size: 0; }
+.tala-receipt-fact dt,
+.tala-receipt-copies-label { font-size: 0.8125rem; font-weight: 500; color: var(--tala-muted); }
+.tala-receipt-fact dd { font-size: 1rem; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.tala-receipt-copies { display: grid; gap: 0.5rem; margin-block-start: 1.5rem; }
+.tala-receipt-copies ul { display: grid; gap: 0.375rem; }
+.tala-receipt-copies li { display: flex; align-items: flex-start; gap: 0.5rem; font-weight: 500; overflow-wrap: anywhere; }
+.tala-receipt-copy-icon { flex: none; inline-size: 1.25rem; block-size: 1.25rem; color: var(--primary-700); }
+.dark .tala-receipt-copy-icon { color: var(--primary-400); }
+.tala-receipt-note {
+    margin-block-start: 1.5rem;
+    padding-block-start: 1rem;
+    border-block-start: 1px solid var(--tala-edge);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--tala-muted);
+    max-inline-size: 65ch;
 }
 /* Review step: one quiet card per answer category; each line shows its label above the value (#61 F98). */
 .tala-application-page .tala-review-card { height: 100%; }
@@ -2254,18 +2360,27 @@ dialog::backdrop,
 .tala-application-page .tala-review-card .fi-section-header-heading { font-size: 0.9375rem; }
 /* Review cards keep their own inset; the page's flat nested-section rule would otherwise pull content to the card edge. */
 .fi-body .tala-application-page .fi-sc-wizard .fi-section .tala-review-card > .fi-section > .fi-section-header {
-    padding: 1rem 1.25rem 0.625rem;
+    padding: 0.75rem 1rem 0.375rem;
 }
 .fi-body .tala-application-page .fi-sc-wizard .fi-section .tala-review-card > .fi-section > .fi-section-content-ctn > .fi-section-content {
-    padding: 0 1.25rem 1.25rem;
+    padding: 0 1rem 0.875rem;
 }
+/* Review cards sit closer together so the whole summary scans as one compact set. */
+.fi-body .tala-application-page .tala-review-summary > .fi-section > .fi-section-content-ctn > .fi-section-content { gap: 0.75rem; }
+/* A heading-only section keeps its first field close to the heading instead of the default description-sized gap. */
+.fi-body .tala-application-page .tala-section--heading-only > .fi-section > .fi-section-header { padding-bottom: 0.25rem; }
+.fi-body .tala-application-page .tala-section--heading-only > .fi-section > .fi-section-content-ctn > .fi-section-content { padding-top: 0.25rem; }
 @media (max-width: 39.999rem) {
     .fi-body .tala-application-page .fi-sc-wizard .fi-section .tala-review-card > .fi-section > .fi-section-header { padding: 0.875rem 1rem 0.5rem; }
     .fi-body .tala-application-page .fi-sc-wizard .fi-section .tala-review-card > .fi-section > .fi-section-content-ctn > .fi-section-content { padding: 0 1rem 1rem; }
 }
 .tala-application-page .tala-review-card .fi-section-header .fi-icon { color: var(--primary-700); }
 .dark .tala-application-page .tala-review-card .fi-section-header .fi-icon { color: var(--primary-400); }
-.tala-application-page .tala-review-card .fi-in-text-has-line-breaks { display: grid; gap: 0.75rem; }
+.tala-application-page .tala-review-card .fi-section-header { align-items: center; }
+/* The declaration checkbox and its text line up under the card icon and heading. */
+.fi-body .tala-application-page .tala-review-card--declaration .fi-fo-field-label { column-gap: 1rem; }
+.fi-body .tala-application-page .tala-review-card--declaration .fi-checkbox-input { margin-inline-start: 0.25rem; }
+.tala-application-page .tala-review-card .fi-in-text-has-line-breaks { display: grid; gap: 0.5rem; }
 .tala-application-page .tala-review-card .fi-in-text-item { font-size: 0.9375rem; font-weight: 500; }
 .tala-application-page .tala-review-card .fi-in-text { line-height: 1.5; overflow-wrap: anywhere; }
 .tala-application-page .tala-review-term {

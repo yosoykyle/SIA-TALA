@@ -107,6 +107,7 @@ class Dashboard extends BaseDashboard implements HasTable
             ->label('Withdraw application')
             ->icon('heroicon-o-archive-box-x-mark')
             ->color('danger')
+            ->outlined()
             ->requiresConfirmation()
             ->modalWidth(Width::TwoExtraLarge)
             ->stickyModalHeader()
@@ -527,10 +528,10 @@ class Dashboard extends BaseDashboard implements HasTable
     }
 
     /**
-     * The preliminary copies the Applicant's requirement set asks for, with their current state.
-     * Submitted applications reuse the Requirements page rows so both pages always agree.
+     * The preliminary copies the Applicant's requirement set asks for, with their current state, followed by the
+     * official papers handed over on site. Submitted applications reuse the Requirements page rows so both pages agree.
      *
-     * @return array{items: list<array{label: string, state: string, color: string}>, url: ?string, linkLabel: string}
+     * @return array{items: list<array{requirement_id: int, label: string, state: string, color: string, onsite: bool}>, url: ?string, linkLabel: string}
      */
     public function requirementChecklist(?AdmissionApplication $application): array
     {
@@ -541,7 +542,9 @@ class Dashboard extends BaseDashboard implements HasTable
         if ($application->currentSubmissionVersion !== null) {
             $items = collect(app(Requirements::class)->preliminaryRows($application))
                 ->map(fn (array $row): array => [
+                    'requirement_id' => (int) $row['requirement']->id,
                     'label' => $row['requirement']->label,
+                    'onsite' => false,
                     ...match ($row['result']) {
                         PreliminaryEvidenceReview::ResultAccepted => ['state' => 'Accepted', 'color' => 'success'],
                         PreliminaryEvidenceReview::ResultActionNeeded => ['state' => 'Needs action', 'color' => 'warning'],
@@ -550,22 +553,39 @@ class Dashboard extends BaseDashboard implements HasTable
                     },
                 ])->all();
 
-            return ['items' => $items, 'url' => Requirements::getUrl(['application' => $application->id]), 'linkLabel' => 'View requirements'];
+            return [
+                'items' => [...$items, ...app(Requirements::class)->onSiteItems($application)],
+                'url' => Requirements::getUrl(['application' => $application->id]),
+                'linkLabel' => 'View requirements',
+            ];
         }
 
         try {
-            $requirements = app(ResolveAdmissionRequirementSet::class)->forApplication($application)->requirements
-                ->where('requires_preliminary_evidence', true)
+            $allRequirements = app(ResolveAdmissionRequirementSet::class)->forApplication($application)->requirements
                 ->sortBy('display_order');
         } catch (ValidationException) {
-            $requirements = collect();
+            $allRequirements = collect();
         }
 
-        $items = $requirements->map(fn (AdmissionRequirement $requirement): array => $application->evidenceVersions->contains('admission_requirement_id', $requirement->id)
-            ? ['label' => $requirement->label, 'state' => 'Uploaded', 'color' => 'info']
-            : ['label' => $requirement->label, 'state' => 'Not uploaded', 'color' => 'gray'])->values()->all();
+        $items = $allRequirements->where('requires_preliminary_evidence', true)
+            ->map(fn (AdmissionRequirement $requirement): array => [
+                'requirement_id' => (int) $requirement->id,
+                'label' => $requirement->label,
+                'onsite' => false,
+                ...($application->evidenceVersions->contains('admission_requirement_id', $requirement->id)
+                    ? ['state' => 'Uploaded', 'color' => 'info']
+                    : ['state' => 'Not uploaded', 'color' => 'gray']),
+            ])->values()->all();
+        $onSiteItems = $allRequirements->filter(fn (AdmissionRequirement $requirement): bool => $requirement->isOnSite())
+            ->map(fn (AdmissionRequirement $requirement): array => [
+                'requirement_id' => (int) $requirement->id,
+                'label' => $requirement->label,
+                'onsite' => true,
+                'state' => 'To be passed on-site',
+                'color' => 'gray',
+            ])->values()->all();
 
-        return ['items' => $items, 'url' => Application::getUrl(['application' => $application->id]), 'linkLabel' => 'Upload in your application'];
+        return ['items' => [...$items, ...$onSiteItems], 'url' => Application::getUrl(['application' => $application->id]), 'linkLabel' => 'Upload in your application'];
     }
 
     /**

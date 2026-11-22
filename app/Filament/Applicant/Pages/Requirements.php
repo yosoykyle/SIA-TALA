@@ -9,7 +9,9 @@ use App\Models\ApplicationCorrectionRequest;
 use App\Models\DocumentEvidence;
 use App\Models\OfficialCredentialResult;
 use App\Models\PreliminaryEvidenceReview;
+use App\Models\RegistrarEnrollmentClearance;
 use App\Models\User;
+use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
@@ -202,6 +204,36 @@ class Requirements extends Page implements HasTable
                     : '',
             ];
         })->values()->all();
+    }
+
+    /**
+     * Official papers the submitted requirement set asks the Applicant to hand over in person. A paper due before
+     * enrollment reads as passed once the current, source-matching Registrar clearance is recorded as Cleared.
+     *
+     * @return list<array{requirement_id: int, label: string, state: string, color: string, onsite: bool, due: string, instructions: ?string}>
+     */
+    public function onSiteItems(AdmissionApplication $application): array
+    {
+        $requirements = $application->currentSubmissionVersion?->requirementSet?->requirements
+            ?->filter(fn (AdmissionRequirement $requirement): bool => $requirement->isOnSite())
+            ->sortBy('display_order') ?? collect();
+
+        if ($requirements->isEmpty()) {
+            return [];
+        }
+
+        $isCleared = app(ReadyApplicantProjectionQuery::class)->forApplication($application)['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared;
+
+        return $requirements->map(fn (AdmissionRequirement $requirement): array => [
+            'requirement_id' => (int) $requirement->id,
+            'label' => $requirement->label,
+            'onsite' => true,
+            'due' => $requirement->dueStageLabel(),
+            'instructions' => $requirement->applicant_instructions,
+            ...($isCleared && $requirement->due_stage !== AdmissionRequirement::DuePostEnrollmentFollowUp
+                ? ['state' => 'Passed on-site', 'color' => 'success']
+                : ['state' => 'To be passed on-site', 'color' => 'gray']),
+        ])->values()->all();
     }
 
     public function resultLabel(string $result): string

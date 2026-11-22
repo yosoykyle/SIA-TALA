@@ -210,6 +210,25 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertContains('Application queue', $record->instance()->getBreadcrumbs());
     }
 
+    public function test_queue_offers_start_review_for_a_new_submission_then_open_once_review_started(): void
+    {
+        [$application] = $this->application(reviewed: false);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+
+        Livewire::actingAs($registrar)->test(ListAdmissionApplications::class)
+            ->assertTableActionVisible('startReview', $application)
+            ->assertTableActionHidden('view', $application)
+            ->callTableAction('startReview', $application)
+            ->assertNotified('Review started');
+
+        $this->assertTrue($application->fresh()->reviewHasStarted());
+
+        Livewire::actingAs($registrar)->test(ListAdmissionApplications::class)
+            ->assertTableActionHidden('startReview', $application)
+            ->assertTableActionVisible('view', $application);
+    }
+
     public function test_reached_recovery_preserves_response_and_context_safe_actions(): void
     {
         [, $applicant] = $this->application();
@@ -1731,9 +1750,9 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        // 1. Current submitted version match
+        // 1. Current submitted version match: Record history lists the decision without an earlier-source flag.
         $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        $page->assertSee("Submission #{$submissionVersion1->version} · Current submitted version")
+        $page->assertDontSee('Earlier submission')
             ->assertSee('Admitted')
             ->assertSee('Admitted with verified documents')
             ->assertSee($registrar->name);
@@ -1750,7 +1769,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $application->update(['current_submission_version_id' => $submissionVersion2->id]);
 
         $pageUpdated = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        $pageUpdated->assertSee("Submission #{$submissionVersion1->version} · Earlier submitted version (retained)")
+        $pageUpdated->assertSee('Earlier submission')
             ->assertSee('Admitted')
             ->assertSee('Admitted with verified documents')
             ->assertSee($registrar->name);

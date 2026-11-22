@@ -105,9 +105,11 @@
                     @else
                         <ul class="tala-checklist" aria-label="Required documents">
                             @foreach ($checklist['items'] as $item)
-                                <li class="tala-checklist__item">
+                                <li @class(['tala-checklist__item', 'tala-checklist__item--onsite' => $item['onsite'], 'tala-checklist__item--onsite-start' => $item['onsite'] && ! $loop->first && ! ($checklist['items'][$loop->index - 1]['onsite'] ?? false)])>
                                     <span class="tala-checklist__mark tala-checklist__mark--{{ $item['color'] }}" aria-hidden="true">
-                                        @if (in_array($item['color'], ['success', 'info'], true))
+                                        @if ($item['onsite'] && $item['color'] !== 'success')
+                                            <x-filament::icon icon="heroicon-m-building-office-2" class="size-3.5" />
+                                        @elseif (in_array($item['color'], ['success', 'info'], true))
                                             <x-filament::icon icon="heroicon-m-check" class="size-3.5" />
                                         @elseif ($item['color'] === 'warning')
                                             <x-filament::icon icon="heroicon-m-exclamation-triangle" class="size-3" />
@@ -118,7 +120,8 @@
                                 </li>
                             @endforeach
                         </ul>
-                        <p class="tala-checklist__summary">{{ count($checklist['items']) }} {{ str('document')->plural(count($checklist['items'])) }} required · <a class="tala-home-link" {{ \Filament\Support\generate_href_html($checklist['url']) }}>{{ $checklist['linkLabel'] }}</a></p>
+                        @php($requiredDocumentCount = collect($checklist['items'])->pluck('requirement_id')->unique()->count())
+                        <p class="tala-checklist__summary">{{ $requiredDocumentCount }} {{ str('document')->plural($requiredDocumentCount) }} required · <a class="tala-home-link" {{ \Filament\Support\generate_href_html($checklist['url']) }}>{{ $checklist['linkLabel'] }}</a></p>
                     @endif
                 </x-filament::section>
 

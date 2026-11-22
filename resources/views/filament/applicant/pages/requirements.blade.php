@@ -26,6 +26,28 @@
             @endif
         {{ $this->table }}
 
+        @php($onSiteItems = $this->onSiteItems($application))
+        @if ($onSiteItems !== [])
+            <x-filament::section icon="heroicon-o-building-office-2" icon-color="primary">
+                <x-slot name="heading">To be passed on-site</x-slot>
+                <x-slot name="description">Bring these official papers to the Registrar's office. The Registrar confirms them in person.</x-slot>
+                <ul class="tala-onsite-list">
+                    @foreach ($onSiteItems as $item)
+                        <li class="tala-onsite-item">
+                            <div class="tala-onsite-item__head">
+                                <span class="tala-onsite-item__label">{{ $item['label'] }}</span>
+                                <x-filament::badge size="sm" :color="$item['color']">{{ $item['state'] }}</x-filament::badge>
+                            </div>
+                            <p class="tala-onsite-item__due">{{ $item['due'] }}</p>
+                            @if (filled($item['instructions']))
+                                <p class="tala-onsite-item__instructions">{{ $item['instructions'] }}</p>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            </x-filament::section>
+        @endif
+
         @php($projection = app(\App\Queries\Admissions\ReadyApplicantProjectionQuery::class)->forApplication($application))
         @php($clearance = $application->enrollmentClearances->firstWhere('id', $projection['clearance_id']))
         @if ($application->application_state === \App\Models\AdmissionApplication::StateAdmitted)

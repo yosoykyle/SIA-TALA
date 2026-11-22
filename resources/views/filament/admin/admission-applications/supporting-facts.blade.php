@@ -22,17 +22,6 @@
             </dl>
         </section>
 
-        <section class="tala-facts-group tala-task-surface" aria-labelledby="tala-facts-decision">
-            <h4 id="tala-facts-decision"><x-filament::icon icon="heroicon-o-scale" />Decision</h4>
-            <dl>
-                <div><dt>Admission decision</dt><dd><x-filament::badge :color="$decision['color']">{{ $decision['label'] }}</x-filament::badge></dd></div>
-                @if ($decision['decided_by'] !== null)
-                    <div><dt>Decided by</dt><dd>{{ $decision['decided_by'] }}<small>{{ $decision['decided_at'] }}</small></dd></div>
-                    <div><dt>Decided on</dt><dd>{{ $decision['source'] }}</dd></div>
-                @endif
-            </dl>
-        </section>
-
         @if ($clearance !== null)
             <section class="tala-facts-group tala-task-surface" aria-labelledby="tala-facts-clearance">
                 <h4 id="tala-facts-clearance"><x-filament::icon icon="heroicon-o-check-circle" />Clearance and readiness</h4>
@@ -49,5 +38,4 @@
             </section>
         @endif
     </div>
-    <p class="tala-facts-note">Times shown in {{ $timezone }}.</p>
 </div>
