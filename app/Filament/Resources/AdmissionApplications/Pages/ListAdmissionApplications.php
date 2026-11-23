@@ -170,7 +170,11 @@ class ListAdmissionApplications extends ListRecords
     public function getSubheading(): ?string
     {
         if ($this->activeTab === AdmissionQueueCounts::Closed) {
-            return 'Terminal admission applications (withdrawn or not admitted). For an individual application audit trail, view Record history within that application.';
+            return 'Final applications: withdrawn, rejected, or closed when the admission period ended. For an individual application audit trail, view Record history within that application.';
+        }
+
+        if ($this->activeTab === AdmissionQueueCounts::Expired) {
+            return 'Applicants who missed their paper or payment deadline while the admission period is open. Re-admit with a new deadline, or leave them until the period ends.';
         }
 
         $studentType = $this->tableFilters['application_path']['value'] ?? null;

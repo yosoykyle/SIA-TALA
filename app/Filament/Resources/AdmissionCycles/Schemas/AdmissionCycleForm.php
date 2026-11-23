@@ -50,6 +50,22 @@ class AdmissionCycleForm
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-clock')
                         ->placeholder('Select date and time'),
+                    DateTimePicker::make('requirements_due_at')->label('Physical papers due')->native(false)
+                        ->displayFormat('M j, Y · g:i A')
+                        ->timezone('Asia/Manila')
+                        ->prefixIcon('heroicon-o-document-check')
+                        ->placeholder('Not set'),
+                    DateTimePicker::make('payment_due_at')->label('Enrollment payment due')->native(false)
+                        ->displayFormat('M j, Y · g:i A')
+                        ->timezone('Asia/Manila')
+                        ->prefixIcon('heroicon-o-banknotes')
+                        ->placeholder('Not set'),
+                    DateTimePicker::make('period_ends_at')->label('Admission period ends')->native(false)
+                        ->after(fn (Get $get): ?string => filled($get('closes_at')) ? 'closes_at' : null)
+                        ->displayFormat('M j, Y · g:i A')
+                        ->timezone('Asia/Manila')
+                        ->prefixIcon('heroicon-o-lock-closed')
+                        ->placeholder('Not set'),
                 ])->columns(['default' => 1, 'lg' => 3])->columnSpanFull(),
             Section::make('Who can apply')
                 ->compact()

@@ -367,7 +367,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
 
         Livewire::actingAs($applicant)->test(Application::class, ['sourceApplicationId' => $application->id])
             ->assertSeeHtml('tala-review-card')
-            ->assertSeeInOrder(['Application choice', 'Personal information', 'Contact and address', 'Prior education', 'Parent, guardian or emergency contact', 'Optional identity details', 'Review copies', 'Declaration'])
+            ->assertSeeInOrder(['Personal information', 'Application choice', 'Contact and address', 'Prior education', 'Parent, guardian or emergency contact', 'Optional identity details', 'Review copies', 'Declaration'])
             ->assertSeeHtml('<span class="tala-review-term">Program</span>')
             ->assertSeeHtml('<span class="tala-review-term">Student type</span> Freshman')
             ->assertSeeHtml('<span class="tala-review-term">LRN</span>');
@@ -399,6 +399,22 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $this->home($submittedOwner, $submitted)
             ->assertSeeInOrder(['School review copy', 'Not submitted'])
             ->assertSee('View requirements');
+    }
+
+    public function test_requirements_checklist_lists_on_site_papers_after_online_copies(): void
+    {
+        [$application, $applicant] = $this->application(extraRequirements: [
+            ['label' => 'Original birth certificate', 'requires_preliminary_evidence' => false, 'official_submission_method' => AdmissionRequirement::SubmissionInPerson,
+                'due_stage' => AdmissionRequirement::DueEnrollmentReadiness, 'display_order' => 0],
+            ['label' => 'School-sent official record', 'requires_preliminary_evidence' => false, 'official_submission_method' => AdmissionRequirement::SubmissionSchoolToSchool,
+                'due_stage' => AdmissionRequirement::DuePostEnrollmentFollowUp],
+        ]);
+
+        $this->home($applicant, $application)
+            ->assertSeeInOrder(['School review copy', 'Not submitted', 'Original birth certificate', 'To be passed on-site'])
+            ->assertSee('tala-checklist__item--onsite-start', false)
+            ->assertDontSee('School-sent official record')
+            ->assertSee('2 documents required');
     }
 
     public function test_applicant_pages_show_a_date_and_time_top_bar_without_account_controls(): void
@@ -488,7 +504,8 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
     }
 
     /** @return array{AdmissionApplication, User} */
-    private function application(bool $submitted = true, bool $preliminaryEvidence = false): array
+    /** @param list<array<string, mixed>> $extraRequirements */
+    private function application(bool $submitted = true, bool $preliminaryEvidence = false, array $extraRequirements = []): array
     {
         $applicant = User::factory()->create(['status' => User::StatusActive]);
         $applicant->assignRole('applicant');
@@ -496,6 +513,9 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $application = AdmissionApplication::factory()->submitted()->create(['user_id' => $applicant->id, 'admission_cycle_id' => $cycle->id, 'application_state' => $submitted ? AdmissionApplication::StateSubmitted : AdmissionApplication::StateDraft]);
         $set = AdmissionRequirementSet::factory()->create(['admission_cycle_id' => $cycle->id, 'application_path' => $application->application_path]);
         AdmissionRequirement::factory()->create(['admission_requirement_set_id' => $set->id, 'label' => 'School review copy', 'requires_preliminary_evidence' => true, 'due_stage' => $preliminaryEvidence ? AdmissionRequirement::DuePreliminaryReview : AdmissionRequirement::DueEnrollmentReadiness]);
+        foreach ($extraRequirements as $requirement) {
+            AdmissionRequirement::factory()->create(['admission_requirement_set_id' => $set->id, ...$requirement]);
+        }
         $set->update(['state' => AdmissionRequirementSet::StatePublished, 'published_at' => now(), 'effective_at' => now()]);
         if ($submitted) {
             $version = ApplicationSubmissionVersion::factory()->create(['admission_application_id' => $application->id, 'admission_requirement_set_id' => $set->id, 'submitted_by' => $applicant->id]);

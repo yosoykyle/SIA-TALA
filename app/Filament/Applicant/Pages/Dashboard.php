@@ -19,7 +19,9 @@ use App\Models\Program;
 use App\Models\PublicNotice;
 use App\Models\RegistrationProposalVersion;
 use App\Models\User;
+use App\Queries\Admissions\AdmissionDeadlineStatus;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
+use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
@@ -107,6 +109,7 @@ class Dashboard extends BaseDashboard implements HasTable
             ->label('Withdraw application')
             ->icon('heroicon-o-archive-box-x-mark')
             ->color('danger')
+            ->outlined()
             ->requiresConfirmation()
             ->modalWidth(Width::TwoExtraLarge)
             ->stickyModalHeader()
@@ -278,6 +281,69 @@ class Dashboard extends BaseDashboard implements HasTable
             ->exists();
     }
 
+    /**
+     * Expired, Closed and Rejected (QA workflow) take precedence over the stored state on Home.
+     *
+     * @return array{status: string|null, kind: string|null, deadline: CarbonInterface|null, reason: string|null}
+     */
+    public function deadlineStatus(AdmissionApplication $application): array
+    {
+        return app(AdmissionDeadlineStatus::class)->for($application);
+    }
+
+    public function homeStatusLabel(AdmissionApplication $application): string
+    {
+        return match (true) {
+            $this->deadlineStatus($application)['status'] === AdmissionDeadlineStatus::Closed => 'Application closed',
+            $this->deadlineStatus($application)['status'] === AdmissionDeadlineStatus::Expired => 'Expired',
+            $application->application_state === AdmissionApplication::StateNotAdmitted => 'Application rejected',
+            default => $this->statusLabel($application->application_state),
+        };
+    }
+
+    public function homeStatusColor(AdmissionApplication $application): string
+    {
+        return match (true) {
+            $this->deadlineStatus($application)['status'] === AdmissionDeadlineStatus::Closed => 'gray',
+            $this->deadlineStatus($application)['status'] === AdmissionDeadlineStatus::Expired,
+            $application->application_state === AdmissionApplication::StateNotAdmitted => 'danger',
+            default => $this->statusColor($application->application_state),
+        };
+    }
+
+    /**
+     * The Home notice for a final or expired application: what happened and what the Applicant can do.
+     *
+     * @return array{tone: string, title: string, body: string}|null
+     */
+    public function finalNotice(?AdmissionApplication $application): ?array
+    {
+        if (! $application instanceof AdmissionApplication) {
+            return null;
+        }
+
+        $deadline = $this->deadlineStatus($application);
+
+        if ($deadline['status'] === AdmissionDeadlineStatus::Closed) {
+            return ['tone' => 'neutral', 'title' => 'Application closed', 'body' => $deadline['reason'].' Applications cannot be moved to another term. Create a new account to apply when the next admission period opens.'];
+        }
+
+        if ($deadline['status'] === AdmissionDeadlineStatus::Expired) {
+            return ['tone' => 'warning', 'title' => 'Application expired', 'body' => $deadline['reason'].' Contact Admissions support. The Registrar can set a new deadline while the admission period is open.'];
+        }
+
+        if ($application->application_state === AdmissionApplication::StateNotAdmitted) {
+            $explanation = $application->decisions
+                ->filter(fn ($decision): bool => $decision->successor === null)
+                ->sortByDesc('decided_at')
+                ->first()?->applicant_explanation;
+
+            return ['tone' => 'danger', 'title' => 'Application rejected', 'body' => (filled($explanation) ? 'Reason from the Registrar: '.$explanation.' ' : '').'This decision is final. The application cannot be corrected or resubmitted.'];
+        }
+
+        return null;
+    }
+
     public function statusLabel(string $state): string
     {
         return str($state)->headline()->toString();
@@ -333,9 +399,10 @@ class Dashboard extends BaseDashboard implements HasTable
         ];
 
         $currentIndex = collect($completed)->search(false);
-        $stops = in_array($application->application_state, [AdmissionApplication::StateNotAdmitted, AdmissionApplication::StateWithdrawn], true);
+        $isClosed = $this->deadlineStatus($application)['status'] === AdmissionDeadlineStatus::Closed;
+        $stops = $isClosed || in_array($application->application_state, [AdmissionApplication::StateNotAdmitted, AdmissionApplication::StateWithdrawn], true);
 
-        return collect($labels)->map(function (string $label, int $index) use ($completed, $details, $currentIndex, $stops, $isNotAdmitted): array {
+        return collect($labels)->map(function (string $label, int $index) use ($completed, $details, $currentIndex, $stops, $isNotAdmitted, $isClosed): array {
             $status = match (true) {
                 $completed[$index] => 'completed',
                 $stops => 'unavailable',
@@ -346,7 +413,11 @@ class Dashboard extends BaseDashboard implements HasTable
             return [
                 'label' => $label,
                 'status' => $status,
-                'detail' => $status === 'unavailable' ? ($isNotAdmitted ? 'Not applicable' : 'Stopped') : $details[$index],
+                'detail' => $status === 'unavailable' ? match (true) {
+                    $isClosed => 'Closed',
+                    $isNotAdmitted => 'Not applicable',
+                    default => 'Stopped',
+                } : $details[$index],
             ];
         })->all();
     }
@@ -377,6 +448,15 @@ class Dashboard extends BaseDashboard implements HasTable
     public function statusExplanation(AdmissionApplication $application): string
     {
         $query = app(ReadyApplicantProjectionQuery::class);
+        $deadline = $this->deadlineStatus($application);
+
+        if ($deadline['status'] === AdmissionDeadlineStatus::Closed) {
+            return 'The admission period ended before this application was finished. Create a new account for a later term.';
+        }
+
+        if ($deadline['status'] === AdmissionDeadlineStatus::Expired) {
+            return $deadline['reason'].' Contact Admissions support about a new deadline.';
+        }
 
         if ($application->application_state === AdmissionApplication::StateAdmitted) {
             $projection = $this->readinessProjection($application);
@@ -396,7 +476,7 @@ class Dashboard extends BaseDashboard implements HasTable
                 ? 'Awaiting Registrar review. You can still update your application until the Registrar starts reviewing it.'
                 : 'The Registrar is reviewing your application.',
             AdmissionApplication::StateActionNeeded => 'The Registrar asked you to correct part of your application.',
-            AdmissionApplication::StateNotAdmitted => 'The Registrar recorded an admission decision. Read the explanation in your journey.',
+            AdmissionApplication::StateNotAdmitted => 'The Registrar rejected this application. The decision is final.',
             AdmissionApplication::StateWithdrawn => 'This application was withdrawn. Contact the Registrar if it needs to be reopened.',
             default => 'Contact the Registrar about this application.',
         };
@@ -420,6 +500,9 @@ class Dashboard extends BaseDashboard implements HasTable
             $cycle?->opens_at ? ['label' => 'Applications open', 'value' => $format($cycle->opens_at)] : null,
             $cycle?->closes_at ? ['label' => 'Applications close', 'value' => $format($cycle->closes_at)] : null,
             $correction?->due_at ? ['label' => $correction->isOverdue() ? 'Correction overdue since' : 'Correction due', 'value' => $format($correction->due_at)] : null,
+            ($papersDue = app(AdmissionDeadlineStatus::class)->requirementsDeadline($application)) ? ['label' => 'Physical papers due', 'value' => $format($papersDue)] : null,
+            ($paymentDue = app(AdmissionDeadlineStatus::class)->paymentDeadline($application)) ? ['label' => 'Enrollment payment due', 'value' => $format($paymentDue)] : null,
+            $cycle?->period_ends_at ? ['label' => 'Admission period ends', 'value' => $format($cycle->period_ends_at)] : null,
             ['label' => 'Decision', 'value' => 'The Registrar reviews submitted applications. You will get an email when there is an update.'],
         ]));
     }
@@ -440,7 +523,8 @@ class Dashboard extends BaseDashboard implements HasTable
             ->sortByDesc('sequence')
             ->first();
 
-        return $cycle?->opens_at !== null || $cycle?->closes_at !== null || $correction?->due_at !== null;
+        return $cycle?->opens_at !== null || $cycle?->closes_at !== null || $correction?->due_at !== null
+            || $cycle?->requirements_due_at !== null || $cycle?->payment_due_at !== null || $cycle?->period_ends_at !== null;
     }
 
     /**
@@ -484,6 +568,14 @@ class Dashboard extends BaseDashboard implements HasTable
     public function applicationDeadline(?AdmissionApplication $application): array
     {
         $format = fn ($instant): string => $instant->timezone(config('app.display_timezone'))->format('M j, Y, g:i A');
+        $deadlineStatus = $application instanceof AdmissionApplication ? $this->deadlineStatus($application) : ['status' => null, 'deadline' => null];
+        if ($deadlineStatus['status'] === AdmissionDeadlineStatus::Closed) {
+            return ['label' => 'Admission period ended', 'value' => $format($deadlineStatus['deadline']), 'note' => 'This application is closed.'];
+        }
+        if ($deadlineStatus['status'] === AdmissionDeadlineStatus::Expired) {
+            return ['label' => 'Deadline passed', 'value' => $format($deadlineStatus['deadline']), 'note' => 'Contact Admissions support about a new deadline.'];
+        }
+
         $correction = $application?->correctionRequests
             ->where('state', ApplicationCorrectionRequest::StateActive)
             ->sortByDesc('sequence')
@@ -523,14 +615,29 @@ class Dashboard extends BaseDashboard implements HasTable
                 : 'Asia/Manila time'];
         }
 
+        if ($application->application_state === AdmissionApplication::StateAdmitted) {
+            $projection = app(ReadyApplicantProjectionQuery::class)->forApplication($application);
+            $deadlines = app(AdmissionDeadlineStatus::class);
+            $papersDue = $deadlines->requirementsDeadline($application);
+            $paymentDue = $deadlines->paymentDeadline($application);
+
+            if ($projection['clearance_result'] !== 'Cleared' && $papersDue?->isFuture()) {
+                return ['label' => 'Physical papers due', 'value' => $format($papersDue), 'note' => 'Bring the papers listed in your checklist to the Registrar (Asia/Manila).'];
+            }
+
+            if ($projection['clearance_result'] === 'Cleared' && $paymentDue?->isFuture()) {
+                return ['label' => 'Enrollment payment due', 'value' => $format($paymentDue), 'note' => 'Accounting must verify your payment by this time (Asia/Manila).'];
+            }
+        }
+
         return ['label' => 'Next deadline', 'value' => null, 'note' => 'Nothing is due from you right now.'];
     }
 
     /**
-     * The preliminary copies the Applicant's requirement set asks for, with their current state.
-     * Submitted applications reuse the Requirements page rows so both pages always agree.
+     * The preliminary copies the Applicant's requirement set asks for, with their current state, followed by the
+     * official papers handed over on site. Submitted applications reuse the Requirements page rows so both pages agree.
      *
-     * @return array{items: list<array{label: string, state: string, color: string}>, url: ?string, linkLabel: string}
+     * @return array{items: list<array{requirement_id: int, label: string, state: string, color: string, onsite: bool}>, url: ?string, linkLabel: string}
      */
     public function requirementChecklist(?AdmissionApplication $application): array
     {
@@ -541,7 +648,9 @@ class Dashboard extends BaseDashboard implements HasTable
         if ($application->currentSubmissionVersion !== null) {
             $items = collect(app(Requirements::class)->preliminaryRows($application))
                 ->map(fn (array $row): array => [
+                    'requirement_id' => (int) $row['requirement']->id,
                     'label' => $row['requirement']->label,
+                    'onsite' => false,
                     ...match ($row['result']) {
                         PreliminaryEvidenceReview::ResultAccepted => ['state' => 'Accepted', 'color' => 'success'],
                         PreliminaryEvidenceReview::ResultActionNeeded => ['state' => 'Needs action', 'color' => 'warning'],
@@ -550,22 +659,39 @@ class Dashboard extends BaseDashboard implements HasTable
                     },
                 ])->all();
 
-            return ['items' => $items, 'url' => Requirements::getUrl(['application' => $application->id]), 'linkLabel' => 'View requirements'];
+            return [
+                'items' => [...$items, ...app(Requirements::class)->onSiteItems($application)],
+                'url' => Requirements::getUrl(['application' => $application->id]),
+                'linkLabel' => 'View requirements',
+            ];
         }
 
         try {
-            $requirements = app(ResolveAdmissionRequirementSet::class)->forApplication($application)->requirements
-                ->where('requires_preliminary_evidence', true)
+            $allRequirements = app(ResolveAdmissionRequirementSet::class)->forApplication($application)->requirements
                 ->sortBy('display_order');
         } catch (ValidationException) {
-            $requirements = collect();
+            $allRequirements = collect();
         }
 
-        $items = $requirements->map(fn (AdmissionRequirement $requirement): array => $application->evidenceVersions->contains('admission_requirement_id', $requirement->id)
-            ? ['label' => $requirement->label, 'state' => 'Uploaded', 'color' => 'info']
-            : ['label' => $requirement->label, 'state' => 'Not uploaded', 'color' => 'gray'])->values()->all();
+        $items = $allRequirements->where('requires_preliminary_evidence', true)
+            ->map(fn (AdmissionRequirement $requirement): array => [
+                'requirement_id' => (int) $requirement->id,
+                'label' => $requirement->label,
+                'onsite' => false,
+                ...($application->evidenceVersions->contains('admission_requirement_id', $requirement->id)
+                    ? ['state' => 'Uploaded', 'color' => 'info']
+                    : ['state' => 'Not uploaded', 'color' => 'gray']),
+            ])->values()->all();
+        $onSiteItems = $allRequirements->filter(fn (AdmissionRequirement $requirement): bool => $requirement->isOnSite())
+            ->map(fn (AdmissionRequirement $requirement): array => [
+                'requirement_id' => (int) $requirement->id,
+                'label' => $requirement->label,
+                'onsite' => true,
+                'state' => 'To be passed on-site',
+                'color' => 'gray',
+            ])->values()->all();
 
-        return ['items' => $items, 'url' => Application::getUrl(['application' => $application->id]), 'linkLabel' => 'Upload in your application'];
+        return ['items' => [...$items, ...$onSiteItems], 'url' => Application::getUrl(['application' => $application->id]), 'linkLabel' => 'Upload in your application'];
     }
 
     /**
@@ -627,6 +753,14 @@ class Dashboard extends BaseDashboard implements HasTable
 
     public function nextAction(AdmissionApplication $application): string
     {
+        $deadline = $this->deadlineStatus($application);
+        if ($deadline['status'] === AdmissionDeadlineStatus::Closed) {
+            return 'Create a new account to apply when the next admission period opens.';
+        }
+        if ($deadline['status'] === AdmissionDeadlineStatus::Expired) {
+            return 'Contact Admissions support to ask the Registrar for a new deadline.';
+        }
+
         if ($application->application_state === AdmissionApplication::StateAdmitted) {
             $projection = app(ReadyApplicantProjectionQuery::class)->forApplication($application);
             if ($projection['ready'] ?? false) {
@@ -642,7 +776,7 @@ class Dashboard extends BaseDashboard implements HasTable
             AdmissionApplication::StateSubmitted => $application->allowsSubmittedEdit()
                 ? 'Awaiting Registrar review. Open Application to commit a complete update before review starts.'
                 : 'Wait for Registrar review; monitor Requirements for an instruction.',
-            AdmissionApplication::StateNotAdmitted => 'Review the retained decision explanation.',
+            AdmissionApplication::StateNotAdmitted => 'Read the Registrar\'s reason. This decision is final.',
             AdmissionApplication::StateWithdrawn => 'Contact the Registrar only if an authorized reopening is needed.',
             default => 'Review the current Application record.',
         };
@@ -670,7 +804,8 @@ class Dashboard extends BaseDashboard implements HasTable
             return false;
         }
 
-        return ! app(ReadyApplicantProjectionQuery::class)->registrationHasStarted($application);
+        return ! app(ReadyApplicantProjectionQuery::class)->registrationHasStarted($application)
+            && $this->deadlineStatus($application)['status'] !== AdmissionDeadlineStatus::Closed;
     }
 
     public function failedNotification(): ?OperationalEvent

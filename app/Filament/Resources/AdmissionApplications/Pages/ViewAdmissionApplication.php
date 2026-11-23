@@ -5,30 +5,44 @@ namespace App\Filament\Resources\AdmissionApplications\Pages;
 use App\Actions\Admissions\AdmissionNotificationLedger;
 use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
+use App\Actions\Admissions\ExtendAdmissionDeadline;
 use App\Actions\Admissions\RecordAdmissionOutcome;
+use App\Actions\Admissions\RecordOfficialCredentialResult;
 use App\Actions\Admissions\RecordRegistrarEnrollmentClearance;
 use App\Actions\Admissions\RequestAdmissionCorrection;
 use App\Actions\Admissions\ResolveAdmissionIdentity;
 use App\Actions\Admissions\ReviewPreliminaryEvidence;
+use App\Actions\Admissions\SendAdmissionProcessRemark;
+use App\Actions\Calendar\Exceptions\CalendarGateViolation;
+use App\Actions\Enrollment\StartRegistrationCase;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationCorrectionItem;
 use App\Models\DocumentEvidence;
+use App\Models\Enrollment;
 use App\Models\IdentityMatchReview;
+use App\Models\OfficialCredentialResult;
 use App\Models\OperationalEvent;
+use App\Models\Payment;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\RegistrarEnrollmentClearance;
+use App\Models\Term;
 use App\Models\User;
+use App\Queries\Admissions\AdmissionDeadlineStatus;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
@@ -42,6 +56,10 @@ use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Enums\Width;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 
@@ -55,6 +73,14 @@ class ViewAdmissionApplication extends ViewRecord
 
     #[Url]
     public ?string $queue = null;
+
+    /** @var array<string, string|null> */
+    public array $processRemarks = [];
+
+    /** @var array{status: string|null, kind: string|null, deadline: CarbonInterface|null, reason: string|null}|null */
+    private ?array $deadlineStatusCache = null;
+
+    private ?Enrollment $currentEnrollmentCache = null;
 
     public function queueContext(): ?string
     {
@@ -101,7 +127,7 @@ class ViewAdmissionApplication extends ViewRecord
                 ->requiresConfirmation()
                 ->modalDescription('Start review of this submitted version. Ordinary Applicant edits will lock; later changes need a named correction. Opening this record or a private copy alone does not start review.')
                 ->schema([Hidden::make('expected_submission_version_id')->default(fn (): ?int => $this->application()->current_submission_version_id)])
-                ->visible(fn (): bool => (bool) auth()->user()?->can('review', $this->application()) && $this->application()->allowsSubmittedEdit())
+                ->visible(fn (): bool => (bool) auth()->user()?->can('review', $this->application()) && $this->application()->allowsSubmittedEdit() && ! $this->isClosed())
                 ->action(fn (array $data, Action $action): mixed => $this->runAction(function (User $actor) use ($data): void {
                     app(AdmissionReviewGuard::class)->start($this->application(), $actor, (int) $data['expected_submission_version_id']);
                 }, 'Review started', $action)),
@@ -339,10 +365,14 @@ class ViewAdmissionApplication extends ViewRecord
                             ->live()
                             ->required(),
                         Textarea::make('reason')
-                            ->label('Review note')
+                            ->label('Remarks')
                             ->helperText(fn (Get $get): string => $get('result') === PreliminaryEvidenceReview::ResultActionNeeded
                                 ? 'Required: explain the problem and what the Applicant needs to replace or clarify.'
-                                : 'Add a brief basis for this copy’s review result when useful.')
+                                : 'Optional: note what is still being checked on this copy.')
+                            ->visible(fn (Get $get): bool => in_array($get('result'), [
+                                PreliminaryEvidenceReview::ResultUnderReview,
+                                PreliminaryEvidenceReview::ResultActionNeeded,
+                            ], true))
                             ->placeholder('For example: The birth date is unreadable. Upload a clear copy showing the full page.')
                             ->required(fn (Get $get): bool => $get('result') === PreliminaryEvidenceReview::ResultActionNeeded)
                             ->rows(3)
@@ -406,7 +436,8 @@ class ViewAdmissionApplication extends ViewRecord
                         );
                     }, 'Identity warning resolved', $action)),
                 Action::make('recordDecision')
-                    ->label('Record admission decision')
+                    ->label('Application screening')
+                    ->modalHeading('Application screening')
                     ->modalSubmitActionLabel('Record decision')
                     ->icon('heroicon-o-scale')
                     ->modalDescription(function (): string {
@@ -430,19 +461,21 @@ class ViewAdmissionApplication extends ViewRecord
                             ->helperText(fn (): ?string => $this->admissionBlockerGuidance())
                             ->required(),
                         Radio::make('papers_confirmed')
-                            ->label('External school checks')
+                            ->label('Physical requirement checks')
                             ->options([0 => 'Admit — papers pending', 1 => 'Admit — papers confirmed'])
                             ->default(0)->live()
                             ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionAdmitted),
                         Checkbox::make('external_checks_confirmed')
-                            ->label('I confirm the school completed all required external checks.')
+                            ->label('I confirm the school completed all required physical requirement checks.')
                             ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionAdmitted && (bool) $get('papers_confirmed'))
                             ->accepted(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionAdmitted && (bool) $get('papers_confirmed')),
                         Select::make('decision_reason')
                             ->label('Common review reason')->options([
                                 'Required evidence is acceptable' => 'Required evidence is acceptable',
                                 'Required evidence remains incomplete' => 'Required evidence remains incomplete',
-                                'Unsupported admission eligibility' => 'Unsupported admission eligibility', 'Other' => 'Other',
+                                'Unsupported admission eligibility' => 'Unsupported admission eligibility',
+                                'Submitted documents do not match the current curriculum' => 'Submitted documents do not match the current curriculum',
+                                'Other' => 'Other',
                             ])->live()->afterStateUpdated(function (Set $set, ?string $state): void {
                                 if (filled($state) && $state !== 'Other') {
                                     $set('reason', $state);
@@ -470,7 +503,6 @@ class ViewAdmissionApplication extends ViewRecord
                         && in_array($this->application()->application_state, [
                             AdmissionApplication::StateSubmitted,
                             AdmissionApplication::StateAdmitted,
-                            AdmissionApplication::StateNotAdmitted,
                         ], true))
                     ->action(fn (array $data, Action $action): mixed => $this->runAction(function (User $actor) use ($data): void {
                         if (($data['decision'] ?? null) === AdmissionDecision::DecisionAdmitted) {
@@ -506,37 +538,62 @@ class ViewAdmissionApplication extends ViewRecord
                         );
                     }, 'Admission decision recorded', $action)),
                 Action::make('recordEnrollmentClearance')
-                    ->label(fn (): string => $this->application()->enrollmentClearances()->whereDoesntHave('successor')->exists() ? 'Update enrollment clearance' : 'Mark papers complete')
+                    ->label(fn (): string => $this->application()->enrollmentClearances()->whereDoesntHave('successor')->exists() ? 'Update enrollment clearance' : 'Check enrollment papers')
+                    ->modalHeading(fn (): string => $this->application()->enrollmentClearances()->whereDoesntHave('successor')->exists() ? 'Update enrollment clearance' : 'Enrollment clearance')
                     ->modalSubmitActionLabel('Record clearance')
+                    ->modalSubmitAction(fn (Action $action): Action => $action->color('success'))
+                    ->modalWidth(Width::TwoExtraLarge)
                     ->icon('heroicon-o-check-badge')
                     ->modalDescription(function (): string {
                         $currentClearance = $this->application()->enrollmentClearances()->whereDoesntHave('successor')->first();
-                        $status = $currentClearance ? "Current clearance: {$currentClearance->result}" : 'No clearance recorded yet';
+                        $status = $currentClearance ? 'Current clearance: '.str($currentClearance->result)->headline().'.' : 'No clearance recorded yet.';
 
-                        return "{$status}. Record the Registrar outcome for external physical credential and enrollment verification. Cleared enables admission enrollment readiness; Action needed notifies the Applicant. Historical clearances remain immutable.";
+                        return "{$status} Check each paper you received in person. Record clearance once every required paper is checked; otherwise write what is wrong and notify the Applicant. Earlier clearances stay in history.";
                     })
-                    ->schema([
+                    ->schema(fn (): array => [
                         Hidden::make('expected_current_clearance_id')
                             ->default(fn () => $this->application()->enrollmentClearances()->whereDoesntHave('successor')->value('id')),
                         Hidden::make('expected_decision_id')
                             ->default(fn () => $this->application()->decisions()->whereDoesntHave('successor')->value('id')),
                         Hidden::make('expected_submission_version_id')
                             ->default(fn () => $this->application()->current_submission_version_id),
-                        Select::make('result')
-                            ->options([
-                                RegistrarEnrollmentClearance::ResultCleared => 'Cleared',
-                                RegistrarEnrollmentClearance::ResultActionNeeded => 'Action needed',
-                            ])
-                            ->required()
-                            ->live(),
+                        ...collect($this->clearanceChecklist())->map(fn (array $category, string $key): CheckboxList => CheckboxList::make('checklist_'.$key)
+                            ->label($category['label'])
+                            ->options(collect($category['items'])->mapWithKeys(fn (array $item): array => [
+                                $item['id'] => new HtmlString(e($item['label']).' <span class="tala-paper-status tala-paper-status--'.$item['tone'].'">'.e($item['status']).'</span>'),
+                            ])->all())
+                            ->descriptions(collect($category['items'])->mapWithKeys(fn (array $item): array => [
+                                $item['id'] => $item['required'] ? $item['due'] : $item['due'].' · not needed for clearance',
+                            ])->all())
+                            ->default(collect($category['items'])->where('result', OfficialCredentialResult::ResultVerified)->pluck('id')->all())
+                            ->allowHtml()
+                            ->extraAttributes(['class' => 'tala-paper-checklist']))->values()->all(),
+                        CheckboxList::make('held_papers')
+                            ->label('Allow on hold')
+                            ->helperText('The Applicant proceeds to Accounting while these papers are still owed. Only papers the requirement set allows to be held appear here; each stays tracked until it is passed.')
+                            ->options(fn (): array => collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items'])
+                                ->where('holdable', true)->mapWithKeys(fn (array $item): array => [$item['id'] => $item['label']])->all())
+                            ->default(fn (): array => collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items'])
+                                ->where('result', OfficialCredentialResult::ResultAuthorizedException)->pluck('id')->values()->all())
+                            ->live()
+                            ->visible(fn (): bool => collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items'])->contains('holdable', true)),
+                        DateTimePicker::make('hold_until')
+                            ->label('Held papers due by (Manila time)')
+                            ->timezone(config('app.display_timezone'))
+                            ->displayFormat('M j, Y · g:i A')
+                            ->seconds(false)
+                            ->native(false)
+                            ->minDate(now())
+                            ->prefixIcon('heroicon-o-calendar-days')
+                            ->visible(fn (Get $get): bool => filled($get('held_papers'))),
                         Checkbox::make('external_checks_confirmed')
                             ->label('I confirm the required external enrollment checks are complete.')
-                            ->visible(fn (Get $get): bool => $get('result') === RegistrarEnrollmentClearance::ResultCleared)
-                            ->accepted(fn (Get $get): bool => $get('result') === RegistrarEnrollmentClearance::ResultCleared),
+                            ->visible(fn (): bool => $this->clearanceChecklist() === []),
                         Textarea::make('safe_instruction')
-                            ->label('Instruction for the Applicant')
-                            ->visible(fn (Get $get): bool => $get('result') === RegistrarEnrollmentClearance::ResultActionNeeded)
-                            ->required(fn (Get $get): bool => $get('result') === RegistrarEnrollmentClearance::ResultActionNeeded)
+                            ->label('Deficiency remarks for the Applicant')
+                            ->helperText('Required when notifying the Applicant. Name the paper and say what to bring or fix.')
+                            ->placeholder("For example: The Form 138 is a photocopy. Bring the original with the school dry seal to the Registrar's Office.")
+                            ->rows(3)
                             ->maxLength(1500),
                         Textarea::make('reason')
                             ->label('Reason for replacing the previous clearance')
@@ -549,32 +606,102 @@ class ViewAdmissionApplication extends ViewRecord
                             ->placeholder('For example: approval memo or recorded correction reference')
                             ->maxLength(255),
                     ])
+                    ->extraModalFooterActions(fn (Action $action): array => [
+                        $action->makeModalSubmitAction('notifyDeficiencies', arguments: ['result' => RegistrarEnrollmentClearance::ResultActionNeeded])
+                            ->label('Notify Applicant of deficiencies')
+                            ->color('warning'),
+                        $action->makeModalSubmitAction('clearAndStartEnrollment', arguments: ['result' => RegistrarEnrollmentClearance::ResultCleared, 'start_enrollment' => true])
+                            ->label('Record clearance and start enrollment')
+                            ->color('success')
+                            ->outlined()
+                            ->visible(fn (): bool => $this->canStartEnrollment(requireReady: false)),
+                    ])
+                    ->visible(fn (): bool => $this->canReview()
+                        && $this->application()->application_state === AdmissionApplication::StateAdmitted
+                        && $this->deadlineStatus()['kind'] !== AdmissionDeadlineStatus::KindRequirements)
+                    ->action(function (array $data, array $arguments, Action $action): void {
+                        $this->runAction(
+                            fn (User $actor) => $this->recordClearanceWithChecklist($actor, $data, (string) ($arguments['result'] ?? RegistrarEnrollmentClearance::ResultCleared)),
+                            ($arguments['result'] ?? null) === RegistrarEnrollmentClearance::ResultActionNeeded ? 'Applicant notified of deficiencies' : 'Enrollment clearance recorded',
+                            $action,
+                        );
+
+                        if ((bool) ($arguments['start_enrollment'] ?? false)) {
+                            $this->deadlineStatusCache = null;
+                            $this->startEnrollmentAndOpen(afterClearance: true);
+                        }
+                    }),
+                Action::make('startEnrollment')
+                    ->label('Start enrollment')
+                    ->icon('heroicon-o-user-plus')
+                    ->requiresConfirmation()
+                    ->modalIcon('heroicon-o-user-plus')
+                    ->modalHeading('Start enrollment at the Registrar desk')
+                    ->modalDescription(fn (): string => 'Start '.$this->application()->first_name.' '.$this->application()->last_name.'\'s enrollment for '.($this->application()->term?->label ?? 'the admitted term').' now. The Applicant does not need to sign in. You review the proposed subjects next, then Accounting assesses the fee and records the payment on the same enrollment record.')
+                    ->modalSubmitActionLabel('Start enrollment')
+                    ->visible(fn (): bool => $this->canStartEnrollment())
+                    ->action(fn (): mixed => $this->startEnrollmentAndOpen()),
+                Action::make('openEnrollment')
+                    ->label('Open enrollment')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->color('gray')
+                    ->url(fn (): ?string => ($enrollment = $this->currentEnrollment()) ? EnrollmentResource::getUrl('view', ['record' => $enrollment]) : null)
+                    ->visible(fn (): bool => $this->currentEnrollment() !== null && auth()->user()?->can('view', $this->currentEnrollment())),
+                Action::make('extendDeadline')
+                    ->label(fn (): string => $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Expired ? 'Re-admit with a new deadline' : 'Extend deadline')
+                    ->modalHeading(fn (): string => $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Expired ? 'Re-admit with a new deadline' : 'Extend deadline')
+                    ->modalSubmitActionLabel('Save new deadline')
+                    ->icon('heroicon-o-calendar-days')
+                    ->modalDescription(fn (): string => $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Expired
+                        ? 'This application expired: '.$this->deadlineStatus()['reason'].' A new deadline returns the Applicant to the pending step and emails them the new date.'
+                        : 'Move this Applicant\'s own deadline. The cycle deadline for everyone else stays the same. The Applicant is emailed the new date.')
+                    ->fillForm(fn (): array => [
+                        'kind' => $this->deadlineStatus()['kind']
+                            ?? ($this->readinessIsCleared() ? AdmissionDeadlineStatus::KindPayment : AdmissionDeadlineStatus::KindRequirements),
+                    ])
+                    ->schema([
+                        Radio::make('kind')
+                            ->label('Deadline to move')
+                            ->options([
+                                AdmissionDeadlineStatus::KindRequirements => 'Physical requirements',
+                                AdmissionDeadlineStatus::KindPayment => 'Enrollment payment',
+                            ])
+                            ->descriptions(fn (): array => [
+                                AdmissionDeadlineStatus::KindRequirements => 'Current: '.($this->formatDeadline(app(AdmissionDeadlineStatus::class)->requirementsDeadline($this->application())) ?? 'not set'),
+                                AdmissionDeadlineStatus::KindPayment => 'Current: '.($this->formatDeadline(app(AdmissionDeadlineStatus::class)->paymentDeadline($this->application())) ?? 'not set'),
+                            ])
+                            ->required(),
+                        DateTimePicker::make('deadline')
+                            ->label('New deadline (Manila time)')
+                            ->timezone(config('app.display_timezone'))
+                            ->displayFormat('M j, Y · g:i A')
+                            ->seconds(false)
+                            ->native(false)
+                            ->minDate(now())
+                            ->maxDate(fn (): mixed => $this->application()->admissionCycle?->period_ends_at)
+                            ->prefixIcon('heroicon-o-calendar-days')
+                            ->helperText(fn (): string => ($period = $this->formatDeadline($this->application()->admissionCycle?->period_ends_at))
+                                ? 'Must be on or before the end of the admission period: '.$period.'.'
+                                : 'No admission-period end is set for this cycle.')
+                            ->required(),
+                        Textarea::make('reason')
+                            ->label('Reason')
+                            ->placeholder('For example: The Applicant asked for more time to get the original Form 138 from their school.')
+                            ->rows(2)
+                            ->required()
+                            ->maxLength(1000),
+                    ])
                     ->visible(fn (): bool => $this->canReview()
                         && $this->application()->application_state === AdmissionApplication::StateAdmitted)
                     ->action(fn (array $data, Action $action): mixed => $this->runAction(function (User $actor) use ($data): void {
-                        $expectedClearanceId = filled($data['expected_current_clearance_id'] ?? null)
-                            ? (int) $data['expected_current_clearance_id']
-                            : null;
-                        $expectedDecisionId = filled($data['expected_decision_id'] ?? null)
-                            ? (int) $data['expected_decision_id']
-                            : null;
-                        $expectedSubmissionVersionId = filled($data['expected_submission_version_id'] ?? null)
-                            ? (int) $data['expected_submission_version_id']
-                            : null;
-
-                        app(RecordRegistrarEnrollmentClearance::class)->execute(
+                        app(ExtendAdmissionDeadline::class)->execute(
                             $this->application(),
                             $actor,
-                            (string) $data['result'],
-                            (bool) ($data['external_checks_confirmed'] ?? false),
-                            $data['safe_instruction'] ?? null,
-                            $data['reason'] ?? null,
-                            $data['authority_reference'] ?? null,
-                            $expectedClearanceId,
-                            $expectedDecisionId,
-                            $expectedSubmissionVersionId,
+                            (string) $data['kind'],
+                            CarbonImmutable::parse((string) $data['deadline']),
+                            (string) $data['reason'],
                         );
-                    }, 'Enrollment clearance recorded', $action)),
+                    }, 'Deadline saved', $action)),
                 Action::make('withdraw')
                     ->label('Record withdrawal')
                     ->icon('heroicon-o-archive-box-x-mark')
@@ -657,12 +784,17 @@ class ViewAdmissionApplication extends ViewRecord
 
         $group = array_pop($actions);
         $primaryName = match ($this->application()->application_state) {
-            AdmissionApplication::StateSubmitted => ! $this->application()->reviewHasStarted() ? 'startReview' : ($this->identityWarningOptions() !== []
+            AdmissionApplication::StateSubmitted => $this->isClosed() ? null : (! $this->application()->reviewHasStarted() ? 'startReview' : ($this->identityWarningOptions() !== []
                 ? 'resolveIdentity'
-                : ($this->preliminaryReviewIsComplete() ? 'recordDecision' : 'reviewEvidence')),
-            AdmissionApplication::StateAdmitted => app(ReadyApplicantProjectionQuery::class)->forApplication($this->application())['ready']
-                ? 'reviewReadiness'
-                : 'recordEnrollmentClearance',
+                : ($this->preliminaryReviewIsComplete() ? 'recordDecision' : 'reviewEvidence'))),
+            AdmissionApplication::StateAdmitted => match (true) {
+                $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Closed => null,
+                $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Expired => 'extendDeadline',
+                $this->canStartEnrollment() => 'startEnrollment',
+                $this->currentEnrollment() !== null => 'openEnrollment',
+                app(ReadyApplicantProjectionQuery::class)->forApplication($this->application())['ready'] => 'reviewReadiness',
+                default => 'recordEnrollmentClearance',
+            },
             AdmissionApplication::StateWithdrawn,
             AdmissionApplication::StateActionNeeded,
             AdmissionApplication::StateNotAdmitted => null,
@@ -673,13 +805,350 @@ class ViewAdmissionApplication extends ViewRecord
 
         foreach ([...$actions, ...$group->getActions()] as $action) {
             if ($action instanceof Action && $action->getName() === $primaryName) {
-                $primary = $action->group(null)->button()->color($primaryName === 'reviewReadiness' ? 'gray' : 'primary');
+                $primary = $action->group(null)->button()->color(in_array($primaryName, ['reviewReadiness', 'openEnrollment'], true) ? 'gray' : 'primary');
             } else {
                 $secondary[] = $action;
             }
         }
 
         return array_values(array_filter([$primary, $group->actions($secondary)]));
+    }
+
+    public function sendProcessRemarkAction(): Action
+    {
+        return Action::make('sendProcessRemark')
+            ->label('Notify Applicant')
+            ->requiresConfirmation()
+            ->modalIcon('heroicon-o-paper-airplane')
+            ->modalHeading(fn (array $arguments): string => 'Notify the Applicant: '.(SendAdmissionProcessRemark::stepLabels()[$arguments['step'] ?? ''] ?? 'process update'))
+            ->modalDescription(fn (array $arguments): string => filled(trim((string) ($this->processRemarks[$arguments['step'] ?? ''] ?? '')))
+                ? 'The Applicant receives this remark by email, and it stays in Record history: “'.trim((string) $this->processRemarks[$arguments['step']]).'”'
+                : 'Write a remark first so the Applicant knows what to do.')
+            ->modalSubmitActionLabel('Send remark')
+            ->visible(fn (): bool => (bool) auth()->user()?->can('review', $this->application()))
+            ->action(fn (array $arguments, Action $action): mixed => $this->runAction(function (User $actor) use ($arguments): void {
+                $step = (string) ($arguments['step'] ?? '');
+                app(SendAdmissionProcessRemark::class)->execute($this->application(), $actor, $step, $this->processRemarks[$step] ?? null);
+                $this->processRemarks[$step] = null;
+            }, 'Applicant notified', $action));
+    }
+
+    /**
+     * The admission process as an ordered checklist: each step is done, current, stopped or still ahead.
+     *
+     * @return list<array{key: string, label: string, state: string, summary: string, blocker: string|null, action: string|null, action_label: string|null, remarks: list<array{remark: string, by: string, at: string}>}>
+     */
+    public function processEvaluation(): array
+    {
+        $application = $this->application();
+        $timezone = (string) config('app.display_timezone');
+        $format = fn ($moment): ?string => $moment?->timezone($timezone)->format('M j, Y · g:i A');
+        $projection = app(ReadyApplicantProjectionQuery::class)->forApplication($application);
+        $reviewEvent = $application->events->firstWhere('event_type', AdmissionApplicationEvent::TypeReviewStarted);
+        $decision = $application->decisions()->whereDoesntHave('successor')->latest('decided_at')->first();
+        $clearance = $application->enrollmentClearances()->whereDoesntHave('successor')->latest('recorded_at')->first();
+        $copies = ($application->currentSubmissionVersion?->requirementSet?->requirements ?? collect())
+            ->where('requires_preliminary_evidence', true)
+            ->sortBy('display_order')
+            ->map(function (AdmissionRequirement $requirement) use ($application): array {
+                $evidence = $application->evidenceVersions->where('admission_requirement_id', $requirement->id)->sortByDesc('id')->first();
+                $result = $evidence === null ? null : $application->currentPreliminaryReview($evidence)?->result;
+
+                return [
+                    'label' => $requirement->label,
+                    'accepted' => $result === PreliminaryEvidenceReview::ResultAccepted,
+                    'status' => $evidence === null ? 'copy missing' : ($result === null ? 'awaiting review' : str($result)->headline()->lower()->toString()),
+                ];
+            })
+            ->values();
+        $copiesAccepted = $copies->every(fn (array $copy): bool => $copy['accepted']);
+        $enrollment = Enrollment::query()->where('admission_application_id', $application->id)->whereNull('cancelled_at')->latest('id')->first();
+        $verifiedPayment = $enrollment?->termAccount?->payments()->where('state', Payment::StatePosted)->whereNotNull('verified_at')->latest('verified_at')->first();
+        $heldPapers = $application->credentialResults()
+            ->whereDoesntHave('successor')
+            ->where('result', OfficialCredentialResult::ResultAuthorizedException)
+            ->with('requirement')
+            ->get()
+            ->map(fn (OfficialCredentialResult $held): string => $held->requirement->label.' (due '.$held->exception_expires_at?->timezone($timezone)->format('M j, Y').')');
+        $remarks = $application->events
+            ->where('event_type', AdmissionApplicationEvent::TypeProcessRemarkSent)
+            ->sortByDesc('occurred_at')
+            ->groupBy(fn (AdmissionApplicationEvent $event): string => (string) ($event->payload['step'] ?? ''));
+
+        $steps = [
+            [
+                'key' => SendAdmissionProcessRemark::StepReview,
+                'done' => $application->reviewHasStarted(),
+                'stopped' => false,
+                'summary' => $reviewEvent
+                    ? 'Started by '.($reviewEvent->actor?->getFilamentName() ?? 'Registrar').' · '.$format($reviewEvent->occurred_at)
+                    : ($application->reviewHasStarted() ? 'Review is underway.' : 'Starting review locks ordinary Applicant edits on this submitted version.'),
+                'blocker' => null,
+                'action' => 'startReview',
+                'button' => 'Start review',
+            ],
+            [
+                'key' => SendAdmissionProcessRemark::StepEvidence,
+                'done' => $copiesAccepted || $decision !== null,
+                'stopped' => false,
+                'summary' => $copies->isEmpty()
+                    ? 'No preliminary copies are required for this application.'
+                    : ($copiesAccepted
+                        ? 'All '.$copies->count().' submitted copies accepted.'
+                        : $copies->where('accepted', true)->count().' of '.$copies->count().' submitted copies accepted.'
+                            .($decision !== null ? ' Review closed by the admission decision.' : '')),
+                'blocker' => $copiesAccepted ? null : 'Waiting on: '.$copies->where('accepted', false)
+                    ->map(fn (array $copy): string => $copy['label'].' ('.$copy['status'].')')->implode('; ').'.',
+                'action' => 'reviewEvidence',
+                'button' => 'Review copies',
+            ],
+            [
+                'key' => SendAdmissionProcessRemark::StepScreening,
+                'done' => $application->application_state === AdmissionApplication::StateAdmitted,
+                'stopped' => $application->application_state === AdmissionApplication::StateNotAdmitted,
+                'summary' => $decision
+                    ? str($decision->decision)->headline().' by '.($decision->decisionMaker?->getFilamentName() ?? 'Registrar').' · '.$format($decision->decided_at)
+                    : 'Review every submitted copy, then record the admission decision.',
+                'blocker' => $decision ? null : $this->admissionBlockerGuidance(),
+                'action' => 'recordDecision',
+                'button' => 'Record decision',
+            ],
+            [
+                'key' => SendAdmissionProcessRemark::StepClearance,
+                'done' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared,
+                'stopped' => false,
+                'summary' => ($clearance
+                    ? str($clearance->result)->headline().' by '.($clearance->recorder?->getFilamentName() ?? 'Registrar').' · '.$format($clearance->recorded_at)
+                    : 'Check the papers passed on-site against the requirement list.')
+                    .($heldPapers->isNotEmpty() ? ' · On hold: '.$heldPapers->implode(', ') : ''),
+                'blocker' => $clearance?->result === RegistrarEnrollmentClearance::ResultActionNeeded && filled($clearance->safe_instruction)
+                    ? 'Applicant was told: '.$clearance->safe_instruction
+                    : null,
+                'action' => 'recordEnrollmentClearance',
+                'button' => 'Check papers',
+            ],
+            [
+                'key' => SendAdmissionProcessRemark::StepReadiness,
+                'done' => (bool) $projection['ready'],
+                'stopped' => false,
+                'summary' => $projection['ready']
+                    ? 'Admissions checks are complete. Official enrollment is recorded separately.'
+                    : 'Becomes ready once admission, identity review and clearance are complete.',
+                'blocker' => null,
+                'action' => 'reviewReadiness',
+                'button' => 'Check readiness',
+            ],
+            [
+                'key' => SendAdmissionProcessRemark::StepPayment,
+                'done' => $enrollment?->officially_enrolled_at !== null || $verifiedPayment !== null,
+                'stopped' => false,
+                'summary' => match (true) {
+                    $verifiedPayment !== null => 'Verified by Accounting · '.$format($verifiedPayment->verified_at),
+                    $enrollment?->officially_enrolled_at !== null => 'Enrollment finalized without a separate payment record.',
+                    $enrollment !== null => 'Enrollment started. Accounting assesses the fee and records the payment on the enrollment record.',
+                    default => 'Start the enrollment here or let the Applicant start it. Accounting then assesses the fee and verifies the payment; it cannot be overridden.',
+                },
+                'blocker' => null,
+                'action' => $enrollment === null ? 'startEnrollment' : 'openEnrollment',
+                'button' => $enrollment === null ? 'Start enrollment' : 'Open enrollment',
+            ],
+            [
+                'key' => SendAdmissionProcessRemark::StepEnrolled,
+                'done' => $enrollment?->officially_enrolled_at !== null,
+                'stopped' => false,
+                'summary' => $enrollment?->officially_enrolled_at !== null
+                    ? 'Officially enrolled · '.$format($enrollment->officially_enrolled_at).'. The student number is assigned and the student account is active.'
+                    : 'The applicant record becomes a student record once enrollment is finalized.',
+                'blocker' => null,
+                'action' => $enrollment !== null ? 'openEnrollment' : null,
+                'button' => $enrollment !== null ? 'Open enrollment' : null,
+            ],
+        ];
+
+        $currentFound = false;
+        $deadline = $this->deadlineStatus();
+
+        return collect($steps)->map(function (array $step) use (&$currentFound, $remarks, $format, $deadline): array {
+            if ($step['done']) {
+                $state = 'done';
+            } elseif ($currentFound) {
+                $state = 'upcoming';
+            } else {
+                $state = match (true) {
+                    $step['stopped'], $deadline['status'] === AdmissionDeadlineStatus::Closed => 'stopped',
+                    $deadline['status'] === AdmissionDeadlineStatus::Expired => 'expired',
+                    default => 'current',
+                };
+                $currentFound = true;
+            }
+
+            if ($state === 'expired') {
+                $step['action'] = 'extendDeadline';
+                $step['button'] = 'Re-admit with a new deadline';
+                $step['blocker'] = 'Expired: '.$deadline['reason'].' The Applicant was told to contact Admissions support.';
+            }
+
+            $action = in_array($state, ['current', 'expired'], true) && $step['action'] !== null ? $this->getAction($step['action']) : null;
+            $actionIsAvailable = $action instanceof Action && $action->isVisible();
+            $isClosed = $state === 'stopped' && $deadline['status'] === AdmissionDeadlineStatus::Closed;
+
+            return [
+                'key' => $step['key'],
+                'label' => SendAdmissionProcessRemark::stepLabels()[$step['key']],
+                'state' => $state,
+                'stop_label' => $isClosed ? 'Closed' : 'Rejected',
+                'summary' => match (true) {
+                    $isClosed => 'Closed. '.$deadline['reason'].' This is final; the Applicant creates a new account for a later term.',
+                    $state === 'stopped' => 'Rejected. This is final; the application cannot be corrected or resubmitted.',
+                    default => $step['summary'],
+                },
+                'blocker' => in_array($state, ['current', 'expired'], true) ? $step['blocker'] : null,
+                'action' => $actionIsAvailable ? $step['action'] : null,
+                'action_label' => $actionIsAvailable ? $step['button'] : null,
+                'remarks' => ($remarks->get($step['key']) ?? collect())->map(fn (AdmissionApplicationEvent $event): array => [
+                    'remark' => (string) ($event->payload['remark'] ?? ''),
+                    'by' => $event->actor?->getFilamentName() ?? 'Registrar',
+                    'at' => (string) $format($event->occurred_at),
+                ])->values()->all(),
+            ];
+        })->all();
+    }
+
+    /**
+     * Papers the school receives outside TALA, grouped by how they reach the Registrar.
+     *
+     * @return array<string, array{label: string, items: list<array{id: int, label: string, due: string, required: bool, result: string|null, result_id: int|null, status: string, tone: string, requirement: AdmissionRequirement}>}>
+     */
+    private function clearanceChecklist(): array
+    {
+        $application = $this->application();
+        $requirements = $application->currentSubmissionVersion?->requirementSet?->requirements ?? collect();
+        $results = $application->credentialResults()->whereDoesntHave('successor')->get()->keyBy('admission_requirement_id');
+        $categories = [
+            AdmissionRequirement::SubmissionInPerson => 'Physical papers passed on-site',
+            AdmissionRequirement::SubmissionSchoolToSchool => 'Records sent school-to-school',
+        ];
+
+        return collect($categories)->map(function (string $label, string $method) use ($requirements, $results): array {
+            /** @var Collection<int, AdmissionRequirement> $papers */
+            $papers = $requirements->where('official_submission_method', $method)->sortBy('display_order')->values();
+
+            return [
+                'label' => $label,
+                'items' => $papers->map(function (AdmissionRequirement $requirement) use ($results): array {
+                    $result = $results->get($requirement->id);
+
+                    return [
+                        'id' => $requirement->id,
+                        'label' => $requirement->label,
+                        'due' => $requirement->dueStageLabel(),
+                        'required' => $requirement->due_stage !== AdmissionRequirement::DuePostEnrollmentFollowUp,
+                        'result' => $result?->result,
+                        'result_id' => $result?->id,
+                        'status' => match ($result?->result) {
+                            null => 'Not received',
+                            OfficialCredentialResult::ResultAuthorizedException => 'On hold',
+                            default => str($result->result)->headline()->toString(),
+                        },
+                        'tone' => match ($result?->result) {
+                            OfficialCredentialResult::ResultVerified => 'verified',
+                            OfficialCredentialResult::ResultAuthorizedException => 'held',
+                            OfficialCredentialResult::ResultActionNeeded => 'action',
+                            default => 'pending',
+                        },
+                        'holdable' => $result?->result !== OfficialCredentialResult::ResultVerified
+                            && $requirement->credential_classification === AdmissionRequirement::ClassificationNonCore
+                            && $requirement->exception_permitted
+                            && filled($requirement->required_approving_authority),
+                        'requirement' => $requirement,
+                    ];
+                })->all(),
+            ];
+        })->filter(fn (array $category): bool => $category['items'] !== [])->all();
+    }
+
+    /** @param array<string, mixed> $data */
+    private function recordClearanceWithChecklist(User $actor, array $data, string $result): void
+    {
+        $items = collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items']);
+        $checked = collect($data)
+            ->filter(fn (mixed $value, string $key): bool => str_starts_with($key, 'checklist_'))
+            ->flatten()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+        $remarks = trim((string) ($data['safe_instruction'] ?? ''));
+        $held = $items->where('holdable', true)
+            ->pluck('id')
+            ->intersect(collect($data['held_papers'] ?? [])->map(fn (mixed $id): int => (int) $id))
+            ->diff($checked)
+            ->values()
+            ->all();
+        $holdUntil = filled($data['hold_until'] ?? null) ? CarbonImmutable::parse((string) $data['hold_until'], config('app.timezone')) : null;
+
+        if ($held !== [] && $holdUntil === null) {
+            throw ValidationException::withMessages(['hold_until' => 'Set the date the held papers are due.']);
+        }
+
+        if ($result === RegistrarEnrollmentClearance::ResultCleared) {
+            $missing = $items->where('required', true)->reject(fn (array $item): bool => in_array($item['id'], $checked, true) || in_array($item['id'], $held, true));
+            if ($missing->isNotEmpty()) {
+                throw ValidationException::withMessages(['checklist' => 'Check every required paper before recording clearance ('.$missing->pluck('label')->implode(', ').'), allow it on hold if permitted, or notify the Applicant of deficiencies.']);
+            }
+            if ($items->isEmpty() && ! (bool) ($data['external_checks_confirmed'] ?? false)) {
+                throw ValidationException::withMessages(['external_checks_confirmed' => 'Confirm the required external enrollment checks are complete.']);
+            }
+        } elseif ($remarks === '') {
+            throw ValidationException::withMessages(['safe_instruction' => 'Write the deficiency remarks the Applicant should act on.']);
+        }
+
+        DB::transaction(function () use ($actor, $data, $result, $items, $checked, $held, $holdUntil, $remarks): void {
+            $application = $this->application();
+            $authority = filled($data['authority_reference'] ?? null) ? (string) $data['authority_reference'] : 'Registrar enrollment clearance';
+
+            foreach ($items as $item) {
+                $isChecked = in_array($item['id'], $checked, true);
+                $isHeld = in_array($item['id'], $held, true);
+                $target = match (true) {
+                    $isChecked => OfficialCredentialResult::ResultVerified,
+                    $isHeld => OfficialCredentialResult::ResultAuthorizedException,
+                    $result === RegistrarEnrollmentClearance::ResultActionNeeded => OfficialCredentialResult::ResultActionNeeded,
+                    default => null,
+                };
+
+                if ($target === null || $item['result'] === $target) {
+                    continue;
+                }
+
+                app(RecordOfficialCredentialResult::class)->execute(
+                    $application,
+                    $item['requirement'],
+                    $actor,
+                    $target,
+                    $isHeld ? 'Registrar hold' : 'On-site paper check',
+                    match (true) {
+                        $isChecked => 'Paper checked by the Registrar.',
+                        $isHeld => 'Allowed on hold. Pass this paper to the Registrar by '.$holdUntil?->timezone(config('app.display_timezone'))->format('M j, Y g:i A').'.',
+                        default => $remarks,
+                    },
+                    $authority,
+                    exceptionExpiresAt: $isHeld ? $holdUntil : null,
+                    expectedCurrentResultId: $item['result_id'],
+                );
+            }
+
+            app(RecordRegistrarEnrollmentClearance::class)->execute(
+                $application,
+                $actor,
+                $result,
+                $result === RegistrarEnrollmentClearance::ResultCleared,
+                $result === RegistrarEnrollmentClearance::ResultActionNeeded ? $remarks : null,
+                $data['reason'] ?? null,
+                $data['authority_reference'] ?? null,
+                filled($data['expected_current_clearance_id'] ?? null) ? (int) $data['expected_current_clearance_id'] : null,
+                filled($data['expected_decision_id'] ?? null) ? (int) $data['expected_decision_id'] : null,
+                filled($data['expected_submission_version_id'] ?? null) ? (int) $data['expected_submission_version_id'] : null,
+            );
+        });
     }
 
     private function application(): AdmissionApplication
@@ -694,7 +1163,85 @@ class ViewAdmissionApplication extends ViewRecord
     {
         $actor = auth()->user();
 
-        return $actor instanceof User && $actor->can('review', $this->application()) && $this->application()->reviewHasStarted();
+        return $actor instanceof User && $actor->can('review', $this->application()) && $this->application()->reviewHasStarted() && ! $this->isClosed();
+    }
+
+    /**
+     * @return array{status: string|null, kind: string|null, deadline: CarbonInterface|null, reason: string|null}
+     */
+    public function deadlineStatus(): array
+    {
+        return $this->deadlineStatusCache ??= app(AdmissionDeadlineStatus::class)->for($this->application());
+    }
+
+    /**
+     * The Registrar can start a cleared Applicant's enrollment at the desk; the Applicant need not sign in.
+     * Before clearance (requireReady: false) this only checks that a combined "clear and start" makes sense.
+     */
+    private function canStartEnrollment(bool $requireReady = true): bool
+    {
+        $actor = auth()->user();
+
+        return $actor instanceof User
+            && $actor->hasRole(User::StaffRoleRegistrar)
+            && $this->canReview()
+            && $this->application()->application_state === AdmissionApplication::StateAdmitted
+            && $this->deadlineStatus()['status'] === null
+            && $this->currentEnrollment() === null
+            && (! $requireReady || app(ReadyApplicantProjectionQuery::class)->forApplication($this->application())['ready']);
+    }
+
+    private function currentEnrollment(): ?Enrollment
+    {
+        return $this->currentEnrollmentCache ??= Enrollment::query()
+            ->where('admission_application_id', $this->application()->id)
+            ->whereNull('cancelled_at')
+            ->latest('id')
+            ->first();
+    }
+
+    private function startEnrollmentAndOpen(bool $afterClearance = false): void
+    {
+        $actor = auth()->user();
+        abort_unless($actor instanceof User, 403);
+        $prefix = $afterClearance ? 'Clearance is recorded, but enrollment did not start. ' : '';
+
+        try {
+            $application = $this->application()->fresh();
+            $term = Term::query()->find($application->term_id);
+            if (! $term instanceof Term) {
+                throw ValidationException::withMessages(['term' => 'This application has no admitted term.']);
+            }
+
+            $enrollment = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $actor, 'RegistrarAssisted', null);
+            Notification::make()
+                ->title('Enrollment started')
+                ->body('Review the proposed subjects with the Applicant, then Accounting assesses the fee and records the payment.')
+                ->success()
+                ->send();
+            $this->redirect(EnrollmentResource::getUrl('view', ['record' => $enrollment]));
+        } catch (CalendarGateViolation) {
+            Notification::make()->title('Enrollment not started')->body($prefix.'The enrollment window for this term is not open.')->warning()->send();
+        } catch (ValidationException $exception) {
+            Notification::make()->title('Enrollment not started')->body($prefix.$exception->validator->errors()->first())->warning()->send();
+        } catch (AuthorizationException $exception) {
+            Notification::make()->title('Enrollment not started')->body($prefix.$exception->getMessage())->danger()->send();
+        }
+    }
+
+    private function isClosed(): bool
+    {
+        return $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Closed;
+    }
+
+    private function readinessIsCleared(): bool
+    {
+        return app(ReadyApplicantProjectionQuery::class)->forApplication($this->application())['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared;
+    }
+
+    private function formatDeadline(mixed $moment): ?string
+    {
+        return $moment?->copy()->timezone((string) config('app.display_timezone'))->format('M j, Y · g:i A');
     }
 
     private function canResolveIdentity(): bool

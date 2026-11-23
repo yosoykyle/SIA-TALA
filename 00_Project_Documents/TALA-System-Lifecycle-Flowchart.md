@@ -91,24 +91,33 @@ flowchart TB
   SUBMIT --> REVIEW["Registrar: start review; inspect evidence and identity in one context"]
   SUBMIT -->|Optional before review starts| EDIT["Applicant: append validated edits"]
   EDIT --> REVIEW
-  REVIEW --> OUTCOME{"What does the evidence support?"}
+  REVIEW --> EVIDENCE["Registrar: review preliminary evidence"]
+  EVIDENCE --> OUTCOME{"Application screening: what does the evidence support?"}
   OUTCOME -->|Correction needed| FIX["Applicant: respond to the named correction"]
   FIX --> REVIEW
-  OUTCOME -->|Not admitted| HISTORY(["Safe decision notice and retained history"])
-  OUTCOME -->|Admitted; papers pending| PAPERS["Registrar: complete actual external checks; mark papers complete"]
-  OUTCOME -->|Admitted; checks already confirmed| READY(["Ready for enrollment in D4"])
-  PAPERS --> READY
+  OUTCOME -->|Not admitted| HISTORY(["Final rejection notice and retained history"])
+  OUTCOME -->|Admitted; papers pending| PAPERS{"Registrar: check enrollment papers"}
+  OUTCOME -->|Admitted; checks already confirmed| READY(["Ready for enrollment"])
+  PAPERS -->|Deficiencies| NOTIFY["Applicant: bring the missing papers"]
+  NOTIFY --> PAPERS
+  PAPERS -->|Cleared, or cleared with a permitted held paper| READY
+  PAPERS -->|Paper deadline passed| EXPIRED["Expired: Registrar may re-admit with a new deadline"]
+  EXPIRED --> PAPERS
+  READY -->|Applicant starts, or Registrar starts for a walk-in| D4(["Enrollment case in D4"])
+  PERIOD(["Admission period ended: unfinished application Closed, final"])
   classDef askBox fill:#F1AC4B,stroke:#000000,color:#000000;
   classDef warnBox fill:#F87777,stroke:#000000,color:#000000;
-  class OUTCOME askBox;
-  class FIX warnBox;
+  class OUTCOME,PAPERS askBox;
+  class FIX,NOTIFY,EXPIRED warnBox;
 ```
 
 Registrar publishes source-backed cycles and requirement sets. An Applicant chooses ordinary program/type context rather than internal cycle identifiers. Ambiguous configuration goes to Registrar setup; existing application bindings stay stable. The form covers scope, personal/contact facts, Educational Background, preliminary evidence and review. Notice acknowledgment and optional sensitive-field consent remain separate.
 
 Draft saving and first submission recheck their public window. A submitted application can append validated successor versions until **explicit authorized review starts**; merely opening history or inspecting read-only facts does not start that lock. Afterwards only named correction scope reopens. Final decisions lock ordinary edits. Corrections and resubmissions retain unaffected uploaded files and metadata; authorized replacement preserves prior versions. A correction has its own due boundary and recovery; an overdue active correction does not automatically reject the application.
 
-Use common correction/decision reasons plus Other, keeping the private decision basis separate from Applicant instructions. Review, evidence preview, identity resolution, decision and clearance share one working context. Combine admission and papers confirmation only when actual external checks are already satisfied; otherwise retain the single Mark papers complete follow-up. This creates readiness, not Student identity, fees or official enrollment.
+Use common correction/decision reasons plus Other, keeping the private decision basis separate from Applicant instructions. Review, evidence preview, identity resolution, decision and clearance share one working context, guided by the record's **Process evaluation** checklist. Preliminary evidence review comes before **Application screening**, and Not admitted is final. Combine admission and papers confirmation only when the physical requirement checks are already satisfied; otherwise **Check enrollment papers** records each paper's result, notifies deficiencies, and may clear with a permitted non-core paper on hold. This creates readiness, not Student identity, fees or official enrollment. A ready applicant starts enrollment, or the Registrar starts it from the admission record for a walk-in; payment stays inside the enrollment case.
+
+Optional Cycle deadlines add two derived outcomes (PRD 02 §7.4). An admitted application that misses the paper or payment deadline becomes **Expired**, and the Registrar may re-admit it with a new deadline. Once the admission period ends, any unfinished application becomes **Closed**, which is final and takes priority over Expired. Officially enrolled applications are never either.
 
 Discard applies to eligible Drafts. Withdrawal before registration starts, authorized reopening/reconsideration and all prior versions retain their PRD guards. New submission uses an on-screen receipt; historically issued acknowledgments keep authorized access and complete immutable print facts. Applicant Home shows current status, the next action and contextual returns.
 

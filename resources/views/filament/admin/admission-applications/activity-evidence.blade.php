@@ -16,14 +16,6 @@
             <dt>Current submission</dt>
             <dd>{{ $submission ? 'Submission #'.$submission->version : 'None' }}</dd>
         </div>
-        <div>
-            <dt>Requirement Set version</dt>
-            <dd>{{ $submission?->requirementSet ? 'Version '.$submission->requirementSet->version : 'None' }}</dd>
-        </div>
-        <div>
-            <dt>Internal application ID</dt>
-            <dd class="tala-activity-mono">{{ $application->id }}</dd>
-        </div>
     </dl>
 
     <h3 class="tala-activity-heading">Record events <span>{{ $events->count() }}</span></h3>

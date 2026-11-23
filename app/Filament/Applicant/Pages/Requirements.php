@@ -9,7 +9,9 @@ use App\Models\ApplicationCorrectionRequest;
 use App\Models\DocumentEvidence;
 use App\Models\OfficialCredentialResult;
 use App\Models\PreliminaryEvidenceReview;
+use App\Models\RegistrarEnrollmentClearance;
 use App\Models\User;
+use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
@@ -204,6 +206,45 @@ class Requirements extends Page implements HasTable
         })->values()->all();
     }
 
+    /**
+     * Official papers the submitted requirement set asks the Applicant to hand over in person. A paper due before
+     * enrollment reads as passed once the current, source-matching Registrar clearance is recorded as Cleared.
+     *
+     * @return list<array{requirement_id: int, label: string, state: string, color: string, onsite: bool, due: string, instructions: ?string}>
+     */
+    public function onSiteItems(AdmissionApplication $application): array
+    {
+        $requirements = $application->currentSubmissionVersion?->requirementSet?->requirements
+            ?->filter(fn (AdmissionRequirement $requirement): bool => $requirement->isOnSite())
+            ->sortBy('display_order') ?? collect();
+
+        if ($requirements->isEmpty()) {
+            return [];
+        }
+
+        $isCleared = app(ReadyApplicantProjectionQuery::class)->forApplication($application)['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared;
+        $held = $application->credentialResults()
+            ->whereDoesntHave('successor')
+            ->where('result', OfficialCredentialResult::ResultAuthorizedException)
+            ->get()
+            ->keyBy('admission_requirement_id');
+
+        return $requirements->map(fn (AdmissionRequirement $requirement): array => [
+            'requirement_id' => (int) $requirement->id,
+            'label' => $requirement->label,
+            'onsite' => true,
+            'due' => $held->has($requirement->id)
+                ? 'Still owed · bring it by '.$held->get($requirement->id)->exception_expires_at?->timezone(config('app.display_timezone'))->format('M j, Y')
+                : $requirement->dueStageLabel(),
+            'instructions' => $requirement->applicant_instructions,
+            ...match (true) {
+                $held->has($requirement->id) => ['state' => 'On hold', 'color' => 'warning'],
+                $isCleared && $requirement->due_stage !== AdmissionRequirement::DuePostEnrollmentFollowUp => ['state' => 'Passed on-site', 'color' => 'success'],
+                default => ['state' => 'To be passed on-site', 'color' => 'gray'],
+            },
+        ])->values()->all();
+    }
+
     public function resultLabel(string $result): string
     {
         return match ($result) {
@@ -211,6 +252,7 @@ class Requirements extends Page implements HasTable
             'NotSubmitted' => 'No copy received',
             'LegacyReviewRecorded' => 'Earlier copy review recorded',
             PreliminaryEvidenceReview::ResultAccepted => 'Review copy accepted',
+            OfficialCredentialResult::ResultAuthorizedException => 'On hold — still owed',
             default => ucfirst(str($result)->headline()->lower()->toString()),
         };
     }
@@ -219,8 +261,8 @@ class Requirements extends Page implements HasTable
     {
         return match ($result) {
             PreliminaryEvidenceReview::ResultAccepted,
-            OfficialCredentialResult::ResultVerified,
-            OfficialCredentialResult::ResultAuthorizedException => 'success',
+            OfficialCredentialResult::ResultVerified => 'success',
+            OfficialCredentialResult::ResultAuthorizedException,
             PreliminaryEvidenceReview::ResultActionNeeded,
             OfficialCredentialResult::ResultActionNeeded => 'warning',
             OfficialCredentialResult::ResultNotYetDue => 'gray',

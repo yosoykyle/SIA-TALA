@@ -68,7 +68,8 @@
             <nav class="tala-task-surface tala-workspace-launcher__other tala-workspace-launcher__other--plain-list" aria-label="Other Admissions queues">
                 <x-workspace-card compact :href="$this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::WaitingForApplicant)" icon="heroicon-o-clock" label="Waiting for applicant" description="Corrections sent back; the applicant acts next." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::WaitingForApplicant]" />
                 <x-workspace-card compact :href="$this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::ReadyForEnrollment)" icon="heroicon-o-check-circle" label="Ready for enrollment" description="Cleared applicants tracking toward official enrollment." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::ReadyForEnrollment]" />
-                <x-workspace-card compact :href="$this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::Closed)" icon="heroicon-o-archive-box" label="Closed applications" description="Withdrawn or not admitted; terminal records only." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::Closed]" />
+                <x-workspace-card compact :href="$this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::Expired)" icon="heroicon-o-exclamation-triangle" label="Expired applications" description="Missed a paper or payment deadline; re-admit with a new deadline." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::Expired]" />
+                <x-workspace-card compact :href="$this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::Closed)" icon="heroicon-o-archive-box" label="Closed applications" description="Withdrawn, rejected, or closed when the admission period ended." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::Closed]" />
             </nav>
         </section>
     </div>
