@@ -112,6 +112,19 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         $this->assertSame([$first->id], array_keys($filter('No such year', null, [$first->id])));
     }
 
+    public function test_case_subject_list_shows_the_class_reference_instead_of_the_section_code(): void
+    {
+        [$case, $registrar, $sections] = $this->advisedPreparationFixture();
+        $section = $sections->first();
+        $section->forceFill(['class_reference' => 'DIT-1A-REF-'.$section->id])->save();
+        app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $case->id])
+            ->assertSee('Class reference')
+            ->assertSee('DIT-1A-REF-'.$section->id);
+    }
+
     public function test_subject_preparation_rejects_an_older_open_dialog_without_replacing_the_newer_draft(): void
     {
         [$case, $registrar, $sections] = $this->advisedPreparationFixture();

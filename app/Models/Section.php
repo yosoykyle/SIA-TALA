@@ -88,6 +88,12 @@ class Section extends Model
     }
 
     /** @return BelongsTo<TermOffering, $this> */
+    /** The class reference staff and students see; older classes without one fall back to the section code. */
+    public function displayReference(): string
+    {
+        return filled($this->class_reference) ? (string) $this->class_reference : (string) $this->code;
+    }
+
     public function termOffering(): BelongsTo
     {
         return $this->belongsTo(TermOffering::class);

@@ -15,7 +15,7 @@
             @if (count($review['options']) > 1)<p>{{ count($review['options']) }} open source changes. Choose the exact change in the review form.</p>@endif
             <details class="registrar-case-reference"><summary>{{ $review['proposal']?->state === \App\Models\RegistrationProposalVersion::StateDraft ? 'Proposed subjects and schedule' : 'Current proposal subjects and schedule' }}</summary>
                 @foreach ($review['proposal']?->items ?? [] as $item)
-                    <p><strong>{{ $item->course_title_snapshot }}</strong> &middot; {{ $item->section?->code }} &middot; {{ (float) $item->units_snapshot }} units</p>
+                    <p><strong>{{ $item->course_title_snapshot }}</strong> &middot; {{ $item->section?->displayReference() }} &middot; {{ (float) $item->units_snapshot }} units</p>
                     @foreach ($item->meeting_snapshot ?? [] as $meeting)<p>{{ ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][$meeting['day_of_week'] ?? 0] }} &middot; {{ substr($meeting['starts_at'] ?? '',0,5) }}-{{ substr($meeting['ends_at'] ?? '',0,5) }}</p>@endforeach
                 @endforeach
             </details>

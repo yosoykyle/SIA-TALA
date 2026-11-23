@@ -28,13 +28,13 @@
             <div class="tala-enrollment-subjects registrar-case-current-subjects">
                 <table class="registrar-subject-table" role="table">
                     <caption class="sr-only">Current official subjects</caption>
-                    <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Subject</th><th scope="col" role="columnheader">Class</th><th scope="col" role="columnheader">Units</th>@if ($certificateAvailable)<th scope="col" role="columnheader"><span class="sr-only">Actions</span></th>@endif</tr></thead>
+                    <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Subject</th><th scope="col" role="columnheader">Class reference</th><th scope="col" role="columnheader">Units</th>@if ($certificateAvailable)<th scope="col" role="columnheader"><span class="sr-only">Actions</span></th>@endif</tr></thead>
                     <tbody role="rowgroup">
                         @foreach ($subjects as $subject)
                             @php($specification = $subject->termOffering?->curriculumEntry?->courseSpecification)
                             <tr wire:key="official-subject-{{ $subject->id }}" role="row">
                                 <th scope="row" role="rowheader">{{ $subject->proposalItem?->course_code_snapshot ?? $specification?->course?->code ?? 'Code unavailable' }}<span>{{ $subject->proposalItem?->course_title_snapshot ?? $specification?->title ?? 'Subject title unavailable' }}</span></th>
-                                <td role="cell"><span class="registrar-subject-mobile-label">Class</span>{{ $subject->section?->code ?? 'Class unavailable' }}</td>
+                                <td role="cell"><span class="registrar-subject-mobile-label">Class reference</span>{{ $subject->section?->displayReference() ?? 'Class unavailable' }}</td>
                                 <td role="cell"><span class="registrar-subject-mobile-label">Units</span>{{ (float) $subject->units_snapshot }}</td>
                                 @if ($certificateAvailable)
                                     <td class="registrar-subject-actions" role="cell">

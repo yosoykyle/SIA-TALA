@@ -13,10 +13,10 @@
             @if ($subjects->isNotEmpty())
                 <div class="tala-data-table-scroll" role="region" aria-label="Current active official subjects for this enrollment" tabindex="0">
                     <table class="tala-data-table head-enrollment-subject-table"><caption class="sr-only">Current active official subjects for this enrollment</caption>
-                        <thead><tr><th scope="col">Subject</th><th scope="col">Section</th><th scope="col">Units</th></tr></thead>
+                        <thead><tr><th scope="col">Subject</th><th scope="col">Class reference</th><th scope="col">Units</th></tr></thead>
                         <tbody>@foreach ($subjects as $subject)
                             @php($specification = $subject->termOffering?->curriculumEntry?->courseSpecification)
-                            <tr><th scope="row">{{ $subject->proposalItem?->course_title_snapshot ?? $specification?->title ?? 'Subject unavailable' }}<small>{{ $subject->proposalItem?->course_code_snapshot ?? $specification?->course?->code }}</small></th><td data-label="Section">{{ $subject->section?->code ?? 'Section unavailable' }}</td><td data-label="Units">{{ (float) $subject->units_snapshot }}</td></tr>
+                            <tr><th scope="row">{{ $subject->proposalItem?->course_title_snapshot ?? $specification?->title ?? 'Subject unavailable' }}<small>{{ $subject->proposalItem?->course_code_snapshot ?? $specification?->course?->code }}</small></th><td data-label="Class reference">{{ $subject->section?->displayReference() ?? 'Class unavailable' }}</td><td data-label="Units">{{ (float) $subject->units_snapshot }}</td></tr>
                         @endforeach</tbody>
                     </table>
                 </div>
@@ -55,7 +55,7 @@
         @if ($pendingProposal)
             <h3>Proposed subject change · version {{ $pendingProposal->version }}</h3>
             <p class="head-enrollment-note">{{ $pendingProposal->state }} · This proposal has not replaced the official registrations.</p>
-            <ul class="head-enrollment-pending">@foreach ($pendingProposal->items as $item)<li>{{ $item->course_title_snapshot }} · {{ $item->section?->code ?? 'Section unavailable' }} · {{ (float) $item->units_snapshot }} units</li>@endforeach</ul>
+            <ul class="head-enrollment-pending">@foreach ($pendingProposal->items as $item)<li>{{ $item->course_title_snapshot }} · {{ $item->section?->displayReference() ?? 'Class unavailable' }} · {{ (float) $item->units_snapshot }} units</li>@endforeach</ul>
         @endif
         <h3>Recorded activity</h3>
         @include('filament.admin.enrollments.head-history')
