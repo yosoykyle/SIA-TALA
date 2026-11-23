@@ -660,7 +660,7 @@ class Dashboard extends BaseDashboard implements HasTable
                 ])->all();
 
             return [
-                'items' => [...$items, ...app(Requirements::class)->onSiteItems($application)],
+                'items' => self::mergedChecklistItems([...$items, ...app(Requirements::class)->onSiteItems($application)]),
                 'url' => Requirements::getUrl(['application' => $application->id]),
                 'linkLabel' => 'View requirements',
             ];
@@ -688,10 +688,31 @@ class Dashboard extends BaseDashboard implements HasTable
                 'label' => $requirement->label,
                 'onsite' => true,
                 'state' => 'To be passed on-site',
-                'color' => 'gray',
+                'color' => 'info',
             ])->values()->all();
 
-        return ['items' => [...$items, ...$onSiteItems], 'url' => Application::getUrl(['application' => $application->id]), 'linkLabel' => 'Upload in your application'];
+        return ['items' => self::mergedChecklistItems([...$items, ...$onSiteItems]), 'url' => Application::getUrl(['application' => $application->id]), 'linkLabel' => 'Upload in your application'];
+    }
+
+    /**
+     * One checklist row per requirement: a paper with both an online copy and an on-site hand-over shows both
+     * states as badges on the same row (e.g. Accepted / To be passed on-site) instead of listing the paper twice.
+     *
+     * @param  list<array{requirement_id: int, label: string, state: string, color: string, onsite: bool}>  $items
+     * @return list<array{requirement_id: int, label: string, state: string, color: string, onsite: bool, pending_onsite: bool, badges: list<array{state: string, color: string}>}>
+     */
+    private static function mergedChecklistItems(array $items): array
+    {
+        return collect($items)
+            ->groupBy('requirement_id')
+            ->map(function (Collection $entries): array {
+                $badges = $entries->map(fn (array $entry): array => ['state' => $entry['state'], 'color' => $entry['color']])->values()->all();
+                $color = collect($badges)->contains('color', 'warning') ? 'warning' : end($badges)['color'];
+
+                return [...$entries->first(), 'state' => end($badges)['state'], 'color' => $color, 'onsite' => (bool) $entries->every('onsite'), 'pending_onsite' => $entries->last()['onsite'] && end($badges)['color'] !== 'success', 'badges' => $badges];
+            })
+            ->values()
+            ->all();
     }
 
     /**

@@ -10,6 +10,7 @@ use App\Queries\Admissions\AdmissionQueueCounts;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -57,7 +58,7 @@ class AdmissionsStudentTypeTabsTest extends TestCase
 
     private function registrar(): User
     {
-        Role::findOrCreate(User::StaffRoleRegistrar, 'web');
+        Role::findOrCreate(User::StaffRoleRegistrar, 'web')->givePermissionTo(Permission::findOrCreate('approve-documents', 'web'));
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
 

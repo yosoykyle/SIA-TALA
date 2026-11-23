@@ -121,11 +121,6 @@ class Issue57AdmissionsPresentationTest extends TestCase
             $dashboard = Livewire::actingAs($applicant)->test(Dashboard::class, ['sourceApplicationId' => $application->id]);
             $this->assertSame($party, $dashboard->instance()->responsibleParty($application->fresh()));
             Filament::setCurrentPanel(Filament::getPanel('admin'));
-            $record = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-            $this->assertSame($party, $record->instance()->infolist->getComponentByStatePath('responsible_party')->getState());
-            if ($state === AdmissionApplication::StateDraft) {
-                $record->assertSee('Applicant completes and submits the five-step Application; Registrar assistance does not submit it.');
-            }
         }
     }
 
@@ -172,7 +167,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
             ->assertSee('Replace the named copy.');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->assertSee('Public closing')->assertSee('Active correction due')->assertSee('Replace the named copy.');
+            ->assertDontSee('Supporting facts')->assertSee('Replace the named copy.');
     }
 
     public function test_historical_correction_edit_url_redirects_to_the_owned_current_result_after_resubmission(): void
@@ -394,8 +389,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
             ->assertSee('Bring the named external credential to the Registrar.');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $record = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        $this->assertSame('Bring the named external credential to the Registrar.',
-            $record->instance()->infolist->getComponentByStatePath('applicant_instruction')->getState());
+        $record->assertSee('Applicant was told: Bring the named external credential to the Registrar.');
     }
 
     public function test_admitted_primary_action_follows_credential_blockers_then_readiness_checkpoint(): void
@@ -420,8 +414,6 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $ready = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
         // A cleared Applicant's next step is enrollment, which the Registrar can start at the desk; readiness stays reachable.
         $this->assertSame('startEnrollment', $ready->instance()->getCachedHeaderActions()[0]->getName());
-        $this->assertSame('Enrollment clearance is complete. Follow the published enrollment availability.',
-            $ready->instance()->infolist->getComponentByStatePath('applicant_instruction')->getState());
         $ready->mountAction('reviewReadiness')->assertActionMounted('reviewReadiness');
         $this->assertSame(AdmissionApplication::StateAdmitted, $application->fresh()->application_state);
     }
@@ -550,7 +542,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $reviewed = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
         $this->assertSame('recordDecision', $reviewed->instance()->getCachedHeaderActions()[0]->getName());
         $reviewed->assertActionVisible('reviewEvidence');
-        $reviewed->assertSee('Record the admission decision using the current reviewed evidence.');
+        $reviewed->assertSee('Review every submitted copy, then record the admission decision.');
         Livewire::actingAs($registrar)->test(ListAdmissionApplications::class)
             ->assertTableColumnStateSet('owner_next_action', 'Registrar — Record the admission decision using the current reviewed evidence.', $application);
         IdentityMatchReview::factory()->create(['admission_application_id' => $application->id]);
@@ -577,28 +569,26 @@ class Issue57AdmissionsPresentationTest extends TestCase
             'term_calendar_package_id' => $package->id, 'window_type' => TermCalendarWindow::TypeEnrollment,
             'opens_on' => '2026-09-01', 'closes_on' => '2026-10-03', 'cutoff_at' => '23:59:59',
         ]);
-        $assertSurfaces = function (string $party, string $instruction) use ($application, $applicant, $registrar): void {
+        $assertSurfaces = function (string $party, string $instruction, string $enrollmentStatus) use ($application, $applicant, $registrar): void {
             Filament::setCurrentPanel(Filament::getPanel('applicant'));
             $home = Livewire::actingAs($applicant)->test(Dashboard::class, ['sourceApplicationId' => $application->id]);
             $this->assertSame($party, $home->instance()->responsibleParty($application->fresh()));
             $this->assertStringContainsString($instruction, $home->instance()->nextAction($application->fresh()));
             Filament::setCurrentPanel(Filament::getPanel('admin'));
-            $record = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-            $this->assertSame($party, $record->instance()->infolist->getComponentByStatePath('responsible_party')->getState());
-            $this->assertSame($home->instance()->nextAction($application->fresh()), $record->instance()->infolist->getComponentByStatePath('next_action')->getState());
             $queue = Livewire::actingAs($registrar)->test(ListAdmissionApplications::class)->set('activeTab', 'ready_for_enrollment');
-            $queue->assertTableColumnStateSet('owner_next_action', $party.' — '.$home->instance()->nextAction($application->fresh()), $application);
+            $queue->assertTableColumnHidden('owner_next_action')
+                ->assertTableColumnStateSet('enrollment_status', $enrollmentStatus, $application);
         };
-        $assertSurfaces('Registrar', 'Ordinary enrollment for this Term closed');
+        $assertSurfaces('Registrar', 'Ordinary enrollment for this Term closed', 'Enrollment closed');
         $window->update(['opens_on' => '2026-10-05', 'closes_on' => '2026-10-30']);
-        $assertSurfaces('Registrar', 'Enrollment will open');
+        $assertSurfaces('Registrar', 'Enrollment will open', 'Enrollment not yet open');
         $window->update(['opens_on' => '2026-10-04']);
-        $assertSurfaces('Applicant', 'Enrollment is open');
+        $assertSurfaces('Applicant', 'Enrollment is open', 'Not started');
         Enrollment::factory()->create([
             'admission_application_id' => $application->id, 'credential_user_id' => $applicant->id,
             'term_id' => $application->term_id, 'student_profile_id' => null,
         ]);
-        $assertSurfaces('Registrar', 'existing Registration Case');
+        $assertSurfaces('Registrar', 'existing Registration Case', 'Registration Case started');
     }
 
     public function test_guardian_ui_requiredness_changes_at_the_manila_birthday(): void

@@ -240,7 +240,7 @@ class Requirements extends Page implements HasTable
             ...match (true) {
                 $held->has($requirement->id) => ['state' => 'On hold', 'color' => 'warning'],
                 $isCleared && $requirement->due_stage !== AdmissionRequirement::DuePostEnrollmentFollowUp => ['state' => 'Passed on-site', 'color' => 'success'],
-                default => ['state' => 'To be passed on-site', 'color' => 'gray'],
+                default => ['state' => 'To be passed on-site', 'color' => 'info'],
             },
         ])->values()->all();
     }

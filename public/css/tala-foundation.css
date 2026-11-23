@@ -330,6 +330,14 @@
 .tala-workspace-launcher__other--plain-list .tala-workspace-card--compact + .tala-workspace-card--compact { border-inline-start: 0; border-block-start: 1px solid var(--tala-edge); }
 .tala-workspace-launcher__other--plain-list .tala-workspace-card__icon { inline-size: 1.5rem; block-size: 1.5rem; border-radius: 0; background: transparent; color: var(--tala-muted); }
 .tala-workspace-launcher__other--plain-list .tala-workspace-card__icon > .fi-icon { inline-size: 1.5rem; block-size: 1.5rem; }
+.tala-workspace-launcher__other--plain-list .tala-workspace-card__arrow { display: none; }
+/* Other queues read as a 2×2 grid once there is room: dividers between columns and between rows only. */
+@container (min-width: 40rem) {
+    .tala-workspace-launcher__other--plain-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tala-workspace-launcher__other--plain-list .tala-workspace-card--compact + .tala-workspace-card--compact { border-block-start: 0; border-inline-start: 0; }
+    .tala-workspace-launcher__other--plain-list .tala-workspace-card--compact:nth-child(n + 3) { border-block-start: 1px solid var(--tala-edge); }
+    .tala-workspace-launcher__other--plain-list .tala-workspace-card--compact:nth-child(even) { border-inline-start: 1px solid var(--tala-edge); }
+}
 @container (min-width: 64rem) {
     .tala-workspace-launcher__main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .tala-workspace-launcher__main--two-up { grid-template-columns: repeat(2, minmax(0, 1fr)); }

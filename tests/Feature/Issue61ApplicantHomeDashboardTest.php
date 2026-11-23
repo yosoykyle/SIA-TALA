@@ -214,7 +214,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $queueList = $this->actingAs($registrar)
             ->get(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::NeedsReview], panel: 'admin'))
             ->assertOk()
-            ->assertSeeInOrder(['Admissions', 'Needs review', 'Waiting for applicant', 'Registrar clearance', 'Ready for enrollment', 'Closed applications', 'Students &amp; Enrollment'], false)
+            ->assertSeeInOrder(['Admissions', 'Needs review', 'Waiting for applicant', 'Registrar clearance', 'Ready for enrollment', 'Students &amp; Enrollment'], false)
             ->assertSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::RegistrarClearance], panel: 'admin'));
         $this->assertGreaterThanOrEqual(2, $needsReview);
         $this->assertStringContainsString('>'.$needsReview.'<', preg_replace('/\s+/', '', (string) $queueList->getContent()));
@@ -415,6 +415,22 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertSee('tala-checklist__item--onsite-start', false)
             ->assertDontSee('School-sent official record')
             ->assertSee('2 documents required');
+    }
+
+    public function test_requirements_checklist_shows_a_paper_with_an_online_copy_and_on_site_hand_over_once(): void
+    {
+        [$application, $applicant] = $this->application(extraRequirements: [
+            ['label' => 'Grade 12 report card', 'requires_preliminary_evidence' => true, 'official_submission_method' => AdmissionRequirement::SubmissionInPerson,
+                'due_stage' => AdmissionRequirement::DueEnrollmentReadiness],
+        ]);
+
+        $checklist = $this->home($applicant, $application)
+            ->assertSeeInOrder(['Grade 12 report card', 'Not submitted', '/', 'To be passed on-site'])
+            ->instance()->requirementChecklist($application->fresh());
+
+        $rows = collect($checklist['items'])->where('label', 'Grade 12 report card');
+        $this->assertCount(1, $rows);
+        $this->assertSame([['state' => 'Not submitted', 'color' => 'gray'], ['state' => 'To be passed on-site', 'color' => 'info']], $rows->first()['badges']);
     }
 
     public function test_applicant_pages_show_a_date_and_time_top_bar_without_account_controls(): void

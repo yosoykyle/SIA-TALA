@@ -198,7 +198,8 @@ class NavigationBadgeCountsTest extends TestCase
         $this->resolveCurrentAdminPage(ListAdmissionApplications::getRouteName(), ['tab' => AdmissionQueueCounts::NeedsReview]);
         $admissionsItems = $this->flattenNavigationItems($this->staffNavigation());
         $this->assertSame((string) ($baselineNeedsReview + 1), $admissionsItems['Needs review']->getBadge());
-        $this->assertNull($admissionsItems['Closed applications']->getBadge());
+        $this->assertArrayNotHasKey('Closed applications', $admissionsItems);
+        $this->assertArrayNotHasKey('Expired applications', $admissionsItems);
         $this->assertSame((string) ($baselineEnrollments + 1), $admissionsItems['Students & Enrollment']->getBadge());
         $this->assertSame('warning', $admissionsItems['Students & Enrollment']->getBadgeColor());
         $this->assertSame((string) ($baselineGrades + 3), $admissionsItems['Students Record']->getBadge());

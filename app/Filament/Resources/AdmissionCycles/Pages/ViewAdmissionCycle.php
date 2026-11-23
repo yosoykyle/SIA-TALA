@@ -212,7 +212,7 @@ class ViewAdmissionCycle extends ViewRecord
                     ]),
                     ...$this->authoritySchema(),
                 ])
-                ->visible(fn (): bool => $this->cycle()->state !== AdmissionCycle::StateCancelled)
+                ->visible(fn (): bool => ! in_array($this->cycle()->state, [AdmissionCycle::StateCancelled, AdmissionCycle::StateDraft], true))
                 ->action(fn (array $data, Action $action): mixed => $this->runCycleAction(
                     fn (AdmissionCycle $cycle, User $actor): AdmissionCycle => app(ChangeAdmissionCycle::class)->setDeadlines(
                         $cycle,

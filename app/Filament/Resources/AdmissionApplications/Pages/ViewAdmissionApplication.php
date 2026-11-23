@@ -25,6 +25,7 @@ use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationCorrectionItem;
+use App\Models\ApplicationCorrectionRequest;
 use App\Models\DocumentEvidence;
 use App\Models\Enrollment;
 use App\Models\IdentityMatchReview;
@@ -870,6 +871,9 @@ class ViewAdmissionApplication extends ViewRecord
             ->with('requirement')
             ->get()
             ->map(fn (OfficialCredentialResult $held): string => $held->requirement->label.' (due '.$held->exception_expires_at?->timezone($timezone)->format('M j, Y').')');
+        $activeCorrection = $application->correctionRequests->where('state', ApplicationCorrectionRequest::StateActive)->sortByDesc('sequence')->first();
+        $correctionNote = $activeCorrection === null ? null
+            : 'Correction sent to the Applicant: '.$activeCorrection->applicant_instruction.' · due '.$format($activeCorrection->due_at).'.';
         $remarks = $application->events
             ->where('event_type', AdmissionApplicationEvent::TypeProcessRemarkSent)
             ->sortByDesc('occurred_at')
@@ -897,8 +901,8 @@ class ViewAdmissionApplication extends ViewRecord
                         ? 'All '.$copies->count().' submitted copies accepted.'
                         : $copies->where('accepted', true)->count().' of '.$copies->count().' submitted copies accepted.'
                             .($decision !== null ? ' Review closed by the admission decision.' : '')),
-                'blocker' => $copiesAccepted ? null : 'Waiting on: '.$copies->where('accepted', false)
-                    ->map(fn (array $copy): string => $copy['label'].' ('.$copy['status'].')')->implode('; ').'.',
+                'blocker' => $copiesAccepted ? null : ($correctionNote ?? 'Waiting on: '.$copies->where('accepted', false)
+                    ->map(fn (array $copy): string => $copy['label'].' ('.$copy['status'].')')->implode('; ').'.'),
                 'action' => 'reviewEvidence',
                 'button' => 'Review copies',
             ],
@@ -909,7 +913,7 @@ class ViewAdmissionApplication extends ViewRecord
                 'summary' => $decision
                     ? str($decision->decision)->headline().' by '.($decision->decisionMaker?->getFilamentName() ?? 'Registrar').' · '.$format($decision->decided_at)
                     : 'Review every submitted copy, then record the admission decision.',
-                'blocker' => $decision ? null : $this->admissionBlockerGuidance(),
+                'blocker' => $decision ? null : ($correctionNote ?? $this->admissionBlockerGuidance()),
                 'action' => 'recordDecision',
                 'button' => 'Record decision',
             ],

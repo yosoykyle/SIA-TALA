@@ -114,6 +114,17 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
         $this->assertSame(0, $cycle->events()->count());
     }
 
+    public function test_deadlines_action_is_only_offered_once_the_cycle_is_no_longer_an_editable_draft(): void
+    {
+        $this->actingAs($this->registrar());
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $draft = AdmissionCycle::factory()->create();
+        $published = AdmissionCycle::factory()->create(['state' => AdmissionCycle::StatePublished]);
+
+        Livewire::test(ViewAdmissionCycle::class, ['record' => $draft->id])->assertActionHidden('setDeadlines');
+        Livewire::test(ViewAdmissionCycle::class, ['record' => $published->id])->assertActionVisible('setDeadlines');
+    }
+
     public function test_resuming_and_saving_draft_keeps_exact_existing_boundary_seconds(): void
     {
         $this->actingAs($this->registrar());

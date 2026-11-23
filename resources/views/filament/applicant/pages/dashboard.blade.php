@@ -120,7 +120,7 @@
                             @foreach ($checklist['items'] as $item)
                                 <li @class(['tala-checklist__item', 'tala-checklist__item--onsite' => $item['onsite'], 'tala-checklist__item--onsite-start' => $item['onsite'] && ! $loop->first && ! ($checklist['items'][$loop->index - 1]['onsite'] ?? false)])>
                                     <span class="tala-checklist__mark tala-checklist__mark--{{ $item['color'] }}" aria-hidden="true">
-                                        @if ($item['onsite'] && $item['color'] !== 'success')
+                                        @if ($item['pending_onsite'])
                                             <x-filament::icon icon="heroicon-m-building-office-2" class="size-3.5" />
                                         @elseif (in_array($item['color'], ['success', 'info'], true))
                                             <x-filament::icon icon="heroicon-m-check" class="size-3.5" />
@@ -129,7 +129,12 @@
                                         @endif
                                     </span>
                                     <span class="tala-checklist__label">{{ $item['label'] }}</span>
-                                    <x-filament::badge size="sm" :color="$item['color']">{{ $item['state'] }}</x-filament::badge>
+                                    <span class="tala-checklist__badges">
+                                        @foreach ($item['badges'] as $badge)
+                                            @unless ($loop->first)<span class="tala-checklist__badge-sep" aria-hidden="true">/</span>@endunless
+                                            <x-filament::badge size="sm" :color="$badge['color']">{{ $badge['state'] }}</x-filament::badge>
+                                        @endforeach
+                                    </span>
                                 </li>
                             @endforeach
                         </ul>

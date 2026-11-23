@@ -11,6 +11,7 @@ use App\Models\AdmissionRequirement;
 use App\Models\ApplicationCorrectionRequest;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\Program;
+use App\Queries\Admissions\AdmissionQueueCounts;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -132,7 +133,18 @@ class AdmissionApplicationsTable
                     })
                     ->wrap()
                     ->wrapHeader()
-                    ->extraCellAttributes(['style' => 'word-break: break-word;']),
+                    ->extraCellAttributes(['style' => 'word-break: break-word;'])
+                    ->visible(fn (mixed $livewire): bool => ! self::isReadyForEnrollmentQueue($livewire)),
+                TextColumn::make('enrollment_status')
+                    ->label('Enrollment')
+                    ->state(fn (AdmissionApplication $record): string => self::enrollmentStatus($record)['label'])
+                    ->badge()
+                    ->color(fn (AdmissionApplication $record): string => self::enrollmentStatus($record)['color'])
+                    ->tooltip(fn (AdmissionApplication $record): string => app(ReadyApplicantProjectionQuery::class)->enrollmentNextAction($record))
+                    ->description(fn (AdmissionApplication $record): ?string => $record->last_activity_at
+                        ? 'Updated '.Carbon::parse($record->last_activity_at)->timezone(config('app.display_timezone'))->format('M j, Y · g:i A')
+                        : null)
+                    ->visible(fn (mixed $livewire): bool => self::isReadyForEnrollmentQueue($livewire)),
                 TextColumn::make('preliminary_readiness')
                     ->label('Preliminary review')
                     ->state(fn (AdmissionApplication $record): string => self::preliminaryReadiness($record))
@@ -359,5 +371,33 @@ class AdmissionApplicationsTable
         }
 
         return 'Current preliminary review complete';
+    }
+
+    private static function isReadyForEnrollmentQueue(mixed $livewire): bool
+    {
+        return $livewire instanceof ListAdmissionApplications && $livewire->activeTab === AdmissionQueueCounts::ReadyForEnrollment;
+    }
+
+    /**
+     * Ready for enrollment only holds cleared applicants, so the long next-action sentence repeats on every row.
+     * This short status says where enrollment stands instead; the full sentence stays in the tooltip and on the case.
+     *
+     * @return array{label: string, color: string}
+     */
+    public static function enrollmentStatus(AdmissionApplication $record): array
+    {
+        $projection = app(ReadyApplicantProjectionQuery::class);
+
+        if ($projection->registrationHasStarted($record)) {
+            return ['label' => 'Registration Case started', 'color' => 'info'];
+        }
+
+        return match ($projection->enrollmentAvailability($record)['status']) {
+            'open' => ['label' => 'Not started', 'color' => 'gray'],
+            'upcoming', 'not_configured' => ['label' => 'Enrollment not yet open', 'color' => 'gray'],
+            'closed' => ['label' => 'Enrollment closed', 'color' => 'warning'],
+            'existing_case' => ['label' => 'Other Registration Case', 'color' => 'warning'],
+            default => ['label' => 'Term unavailable', 'color' => 'danger'],
+        };
     }
 }
