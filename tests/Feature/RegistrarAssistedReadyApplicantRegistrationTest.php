@@ -97,6 +97,21 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         $this->assertSame(0, $case->courseEnrollments()->count());
     }
 
+    public function test_subject_filters_narrow_offered_classes_but_keep_ticked_classes_listed(): void
+    {
+        [$case, $registrar, $sections] = $this->advisedPreparationFixture();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $page = Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $case->id])->mountAction('prepareProposal');
+        $filter = (new \ReflectionMethod($page->instance(), 'filteredSectionOptions'))->getClosure($page->instance());
+        $first = $sections->first()->fresh(['termOffering.curriculumEntry']);
+        $year = (string) $first->termOffering->curriculumEntry->year_level;
+
+        $this->assertSame($sections->pluck('id')->sort()->values()->all(), collect(array_keys($filter(null, null, [])))->sort()->values()->all());
+        $this->assertArrayHasKey($first->id, $filter($year, null, []));
+        $this->assertSame([], $filter('No such year', null, []));
+        $this->assertSame([$first->id], array_keys($filter('No such year', null, [$first->id])));
+    }
+
     public function test_subject_preparation_rejects_an_older_open_dialog_without_replacing_the_newer_draft(): void
     {
         [$case, $registrar, $sections] = $this->advisedPreparationFixture();

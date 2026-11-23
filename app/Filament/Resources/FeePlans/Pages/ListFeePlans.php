@@ -295,6 +295,9 @@ class ListFeePlans extends ListRecords
             SchemaView::make('filament.admin.fee-plans.term-gate')
                 ->key('fee-plans-term-gate')
                 ->visible(fn (): bool => $this->feePlanGateActive()),
+            SchemaView::make('filament.admin.fee-plans.action-modals')
+                ->key('fee-plans-gate-action-modals')
+                ->visible(fn (): bool => $this->feePlanGateActive()),
             SchemaView::make('filament.admin.fee-plans.collection-controls')
                 ->key('fee-plans-scope-bar')
                 ->visible(fn (): bool => ! $this->feePlanGateActive() && $this->outsideDraftFeePlanCount() > 0),

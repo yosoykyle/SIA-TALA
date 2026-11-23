@@ -1243,12 +1243,28 @@ class ViewEnrollment extends ViewRecord
             ->fillForm(fn (): array => [
                 'case_version' => $this->getRecord()->lock_version,
                 'section_ids' => $this->getRecord()->currentProposalVersion?->items->pluck('section_id')->all() ?? [],
+                'subject_year_filter' => null,
+                'subject_term_filter' => $this->defaultSubjectTermFilter(),
             ])
             ->schema([
                 Hidden::make('case_version')->required(),
+                Grid::make(['default' => 1, 'sm' => 2])->schema([
+                    Select::make('subject_year_filter')
+                        ->label('Year level')
+                        ->placeholder('All year levels')
+                        ->options(fn (): array => $this->subjectPositionFilterOptions('year'))
+                        ->live()
+                        ->dehydrated(false),
+                    Select::make('subject_term_filter')
+                        ->label('Curriculum term')
+                        ->placeholder('All terms')
+                        ->options(fn (): array => $this->subjectPositionFilterOptions('term'))
+                        ->live()
+                        ->dehydrated(false),
+                ]),
                 CheckboxList::make('section_ids')
                     ->label('Subjects and classes')
-                    ->options(fn (): array => $this->sectionOptions())
+                    ->options(fn (Get $get): array => $this->filteredSectionOptions($get('subject_year_filter'), $get('subject_term_filter'), $get('section_ids') ?? []))
                     ->descriptions(fn (): array => $this->sectionDescriptions())
                     ->searchable()
                     ->searchPrompt('Find a subject or class')
@@ -3636,6 +3652,66 @@ class ViewEnrollment extends ViewRecord
         return collect($this->eligibleLateReopenAuthorities())
             ->mapWithKeys(fn (array $source, int $id): array => [$id => $source['reference']])
             ->all();
+    }
+
+    /**
+     * Year level or curriculum term of each offered class, for the Choose subjects filters.
+     *
+     * @return array<string, string>
+     */
+    private function subjectPositionFilterOptions(string $part): array
+    {
+        return $this->classChoices()['sections']
+            ->map(fn (Section $section): ?string => $this->subjectPosition($section)[$part])
+            ->filter()
+            ->unique()
+            ->sort(SORT_NATURAL)
+            ->mapWithKeys(fn (string $value): array => [$value => $part === 'year' && is_numeric($value) ? 'Year '.$value : $value])
+            ->all();
+    }
+
+    /** @return array{year: ?string, term: ?string} */
+    private function subjectPosition(Section $section): array
+    {
+        $entry = $section->termOffering?->curriculumEntry;
+
+        return ['year' => filled($entry?->year_level) ? (string) $entry->year_level : null, 'term' => filled($entry?->term_label) ? (string) $entry->term_label : null];
+    }
+
+    /** Opens on the curriculum term matching the enrollment term (e.g. First Semester), when one is offered. */
+    private function defaultSubjectTermFilter(): ?string
+    {
+        $termLabel = (string) $this->getRecord()->term?->label;
+
+        return collect(array_keys($this->subjectPositionFilterOptions('term')))
+            ->first(fn (string $curriculumTerm): bool => $termLabel !== '' && str_contains(strtolower($termLabel), strtolower($curriculumTerm)));
+    }
+
+    /**
+     * Offered classes narrowed by the year and term filters. Classes already ticked stay listed so a filter never hides a choice.
+     *
+     * @param  list<int|string>  $selectedIds
+     * @return array<int, string>
+     */
+    private function filteredSectionOptions(?string $year, ?string $term, array $selectedIds): array
+    {
+        $options = $this->sectionOptions();
+        if (blank($year) && blank($term)) {
+            return $options;
+        }
+
+        $selected = array_map('intval', $selectedIds);
+        $visibleIds = $this->classChoices()['sections']
+            ->filter(function (Section $section) use ($year, $term, $selected): bool {
+                $position = $this->subjectPosition($section);
+
+                return in_array((int) $section->id, $selected, true)
+                    || ((blank($year) || $position['year'] === $year) && (blank($term) || $position['term'] === $term));
+            })
+            ->pluck('id')
+            ->all();
+
+        return array_intersect_key($options, array_flip($visibleIds));
     }
 
     /** @return array<int, string> */
