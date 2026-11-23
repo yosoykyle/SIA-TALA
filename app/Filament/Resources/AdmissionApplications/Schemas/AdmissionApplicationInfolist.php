@@ -355,8 +355,8 @@ class AdmissionApplicationInfolist
     private static function evidenceSchema(): array
     {
         return [
-            TextEntry::make('admissionRequirement.label')->weight('semibold'),
-            TextEntry::make('version_status')
+            TextEntry::make('admissionRequirement.label')->label('Requirement')->weight('semibold'),
+            TextEntry::make('version_status')->label('Copy / Uploaded')
                 ->state(function (DocumentEvidence $record): string {
                     if (! $record->exists || $record->id === null) {
                         return 'Missing copy — not uploaded';
@@ -379,7 +379,7 @@ class AdmissionApplicationInfolist
                 ->badge(fn (DocumentEvidence $record): bool => ! $record->exists || $record->id === null)
                 ->color(fn (DocumentEvidence $record): ?string => (! $record->exists || $record->id === null) ? 'danger' : null)
                 ->helperText(fn (DocumentEvidence $record): ?string => $record->uploaded_at?->timezone(config('app.display_timezone'))->format('M j, Y · g:i A')),
-            TextEntry::make('review_history')
+            TextEntry::make('review_history')->label('Current review result')
                 ->state(function (DocumentEvidence $record): string {
                     if (! $record->exists || $record->id === null) {
                         return 'Missing preliminary copy';
