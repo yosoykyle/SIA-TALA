@@ -64,7 +64,7 @@
 </section>
 @if ($curriculum && count($curriculum['required']))
     <section class="tala-profile-ledger" aria-label="Curriculum progress">
-        <header class="tala-profile-ledger__toolbar"><div><h2>Curriculum progress</h2><p class="tala-profile-muted">{{ $curriculum['completed_units'] }} units completed or credited across terms.</p></div></header>
+        <header class="tala-profile-ledger__toolbar"><div><h2>Curriculum progress</h2><p class="tala-profile-muted">{{ $curriculum['completed_units'] }} units completed or credited across terms.</p></div>@if ($this->correctCreditingAction->isVisible()){{ $this->correctCreditingAction }}@endif</header>
         <div class="tala-data-table-scroll tala-profile-table-wrap" role="region" aria-label="Required curriculum subjects" tabindex="0"><table class="tala-data-table tala-profile-table"><thead><tr><th scope="col">Required subject</th><th scope="col">Status</th><th scope="col">Credited units</th></tr></thead><tbody>@foreach ($curriculum['required'] as $row)<tr><th scope="row">{{ $row['curriculum_entry']->courseSpecification?->course?->code }} &middot; {{ $row['curriculum_entry']->courseSpecification?->title }}</th><td>{{ str($row['status'])->headline() }}</td><td class="tala-profile-numeric">{{ $row['credited_units'] }}</td></tr>@endforeach</tbody></table></div>
     </section>
 @else

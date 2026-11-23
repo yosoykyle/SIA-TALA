@@ -3,12 +3,14 @@
 namespace App\Filament\Resources\AdmissionCycles\Schemas;
 
 use App\Actions\Admissions\AdmissionCycleReadinessService;
+use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionCycleEvent;
 use App\Models\Program;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 
 class AdmissionCycleInfolist
@@ -20,27 +22,18 @@ class AdmissionCycleInfolist
             ->components([
                 Section::make('Publication checks')
                     ->compact()
+                    ->description(fn (AdmissionCycle $record): string => trans_choice(
+                        ':count item to fix before this cycle can be published.|:count items to fix before this cycle can be published.',
+                        count(app(AdmissionCycleReadinessService::class)->for($record)['blockers']),
+                    ))
                     ->visible(fn (AdmissionCycle $record): bool => app(AdmissionCycleReadinessService::class)->for($record)['blockers'] !== [])
                     ->schema([
-                        TextEntry::make('readiness')
-                            ->label('Setup findings and next steps')
-                            ->state(function (AdmissionCycle $record): string {
-                                if (! class_exists(AdmissionCycleReadinessService::class)) {
-                                    return 'Readiness service is unavailable; publication remains blocked.';
-                                }
-
-                                $projection = app(AdmissionCycleReadinessService::class)->for($record);
-
-                                return collect($projection['blockers'])
-                                    ->map(fn (array $finding): string => implode(' → ', [
-                                        $finding['source'],
-                                        $finding['owner'],
-                                        $finding['reason'],
-                                        $finding['recovery'],
-                                    ]))
-                                    ->implode("\n") ?: 'All publication checks passed.';
-                            })
-                            ->listWithLineBreaks(),
+                        View::make('filament.admin.admission-cycles.publication-checks')
+                            ->viewData(fn (AdmissionCycle $record): array => [
+                                'findings' => collect(app(AdmissionCycleReadinessService::class)->for($record)['blockers'])
+                                    ->map(fn (array $finding): array => [...$finding, 'fix' => self::fixLink($finding, $record)])
+                                    ->all(),
+                            ]),
                     ])
                     ->columnSpanFull(),
                 Grid::make(['default' => 1, 'lg' => 2])->schema([
@@ -78,10 +71,8 @@ class AdmissionCycleInfolist
                         ->compact()
                         ->schema([
                             TextEntry::make('opens_at')->label('Applications open')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
-                            TextEntry::make('closes_at')->label('New applications close')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set')
-                                ->helperText('Stops new starts and first submissions. Existing reviews continue.'),
-                            TextEntry::make('correction_closes_at')->label('New correction requests end')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set')
-                                ->helperText('Active corrections remain available after this boundary.'),
+                            TextEntry::make('closes_at')->label('New applications close')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
+                            TextEntry::make('correction_closes_at')->label('New correction requests end')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
                         ]),
                 ])->columnSpanFull(),
                 Section::make('Applicant guidance and source details')
@@ -129,5 +120,32 @@ class AdmissionCycleInfolist
         ])->filter(fn (mixed $value): bool => filled($value))
             ->map(fn (mixed $value, string $label): string => "{$label}: {$value}")
             ->implode(', ') ?: 'No boundary value';
+    }
+
+    /**
+     * Where the Registrar resolves a publication blocker, when it is fixable from TALA's cycle setup.
+     *
+     * @param  array{code: string}  $finding
+     * @return array{label: string, url: string}|null
+     */
+    public static function fixLink(array $finding, AdmissionCycle $record): ?array
+    {
+        if (str_starts_with($finding['code'], 'requirement_set_')) {
+            return ['label' => 'Open requirement sets', 'url' => AdmissionCycleResource::getUrl('view', ['record' => $record, 'relation' => '0'])];
+        }
+
+        $label = match ($finding['code']) {
+            'target_term_and_dates' => 'Fix term and dates',
+            'accepting_programs' => 'Choose accepting programs',
+            'applicant_guidance' => 'Add applicant guidance',
+            'registrar_owner' => 'Assign Registrar owner',
+            default => null,
+        };
+
+        if ($label === null || $record->state !== AdmissionCycle::StateDraft || ! AdmissionCycleResource::canEdit($record)) {
+            return null;
+        }
+
+        return ['label' => $label, 'url' => AdmissionCycleResource::getUrl('edit', ['record' => $record])];
     }
 }

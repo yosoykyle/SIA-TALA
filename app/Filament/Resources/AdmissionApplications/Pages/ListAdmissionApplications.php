@@ -173,7 +173,8 @@ class ListAdmissionApplications extends ListRecords
             return 'Terminal admission applications (withdrawn or not admitted). For an individual application audit trail, view Record history within that application.';
         }
 
-        $count = app(AdmissionQueueCounts::class)->count($this->activeTab ?? AdmissionQueueCounts::NeedsReview);
+        $studentType = $this->tableFilters['application_path']['value'] ?? null;
+        $count = app(AdmissionQueueCounts::class)->count($this->activeTab ?? AdmissionQueueCounts::NeedsReview, filled($studentType) ? $studentType : null);
 
         return $count === 1 ? '1 application' : $count.' applications';
     }

@@ -4,12 +4,16 @@ namespace App\Actions\Completion;
 
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
 use App\Models\DegreeConferral;
 use App\Models\ProgramShiftCreditEntry;
+use App\Models\RegistrationCreditEvaluation;
+use App\Models\RegistrationCreditLine;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TranscriptRequest;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 class TranscriptPreview
@@ -122,10 +126,12 @@ class TranscriptPreview
                     'attempt_event_id' => $credit->source_grade_outcome_event_id,
                 ];
             });
+        $transferCreditRows = $this->transferCreditRows($student);
         $runningEarnedUnits = 0.0;
         $rowsWithSummaries = [];
         $termGroups = $releasedRows
             ->concat($approvedCreditRows)
+            ->concat($transferCreditRows)
             ->sortBy([
                 ['term_starts_on', 'asc'],
                 ['term_id', 'asc'],
@@ -201,5 +207,45 @@ class TranscriptPreview
         $content['source_fingerprint'] = hash('sha256', json_encode($fingerprintSource, JSON_THROW_ON_ERROR));
 
         return $content;
+    }
+
+    /**
+     * One TOR row per credited subject from the Student's effective transfer crediting, placed in the
+     * term of the enrollment that recorded it. The TOR grade is shown as recorded; averages never read it.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function transferCreditRows(StudentProfile $student): Collection
+    {
+        $evaluation = RegistrationCreditEvaluation::effectiveForStudent($student);
+        if ($evaluation === null || $evaluation->credited_curriculum_entry_ids === []) {
+            return collect();
+        }
+        $evaluation->loadMissing(['enrollment.term.academicYear', 'creditLines']);
+        $term = $evaluation->enrollment->term;
+        $lines = $evaluation->creditLines->keyBy('curriculum_entry_id');
+
+        return CurriculumEntry::query()->with('courseSpecification.course')
+            ->whereIn('id', $evaluation->credited_curriculum_entry_ids)->get()
+            ->map(function (CurriculumEntry $entry) use ($term, $lines): array {
+                $specification = $entry->courseSpecification;
+                $units = (float) $specification->credit_units;
+                $line = $lines->get($entry->id);
+
+                return [
+                    'academic_year' => $term->academicYear->label,
+                    'term_id' => $term->id,
+                    'term' => $term->label,
+                    'term_starts_on' => $term->starts_on->toDateString(),
+                    'course_code' => $specification->course->code,
+                    'course_title' => $specification->title,
+                    'units' => number_format($units, 2, '.', ''),
+                    'result' => $line?->tor_grade ?? 'Credited',
+                    'remarks' => $line instanceof RegistrationCreditLine ? $line->transcriptRemark() : 'Transfer credit',
+                    'attempt_or_credit' => 'Transfer credit',
+                    'earned_units' => $units,
+                    'attempt_event_id' => null,
+                ];
+            });
     }
 }

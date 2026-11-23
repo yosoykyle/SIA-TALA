@@ -63,9 +63,34 @@ class AdmissionQueueCounts
         };
     }
 
-    public function count(string $queue): int
+    public function count(string $queue, ?string $studentType = null): int
     {
-        return $this->scope(AdmissionApplicationResource::getEloquentQuery(), $queue)->count();
+        return $this->scope(AdmissionApplicationResource::getEloquentQuery(), $queue)
+            ->when($studentType !== null, fn (Builder $query): Builder => $query->where('application_path', $studentType))
+            ->count();
+    }
+
+    /**
+     * Admissions work queues, still with the school before official enrollment.
+     *
+     * @return list<string>
+     */
+    public static function admissionQueues(): array
+    {
+        return [self::NeedsReview, self::WaitingForApplicant, self::RegistrarClearance];
+    }
+
+    /**
+     * Active cases per Student type: still in admission review, or cleared and moving through enrollment.
+     *
+     * @return array{admission: int, enrollment: int, total: int}
+     */
+    public function activeCases(?string $studentType = null): array
+    {
+        $admission = collect(self::admissionQueues())->sum(fn (string $queue): int => $this->count($queue, $studentType));
+        $enrollment = $this->count(self::ReadyForEnrollment, $studentType);
+
+        return ['admission' => $admission, 'enrollment' => $enrollment, 'total' => $admission + $enrollment];
     }
 
     /** @return list<int> */

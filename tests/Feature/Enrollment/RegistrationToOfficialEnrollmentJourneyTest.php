@@ -1643,7 +1643,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $component = Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $case->id])
             ->assertSee('Record transfer credit evaluation')->assertDontSee('Choose subjects')->assertDontSee('Enrollment options');
         $component->mountAction('recordAcademicEvaluation')->assertActionMounted('recordAcademicEvaluation');
-        $component->setActionData(['curriculum_version_id' => $curriculum->id, 'result' => 'none', 'authority_reference' => 'SYN-EVALUATION', 'approved_on' => today()->toDateString()]);
+        $component->setActionData(['curriculum_version_id' => $curriculum->id, 'same_curriculum' => 'different', 'authority_reference' => 'SYN-EVALUATION', 'approved_on' => today()->toDateString()]);
         $component->callMountedAction()->assertHasNoActionErrors()->assertNotified('Academic evaluation recorded');
         $first = RegistrationCreditEvaluation::latestCurrentFor($case->fresh(), $curriculum->id);
         $this->assertNotNull($first);
@@ -3708,7 +3708,8 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $curriculum = CurriculumVersion::query()->where('program_id', $case->admissionApplication->program_id)->where('state', CurriculumVersion::StateActive)->firstOrFail();
         app(RecordRegistrationCreditEvaluation::class)->execute($case->fresh(), $this->staff(User::StaffRoleRegistrar), $credits,
             'SYN-APPROVED-EVALUATION', CarbonImmutable::today(), (int) $case->admissionApplication->current_submission_version_id,
-            $curriculum->id, $case->fresh()->lock_version);
+            $curriculum->id, $case->fresh()->lock_version,
+            creditLines: array_fill_keys($credits, ['source_course_code' => 'PREV-101', 'source_course_title' => 'Previous school subject', 'tor_grade' => '2.00']));
     }
 
     private function readyApplicant(string $applicationPath = AdmissionApplication::PathFirstYear, ?Term $term = null, ?int $programId = null): array

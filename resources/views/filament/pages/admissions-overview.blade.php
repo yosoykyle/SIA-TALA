@@ -1,8 +1,32 @@
 <x-filament-panels::page>
     <div class="tala-workspace-launcher">
         <p class="tala-workspace-launcher__scope">Across all terms</p>
+        <section class="tala-student-type-bar" aria-labelledby="student-type-title">
+            <div class="tala-student-type-bar__head">
+                <h2 id="student-type-title">Student type</h2>
+                <p>{{ $studentTypeLabel ? 'Counts and queue links show '.\Illuminate\Support\Str::lower($studentTypeLabel).' only.' : 'Active cases. Closed applications are not counted.' }}</p>
+            </div>
+            <div class="tala-student-type-tabs" role="tablist" aria-label="Filter Admissions by student type">
+                @foreach ($studentTypeTabs as $tab)
+                    @php($isSelected = $tab['available'] && $this->type === $tab['type'])
+                    <button type="button" role="tab" aria-selected="{{ $isSelected ? 'true' : 'false' }}" wire:key="student-type-{{ $tab['type'] ?? 'all' }}"
+                        @class(['tala-student-type-tab', 'is-selected' => $isSelected])
+                        @if ($tab['available']) wire:click="selectStudentType(@js($tab['type']))" wire:loading.attr="disabled" wire:target="selectStudentType"
+                        @else disabled aria-disabled="true" title="Available once returning-student records can be added." @endif>
+                        @if ($tab['icon'])<x-filament::icon :icon="$tab['icon']" class="tala-student-type-tab__icon" />@endif
+                        <span class="tala-student-type-tab__label">{{ $tab['label'] }}</span>
+                        @if ($tab['available'])
+                            <span class="tala-student-type-tab__count">{{ $tab['cases']['total'] }}</span>
+                            @if ($tab['type'] !== null)<span class="tala-student-type-tab__split">{{ $tab['cases']['admission'] }} admission · {{ $tab['cases']['enrollment'] }} enrollment</span>@endif
+                        @else
+                            <span class="tala-student-type-tab__soon">Soon</span>
+                        @endif
+                    </button>
+                @endforeach
+            </div>
+        </section>
         <nav class="tala-workspace-launcher__main tala-workspace-launcher__main--two-up" aria-label="Admissions work">
-            <x-workspace-card :href="\App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications::getUrl(['tab' => \App\Queries\Admissions\AdmissionQueueCounts::NeedsReview])" label="Applications to review"
+            <x-workspace-card :href="$this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::NeedsReview)" label="Applications to review"
                 :figure="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::NeedsReview]" :figure-label="\Illuminate\Support\Str::plural('application', $queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::NeedsReview]).' awaiting review'"
                 action="Review applications">
                 <x-slot:art>
@@ -18,9 +42,9 @@
                     </svg>
                 </x-slot:art>
                 @if ($queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::NeedsReview] === 0)<p class="tala-workspace-card__note">No applications waiting.</p>@endif
-                <a class="tala-workspace-text-link" {{ \Filament\Support\generate_href_html(\App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications::getUrl(['tab' => \App\Queries\Admissions\AdmissionQueueCounts::Closed])) }}>Find a closed application <x-filament::icon icon="heroicon-m-arrow-right" /></a>
+                <a class="tala-workspace-text-link" {{ \Filament\Support\generate_href_html($this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::Closed)) }}>Find a closed application <x-filament::icon icon="heroicon-m-arrow-right" /></a>
             </x-workspace-card>
-            <x-workspace-card :href="\App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications::getUrl(['tab' => \App\Queries\Admissions\AdmissionQueueCounts::RegistrarClearance])" label="Application clearance"
+            <x-workspace-card :href="$this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::RegistrarClearance)" label="Application clearance"
                 :figure="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::RegistrarClearance]" :figure-label="\Illuminate\Support\Str::plural('application', $queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::RegistrarClearance]).' ready to be cleared'"
                 action="Clear applications">
                 <x-slot:art>
@@ -36,15 +60,15 @@
                     </svg>
                 </x-slot:art>
                 @if ($queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::RegistrarClearance] === 0)<p class="tala-workspace-card__note">No applications waiting on clearance.</p>@endif
-                <a class="tala-workspace-text-link" {{ \Filament\Support\generate_href_html(\App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications::getUrl(['tab' => \App\Queries\Admissions\AdmissionQueueCounts::ReadyForEnrollment])) }}>Find a cleared application <x-filament::icon icon="heroicon-m-arrow-right" /></a>
+                <a class="tala-workspace-text-link" {{ \Filament\Support\generate_href_html($this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::ReadyForEnrollment)) }}>Find a cleared application <x-filament::icon icon="heroicon-m-arrow-right" /></a>
             </x-workspace-card>
         </nav>
         <section class="tala-workspace-launcher__supporting" aria-labelledby="other-admissions-title">
             <h2 id="other-admissions-title">Other queues</h2>
             <nav class="tala-task-surface tala-workspace-launcher__other tala-workspace-launcher__other--plain-list" aria-label="Other Admissions queues">
-                <x-workspace-card compact :href="\App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications::getUrl(['tab' => \App\Queries\Admissions\AdmissionQueueCounts::WaitingForApplicant])" icon="heroicon-o-clock" label="Waiting for applicant" description="Corrections sent back; the applicant acts next." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::WaitingForApplicant]" />
-                <x-workspace-card compact :href="\App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications::getUrl(['tab' => \App\Queries\Admissions\AdmissionQueueCounts::ReadyForEnrollment])" icon="heroicon-o-check-circle" label="Ready for enrollment" description="Cleared applicants tracking toward official enrollment." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::ReadyForEnrollment]" />
-                <x-workspace-card compact :href="\App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications::getUrl(['tab' => \App\Queries\Admissions\AdmissionQueueCounts::Closed])" icon="heroicon-o-archive-box" label="Closed applications" description="Withdrawn or not admitted; terminal records only." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::Closed]" />
+                <x-workspace-card compact :href="$this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::WaitingForApplicant)" icon="heroicon-o-clock" label="Waiting for applicant" description="Corrections sent back; the applicant acts next." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::WaitingForApplicant]" />
+                <x-workspace-card compact :href="$this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::ReadyForEnrollment)" icon="heroicon-o-check-circle" label="Ready for enrollment" description="Cleared applicants tracking toward official enrollment." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::ReadyForEnrollment]" />
+                <x-workspace-card compact :href="$this->queueUrl(\App\Queries\Admissions\AdmissionQueueCounts::Closed)" icon="heroicon-o-archive-box" label="Closed applications" description="Withdrawn or not admitted; terminal records only." :count="$queueCounts[\App\Queries\Admissions\AdmissionQueueCounts::Closed]" />
             </nav>
         </section>
     </div>

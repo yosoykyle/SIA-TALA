@@ -44,6 +44,7 @@ use App\Actions\StudentLifecycle\LifecycleAccountingReview;
 use App\Actions\StudentLifecycle\RecordLifecycleAccountingReview;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\Enrollments\Schemas\TransferCreditingForm;
 use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
 use App\Models\AdmissionApplication;
 use App\Models\ApprovedCoverage;
@@ -1166,51 +1167,59 @@ class ViewEnrollment extends ViewRecord
 
     public function recordAcademicEvaluationAction(): Action
     {
-        return Action::make('recordAcademicEvaluation')->label('Record evaluation')->icon('heroicon-o-academic-cap')
+        return Action::make('recordAcademicEvaluation')->label('Credit subjects')->icon('heroicon-o-academic-cap')
             ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleRegistrar))
             ->visible(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleRegistrar)
                 && $this->getRecord()->canonical_outcome === Enrollment::OutcomeInProgress
                 && $this->getRecord()->admissionApplication?->application_path === AdmissionApplication::PathTransferee)
-            ->modalHeading('Record transfer credit evaluation')->modalWidth(Width::TwoExtraLarge)
+            ->modalHeading('Credit transferee subjects')->modalWidth(Width::SevenExtraLarge)
             ->stickyModalHeader()->stickyModalFooter()
-            ->modalDescription('Record the school’s approved result. This does not approve new credits.')
-            ->modalSubmitActionLabel('Save evaluation')->modalCancelActionLabel('Cancel')
+            ->modalDescription('Compare the transferee’s TOR with the SIA curriculum. Choose Credited or Need to take for each subject; record the TOR grade and previous course for credited subjects. Leave every subject on Need to take for a no-credit result.')
+            ->modalSubmitActionLabel('Save crediting')->modalCancelActionLabel('Cancel')
             ->fillForm(function (): array {
                 $case = $this->getRecord()->fresh();
                 $latest = RegistrationCreditEvaluation::query()->where('enrollment_id', $case->id)->latest('id')->first();
                 $this->reviewedAcademicEvaluation = ['submission' => (int) $case->admissionApplication->current_submission_version_id,
                     'lock' => $case->lock_version, 'evaluation' => $latest?->id];
+                $curriculumId = $latest?->curriculum_version_id ?? $this->activeTransfereeCurriculumIds()->first();
 
-                return ['curriculum_version_id' => $latest?->curriculum_version_id, 'result' => $latest !== null ? ($latest->credited_curriculum_entry_ids === [] ? 'none' : 'credits') : null,
-                    'credited_curriculum_entry_ids' => $latest?->credited_curriculum_entry_ids ?? [],
+                return ['curriculum_version_id' => $curriculumId,
+                    'same_curriculum' => TransferCreditingForm::sameCurriculumState($latest),
+                    'rows' => TransferCreditingForm::rowsState($curriculumId, $latest),
                     'authority_reference' => null, 'approved_on' => null];
             })
             ->schema([
                 Text::make(fn (): string => $this->getRecord()->credentialUser->getFilamentName().' · '.$this->getRecord()->admissionApplication->program->name.' · '.$this->getRecord()->term->label),
-                Select::make('curriculum_version_id')->label('Curriculum')->required()->live()
-                    ->options(fn (): array => CurriculumVersion::query()->where('program_id', $this->getRecord()->admissionApplication?->program_id)->where('state', CurriculumVersion::StateActive)->pluck('name', 'id')->all())
-                    ->afterStateUpdated(fn (Set $set) => $set('credited_curriculum_entry_ids', [])),
-                Radio::make('result')->label('Approved result')->options(['credits' => 'Subjects credited', 'none' => 'No subjects credited'])->required()->live()->inline(),
-                Select::make('credited_curriculum_entry_ids')->label('Credited subjects')->multiple()->searchable()->preload()
-                    ->options(fn (Get $get): array => CurriculumEntry::query()->with('courseSpecification.course')->where('curriculum_version_id', $get('curriculum_version_id'))->get()
-                        ->mapWithKeys(fn (CurriculumEntry $entry): array => [$entry->id => $entry->courseSpecification->course->code.' · '.$entry->courseSpecification->title])->all())
-                    ->visible(fn (Get $get): bool => $get('result') === 'credits')->required(fn (Get $get): bool => $get('result') === 'credits')
-                    ->helperText('Only these requirements count as credited.'),
-                Grid::make(2)->schema([TextInput::make('authority_reference')->label('Approval memo or reference')->placeholder('e.g., Memo 2026-014 or approving office')->required()->maxLength(255),
-                    DatePicker::make('approved_on')->label('Approval date')->required()->maxDate(today())]),
-                Text::make('Recorded by you automatically. Earlier evaluations remain in history. Replacing an evaluation requires a fresh subject proposal.'),
-            ])->action(function (array $data): void {
+                Select::make('curriculum_version_id')->label('SIA curriculum')->required()->live()
+                    ->options(fn (): array => CurriculumVersion::query()->whereKey($this->activeTransfereeCurriculumIds())->pluck('name', 'id')->all())
+                    ->afterStateUpdated(fn (Set $set, mixed $state) => $set('rows', TransferCreditingForm::rowsState(filled($state) ? (int) $state : null))),
+                ...TransferCreditingForm::components(fn (Get $get): ?int => filled($get('curriculum_version_id')) ? (int) $get('curriculum_version_id') : null),
+            ])->action(function (array $data, Action $action): void {
                 $review = $this->reviewedAcademicEvaluation;
                 if ($review === null) {
                     throw ValidationException::withMessages(['evaluation' => 'Reopen the academic evaluation.']);
                 }
-                app(RecordRegistrationCreditEvaluation::class)->execute($this->getRecord(), $this->actor(),
-                    $data['result'] === 'credits' ? ($data['credited_curriculum_entry_ids'] ?? []) : [],
-                    $data['authority_reference'], CarbonImmutable::parse($data['approved_on']), $review['submission'],
-                    (int) $data['curriculum_version_id'], $review['lock'], $review['evaluation']);
-                Notification::make()->success()->title('Academic evaluation recorded')->send();
+                $lines = TransferCreditingForm::creditLines($data);
+                try {
+                    app(RecordRegistrationCreditEvaluation::class)->execute($this->getRecord(), $this->actor(),
+                        array_keys($lines), $data['authority_reference'], CarbonImmutable::parse($data['approved_on']), $review['submission'],
+                        (int) $data['curriculum_version_id'], $review['lock'], $review['evaluation'],
+                        creditLines: $lines, sameCurriculum: TransferCreditingForm::sameCurriculum($data));
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('Crediting was not saved')->body(collect($exception->errors())->flatten()->first())->send();
+                    $action->halt();
+                }
+                Notification::make()->success()->title('Academic evaluation recorded')
+                    ->body(count($lines) === 0 ? 'No subjects credited.' : count($lines).' subject(s) credited.')->send();
                 $this->getRecord()->refresh();
             });
+    }
+
+    /** @return Collection<int, int> */
+    private function activeTransfereeCurriculumIds(): Collection
+    {
+        return CurriculumVersion::query()->where('program_id', $this->getRecord()->admissionApplication?->program_id)
+            ->where('state', CurriculumVersion::StateActive)->orderBy('id')->pluck('id');
     }
 
     public function prepareProposalAction(): Action

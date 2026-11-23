@@ -39,7 +39,7 @@ final class SchemaConformanceTest extends TestCase
         'pending_email_changes',
         'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances', 'official_output_restrictions',
         'public_notices', 'published_timetable_meetings', 'published_timetable_versions',
-        'registrar_enrollment_clearances', 'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_credit_evaluations', 'registration_identity_confirmation_versions', 'registration_late_authorities',
+        'registrar_enrollment_clearances', 'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_credit_evaluations', 'registration_credit_lines', 'registration_identity_confirmation_versions', 'registration_late_authorities',
         'registration_proposal_confirmations', 'registration_proposal_items', 'registration_proposal_versions',
         'room_features', 'rooms', 'schedule_revision_events', 'schedule_runs',
         'scheduling_commitments', 'scheduling_demands', 'section_delivery_groups', 'section_meetings',
@@ -69,9 +69,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(124, self::APPLICATION_TABLES);
+        $this->assertCount(125, self::APPLICATION_TABLES);
         $this->assertCount(17, self::PLATFORM_TABLES);
-        $this->assertCount(141, $actual);
+        $this->assertCount(142, $actual);
         $this->assertSame($expected, $actual);
     }
 

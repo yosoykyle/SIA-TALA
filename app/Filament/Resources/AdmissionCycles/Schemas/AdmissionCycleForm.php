@@ -38,21 +38,18 @@ class AdmissionCycleForm
                         ->displayFormat('M j, Y · g:i A')
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-calendar')
-                        ->placeholder('Select date and time')
-                        ->helperText('New applications become available at this time once the cycle is published (Asia/Manila).'),
+                        ->placeholder('Select date and time'),
                     DateTimePicker::make('closes_at')->label('New applications close')->native(false)
                         ->after(fn (Get $get): ?string => filled($get('opens_at')) ? 'opens_at' : null)
                         ->displayFormat('M j, Y · g:i A')
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-calendar')
-                        ->placeholder('Select date and time')
-                        ->helperText('Stops new starts and first submissions. Existing corrections and Registrar reviews continue (Asia/Manila). Must be after opening time.'),
+                        ->placeholder('Select date and time'),
                     DateTimePicker::make('correction_closes_at')->label('Last time to request a new correction')->native(false)
                         ->displayFormat('M j, Y · g:i A')
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-clock')
-                        ->placeholder('Select date and time')
-                        ->helperText('Required before publication, at or after application closing. Existing correction requests remain actionable after this boundary (Asia/Manila).'),
+                        ->placeholder('Select date and time'),
                 ])->columns(['default' => 1, 'lg' => 3])->columnSpanFull(),
             Section::make('Who can apply')
                 ->compact()

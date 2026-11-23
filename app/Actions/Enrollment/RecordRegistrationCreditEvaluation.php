@@ -16,17 +16,22 @@ use Illuminate\Validation\ValidationException;
 
 class RecordRegistrationCreditEvaluation
 {
-    /** @param list<int> $creditedCurriculumEntryIds */
+    public function __construct(private readonly StoreRegistrationCreditEvaluation $store) {}
+
+    /**
+     * @param  list<int>  $creditedCurriculumEntryIds
+     * @param  array<int, array<string, mixed>>  $creditLines  one source line per credited entry ID (source course, TOR grade, units, bridging, remarks)
+     */
     public function execute(Enrollment $enrollment, User $actor, array $creditedCurriculumEntryIds, string $authorityReference,
         CarbonImmutable $approvedOn, int $expectedSubmissionVersionId, int $expectedCurriculumVersionId, int $expectedLockVersion,
-        ?int $expectedEvaluationId = null): RegistrationCreditEvaluation
+        ?int $expectedEvaluationId = null, array $creditLines = [], ?bool $sameCurriculum = null): RegistrationCreditEvaluation
     {
         if (! $actor->canAuthenticate() || ! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only active Registrar staff may record an approved evaluation.');
         }
 
         return DB::transaction(function () use ($enrollment, $actor, $creditedCurriculumEntryIds, $authorityReference, $approvedOn,
-            $expectedSubmissionVersionId, $expectedCurriculumVersionId, $expectedLockVersion, $expectedEvaluationId): RegistrationCreditEvaluation {
+            $expectedSubmissionVersionId, $expectedCurriculumVersionId, $expectedLockVersion, $expectedEvaluationId, $creditLines, $sameCurriculum): RegistrationCreditEvaluation {
             $case = Enrollment::query()->lockForUpdate()->findOrFail($enrollment->id);
             $application = $case->admissionApplication()->lockForUpdate()->first();
             $curriculum = CurriculumVersion::query()->find($expectedCurriculumVersionId);
@@ -45,17 +50,15 @@ class RecordRegistrationCreditEvaluation
             if (count($ids) !== count(array_unique($ids)) || CurriculumEntry::query()->where('curriculum_version_id', $curriculum->id)->whereIn('id', $ids)->count() !== count($ids)) {
                 throw ValidationException::withMessages(['credited_curriculum_entry_ids' => 'Choose each credited subject once from the selected curriculum.']);
             }
-            if (trim($authorityReference) === '' || mb_strlen($authorityReference) > 255 || $approvedOn->startOfDay()->isAfter(today())) {
-                throw ValidationException::withMessages(['authority_reference' => 'Record the approval reference and an approval date that is not in the future.']);
+            $missingLine = collect($ids)->first(fn (int $id): bool => ! array_key_exists($id, $creditLines));
+            if ($missingLine !== null || count($creditLines) !== count($ids)) {
+                throw ValidationException::withMessages(['credit_lines' => "Record the previous school's course and TOR grade for every credited subject."]);
             }
-            sort($ids);
 
-            return RegistrationCreditEvaluation::query()->create([
-                'enrollment_id' => $case->id, 'application_submission_version_id' => $expectedSubmissionVersionId,
-                'curriculum_version_id' => $curriculum->id, 'credited_curriculum_entry_ids' => $ids,
-                'authority_reference' => trim($authorityReference), 'approved_on' => $approvedOn,
-                'recorded_by' => $actor->id, 'recorded_at' => now(),
-            ]);
+            return $this->store->store(
+                ['enrollment_id' => $case->id, 'application_submission_version_id' => $expectedSubmissionVersionId],
+                $curriculum, $creditLines, $sameCurriculum, $authorityReference, $approvedOn, $actor,
+            );
         }, attempts: 3);
     }
 }

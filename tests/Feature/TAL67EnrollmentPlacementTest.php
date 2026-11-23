@@ -570,6 +570,7 @@ final class TAL67EnrollmentPlacementTest extends TestCase
             (int) $submission->id,
             (int) $supersededCurriculum->id,
             (int) $case->lock_version,
+            creditLines: [$supersededEntry->id => ['source_course_code' => 'PREV-101', 'source_course_title' => 'Previous school subject', 'tor_grade' => '2.00']],
         );
 
         $this->assertSame($supersededCurriculum->id, $evaluation->curriculum_version_id);

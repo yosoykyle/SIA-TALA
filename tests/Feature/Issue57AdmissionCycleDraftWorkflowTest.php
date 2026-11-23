@@ -8,6 +8,7 @@ use App\Filament\Resources\AdmissionCycles\Pages\CreateAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\Pages\EditAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\Pages\ListAdmissionCycles;
 use App\Filament\Resources\AdmissionCycles\Pages\ViewAdmissionCycle;
+use App\Filament\Resources\AdmissionCycles\Schemas\AdmissionCycleInfolist;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\Term;
@@ -90,7 +91,17 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::test(ViewAdmissionCycle::class, ['record' => $cycle->id])
-            ->assertActionDisabled('publish');
+            ->assertActionDisabled('publish')
+            ->assertSeeInOrder(['Publication checks', 'items to fix before this cycle can be published.',
+                'The target term, opening, public closing, or correction boundary is invalid.', 'Owner: Registrar', 'To fix', 'Correct the cycle term and dates.'])
+            ->assertDontSee('Admission Cycle and active academic term →')
+            ->assertSeeHtml(e(AdmissionCycleResource::getUrl('edit', ['record' => $cycle])))
+            ->assertSee('Fix term and dates');
+        $this->assertSame(
+            ['label' => 'Open requirement sets', 'url' => AdmissionCycleResource::getUrl('view', ['record' => $cycle, 'relation' => '0'])],
+            AdmissionCycleInfolist::fixLink(['code' => 'requirement_set_transferee'], $cycle),
+        );
+        $this->assertNull(AdmissionCycleInfolist::fixLink(['code' => 'private_evidence_storage'], $cycle));
 
         try {
             app(PublishAdmissionCycle::class)->execute($cycle, $registrar, 'ROUND3-APPROVED-SOURCE');
