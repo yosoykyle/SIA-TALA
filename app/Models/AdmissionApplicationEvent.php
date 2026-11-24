@@ -43,6 +43,10 @@ class AdmissionApplicationEvent extends Model
 
     public const TypeReadinessBecameFalse = 'ReadinessBecameFalse';
 
+    public const TypeProcessRemarkSent = 'ProcessRemarkSent';
+
+    public const TypeDeadlineExtended = 'DeadlineExtended';
+
     /** @var list<string> */
     protected $fillable = [
         'admission_application_id',
@@ -104,6 +108,8 @@ class AdmissionApplicationEvent extends Model
             self::TypeEnrollmentClearanceRecorded,
             self::TypeReadinessBecameTrue,
             self::TypeReadinessBecameFalse,
+            self::TypeProcessRemarkSent,
+            self::TypeDeadlineExtended,
         ];
     }
 }

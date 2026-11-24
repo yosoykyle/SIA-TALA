@@ -238,6 +238,12 @@ class Application extends Page
                                                 $set('credential_basis', $get('application_path') === AdmissionApplication::PathTransferee
                                                     ? AdmissionApplication::CredentialTransfer : null);
                                             }
+                                            if ($get('application_path') !== AdmissionApplication::PathTransferee
+                                                && $get('lrn_availability') === 'NotIssued'
+                                                && $this->fieldIsEditable('lrn_availability')) {
+                                                $set('lrn_availability', null);
+                                                $set('lrn_not_issued', false);
+                                            }
                                             $this->resolveEntryContext($set, $get);
                                             $this->refreshRequirementState(
                                                 $set,
@@ -333,7 +339,7 @@ class Application extends Page
                                 ->columns(1)
                                 ->columnSpanFull(),
                             Section::make('Optional identity details')
-                                ->description('The Registrar uses these optional details to compare your identity records. You can continue your application without providing them.')
+                                ->extraAttributes(['class' => 'tala-section--heading-only'])
                                 ->schema([
                                     Checkbox::make('optional_identity_consent')
                                         ->label('I agree to the use of my optional sex and civil-status details for identity-record comparison')
@@ -430,8 +436,23 @@ class Application extends Page
                                         ->live(onBlur: true)
                                         ->afterStateUpdated(fn (Set $set, ?string $state) => filled($state) ? $set('lrn_availability', 'Provided') : null)
                                         ->required(fn (Get $get): bool => ! $this->savingDraft
-                                            && ($this->currentApplication()?->current_submission_version_id === null || $get('lrn_availability') === 'Provided'))
+                                            && ($get('lrn_availability') === 'Provided'
+                                                || ($this->currentApplication()?->current_submission_version_id === null && $get('lrn_availability') !== 'NotIssued')))
+                                        ->hidden(fn (Get $get): bool => $get('application_path') === AdmissionApplication::PathTransferee
+                                            && $get('lrn_availability') === 'NotIssued')
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('lrn')),
+                                    Checkbox::make('lrn_not_issued')
+                                        ->label('I was never issued an LRN')
+                                        ->helperText('LRNs were issued starting 2012. If you finished high school before then, the Registrar will confirm your identity another way.')
+                                        ->dehydrated(false)
+                                        ->live()
+                                        ->afterStateHydrated(fn (Checkbox $component, Get $get) => $component->state($get('lrn_availability') === 'NotIssued'))
+                                        ->afterStateUpdated(function (Set $set, ?bool $state): void {
+                                            $set('lrn', null);
+                                            $set('lrn_availability', $state ? 'NotIssued' : null);
+                                        })
+                                        ->visible(fn (Get $get): bool => $get('application_path') === AdmissionApplication::PathTransferee)
+                                        ->disabled(fn (): bool => ! $this->fieldIsEditable('lrn_availability') || ! $this->fieldIsEditable('lrn')),
                                     TextInput::make('prior_college_identifier')
                                         ->label('Prior-college identifier (when available)')
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('prior_college_identifier'))
@@ -448,9 +469,9 @@ class Application extends Page
                         ->icon(Heroicon::OutlinedPaperClip)
                         ->schema(fn (Get $get): array => [
                             Section::make('Upload review copies')
-                                ->description(fn (): string => $this->isCorrectionMode()
+                                ->description(fn (): ?string => $this->isCorrectionMode()
                                     ? 'Review the marked copies and replace those requested by the Registrar. Other submitted copies stay unchanged.'
-                                    : 'Upload the required private copies, or keep copies you have already saved.')
+                                    : null)
                                 ->schema([
                                     Checkbox::make('privacy_acknowledged')
                                         ->label('I acknowledge the current privacy notice for this application.')
@@ -480,16 +501,16 @@ class Application extends Page
                                     : 'Check your answers and files, then confirm that they are accurate. You will receive a reference after submission.'))))
                                 ->extraAttributes(['class' => 'tala-review-summary'])
                                 ->schema([
-                                    $this->reviewCard('Application choice', Heroicon::OutlinedAcademicCap, TextEntry::make('review_choice')
-                                        ->state(fn (Get $get): array => [
-                                            'Program: '.($this->programOptions((int) $get('admission_cycle_id'), (string) $get('application_path'))[(int) $get('program_id')] ?? 'Not selected'),
-                                            'Student type: '.AdmissionCycle::studentTypeLabel((string) $get('application_path')),
-                                        ])),
                                     $this->reviewCard('Personal information', Heroicon::OutlinedUser, TextEntry::make('review_identity')
                                         ->state(fn (Get $get): array => [
                                             'Full name: '.collect([$get('first_name'), $get('middle_name'), $get('last_name'), $get('extension_name')])->filter()->implode(' '),
                                             'Date of birth: '.$get('birth_date'),
                                             'Citizenship: '.($get('citizenship_country_code') === 'PH' ? 'Philippines' : $get('citizenship_country_code')),
+                                        ])),
+                                    $this->reviewCard('Application choice', Heroicon::OutlinedAcademicCap, TextEntry::make('review_choice')
+                                        ->state(fn (Get $get): array => [
+                                            'Program: '.($this->programOptions((int) $get('admission_cycle_id'), (string) $get('application_path'))[(int) $get('program_id')] ?? 'Not selected'),
+                                            'Student type: '.AdmissionCycle::studentTypeLabel((string) $get('application_path')),
                                         ])),
                                     $this->reviewCard('Contact and address', Heroicon::OutlinedPhone, TextEntry::make('review_contact')
                                         ->state(fn (Get $get): array => array_values(array_filter([

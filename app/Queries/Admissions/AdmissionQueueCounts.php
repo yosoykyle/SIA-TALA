@@ -19,12 +19,20 @@ class AdmissionQueueCounts
 
     public const ReadyForEnrollment = 'ready_for_enrollment';
 
+    public const Expired = 'expired';
+
     public const Closed = 'history';
 
     /** @var list<int>|null */
     private ?array $readyApplicationIds = null;
 
-    public function __construct(private readonly ReadyApplicantProjectionQuery $readyApplicants) {}
+    /** @var array<string, list<int>> */
+    private array $deadlineIds = [];
+
+    public function __construct(
+        private readonly ReadyApplicantProjectionQuery $readyApplicants,
+        private readonly AdmissionDeadlineStatus $deadlines,
+    ) {}
 
     /**
      * @return array<string, string>
@@ -36,6 +44,7 @@ class AdmissionQueueCounts
             self::WaitingForApplicant => 'Waiting for applicant',
             self::RegistrarClearance => 'Registrar clearance',
             self::ReadyForEnrollment => 'Ready for enrollment',
+            self::Expired => 'Expired applications',
             self::Closed => 'Closed applications',
         ];
     }
@@ -47,18 +56,24 @@ class AdmissionQueueCounts
      */
     public static function registrarActionQueues(): array
     {
-        return [self::NeedsReview, self::RegistrarClearance];
+        return [self::NeedsReview, self::RegistrarClearance, self::Expired];
     }
 
     public function scope(Builder $query, string $queue): Builder
     {
+        $closed = $this->idsWith(AdmissionDeadlineStatus::Closed);
+        $expired = $this->idsWith(AdmissionDeadlineStatus::Expired);
+
         return match ($queue) {
-            self::NeedsReview => $query->where('application_state', AdmissionApplication::StateSubmitted),
-            self::WaitingForApplicant => $query->where('application_state', AdmissionApplication::StateActionNeeded),
+            self::NeedsReview => $query->where('application_state', AdmissionApplication::StateSubmitted)->whereNotIn('id', $closed),
+            self::WaitingForApplicant => $query->where('application_state', AdmissionApplication::StateActionNeeded)->whereNotIn('id', $closed),
             self::RegistrarClearance => $query->where('application_state', AdmissionApplication::StateAdmitted)
-                ->whereNotIn('id', $this->readyApplicationIds()),
-            self::ReadyForEnrollment => $query->whereIn('id', $this->readyApplicationIds()),
-            self::Closed => $query->whereIn('application_state', [AdmissionApplication::StateNotAdmitted, AdmissionApplication::StateWithdrawn]),
+                ->whereNotIn('id', [...$this->readyApplicationIds(), ...$closed, ...$expired]),
+            self::ReadyForEnrollment => $query->whereIn('id', $this->readyApplicationIds())->whereNotIn('id', [...$closed, ...$expired]),
+            self::Expired => $query->whereIn('id', $expired),
+            self::Closed => $query->where(fn (Builder $closedQuery): Builder => $closedQuery
+                ->whereIn('application_state', [AdmissionApplication::StateNotAdmitted, AdmissionApplication::StateWithdrawn])
+                ->orWhereIn('id', $closed)),
             default => $query,
         };
     }
@@ -66,6 +81,12 @@ class AdmissionQueueCounts
     public function count(string $queue): int
     {
         return $this->scope(AdmissionApplicationResource::getEloquentQuery(), $queue)->count();
+    }
+
+    /** @return list<int> */
+    private function idsWith(string $status): array
+    {
+        return $this->deadlineIds[$status] ??= $this->deadlines->idsWith($status);
     }
 
     /** @return list<int> */

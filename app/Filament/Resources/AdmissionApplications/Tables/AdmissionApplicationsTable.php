@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AdmissionApplications\Tables;
 
+use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
 use App\Models\AdmissionApplication;
@@ -15,12 +16,16 @@ use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\ValidationException;
 
 class AdmissionApplicationsTable
 {
@@ -272,7 +277,29 @@ class AdmissionApplicationsTable
                     ])),
             ])
             ->recordActions([
+                Action::make('startReview')->label('Start review')->button()->color('primary')->icon('heroicon-o-play')
+                    ->visible(fn (AdmissionApplication $record): bool => self::awaitsReviewStart($record))
+                    ->requiresConfirmation()
+                    ->modalHeading('Start review?')
+                    ->modalDescription('Start review of this submitted version. Ordinary Applicant edits will lock; later changes need a named correction. Opening this record or a private copy alone does not start review.')
+                    ->modalSubmitActionLabel('Start review')
+                    ->schema([Hidden::make('expected_submission_version_id')->default(fn (AdmissionApplication $record): ?int => $record->current_submission_version_id)])
+                    ->action(function (AdmissionApplication $record, array $data, ListAdmissionApplications $livewire): void {
+                        try {
+                            app(AdmissionReviewGuard::class)->start($record, auth()->user(), (int) ($data['expected_submission_version_id'] ?? 0));
+                        } catch (ValidationException|AuthorizationException $exception) {
+                            Notification::make()->danger()->title('Review was not started')
+                                ->body($exception instanceof ValidationException ? collect($exception->errors())->flatten()->first() : $exception->getMessage())
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()->success()->title('Review started')->send();
+                        $livewire->redirect(ViewAdmissionApplication::getUrl(['record' => $record, 'queue' => $livewire->activeTab]));
+                    }),
                 ViewAction::make()->label('Open')->button()->color('gray')->icon('heroicon-o-arrow-top-right-on-square')
+                    ->hidden(fn (AdmissionApplication $record): bool => self::awaitsReviewStart($record))
                     ->url(fn (AdmissionApplication $record, ListAdmissionApplications $livewire): string => ViewAdmissionApplication::getUrl(['record' => $record, 'queue' => $livewire->activeTab])),
             ])
             ->recordUrl(fn (AdmissionApplication $record, ListAdmissionApplications $livewire): string => ViewAdmissionApplication::getUrl(['record' => $record, 'queue' => $livewire->activeTab]))
@@ -291,6 +318,14 @@ class AdmissionApplicationsTable
             ->emptyStateDescription('Choose another queue, clear search and filters, or wait for an Applicant submission.')
             ->searchPlaceholder('Find an application')
             ->poll('30s');
+    }
+
+    /**
+     * A submitted application the Registrar may review whose review has not started yet, matching the record page's Start review action.
+     */
+    private static function awaitsReviewStart(AdmissionApplication $application): bool
+    {
+        return (bool) auth()->user()?->can('review', $application) && $application->allowsSubmittedEdit();
     }
 
     private static function activityExpression(Builder $query): string

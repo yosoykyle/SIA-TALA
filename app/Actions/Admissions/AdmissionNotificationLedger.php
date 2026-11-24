@@ -256,6 +256,15 @@ class AdmissionNotificationLedger
                 ],
                 'View application history',
             ],
+            OperationalEvent::TypeAdmissionProcessRemarkSent => [
+                "{$institution} — Update on your application",
+                $this->payloadString($payload, 'step', 'Application process').': action needed',
+                [
+                    "Application reference: {$reference}",
+                    $this->payloadString($payload, 'remark', 'See the latest Registrar remark in your application portal.'),
+                ],
+                'View your application',
+            ],
             default => throw ValidationException::withMessages(['event_type' => 'Unsupported admissions email type.']),
         };
 
@@ -357,6 +366,7 @@ class AdmissionNotificationLedger
             OperationalEvent::TypeAdmissionApplicationNotAdmitted,
             OperationalEvent::TypeAdmissionReadyForEnrollment,
             OperationalEvent::TypeAdmissionApplicationWithdrawn,
+            OperationalEvent::TypeAdmissionProcessRemarkSent,
         ];
     }
 

@@ -38,7 +38,7 @@ class TAL96D5E1B2BAdmissionsWorkQueueTest extends TestCase
 
         $queue = Livewire::actingAs($registrar)
             ->test(ListAdmissionApplications::class);
-        $this->assertSame(['Needs review', 'Waiting for applicant', 'Registrar clearance', 'Ready for enrollment', 'Closed applications'],
+        $this->assertSame(['Needs review', 'Waiting for applicant', 'Registrar clearance', 'Ready for enrollment', 'Expired applications', 'Closed applications'],
             collect($queue->instance()->getTabs())->map->getLabel()->values()->all());
         $queue->assertSee('Needs review')
             ->assertCanSeeTableRecords([$application])

@@ -90,6 +90,12 @@ class AdmissionCycleInfolist
                                 ->helperText('Stops new starts and first submissions. Existing reviews continue.'),
                             TextEntry::make('correction_closes_at')->label('New correction requests end')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set')
                                 ->helperText('Active corrections remain available after this boundary.'),
+                            TextEntry::make('requirements_due_at')->label('Physical papers due')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set')
+                                ->helperText('Applications still missing papers expire after this time until the Registrar extends them.'),
+                            TextEntry::make('payment_due_at')->label('Enrollment payment due')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set')
+                                ->helperText('Cleared applicants without a verified payment expire after this time.'),
+                            TextEntry::make('period_ends_at')->label('Admission period ends')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set')
+                                ->helperText('Unfinished applications close for good. Applicants create a new account for a later term.'),
                         ]),
                 ])->columnSpanFull(),
                 Section::make('Applicant guidance and source details')

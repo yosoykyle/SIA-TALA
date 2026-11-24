@@ -74,7 +74,11 @@ class Issue57WorkbenchPresentationTest extends TestCase
         }
     }
 
-    public function test_current_and_historical_acknowledgment_links_preserve_only_a_known_queue(): void
+    /**
+     * Record history now shows only activity evidence (#96), so earlier submission acknowledgments are no longer
+     * linked on the record page; the current acknowledgment stays on the header action and keeps only a known queue.
+     */
+    public function test_current_acknowledgment_link_preserves_only_a_known_queue(): void
     {
         $registrar = $this->registrar();
         $application = AdmissionApplication::factory()->submitted()->create();
@@ -94,7 +98,7 @@ class Issue57WorkbenchPresentationTest extends TestCase
             ->assertActionHasUrl('acknowledgment', route('admissions.application.acknowledgment', [
                 'application' => $application, 'version' => $current, 'queue' => 'history',
             ]))
-            ->assertSee(e(route('admissions.application.acknowledgment', [
+            ->assertDontSee(e(route('admissions.application.acknowledgment', [
                 'application' => $application, 'version' => $historical, 'queue' => 'history',
             ])), false);
 

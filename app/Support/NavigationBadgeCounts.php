@@ -21,6 +21,7 @@ use App\Models\RegistrationProposalVersion;
 use App\Models\TermAccount;
 use App\Models\TranscriptRequest;
 use App\Models\User;
+use App\Queries\Admissions\AdmissionDeadlineStatus;
 use App\Queries\Admissions\AdmissionQueueCounts;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Illuminate\Database\Eloquent\Builder;
@@ -103,7 +104,7 @@ class NavigationBadgeCounts
     }
 
     /**
-     * @return array{needs_review: int, waiting_for_applicant: int, official_credentials: int, ready_for_enrollment: int, action: int}
+     * @return array{needs_review: int, waiting_for_applicant: int, official_credentials: int, ready_for_enrollment: int, expired: int, action: int}
      */
     public function admissions(): array
     {
@@ -111,22 +112,28 @@ class NavigationBadgeCounts
             return $this->admissionsMemo;
         }
 
+        $deadlines = app(AdmissionDeadlineStatus::class);
+        $closedIds = $deadlines->idsWith(AdmissionDeadlineStatus::Closed);
+        $expiredIds = $deadlines->idsWith(AdmissionDeadlineStatus::Expired);
+
         $stateCounts = AdmissionApplication::query()
             ->canonical()
             ->whereIn('application_state', [
                 AdmissionApplication::StateSubmitted,
                 AdmissionApplication::StateActionNeeded,
             ])
+            ->when($closedIds !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $closedIds))
             ->selectRaw('application_state, COUNT(*) as aggregate')
             ->groupBy('application_state')
             ->pluck('aggregate', 'application_state');
 
         $readyIds = app(ReadyApplicantProjectionQuery::class)->readyApplicationIds()->all();
+        $notActive = [...$closedIds, ...$expiredIds];
 
         $clearanceCount = AdmissionApplication::query()
             ->canonical()
             ->where('application_state', AdmissionApplication::StateAdmitted)
-            ->when($readyIds !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $readyIds))
+            ->when([...$readyIds, ...$notActive] !== [], fn (Builder $query): Builder => $query->whereNotIn('id', [...$readyIds, ...$notActive]))
             ->count();
 
         $readyCount = $readyIds === []
@@ -134,8 +141,10 @@ class NavigationBadgeCounts
             : AdmissionApplication::query()
                 ->canonical()
                 ->whereIn('id', $readyIds)
+                ->when($notActive !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $notActive))
                 ->count();
 
+        $expiredCount = $expiredIds === [] ? 0 : AdmissionApplication::query()->canonical()->whereIn('id', $expiredIds)->count();
         $needsReview = (int) ($stateCounts[AdmissionApplication::StateSubmitted] ?? 0);
         $waiting = (int) ($stateCounts[AdmissionApplication::StateActionNeeded] ?? 0);
 
@@ -144,7 +153,8 @@ class NavigationBadgeCounts
             AdmissionQueueCounts::WaitingForApplicant => $waiting,
             AdmissionQueueCounts::RegistrarClearance => $clearanceCount,
             AdmissionQueueCounts::ReadyForEnrollment => $readyCount,
-            'action' => $needsReview + $clearanceCount,
+            AdmissionQueueCounts::Expired => $expiredCount,
+            'action' => $needsReview + $clearanceCount + $expiredCount,
         ];
     }
 

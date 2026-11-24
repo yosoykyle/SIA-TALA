@@ -126,6 +126,69 @@ class ChangeAdmissionCycle
         }, attempts: 3);
     }
 
+    /**
+     * Sets when physical papers and the enrollment payment are due and when the admission period ends (QA workflow).
+     * Unfinished applications are closed once the period ends; missed paper or payment deadlines expire an application.
+     */
+    public function setDeadlines(
+        AdmissionCycle $cycle,
+        User $actor,
+        ?CarbonInterface $requirementsDueAt,
+        ?CarbonInterface $paymentDueAt,
+        ?CarbonInterface $periodEndsAt,
+        string $reason,
+        string $authorityReference,
+    ): AdmissionCycle {
+        $this->authorize($actor);
+        [$reason, $authorityReference] = $this->validateEvidence($reason, $authorityReference);
+
+        return DB::transaction(function () use ($cycle, $actor, $requirementsDueAt, $paymentDueAt, $periodEndsAt, $reason, $authorityReference): AdmissionCycle {
+            $locked = AdmissionCycle::query()->lockForUpdate()->findOrFail($cycle->id);
+
+            if ($locked->state === AdmissionCycle::StateCancelled) {
+                throw ValidationException::withMessages(['period_ends_at' => 'A cancelled Admission Cycle keeps its recorded deadlines.']);
+            }
+
+            foreach (['requirements_due_at' => $requirementsDueAt, 'payment_due_at' => $paymentDueAt] as $field => $deadline) {
+                if ($deadline !== null && $periodEndsAt !== null && $deadline->greaterThan($periodEndsAt)) {
+                    throw ValidationException::withMessages([$field => 'Paper and payment deadlines must fall on or before the end of the admission period.']);
+                }
+            }
+
+            if ($periodEndsAt !== null && $locked->closes_at !== null && $periodEndsAt->lessThan($locked->closes_at)) {
+                throw ValidationException::withMessages(['period_ends_at' => 'The admission period cannot end before new applications close.']);
+            }
+
+            $previous = $this->deadlineValues($locked);
+            $locked->forceFill([
+                'requirements_due_at' => $requirementsDueAt === null ? null : CarbonImmutable::instance($requirementsDueAt),
+                'payment_due_at' => $paymentDueAt === null ? null : CarbonImmutable::instance($paymentDueAt),
+                'period_ends_at' => $periodEndsAt === null ? null : CarbonImmutable::instance($periodEndsAt),
+            ])->save();
+            $this->recordEvent(
+                $locked,
+                $actor,
+                AdmissionCycleEvent::TypeDatesChanged,
+                $previous,
+                [...$this->deadlineValues($locked), 'operation' => 'set_admission_deadlines'],
+                $reason,
+                $authorityReference,
+            );
+
+            return $locked->refresh();
+        }, attempts: 3);
+    }
+
+    /** @return array<string, string|null> */
+    private function deadlineValues(AdmissionCycle $cycle): array
+    {
+        return [
+            'requirements_due_at' => $cycle->requirements_due_at?->toIso8601String(),
+            'payment_due_at' => $cycle->payment_due_at?->toIso8601String(),
+            'period_ends_at' => $cycle->period_ends_at?->toIso8601String(),
+        ];
+    }
+
     public function cancel(
         AdmissionCycle $cycle,
         User $actor,
