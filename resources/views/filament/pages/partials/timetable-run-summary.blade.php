@@ -319,6 +319,30 @@
 
     @if ($report['isActiveRun'])
         <x-tala-operation-status :run="$report['run']" />
+        @if ($report['recovery'])
+            <section class="tala-task-surface tala-solver-card" aria-labelledby="solver-active-recovery-heading">
+                <header class="tala-solver-card__header">
+                    <h2 id="solver-active-recovery-heading">Service recovery</h2>
+                    <p class="tala-solver-card__caption">Recovery details recorded for this queued attempt.</p>
+                </header>
+                <div class="tala-solver-card__body">
+                    <dl class="tala-solver-kv-grid">
+                        <div class="tala-solver-kv-item tala-solver-kv-item--full" style="border-block-start: 0; padding-block-start: 0;">
+                            <dt>Source attempt</dt>
+                            <dd>
+                                <div class="tala-solver-kv-inline">
+                                    <a class="fi-link" href="{{ $report['recovery']['source_url'] }}">From attempt #{{ $report['recovery']['source_run_id'] }}</a>
+                                    <span class="tala-solver-kv-secondary">· Requested by {{ $report['recovery']['actor'] }}@if ($report['recovery']['requested_at']) · {{ $report['recovery']['requested_at'] }}@endif</span>
+                                </div>
+                                @if ($report['recovery']['explanation'] !== '')
+                                    <span class="tala-solver-kv-secondary">{{ $report['recovery']['explanation'] }}</span>
+                                @endif
+                            </dd>
+                        </div>
+                    </dl>
+                </div>
+            </section>
+        @endif
     @else
         {{-- 1. Top 4-Metric Summary Strip --}}
         <section aria-label="Solver summary metrics" class="tala-task-surface tala-solver-metrics">

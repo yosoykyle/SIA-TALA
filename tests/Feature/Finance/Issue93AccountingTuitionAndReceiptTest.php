@@ -34,6 +34,7 @@ use App\Models\GradeRosterRow;
 use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrarEnrollmentClearance;
 use App\Models\RegistrationCreditEvaluation;
 use App\Models\Section;
 use App\Models\StudentProfile;
@@ -97,19 +98,20 @@ class Issue93AccountingTuitionAndReceiptTest extends TestCase
 
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
         app(PlaceRegistrationProposal::class)->execute($proposal, $registrar);
-        $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting, $plan->fresh());
+        $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting, $proposal->id, $plan->fresh()->id);
 
         $obligation = $assessment->obligations()->firstOrFail();
         $applicant = $case->credentialUser;
+        $this->enableDigitalChannels($accounting);
         app(SubmitPaymentEvidence::class)->execute(
             $assessment->termAccount,
             $applicant,
-            $obligation->id,
-            SchoolPaymentChannels::ManualDeposit,
-            3000.00,
+            UploadedFile::fake()->image('receipt.png'),
+            '3000.00',
+            'bank_transfer',
             now()->subHour(),
             'REF-93-PROOF',
-            UploadedFile::fake()->image('receipt.png'),
+            [$obligation->id],
         );
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -118,7 +120,7 @@ class Issue93AccountingTuitionAndReceiptTest extends TestCase
             ->test(ViewEnrollment::class, ['record' => $case->id]);
 
         $html = $component->html();
-        $cardStart = strpos($html, 'class="accounting-source-comparison"');
+        $cardStart = strpos($html, 'accounting-source-comparison');
         $footerPos = strpos($html, 'accounting-comparison-actions');
         $notePos = strpos($html, 'The receipt has not been recorded as a payment.');
 
@@ -127,7 +129,7 @@ class Issue93AccountingTuitionAndReceiptTest extends TestCase
         $this->assertNotFalse($notePos);
         $this->assertGreaterThan($cardStart, $footerPos);
         $this->assertLessThan($notePos, $footerPos);
-        $component->assertSee('Verify payment')->assertSee('Return receipt');
+        $component->assertSee('Verify payment')->assertSee('Reject receipt');
     }
 
     public function test_tuition_calculator_in_individual_assessment_prefills_enrolled_units_and_applies_tuition_charge(): void
@@ -306,8 +308,8 @@ class Issue93AccountingTuitionAndReceiptTest extends TestCase
             'application_path' => AdmissionApplication::PathTransferee,
             'application_state' => AdmissionApplication::StateAdmitted,
         ]);
-        $staleSubmission = ApplicationSubmissionVersion::factory()->for($application, 'application')->for($reqSet, 'requirementSet')->create(['version_number' => 1]);
-        $currentSubmission = ApplicationSubmissionVersion::factory()->for($application, 'application')->for($reqSet, 'requirementSet')->create(['version_number' => 2]);
+        $staleSubmission = ApplicationSubmissionVersion::factory()->for($application, 'application')->for($reqSet, 'requirementSet')->create(['version' => 1]);
+        $currentSubmission = ApplicationSubmissionVersion::factory()->for($application, 'application')->for($reqSet, 'requirementSet')->create(['version' => 2]);
         $application->update(['current_submission_version_id' => $currentSubmission->id]);
         AdmissionDecision::factory()->for($application, 'application')->create(['decision' => AdmissionApplication::StateAdmitted]);
 
@@ -359,7 +361,7 @@ class Issue93AccountingTuitionAndReceiptTest extends TestCase
         $appsComponent->assertSee('Admission cycle')->assertSee('Program')->assertSee('Student type');
         $appsComponent->instance()->bootedInteractsWithTable();
         $table = $appsComponent->instance()->getTable();
-        $this->assertSame(FiltersLayout::AboveContent, $table->getFiltersLayout());
+        $this->assertSame(FiltersLayout::Dropdown, $table->getFiltersLayout());
         $this->assertFalse($table->hasDeferredFilters());
         $this->assertSame(
             ['admission_cycle_id', 'program_id', 'application_path', 'application_state'],
@@ -385,27 +387,32 @@ class Issue93AccountingTuitionAndReceiptTest extends TestCase
         app(PublishFeePlan::class)->execute($plan, $accounting, 'SYN-PLAN-EXPORT', CarbonImmutable::parse('2026-08-15'));
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
         app(PlaceRegistrationProposal::class)->execute($proposal, $registrar);
-        $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting, $plan->fresh());
+        $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting, $proposal->id, $plan->fresh()->id);
         $obligation = $assessment->obligations()->firstOrFail();
+        $this->enableDigitalChannels($accounting);
         $evidence = app(SubmitPaymentEvidence::class)->execute(
             $assessment->termAccount,
             $case->credentialUser,
-            $obligation->id,
-            SchoolPaymentChannels::ManualDeposit,
-            3000.00,
+            UploadedFile::fake()->image('receipt.png'),
+            '3000.00',
+            'bank_transfer',
             now()->subHour(),
             'REF-EXPORT-93',
-            UploadedFile::fake()->image('receipt.png'),
+            [$obligation->id],
         );
-        app(ReviewPaymentEvidence::class)->execute($evidence, $accounting, 'Accept', 'OR-9301');
+        app(ReviewPaymentEvidence::class)->verify($evidence, $accounting, '3000.00', 'OR-9301');
 
         $cor = CorVersion::factory()->for($case)->for($proposal, 'proposalVersion')->for($proposal->timetableVersion, 'timetableVersion')->for($assessment)->create(['version' => 1, 'snapshot' => ['courses' => []]]);
-        $case->update(['current_cor_version_id' => $cor->id]);
+        $case->update([
+            'current_cor_version_id' => $cor->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'officially_enrolled_at' => now(),
+        ]);
 
         Livewire::actingAs($accounting)
+            ->withQueryParams(['view' => 'history'])
             ->test(ViewEnrollment::class, ['record' => $case->id])
-            ->assertSee('Export verified payments (Excel CSV)')
-            ->assertSee('Print current COR / Save as PDF');
+            ->assertSee('Export verified payments (Excel CSV)');
     }
 
     /** @return array{Enrollment,Program,Term,CurriculumVersion,Section} */
@@ -433,17 +440,29 @@ class Issue93AccountingTuitionAndReceiptTest extends TestCase
         $timetable = PublishedTimetableVersion::factory()->for($term)->create(['state' => PublishedTimetableVersion::StatePublished]);
         PublishedTimetableMeeting::factory()->for($timetable, 'timetableVersion')->create(['section_id' => $section->id]);
 
-        $cycle = AdmissionCycle::factory()->create();
-        $reqSet = AdmissionRequirementSet::factory()->for($cycle)->create();
+        $cycle = AdmissionCycle::factory()->for($term)->create();
+        $reqSet = AdmissionRequirementSet::factory()->published()->for($cycle)->create([
+            'application_path' => AdmissionApplication::PathFirstYear,
+        ]);
         $applicant = User::factory()->create(['status' => User::StatusActive]);
         $applicant->assignRole('applicant');
-        $application = AdmissionApplication::factory()->for($applicant, 'user')->for($cycle)->for($program)->create([
+        $application = AdmissionApplication::factory()->for($applicant, 'user')->for($cycle, 'admissionCycle')->for($program)->create([
+            'term_id' => $term->id,
             'application_path' => AdmissionApplication::PathFirstYear,
             'application_state' => AdmissionApplication::StateAdmitted,
         ]);
-        $submission = ApplicationSubmissionVersion::factory()->for($application, 'application')->for($reqSet, 'requirementSet')->create();
+        $submission = ApplicationSubmissionVersion::factory()->for($application, 'application')->for($reqSet, 'requirementSet')->create([
+            'submitted_by' => $applicant->id,
+        ]);
         $application->update(['current_submission_version_id' => $submission->id]);
-        AdmissionDecision::factory()->for($application, 'application')->create(['decision' => AdmissionApplication::StateAdmitted]);
+        $decision = AdmissionDecision::factory()->admitted()->for($application, 'application')->create([
+            'application_submission_version_id' => $submission->id,
+        ]);
+        RegistrarEnrollmentClearance::factory()->forAdmittedApplication($application)->create([
+            'result' => RegistrarEnrollmentClearance::ResultCleared,
+            'external_checks_confirmed' => true,
+            'recorded_by' => $decision->decided_by,
+        ]);
 
         $case = Enrollment::factory()->for($term)->for($application, 'admissionApplication')->for($applicant, 'credentialUser')->create([
             'student_profile_id' => null,
@@ -452,6 +471,31 @@ class Issue93AccountingTuitionAndReceiptTest extends TestCase
         ]);
 
         return [$case, $program, $term, $curriculum, $section];
+    }
+
+    private function enableDigitalChannels(User $accounting): void
+    {
+        app(SchoolPaymentChannels::class)->update([
+            'bank_transfer' => [
+                'enabled' => true,
+                'accounts' => [
+                    [
+                        'bank_name' => 'Land Bank of the Philippines',
+                        'branch' => 'Talisay',
+                        'account_name' => 'TALA State University',
+                        'account_number' => '0011-2233-44',
+                    ],
+                ],
+            ],
+            'e_wallets' => [
+                'enabled' => false,
+                'accounts' => [],
+            ],
+            'cash' => [
+                'enabled' => true,
+                'location' => 'Cashier Window 1',
+            ],
+        ], $accounting);
     }
 
     private function staff(string $role): User

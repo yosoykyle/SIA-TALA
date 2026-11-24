@@ -30,6 +30,7 @@ use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Program;
+use App\Models\Room;
 use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -189,6 +190,7 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
     {
         $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create();
+        Room::factory()->create(['is_active' => true]);
 
         Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'faculty'])->test(TermResources::class)
             ->assertActionVisible(TestAction::make('assignSubjects')->table())
@@ -261,7 +263,7 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
         $programsCurriculaItem = $items->first(fn (NavigationItem $item): bool => $item->getLabel() === 'Programs & Curricula');
         $this->assertNotNull($programsCurriculaItem);
         $this->assertSame(
-            ['Programs', 'Curricula', 'Subject catalog'],
+            ['Programs', 'Subject catalog', 'Curricula'],
             collect($programsCurriculaItem->getChildItems())->map->getLabel()->values()->all(),
         );
         $this->assertSame('Programs & Curricula', CatalogCurriculaWorkbench::getNavigationLabel());

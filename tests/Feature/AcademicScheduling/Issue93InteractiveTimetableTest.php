@@ -235,7 +235,7 @@ class Issue93InteractiveTimetableTest extends TestCase
         // Reloading the official timetable shows the Locked status pill, disables draggable tiles, and blocks draft mutations.
         $officialComponent = Livewire::actingAs($fixture['registrar'])
             ->test(TermTimetable::class, ['termId' => $fixture['term']->id])
-            ->assertSee('Official timetable · Locked')
+            ->assertSee('Official · Locked')
             ->assertSee('Revise schedule')
             ->assertDontSee('Draft candidate · Editable')
             ->assertDontSee('draggable="true"', false);

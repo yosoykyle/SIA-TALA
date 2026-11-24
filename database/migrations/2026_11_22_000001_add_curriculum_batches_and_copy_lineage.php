@@ -12,7 +12,7 @@ return new class extends Migration
         Schema::create('curriculum_version_batches', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('program_id')->constrained()->restrictOnDelete();
-            $table->foreignId('curriculum_version_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('curriculum_version_id')->constrained()->restrictOnDelete();
             $table->foreignId('academic_year_id')->constrained()->restrictOnDelete();
             $table->foreignId('added_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();

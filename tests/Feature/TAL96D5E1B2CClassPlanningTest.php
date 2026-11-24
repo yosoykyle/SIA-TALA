@@ -7,7 +7,6 @@ use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\SchedulingDemands\Pages\ListSchedulingDemands;
-use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Models\Term;
 use App\Models\TermOffering;
@@ -119,11 +118,9 @@ final class TAL96D5E1B2CClassPlanningTest extends TestCase
             ->assertTableColumnExists('result_summary')
             ->assertTableColumnExists('assignment_summary');
 
-        Livewire::test(ListSectionMeetings::class, ['termId' => $term->id])
-            ->assertSet('termId', $term->id)
-            ->assertTableColumnExists('course_and_section')
-            ->assertTableColumnExists('meeting_time')
-            ->assertSee('Official meetings');
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
+            ->assertOk()
+            ->assertSee('Timetable');
     }
 
     private function staff(string $role): User

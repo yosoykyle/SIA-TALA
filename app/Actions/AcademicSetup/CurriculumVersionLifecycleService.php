@@ -659,6 +659,7 @@ class CurriculumVersionLifecycleService
                 ->withProperties($properties)
                 ->log('Draft curriculum discarded');
 
+            $locked->batches()->delete();
             $locked->externalCompetencyRequirements()->delete();
             $locked->entries()->delete();
             $locked->delete();

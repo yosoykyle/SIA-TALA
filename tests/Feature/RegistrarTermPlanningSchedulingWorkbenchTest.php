@@ -326,7 +326,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'TECHNICAL_FAILURE')
             ->assertSee('The solver connection timed out without a trusted result.')
             ->assertViewHas('solverOutcome', fn (array $outcome): bool => data_get($outcome, 'conflicts.0.description') === 'Room capacity exceeded by section demand.')
-            ->assertSee('Open audit record')
+            ->assertSee('Open solver report')
             ->assertActionVisible('retrySolverRun')
             ->callAction('retrySolverRun')
             ->assertHasNoActionErrors()
@@ -422,7 +422,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->assertHasNoActionErrors()
             ->assertNotified('Official timetable published')
             ->assertSet('viewTab', 'published')
-            ->assertSee('Official timetable · Locked')
+            ->assertSee('Official · Locked')
             ->assertSee('Official timetable (Current)')
             ->assertSee('Print whole term');
 
@@ -494,7 +494,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'selectedVersionId' => 999999,
             ])
             ->assertSet('selectedVersionId', null)
-            ->assertSee('Official timetable · Locked')
+            ->assertSee('Official · Locked')
             ->assertSee('Official timetable (Current)')
             ->assertSee('REG-TEST-FALLBACK-01')
             ->call('selectPublishedVersion', 888888)

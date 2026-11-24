@@ -760,7 +760,7 @@ final class Issue93SolverAndPinParityTest extends TestCase
             ->all();
 
         $this->assertSame([$eligibleFaculty->id], $teacherIdsForCourse);
-        $this->assertSame('danger', $timetableComponent->instance()->cancelActiveRunAction()->getColor());
+        $this->assertSame('gray', $timetableComponent->instance()->cancelActiveRunAction()->getColor());
     }
 
     private function registrar(): User

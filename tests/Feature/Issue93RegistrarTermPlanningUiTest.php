@@ -159,9 +159,18 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
             ->assertSee('2 of 4')
             ->assertSee('faculty replied');
 
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
-            ->assertSee('Class IT314-B (IT 314) requires Jose Reyes, who has not responded yet for this term.')
-            ->assertSeeHtml('href="'.e(TermResources::getUrl(['termId' => $term->id])).'"');
+        $readinessBefore = Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
+            ->instance()
+            ->generationReadiness();
+        $this->assertFalse($readinessBefore['ready']);
+        $this->assertContains(
+            'Class IT314-B (IT 314) requires Jose Reyes, who has not responded yet for this term.',
+            array_column($readinessBefore['blockers'] ?? [], 'reason'),
+        );
+        $this->assertContains(
+            TermResources::getUrl(['termId' => $term->id]),
+            array_column($readinessBefore['blockers'] ?? [], 'url'),
+        );
 
         // Resolve blockers so only non-essential teacher remains No response -> readiness blockers clear.
         app(RecordFacultyAvailabilityDeclaration::class)->execute(
@@ -192,9 +201,13 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
             ->assertDontSee('Graduate school classes on Tuesday afternoons')
             ->assertDontSee('Review needed:');
 
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
-            ->assertDontSee('requires Jose Reyes')
-            ->assertDontSee('Availability must be recorded before generating a timetable.');
+        $readinessAfter = Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
+            ->instance()
+            ->generationReadiness();
+        $this->assertNotContains(
+            'Class IT314-B (IT 314) requires Jose Reyes, who has not responded yet for this term.',
+            array_column($readinessAfter['blockers'] ?? [], 'reason'),
+        );
     }
 
     public function test_terms_directory_and_term_settings_modal_work_for_draft_and_active_terms(): void

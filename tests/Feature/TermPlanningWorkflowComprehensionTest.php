@@ -411,7 +411,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
             ->assertActionHidden('publishOfficialTimetable');
 
         $run->update(['status' => ScheduleGenerationRun::StatusDispatching]);
-        $component->call('$refresh')->assertSee('Scheduling request in progress')
+        $component->call('$refresh')->assertSee('Building your whole-term timetable')
             ->assertSeeHtml('wire:poll.5s.visible')
             ->assertDontSee('No meetings are available from this draft')
             ->assertActionHidden('retrySolverRun');
@@ -431,7 +431,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
             ->assertActionHidden('publishOfficialTimetable')->assertActionVisible('retrySolverRun')
             ->assertSee('Synthetic transport failure; no solver was dispatched.')
             ->assertSee('No meetings are available from this draft')
-            ->assertSee('Open audit record');
+            ->assertSee('Open solver report');
         $component->assertSeeHtml('href="'.e($component->instance()->timetableReviewUrl($run->id)).'"');
         $this->assertSame(ScheduleGenerationRun::StatusFailed, $run->fresh()->status);
         $this->assertSame(0, $run->candidateRows()->count());

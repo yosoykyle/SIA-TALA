@@ -77,7 +77,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
     public static function staffNavigation(): array
     {
         return [
-            'Registrar' => [User::StaffRoleRegistrar, ['Admissions', 'Students & Enrollment', 'Students Record', 'Programs & Curricula', 'Term Planning', 'Admission cycles']],
+            'Registrar' => [User::StaffRoleRegistrar, ['Admissions', 'Students & Enrollment', 'Students Record', 'Programs & Curricula', 'School Resources', 'Term Planning', 'Admission cycles']],
             'Accounting' => [User::StaffRoleAccounting, ['Overview', 'Student accounts', 'Fee plans', 'Payment channels']],
             'Faculty' => [User::StaffRoleFaculty, ['Overview', 'My schedule', 'My availability', 'Class grades']],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight']],

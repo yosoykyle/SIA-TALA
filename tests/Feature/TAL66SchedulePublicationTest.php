@@ -429,7 +429,7 @@ final class TAL66SchedulePublicationTest extends TestCase
             ])
             ->test(TermTimetable::class)
             ->assertOk()
-            ->assertSee('Official timetable · Locked')
+            ->assertSee('Official · Locked')
             ->assertSee('8:00 AM–10:00 AM')
             ->assertActionDoesNotExist('create')
             ->assertActionDoesNotExist('edit')
