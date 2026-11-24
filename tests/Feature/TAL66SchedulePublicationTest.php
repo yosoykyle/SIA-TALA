@@ -234,7 +234,7 @@ final class TAL66SchedulePublicationTest extends TestCase
             ])
             ->test(TermTimetable::class)
             ->assertActionVisible('publishOfficialTimetable')
-            ->assertActionHasLabel('publishOfficialTimetable', 'Publish official timetable');
+            ->assertActionHasLabel('publishOfficialTimetable', 'Publish official');
 
         $page = $component->instance();
         $this->assertInstanceOf(TermTimetable::class, $page);
@@ -243,8 +243,8 @@ final class TAL66SchedulePublicationTest extends TestCase
 
         $this->assertInstanceOf(Action::class, $action);
         $this->assertTrue($action->isConfirmationRequired());
-        $this->assertStringContainsString('1 candidate assignments', (string) $action->getModalDescription());
-        $this->assertStringContainsString('1 warnings', (string) $action->getModalDescription());
+        $this->assertStringContainsString('1 class meeting', (string) $action->getModalDescription());
+        $this->assertStringContainsString('1 warning', (string) $action->getModalDescription());
         $this->assertStringContainsString('0 conflicts', (string) $action->getModalDescription());
 
         $component
@@ -429,7 +429,7 @@ final class TAL66SchedulePublicationTest extends TestCase
             ])
             ->test(TermTimetable::class)
             ->assertOk()
-            ->assertSee('Official · Locked')
+            ->assertSee('Official · Live · 1 meeting')
             ->assertSee('8:00 AM–10:00 AM')
             ->assertActionDoesNotExist('create')
             ->assertActionDoesNotExist('edit')

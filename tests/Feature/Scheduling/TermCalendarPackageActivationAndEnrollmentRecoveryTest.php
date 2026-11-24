@@ -105,7 +105,13 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             'classes_end_on' => '2026-12-15',
         ]);
 
-        // Attempt activation directly -> fails readiness
+        $draft->windows()->createMany([
+            ['window_type' => TermCalendarWindow::TypeEnrollment, 'opens_on' => '2026-08-01', 'closes_on' => '2026-08-14', 'cutoff_at' => '23:59:00'],
+            ['window_type' => TermCalendarWindow::TypeExaminationPeriod, 'opens_on' => '2026-12-01', 'closes_on' => '2026-12-10', 'cutoff_at' => '23:59:00'],
+            ['window_type' => TermCalendarWindow::TypeGradeEntry, 'opens_on' => '2026-12-11', 'closes_on' => '2026-12-20', 'cutoff_at' => '23:59:00'],
+        ]);
+
+        // Attempt activation directly -> fails readiness (missing teaching grid rows)
         try {
             app(ActivateTermCalendarPackage::class)->execute($draft, $registrar);
             $this->fail('Activation of invalid draft should have thrown ValidationException.');
@@ -985,7 +991,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->mountAction('saveAndActivateCalendar')
             ->assertActionMounted('saveAndActivateCalendar')
             ->assertSchemaStateSet(['draft_package_id' => $draft->id])
-            ->assertMountedActionModalSee('Save & activate term calendar')
+            ->assertMountedActionModalSee('Set up term calendar')
             ->callMountedAction()
             ->assertHasNoActionErrors()
             ->assertNotified('Term calendar saved and activated');

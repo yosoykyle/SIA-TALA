@@ -256,7 +256,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'viewTab' => 'generate',
             ])
             ->assertViewHas('activeRun', fn ($activeRun): bool => $activeRun->id === $run->id)
-            ->assertSee('Candidate under review')->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'FEASIBLE')
+            ->assertSee('Draft · Editable')->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'FEASIBLE')
             ->assertSee('Hard validity not established')->assertDontSee('0 recorded clashes')->assertSee('Whole Term')->assertSee('View meeting list')
             ->assertSee('TEST-RM-101')
             ->assertActionVisible('acceptCandidate')
@@ -422,8 +422,8 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->assertHasNoActionErrors()
             ->assertNotified('Official timetable published')
             ->assertSet('viewTab', 'published')
-            ->assertSee('Official · Locked')
-            ->assertSee('Official timetable (Current)')
+            ->assertSee('Official · Live')
+            ->assertSee('Official timetable (Live)')
             ->assertSee('Print whole term');
 
         $this->assertDatabaseHas('published_timetable_versions', [
@@ -494,8 +494,8 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'selectedVersionId' => 999999,
             ])
             ->assertSet('selectedVersionId', null)
-            ->assertSee('Official · Locked')
-            ->assertSee('Official timetable (Current)')
+            ->assertSee('Official · Live')
+            ->assertSee('Official timetable (Live)')
             ->assertSee('REG-TEST-FALLBACK-01')
             ->call('selectPublishedVersion', 888888)
             ->assertSet('selectedVersionId', null)

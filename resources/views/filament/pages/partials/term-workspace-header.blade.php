@@ -25,7 +25,7 @@
     $termStateColor = $term ? match (true) {
         $isPublishedLive => 'success',
         $term->state === \App\Models\Term::StateActive => 'success',
-        $term->state === \App\Models\Term::StateDraft => 'info',
+        $term->state === \App\Models\Term::StateDraft => 'gray',
         default => 'gray',
     } : 'gray';
     $termStateLabel = $term ? ($isPublishedLive ? 'Published' : (\App\Models\Term::stateOptions()[$term->state] ?? $term->state)) : null;
@@ -42,7 +42,7 @@
             ...($extraHeaderActions ?? []),
             $this->termSettingsAction,
         ]
-        : (! $readOnly ? [$this->createTermAction] : []);
+        : [];
     $showStageBar = $term && ! $readOnly && in_array($viewTab, ['overview', 'classes', 'resources', 'generate', 'published'], true);
 @endphp
 <div class="tala-planning-heading">

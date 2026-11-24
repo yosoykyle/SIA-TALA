@@ -237,6 +237,7 @@ final class SchoolResources extends Page implements HasTable
                 CreateAction::make('addRoom')
                     ->label('Add room')
                     ->icon(Heroicon::OutlinedPlus)
+                    ->color('primary')
                     ->size('sm')
                     ->model(Room::class)
                     ->modalHeading('Add room')

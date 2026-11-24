@@ -69,7 +69,7 @@ final class Issue66TermPreparationTest extends TestCase
         $this->assertSame(0, $xpath->query('ancestor::details', $host)->length, 'Calendar editing must open independently of its source disclosure.');
 
         foreach (['saveAndActivateCalendar', 'addOperationalDates'] as $action) {
-            $page->mountAction($action)->assertActionMounted($action)->assertMountedActionModalSee($action === 'saveAndActivateCalendar' ? 'Classes start' : 'Approved activity dates');
+            $page->mountAction($action)->assertActionMounted($action)->assertMountedActionModalSee($action === 'saveAndActivateCalendar' ? 'Classes start' : 'Date periods');
             $page->unmountAction();
         }
     }
@@ -295,7 +295,7 @@ final class Issue66TermPreparationTest extends TestCase
             'termId' => $term->id,
             'viewTab' => 'generate',
             'selectedRunId' => $run->id,
-        ])->assertSee('Review or reject this retained candidate before starting another attempt.')
+        ])->assertSee('Review or discard this retained draft before starting another attempt.')
             ->assertActionHidden('generateTimetable');
     }
 

@@ -1265,17 +1265,32 @@ class TermPlanningWorkbench extends Page
     public function addOperationalDatesAction(): Action
     {
         return Action::make('addOperationalDates')
-            ->label('Update window dates')
-            ->modalHeading('Enrollment, exam & grading windows')
+            ->label(fn (): string => $this->activeCalendarPackage()?->windows()->exists() ? 'Edit dates' : 'Set dates')
+            ->modalHeading('Key term dates')
             ->color('gray')
-            ->modalDescription('Optional while building the timetable · Set Enrollment and Grade Entry before opening student enrollment or faculty grading. Current teaching dates, hours, and school events are retained.')
-            ->modalSubmitActionLabel('Save window dates')
+            ->modalDescription('Optional for timetable generation. Required before opening student enrollment or faculty grading. Current teaching dates, hours, and school events are retained.')
+            ->modalSubmitActionLabel('Save dates')
             ->modalWidth('5xl')
             ->stickyModalHeader()
             ->stickyModalFooter()
-            ->fillForm(fn (): array => $this->activeCalendarPackage()
-                ? $this->calendarPackageFormData($this->activeCalendarPackage())
-                : ['source_package_id' => null, 'source_token' => null, 'windows' => []])
+            ->fillForm(function (): array {
+                $package = $this->activeCalendarPackage();
+                if (! $package instanceof TermCalendarPackage) {
+                    return ['source_package_id' => null, 'source_token' => null, 'windows' => []];
+                }
+
+                $data = $this->calendarPackageFormData($package);
+                if ($data['windows'] === []) {
+                    $data['windows'] = [[
+                        'window_type' => null,
+                        'opens_on' => null,
+                        'closes_on' => null,
+                        'cutoff_at' => null,
+                    ]];
+                }
+
+                return $data;
+            })
             ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
                 && $this->termId !== null
                 && ! $this->isTermClosed())
@@ -1369,19 +1384,30 @@ class TermPlanningWorkbench extends Page
     {
         return [
             Repeater::make('windows')
-                ->label('Approved activity dates')
+                ->label('Date periods')
                 ->defaultItems(0)
-                ->addActionLabel('Add an activity')
-                ->itemLabel(fn (array $state): string => TermCalendarWindow::typeOptions()[$state['window_type'] ?? ''] ?? 'Activity')
+                ->addActionLabel('Add date period')
+                ->itemLabel(fn (array $state): string => TermCalendarWindow::typeOptions()[$state['window_type'] ?? ''] ?? 'Date period')
                 ->schema([
-                    Select::make('window_type')->label('Activity')->options(TermCalendarWindow::typeOptions())->required()->distinct(),
-                    DatePicker::make('opens_on')->label('Opens on')->required(),
-                    DatePicker::make('closes_on')->label('Closes on')->required()->afterOrEqual('opens_on'),
+                    Select::make('window_type')->label('Period')->options(TermCalendarWindow::typeOptions())->required()->distinct(),
+                    DatePicker::make('opens_on')
+                        ->label('Opens on')
+                        ->native(false)
+                        ->displayFormat('M j, Y')
+                        ->suffixIcon(Heroicon::OutlinedCalendar)
+                        ->required(),
+                    DatePicker::make('closes_on')
+                        ->label('Closes on')
+                        ->native(false)
+                        ->displayFormat('M j, Y')
+                        ->suffixIcon(Heroicon::OutlinedCalendar)
+                        ->required()
+                        ->afterOrEqual('opens_on'),
                     TimePicker::make('cutoff_at')->label('Close time (Asia/Manila)')->timezone('UTC')->seconds(false),
                 ])
                 ->columns(2)
                 ->reorderable(false)
-                ->helperText('Leave the closing time empty to include the entire closing day. Missing dates block only their related action.'),
+                ->helperText('Leave Close time blank to keep the period open until 11:59 PM on the closing date.'),
         ];
     }
 
@@ -1494,6 +1520,7 @@ class TermPlanningWorkbench extends Page
                     ->label('Reason for changing due date')
                     ->helperText('Required when changing an existing due date.')
                     ->maxLength(2000)
+                    ->required(fn (Get $get): bool => (int) $get('expected_deadline_id') > 0 && $this->deadlineInputChanged($get('due_at'), $get('original_due_at_display'), 'Asia/Manila'))
                     ->visible(fn (Get $get): bool => (int) $get('expected_deadline_id') > 0 && $this->deadlineInputChanged($get('due_at'), $get('original_due_at_display'), 'Asia/Manila')),
             ])
             ->action(function (array $data): void {
@@ -1713,6 +1740,7 @@ class TermPlanningWorkbench extends Page
                         ])
                         ->minItems(1)
                         ->required()
+                        ->addActionLabel('Link a student section')
                         ->reorderable(false)
                         ->extraAttributes(['class' => 'tala-cohort-repeater'])
                         ->columns(2),
@@ -1986,7 +2014,7 @@ class TermPlanningWorkbench extends Page
 
                         ->title('Timetable generation requested')
 
-                        ->body("Request #{$run->id} captured the current ready requirements. Its status refreshes automatically.")
+                        ->body("Attempt #{$run->id} captured the current ready requirements. Its status refreshes automatically.")
 
                         ->success()
 
@@ -2138,7 +2166,7 @@ class TermPlanningWorkbench extends Page
             ->stickyModalHeader()
             ->stickyModalFooter()
 
-            ->modalDescription(fn (): string => $this->selectedTerm()->label.' / Attempt #'.$this->activeScheduleRun()?->id.'. '.($this->canRecoverActiveRun()
+            ->modalDescription(fn (): string => $this->selectedTerm()->label.' · Attempt #'.$this->activeScheduleRun()?->id.'. '.($this->canRecoverActiveRun()
                 ? 'After the System Administrator confirms the service fix, queue one new attempt after current planning data passes readiness checks. The failed attempt stays in history. Any original repair change is preserved.'
                 : 'Retry the same whole-Term request. Earlier outcomes remain in the history.'))
 
@@ -2220,13 +2248,13 @@ class TermPlanningWorkbench extends Page
             ->stickyModalHeader()
             ->stickyModalFooter()
 
-            ->modalDescription(fn (): string => $this->selectedTerm()->label.' / Attempt #'.$this->activeScheduleRun()?->id.'. '.$this->publicationModalDescription())
+            ->modalDescription(fn (): string => $this->selectedTerm()->label.' · Attempt #'.$this->activeScheduleRun()?->id.'. '.$this->publicationModalDescription())
 
             ->modalSubmitActionLabel('Publish official timetable')
 
             ->schema([
                 Textarea::make('publication_note')
-                    ->label('Publication reason / note')
+                    ->label('Publication note')
                     ->maxLength(2000)
                     ->required(fn (): bool => $this->publicationReasonRequirement() !== null)
                     ->helperText(fn (): string => $this->publicationReasonRequirement()
@@ -2389,7 +2417,7 @@ class TermPlanningWorkbench extends Page
         return match ($run->candidate_state) {
             'Accepted' => 'Publish the accepted timetable before starting another attempt.',
             'Rejected', 'Stale', 'Superseded' => null,
-            default => 'Review or reject this retained candidate before starting another attempt.',
+            default => 'Review or discard this retained draft before starting another attempt.',
         };
     }
 
@@ -2419,7 +2447,7 @@ class TermPlanningWorkbench extends Page
 
     public function canPublishActiveRun(): bool
     {
-        if ($this->isTermClosed()) {
+        if ($this->isTermClosed() || $this->hasOfficialStudentEnrollments()) {
             return false;
         }
 
@@ -2460,26 +2488,19 @@ class TermPlanningWorkbench extends Page
 
         $impact = app(SchedulePublicationImpactService::class)->preview($run);
 
+        $summaryParts = array_filter([
+            sprintf('%d %s', $summary['assignments'], Str::plural('class meeting', $summary['assignments'])),
+            $summary['warnings'] > 0 ? sprintf('%d %s', $summary['warnings'], Str::plural('warning', $summary['warnings'])) : null,
+            $summary['conflicts'] > 0 ? sprintf('%d %s', $summary['conflicts'], Str::plural('conflict', $summary['conflicts'])) : '0 conflicts',
+        ]);
+
         $description = sprintf(
-
-            '%d candidate assignments, %d warnings, and %d conflicts. Impact: %d new, %d changed, %d removed, and %d unchanged; %d affected faculty. Publication makes these assignments official and supersedes any prior published version.',
-
-            $summary['assignments'],
-
-            $summary['warnings'],
-
-            $summary['conflicts'],
-
+            '%s. Impact: %d new · %d changed · %d removed · %d affected faculty. Publishing makes this the official timetable.',
+            implode(' · ', $summaryParts),
             $impact->newAssignments(),
-
             $impact->changedAssignments(),
-
             $impact->removedAssignments(),
-
-            $impact->unchangedAssignments(),
-
             $impact->affectedFaculty(),
-
         );
 
         if ($impact->blocksFullReplacement()) {
@@ -2654,7 +2675,7 @@ class TermPlanningWorkbench extends Page
 
             $at = CarbonImmutable::now('Asia/Manila');
 
-            return ['type' => $type, 'label' => $label, 'window' => $window, 'status' => ! $bounds ? 'Dates not configured' : ($at->lt($bounds['opens_at']) ? 'Upcoming' : ($at->gt($bounds['closes_at']) ? 'Closed' : 'Open'))];
+            return ['type' => $type, 'label' => $label, 'window' => $window, 'status' => ! $bounds ? 'Not set' : ($at->lt($bounds['opens_at']) ? 'Upcoming' : ($at->gt($bounds['closes_at']) ? 'Closed' : 'Open'))];
 
         })->values();
 

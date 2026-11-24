@@ -141,7 +141,7 @@ class ViewScheduleGenerationRun extends ViewRecord
         return Action::make('backToTimetable')
             ->label('Back to Timetable')
             ->icon(Heroicon::OutlinedArrowLeft)
-            ->color('primary')
+            ->color('gray')
             ->url(fn (): string => $this->termPlanningReturnUrl());
     }
 

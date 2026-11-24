@@ -2,44 +2,61 @@
     @include('filament.pages.partials.term-workspace-header')
     @if ($term)
         @php
-            $workingRun = $allRuns->first(fn ($run) => $run->status !== 'published');
+            $isTermClosed = $this->isTermClosed();
+            $workingRun = $allRuns->first(fn ($run) => in_array($run->status, [
+                \App\Models\ScheduleGenerationRun::StatusUnderReview,
+                \App\Models\ScheduleGenerationRun::StatusQueued,
+                \App\Models\ScheduleGenerationRun::StatusDispatching,
+            ], true) && ! in_array($run->candidate_state, ['Rejected', 'Stale', 'Superseded'], true));
             $reviewEvidence = $activeRun?->reviewEvidence();
             $hasTimetableRecord = $activeRun || ($showOfficial && $selectedVersion);
             $pendingGeneration = ! $showOfficial && $activeRun && in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true);
+            $isOfficialPublished = $showOfficial && $selectedVersion && $selectedVersion->state === \App\Models\PublishedTimetableVersion::StatePublished;
+            $isOfficialSuperseded = $showOfficial && $selectedVersion && $selectedVersion->state !== \App\Models\PublishedTimetableVersion::StatePublished;
             $timetableStateLabel = $showOfficial && $selectedVersion
-                ? ($selectedVersion->state === 'Published'
-                    ? ($versions->count() > 1 ? 'Official timetable · Revision '.$selectedVersion->version : 'Official timetable')
-                    : 'Previous official · Revision '.$selectedVersion->version)
+                ? ($isOfficialPublished
+                    ? ($isTermClosed
+                        ? 'Official timetable · Archived'
+                        : ($versions->count() > 1 ? 'Official timetable · Revision '.$selectedVersion->version : 'Official timetable'))
+                    : 'Historical official · Revision '.$selectedVersion->version)
                 : ($activeRun ? match ($activeRun->candidate_state) {
-                    'Accepted' => 'Candidate accepted',
-                    'Rejected' => 'Candidate rejected',
-                    'Stale', 'Superseded' => 'Candidate needs current sources',
+                    'Accepted' => 'Draft accepted',
+                    'Rejected' => 'Past attempt · Discarded',
+                    'Stale', 'Superseded' => 'Past attempt · Needs current sources',
                     default => match ($activeRun->status) {
                         \App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching => 'Timetable generation in progress',
-                        \App\Models\ScheduleGenerationRun::StatusFailed => 'Timetable attempt failed',
-                        \App\Models\ScheduleGenerationRun::StatusBlocked => 'Timetable attempt blocked',
-                        \App\Models\ScheduleGenerationRun::StatusUnderReview => 'Candidate under review',
+                        \App\Models\ScheduleGenerationRun::StatusFailed => 'Past attempt · Failed',
+                        \App\Models\ScheduleGenerationRun::StatusBlocked => 'Past attempt · Blocked',
+                        \App\Models\ScheduleGenerationRun::StatusUnderReview => 'Draft timetable · Under review',
                         default => \App\Models\ScheduleGenerationRun::statusOptions()[$activeRun->status] ?? $activeRun->status,
                     },
                 } : null);
             $isEditableDraft = (bool) ($interactiveContext['editable'] ?? false);
+            $isPastAttempt = ! $showOfficial && $activeRun && ! $pendingGeneration && ! $isEditableDraft;
+            $isPostEnrollmentLocked = (bool) ($hasOfficialEnrollmentsBlockingRegen ?? false);
+            $hasActiveDraft = ! empty($activeDraftOptions);
+            $activeDraftOption = $hasActiveDraft ? $activeDraftOptions[0] : null;
             $stableOverviewId = 'timetable-overview-'.($showOfficial ? 'official-'.$selectedVersion?->id : 'draft-'.$term->id);
             $canReviseOfficial = $showOfficial && $selectedVersion && $this->canReviseOfficialSchedule();
             $hasSolverIssue = ! $showOfficial && ($solverFailure || ! empty($solverOutcome['message']) || in_array($reviewEvidence['outcome'] ?? '', ['Infeasible', 'Unknown', 'ModelInvalid', 'TechnicalFailure'], true));
             $plainFailure = $hasSolverIssue ? $this->plainSolverFailureSummary($solverFailure ?? [], $solverOutcome ?? [], $reviewEvidence) : null;
+            $canPublishDraft = ! $readOnly && ! $isTermClosed && ! $isPostEnrollmentLocked && $activeRun && ! $showOfficial && $this->canPublishActiveRun();
+            $showToolbarRegenerate = ! $readOnly && ! $isTermClosed && ! $isPostEnrollmentLocked && $activeRun && ! $showOfficial && $this->regenerateTimetableAction->isVisible();
+            $showToolbarNewDraft = ! $readOnly && ! $isTermClosed && ($canStartNewDraftAttempt ?? false)
+                && (($isOfficialPublished && ! $hasActiveDraft) || ($isPastAttempt && $scopeMeetingCount > 0));
         @endphp
         <div class="tala-timetable-studio">
             @if ($hasTimetableRecord)
                 <div class="tala-timetable-toolbar flex items-center justify-between gap-3" aria-label="Timetable actions and record controls">
                     <div class="tala-timetable-toolbar__status flex items-center gap-2">
                         <div class="tala-guide-filter tala-studio-source">
-                            <label for="timetable-source" class="sr-only">Timetable record</label>
+                            <label for="timetable-source" class="tala-studio-source__label">Viewing:</label>
                             <x-filament::input.wrapper>
                                 <x-filament::input.select id="timetable-source" wire:change="chooseTimetable($event.target.value)">
                                     @if ($versions->isNotEmpty())
                                         <optgroup label="Official schedule">
                                             @foreach ($versions as $version)
-                                                <option value="official:{{ $version->id }}" @selected($showOfficial && $selectedVersion?->id === $version->id)>{{ $version->state === 'Published' ? ($versions->count() > 1 ? 'Official timetable (Current · Rev '.$version->version.')' : 'Official timetable (Current)') : 'Previous official · Rev '.$version->version }}</option>
+                                                <option value="official:{{ $version->id }}" @selected($showOfficial && $selectedVersion?->id === $version->id)>{{ $version->state === 'Published' ? ($isTermClosed ? 'Official timetable (Archived · Rev '.$version->version.')' : ($versions->count() > 1 ? 'Official timetable (Live · Rev '.$version->version.')' : 'Official timetable (Live)')) : 'Historical official · Rev '.$version->version }}</option>
                                             @endforeach
                                         </optgroup>
                                     @endif
@@ -61,53 +78,82 @@
                             </x-filament::input.wrapper>
                         </div>
 
-                        @if ($showOfficial && $selectedVersion)
+                        @if ($isOfficialPublished && ! $isTermClosed)
                             <span
                                 class="tala-timetable-status-pill is-official"
-                                title="{{ $selectedVersion->state === 'Published' ? 'Locked official schedule — use Revise schedule for approved changes' : 'Superseded historical version — read-only' }}"
+                                title="Official live schedule — use Revise schedule for approved changes"
                             >
                                 <x-filament::icon icon="heroicon-m-lock-closed" />
-                                <span>{{ $selectedVersion->state === 'Published' ? 'Live' : 'Superseded' }} · {{ $scopeMeetingCount }} {{ \Illuminate\Support\Str::plural('meeting', $scopeMeetingCount) }}<span class="sr-only"> · Official · Locked</span></span>
+                                <span>Official · Live · {{ $scopeMeetingCount }} {{ \Illuminate\Support\Str::plural('meeting', $scopeMeetingCount) }}</span>
                             </span>
-                        @elseif (! $showOfficial && $activeRun && ! $pendingGeneration && ($reviewEvidence['validated'] ?? false) === true)
+                        @elseif ($isOfficialPublished && $isTermClosed)
+                            <span
+                                class="tala-timetable-status-pill is-archived"
+                                title="Term is closed — read-only historical official schedule"
+                            >
+                                <x-filament::icon icon="heroicon-m-archive-box" />
+                                <span>Official · Archived · {{ $scopeMeetingCount }} {{ \Illuminate\Support\Str::plural('meeting', $scopeMeetingCount) }}</span>
+                            </span>
+                        @elseif ($isOfficialSuperseded)
+                            <span
+                                class="tala-timetable-status-pill is-archived"
+                                title="Superseded historical version — read-only"
+                            >
+                                <x-filament::icon icon="heroicon-m-clock" />
+                                <span>Historical · Rev {{ $selectedVersion->version }} · {{ $scopeMeetingCount }} {{ \Illuminate\Support\Str::plural('meeting', $scopeMeetingCount) }}</span>
+                            </span>
+                        @elseif ($pendingGeneration)
+                            <span class="tala-timetable-status-pill is-draft">
+                                <x-filament::icon icon="heroicon-m-clock" />
+                                <span>Generating · Attempt #{{ $activeRun->id }}</span>
+                            </span>
+                        @elseif (! $showOfficial && $activeRun && $isEditableDraft)
+                            <span class="tala-timetable-status-pill is-draft">
+                                <x-filament::icon icon="heroicon-m-pencil-square" />
+                                <span>Draft · Editable</span>
+                            </span>
                             @php
-                                $statusOutcomeLabel = match ($reviewEvidence['outcome'] ?? 'Validated') {
-                                    'Local adjustment' => 'Edited draft',
-                                    'Optimal' => 'Solver optimal',
-                                    'Feasible' => 'Solver feasible',
-                                    default => $reviewEvidence['outcome'] ?? 'Validated',
-                                };
+                                $draftValidated = ($reviewEvidence['validated'] ?? false) === true;
+                                $draftConflictCount = (int) ($activeRun->publicationSummary()['conflicts'] ?? 0);
                             @endphp
                             <button
                                 type="button"
-                                class="tala-timetable-status-pill is-verified is-interactive"
+                                class="tala-timetable-status-pill is-check is-interactive {{ $draftValidated ? 'is-pass' : 'is-warn' }}"
                                 title="Click to inspect verification checks"
                                 x-on:click="$dispatch('open-modal', { id: 'timetable-review-details' })"
                             >
-                                <x-filament::icon icon="heroicon-m-check-circle" />
-                                <span>{{ $statusOutcomeLabel }}<span class="sr-only"> · Zero conflicts</span> · {{ $scopeMeetingCount }} {{ \Illuminate\Support\Str::plural('meeting', $scopeMeetingCount) }}</span>
+                                <x-filament::icon :icon="$draftValidated ? 'heroicon-m-check-circle' : 'heroicon-m-exclamation-triangle'" />
+                                <span>{{ $draftValidated ? 'Verified · 0 conflicts' : ($draftConflictCount > 0 ? $draftConflictCount.' '.\Illuminate\Support\Str::plural('conflict', $draftConflictCount) : 'Needs check') }}</span>
                             </button>
-                        @elseif ($activeRun && ! $showOfficial && $isEditableDraft)
-                            <span class="tala-timetable-status-pill is-draft">
-                                <x-filament::icon icon="heroicon-m-pencil-square" />
-                                <span>Draft candidate · Editable</span>
-                            </span>
-                        @elseif ($timetableStateLabel)
-                            <span class="tala-timetable-status-pill">
-                                <span>{{ $timetableStateLabel }}</span>
+                        @elseif ($isPastAttempt)
+                            <span class="tala-timetable-status-pill is-archived">
+                                <x-filament::icon icon="heroicon-m-clock" />
+                                <span>Past attempt · Read-only</span>
                             </span>
                         @endif
                     </div>
 
                     <div class="tala-studio-viewing">
-                        @if (! $readOnly && ! $this->isTermClosed() && $activeRun && ! $showOfficial)
-                            @if ($this->canPublishActiveRun())
-                                {{ $this->publishOfficialTimetableAction->size('sm') }}
-                            @elseif ($this->canRetryActiveRun())
-                                {{ $this->retrySolverRunAction->size('sm') }}
-                            @endif
+                        @if ($canPublishDraft)
+                            {{ $this->publishOfficialTimetableAction->size('sm') }}
+                        @elseif (! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial && $this->canRetryActiveRun())
+                            {{ $this->retrySolverRunAction->size('sm') }}
                         @elseif ($canReviseOfficial)
                             {{ $this->revisePublishedScheduleAction->size('sm') }}
+                        @endif
+
+                        @if ($showToolbarRegenerate)
+                            {{ $this->regenerateTimetableAction->size('sm') }}
+                        @elseif ($showToolbarNewDraft)
+                            <x-filament::button
+                                type="button"
+                                :color="$isPastAttempt ? 'primary' : 'gray'"
+                                size="sm"
+                                icon="heroicon-o-sparkles"
+                                wire:click="openGenerateFromDetails"
+                            >
+                                New draft
+                            </x-filament::button>
                         @endif
 
                         @if ($showOfficial && $selectedVersion)
@@ -121,33 +167,6 @@
                                 <x-filament::button color="gray" size="sm" icon="heroicon-o-ellipsis-horizontal" aria-label="More timetable actions">More</x-filament::button>
                             </x-slot>
                             <x-filament::dropdown.list>
-                                @if ($showOfficial && ($canStartNewDraftAttempt ?? false))
-                                    <x-filament::dropdown.list.item
-                                        icon="heroicon-o-sparkles"
-                                        wire:click="openGenerateFromDetails"
-                                        x-on:click="close()"
-                                    >
-                                        New draft attempt
-                                    </x-filament::dropdown.list.item>
-                                @elseif ($showOfficial && ! $readOnly && ! $this->isTermClosed() && ! empty($activeDraftOptions))
-                                    <x-filament::dropdown.list.item
-                                        icon="heroicon-o-pencil-square"
-                                        wire:click="chooseTimetable('draft:{{ $activeDraftOptions[0]['id'] }}')"
-                                        x-on:click="close()"
-                                    >
-                                        Open current draft
-                                    </x-filament::dropdown.list.item>
-                                @endif
-                                @if ($canReviseOfficial)
-                                    <x-filament::dropdown.list.item
-                                        icon="heroicon-o-x-circle"
-                                        color="danger"
-                                        wire:click="mountAction('cancelPublishedClass')"
-                                        x-on:click="close()"
-                                    >
-                                        Cancel class
-                                    </x-filament::dropdown.list.item>
-                                @endif
                                 @if ($showOfficial && $selectedVersion)
                                     <x-filament::dropdown.list.item
                                         tag="a"
@@ -165,23 +184,35 @@
                                         Solver report
                                     </x-filament::dropdown.list.item>
                                 @endif
-                                <x-filament::dropdown.list.item
-                                    icon="heroicon-o-clipboard-document-check"
-                                    x-on:click="close(); $dispatch('open-modal', { id: 'timetable-review-details' })"
-                                >
-                                    Verification &amp; history
-                                </x-filament::dropdown.list.item>
-                                @if (! $readOnly && $activeRun && ! $showOfficial && $this->canReviewActiveRun())
+                                @if (! $pendingGeneration)
+                                    <x-filament::dropdown.list.item
+                                        icon="heroicon-o-clipboard-document-check"
+                                        x-on:click="close(); $dispatch('open-modal', { id: 'timetable-review-details' })"
+                                    >
+                                        Verification &amp; history
+                                    </x-filament::dropdown.list.item>
+                                @endif
+                                @if ($canReviseOfficial)
+                                    <x-filament::dropdown.list.item
+                                        icon="heroicon-o-x-circle"
+                                        color="danger"
+                                        wire:click="mountAction('cancelPublishedClass')"
+                                        x-on:click="close()"
+                                    >
+                                        Cancel class
+                                    </x-filament::dropdown.list.item>
+                                @endif
+                                @if (! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial && $this->canReviewActiveRun())
                                     <x-filament::dropdown.list.item
                                         icon="heroicon-o-x-circle"
                                         color="danger"
                                         wire:click="mountAction('rejectCandidate')"
                                         x-on:click="close()"
                                     >
-                                        Reject candidate
+                                        Discard draft
                                     </x-filament::dropdown.list.item>
                                 @endif
-                                @if (! $readOnly && $activeRun && ! $showOfficial && $this->canRetryActiveRun() && $this->canPublishActiveRun())
+                                @if (! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial && $this->canRetryActiveRun() && $canPublishDraft)
                                     <x-filament::dropdown.list.item
                                         icon="heroicon-o-arrow-path"
                                         wire:click="mountAction('retrySolverRun')"
@@ -194,6 +225,46 @@
                         </x-filament::dropdown>
                     </div>
                 </div>
+
+                @if ($isEditableDraft && $isPostEnrollmentLocked)
+                    <section class="tala-studio-context-strip is-warning" role="status" aria-label="Whole-term publication locked">
+                        <div class="tala-studio-context-strip__body">
+                            <x-filament::icon icon="heroicon-o-exclamation-triangle" aria-hidden="true" />
+                            <span>Whole-term publishing and regeneration are locked because students are officially enrolled. Use <strong>Revise schedule</strong> on the official timetable for approved changes.</span>
+                        </div>
+                        @if ($currentVersion)
+                            <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')">View official</x-filament::button>
+                        @endif
+                    </section>
+                @elseif ($isEditableDraft && $currentVersion)
+                    <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Draft editing notice">
+                        <div class="tala-studio-context-strip__body">
+                            <x-filament::icon icon="heroicon-o-information-circle" aria-hidden="true" />
+                            <span>Editing unpublished draft — <strong>Official Rev {{ $currentVersion->version }}</strong> stays live until you publish.</span>
+                        </div>
+                        <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')">View official</x-filament::button>
+                    </section>
+                @elseif ($isOfficialPublished && ! $isTermClosed && ! $isPostEnrollmentLocked && $activeDraftOption !== null)
+                    <section class="tala-studio-context-strip is-warning" role="status" aria-label="Unpublished draft in progress">
+                        <div class="tala-studio-context-strip__body">
+                            <x-filament::icon icon="heroicon-o-pencil-square" aria-hidden="true" />
+                            <span>Unpublished draft (<strong>Attempt #{{ $activeDraftOption['id'] }}</strong>) is in progress. Official stays live until published.</span>
+                        </div>
+                        <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('draft:{{ $activeDraftOption['id'] }}')">Open draft</x-filament::button>
+                    </section>
+                @elseif ($isPastAttempt && $scopeMeetingCount > 0)
+                    <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Past attempt notice">
+                        <div class="tala-studio-context-strip__body">
+                            <x-filament::icon icon="heroicon-o-clock" aria-hidden="true" />
+                            <span>Viewing a past attempt (<strong>Attempt #{{ $activeRun->id }}</strong> · {{ $this->plainAttemptStatusLabel($activeRun) }}). Past attempts are read-only and cannot be published.</span>
+                        </div>
+                        @if ($activeDraftOption !== null)
+                            <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('draft:{{ $activeDraftOption['id'] }}')">Open draft</x-filament::button>
+                        @elseif ($currentVersion)
+                            <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')">View official</x-filament::button>
+                        @endif
+                    </section>
+                @endif
             @endif
 
             @if ($showOfficial && $selectedVersion && ($pendingDraftRevision ?? null))
@@ -241,10 +312,10 @@
                                 {{ $plainFailure['explanation'] }} {{ $plainFailure['nextStep'] }}
                             </p>
                             @if ($plainFailure['technical'] !== '')
-                                <details class="tala-technical-details">
-                                    <summary class="tala-technical-details__label cursor-pointer">Technical details</summary>
+                                <div class="tala-technical-details">
+                                    <span class="tala-technical-details__label">Technical details</span>
                                     <p class="tala-work-footnote font-mono text-xs mt-1">{{ $plainFailure['technical'] }}</p>
-                                </details>
+                                </div>
                             @endif
                         @endif
                     </section>
@@ -264,30 +335,13 @@
                     </div>
                 @elseif ($timetablePresentation && $scopeMeetingCount)
                     @php
-                        $showDraftDockActions = ! $readOnly && ! $this->isTermClosed() && $activeRun && ! $showOfficial
-                            && ($this->canUndoLastChange() || $this->canResetToSolverDraft() || $this->regenerateTimetableAction->isVisible());
-                        $hasDraftDock = $isEditableDraft || $showDraftDockActions;
+                        $showDraftDockActions = ! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial
+                            && ($this->canUndoLastChange() || $this->canResetToSolverDraft());
+                        $hasDraftDock = $showDraftDockActions;
                     @endphp
                     <div @class(['tala-studio-canvas', 'is-week' => $timetableFormat === 'week', 'has-draft-dock' => $hasDraftDock])>
                         @if (! count($timetablePresentation['meetings']))
                             <p class="tala-studio-empty-filter">No meetings match this view. <x-filament::button color="gray" size="sm" wire:click="clearViewFilters">Clear filters</x-filament::button></p>
-                        @elseif ($timetableFormat === 'list' && ($timetableView === 'whole' || $viewFilter))
-                            {{ $this->table }}
-                            @if ($showDraftDockActions)
-                                <div class="tala-studio-draft-dock" role="toolbar" aria-label="Draft timetable actions">
-                                    <div class="tala-studio-draft-dock__actions">
-                                        @if ($this->canUndoLastChange())
-                                            {{ $this->undoLastChangeAction->size('sm') }}
-                                        @endif
-                                        @if ($this->canResetToSolverDraft())
-                                            {{ $this->resetToSolverDraftAction->size('sm') }}
-                                        @endif
-                                        @if ($this->regenerateTimetableAction->isVisible())
-                                            {{ $this->regenerateTimetableAction->size('sm') }}
-                                        @endif
-                                    </div>
-                                </div>
-                            @endif
                         @elseif (in_array($timetableView, ['whole', 'section', 'faculty', 'room']) && ($timetableView === 'whole' || $viewFilter))
                             <x-tala-timetable
                                 :presentation="$timetablePresentation"
@@ -315,9 +369,6 @@
                                         @endif
                                         @if ($this->canResetToSolverDraft())
                                             {{ $this->resetToSolverDraftAction->size('sm') }}
-                                        @endif
-                                        @if ($this->regenerateTimetableAction->isVisible())
-                                            {{ $this->regenerateTimetableAction->size('sm') }}
                                         @endif
                                     </x-slot>
                                 @endif
@@ -510,7 +561,9 @@
                                 ? \App\Actions\Scheduling\TimetableFailureLanguage::conflictChecksNotEstablished()
                                 : ($evidenceSummary['conflicts'] ?? 'Revalidate with current term sources before publishing.');
                             $canGenerateInline = ! $readOnly
-                                && ! $this->isTermClosed()
+                                && ! $isTermClosed
+                                && ! $isPostEnrollmentLocked
+                                && ! $hasActiveDraft
                                 && ! $pendingGeneration
                                 && ! $this->retainedCandidateNextStep()
                                 && ($activeRun || $versions->isNotEmpty() || ($generationReadiness ?? $this->generationReadiness())['ready']);
@@ -612,7 +665,7 @@
                                     <x-filament::button tag="a" color="gray" size="sm" icon="heroicon-o-printer" :href="route('timetable.version.print', ['version' => $selectedVersion, 'timetableView' => $timetableView, 'timetableFormat' => $timetableFormat, 'viewFilter' => $viewFilter, 'programFilter' => $programFilter, 'yearFilter' => $yearFilter, 'tableSearch' => $tableSearch])" target="_blank">Print whole term</x-filament::button>
                                     <x-filament::button tag="a" color="gray" size="sm" icon="heroicon-o-arrow-top-right-on-square" :href="$this->timetableReviewUrl($selectedVersion->schedule_run_id)">Open solver report</x-filament::button>
                                     @if ($canGenerateInline)
-                                        <x-filament::button color="gray" size="sm" icon="heroicon-o-sparkles" wire:click="openGenerateFromDetails">Generate another attempt</x-filament::button>
+                                        <x-filament::button color="gray" size="sm" icon="heroicon-o-sparkles" wire:click="openGenerateFromDetails">New draft</x-filament::button>
                                     @endif
                                 </div>
                             @elseif ($activeRun)
@@ -621,32 +674,26 @@
                                         Open solver report
                                     </x-filament::button>
                                     @if ($canGenerateInline)
-                                        <x-filament::button color="gray" size="sm" icon="heroicon-o-sparkles" wire:click="openGenerateFromDetails">Generate another attempt</x-filament::button>
+                                        <x-filament::button color="gray" size="sm" icon="heroicon-o-sparkles" wire:click="openGenerateFromDetails">New draft</x-filament::button>
                                     @endif
                                 </div>
                             @endif
                             @if ($showOfficial && $workingRun)
-                                <div class="tala-evidence-source-switch"><div><h3>Latest timetable attempt</h3><p class="tala-work-footnote">Review changes separately from this issued timetable.</p></div><x-filament::button color="gray" size="sm" icon="heroicon-o-document-text" wire:click="chooseTimetable('draft:{{ $workingRun->id }}')" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })">Review latest attempt</x-filament::button></div>
+                                <div class="tala-evidence-source-switch"><div><h3>Active draft (Attempt #{{ $workingRun->id }})</h3><p class="tala-work-footnote">Review unpublished changes separately from the official timetable.</p></div><x-filament::button color="gray" size="sm" icon="heroicon-o-pencil-square" wire:click="chooseTimetable('draft:{{ $workingRun->id }}')" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })">Open draft</x-filament::button></div>
                             @elseif (! $showOfficial && $currentVersion)
-                                <div class="tala-evidence-source-switch"><div><h3>Current official timetable</h3><p class="tala-work-footnote">The published timetable stays in use.</p></div><x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })">View official timetable</x-filament::button></div>
+                                <div class="tala-evidence-source-switch"><div><h3>Current official timetable</h3><p class="tala-work-footnote">The published timetable stays live until replaced.</p></div><x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })">View official</x-filament::button></div>
                             @endif
                         </section>
-                        @if ($timetablePresentation && count($timetablePresentation['meetings']))
-                            <section class="tala-evidence-surface" aria-label="Subject colors">
-                                <h3>Subject colors</h3>
-                                <div class="tala-guide-course-legend" aria-label="Subject colors">@foreach (collect($timetablePresentation['meetings'])->unique('courseCode') as $meeting)<span data-course-color="{{ $timetablePresentation['courseColors'][$meeting['courseCode']] }}"><i aria-hidden="true"></i>{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</span>@endforeach</div>
-                            </section>
-                        @endif
                         @if ($activeRun && ! $showOfficial)
-                            @if ($this->canPublishActiveRun())<p class="tala-work-footnote">Ready to publish. Publication rechecks independent validation, source freshness and Registrar authority for the whole term.@if ($currentVersion) The current official timetable stays in use until published.@endif</p>@endif
-                            @if (! $readOnly && ! $this->isTermClosed() && $this->retainedCandidateNextStep())<p class="tala-work-footnote" role="status">{{ $this->retainedCandidateNextStep() }}</p>@endif
+                            @if ($canPublishDraft)<p class="tala-work-footnote">Ready to publish. Publication rechecks independent validation, source freshness and Registrar authority for the whole term.@if ($currentVersion) The current official timetable stays live until published.@endif</p>@endif
+                            @if (! $readOnly && ! $isTermClosed && $this->retainedCandidateNextStep())<p class="tala-work-footnote" role="status">{{ $this->retainedCandidateNextStep() }}</p>@endif
                         @endif
                         @if ($activeRun && ! $showOfficial)
                             <section class="tala-evidence-surface" aria-label="Result measures">
                                 <h3>Result measures</h3>
-                                <p class="tala-work-footnote">Request runtime: {{ $activeRun->runtime_ms === null ? 'Not measured' : number_format($activeRun->runtime_ms).' ms' }}</p>
+                                <p class="tala-work-footnote">Attempt runtime: {{ $activeRun->runtime_ms === null ? 'Not measured' : number_format($activeRun->runtime_ms).' ms' }}</p>
                                 <dl class="tala-evidence-facts">@foreach ($activeRun->qualityPresentation() as $measure)<div><dt>{{ $measure['label'] }}</dt><dd>{{ $measure['value'] }}</dd></div>@endforeach</dl>
-                                <p class="tala-work-footnote">Faculty load imbalance includes every eligible teacher captured by the request, including teachers with no assignments.</p>
+                                <p class="tala-work-footnote">Faculty load imbalance includes every eligible teacher captured by the attempt, including teachers with no assignments.</p>
                             </section>
                         @endif
                         @if ($allRuns->where('status', '!=', 'published')->count() > 1 || $versions->count() > 1)

@@ -252,18 +252,17 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
             ->assertOk()
             ->assertActionDoesNotExist('publishSchedule');
 
-        Livewire::actingAs($registrar)
+        $component = Livewire::actingAs($registrar)
             ->withQueryParams([
                 'termId' => $term->id,
                 'selectedRunId' => $newRun->id,
                 'timetableState' => 'draft',
             ])
             ->test(TermTimetable::class)
-            ->assertActionVisible('publishOfficialTimetable')
-            ->mountAction('publishOfficialTimetable')
-            ->assertMountedActionModalSee('1 candidate assignments, 0 warnings, and 0 conflicts.')
-            ->assertMountedActionModalSee('0 new, 1 changed, 0 removed, and 0 unchanged; 1 affected faculty.')
-            ->assertMountedActionModalSee('Full replacement is blocked because active official student registrations exist.');
+            ->assertActionHidden('publishOfficialTimetable')
+            ->assertSee('Whole-term publishing and regeneration are locked because students are officially enrolled.');
+
+        $this->assertFalse($component->instance()->canPublishActiveRun());
     }
 
     private function assertPublicationNoteRequired(

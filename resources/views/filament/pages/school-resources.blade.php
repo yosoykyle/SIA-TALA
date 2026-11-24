@@ -43,8 +43,11 @@
                                     <strong class="tala-resource-readiness-bar__count">{{ $qualifiedFacultyCount }} of {{ $activeFacultyCount }}</strong>
                                     <span>active {{ \Illuminate\Support\Str::plural('faculty member', $activeFacultyCount) }} qualified</span>
                                 </h2>
-                                <span class="tala-resource-readiness-bar__breakdown">· Shared across every term</span>
+                                <span class="tala-resource-readiness-bar__breakdown">· School-wide directory shared across all terms</span>
                             </div>
+                            <p class="tala-resource-readiness-bar__meta">
+                                Subject qualifications apply across every term. Per-term availability and load overrides are managed in Term Planning &rarr; Faculty &amp; rooms.
+                            </p>
                         </div>
                     </div>
                 </section>
@@ -63,9 +66,12 @@
                                     @else
                                         ·
                                     @endif
-                                    Shared across every term
+                                    School-wide catalog shared across all terms
                                 </span>
                             </div>
+                            <p class="tala-resource-readiness-bar__meta">
+                                Campus rooms and capacities are shared across every term. Term-only maintenance closures are managed in Term Planning &rarr; Faculty &amp; rooms.
+                            </p>
                         </div>
                     </div>
                 </section>

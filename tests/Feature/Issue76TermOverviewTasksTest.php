@@ -33,6 +33,7 @@ use App\Models\TermCohort;
 use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -422,6 +423,22 @@ class Issue76TermOverviewTasksTest extends TestCase
         TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
         Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
             ->assertSeeHtml('href="'.e(TermClasses::getUrl(['termId' => $term->id])).'"');
+    }
+
+    public function test_new_term_toolbar_action_renders_only_on_terms_tab(): void
+    {
+        $this->registrar();
+        Term::factory()->create();
+
+        Livewire::test(TermOverview::class)
+            ->assertOk()
+            ->assertActionVisible(TestAction::make('createTerm')->table())
+            ->assertActionDoesNotExist(TestAction::make('createAcademicYear')->table());
+
+        Livewire::withQueryParams(['overviewTab' => 'academic-years'])->test(TermOverview::class)
+            ->assertOk()
+            ->assertActionVisible(TestAction::make('createAcademicYear')->table())
+            ->assertActionDoesNotExist(TestAction::make('createTerm')->table());
     }
 
     private function registrar(string $role = User::StaffRoleRegistrar): void

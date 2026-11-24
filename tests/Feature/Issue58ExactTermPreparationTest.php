@@ -397,7 +397,7 @@ final class Issue58ExactTermPreparationTest extends TestCase
                 return $statuses['Enrollment'] === 'Upcoming'
                     && $statuses['EnrollmentAdjustment'] === 'Closed'
                     && $statuses['CourseDrop'] === 'Open'
-                    && $statuses['GradeEntry'] === 'Dates not configured';
+                    && $statuses['GradeEntry'] === 'Not set';
             });
     }
 
@@ -635,6 +635,49 @@ final class Issue58ExactTermPreparationTest extends TestCase
             ->filterTable('program', $officialProgram->id)->assertCanSeeTableRecords([$official])->assertCanNotSeeTableRecords([$unfinished]);
         $unfinished->update(['admission_application_id' => null]);
         $page->call('$refresh')->assertCanSeeTableRecords([$official, $unfinished]);
+    }
+
+    public function test_editing_active_calendar_preserves_windows_and_set_dates_prepopulates_one_row_when_empty(): void
+    {
+        $actor = $this->staff();
+        $package = app(ActivateTermCalendarPackage::class)->execute($this->core(), $actor);
+
+        $emptyDatesPage = Livewire::actingAs($actor)->test(TermCalendar::class, ['termId' => $package->term_id])
+            ->mountAction('addOperationalDates')
+            ->assertActionMounted('addOperationalDates');
+        $rawWindows = $emptyDatesPage->instance()
+            ->getSchema($emptyDatesPage->instance()->getMountedActionSchemaName())
+            ->getRawState()['windows'];
+        $this->assertCount(1, $rawWindows);
+        $emptyDatesPage->unmountAction();
+
+        $package->windows()->create([
+            'window_type' => TermCalendarWindow::TypeEnrollment,
+            'opens_on' => '2026-10-10',
+            'closes_on' => '2026-10-15',
+        ]);
+
+        Livewire::actingAs($actor)->test(TermCalendar::class, ['termId' => $package->term_id])
+            ->callAction('saveAndActivateCalendar', data: [
+                'administrative_starts_on' => $package->administrative_starts_on->toDateString(),
+                'administrative_ends_on' => $package->administrative_ends_on->toDateString(),
+                'classes_start_on' => $package->classes_start_on->toDateString(),
+                'classes_end_on' => $package->classes_end_on->toDateString(),
+                'teaching_grid_rows' => [
+                    ['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '13:00', 'breaks' => []],
+                ],
+                'dated_exceptions' => [],
+            ])
+            ->assertHasNoActionErrors();
+
+        $active = TermCalendarPackage::query()
+            ->where('term_id', $package->term_id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->with('windows')
+            ->sole();
+
+        $this->assertCount(1, $active->windows);
+        $this->assertSame(TermCalendarWindow::TypeEnrollment, $active->windows->first()->window_type);
     }
 
     private function core(): TermCalendarPackage

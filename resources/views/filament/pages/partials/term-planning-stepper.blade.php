@@ -69,51 +69,47 @@
     $unsetActivityCount = max(0, $standardWindowCount - $configuredActivityCount);
 
     $calendarSummary = match (true) {
-        $isClosedMode => 'Closed · Read-only'.($calendarDatesFormatted ? ' · '.$calendarDatesFormatted : ''),
-        $isLiveMode => 'Active'.($calendarDatesFormatted ? ' · '.$calendarDatesFormatted : '').' · Teaching hours locked',
-        ! $activePackage && $draftPackages->isNotEmpty() => 'Draft calendar needs activation',
-        ! $activePackage => 'Set and activate dates and hours',
-        $draftPackages->isNotEmpty() => 'Pending calendar update to activate',
-        default => 'Active'
-            .($calendarDatesFormatted ? ' · '.$calendarDatesFormatted : '')
-            .($unsetActivityCount > 0
-                ? ' · '.$unsetActivityCount.' optional '.\Illuminate\Support\Str::plural('date', $unsetActivityCount).' unset'
-                : ' · All dates set'),
+        $isClosedMode => 'Closed · Read-only',
+        $isLiveMode => 'Active · Dates & hours set',
+        ! $activePackage && $draftPackages->isNotEmpty() => 'Draft needs activation',
+        ! $activePackage => 'Not set',
+        $draftPackages->isNotEmpty() => 'Draft needs activation',
+        default => 'Active · Dates & hours set',
     };
 
     $classesSummary = match (true) {
         $isClosedMode => $confirmedCount.' '.\Illuminate\Support\Str::plural('class', $confirmedCount).' archived',
-        $isLiveMode => $confirmedCount.' '.\Illuminate\Support\Str::plural('class', $confirmedCount).' published · Locked',
-        $cohortCount === 0 => 'Add at least one student section',
-        $recordedCount === 0 => 'Load subjects and add classes',
-        $unreadyClasses > 0 => $unreadyClasses.' '.\Illuminate\Support\Str::plural('class', $unreadyClasses).' need confirmation',
-        $demandsCount === 0 => 'Weekly meeting requirements pending',
-        default => $confirmedCount.' '.\Illuminate\Support\Str::plural('class', $confirmedCount).' confirmed',
+        $isLiveMode => $confirmedCount.' '.\Illuminate\Support\Str::plural('class', $confirmedCount).' published',
+        $cohortCount === 0 => 'Add student sections',
+        $recordedCount === 0 => 'Add classes',
+        $unreadyClasses > 0 => $unreadyClasses.' to confirm',
+        $demandsCount === 0 => 'Requirements pending',
+        default => $confirmedCount.' confirmed',
     };
 
     $resourcesSummary = match (true) {
         $isClosedMode => 'Closed · Read-only',
-        $isLiveMode && $lateImpactCount > 0 => $lateImpactCount.' late availability '.\Illuminate\Support\Str::plural('update', $lateImpactCount).' to review',
-        $isLiveMode && $totalFaculty > 0 => $repliedFaculty.' of '.$totalFaculty.' faculty replied · Live',
-        $isLiveMode => 'Qualified faculty and rooms active',
-        $effectiveMissingQualifications > 0 => $effectiveMissingQualifications.' '.\Illuminate\Support\Str::plural('subject', $effectiveMissingQualifications).' '.($effectiveMissingQualifications === 1 ? 'needs' : 'need').' qualified faculty',
-        ! $calendarDone => 'Activate calendar to open availability',
-        ! $hasRooms => 'Add at least one active room',
-        $resourceBlockers->contains('code', 'rooms_unsuitable') || $resourceBlockers->contains('code', 'rooms_unavailable') => 'Matching active room needed',
-        $resourceBlockers->isNotEmpty() && $totalFaculty > 0 => $repliedFaculty.' of '.$totalFaculty.' faculty replied · availability blocker',
-        $resourceBlockers->isNotEmpty() => 'Faculty availability or qualification needed',
-        $totalFaculty > 0 => $repliedFaculty.' of '.$totalFaculty.' faculty replied',
-        default => 'Qualified faculty and rooms ready',
+        $isLiveMode && $lateImpactCount > 0 => $lateImpactCount.' late '.\Illuminate\Support\Str::plural('update', $lateImpactCount),
+        $isLiveMode && $totalFaculty > 0 => $repliedFaculty.'/'.$totalFaculty.' faculty replied',
+        $isLiveMode => 'Faculty & rooms active',
+        $effectiveMissingQualifications > 0 => $effectiveMissingQualifications.' '.\Illuminate\Support\Str::plural('subject', $effectiveMissingQualifications).' '.($effectiveMissingQualifications === 1 ? 'needs' : 'need').' faculty',
+        ! $calendarDone => 'Waiting for calendar',
+        ! $hasRooms => 'Add active room',
+        $resourceBlockers->contains('code', 'rooms_unsuitable') || $resourceBlockers->contains('code', 'rooms_unavailable') => 'Add matching room',
+        $resourceBlockers->isNotEmpty() && $totalFaculty > 0 => $repliedFaculty.'/'.$totalFaculty.' faculty replied',
+        $resourceBlockers->isNotEmpty() => 'Availability needed',
+        $totalFaculty > 0 => $repliedFaculty.'/'.$totalFaculty.' faculty replied',
+        default => 'Faculty & rooms ready',
     };
 
     $timetableSummary = match (true) {
-        $isClosedMode => $currentVersion !== null ? 'Official timetable archived' : 'Closed without published timetable',
-        $currentVersion !== null => 'Official timetable published',
-        $activeRun && $activeRun->status === \App\Models\ScheduleGenerationRun::StatusUnderReview => 'Draft ready to review and publish',
-        $activeRun && in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) => 'Generation in progress',
-        $activeRun !== null => 'Timetable attempt needs attention',
-        (bool) ($readiness['ready'] ?? false) => 'Ready to generate timetable',
-        default => 'Finish steps 1–3, then generate',
+        $isClosedMode => $currentVersion !== null ? 'Archived' : 'Closed',
+        $currentVersion !== null => 'Published',
+        $activeRun && $activeRun->status === \App\Models\ScheduleGenerationRun::StatusUnderReview => 'Draft ready for review',
+        $activeRun && in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) => 'Generating…',
+        $activeRun !== null => 'Needs attention',
+        (bool) ($readiness['ready'] ?? false) => 'Ready to generate',
+        default => 'Complete steps 1–3',
     };
 
     $steps = [
@@ -217,7 +213,7 @@
                         <span class="tala-stage-bar__title">{{ $step['number'] }}. {{ $step['label'] }}</span>
                         <x-filament::badge :color="$statusColor" size="sm">{{ $statusLabel }}</x-filament::badge>
                     </span>
-                    <span class="tala-stage-bar__summary">{{ $step['summary'] }}</span>
+                    <span class="tala-stage-bar__summary" title="{{ $step['summary'] }}">{{ $step['summary'] }}</span>
                 </a>
             </li>
         @endforeach
