@@ -34,8 +34,11 @@ final class PrepareTermClassProposal
     public function preview(Term $term): array
     {
         $entries = CurriculumEntry::query()
-            ->whereHas('curriculumVersion', fn ($query) => $query->where('state', CurriculumVersion::StateActive))
-            ->with(['curriculumVersion.program', 'courseSpecification.course', 'courseSpecification.components'])
+            ->whereHas('curriculumVersion', fn ($query) => $query->whereIn('state', [
+                CurriculumVersion::StateActive,
+                CurriculumVersion::StateSuperseded,
+            ]))
+            ->with(['curriculumVersion.program', 'curriculumVersion.academicYears', 'courseSpecification.course', 'courseSpecification.components'])
             ->orderBy('curriculum_version_id')->orderBy('year_level')->orderBy('sequence')->get();
         $classes = Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
             ->with(['termOffering', 'cohorts', 'deliveryGroups'])->orderBy('id')->get();
@@ -52,8 +55,8 @@ final class PrepareTermClassProposal
             'course_code' => $entry->courseSpecification->course->code,
             'program' => $entry->curriculumVersion->program->name,
             'year_level' => $entry->year_level,
-            'curriculum_version' => $entry->curriculumVersion->name ?: $entry->curriculumVersion->version_code,
-            'label' => $entry->curriculumVersion->program->name.' · '.$entry->year_level.' · '.$entry->courseSpecification->title.' ('.$entry->courseSpecification->course->code.') · '.($entry->curriculumVersion->name ?: $entry->curriculumVersion->version_code).($entry->term_type !== $term->type ? ' · Additional only in this Term' : ''),
+            'curriculum_version' => $entry->curriculumVersion->batchLabel(),
+            'label' => $entry->curriculumVersion->program->name.' · '.$entry->year_level.' · '.$entry->courseSpecification->title.' ('.$entry->courseSpecification->course->code.') · '.$entry->curriculumVersion->batchLabel().($entry->term_type !== $term->type ? ' · Additional only in this Term' : ''),
             'curriculum_id' => $entry->curriculum_version_id,
             'course_id' => $entry->courseSpecification->course_id,
             'term_type' => $entry->term_type,

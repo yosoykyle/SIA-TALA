@@ -17,6 +17,7 @@ use App\Models\RegistrationProposalItem;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
 use App\Models\StudentProfile;
+use App\Models\Term;
 use App\Models\TermAccount;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -58,6 +59,12 @@ class PrepareRegistrationProposal
             throw new AuthorizationException('Only authorized Registrar staff may prepare a Registration Proposal.');
         }
 
+        if ($enrollment->term?->state === Term::StateClosed) {
+            throw ValidationException::withMessages([
+                'term' => 'This term is closed and enrollment proposals can no longer be prepared.',
+            ]);
+        }
+
         $sectionIds = collect($sectionIds)->map(fn ($id): int => (int) $id)->filter()->unique()->values()->all();
 
         if ($sectionIds === []) {
@@ -70,10 +77,16 @@ class PrepareRegistrationProposal
 
         return DB::transaction(function () use ($enrollment, $actor, $sectionIds, $expectedLockVersion, $purpose, $curriculumPosition): RegistrationProposalVersion {
             $locked = Enrollment::query()
-                ->with(['admissionApplication', 'studentProfile'])
+                ->with(['admissionApplication', 'studentProfile', 'term'])
                 ->whereKey($enrollment->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            if ($locked->term?->state === Term::StateClosed) {
+                throw ValidationException::withMessages([
+                    'term' => 'This term is closed and enrollment proposals can no longer be prepared.',
+                ]);
+            }
 
             $expectedOutcome = $purpose === RegistrationProposalVersion::PurposeAdjustment
                 ? Enrollment::OutcomeOfficiallyEnrolled
@@ -97,6 +110,7 @@ class PrepareRegistrationProposal
                 ->with([
                     'termOffering.curriculumEntry.courseSpecification.course',
                     'termOffering.curriculumEntry.courseSpecification.components',
+                    'termOffering.curriculumEntry.courseSpecification.requirements',
                 ])
                 ->whereIn('id', $sectionIds)
                 ->lockForUpdate()
@@ -169,11 +183,12 @@ class PrepareRegistrationProposal
                 ];
             }
 
-            if ($curriculumIds->unique()->count() !== 1) {
+            $fallbackCurriculumId = $curriculumIds->unique()->count() === 1 ? $curriculumIds->first() : null;
+            $curriculum = $this->eligibility->resolveStudentCurriculum($locked, $fallbackCurriculumId);
+            if (! $curriculum instanceof CurriculumVersion) {
                 throw ValidationException::withMessages(['sections' => 'All proposal items must use one authoritative Curriculum Version.']);
             }
 
-            $curriculum = CurriculumVersion::query()->findOrFail($curriculumIds->first());
             $this->eligibility->assertEligible(
                 $locked,
                 $curriculum,
@@ -194,7 +209,19 @@ class PrepareRegistrationProposal
                 $curriculumPosition,
             );
             if ($locked->selection_basis === Enrollment::SelectionStandardCurriculum) {
-                $selectedEntries = $sections->pluck('termOffering.curriculum_entry_id')->map(fn ($id): int => (int) $id)->sort()->values()->all();
+                $curriculumEntries = CurriculumEntry::query()
+                    ->with('courseSpecification.requirements')
+                    ->where('curriculum_version_id', $curriculum->id)
+                    ->orderBy('sequence')
+                    ->orderBy('id')
+                    ->get();
+                $selectedEntries = $sections
+                    ->map(fn (Section $section): ?int => $this->eligibility->resolveCurriculumEntryFromEntries($curriculumEntries, $section->termOffering, $section)?->id)
+                    ->filter()
+                    ->map(fn (int $id): int => $id)
+                    ->sort()
+                    ->values()
+                    ->all();
                 if ($selectedEntries !== $unitLoad['curriculum_entry_ids']) {
                     $omittedEntryIds = array_values(array_diff($unitLoad['curriculum_entry_ids'], $selectedEntries));
                     $extraEntryIds = array_values(array_diff($selectedEntries, $unitLoad['curriculum_entry_ids']));

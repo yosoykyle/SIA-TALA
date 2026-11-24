@@ -284,12 +284,12 @@ class StudentHubPriorityResolver
         return [
             'tier' => 'Pending Review',
             'student_reason' => match ($blocker) {
-                'Confirmed Registration Proposal' => 'Your Registration Proposal is waiting for confirmation.',
-                'Current Published Timetable source' => 'Your Registration Proposal must be reconciled with the current Published Timetable.',
-                'Complete current placement' => 'Your confirmed Registration Proposal still needs complete section placement.',
-                'Accounting clearance' => 'Your exact-Term assessment or payment requirement is not yet cleared.',
-                'Authoritative learner identity' => 'Your Registration Case needs an identity review by the Registrar.',
-                default => 'Your Registration Case requires office review.',
+                'Confirmed Registration Proposal' => 'Your subject list is waiting for confirmation.',
+                'Current Published Timetable source' => 'Your class schedule is being updated to match the latest timetable.',
+                'Complete current placement' => 'Your confirmed subjects still need final class placement.',
+                'Accounting clearance' => 'Your term fees or payment clearance is not yet complete.',
+                'Authoritative learner identity' => 'Your student record needs a quick review by the Registrar.',
+                default => 'Your enrollment needs a review by the Registrar.',
             },
             'required_action' => null,
             'office_to_contact' => $accountingBlocker ? 'Accounting Office' : 'Registrar Office',

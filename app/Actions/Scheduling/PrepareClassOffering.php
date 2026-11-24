@@ -4,6 +4,7 @@ namespace App\Actions\Scheduling;
 
 use App\Models\CourseSpecification;
 use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
 use App\Models\Section;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
@@ -77,8 +78,12 @@ final class PrepareClassOffering
             }
             if ($term->state === Term::StateClosed || $section->confirmed_at !== null
                 || in_array($section->state, [Section::StateClosed, Section::StateCancelled], true)
-                || PublishedTimetableMeeting::query()->where('section_id', $section->id)->exists()) {
-                throw ValidationException::withMessages(['section_id' => 'Only an unconfirmed, unpublished source section in an open Term can be prepared.']);
+                || PublishedTimetableMeeting::query()->where('section_id', $section->id)->exists()
+                || PublishedTimetableVersion::query()
+                    ->where('term_id', $term->id)
+                    ->where('state', PublishedTimetableVersion::StatePublished)
+                    ->exists()) {
+                throw ValidationException::withMessages(['section_id' => 'Only an unconfirmed, unpublished source section in an open Term without a published official timetable can be prepared.']);
             }
             $package = TermCalendarPackage::query()->where('term_id', $term->id)
                 ->where('state', TermCalendarPackage::StateActive)->lockForUpdate()->first();

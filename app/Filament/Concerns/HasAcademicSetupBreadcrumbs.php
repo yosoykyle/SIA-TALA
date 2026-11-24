@@ -19,7 +19,7 @@ trait HasAcademicSetupBreadcrumbs
             return [$this->oversightReturnUrl() => 'Academic Oversight'];
         }
 
-        return [TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning'];
+        return [TermOverview::getUrl() => 'Term Planning'];
     }
 
     /** @return array<string, string> */

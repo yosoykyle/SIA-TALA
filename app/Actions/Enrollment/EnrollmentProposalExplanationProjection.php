@@ -251,11 +251,10 @@ class EnrollmentProposalExplanationProjection
             return null;
         }
 
-        return CurriculumVersion::query()
-            ->with('program')
-            ->where('program_id', $application->program_id)
-            ->where('state', CurriculumVersion::StateActive)
-            ->latest('id')
-            ->first();
+        $application->loadMissing(['program', 'term']);
+
+        $curriculum = $application->program?->curriculumForAcademicYear($application->term?->academic_year_id);
+
+        return $curriculum?->loadMissing('program');
     }
 }

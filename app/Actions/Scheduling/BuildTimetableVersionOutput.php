@@ -65,20 +65,19 @@ final class BuildTimetableVersionOutput
             'solver_generated_at' => $this->solverGeneratedAt($version),
             'published_at' => DisplayDateTime::format(CarbonImmutable::parse((string) $version->published_at), 'F j, Y g:i A'),
             'academic_year' => (string) $version->term?->academicYear?->label,
-            'term_label' => (string) $version->term?->label,
+            'term_label' => (string) ($version->term?->typeLabel() ?: $version->term?->label),
             'reference' => sprintf('TALA-TT-%d-V%d', $version->id, $version->version),
-            'authority_reference' => (string) $version->authority_reference,
+            'authority_reference' => filled($version->authority_reference) ? (string) $version->authority_reference : null,
             'version_label' => 'Timetable v'.$version->version,
             'version_state' => $version->state,
             'identity_line' => implode(' · ', array_filter([
                 (string) config('institution.name'),
                 (string) $version->term?->academicYear?->label,
-                (string) $version->term?->label,
-                'Timetable v'.$version->version,
-                $version->state,
+                (string) ($version->term?->typeLabel() ?: $version->term?->label),
+                $version->state === PublishedTimetableVersion::StateSuperseded ? 'Superseded (v'.$version->version.')' : 'Official Class Schedule',
             ])),
             'rows' => $meetings->map(fn (PublishedTimetableMeeting $meeting): array => [
-                'term' => (string) $version->term?->label,
+                'term' => (string) ($version->term?->typeLabel() ?: $version->term?->label),
                 'course' => (string) $meeting->schedulingDemand?->courseComponent?->courseSpecification?->course?->code,
                 'description' => (string) $meeting->schedulingDemand?->courseComponent?->courseSpecification?->title,
                 'section' => (string) $meeting->classOffering?->code,
@@ -88,7 +87,7 @@ final class BuildTimetableVersionOutput
                 'room' => $this->roomLabel($meeting),
                 'modality' => SectionMeeting::modalityOptions()[$meeting->modality] ?? str((string) $meeting->modality)->headline()->toString(),
                 'faculty' => (string) $meeting->faculty?->name,
-                'revision_marker' => $meeting->supersedes_meeting_id !== null ? 'Revised' : 'Initial publication',
+                'revision_marker' => $meeting->supersedes_meeting_id !== null ? 'Revised' : null,
             ])->all(),
         ];
     }
@@ -109,18 +108,18 @@ final class BuildTimetableVersionOutput
             : (string) ($meeting->location_label ?? 'TBA');
     }
 
-    private function solverGeneratedAt(PublishedTimetableVersion $version): string
+    private function solverGeneratedAt(PublishedTimetableVersion $version): ?string
     {
         $generatedAt = data_get($version->scheduleRun?->diagnostics, 'solver_result.generated_at');
 
         if (! is_string($generatedAt) || trim($generatedAt) === '') {
-            return 'Not recorded';
+            return null;
         }
 
         try {
             return DisplayDateTime::format(CarbonImmutable::parse($generatedAt), 'F j, Y g:i A');
         } catch (\Throwable) {
-            return 'Not recorded';
+            return null;
         }
     }
 }

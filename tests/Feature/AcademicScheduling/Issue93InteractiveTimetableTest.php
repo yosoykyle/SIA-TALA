@@ -148,7 +148,7 @@ class Issue93InteractiveTimetableTest extends TestCase
             ->test(TermTimetable::class, ['termId' => $fixture['term']->id])
             ->call('togglePinMeeting', $lectureRow->id)
             ->assertHasNoErrors()
-            ->assertNotified('Meeting pinned');
+            ->assertNotified('Slot locked');
 
         $this->assertTrue((bool) data_get($lectureRow->fresh()->scores, 'pinned', false));
         $this->assertDatabaseHas('scheduling_commitments', [
@@ -163,7 +163,7 @@ class Issue93InteractiveTimetableTest extends TestCase
         $component
             ->call('togglePinMeeting', $lectureRow->id)
             ->assertHasNoErrors()
-            ->assertNotified('Meeting unpinned');
+            ->assertNotified('Slot unlocked');
 
         $this->assertFalse((bool) data_get($lectureRow->fresh()->scores, 'pinned', false));
         $this->assertDatabaseMissing('scheduling_commitments', [
@@ -217,7 +217,7 @@ class Issue93InteractiveTimetableTest extends TestCase
                 'publication_note' => 'Verified and ready for student and faculty release.',
             ])
             ->assertHasNoActionErrors()
-            ->assertNotified('Official Timetable Published');
+            ->assertNotified('Official timetable published');
 
         $run->refresh();
         $this->assertSame(ScheduleGenerationRun::StatusPublished, $run->status);
@@ -236,7 +236,7 @@ class Issue93InteractiveTimetableTest extends TestCase
         $officialComponent = Livewire::actingAs($fixture['registrar'])
             ->test(TermTimetable::class, ['termId' => $fixture['term']->id])
             ->assertSee('Official timetable · Locked')
-            ->assertSee('Revise official schedule')
+            ->assertSee('Revise schedule')
             ->assertDontSee('Draft candidate · Editable')
             ->assertDontSee('draggable="true"', false);
 

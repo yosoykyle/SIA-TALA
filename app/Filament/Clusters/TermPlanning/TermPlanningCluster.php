@@ -31,26 +31,49 @@ class TermPlanningCluster extends Cluster
 
     public static function getNavigationUrl(): string
     {
-        return TermOverview::getUrl(['chooseTerm' => true]);
+        return TermOverview::getUrl();
     }
 
     /** @return list<NavigationItem> */
     public static function workspaceNavigation(?int $termId, string $active = 'plan'): array
     {
-        $pages = ['plan' => TermOverview::class, 'overview' => TermCalendar::class, 'classes' => TermClasses::class, 'resources' => TermResources::class, 'generate' => TermTimetable::class];
+        if ($termId === null) {
+            return [];
+        }
+
+        $stages = [
+            'overview' => [
+                'page' => TermCalendar::class,
+                'label' => 'Calendar',
+                'icon' => Heroicon::OutlinedCalendar,
+            ],
+            'classes' => [
+                'page' => TermClasses::class,
+                'label' => 'Classes & sections',
+                'icon' => Heroicon::OutlinedRectangleGroup,
+            ],
+            'resources' => [
+                'page' => TermResources::class,
+                'label' => 'Faculty & rooms',
+                'icon' => Heroicon::OutlinedUsers,
+            ],
+            'generate' => [
+                'page' => TermTimetable::class,
+                'label' => 'Timetable',
+                'icon' => Heroicon::OutlinedTableCells,
+            ],
+        ];
+
         $items = [];
-        foreach ($pages as $key => $page) {
+        foreach ($stages as $key => $stage) {
+            /** @var class-string<TermPlanningWorkbench> $page */
+            $page = $stage['page'];
             if (! $page::canAccess()) {
                 continue;
             }
-            $items[] = NavigationItem::make(match ($key) {
-                'plan' => 'Term overview',
-                'overview' => 'Teaching calendar',
-                'classes' => 'Classes & sections',
-                'resources' => 'Faculty & rooms',
-                'generate' => 'Timetable',
-                default => $page::getNavigationLabel(),
-            })
+
+            $items[] = NavigationItem::make($stage['label'])
+                ->icon($stage['icon'])
                 ->url($page::getUrl(['termId' => $termId]))
                 ->isActiveWhen(fn (): bool => $active === $key)
                 ->sort(count($items));

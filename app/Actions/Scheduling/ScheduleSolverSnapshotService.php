@@ -249,9 +249,11 @@ class ScheduleSolverSnapshotService
     /**
      * Build a read-only validation context from current authoritative records.
      *
+     * @param  list<int>  $excludedDemandIds
+     * @param  list<int>  $includedFacultyIds
      * @return array<string, mixed>
      */
-    public function currentForRun(ScheduleGenerationRun $run, array $excludedDemandIds = []): array
+    public function currentForRun(ScheduleGenerationRun $run, array $excludedDemandIds = [], array $includedFacultyIds = []): array
     {
         $run->loadMissing('term');
         $term = $run->term;
@@ -290,7 +292,13 @@ class ScheduleSolverSnapshotService
         $demands = $demands->reject(
             fn (SchedulingDemand $demand): bool => in_array((int) $demand->id, $excludedDemandIds, true),
         );
-        $preservedFacultyIds = $this->preservedAssignedFacultyIds($run);
+        $preservedFacultyIds = array_values(array_unique([
+            ...$this->preservedAssignedFacultyIds($run),
+            ...collect($includedFacultyIds)
+                ->map(fn (mixed $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0)
+                ->all(),
+        ]));
 
         return $this->buildSnapshot(
             $run,
@@ -599,10 +607,29 @@ class ScheduleSolverSnapshotService
                     : [(int) $cohortIds[0] => (int) ($source['expected_count'] ?? $group->expected_count ?? 0)];
                 $expectedCount = array_sum($cohortExpectedCounts);
                 $meetingPattern = CourseComponent::parseMeetingPattern($component->meeting_pattern);
-                $sectionCommitments = $commitmentsBySection->get((int) $section->id, collect());
-                $sectionCommitment = $sectionCommitments->count() === 1 ? $sectionCommitments->first() : null;
+                $storedSource = $this->arrayValue($demand->getAttribute('source_snapshot'));
+                $sectionCommitments = $section instanceof Section
+                    ? $commitmentsBySection->get((int) $section->id, collect())
+                    : collect();
+                $demandCommitments = $sectionCommitments
+                    ->filter(fn (SchedulingCommitment $commitment): bool => GenerateSchedulingDemand::commitmentAppliesToDemand(
+                        $commitment,
+                        (int) $demand->id,
+                        (int) $demand->course_component_id,
+                    ))
+                    ->values();
+                $mergedCommitment = $this->mergeSectionCommitments($demandCommitments);
+                $deliveryOverride = is_array($group?->getAttribute('delivery_override'))
+                    ? $group->getAttribute('delivery_override')
+                    : [];
+                $overrideFacultyId = $this->nullableInt($deliveryOverride['fixed_faculty_user_id'] ?? $deliveryOverride['faculty_user_id'] ?? null);
+                $overrideRoomId = $this->nullableInt($deliveryOverride['fixed_room_id'] ?? $deliveryOverride['room_id'] ?? null);
+                $fixedMeetings = $mergedCommitment['fixed_meetings'] !== []
+                    ? $mergedCommitment['fixed_meetings']
+                    : $this->listValue($storedSource['fixed_meetings'] ?? null);
+                $hasScopedSequencePins = $mergedCommitment['fixed_meetings'] !== [];
 
-                return [
+                $payload = [
                     'scheduling_demand_id' => (int) $demand->id,
                     'demand_key' => $demand->demand_key,
                     'term_offering_id' => (int) $demand->term_offering_id,
@@ -644,21 +671,35 @@ class ScheduleSolverSnapshotService
                         ->values()
                         ->all(),
                     'faculty_load_options' => $facultyOptions,
-                    'scheduling_commitment_id' => $sectionCommitment instanceof SchedulingCommitment ? $sectionCommitment->id : null,
-                    'fixed_faculty_user_id' => $sectionCommitment instanceof SchedulingCommitment && $sectionCommitment->faculty_user_id !== null
-                        ? (int) $sectionCommitment->faculty_user_id
-                        : ($demand->fixed_faculty_user_id !== null ? (int) $demand->fixed_faculty_user_id : null),
-                    'fixed_room_id' => $sectionCommitment instanceof SchedulingCommitment && $sectionCommitment->room_id !== null
-                        ? (int) $sectionCommitment->room_id
-                        : ($demand->fixed_room_id !== null ? (int) $demand->fixed_room_id : null),
-                    'fixed_day_of_week' => $sectionCommitment instanceof SchedulingCommitment && $sectionCommitment->day_of_week !== null
-                        ? (int) $sectionCommitment->day_of_week
-                        : ($demand->fixed_day_of_week !== null ? (int) $demand->fixed_day_of_week : null),
-                    'fixed_start_time' => $this->timeString(
-                        $sectionCommitment instanceof SchedulingCommitment ? $sectionCommitment->starts_at : $demand->fixed_start_time,
-                    ),
+                    'scheduling_commitment_id' => $mergedCommitment['scheduling_commitment_id'],
+                    'fixed_faculty_user_id' => $hasScopedSequencePins
+                        ? ($mergedCommitment['fixed_faculty_user_id'] ?? $overrideFacultyId)
+                        : ($mergedCommitment['fixed_faculty_user_id']
+                            ?? ($demand->fixed_faculty_user_id !== null ? (int) $demand->fixed_faculty_user_id : null)),
+                    'fixed_room_id' => $hasScopedSequencePins
+                        ? ($mergedCommitment['fixed_room_id'] ?? $overrideRoomId)
+                        : ($mergedCommitment['fixed_room_id']
+                            ?? ($demand->fixed_room_id !== null ? (int) $demand->fixed_room_id : null)),
+                    'fixed_day_of_week' => $hasScopedSequencePins
+                        ? $mergedCommitment['fixed_day_of_week']
+                        : ($mergedCommitment['fixed_day_of_week']
+                            ?? ($demand->fixed_day_of_week !== null ? (int) $demand->fixed_day_of_week : null)),
+                    'fixed_start_time' => $hasScopedSequencePins
+                        ? $mergedCommitment['fixed_start_time']
+                        : ($mergedCommitment['fixed_start_time']
+                            ?? $this->timeString($demand->fixed_start_time)),
+                    'fixed_meeting_sequence' => $mergedCommitment['fixed_meeting_sequence']
+                        ?? $this->nullableInt($deliveryOverride['fixed_meeting_sequence'] ?? ($storedSource['fixed_meeting_sequence'] ?? null)),
                     'source_snapshot' => $source,
                 ];
+
+                if ($fixedMeetings !== []) {
+                    $payload['fixed_meetings'] = $fixedMeetings;
+                    $payload['unscoped_fixed_faculty_user_id'] = $mergedCommitment['unscoped_fixed_faculty_user_id'] ?? $overrideFacultyId;
+                    $payload['unscoped_fixed_room_id'] = $mergedCommitment['unscoped_fixed_room_id'] ?? $overrideRoomId;
+                }
+
+                return $payload;
             })
             ->values()
             ->all();
@@ -767,6 +808,11 @@ class ScheduleSolverSnapshotService
 
         foreach ($qualifications->groupBy(fn (FacultyQualification $qualification): int => (int) $qualification->course_id) as $courseId => $courseQualifications) {
             $result[(int) $courseId] = $courseQualifications
+                ->filter(function (FacultyQualification $qualification) use ($overrides): bool {
+                    $override = $overrides->get((int) $qualification->faculty_user_id);
+
+                    return ! ($override instanceof FacultyTermLoadOverride && $override->allowedLoadUnits() <= 0.0);
+                })
                 ->map(function (FacultyQualification $qualification) use ($term, $overrides): array {
                     $override = $overrides->get((int) $qualification->faculty_user_id);
                     $maxAllowedUnits = $override instanceof FacultyTermLoadOverride
@@ -879,10 +925,20 @@ class ScheduleSolverSnapshotService
             ->flatMap(fn (array $demand): array => $demand['faculty_load_options'] ?? [])
             ->filter(fn (mixed $option): bool => is_array($option) && isset($option['faculty_user_id']))
             ->groupBy(fn (array $option): int => (int) $option['faculty_user_id'])
-            ->map(fn (Collection $options, int $facultyId): array => [
-                'faculty_id' => $facultyId,
-                'max_allowed_units' => $options->pluck('max_allowed_units')->filter()->first(),
-            ])
+            ->map(function (Collection $options, int $facultyId): array {
+                $maxAllowedUnits = $options
+                    ->pluck('max_allowed_units')
+                    ->first(fn (mixed $value): bool => $value !== null && $value !== '');
+
+                if (is_numeric($maxAllowedUnits) && ! is_string($maxAllowedUnits)) {
+                    $maxAllowedUnits = number_format((float) $maxAllowedUnits, 2, '.', '');
+                }
+
+                return [
+                    'faculty_id' => $facultyId,
+                    'max_allowed_units' => $maxAllowedUnits,
+                ];
+            })
             ->values()
             ->all();
     }
@@ -1235,19 +1291,185 @@ class ScheduleSolverSnapshotService
     private function fixedAssignmentsPayload(array $demands): array
     {
         return collect($demands)
-            ->filter(fn (array $demand): bool => $demand['fixed_faculty_user_id'] !== null
-                || $demand['fixed_room_id'] !== null
-                || $demand['fixed_day_of_week'] !== null
-                || $demand['fixed_start_time'] !== null)
-            ->map(fn (array $demand): array => [
-                'scheduling_demand_id' => (int) $demand['scheduling_demand_id'],
-                'fixed_faculty_user_id' => $demand['fixed_faculty_user_id'],
-                'fixed_room_id' => $demand['fixed_room_id'],
-                'fixed_day_of_week' => $demand['fixed_day_of_week'],
-                'fixed_start_time' => $demand['fixed_start_time'],
-            ])
+            ->flatMap(function (array $demand): array {
+                $fixedMeetings = is_array($demand['fixed_meetings'] ?? null) ? $demand['fixed_meetings'] : [];
+
+                if (count($fixedMeetings) > 1) {
+                    return collect($fixedMeetings)
+                        ->map(fn (array $pin): array => [
+                            'scheduling_demand_id' => (int) $demand['scheduling_demand_id'],
+                            'fixed_faculty_user_id' => $pin['fixed_faculty_user_id'] ?? $demand['fixed_faculty_user_id'],
+                            'fixed_room_id' => $pin['fixed_room_id'] ?? $demand['fixed_room_id'],
+                            'fixed_day_of_week' => $pin['fixed_day_of_week'] ?? null,
+                            'fixed_start_time' => $pin['fixed_start_time'] ?? null,
+                            'fixed_meeting_sequence' => $pin['meeting_sequence'] ?? null,
+                        ])
+                        ->values()
+                        ->all();
+                }
+
+                if ($demand['fixed_faculty_user_id'] === null
+                    && $demand['fixed_room_id'] === null
+                    && $demand['fixed_day_of_week'] === null
+                    && $demand['fixed_start_time'] === null) {
+                    return [];
+                }
+
+                return [[
+                    'scheduling_demand_id' => (int) $demand['scheduling_demand_id'],
+                    'fixed_faculty_user_id' => $demand['fixed_faculty_user_id'],
+                    'fixed_room_id' => $demand['fixed_room_id'],
+                    'fixed_day_of_week' => $demand['fixed_day_of_week'],
+                    'fixed_start_time' => $demand['fixed_start_time'],
+                    'fixed_meeting_sequence' => $demand['fixed_meeting_sequence'] ?? null,
+                ]];
+            })
             ->values()
             ->all();
+    }
+
+    /**
+     * Merge non-conflicting fields across multiple section commitments instead of silently dropping all.
+     *
+     * @param  Collection<int, SchedulingCommitment>  $commitments
+     * @return array{
+     *     scheduling_commitment_id:int|null,
+     *     fixed_faculty_user_id:int|null,
+     *     fixed_room_id:int|null,
+     *     fixed_day_of_week:int|null,
+     *     fixed_start_time:string|null,
+     *     fixed_meeting_sequence:int|null,
+     *     fixed_meetings:list<array{
+     *         meeting_sequence:int,
+     *         scheduling_commitment_id:int|null,
+     *         fixed_faculty_user_id:int|null,
+     *         fixed_room_id:int|null,
+     *         fixed_day_of_week:int|null,
+     *         fixed_start_time:string|null,
+     *         fixed_end_time:string|null
+     *     }>,
+     *     unscoped_fixed_faculty_user_id:int|null,
+     *     unscoped_fixed_room_id:int|null
+     * }
+     */
+    private function mergeSectionCommitments(Collection $commitments): array
+    {
+        if ($commitments->isEmpty()) {
+            return [
+                'scheduling_commitment_id' => null,
+                'fixed_faculty_user_id' => null,
+                'fixed_room_id' => null,
+                'fixed_day_of_week' => null,
+                'fixed_start_time' => null,
+                'fixed_meeting_sequence' => null,
+                'fixed_meetings' => [],
+                'unscoped_fixed_faculty_user_id' => null,
+                'unscoped_fixed_room_id' => null,
+            ];
+        }
+
+        $sorted = $commitments->sortBy('id')->values();
+        $unscoped = collect();
+        $bySequence = [];
+
+        foreach ($sorted as $commitment) {
+            $scope = GenerateSchedulingDemand::parseCommitmentScope($commitment);
+            if ($scope['meeting_sequence'] !== null) {
+                $bySequence[(int) $scope['meeting_sequence']][] = $commitment;
+            } else {
+                $unscoped->push($commitment);
+            }
+        }
+
+        $unscopedFacultyIds = $unscoped->pluck('faculty_user_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+        $unscopedRoomIds = $unscoped->pluck('room_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+        $unscopedFixedFacultyId = $unscopedFacultyIds->count() === 1 ? (int) $unscopedFacultyIds->first() : null;
+        $unscopedFixedRoomId = $unscopedRoomIds->count() === 1 ? (int) $unscopedRoomIds->first() : null;
+
+        if ($bySequence === []) {
+            $facultyIds = $sorted->pluck('faculty_user_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            $roomIds = $sorted->pluck('room_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            $days = $sorted->pluck('day_of_week')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            $starts = $sorted
+                ->map(fn (SchedulingCommitment $c): ?string => $this->timeString($c->starts_at))
+                ->filter(fn (?string $v): bool => $v !== null)
+                ->unique()
+                ->values();
+
+            return [
+                'scheduling_commitment_id' => (int) $sorted->first()->id,
+                'fixed_faculty_user_id' => $facultyIds->count() === 1 ? (int) $facultyIds->first() : null,
+                'fixed_room_id' => $roomIds->count() === 1 ? (int) $roomIds->first() : null,
+                'fixed_day_of_week' => $days->count() === 1 ? (int) $days->first() : null,
+                'fixed_start_time' => $days->count() <= 1 && $starts->count() === 1 ? (string) $starts->first() : null,
+                'fixed_meeting_sequence' => null,
+                'fixed_meetings' => [],
+                'unscoped_fixed_faculty_user_id' => $unscopedFixedFacultyId,
+                'unscoped_fixed_room_id' => $unscopedFixedRoomId,
+            ];
+        }
+
+        $unscopedDays = $unscoped->pluck('day_of_week')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+        $unscopedStarts = $unscoped
+            ->map(fn (SchedulingCommitment $c): ?string => $this->timeString($c->starts_at))
+            ->filter(fn (?string $v): bool => $v !== null)
+            ->unique()
+            ->values();
+
+        if ($unscopedDays->isNotEmpty() || $unscopedStarts->isNotEmpty()) {
+            foreach ($unscoped as $unscopedCommitment) {
+                $bySequence[1][] = $unscopedCommitment;
+            }
+        }
+
+        ksort($bySequence);
+        $fixedMeetings = [];
+
+        foreach ($bySequence as $sequence => $sequenceCommitments) {
+            $seqCollection = collect($sequenceCommitments)->sortBy('id')->values();
+            $fIds = $seqCollection->pluck('faculty_user_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            if ($unscopedFixedFacultyId !== null) {
+                $fIds = $fIds->push($unscopedFixedFacultyId)->unique()->values();
+            }
+            $rIds = $seqCollection->pluck('room_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            $dVals = $seqCollection->pluck('day_of_week')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            $sVals = $seqCollection
+                ->map(fn (SchedulingCommitment $c): ?string => $this->timeString($c->starts_at))
+                ->filter(fn (?string $v): bool => $v !== null)
+                ->unique()
+                ->values();
+            $eVals = $seqCollection
+                ->map(fn (SchedulingCommitment $c): ?string => $this->timeString($c->ends_at))
+                ->filter(fn (?string $v): bool => $v !== null)
+                ->unique()
+                ->values();
+
+            $fixedMeetings[] = [
+                'meeting_sequence' => (int) $sequence,
+                'scheduling_commitment_id' => (int) $seqCollection->first()->id,
+                'fixed_faculty_user_id' => $fIds->count() === 1 ? (int) $fIds->first() : null,
+                'fixed_room_id' => $rIds->count() === 1 ? (int) $rIds->first() : $unscopedFixedRoomId,
+                'fixed_day_of_week' => $dVals->count() === 1 ? (int) $dVals->first() : null,
+                'fixed_start_time' => $dVals->count() <= 1 && $sVals->count() === 1 ? (string) $sVals->first() : null,
+                'fixed_end_time' => $dVals->count() <= 1 && $eVals->count() === 1 ? (string) $eVals->first() : null,
+            ];
+        }
+
+        $primary = $fixedMeetings[0];
+        $allFaculty = collect($fixedMeetings)->pluck('fixed_faculty_user_id')->filter(fn (mixed $v): bool => $v !== null)->unique()->values();
+        $allRooms = collect($fixedMeetings)->pluck('fixed_room_id')->filter(fn (mixed $v): bool => $v !== null)->unique()->values();
+
+        return [
+            'scheduling_commitment_id' => $primary['scheduling_commitment_id'],
+            'fixed_faculty_user_id' => $allFaculty->count() === 1 ? (int) $allFaculty->first() : null,
+            'fixed_room_id' => $allRooms->count() === 1 ? (int) $allRooms->first() : null,
+            'fixed_day_of_week' => $primary['fixed_day_of_week'],
+            'fixed_start_time' => $primary['fixed_start_time'],
+            'fixed_meeting_sequence' => $primary['meeting_sequence'],
+            'fixed_meetings' => $fixedMeetings,
+            'unscoped_fixed_faculty_user_id' => $unscopedFixedFacultyId,
+            'unscoped_fixed_room_id' => $unscopedFixedRoomId,
+        ];
     }
 
     private function nullableInt(mixed $value): ?int

@@ -172,7 +172,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
 
         $this->assertNotNull($result);
         $this->assertSame('Pending Review', $result['tier']);
-        $this->assertSame('Your Registration Proposal is waiting for confirmation.', $result['student_reason']);
+        $this->assertSame('Your subject list is waiting for confirmation.', $result['student_reason']);
         $this->assertSame('Registrar Office', $result['office_to_contact']);
     }
 

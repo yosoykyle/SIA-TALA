@@ -792,6 +792,12 @@ class CurriculumWorkbenchService
     }
 
     /**
+     * Update a subject's specification from an editable Draft curriculum.
+     *
+     * Automatically forks into a new Draft CourseSpecification revision when the
+     * current specification is shared with any other curriculum or is not a Draft,
+     * so editing a copied curriculum never mutates a published source curriculum.
+     *
      * @param  array<string, mixed>  $data
      */
     public function updateSpecification(
@@ -799,11 +805,20 @@ class CurriculumWorkbenchService
         CurriculumEntry $entry,
         array $data,
     ): CourseSpecification {
-        $attributes = $this->validatedSpecification($data);
+        $entry->loadMissing('courseSpecification');
+        $attributes = $this->validatedSpecification([
+            'academic_classification' => $entry->courseSpecification?->academic_classification,
+            ...$data,
+        ]);
         $components = $attributes['components'];
         unset($attributes['components']);
 
-        return DB::transaction(function () use ($actor, $entry, $attributes, $components): CourseSpecification {
+        if (filled($data['academic_classification'] ?? null)
+            && array_key_exists((string) $data['academic_classification'], CourseSpecification::academicClassificationOptions())) {
+            $attributes['academic_classification'] = (string) $data['academic_classification'];
+        }
+
+        return DB::transaction(function () use ($actor, $entry, $attributes, $components, $data): CourseSpecification {
             $lockedEntry = CurriculumEntry::query()
                 ->with('curriculumVersion')
                 ->lockForUpdate()
@@ -812,32 +827,542 @@ class CurriculumWorkbenchService
             Gate::forUser($actor)->authorize('update', $lockedEntry->curriculumVersion);
 
             $specification = CourseSpecification::query()
+                ->with(['components', 'requirements'])
                 ->lockForUpdate()
                 ->findOrFail($lockedEntry->course_specification_id);
 
-            Gate::forUser($actor)->authorize('update', $specification);
+            $isSharedAcrossCurricula = CurriculumEntry::query()
+                ->where('course_specification_id', $specification->id)
+                ->where('curriculum_version_id', '!=', $lockedEntry->curriculum_version_id)
+                ->exists();
 
-            $specification->fill($attributes)->save();
-            $specification->components()->delete();
+            $mustFork = $isSharedAcrossCurricula || $specification->state !== CourseSpecification::StateDraft;
+            $forkedFromId = null;
 
-            foreach ($components as $component) {
-                $specification->components()->create($component);
+            if ($mustFork) {
+                Gate::forUser($actor)->authorize('copy', $specification);
+
+                $targetSpec = CourseSpecification::query()->create([
+                    'course_id' => $specification->course_id,
+                    'revision_code' => 'DRAFT-'.Str::ulid(),
+                    'title' => $attributes['title'],
+                    'description' => array_key_exists('description', $attributes) ? $attributes['description'] : $specification->description,
+                    'credit_units' => $attributes['credit_units'],
+                    'grading_profile_key' => $attributes['grading_profile_key'],
+                    'grading_profile_version' => $attributes['grading_profile_version'],
+                    'academic_classification' => $attributes['academic_classification'] ?? $specification->academic_classification,
+                    'scheduling_treatment' => $attributes['scheduling_treatment'],
+                    'allowed_modalities' => $attributes['allowed_modalities'],
+                    'same_faculty_default' => $attributes['same_faculty_default'],
+                    'state' => CourseSpecification::StateDraft,
+                ]);
+
+                foreach ($specification->requirements as $requirement) {
+                    $targetSpec->requirements()->create([
+                        'rule_type' => $requirement->rule_type,
+                        'group_key' => $requirement->group_key,
+                        'related_course_id' => $requirement->related_course_id,
+                        'state' => $requirement->state,
+                        'sequence' => $requirement->sequence,
+                    ]);
+                }
+
+                $lockedEntry->update(['course_specification_id' => $targetSpec->id]);
+                $forkedFromId = $specification->id;
+            } else {
+                Gate::forUser($actor)->authorize('update', $specification);
+                $targetSpec = $specification;
+                $targetSpec->fill($attributes)->save();
+                $targetSpec->components()->delete();
             }
 
+            foreach ($components as $component) {
+                $targetSpec->components()->create($component);
+            }
+
+            $this->syncOptionalSpecificationRequirements($targetSpec, $data);
+
             activity()
-                ->performedOn($specification)
+                ->performedOn($targetSpec)
                 ->causedBy($actor)
                 ->event('curriculum_workbench_specification_updated')
                 ->withProperties([
                     'curriculum_entry_id' => $lockedEntry->id,
                     'curriculum_version_id' => $lockedEntry->curriculum_version_id,
+                    'forked_from_specification_id' => $forkedFromId,
                     'component_count' => count($components),
-                    'allowed_modalities' => $specification->allowed_modalities,
+                    'allowed_modalities' => $targetSpec->allowed_modalities,
                 ])
-                ->log('Course Specification updated');
+                ->log($forkedFromId !== null ? 'Course Specification forked and updated for Draft curriculum' : 'Course Specification updated');
 
-            return $specification->fresh(['course', 'components', 'requirements']);
+            return $targetSpec->fresh(['course', 'components', 'requirements']);
         });
+    }
+
+    /**
+     * Inline wizard quick-add: reuse an exact matching Active CourseSpecification or create a new Draft revision
+     * under Course::firstOrCreate(['code' => ...]) and place it into the Draft curriculum.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function quickPlaceSubject(
+        User $actor,
+        CurriculumVersion $curriculum,
+        array $payload,
+    ): CurriculumEntry {
+        Gate::forUser($actor)->authorize('create', Course::class);
+        Gate::forUser($actor)->authorize('create', CourseSpecification::class);
+
+        return DB::transaction(function () use ($actor, $curriculum, $payload): CurriculumEntry {
+            $lockedCurriculum = CurriculumVersion::query()
+                ->with('program')
+                ->lockForUpdate()
+                ->findOrFail($curriculum->id);
+
+            Gate::forUser($actor)->authorize('update', $lockedCurriculum);
+
+            $normalizedCode = $this->normalizeCourseCode((string) ($payload['code'] ?? ''));
+            $maxYear = $this->yearLevelLimit($lockedCurriculum);
+            $preset = filled($payload['room_schedule_preset'] ?? null)
+                ? (string) $payload['room_schedule_preset']
+                : 'lecture';
+            $resolvedClassification = filled($payload['academic_classification'] ?? null)
+                ? (string) $payload['academic_classification']
+                : $this->detectAcademicClassification($normalizedCode, (string) ($payload['title'] ?? ''));
+            $creditUnitMinRule = $resolvedClassification === CourseSpecification::AcademicClassificationNonCredit
+                ? 'gte:0'
+                : 'gt:0';
+
+            $validated = Validator::make([
+                ...$payload,
+                'code' => $normalizedCode,
+                'room_schedule_preset' => $preset,
+            ], [
+                'code' => ['required', 'string', 'max:64', 'regex:/^[A-Z0-9][A-Z0-9._-]*$/'],
+                'title' => ['required', 'string', 'max:255'],
+                'credit_units' => ['required', 'numeric', $creditUnitMinRule, 'lte:12'],
+                'year_level' => ['required', 'integer', 'min:1', 'max:'.$maxYear],
+                'term_type' => ['required', Rule::in(array_keys(Term::typeOptions()))],
+                'room_schedule_preset' => ['required', Rule::in(['lecture', 'computer_lab', 'laboratory', 'ojt'])],
+                'prerequisite_course_id' => ['nullable', 'integer', 'exists:courses,id'],
+                'prerequisite_ids' => ['nullable', 'array'],
+                'prerequisite_ids.*' => ['integer', 'distinct', 'exists:courses,id'],
+                'corequisite_ids' => ['nullable', 'array'],
+                'corequisite_ids.*' => ['integer', 'distinct', 'exists:courses,id'],
+                'equivalent_ids' => ['nullable', 'array'],
+                'equivalent_ids.*' => ['integer', 'distinct', 'exists:courses,id'],
+                'academic_classification' => ['nullable', Rule::in(array_keys(CourseSpecification::academicClassificationOptions()))],
+                'requirement_group' => ['nullable', Rule::in(array_keys(CurriculumEntry::requirementGroupOptions()))],
+            ])->validate();
+
+            $title = trim((string) $validated['title']);
+            $creditUnits = round((float) $validated['credit_units'], 2);
+            $schedulingTreatment = $preset === 'ojt'
+                ? CourseSpecification::SchedulingExternallyArranged
+                : CourseSpecification::SchedulingRecurring;
+
+            $allowedModalities = isset($payload['allowed_modalities']) && is_array($payload['allowed_modalities']) && $payload['allowed_modalities'] !== []
+                ? array_values($payload['allowed_modalities'])
+                : [CourseSpecification::ModalityFaceToFace, CourseSpecification::ModalityOnline];
+
+            $classification = filled($validated['academic_classification'] ?? null)
+                ? (string) $validated['academic_classification']
+                : $this->detectAcademicClassification($normalizedCode, $title);
+
+            $customComponents = isset($payload['components']) && is_array($payload['components']) && $payload['components'] !== []
+                ? $payload['components']
+                : null;
+
+            $componentsInput = $schedulingTreatment === CourseSpecification::SchedulingExternallyArranged
+                ? []
+                : ($customComponents ?? $this->presetComponentsForUnits($creditUnits, $preset));
+
+            $definition = $this->validatedSpecification([
+                'title' => $title,
+                ...(array_key_exists('description', $payload) ? ['description' => $payload['description']] : []),
+                'credit_units' => $creditUnits,
+                'academic_classification' => $classification,
+                'scheduling_treatment' => $schedulingTreatment,
+                'allowed_modalities' => $allowedModalities,
+                'same_faculty_default' => (bool) ($payload['same_faculty_default'] ?? true),
+                'components' => $componentsInput,
+            ]);
+            $validatedComponents = $definition['components'];
+            unset($definition['components']);
+
+            $course = Course::query()->firstOrCreate(
+                ['code' => $normalizedCode],
+                ['state' => Course::StateActive],
+            );
+
+            $prerequisiteIds = collect($validated['prerequisite_ids'] ?? [])
+                ->when(filled($validated['prerequisite_course_id'] ?? null), fn ($ids) => $ids->push((int) $validated['prerequisite_course_id']))
+                ->map(fn (mixed $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0 && $id !== (int) $course->id)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            $corequisiteIds = collect($validated['corequisite_ids'] ?? [])
+                ->map(fn (mixed $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0 && $id !== (int) $course->id)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            $equivalentIds = collect($validated['equivalent_ids'] ?? [])
+                ->map(fn (mixed $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0 && $id !== (int) $course->id)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            $specification = $this->findMatchingActiveSpecification(
+                course: $course,
+                title: $title,
+                creditUnits: $creditUnits,
+                schedulingTreatment: $schedulingTreatment,
+                components: $validatedComponents,
+                prerequisiteIds: $prerequisiteIds,
+                corequisiteIds: $corequisiteIds,
+                equivalentIds: $equivalentIds,
+            );
+
+            if (! $specification instanceof CourseSpecification) {
+                $specification = $course->specifications()->create([
+                    ...$definition,
+                    'revision_code' => 'DRAFT-'.Str::ulid(),
+                    'academic_classification' => $classification,
+                    'state' => CourseSpecification::StateDraft,
+                ]);
+
+                foreach ($validatedComponents as $component) {
+                    $specification->components()->create($component);
+                }
+
+                foreach ([
+                    CourseRequirement::TypePrerequisite => $prerequisiteIds,
+                    CourseRequirement::TypeCorequisite => $corequisiteIds,
+                    CourseRequirement::TypeEquivalency => $equivalentIds,
+                ] as $ruleType => $relatedIds) {
+                    foreach ($relatedIds as $index => $relatedId) {
+                        $specification->requirements()->create([
+                            'rule_type' => $ruleType,
+                            'group_key' => $ruleType.'-'.$relatedId,
+                            'related_course_id' => $relatedId,
+                            'state' => CourseRequirement::StateActive,
+                            'sequence' => $index + 1,
+                        ]);
+                    }
+                }
+
+                activity()
+                    ->performedOn($specification)
+                    ->causedBy($actor)
+                    ->event('course_specification_draft_created')
+                    ->withProperties([
+                        'curriculum_version_id' => $lockedCurriculum->id,
+                        'room_schedule_preset' => $preset,
+                    ])
+                    ->log('Draft subject prepared via wizard quick-add');
+            }
+
+            $entry = $this->createEntry($actor, $lockedCurriculum, [
+                'course_specification_id' => $specification->id,
+                'year_level' => (int) $validated['year_level'],
+                'term_type' => (string) $validated['term_type'],
+                'requirement_group' => (string) ($validated['requirement_group'] ?? CurriculumEntry::RequirementGroupRequired),
+            ]);
+
+            return $entry->fresh(['courseSpecification.course', 'courseSpecification.components', 'courseSpecification.requirements.relatedCourse']);
+        });
+    }
+
+    /**
+     * Look up default subject fields from the catalog when typing a Subject Code in the wizard.
+     *
+     * @return array{
+     *     course_id: int,
+     *     course_specification_id: int,
+     *     code: string,
+     *     title: string,
+     *     credit_units: float,
+     *     scheduling_treatment: string,
+     *     room_schedule_preset: string,
+     *     academic_classification: string,
+     *     allowed_modalities: list<string>,
+     *     prerequisite_course_id: ?int,
+     *     prerequisite_ids: list<int>,
+     *     corequisite_ids: list<int>,
+     *     equivalent_ids: list<int>,
+     *     components: list<array<string, mixed>>
+     * }|null
+     */
+    public function lookupSubjectDefaultsByCode(string $code): ?array
+    {
+        $normalizedCode = $this->normalizeCourseCode($code);
+
+        if ($normalizedCode === '') {
+            return null;
+        }
+
+        $course = Course::query()->where('code', $normalizedCode)->first();
+
+        if (! $course instanceof Course) {
+            return null;
+        }
+
+        $specification = $course->specifications()
+            ->with(['components', 'requirements'])
+            ->orderByRaw("CASE WHEN state = 'ACTIVE' THEN 0 WHEN state = 'DRAFT' THEN 1 ELSE 2 END")
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $specification instanceof CourseSpecification) {
+            return null;
+        }
+
+        $sortedComponents = $specification->components->sortBy('sequence')->values();
+
+        if ($specification->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged) {
+            $preset = 'ojt';
+        } else {
+            $primaryRoom = $sortedComponents->first()?->room_type_default;
+            $preset = match ($primaryRoom) {
+                CourseComponent::RoomTypeComputerLaboratory => 'computer_lab',
+                CourseComponent::RoomTypeLaboratory => 'laboratory',
+                default => 'lecture',
+            };
+        }
+
+        $prerequisiteIds = $specification->requirements
+            ->where('rule_type', CourseRequirement::TypePrerequisite)
+            ->pluck('related_course_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+
+        $corequisiteIds = $specification->requirements
+            ->where('rule_type', CourseRequirement::TypeCorequisite)
+            ->pluck('related_course_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+
+        $equivalentIds = $specification->requirements
+            ->where('rule_type', CourseRequirement::TypeEquivalency)
+            ->pluck('related_course_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+
+        return [
+            'course_id' => (int) $course->id,
+            'course_specification_id' => (int) $specification->id,
+            'code' => (string) $course->code,
+            'title' => (string) $specification->title,
+            'credit_units' => (float) $specification->credit_units,
+            'scheduling_treatment' => (string) $specification->scheduling_treatment,
+            'room_schedule_preset' => $preset,
+            'academic_classification' => (string) $specification->academic_classification,
+            'allowed_modalities' => array_values((array) ($specification->allowed_modalities ?? [])),
+            'prerequisite_course_id' => $prerequisiteIds[0] ?? null,
+            'prerequisite_ids' => $prerequisiteIds,
+            'corequisite_ids' => $corequisiteIds,
+            'equivalent_ids' => $equivalentIds,
+            'components' => $sortedComponents->map(fn (CourseComponent $component): array => [
+                'component_type' => (string) $component->component_type,
+                'weekly_contact_hours' => (float) $component->weekly_contact_hours,
+                'meeting_pattern' => (string) $component->meeting_pattern,
+                'room_type_default' => $component->room_type_default,
+                'requires_consecutive_block' => (bool) $component->requires_consecutive_block,
+                'same_faculty' => (bool) $component->same_faculty,
+                'sequence' => (int) $component->sequence,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * Compare a Draft curriculum's entries against its copied source curriculum.
+     *
+     * @return array{
+     *     has_source: bool,
+     *     source_id: ?int,
+     *     source_label: ?string,
+     *     entry_statuses: array<int, string>,
+     *     entry_moves: array<int, array{from_year: string, from_term_type: string, from_term_label: string}>,
+     *     counts: array{copied: int, edited: int, added: int, removed: int},
+     *     moved_count: int,
+     *     removed: list<array{
+     *         entry_id: int,
+     *         course_id: int,
+     *         course_specification_id: int,
+     *         code: string,
+     *         title: string,
+     *         credit_units: float,
+     *         year_level: string,
+     *         term_type: string,
+     *         term_label: string
+     *     }>
+     * }
+     */
+    public function diffEntriesAgainstSource(CurriculumVersion $draft): array
+    {
+        $draft->loadMissing([
+            'copiedFrom.batches.academicYear',
+            'copiedFrom.entries.courseSpecification.course',
+            'entries.courseSpecification.course',
+        ]);
+
+        $source = $draft->copiedFrom;
+
+        if (! $source instanceof CurriculumVersion) {
+            $entryStatuses = [];
+
+            foreach ($draft->entries as $entry) {
+                $entryStatuses[(int) $entry->id] = 'Added';
+            }
+
+            return [
+                'has_source' => false,
+                'source_id' => null,
+                'source_label' => null,
+                'entry_statuses' => $entryStatuses,
+                'entry_moves' => [],
+                'counts' => [
+                    'copied' => 0,
+                    'edited' => 0,
+                    'added' => count($entryStatuses),
+                    'removed' => 0,
+                ],
+                'moved_count' => 0,
+                'removed' => [],
+            ];
+        }
+
+        /** @var array<int, CurriculumEntry> $unmatchedSource */
+        $unmatchedSource = [];
+
+        foreach ($source->entries as $sourceEntry) {
+            $unmatchedSource[(int) $sourceEntry->id] = $sourceEntry;
+        }
+
+        $entryStatuses = [];
+        $entryMoves = [];
+        $unresolvedDraftEntries = [];
+        $copiedCount = 0;
+        $editedCount = 0;
+        $addedCount = 0;
+        $movedCount = 0;
+
+        foreach ($draft->entries as $draftEntry) {
+            $draftCourseId = (int) ($draftEntry->courseSpecification?->course_id ?? 0);
+            $matchedSourceId = null;
+
+            foreach ($unmatchedSource as $sourceId => $sourceEntry) {
+                $sourceCourseId = (int) ($sourceEntry->courseSpecification?->course_id ?? 0);
+
+                if ($draftCourseId > 0
+                    && $sourceCourseId === $draftCourseId
+                    && (int) $sourceEntry->course_specification_id === (int) $draftEntry->course_specification_id
+                    && (string) $sourceEntry->year_level === (string) $draftEntry->year_level
+                    && (string) $sourceEntry->term_type === (string) $draftEntry->term_type) {
+                    $matchedSourceId = $sourceId;
+
+                    break;
+                }
+            }
+
+            if ($matchedSourceId !== null) {
+                unset($unmatchedSource[$matchedSourceId]);
+                $entryStatuses[(int) $draftEntry->id] = 'Copied';
+                $copiedCount++;
+            } else {
+                $unresolvedDraftEntries[] = $draftEntry;
+            }
+        }
+
+        foreach ($unresolvedDraftEntries as $draftEntry) {
+            $draftCourseId = (int) ($draftEntry->courseSpecification?->course_id ?? 0);
+            $matchedSourceId = null;
+
+            foreach ($unmatchedSource as $sourceId => $sourceEntry) {
+                $sourceCourseId = (int) ($sourceEntry->courseSpecification?->course_id ?? 0);
+
+                if ($draftCourseId > 0 && $sourceCourseId === $draftCourseId) {
+                    $matchedSourceId = $sourceId;
+
+                    break;
+                }
+            }
+
+            if ($matchedSourceId !== null) {
+                $sourceEntry = $unmatchedSource[$matchedSourceId];
+                unset($unmatchedSource[$matchedSourceId]);
+                $placementChanged = (string) $sourceEntry->year_level !== (string) $draftEntry->year_level
+                    || (string) $sourceEntry->term_type !== (string) $draftEntry->term_type;
+                $specChanged = (int) $sourceEntry->course_specification_id !== (int) $draftEntry->course_specification_id;
+
+                if ($placementChanged) {
+                    $entryMoves[(int) $draftEntry->id] = [
+                        'from_year' => (string) $sourceEntry->year_level,
+                        'from_term_type' => (string) $sourceEntry->term_type,
+                        'from_term_label' => (string) $sourceEntry->term_label,
+                    ];
+                    $movedCount++;
+                }
+
+                if ($placementChanged && ! $specChanged) {
+                    $entryStatuses[(int) $draftEntry->id] = 'Moved';
+                } else {
+                    $entryStatuses[(int) $draftEntry->id] = 'Edited';
+                    $editedCount++;
+                }
+            } else {
+                $entryStatuses[(int) $draftEntry->id] = 'Added';
+                $addedCount++;
+            }
+        }
+
+        $removed = collect($unmatchedSource)
+            ->sortBy(fn (CurriculumEntry $entry): array => [
+                (int) $entry->year_level,
+                (string) $entry->term_type,
+                (int) $entry->sequence,
+                (int) $entry->id,
+            ])
+            ->map(fn (CurriculumEntry $entry): array => [
+                'entry_id' => (int) $entry->id,
+                'course_id' => (int) ($entry->courseSpecification?->course_id ?? 0),
+                'course_specification_id' => (int) $entry->course_specification_id,
+                'code' => (string) ($entry->courseSpecification?->course?->code ?? ''),
+                'title' => (string) ($entry->courseSpecification?->title ?? ''),
+                'credit_units' => (float) ($entry->courseSpecification?->credit_units ?? 0),
+                'year_level' => (string) $entry->year_level,
+                'term_type' => (string) $entry->term_type,
+                'term_label' => (string) $entry->term_label,
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'has_source' => true,
+            'source_id' => (int) $source->id,
+            'source_label' => $source->batchLabel(),
+            'entry_statuses' => $entryStatuses,
+            'entry_moves' => $entryMoves,
+            'counts' => [
+                'copied' => $copiedCount,
+                'edited' => $editedCount,
+                'added' => $addedCount,
+                'removed' => count($removed),
+            ],
+            'moved_count' => $movedCount,
+            'removed' => $removed,
+        ];
     }
 
     /**
@@ -991,10 +1516,15 @@ class CurriculumWorkbenchService
             $payload['components'] = $normalizedComponents;
         }
 
+        $creditUnitMinRule = ($data['academic_classification'] ?? null) === CourseSpecification::AcademicClassificationNonCredit
+            ? 'gte:0'
+            : 'gt:0';
+
         /** @var array<string, mixed> $validated */
         $validated = Validator::make($payload, [
             'title' => ['required', 'string', 'max:255'],
-            'credit_units' => ['required', 'numeric', 'gt:0'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'credit_units' => ['required', 'numeric', $creditUnitMinRule],
             'grading_profile_key' => ['required', Rule::in(array_keys(CourseSpecification::gradingProfileOptions()))],
             'grading_profile_version' => ['required', 'integer', 'min:1'],
             'scheduling_treatment' => ['required', Rule::in(array_keys(CourseSpecification::schedulingTreatmentOptions()))],
@@ -1020,6 +1550,9 @@ class CurriculumWorkbenchService
 
         return [
             'title' => trim((string) $validated['title']),
+            ...(array_key_exists('description', $data)
+                ? ['description' => filled($validated['description'] ?? null) ? trim((string) $validated['description']) : null]
+                : []),
             'credit_units' => $validated['credit_units'],
             'grading_profile_key' => (string) $validated['grading_profile_key'],
             'grading_profile_version' => (int) $validated['grading_profile_version'],
@@ -1054,21 +1587,279 @@ class CurriculumWorkbenchService
         string $termLabel,
         ?CurriculumEntry $ignoreEntry = null,
     ): void {
-        $duplicate = CurriculumEntry::query()
+        $existing = CurriculumEntry::query()
             ->whereBelongsTo($curriculumVersion)
-            ->whereBelongsTo($courseSpecification)
-            ->where('year_level', $yearLevel)
-            ->where('term_label', $termLabel)
+            ->when(
+                $courseSpecification->course_id !== null,
+                fn ($query) => $query->whereHas('courseSpecification', fn ($specQuery) => $specQuery->where('course_id', $courseSpecification->course_id)),
+                fn ($query) => $query->whereBelongsTo($courseSpecification),
+            )
             ->when(
                 $ignoreEntry instanceof CurriculumEntry,
                 fn ($query) => $query->whereKeyNot($ignoreEntry->id),
             )
-            ->exists();
+            ->with('courseSpecification.course')
+            ->first();
 
-        if ($duplicate) {
+        if ($existing instanceof CurriculumEntry) {
+            $courseSpecification->loadMissing('course');
+            $code = trim((string) ($courseSpecification->course?->code ?? $existing->courseSpecification?->course?->code ?? $courseSpecification->title));
+            $existingYear = preg_match('/\d+/', (string) $existing->year_level, $matches) === 1
+                ? 'Year '.$matches[0]
+                : trim((string) $existing->year_level);
+            $existingTerm = trim((string) $existing->term_label);
+
             throw ValidationException::withMessages([
-                'term_label' => 'This Course Specification already exists in that year level and term.',
+                'term_label' => "This subject ({$code}) is already placed in {$existingYear} · {$existingTerm}. Each subject is listed once per curriculum prospectus; retakes and mixed-year enrollments are handled in Term Planning and Enrollment.",
             ]);
+        }
+    }
+
+    private function normalizeCourseCode(string $code): string
+    {
+        return (string) preg_replace('/\s+/', '', strtoupper(trim($code)));
+    }
+
+    private function detectAcademicClassification(string $code, string $title): string
+    {
+        $identity = strtoupper(trim($code.' '.$title));
+
+        if (str($identity)->contains(['NSTP', 'CWTS', 'LTS', 'ROTC'])) {
+            return CourseSpecification::AcademicClassificationNstp;
+        }
+
+        if (str($identity)->contains('PHYSICAL EDUCATION')
+            || preg_match('/(?:^|\s)(?:PE|PATHFIT|P\.E\.)(?:\d|\s|$)/', $identity) === 1
+            || preg_match('/^PE\d/', strtoupper(trim($code))) === 1) {
+            return CourseSpecification::AcademicClassificationPe;
+        }
+
+        if (preg_match('/\b(?:BRIDGING|REMEDIAL|NON-CREDIT|NON\s+CREDIT)\b/', $identity) === 1) {
+            return CourseSpecification::AcademicClassificationNonCredit;
+        }
+
+        if (preg_match('/\b(?:TESDA|TVET)\b/', $identity) === 1
+            || preg_match('/\bNC[\s-]*(?:I|II|III|IV)\b/', $identity) === 1) {
+            return CourseSpecification::AcademicClassificationTesdaCompetency;
+        }
+
+        return CourseSpecification::AcademicClassificationOrdinary;
+    }
+
+    /**
+     * Build default scheduling components for a given unit count and room/schedule preset.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function presetComponentsForUnits(float $units, string $preset): array
+    {
+        if ($preset === 'ojt') {
+            return [];
+        }
+
+        $roomType = match ($preset) {
+            'computer_lab' => CourseComponent::RoomTypeComputerLaboratory,
+            'laboratory' => CourseComponent::RoomTypeLaboratory,
+            default => CourseComponent::RoomTypeLectureRoom,
+        };
+
+        $componentType = $preset === 'lecture'
+            ? CourseComponent::TypeLecture
+            : CourseComponent::TypeLaboratory;
+
+        if ($units <= 6.0) {
+            $pattern = CourseComponent::defaultMeetingPatternForHours($units, $roomType);
+            $patternMinutes = CourseComponent::meetingPatternMinutes($pattern) ?? (int) round($units * 60);
+
+            return [[
+                'component_type' => $componentType,
+                'weekly_contact_hours' => round($patternMinutes / 60, 2),
+                'meeting_pattern' => $pattern,
+                'room_type_default' => $roomType,
+                'required_room_feature_keys' => [],
+                'modality_restriction' => null,
+                'requires_consecutive_block' => false,
+                'same_faculty' => true,
+                'sequence' => 1,
+            ]];
+        }
+
+        // For unusually large >6 unit subjects, split cleanly into 6h + remainder blocks so every component has a valid pattern.
+        $remaining = $units;
+        $components = [];
+        $sequence = 1;
+
+        while ($remaining > 0.001) {
+            $chunk = min(6.0, $remaining);
+            $pattern = CourseComponent::defaultMeetingPatternForHours($chunk, $roomType);
+            $patternMinutes = CourseComponent::meetingPatternMinutes($pattern) ?? (int) round($chunk * 60);
+            $components[] = [
+                'component_type' => $componentType,
+                'weekly_contact_hours' => round($patternMinutes / 60, 2),
+                'meeting_pattern' => $pattern,
+                'room_type_default' => $roomType,
+                'required_room_feature_keys' => [],
+                'modality_restriction' => null,
+                'requires_consecutive_block' => false,
+                'same_faculty' => true,
+                'sequence' => $sequence++,
+            ];
+            $remaining = round($remaining - $chunk, 2);
+        }
+
+        return $components;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $components
+     * @param  list<int>  $prerequisiteIds
+     * @param  list<int>  $corequisiteIds
+     * @param  list<int>  $equivalentIds
+     */
+    private function findMatchingActiveSpecification(
+        Course $course,
+        string $title,
+        float $creditUnits,
+        string $schedulingTreatment,
+        array $components,
+        array $prerequisiteIds,
+        array $corequisiteIds,
+        array $equivalentIds,
+    ): ?CourseSpecification {
+        $candidates = $course->specifications()
+            ->where('state', CourseSpecification::StateActive)
+            ->with(['components', 'requirements'])
+            ->orderByDesc('id')
+            ->get();
+
+        $expectedComponentSignature = collect($components)
+            ->map(fn (array $c): string => implode('|', [
+                (string) $c['component_type'],
+                (string) $c['meeting_pattern'],
+                (string) ($c['room_type_default'] ?? ''),
+            ]))
+            ->sort()
+            ->values()
+            ->all();
+
+        foreach ($candidates as $candidate) {
+            if (strcasecmp(trim((string) $candidate->title), $title) !== 0) {
+                continue;
+            }
+
+            if (abs((float) $candidate->credit_units - $creditUnits) >= 0.001) {
+                continue;
+            }
+
+            if ((string) $candidate->scheduling_treatment !== $schedulingTreatment) {
+                continue;
+            }
+
+            $candPrereqs = $candidate->requirements
+                ->where('rule_type', CourseRequirement::TypePrerequisite)
+                ->pluck('related_course_id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            $candCoreqs = $candidate->requirements
+                ->where('rule_type', CourseRequirement::TypeCorequisite)
+                ->pluck('related_course_id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            $candEquivs = $candidate->requirements
+                ->where('rule_type', CourseRequirement::TypeEquivalency)
+                ->pluck('related_course_id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            if ($candPrereqs !== $prerequisiteIds || $candCoreqs !== $corequisiteIds || $candEquivs !== $equivalentIds) {
+                continue;
+            }
+
+            $candComponentSignature = $candidate->components
+                ->map(fn (CourseComponent $c): string => implode('|', [
+                    (string) $c->component_type,
+                    (string) $c->meeting_pattern,
+                    (string) ($c->room_type_default ?? ''),
+                ]))
+                ->sort()
+                ->values()
+                ->all();
+
+            if ($candComponentSignature === $expectedComponentSignature) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function syncOptionalSpecificationRequirements(CourseSpecification $specification, array $data): void
+    {
+        $hasPrereqs = array_key_exists('prerequisite_ids', $data) || array_key_exists('prerequisite_course_id', $data);
+        $hasCoreqs = array_key_exists('corequisite_ids', $data);
+        $hasEquivs = array_key_exists('equivalent_ids', $data);
+
+        if (! $hasPrereqs && ! $hasCoreqs && ! $hasEquivs) {
+            return;
+        }
+
+        $rulesToSync = [];
+
+        if ($hasPrereqs) {
+            $prereqs = collect((array) ($data['prerequisite_ids'] ?? []))
+                ->when(filled($data['prerequisite_course_id'] ?? null), fn ($ids) => $ids->push((int) $data['prerequisite_course_id']))
+                ->map(fn (mixed $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0 && $id !== (int) $specification->course_id)
+                ->unique()
+                ->values()
+                ->all();
+            $rulesToSync[CourseRequirement::TypePrerequisite] = $prereqs;
+        }
+
+        if ($hasCoreqs) {
+            $rulesToSync[CourseRequirement::TypeCorequisite] = collect((array) ($data['corequisite_ids'] ?? []))
+                ->map(fn (mixed $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0 && $id !== (int) $specification->course_id)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        if ($hasEquivs) {
+            $rulesToSync[CourseRequirement::TypeEquivalency] = collect((array) ($data['equivalent_ids'] ?? []))
+                ->map(fn (mixed $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0 && $id !== (int) $specification->course_id)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        foreach ($rulesToSync as $ruleType => $relatedIds) {
+            $specification->requirements()->where('rule_type', $ruleType)->delete();
+
+            foreach ($relatedIds as $index => $relatedId) {
+                $specification->requirements()->create([
+                    'rule_type' => $ruleType,
+                    'group_key' => $ruleType.'-'.$relatedId,
+                    'related_course_id' => $relatedId,
+                    'state' => CourseRequirement::StateActive,
+                    'sequence' => $index + 1,
+                ]);
+            }
         }
     }
 }

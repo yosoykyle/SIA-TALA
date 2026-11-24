@@ -222,8 +222,8 @@ def solve_snapshot(
             objective_score=None,
             timeout=False,
             started_at=started_at,
-            warnings=[_reason("invalid_meeting_pattern", "Every Scheduling Demand requires one to three equal-duration meetings.")],
-            infeasible_reasons=[_reason("invalid_meeting_pattern", "Every Scheduling Demand requires one to three equal-duration meetings.")],
+            warnings=[_reason("invalid_meeting_pattern", "Every Scheduling Demand requires one to six equal-duration meetings.")],
+            infeasible_reasons=[_reason("invalid_meeting_pattern", "Every Scheduling Demand requires one to six equal-duration meetings.")],
             runtime_configuration=runtime_configuration,
         )
 
@@ -323,6 +323,7 @@ def solve_snapshot(
             request_context,
         )
         _add_same_faculty_constraints(model, variables, candidates, demands, indexes)
+        _add_distinct_day_spread_constraints(model, variables, candidates, demands)
         load_variables = _add_faculty_load_constraints(model, variables, candidates, snapshot)
         request_context.record_metric("model_variable_count", len(model.proto.variables))
         request_context.record_metric("model_constraint_count", len(model.proto.constraints))
@@ -1441,8 +1442,34 @@ def _calendar_blocks(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def _faculty_ids(demand: dict[str, Any]) -> list[int]:
-    fixed_faculty_id = _int_or_none(demand.get("fixed_faculty_user_id"))
+def _fixed_meetings_by_sequence(demand: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    raw = demand.get("fixed_meetings")
+    if not isinstance(raw, list):
+        return {}
+
+    by_sequence: dict[int, dict[str, Any]] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        seq = _int_or_none(item.get("meeting_sequence"))
+        if seq is not None:
+            by_sequence[seq] = item
+
+    return by_sequence
+
+
+def _faculty_ids(demand: dict[str, Any], meeting_sequence: int | None = None) -> list[int]:
+    fixed_meetings = _fixed_meetings_by_sequence(demand)
+    if meeting_sequence is not None and fixed_meetings:
+        pin = fixed_meetings.get(meeting_sequence)
+        fixed_faculty_id = (
+            _int_or_none(pin.get("fixed_faculty_user_id"))
+            if pin is not None
+            else _int_or_none(demand.get("unscoped_fixed_faculty_user_id"))
+        )
+    else:
+        fixed_faculty_id = _int_or_none(demand.get("fixed_faculty_user_id"))
+
     eligible = [
         int(faculty_id)
         for faculty_id in demand.get("eligible_faculty_user_ids", [])
@@ -1455,11 +1482,24 @@ def _faculty_ids(demand: dict[str, Any]) -> list[int]:
     return sorted(set(eligible))
 
 
-def _room_ids(demand: dict[str, Any], rooms: dict[int, dict[str, Any]]) -> list[int | None]:
+def _room_ids(
+    demand: dict[str, Any],
+    rooms: dict[int, dict[str, Any]],
+    meeting_sequence: int | None = None,
+) -> list[int | None]:
     if not _room_required(demand):
         return [None]
 
-    fixed_room_id = _int_or_none(demand.get("fixed_room_id"))
+    fixed_meetings = _fixed_meetings_by_sequence(demand)
+    if meeting_sequence is not None and fixed_meetings:
+        pin = fixed_meetings.get(meeting_sequence)
+        fixed_room_id = (
+            _int_or_none(pin.get("fixed_room_id"))
+            if pin is not None
+            else _int_or_none(demand.get("unscoped_fixed_room_id"))
+        )
+    else:
+        fixed_room_id = _int_or_none(demand.get("fixed_room_id"))
 
     if fixed_room_id is not None:
         room = rooms.get(fixed_room_id)
@@ -1517,26 +1557,57 @@ def _enumerate_candidates(
             continue
 
         reasons: list[dict[str, str]] = []
-        faculty_ids = _faculty_ids(demand)
-        room_ids = _room_ids(demand, rooms)
-        slots = _slots_for_demand(demand, time_slots)
+        meeting_count = _meeting_count(demand) or 1
+        sequence_faculty_ids = {
+            seq: _faculty_ids(demand, meeting_sequence=seq)
+            for seq in range(1, meeting_count + 1)
+        }
+        sequence_room_ids = {
+            seq: _room_ids(demand, rooms, meeting_sequence=seq)
+            for seq in range(1, meeting_count + 1)
+        }
+        raw_fixed_sequence = demand.get("fixed_meeting_sequence")
+        fixed_sequence = _int_or_none(raw_fixed_sequence)
+        has_fixed_time_pin = (
+            _int_or_none(demand.get("fixed_day_of_week")) is not None
+            or _time_to_minutes(demand.get("fixed_start_time")) is not None
+        )
+        sequence_slots: dict[int, list[dict[str, Any]]] = {}
+        missing_time_slot = False
 
-        if not faculty_ids:
+        if (
+            has_fixed_time_pin
+            and raw_fixed_sequence not in {None, ""}
+            and (fixed_sequence is None or fixed_sequence < 1 or fixed_sequence > meeting_count)
+        ):
+            missing_time_slot = True
+        else:
+            for meeting_sequence in range(1, meeting_count + 1):
+                slots = _slots_for_demand(
+                    demand,
+                    time_slots,
+                    meeting_sequence=meeting_sequence,
+                )
+                sequence_slots[meeting_sequence] = slots
+                if not slots:
+                    missing_time_slot = True
+
+        if any(not f_ids for f_ids in sequence_faculty_ids.values()):
             reasons.append(_reason("missing_faculty", "No eligible faculty was available in the Scheduling Demand snapshot."))
 
-        if _room_required(demand) and not room_ids:
+        if _room_required(demand) and any(not r_ids for r_ids in sequence_room_ids.values()):
             reasons.append(_reason("missing_room", "No active room matched the Scheduling Demand room requirement."))
 
-        if not slots:
+        if missing_time_slot:
             reasons.append(_reason("missing_time_slot", "No usable time slot matched the Scheduling Demand duration or fixed time."))
 
         if reasons:
             unassignable_reasons[demand_id] = reasons
 
-        for meeting_sequence in range(1, (_meeting_count(demand) or 1) + 1):
-            for faculty_id in faculty_ids:
-                for room_id in room_ids:
-                    for slot in slots:
+        for meeting_sequence in range(1, meeting_count + 1):
+            for faculty_id in sequence_faculty_ids[meeting_sequence]:
+                for room_id in sequence_room_ids[meeting_sequence]:
+                    for slot in sequence_slots.get(meeting_sequence, []):
                         if len(candidates) % 500 == 0:
                             request_context.checkpoint("candidate_enumeration")
                         candidate = _candidate(
@@ -1568,12 +1639,19 @@ def _enumerate_candidates(
 
                         candidates.append(candidate)
 
-    candidate_demand_ids = {candidate.scheduling_demand_id for candidate in candidates}
+    candidate_assignments = {
+        (candidate.scheduling_demand_id, candidate.meeting_sequence)
+        for candidate in candidates
+    }
 
     for demand in demands:
         demand_id = int(demand["scheduling_demand_id"])
+        meeting_count = _meeting_count(demand) or 1
 
-        if demand_id not in candidate_demand_ids and demand_id not in unassignable_reasons:
+        if any(
+            (demand_id, meeting_sequence) not in candidate_assignments
+            for meeting_sequence in range(1, meeting_count + 1)
+        ) and demand_id not in unassignable_reasons:
             unassignable_reasons[demand_id] = [
                 _reason("solver_unassigned", "No candidate remains after availability and commitment constraints."),
             ]
@@ -1694,9 +1772,21 @@ def _relevant_calendar_blocks(
     return [item for key in keys for item in indexes.get(key, [])]
 
 
-def _slots_for_demand(demand: dict[str, Any], time_slots: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    fixed_day = _int_or_none(demand.get("fixed_day_of_week"))
-    fixed_start = _time_to_minutes(demand.get("fixed_start_time"))
+def _slots_for_demand(
+    demand: dict[str, Any],
+    time_slots: list[dict[str, Any]],
+    meeting_sequence: int | None = None,
+) -> list[dict[str, Any]]:
+    fixed_meetings = _fixed_meetings_by_sequence(demand)
+    if meeting_sequence is not None and fixed_meetings:
+        pin = fixed_meetings.get(meeting_sequence)
+        fixed_day = _int_or_none(pin.get("fixed_day_of_week")) if pin is not None else None
+        fixed_start = _time_to_minutes(pin.get("fixed_start_time")) if pin is not None else None
+    else:
+        target_sequence = _int_or_none(demand.get("fixed_meeting_sequence")) or 1
+        apply_fixed_time = meeting_sequence is None or meeting_sequence == target_sequence
+        fixed_day = _int_or_none(demand.get("fixed_day_of_week")) if apply_fixed_time else None
+        fixed_start = _time_to_minutes(demand.get("fixed_start_time")) if apply_fixed_time else None
 
     duration = _duration_minutes(demand)
     day_ends = _day_ends(time_slots)
@@ -2090,6 +2180,42 @@ def _add_same_faculty_constraints(
                 model.add(sum(left_terms) == sum(right_terms))
 
 
+def _add_distinct_day_spread_constraints(
+    model: cp_model.CpModel,
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+    demands: list[dict[str, Any]],
+) -> None:
+    by_demand_day: dict[int, dict[int, list[int]]] = {}
+    meetings_by_demand: dict[int, set[int]] = {}
+
+    for index, candidate in enumerate(candidates):
+        by_demand_day.setdefault(candidate.scheduling_demand_id, {}).setdefault(
+            candidate.day_of_week,
+            [],
+        ).append(index)
+        meetings_by_demand.setdefault(candidate.scheduling_demand_id, set()).add(
+            candidate.meeting_sequence
+        )
+
+    for demand in demands:
+        demand_id = _int_or_none(demand.get("scheduling_demand_id"))
+        if demand_id is None:
+            continue
+
+        meetings_in_demand = meetings_by_demand.get(demand_id, set())
+        if len(meetings_in_demand) <= 1:
+            continue
+
+        available_days_for_demand = by_demand_day.get(demand_id, {})
+        if len(available_days_for_demand) < len(meetings_in_demand):
+            continue
+
+        for day_candidate_indexes in available_days_for_demand.values():
+            if len(day_candidate_indexes) > 1:
+                model.add(sum(variables[index] for index in day_candidate_indexes) <= 1)
+
+
 def _add_faculty_load_constraints(
     model: cp_model.CpModel,
     variables: list[cp_model.IntVar],
@@ -2264,6 +2390,11 @@ def _conflict_assignment(
     meeting_sequence: int,
     violations: list[dict[str, str]],
 ) -> dict[str, Any]:
+    target_sequence = _int_or_none(demand.get("fixed_meeting_sequence")) or 1
+    apply_fixed_time = meeting_sequence == target_sequence
+    fixed_day = _int_or_none(demand.get("fixed_day_of_week")) if apply_fixed_time else None
+    fixed_start = _time_or_none(demand.get("fixed_start_time")) if apply_fixed_time else None
+
     return {
         "scheduling_demand_id": _int_or_none(demand.get("scheduling_demand_id")),
         "term_offering_id": _int_or_none(demand.get("term_offering_id")),
@@ -2275,11 +2406,11 @@ def _conflict_assignment(
         "faculty_id": _int_or_none(demand.get("fixed_faculty_user_id")),
         "faculty_user_id": _int_or_none(demand.get("fixed_faculty_user_id")),
         "room_id": _int_or_none(demand.get("fixed_room_id")),
-        "day": _int_or_none(demand.get("fixed_day_of_week")),
-        "day_of_week": _int_or_none(demand.get("fixed_day_of_week")),
-        "start_time": _time_or_none(demand.get("fixed_start_time")),
+        "day": fixed_day,
+        "day_of_week": fixed_day,
+        "start_time": fixed_start,
         "end_time": None,
-        "starts_at": _time_or_none(demand.get("fixed_start_time")),
+        "starts_at": fixed_start,
         "ends_at": None,
         "time_slot_id": None,
         "time_block_reference": None,
@@ -2320,7 +2451,7 @@ def _duration_minutes(demand: dict[str, Any]) -> int:
 def _meeting_count(demand: dict[str, Any]) -> int | None:
     meeting_count = _int_or_none(demand.get("meeting_count"))
 
-    if meeting_count is None or meeting_count < 1 or meeting_count > 3:
+    if meeting_count is None or meeting_count < 1 or meeting_count > 6:
         return None
 
     return meeting_count

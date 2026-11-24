@@ -10,6 +10,7 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
+use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationProposalVersion;
@@ -113,20 +114,47 @@ class PrepareStandardRegistration
     /** @return list<int> */
     public function sectionIds(Enrollment $enrollment): array
     {
-        $enrollment->loadMissing(['admissionApplication', 'studentProfile', 'term']);
+        $enrollment->loadMissing(['admissionApplication', 'studentProfile.entryTerm', 'term']);
         $profile = $enrollment->studentProfile;
-        $allowedStates = $profile !== null && $profile->curriculum_version_id !== null
-            ? [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded]
-            : [CurriculumVersion::StateActive];
-        $curricula = CurriculumVersion::query()->whereIn('state', $allowedStates)
-            ->where('program_id', $profile?->program_id ?? $enrollment->admissionApplication?->program_id)
-            ->when($profile !== null, fn ($query) => $query->whereKey($profile->curriculum_version_id))->get();
-        if ($curricula->count() !== 1) {
-            $this->unavailable('Registrar must resolve the current assigned curriculum before preparing enrollment.');
+        $programId = $profile?->program_id ?? $enrollment->admissionApplication?->program_id;
+
+        if ($profile !== null && $profile->curriculum_version_id !== null) {
+            $curricula = CurriculumVersion::query()
+                ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
+                ->where('program_id', $programId)
+                ->whereKey($profile->curriculum_version_id)
+                ->get();
+
+            if ($curricula->count() !== 1) {
+                $this->unavailable('Registrar must resolve the current assigned curriculum before preparing enrollment.');
+            }
+
+            $curriculum = $curricula->sole();
+        } else {
+            $program = $programId !== null ? Program::query()->find($programId) : null;
+
+            if ($program instanceof Program && $program->curriculumVersionBatches()->exists()) {
+                $academicYearId = $profile?->entryTerm?->academic_year_id ?? $enrollment->term?->academic_year_id;
+                $curriculum = $program->curriculumForAcademicYear($academicYearId);
+
+                if (! $curriculum instanceof CurriculumVersion) {
+                    $this->unavailable('Registrar must resolve the current assigned curriculum before preparing enrollment.');
+                }
+            } else {
+                $curricula = CurriculumVersion::query()
+                    ->whereIn('state', [CurriculumVersion::StateActive])
+                    ->where('program_id', $programId)
+                    ->get();
+
+                if ($curricula->count() !== 1) {
+                    $this->unavailable('Registrar must resolve the current assigned curriculum before preparing enrollment.');
+                }
+
+                $curriculum = $curricula->sole();
+            }
         }
-        $curriculum = $curricula->sole();
         $satisfied = $profile !== null ? $this->eligibility->satisfiedCourseIds($profile) : collect();
-        $positions = CurriculumEntry::query()->with('courseSpecification')
+        $positions = CurriculumEntry::query()->with('courseSpecification.requirements')
             ->where('curriculum_version_id', $curriculum->id)->where('term_type', $enrollment->term?->type)
             ->orderBy('sequence')->orderBy('id')->get()
             ->groupBy(fn (CurriculumEntry $entry): string => $entry->year_level.':'.$entry->term_label.':'.$entry->term_type);
@@ -141,20 +169,55 @@ class PrepareStandardRegistration
             $this->unavailable('Registrar must publish the exact-Term classes before enrollment can be prepared.');
         }
         $publishedSections = PublishedTimetableMeeting::query()->where('published_timetable_version_id', $timetable->id)->pluck('section_id');
-        $sections = Section::query()->with(['cohorts', 'termOffering.curriculumEntry.courseSpecification'])
+        $sections = Section::query()->with([
+            'cohorts',
+            'courseRevision',
+            'termOffering.curriculumEntry.courseSpecification.requirements',
+        ])
             ->where('state', Section::StateOpen)
             ->whereHas('termOffering', fn ($query) => $query->where('term_id', $enrollment->term_id)
-                ->where('state', TermOffering::StateScheduled)->whereIn('curriculum_entry_id', $entries->pluck('id')))
-            ->get()->filter(fn (Section $section): bool => $publishedSections->contains($section->id)
-                || $section->termOffering?->curriculumEntry?->courseSpecification?->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged);
+                ->where('state', TermOffering::StateScheduled))
+            ->get()
+            ->filter(function (Section $section) use ($publishedSections, $entries, $enrollment, $curriculum): bool {
+                $hasSchedule = $publishedSections->contains($section->id)
+                    || $section->termOffering?->curriculumEntry?->courseSpecification?->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged;
+                if (! $hasSchedule) {
+                    return false;
+                }
+
+                if (! $this->eligibility->resolveCurriculumEntryFromEntries($entries, $section->termOffering, $section) instanceof CurriculumEntry) {
+                    return false;
+                }
+
+                return $section->cohorts->isEmpty()
+                    || $section->cohorts->contains(fn ($cohort): bool => (int) $cohort->term_id === (int) $enrollment->term_id
+                        && (int) $cohort->program_id === (int) $curriculum->program_id);
+            })
+            ->values();
         $expected = $entries->pluck('id')->sort()->values()->all();
         $blocks = collect([$sections]);
         foreach ($sections->pluck('cohorts')->flatten()->unique('id') as $cohort) {
-            if ((int) $cohort->term_id === (int) $enrollment->term_id && $cohort->state === 'Confirmed') {
+            if ((int) $cohort->term_id === (int) $enrollment->term_id
+                && (int) $cohort->program_id === (int) $curriculum->program_id
+                && $cohort->state === 'Confirmed') {
                 $blocks->push($sections->filter(fn (Section $section): bool => $section->cohorts->contains('id', $cohort->id)));
             }
         }
-        $blocks = $blocks->filter(fn (Collection $block): bool => $block->pluck('termOffering.curriculum_entry_id')->sort()->values()->all() === $expected)
+        $blocks = $blocks->filter(function (Collection $block) use ($entries, $expected): bool {
+            if ($block->count() !== count($expected)) {
+                return false;
+            }
+
+            $matchedIds = $block
+                ->map(fn (Section $section): ?int => $this->eligibility->resolveCurriculumEntryFromEntries($entries, $section->termOffering, $section)?->id)
+                ->filter()
+                ->map(fn (int $id): int => $id)
+                ->sort()
+                ->values()
+                ->all();
+
+            return $matchedIds === $expected;
+        })
             ->unique(fn (Collection $block): string => $block->pluck('id')->sort()->implode(','))->values();
         $valid = $blocks->filter(function (Collection $block) use ($enrollment, $curriculum, $timetable): bool {
             if (! $this->eligibility->passes($enrollment, $curriculum, $block->pluck('termOffering')->values())) {

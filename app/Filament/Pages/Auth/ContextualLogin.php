@@ -233,6 +233,14 @@ class ContextualLogin extends Login
         session()->put(self::AuthenticatingSessionKey, true);
         $this->clearRateLimiter(method: 'authenticate');
 
+        if (! $wasMultiFactorChallenge) {
+            // Livewire property updates on data.email/data.password can hydrate previously discovered
+            // schemas before authenticate() runs, caching multiFactorChallengeForm as empty while
+            // userUndertakingMultiFactorAuthentication is still null. Clear any stale empty cache so
+            // parent::authenticate() builds the MFA challenge schema with the authenticated user.
+            $this->cacheSchema('multiFactorChallengeForm', null);
+        }
+
         try {
             $this->rejectDisabledAccountWithCorrectPassword($user);
 
@@ -352,7 +360,8 @@ class ContextualLogin extends Login
     private function triggerMfaRateLimitCountdown(string $rateLimitingKey): void
     {
         $secondsUntilAvailable = RateLimiter::availableIn($rateLimitingKey);
-        $this->multiFactorChallengeForm->fill([]);
+        $this->cacheSchema('multiFactorChallengeForm', null);
+        $this->multiFactorChallengeForm->fill();
         $this->startAuthRateLimitCountdown($secondsUntilAvailable, 'mfa', 60);
 
         $this->getRateLimitedNotification(new TooManyRequestsException(
@@ -408,7 +417,12 @@ class ContextualLogin extends Login
         ];
 
         $this->form->fill($this->data);
-        $this->multiFactorChallengeForm->fill([]);
+        $this->cacheSchema('multiFactorChallengeForm', null);
+        $this->discoveredSchemaNames = array_values(array_filter(
+            $this->discoveredSchemaNames,
+            fn (string $name): bool => $name !== 'multiFactorChallengeForm',
+        ));
+        unset($this->data['multiFactor']);
 
         $this->resetErrorBag();
         $this->resetValidation();

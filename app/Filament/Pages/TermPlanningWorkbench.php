@@ -20,10 +20,16 @@ use App\Actions\Scheduling\TermCoverageProjection;
 use App\Actions\Scheduling\TimetableFailureLanguage;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Models\AcademicYear;
+use App\Models\AdmissionCycle;
 use App\Models\CandidateScheduleRow;
+use App\Models\CourseEnrollment;
+use App\Models\Enrollment;
 use App\Models\FacultyAvailabilityDeadline;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
+use App\Models\FacultyTermLoadOverride;
+use App\Models\FeePlan;
+use App\Models\GradeRoster;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -36,11 +42,13 @@ use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
 use App\Models\TermCohort;
 use App\Models\TermOffering;
+use App\Models\TimetableRevision;
 use App\Models\User;
 use App\Support\HasClassPreparationActions;
 use App\Support\TimetablePresentation;
 use BackedEnum;
 use Carbon\CarbonImmutable;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
@@ -51,25 +59,27 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
-use Filament\Forms\Components\Toggle;
 use Filament\Navigation\NavigationItem;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section as SchemaSection;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
-use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\HtmlString;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Unique;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
@@ -95,12 +105,9 @@ class TermPlanningWorkbench extends Page
     #[Locked]
     public ?int $termId = null;
 
-    public ?int $academicYearId = null;
-
-    #[Url]
-    public bool $chooseTerm = false;
-
     public bool $termAutoSelected = false;
+
+    public ?string $termAutoSelectBasis = null;
 
     #[Url]
     public string $viewTab = 'plan';
@@ -188,68 +195,1037 @@ class TermPlanningWorkbench extends Page
 
     public function mount(): void
     {
-
-        if ($this->chooseTerm) {
-            $this->termId = null;
-        } elseif ($this->termId !== null) {
+        if ($this->termId !== null) {
             abort_unless(Term::query()->whereKey($this->termId)->exists(), 404);
         }
 
-        if ($this->termId === null && ! $this->chooseTerm) {
-
-            $activeTermIds = TermCalendarPackage::query()
-
-                ->where('state', TermCalendarPackage::StateActive)
-
-                ->distinct()
-
-                ->pluck('term_id');
-
-            if ($activeTermIds->count() === 1) {
-
-                $this->termId = (int) $activeTermIds->sole();
-
-                $this->termAutoSelected = true;
-
+        if (static::class === TermOverview::class) {
+            if ($this->termId !== null) {
+                $this->redirect(TermCalendar::getUrl(['termId' => $this->termId]));
+                $this->skipRender();
             }
 
+            return;
         }
 
+        if ($this->termId === null) {
+            [$resolvedId, $basis] = $this->resolveDefaultPlanningTermId();
+            if ($resolvedId !== null) {
+                $this->termId = $resolvedId;
+                $this->termAutoSelected = $basis !== null;
+                $this->termAutoSelectBasis = $basis;
+            }
+        }
+
+        \Filament\Support\original_request()->attributes->set('tala.selected_term_id', $this->termId);
+
         if ($this->selectedVersionId !== null) {
-
             $versionBelongsToTerm = PublishedTimetableVersion::query()
-
                 ->whereKey($this->selectedVersionId)
-
                 ->when($this->termId !== null, fn ($query) => $query->where('term_id', $this->termId))
-
                 ->exists();
 
             if (! $versionBelongsToTerm) {
-
                 $this->selectedVersionId = null;
-
             }
-
         }
 
         if (static::class === self::class) {
-
-            $this->redirect(self::getUrl(['termId' => $this->termId, 'chooseTerm' => $this->chooseTerm ?: null, 'viewTab' => $this->viewTab, 'selectedRunId' => $this->selectedRunId, 'selectedVersionId' => $this->selectedVersionId]));
+            $this->redirect(self::getUrl([
+                'termId' => $this->termId,
+                'viewTab' => $this->viewTab,
+                'selectedRunId' => $this->selectedRunId,
+                'selectedVersionId' => $this->selectedVersionId,
+            ]));
             $this->skipRender();
 
             return;
-
         }
 
         if ($this->termId === null && static::class !== TermOverview::class) {
-            $this->redirect(TermOverview::getUrl(['chooseTerm' => true]));
+            $this->redirect(TermOverview::getUrl());
 
             return;
         }
 
         $this->viewTab = static::class === self::class ? (in_array($this->viewTab, self::Tabs, true) ? $this->viewTab : 'plan') : static::$planningTab;
+    }
 
+    /** @return array{0: ?int, 1: ?string} */
+    protected function resolveDefaultPlanningTermId(): array
+    {
+        $activeCalendarTermIds = TermCalendarPackage::query()
+            ->where('state', TermCalendarPackage::StateActive)
+            ->distinct()
+            ->pluck('term_id');
+
+        if ($activeCalendarTermIds->count() === 1) {
+            return [(int) $activeCalendarTermIds->sole(), 'the only term with an active calendar'];
+        }
+
+        $activeId = Term::query()
+            ->where('state', Term::StateActive)
+            ->latest('starts_on')
+            ->value('id');
+
+        if ($activeId !== null) {
+            return [(int) $activeId, null];
+        }
+
+        $draftId = Term::query()
+            ->where('state', Term::StateDraft)
+            ->latest('starts_on')
+            ->value('id');
+
+        if ($draftId !== null) {
+            return [(int) $draftId, null];
+        }
+
+        $latestId = Term::query()->latest('starts_on')->value('id');
+
+        return [$latestId !== null ? (int) $latestId : null, null];
+    }
+
+    /** @return array<int, string> */
+    public function termSwitcherOptions(): array
+    {
+        $stateOrder = [
+            Term::StateActive => 0,
+            Term::StateDraft => 1,
+            Term::StateClosed => 2,
+        ];
+
+        return Term::query()
+            ->with('academicYear')
+            ->latest('starts_on')
+            ->get()
+            ->sortBy(fn (Term $term): string => sprintf('%d-%s', $stateOrder[$term->state] ?? 9, str_pad((string) (99999999 - (int) $term->starts_on->format('Ymd')), 8, '0', STR_PAD_LEFT)))
+            ->mapWithKeys(function (Term $term): array {
+                $parts = array_filter([
+                    $term->typeLabel(),
+                    $term->academicYear?->label,
+                ]);
+                $stateLabel = Term::stateOptions()[$term->state] ?? $term->state;
+
+                return [(int) $term->id => implode(' · ', $parts).' ['.$stateLabel.']'];
+            })
+            ->all();
+    }
+
+    public function createTermAction(): Action
+    {
+        return Action::make('createTerm')
+            ->label('New term')
+            ->icon(Heroicon::OutlinedPlus)
+            ->color('primary')
+            ->modalHeading('New term')
+            ->modalDescription('Choose the academic year, term, and dates. New terms start in Draft.')
+            ->modalSubmitActionLabel('Create term')
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->visible(fn (): bool => (bool) auth()->user()?->can('create', Term::class))
+            ->schema([
+                Select::make('academic_year_id')
+                    ->label('Academic year')
+                    ->options(fn (): array => AcademicYear::query()
+                        ->orderByDesc('starts_on')
+                        ->get()
+                        ->mapWithKeys(fn (AcademicYear $record): array => [$record->id => $record->state === AcademicYear::StateActive ? (string) $record->label : $record->displayLabel()])
+                        ->all())
+                    ->searchable()
+                    ->preload()
+                    ->live()
+                    ->default(fn (): ?int => $this->termId !== null ? Term::query()->whereKey($this->termId)->value('academic_year_id') : AcademicYear::query()->latest('starts_on')->value('id'))
+                    ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
+                    ->createOptionForm([
+                        TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label'),
+                        Grid::make(['default' => 1, 'sm' => 2])
+                            ->schema([
+                                DatePicker::make('starts_on')
+                                    ->label('Academic year start')
+                                    ->native(false)
+                                    ->displayFormat('M j, Y')
+                                    ->suffixIcon(Heroicon::OutlinedCalendar)
+                                    ->required(),
+                                DatePicker::make('ends_on')
+                                    ->label('Academic year end')
+                                    ->native(false)
+                                    ->displayFormat('M j, Y')
+                                    ->suffixIcon(Heroicon::OutlinedCalendar)
+                                    ->required()
+                                    ->after('starts_on'),
+                            ]),
+                    ])
+                    ->createOptionUsing(function (array $data): int {
+                        Gate::authorize('create', AcademicYear::class);
+
+                        return (int) AcademicYear::query()->create([...$data, 'state' => AcademicYear::StateDraft])->id;
+                    })
+                    ->required(),
+                Select::make('type')
+                    ->label('Term')
+                    ->options(Term::typeOptions())
+                    ->required()
+                    ->unique(
+                        table: Term::class,
+                        column: 'type',
+                        modifyRuleUsing: fn (Unique $rule, Get $get): Unique => $rule->where('academic_year_id', $get('academic_year_id')),
+                    )
+                    ->validationMessages([
+                        'unique' => 'This academic year already has that term. Switch to the existing term or choose a different one.',
+                    ]),
+                Grid::make(['default' => 1, 'sm' => 2])
+                    ->schema([
+                        DatePicker::make('starts_on')
+                            ->label('Start date')
+                            ->native(false)
+                            ->displayFormat('M j, Y')
+                            ->suffixIcon(Heroicon::OutlinedCalendar)
+                            ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
+                            ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
+                            ->helperText(fn (Get $get): ?string => $this->academicYearBoundsHelperText($get('academic_year_id')))
+                            ->required()
+                            ->rules([$this->academicYearBoundRule('start')]),
+                        DatePicker::make('ends_on')
+                            ->label('End date')
+                            ->native(false)
+                            ->displayFormat('M j, Y')
+                            ->suffixIcon(Heroicon::OutlinedCalendar)
+                            ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
+                            ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
+                            ->helperText('Must be on or after the term start date.')
+                            ->required()
+                            ->after('starts_on')
+                            ->rules([$this->academicYearBoundRule('end')]),
+                    ]),
+            ])
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                Gate::forUser($actor)->authorize('create', Term::class);
+
+                $term = Term::query()->create([
+                    'academic_year_id' => $data['academic_year_id'],
+                    'type' => $data['type'],
+                    'label' => Term::typeOptions()[$data['type']] ?? (string) $data['type'],
+                    'starts_on' => $data['starts_on'],
+                    'ends_on' => $data['ends_on'],
+                    'default_max_units' => 24,
+                    'state' => Term::StateDraft,
+                    'scheduling_slot_minutes' => 30,
+                    'scheduling_days' => null,
+                ]);
+
+                Notification::make()
+                    ->title('Term created')
+                    ->body("{$term->typeLabel()} is ready. Set its calendar to begin planning.")
+                    ->success()
+                    ->send();
+
+                $this->redirect(TermCalendar::getUrl(['termId' => $term->id]));
+            });
+    }
+
+    public function isTermClosed(?Term $term = null): bool
+    {
+        $resolved = $term ?? ($this->termId !== null ? Term::query()->find($this->termId) : null);
+
+        return $resolved instanceof Term && $resolved->state === Term::StateClosed;
+    }
+
+    public function hasPublishedTimetable(?Term $term = null): bool
+    {
+        $resolved = $term ?? ($this->termId !== null ? Term::query()->find($this->termId) : null);
+        if (! $resolved instanceof Term) {
+            return false;
+        }
+
+        if ($resolved->relationLoaded('timetableVersions')) {
+            return $resolved->timetableVersions->contains('state', PublishedTimetableVersion::StatePublished);
+        }
+
+        return PublishedTimetableVersion::query()
+            ->where('term_id', $resolved->id)
+            ->where('state', PublishedTimetableVersion::StatePublished)
+            ->exists();
+    }
+
+    public function termLifecycleMode(?Term $term = null): string
+    {
+        $resolved = $term ?? ($this->termId !== null ? Term::query()->find($this->termId) : null);
+        if (! $resolved instanceof Term) {
+            return 'draft';
+        }
+
+        if ($this->isTermClosed($resolved)) {
+            return 'closed';
+        }
+
+        if ($this->hasPublishedTimetable($resolved)) {
+            return 'live';
+        }
+
+        $hasActiveCalendar = $resolved->relationLoaded('calendarPackages')
+            ? $resolved->calendarPackages->contains('state', TermCalendarPackage::StateActive)
+            : TermCalendarPackage::query()
+                ->where('term_id', $resolved->id)
+                ->where('state', TermCalendarPackage::StateActive)
+                ->exists();
+
+        if ($resolved->state === Term::StateDraft && ! $hasActiveCalendar) {
+            return 'draft';
+        }
+
+        return 'planning';
+    }
+
+    public function hasOfficialStudentEnrollments(?Term $term = null): bool
+    {
+        $resolved = $term ?? ($this->termId !== null ? Term::query()->find($this->termId) : null);
+        if (! $resolved instanceof Term) {
+            return false;
+        }
+
+        return CourseEnrollment::query()
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->whereHas('enrollment', fn ($query) => $query->where('term_id', $resolved->id))
+            ->exists()
+            || Enrollment::query()
+                ->where('term_id', $resolved->id)
+                ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
+                ->exists();
+    }
+
+    public function canDeleteDraftTerm(?Term $term = null): bool
+    {
+        $resolved = $term ?? ($this->termId !== null ? Term::query()->find($this->termId) : null);
+        if (! $resolved instanceof Term || $resolved->state !== Term::StateDraft) {
+            return false;
+        }
+
+        return ! $resolved->termOfferings()->exists()
+            && ! $resolved->enrollments()->exists()
+            && ! $resolved->timetableVersions()->exists()
+            && ! $resolved->hasActivatedCalendar()
+            && ! TermCohort::query()->where('term_id', $resolved->id)->exists()
+            && ! AdmissionCycle::query()->where('term_id', $resolved->id)->exists()
+            && ! FeePlan::query()->where('term_id', $resolved->id)->exists()
+            && ! $resolved->scheduleGenerationRuns()->exists();
+    }
+
+    /**
+     * @return array{
+     *     active_solver_runs: int,
+     *     draft_revisions: int,
+     *     open_admission_cycles: int,
+     *     unreleased_grade_rosters: int,
+     *     in_progress_enrollments: int,
+     * }
+     */
+    protected function preCloseTermCheck(Term $term): array
+    {
+        return [
+            'active_solver_runs' => ScheduleGenerationRun::query()
+                ->where('term_id', $term->id)
+                ->whereIn('status', [
+                    ScheduleGenerationRun::StatusQueued,
+                    ScheduleGenerationRun::StatusDispatching,
+                ])
+                ->count(),
+            'draft_revisions' => TimetableRevision::query()
+                ->where('term_id', $term->id)
+                ->where('state', TimetableRevision::StateDraft)
+                ->count(),
+            'open_admission_cycles' => AdmissionCycle::query()
+                ->where('term_id', $term->id)
+                ->where('state', AdmissionCycle::StatePublished)
+                ->where(function ($query): void {
+                    $query->whereNull('closes_at')
+                        ->orWhere('closes_at', '>', now());
+                })
+                ->count(),
+            'unreleased_grade_rosters' => GradeRoster::query()
+                ->where('state', '!=', GradeRoster::StateReleased)
+                ->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
+                ->count(),
+            'in_progress_enrollments' => Enrollment::query()
+                ->where('term_id', $term->id)
+                ->where('canonical_outcome', Enrollment::OutcomeInProgress)
+                ->count(),
+        ];
+    }
+
+    /**
+     * @param  array{
+     *     active_solver_runs: int,
+     *     draft_revisions: int,
+     *     open_admission_cycles: int,
+     *     unreleased_grade_rosters: int,
+     *     in_progress_enrollments: int,
+     * }  $check
+     * @return list<string>
+     */
+    private function preCloseTermBlockerMessages(array $check): array
+    {
+        $blockers = [];
+
+        if ($check['active_solver_runs'] > 0) {
+            $blockers[] = sprintf(
+                '%d timetable generation %s still queued or running. Wait for generation to finish before closing.',
+                $check['active_solver_runs'],
+                Str::plural('attempt is', $check['active_solver_runs']),
+            );
+        }
+
+        if ($check['draft_revisions'] > 0) {
+            $blockers[] = sprintf(
+                '%d draft timetable %s still pending. Publish or cancel the draft revision before closing.',
+                $check['draft_revisions'],
+                Str::plural('revision is', $check['draft_revisions']),
+            );
+        }
+
+        if ($check['open_admission_cycles'] > 0) {
+            $blockers[] = sprintf(
+                '%d published admission %s still open for this term. Close or cancel open admission cycles first.',
+                $check['open_admission_cycles'],
+                Str::plural('cycle is', $check['open_admission_cycles']),
+            );
+        }
+
+        return $blockers;
+    }
+
+    public function termSettingsAction(): Action
+    {
+        return Action::make('termSettings')
+            ->label('Term settings')
+            ->icon(Heroicon::OutlinedCog6Tooth)
+            ->color('gray')
+            ->modalHeading(function (): string {
+                $term = $this->termId !== null ? Term::query()->find($this->termId) : null;
+
+                if ($this->isTermClosed($term)) {
+                    return 'Term settings';
+                }
+
+                return $term && $term->hasActivatedCalendar()
+                    ? 'Term settings'
+                    : 'Edit term settings';
+            })
+            ->modalDescription(function (): string {
+                $readOnly = (bool) auth()->user()?->hasRole(User::StaffRoleAcademicHead);
+                if ($readOnly) {
+                    return 'Read-only term settings maintained by the Registrar.';
+                }
+
+                $term = $this->termId !== null ? Term::query()->find($this->termId) : null;
+
+                if ($this->isTermClosed($term)) {
+                    return 'This term is closed and read-only.';
+                }
+
+                return $term && $term->hasActivatedCalendar()
+                    ? 'Term identity and dates are locked while calendar history is active. You can still update the default maximum teaching units.'
+                    : 'Update term identity, dates, or the default faculty teaching-unit limit.';
+            })
+            ->modalSubmitAction(fn (Action $action): Action|false => auth()->user()?->hasRole(User::StaffRoleAcademicHead) || $this->isTermClosed() ? false : $action)
+            ->modalSubmitActionLabel('Save changes')
+            ->modalCancelActionLabel(fn (): string => auth()->user()?->hasRole(User::StaffRoleAcademicHead) || $this->isTermClosed() ? 'Close' : 'Cancel')
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->visible(fn (): bool => $this->termId !== null)
+            ->fillForm(function (): array {
+                $term = $this->selectedTerm();
+
+                return [
+                    'academic_year_id' => $term->academic_year_id,
+                    'type' => $term->type,
+                    'starts_on' => $term->starts_on?->toDateString(),
+                    'ends_on' => $term->ends_on?->toDateString(),
+                    'default_max_units' => $term->default_max_units ?? 24,
+                ];
+            })
+            ->schema(function (): array {
+                $term = $this->selectedTerm()->loadMissing('academicYear');
+                $isRegistrar = (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar);
+                $readOnly = (bool) auth()->user()?->hasRole(User::StaffRoleAcademicHead) || $this->isTermClosed($term);
+                $identityLocked = $readOnly || $term->hasActivatedCalendar();
+                $canCloseTerm = $isRegistrar
+                    && ! $readOnly
+                    && ($term->state === Term::StateActive || $this->hasPublishedTimetable($term));
+                $canDeleteDraft = $isRegistrar
+                    && ! $readOnly
+                    && $this->canDeleteDraftTerm($term);
+
+                if ($readOnly) {
+                    $defaultUnits = $term->default_max_units === null
+                        ? '24 units (default)'
+                        : rtrim(rtrim(number_format((float) $term->default_max_units, 2, '.', ''), '0'), '.').' units';
+
+                    return [
+                        SchemaSection::make('Recorded term settings')
+                            ->icon(Heroicon::OutlinedLockClosed)
+                            ->compact()
+                            ->extraAttributes(['class' => 'tala-term-settings-identity'])
+                            ->columns(2)
+                            ->schema([
+                                Placeholder::make('term_identity')
+                                    ->label('Term')
+                                    ->content(implode(' · ', array_filter([$term->typeLabel(), $term->academicYear?->label]))),
+                                Placeholder::make('term_dates')
+                                    ->label('Dates')
+                                    ->content($term->starts_on->format('M j, Y').' – '.$term->ends_on->format('M j, Y')),
+                                Placeholder::make('term_state')
+                                    ->label('Status')
+                                    ->content(Term::stateOptions()[$term->state] ?? $term->state),
+                                Placeholder::make('term_max_units')
+                                    ->label('Default maximum teaching units')
+                                    ->content($defaultUnits),
+                            ]),
+                    ];
+                }
+
+                $sections = [
+                    SchemaSection::make('Term details')
+                        ->icon(Heroicon::OutlinedCalendarDays)
+                        ->compact()
+                        ->hidden($identityLocked)
+                        ->schema([
+                            Select::make('academic_year_id')
+                                ->label('Academic year')
+                                ->options(fn (): array => AcademicYear::query()
+                                    ->orderByDesc('starts_on')
+                                    ->get()
+                                    ->mapWithKeys(fn (AcademicYear $record): array => [$record->id => $record->state === AcademicYear::StateActive ? (string) $record->label : $record->displayLabel()])
+                                    ->all())
+                                ->searchable()
+                                ->preload()
+                                ->live()
+                                ->required()
+                                ->disabled($identityLocked)
+                                ->validatedWhenNotDehydrated(false),
+                            Select::make('type')
+                                ->label('Term')
+                                ->options(Term::typeOptions())
+                                ->required()
+                                ->unique(
+                                    table: Term::class,
+                                    column: 'type',
+                                    ignorable: $term,
+                                    modifyRuleUsing: fn (Unique $rule, Get $get): Unique => $rule->where('academic_year_id', $get('academic_year_id')),
+                                )
+                                ->validationMessages([
+                                    'unique' => 'This academic year already has that term. Switch to the existing term or choose a different one.',
+                                ])
+                                ->disabled($identityLocked)
+                                ->validatedWhenNotDehydrated(false),
+                            DatePicker::make('starts_on')
+                                ->label('Start date')
+                                ->native(false)
+                                ->displayFormat('M j, Y')
+                                ->suffixIcon(Heroicon::OutlinedCalendar)
+                                ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
+                                ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
+                                ->helperText(fn (Get $get): ?string => $this->academicYearBoundsHelperText($get('academic_year_id')))
+                                ->required()
+                                ->rules([$this->academicYearBoundRule('start')])
+                                ->disabled($identityLocked)
+                                ->validatedWhenNotDehydrated(false),
+                            DatePicker::make('ends_on')
+                                ->label('End date')
+                                ->native(false)
+                                ->displayFormat('M j, Y')
+                                ->suffixIcon(Heroicon::OutlinedCalendar)
+                                ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
+                                ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
+                                ->helperText('Must be on or after the term start date.')
+                                ->required()
+                                ->after('starts_on')
+                                ->rules([$this->academicYearBoundRule('end')])
+                                ->disabled($identityLocked)
+                                ->validatedWhenNotDehydrated(false),
+                        ])
+                        ->columns(['default' => 1, 'sm' => 2]),
+                    SchemaSection::make('Recorded term identity')
+                        ->icon(Heroicon::OutlinedLockClosed)
+                        ->description('Locked while calendar history is active.')
+                        ->compact()
+                        ->extraAttributes(['class' => 'tala-term-settings-identity'])
+                        ->visible($identityLocked)
+                        ->schema([
+                            Placeholder::make('locked_identity')
+                                ->label('Term')
+                                ->content(implode(' · ', array_filter([$term->typeLabel(), $term->academicYear?->label]))),
+                            Placeholder::make('locked_dates')
+                                ->label('Dates')
+                                ->content($term->starts_on->format('M j, Y').' – '.$term->ends_on->format('M j, Y')),
+                        ])
+                        ->columns(2),
+                    SchemaSection::make('Default teaching load')
+                        ->icon(Heroicon::OutlinedAcademicCap)
+                        ->description('Maximum teaching units per faculty member for this term (24 units default per CHED CMO 40 s. 2008). Individual load overrides take precedence.')
+                        ->compact()
+                        ->extraAttributes(['class' => 'tala-term-settings-load'])
+                        ->schema([
+                            TextInput::make('default_max_units')
+                                ->label('Maximum teaching units per faculty member')
+                                ->numeric()
+                                ->default(24)
+                                ->minValue(0)
+                                ->suffix('units')
+                                ->step(0.25)
+                                ->required(),
+                        ]),
+                ];
+
+                if ($canCloseTerm || $canDeleteDraft) {
+                    $lifecycleComponents = [];
+
+                    if ($canCloseTerm) {
+                        $lifecycleComponents[] = Placeholder::make('close_term_consequence')
+                            ->hiddenLabel()
+                            ->content(new HtmlString(
+                                '<p class="text-sm text-gray-600 dark:text-gray-300"><strong>Close term</strong> — Marks this term as Closed and locks its calendar, classes, staffing, timetable, enrollment, and grading as a read-only historical record. Closed terms remain viewable in Term Planning under the Closed filter. Active solver runs, draft timetable revisions, and open admission cycles must be resolved first.</p>'
+                            ));
+                    }
+
+                    if ($canDeleteDraft) {
+                        $lifecycleComponents[] = Placeholder::make('delete_draft_consequence')
+                            ->hiddenLabel()
+                            ->content(new HtmlString(
+                                '<p class="text-sm text-gray-600 dark:text-gray-300"><strong>Delete draft term</strong> — Permanently removes this unused draft term and any draft calendar rows. This cannot be undone.</p>'
+                            ));
+                    }
+
+                    $lifecycleActions = [];
+
+                    if ($canCloseTerm) {
+                        $lifecycleActions[] = Action::make('openCloseTerm')
+                            ->label('Close term')
+                            ->icon(Heroicon::OutlinedLockClosed)
+                            ->color('warning')
+                            ->action(fn () => $this->replaceMountedAction('closeTerm'));
+                    }
+
+                    if ($canDeleteDraft) {
+                        $lifecycleActions[] = Action::make('openDeleteDraftTerm')
+                            ->label('Delete draft term')
+                            ->icon(Heroicon::OutlinedTrash)
+                            ->color('danger')
+                            ->action(fn () => $this->replaceMountedAction('deleteDraftTerm'));
+                    }
+
+                    $lifecycleComponents[] = Actions::make($lifecycleActions);
+
+                    $sections[] = SchemaSection::make('Term lifecycle · Danger zone')
+                        ->icon(Heroicon::OutlinedExclamationTriangle)
+                        ->iconColor('danger')
+                        ->description('Irreversible or locking lifecycle actions for this term.')
+                        ->compact()
+                        ->extraAttributes(['class' => 'tala-term-settings-danger'])
+                        ->schema($lifecycleComponents);
+                }
+
+                return $sections;
+            })
+            ->action(function (array $data, Schema $schema): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $selected = $this->selectedTerm();
+                $needsDemandRefresh = false;
+
+                DB::transaction(function () use ($selected, $data, $actor, $schema, &$needsDemandRefresh): void {
+                    $term = Term::query()->whereKey($selected->id)->lockForUpdate()->firstOrFail();
+                    Gate::forUser($actor)->authorize('update', $term);
+
+                    if ($term->state === Term::StateClosed) {
+                        throw ValidationException::withMessages([
+                            'state' => 'This term is closed and read-only.',
+                        ]);
+                    }
+
+                    $oldDefaultMaxUnits = (float) ($term->default_max_units ?? 24);
+                    $newDefaultMaxUnits = (float) ($data['default_max_units'] ?? $term->default_max_units ?? 24);
+                    $defaultUnitsChanged = abs($oldDefaultMaxUnits - $newDefaultMaxUnits) > 0.0001;
+
+                    if ($this->hasPublishedTimetable($term) && $newDefaultMaxUnits + 0.0001 < $oldDefaultMaxUnits) {
+                        $facultyIdsWithActiveOverride = FacultyTermLoadOverride::query()
+                            ->where('term_id', $term->id)
+                            ->where('is_active', true)
+                            ->pluck('faculty_user_id')
+                            ->map(fn (mixed $id): int => (int) $id)
+                            ->all();
+
+                        $activeMeetings = SectionMeeting::query()
+                            ->activeOfficial()
+                            ->whereNotNull('faculty_user_id')
+                            ->whereHas('scheduleRun', fn ($query) => $query->where('term_id', $term->id))
+                            ->with([
+                                'schedulingDemand.courseComponent.courseSpecification',
+                                'schedulingDemand.sectionDeliveryGroup',
+                                'schedulingDemand.termOffering.curriculumEntry.courseSpecification',
+                            ])
+                            ->get();
+
+                        $maxAssignedUnitsWithoutOverride = 0.0;
+
+                        foreach ($activeMeetings->groupBy('faculty_user_id') as $facultyId => $meetings) {
+                            if (in_array((int) $facultyId, $facultyIdsWithActiveOverride, true)) {
+                                continue;
+                            }
+
+                            $countedKeys = [];
+                            $facultyUnits = 0.0;
+
+                            foreach ($meetings as $meeting) {
+                                $demand = $meeting->schedulingDemand;
+                                if (! $demand instanceof SchedulingDemand) {
+                                    continue;
+                                }
+
+                                $sectionId = $demand->sectionDeliveryGroup?->section_id;
+                                $unitKey = $sectionId !== null
+                                    ? 'section:'.$sectionId
+                                    : 'demand:'.$demand->id;
+
+                                if (isset($countedKeys[$unitKey])) {
+                                    continue;
+                                }
+                                $countedKeys[$unitKey] = true;
+
+                                $creditUnits = $demand->courseComponent?->courseSpecification?->credit_units
+                                    ?? $demand->termOffering?->curriculumEntry?->courseSpecification?->credit_units
+                                    ?? 0;
+                                $facultyUnits += (float) $creditUnits;
+                            }
+
+                            if ($facultyUnits > $maxAssignedUnitsWithoutOverride) {
+                                $maxAssignedUnitsWithoutOverride = $facultyUnits;
+                            }
+                        }
+
+                        if ($maxAssignedUnitsWithoutOverride > $newDefaultMaxUnits + 0.0001) {
+                            $minRequired = rtrim(rtrim(number_format($maxAssignedUnitsWithoutOverride, 2, '.', ''), '0'), '.');
+
+                            throw ValidationException::withMessages([
+                                $schema->getStatePath().'.default_max_units' => "Cannot lower default maximum teaching units below {$minRequired} units because at least one faculty member without an individual load override is already assigned {$minRequired} units on the published timetable.",
+                            ]);
+                        }
+                    }
+
+                    if ($term->hasActivatedCalendar()) {
+                        $term->update([
+                            'default_max_units' => $newDefaultMaxUnits,
+                        ]);
+                    } else {
+                        $term->update([
+                            'academic_year_id' => $data['academic_year_id'],
+                            'type' => $data['type'],
+                            'label' => Term::typeOptions()[$data['type']] ?? (string) $data['type'],
+                            'starts_on' => $data['starts_on'],
+                            'ends_on' => $data['ends_on'],
+                            'default_max_units' => $newDefaultMaxUnits,
+                        ]);
+                    }
+
+                    if ($defaultUnitsChanged && ! $this->hasPublishedTimetable($term)) {
+                        $needsDemandRefresh = true;
+                        $staleNote = 'Marked stale because the term default maximum teaching units changed.';
+                        $activeRuns = ScheduleGenerationRun::query()
+                            ->where('term_id', $term->id)
+                            ->whereIn('status', [
+                                ScheduleGenerationRun::StatusQueued,
+                                ScheduleGenerationRun::StatusDispatching,
+                                ScheduleGenerationRun::StatusUnderReview,
+                            ])
+                            ->lockForUpdate()
+                            ->get();
+
+                        foreach ($activeRuns as $activeRun) {
+                            $diagnostics = is_array($activeRun->diagnostics) ? $activeRun->diagnostics : [];
+                            $diagnostics['stale_reason'] = $staleNote;
+
+                            $activeRun->forceFill([
+                                'candidate_state' => 'Stale',
+                                'candidate_review_reason' => $staleNote,
+                                'diagnostics' => $diagnostics,
+                            ])->save();
+                        }
+                    }
+                }, attempts: 3);
+
+                if ($needsDemandRefresh && $actor->can('create', SchedulingDemand::class)) {
+                    app(GenerateSchedulingDemand::class)->forTerm($actor, $this->selectedTerm());
+                }
+
+                Notification::make()
+                    ->title('Term settings saved')
+                    ->body($needsDemandRefresh ? 'Scheduling requirements refreshed and active draft runs marked stale.' : null)
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public function closeTermAction(): Action
+    {
+        return Action::make('closeTerm')
+            ->label('Close term')
+            ->icon(Heroicon::OutlinedLockClosed)
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalWidth(Width::Large)
+            ->modalHeading('Close term')
+            ->modalDescription(function (): string {
+                $term = $this->termId !== null ? Term::query()->find($this->termId) : null;
+                $label = $term ? $term->typeLabel() : 'this term';
+
+                return "Closing {$label} marks it Closed and locks its calendar, classes, staffing, and timetable as a read-only record in Term Planning.";
+            })
+            ->modalContent(function (): ?HtmlString {
+                $term = $this->termId !== null ? Term::query()->find($this->termId) : null;
+                if (! $term instanceof Term) {
+                    return null;
+                }
+
+                $check = $this->preCloseTermCheck($term);
+                $blockers = $this->preCloseTermBlockerMessages($check);
+                $warnings = [];
+
+                if ($check['unreleased_grade_rosters'] > 0) {
+                    $warnings[] = sprintf(
+                        '%d unreleased grade %s (%s).',
+                        $check['unreleased_grade_rosters'],
+                        Str::plural('roster', $check['unreleased_grade_rosters']),
+                        'not yet posted and released',
+                    );
+                }
+
+                if ($check['in_progress_enrollments'] > 0) {
+                    $warnings[] = sprintf(
+                        '%d in-progress student %s still open.',
+                        $check['in_progress_enrollments'],
+                        Str::plural('enrollment', $check['in_progress_enrollments']),
+                    );
+                }
+
+                if ($blockers === [] && $warnings === []) {
+                    return new HtmlString(
+                        '<p class="text-sm text-gray-600 dark:text-gray-300">Pre-close checks passed: no active solver runs, draft timetable revisions, open admission cycles, unreleased grade rosters, or in-progress enrollments found.</p>'
+                    );
+                }
+
+                $parts = [];
+
+                if ($blockers !== []) {
+                    $items = implode('', array_map(fn (string $msg): string => '<li>'.e($msg).'</li>', $blockers));
+                    $parts[] = '<div class="rounded-lg border border-danger-300 bg-danger-50 p-3 text-sm text-danger-800 dark:border-danger-700 dark:bg-danger-950/40 dark:text-danger-200">'
+                        .'<p class="font-semibold">Closing is blocked until resolved:</p>'
+                        .'<ul class="mt-1 list-disc space-y-1 ps-5">'.$items.'</ul>'
+                        .'</div>';
+                }
+
+                if ($warnings !== []) {
+                    $items = implode('', array_map(fn (string $msg): string => '<li>'.e($msg).'</li>', $warnings));
+                    $parts[] = '<div class="rounded-lg border border-warning-300 bg-warning-50 p-3 text-sm text-warning-800 dark:border-warning-700 dark:bg-warning-950/40 dark:text-warning-200">'
+                        .'<p class="font-semibold">Outstanding term records (warning):</p>'
+                        .'<ul class="mt-1 list-disc space-y-1 ps-5">'.$items.'</ul>'
+                        .'</div>';
+                }
+
+                return new HtmlString('<div class="space-y-3">'.implode('', $parts).'</div>');
+            })
+            ->modalSubmitActionLabel('Close term')
+            ->visible(function (): bool {
+                if (! auth()->user()?->hasRole(User::StaffRoleRegistrar) || $this->termId === null) {
+                    return false;
+                }
+
+                $term = Term::query()->find($this->termId);
+
+                return $term instanceof Term
+                    && ! $this->isTermClosed($term)
+                    && ($term->state === Term::StateActive || $this->hasPublishedTimetable($term));
+            })
+            ->action(function (): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $selected = $this->selectedTerm();
+
+                try {
+                    DB::transaction(function () use ($selected, $actor): void {
+                        $term = Term::query()->whereKey($selected->id)->lockForUpdate()->firstOrFail();
+                        Gate::forUser($actor)->authorize('update', $term);
+
+                        if ($term->state === Term::StateClosed) {
+                            return;
+                        }
+
+                        if ($term->state !== Term::StateActive && ! $this->hasPublishedTimetable($term)) {
+                            throw ValidationException::withMessages([
+                                'state' => 'Only active or published terms can be closed.',
+                            ]);
+                        }
+
+                        $check = $this->preCloseTermCheck($term);
+                        $blockers = $this->preCloseTermBlockerMessages($check);
+
+                        if ($blockers !== []) {
+                            throw ValidationException::withMessages([
+                                'state' => implode(' ', $blockers),
+                            ]);
+                        }
+
+                        $term->update(['state' => Term::StateClosed]);
+                    }, attempts: 3);
+                } catch (ValidationException $exception) {
+                    $message = collect($exception->errors())->flatten()->first();
+                    Notification::make()
+                        ->title('Term cannot be closed')
+                        ->body(is_string($message) ? $message : 'Resolve active scheduling or admission blockers before closing this term.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw $exception;
+                }
+
+                Notification::make()
+                    ->title('Term closed')
+                    ->body('The term is now read-only.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public function deleteDraftTermAction(): Action
+    {
+        return Action::make('deleteDraftTerm')
+            ->label('Delete draft term')
+            ->icon(Heroicon::OutlinedTrash)
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Delete draft term')
+            ->modalDescription('Delete this unused draft term permanently. This cannot be undone.')
+            ->modalSubmitActionLabel('Delete draft term')
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                && $this->termId !== null
+                && $this->canDeleteDraftTerm())
+            ->action(function (): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $selected = $this->selectedTerm();
+
+                try {
+                    DB::transaction(function () use ($selected, $actor): void {
+                        $term = Term::query()->whereKey($selected->id)->lockForUpdate()->firstOrFail();
+                        Gate::forUser($actor)->authorize('update', $term);
+
+                        if (! $this->canDeleteDraftTerm($term)) {
+                            throw ValidationException::withMessages([
+                                'state' => 'Only unused draft terms with no offerings, enrollments, or timetable versions can be deleted.',
+                            ]);
+                        }
+
+                        $term->calendarPackages()
+                            ->where('state', TermCalendarPackage::StateDraft)
+                            ->each(function (TermCalendarPackage $package): void {
+                                $package->windows()->delete();
+                                $package->teachingGridRows()->delete();
+                                $package->datedExceptions()->delete();
+                                $package->delete();
+                            });
+
+                        $term->delete();
+                    }, attempts: 3);
+                } catch (QueryException) {
+                    Notification::make()
+                        ->title('Draft term cannot be deleted')
+                        ->body('This draft term is still referenced by linked admission or student records.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw ValidationException::withMessages([
+                        'term' => 'This draft term is still referenced by linked admission or student records.',
+                    ]);
+                }
+
+                Notification::make()
+                    ->title('Draft term deleted')
+                    ->success()
+                    ->send();
+
+                $this->redirect(TermOverview::getUrl());
+            });
+    }
+
+    private function academicYearDateBound(mixed $academicYearId, string $boundary): ?string
+    {
+        if (blank($academicYearId)) {
+            return null;
+        }
+
+        $academicYear = AcademicYear::query()->find($academicYearId);
+        if (! $academicYear instanceof AcademicYear) {
+            return null;
+        }
+
+        return $boundary === 'start'
+            ? $academicYear->starts_on?->toDateString()
+            : $academicYear->ends_on?->toDateString();
+    }
+
+    private function academicYearBoundsHelperText(mixed $academicYearId): ?string
+    {
+        if (blank($academicYearId)) {
+            return 'Select an academic year first to constrain valid term dates.';
+        }
+
+        $academicYear = AcademicYear::query()->find($academicYearId);
+        if (! $academicYear instanceof AcademicYear || ! $academicYear->starts_on || ! $academicYear->ends_on) {
+            return null;
+        }
+
+        return sprintf(
+            'Within AY %s (%s – %s).',
+            $academicYear->displayLabel(),
+            $academicYear->starts_on->format('M j, Y'),
+            $academicYear->ends_on->format('M j, Y'),
+        );
+    }
+
+    private function academicYearBoundRule(string $boundary): Closure
+    {
+        return function (Get $get) use ($boundary): Closure {
+            return function (string $attribute, mixed $value, Closure $fail) use ($get, $boundary): void {
+                $academicYearId = $get('academic_year_id');
+
+                if (blank($academicYearId) || blank($value)) {
+                    return;
+                }
+
+                $academicYear = AcademicYear::query()->find($academicYearId);
+
+                if (! $academicYear instanceof AcademicYear) {
+                    return;
+                }
+
+                $date = CarbonImmutable::parse($value)->startOfDay();
+                $startsOn = CarbonImmutable::parse($academicYear->starts_on)->startOfDay();
+                $endsOn = CarbonImmutable::parse($academicYear->ends_on)->startOfDay();
+
+                if ($date->betweenIncluded($startsOn, $endsOn)) {
+                    return;
+                }
+
+                $label = $boundary === 'start' ? 'start' : 'end';
+                $fail("The term {$label} date must be within {$academicYear->displayLabel()}.");
+            };
+        };
     }
 
     public static function canAccess(): bool
@@ -286,982 +1262,160 @@ class TermPlanningWorkbench extends Page
         return [];
     }
 
-    public function recordCalendarPackageAction(): Action
-    {
-
-        return $this->calendarRecordingAction();
-
-    }
-
     public function addOperationalDatesAction(): Action
     {
-
-        return $this->calendarRecordingAction(datesOnly: true);
-
-    }
-
-    private function calendarRecordingAction(bool $datesOnly = false): Action
-    {
-
-        return Action::make($datesOnly ? 'addOperationalDates' : 'recordCalendarPackage')
-
-            ->label(fn (): string => $datesOnly ? 'Update activity dates' : ($this->activeCalendarPackage() ? 'Change teaching calendar' : 'Record teaching calendar'))
-
-            ->modalHeading(fn (): string => $datesOnly ? 'Record approved activity dates' : ($this->activeCalendarPackage() ? 'Change teaching calendar' : 'Record teaching calendar'))
-
-            ->color(fn (): string => $this->activeCalendarPackage() ? 'gray' : 'primary')
-
-            ->modalDescription($datesOnly ? 'The current teaching dates, hours and exceptions are retained. Record the approved activity dates and their source, then review and activate the new Draft.' : 'Record the approved teaching dates and hours. Review and activation are separate; the current calendar remains in effect until then.')
-
-            ->modalSubmitActionLabel('Record approved Draft')
-
+        return Action::make('addOperationalDates')
+            ->label('Update window dates')
+            ->modalHeading('Enrollment, exam & grading windows')
+            ->color('gray')
+            ->modalDescription('Optional while building the timetable · Set Enrollment and Grade Entry before opening student enrollment or faculty grading. Current teaching dates, hours, and school events are retained.')
+            ->modalSubmitActionLabel('Save window dates')
             ->modalWidth('5xl')
             ->stickyModalHeader()
             ->stickyModalFooter()
-
-            ->fillForm(fn (): array => $this->activeCalendarPackage() ? $this->calendarPackageFormData($this->activeCalendarPackage()) : ['source_package_id' => null, 'source_token' => null, 'windows' => [], 'dated_exceptions' => []])
-
-            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null)
-
+            ->fillForm(fn (): array => $this->activeCalendarPackage()
+                ? $this->calendarPackageFormData($this->activeCalendarPackage())
+                : ['source_package_id' => null, 'source_token' => null, 'windows' => []])
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                && $this->termId !== null
+                && ! $this->isTermClosed())
             ->schema([
-
                 Hidden::make('source_package_id'),
-
                 Hidden::make('source_token'),
-
-                ...($datesOnly ? $this->operationalDateFields() : $this->calendarPackageFields()),
-
+                ...$this->operationalDateFields(),
             ])
-
-            ->when(! $datesOnly, fn (Action $action): Action => $action->steps($this->calendarSteps()))
-
-            ->action(function (array $data, Schema $schema) use ($datesOnly): void {
-
+            ->action(function (array $data, Schema $schema): void {
                 $actor = auth()->user();
-
                 abort_unless($actor instanceof User, 403);
 
-                Gate::forUser($actor)->authorize('update', $this->selectedTerm());
+                $selectedTerm = $this->selectedTerm();
+                Gate::forUser($actor)->authorize('update', $selectedTerm);
 
-                DB::transaction(function () use ($data, $actor, $datesOnly, $schema): void {
-
-                    $term = Term::query()->whereKey($this->selectedTerm()->id)->lockForUpdate()->firstOrFail();
-
-                    $source = TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)->first();
-
-                    if ((int) ($source?->id ?? 0) !== (int) ($data['source_package_id'] ?? 0)
-
-                        || ($source && ! hash_equals($source->concurrencyToken(), (string) ($data['source_token'] ?? '')))) {
-
-                        Notification::make()->title('Calendar source changed')->body('Reopen this form to review the current Active version before saving.')->danger()->persistent()->send();
-
-                        throw ValidationException::withMessages([$schema->getStatePath().'.authority_reference' => 'The Active calendar source changed. Reopen this form to review the current version.']);
-                    }
-
-                    if ($datesOnly) {
-
-                        abort_unless($source instanceof TermCalendarPackage, 422);
-
-                        $data = [...$this->calendarPackageFormData($source), ...collect($data)->only(['authority_reference', 'authority_date', 'windows'])->all()];
-
-                    }
-
-                    $data = collect($data)->except(['faculty_availability_due_at'])->all();
-
-                    $version = ((int) TermCalendarPackage::query()->where('term_id', $term->id)->max('version')) + 1;
-
-                    $package = TermCalendarPackage::query()->create([
-
-                        ...collect($data)->except(['source_package_id', 'source_token', 'windows', 'teaching_grid_rows', 'dated_exceptions'])->all(),
-
-                        'term_id' => $term->id,
-
-                        'version' => $version,
-
-                        'state' => TermCalendarPackage::StateDraft,
-
-                        'recorded_by' => $actor->id,
-
-                    ]);
-
-                    foreach ($data['windows'] ?? [] as $window) {
-
-                        $package->windows()->create($window);
-
-                    }
-
-                    foreach ($data['teaching_grid_rows'] as $row) {
-
-                        $package->teachingGridRows()->create($row);
-
-                    }
-
-                    foreach ($data['dated_exceptions'] ?? [] as $exception) {
-
-                        $package->datedExceptions()->create([
-
-                            ...$exception,
-
-                            'authority_reference' => trim((string) ($exception['authority_reference'] ?? '')),
-
-                            'blocks_teaching' => (bool) ($exception['blocks_teaching'] ?? true),
-
-                        ]);
-
-                    }
-
-                }, 3);
-
-                Notification::make()->title('Draft Calendar Package recorded')->body('Review draft readiness and activate it when all checks pass.')->success()->send();
-
-            });
-
-    }
-
-    public function correctDraftCalendarPackageAction(): Action
-    {
-
-        return Action::make('correctDraftCalendarPackage')
-
-            ->label('Correct Draft Package')
-
-            ->color('warning')
-
-            ->modalSubmitActionLabel('Save Draft correction')
-
-            ->modalWidth('5xl')
-            ->stickyModalHeader()
-            ->stickyModalFooter()
-
-            ->visible(function (): bool {
-
-                if (! (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) || $this->termId === null) {
-
-                    return false;
-
-                }
-
-                return TermCalendarPackage::query()
-
-                    ->where('term_id', $this->termId)
-
-                    ->where('state', TermCalendarPackage::StateDraft)
-
-                    ->exists();
-
-            })
-
-            ->fillForm(function (): array {
-
-                if ($this->termId === null) {
-
-                    return [];
-
-                }
-
-                $draft = TermCalendarPackage::query()
-
-                    ->where('term_id', $this->termId)
-
-                    ->where('state', TermCalendarPackage::StateDraft)
-
-                    ->latest('version')
-
-                    ->with(['windows', 'teachingGridRows', 'datedExceptions'])
-
-                    ->first();
-
-                if (! $draft) {
-
-                    return [];
-
-                }
-
-                return [
-
-                    'package_id' => $draft->id,
-
-                    'concurrency_token' => $draft->concurrencyToken(),
-
-                    'original_updated_at' => $draft->concurrencyToken(),
-
-                    'administrative_starts_on' => $draft->administrative_starts_on?->toDateString(),
-
-                    'administrative_ends_on' => $draft->administrative_ends_on?->toDateString(),
-
-                    'classes_start_on' => $draft->classes_start_on?->toDateString(),
-
-                    'classes_end_on' => $draft->classes_end_on?->toDateString(),
-
-                    'authority_reference' => $draft->authority_reference,
-
-                    'authority_date' => $draft->authority_date?->toDateString(),
-
-                    'special_term_schedule_basis' => $draft->special_term_schedule_basis,
-
-                    'windows' => $draft->windows->map(fn (TermCalendarWindow $w): array => [
-
-                        'window_type' => $w->window_type,
-
-                        'opens_on' => $w->opens_on?->toDateString(),
-
-                        'closes_on' => $w->closes_on?->toDateString(),
-
-                        'cutoff_at' => $w->cutoff_at,
-
-                    ])->all(),
-
-                    'teaching_grid_rows' => $draft->teachingGridRows->map(fn ($r): array => [
-
-                        'day_of_week' => $r->day_of_week,
-
-                        'starts_at' => substr((string) $r->starts_at, 0, 5),
-
-                        'ends_at' => substr((string) $r->ends_at, 0, 5),
-
-                        'breaks' => collect($r->breaks ?? [])->map(fn ($b): array => [
-
-                            'starts_at' => isset($b['starts_at']) ? substr((string) $b['starts_at'], 0, 5) : null,
-
-                            'ends_at' => isset($b['ends_at']) ? substr((string) $b['ends_at'], 0, 5) : null,
-
-                        ])->all(),
-
-                    ])->all(),
-
-                    'dated_exceptions' => $draft->datedExceptions->map(fn ($e): array => [
-
-                        'starts_on' => $e->starts_on?->toDateString(),
-
-                        'ends_on' => $e->ends_on?->toDateString(),
-
-                        'exception_type' => $e->exception_type,
-
-                        'label' => $e->label,
-
-                        'authority_reference' => $e->authority_reference,
-
-                        'blocks_teaching' => (bool) $e->blocks_teaching,
-
-                    ])->all(),
-
-                ];
-
-            })
-
-            ->schema([
-
-                Select::make('package_id')
-
-                    ->label('Draft package')
-
-                    ->options(fn (): array => TermCalendarPackage::query()
-
-                        ->where('term_id', $this->selectedTerm()->id)
-
-                        ->where('state', TermCalendarPackage::StateDraft)
-
-                        ->get()
-
-                        ->mapWithKeys(
-
-                            fn (TermCalendarPackage $package): array => [$package->id => 'v'.$package->version.' · '.$package->authority_reference],
-
-                        )->all())
-
-                    ->required()
-
-                    ->rules([
-
-                        Rule::exists('term_calendar_packages', 'id')
-
-                            ->where('term_id', $this->termId)
-
-                            ->where('state', TermCalendarPackage::StateDraft),
-
-                    ])
-
-                    ->live()
-
-                    ->afterStateUpdated(function (Set $set, ?string $state): void {
-
-                        if (! $state) {
-
-                            return;
-
-                        }
-
-                        $package = TermCalendarPackage::query()
-
-                            ->with(['windows', 'teachingGridRows', 'datedExceptions'])
-
-                            ->find((int) $state);
-
-                        if (! $package || $package->term_id !== $this->selectedTerm()->id || $package->state !== TermCalendarPackage::StateDraft) {
-
-                            return;
-
-                        }
-
-                        $token = $package->concurrencyToken();
-
-                        $set('concurrency_token', $token);
-
-                        $set('original_updated_at', $token);
-
-                        $set('administrative_starts_on', $package->administrative_starts_on?->toDateString());
-
-                        $set('administrative_ends_on', $package->administrative_ends_on?->toDateString());
-
-                        $set('classes_start_on', $package->classes_start_on?->toDateString());
-
-                        $set('classes_end_on', $package->classes_end_on?->toDateString());
-
-                        $set('authority_reference', $package->authority_reference);
-
-                        $set('authority_date', $package->authority_date?->toDateString());
-
-                        $set('special_term_schedule_basis', $package->special_term_schedule_basis);
-
-                        $set('windows', $package->windows->map(fn (TermCalendarWindow $w): array => [
-
-                            'window_type' => $w->window_type,
-
-                            'opens_on' => $w->opens_on?->toDateString(),
-
-                            'closes_on' => $w->closes_on?->toDateString(),
-
-                            'cutoff_at' => $w->cutoff_at,
-
-                        ])->all());
-
-                        $set('teaching_grid_rows', $package->teachingGridRows->map(fn ($r): array => [
-
-                            'day_of_week' => $r->day_of_week,
-
-                            'starts_at' => substr((string) $r->starts_at, 0, 5),
-
-                            'ends_at' => substr((string) $r->ends_at, 0, 5),
-
-                            'breaks' => collect($r->breaks ?? [])->map(fn ($b): array => [
-
-                                'starts_at' => isset($b['starts_at']) ? substr((string) $b['starts_at'], 0, 5) : null,
-
-                                'ends_at' => isset($b['ends_at']) ? substr((string) $b['ends_at'], 0, 5) : null,
-
-                            ])->all(),
-
-                        ])->all());
-
-                        $set('dated_exceptions', $package->datedExceptions->map(fn ($e): array => [
-
-                            'starts_on' => $e->starts_on?->toDateString(),
-
-                            'ends_on' => $e->ends_on?->toDateString(),
-
-                            'exception_type' => $e->exception_type,
-
-                            'label' => $e->label,
-
-                            'authority_reference' => $e->authority_reference,
-
-                            'blocks_teaching' => (bool) $e->blocks_teaching,
-
-                        ])->all());
-
-                    }),
-
-                Hidden::make('concurrency_token'),
-
-                Hidden::make('original_updated_at'),
-
-                ...$this->calendarPackageFields(),
-
-            ])
-
-            ->action(function (array $data): void {
-
-                $actor = auth()->user();
-
-                abort_unless($actor instanceof User, 403);
-
-                $term = $this->selectedTerm();
-
-                Gate::forUser($actor)->authorize('update', $term);
-
-                DB::transaction(function () use ($data, $term, $actor): void {
-
-                    Term::query()->whereKey($term)->lockForUpdate()->firstOrFail();
-
-                    $package = TermCalendarPackage::query()
-
-                        ->where('term_id', $term->id)
-
-                        ->whereKey((int) $data['package_id'])
-
-                        ->with(['windows', 'teachingGridRows', 'datedExceptions'])
-
-                        ->lockForUpdate()
-
-                        ->first();
-
-                    if (! $package || $package->state !== TermCalendarPackage::StateDraft) {
-
-                        throw ValidationException::withMessages([
-                            'package_id' => 'Only a Draft Term Calendar Package can be corrected for this Term.',
-
-                        ]);
-
-                    }
-
-                    $submittedToken = (string) ($data['concurrency_token'] ?? $data['original_updated_at'] ?? '');
-
-                    if (blank($submittedToken) || ! hash_equals($package->concurrencyToken(), $submittedToken)) {
-
-                        Notification::make()
-
-                            ->title('Cannot correct Draft Calendar Package')
-
-                            ->body('This Draft Calendar Package was modified by another Registrar while your form was open. Reopen the correction form to review the latest changes before saving.')
-
-                            ->danger()
-
-                            ->persistent()
-
-                            ->send();
-
-                        throw ValidationException::withMessages([
-                            'package_id' => 'This Draft Calendar Package was modified by another Registrar while your form was open. Reopen the correction form to review the latest changes before saving.',
-
-                        ]);
-
-                    }
-
-                    $data = collect($data)->except(['faculty_availability_due_at'])->all();
-
-                    $package->update([
-
-                        ...collect($data)->except(['package_id', 'concurrency_token', 'original_updated_at', 'windows', 'teaching_grid_rows', 'dated_exceptions'])->all(),
-
-                        'recorded_by' => $actor->id,
-
-                    ]);
-
-                    $package->windows()->delete();
-
-                    foreach ($data['windows'] ?? [] as $window) {
-
-                        $package->windows()->create($window);
-
-                    }
-
-                    $package->teachingGridRows()->delete();
-
-                    foreach ($data['teaching_grid_rows'] as $row) {
-
-                        $package->teachingGridRows()->create($row);
-
-                    }
-
-                    $package->datedExceptions()->delete();
-
-                    foreach ($data['dated_exceptions'] ?? [] as $exception) {
-
-                        $package->datedExceptions()->create([
-
-                            ...$exception,
-
-                            'authority_reference' => trim((string) ($exception['authority_reference'] ?? '')),
-
-                            'blocks_teaching' => (bool) ($exception['blocks_teaching'] ?? true),
-
-                        ]);
-
-                    }
-
-                }, attempts: 3);
-
-                Notification::make()->title('Draft Calendar Package corrected')->body('Review draft readiness and activate it when all checks pass.')->success()->send();
-
-            });
-
-    }
-
-    public function activateCalendarPackageAction(): Action
-    {
-
-        return Action::make('activateCalendarPackage')
-
-            ->label('Activate teaching calendar')
-
-            ->disabled(function (): bool {
-
-                $drafts = TermCalendarPackage::query()->where('term_id', $this->termId)->where('state', TermCalendarPackage::StateDraft)->with(['windows', 'teachingGridRows', 'datedExceptions'])->get();
-
-                $readiness = app(TermCalendarPackageReadinessService::class);
-
-                return ! $drafts->contains(fn (TermCalendarPackage $draft): bool => $readiness->for($draft)['ready']);
-
-            })
-
-            ->icon(Heroicon::OutlinedCheckCircle)
-
-            ->color('success')
-
-            ->visible(function (): bool {
-
-                if (! (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) || $this->termId === null) {
-
-                    return false;
-
-                }
-
-                return TermCalendarPackage::query()
-
-                    ->where('term_id', $this->termId)
-
-                    ->where('state', TermCalendarPackage::StateDraft)
-
-                    ->exists();
-
-            })
-
-            ->modalHeading('Activate teaching calendar')
-
-            ->modalDescription('Review the selected exact Term, package authority, readiness, and downstream operational windows before activating this package.')
-
-            ->modalSubmitActionLabel('Activate teaching calendar')
-
-            ->modalWidth('2xl')
-            ->stickyModalHeader()
-            ->stickyModalFooter()
-
-            ->fillForm(function (): array {
-
-                if ($this->termId === null) {
-
-                    return [];
-
-                }
-
-                $drafts = TermCalendarPackage::query()
-
-                    ->where('term_id', $this->termId)
-
-                    ->where('state', TermCalendarPackage::StateDraft)
-
-                    ->get();
-
-                if ($drafts->count() === 1) {
-
-                    return [
-
-                        'package_id' => $drafts->first()->id,
-
-                        'concurrency_token' => $drafts->first()->concurrencyToken(),
-
-                    ];
-
-                }
-
-                return [
-
-                    'package_id' => null,
-
-                ];
-
-            })
-
-            ->schema([
-
-                Hidden::make('concurrency_token'),
-
-                Select::make('package_id')
-
-                    ->label('Draft calendar package')
-
-                    ->placeholder('Select a draft package...')
-
-                    ->options(function (): array {
-
-                        if ($this->termId === null) {
-
-                            return [];
-
-                        }
-
-                        return TermCalendarPackage::query()
-
-                            ->where('term_id', $this->termId)
-
-                            ->where('state', TermCalendarPackage::StateDraft)
-
-                            ->orderByDesc('version')
-
-                            ->get()
-
-                            ->mapWithKeys(function (TermCalendarPackage $package): array {
-
-                                $details = collect([
-
-                                    'v'.$package->version,
-
-                                    $package->authority_reference ? 'Auth: '.$package->authority_reference : null,
-
-                                    $package->authority_date ? 'Approved: '.$package->authority_date->toDateString() : null,
-
-                                    ($package->classes_start_on && $package->classes_end_on)
-
-                                        ? 'Classes: '.$package->classes_start_on->toDateString().' to '.$package->classes_end_on->toDateString()
-
-                                        : null,
-
-                                ])->filter()->implode(' · ');
-
-                                return [$package->id => $details];
-
-                            })
-
-                            ->all();
-
-                    })
-
-                    ->default(function (): ?int {
-
-                        if ($this->termId === null) {
-
-                            return null;
-
-                        }
-
-                        $drafts = TermCalendarPackage::query()
-
-                            ->where('term_id', $this->termId)
-
-                            ->where('state', TermCalendarPackage::StateDraft)
-
-                            ->get();
-
-                        return $drafts->count() === 1 ? $drafts->first()->id : null;
-
-                    })
-
-                    ->required()
-
-                    ->rules([
-
-                        Rule::exists('term_calendar_packages', 'id')
-
-                            ->where('term_id', $this->termId)
-
-                            ->where('state', TermCalendarPackage::StateDraft),
-
-                    ])
-
-                    ->live()
-
-                    ->afterStateUpdated(function (Page $livewire, Set $set, ?string $state): void {
-
-                        $livewire->dispatch('close-notification', id: 'calendar_package_activation_feedback');
-
-                        $package = TermCalendarPackage::query()->where('term_id', $this->termId)->find($state);
-
-                        $set('concurrency_token', $package?->concurrencyToken());
-
-                    })
-
-                    ->afterStateUpdatedJs(<<<'JS'
-
-                        window.dispatchEvent(new CustomEvent('close-notification', { detail: { id: 'calendar_package_activation_feedback' } }));
-
-                    JS),
-
-                Placeholder::make('activation_summary')
-
-                    ->hiddenLabel()
-
-                    ->content(function (Get $get): Htmlable {
-
-                        if ($this->termId === null) {
-
-                            return new HtmlString('');
-
-                        }
-
-                        $term = $this->selectedTerm();
-
-                        $packageId = $get('package_id');
-
-                        $package = null;
-
-                        $readiness = null;
-
-                        if ($packageId) {
-
-                            $package = TermCalendarPackage::query()
-
-                                ->where('term_id', $term->id)
-
-                                ->where('state', TermCalendarPackage::StateDraft)
-
-                                ->with(['windows', 'teachingGridRows', 'datedExceptions'])
-
-                                ->find((int) $packageId);
-
-                            if ($package) {
-
-                                $readiness = app(TermCalendarPackageReadinessService::class)->for($package);
-
-                            }
-
-                        }
-
-                        return new HtmlString(view('filament.pages.partials.activate-calendar-package-summary', [
-
-                            'term' => $term,
-
-                            'package' => $package,
-
-                            'readiness' => $readiness,
-
-                        ])->render());
-
-                    })
-
-                    ->columnSpanFull(),
-
-            ])
-
-            ->action(function (array $data, Action $action): void {
-
-                $actor = auth()->user();
-
-                abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
-
-                $term = $this->selectedTerm();
-
-                Gate::forUser($actor)->authorize('update', $term);
-
-                $packageId = (int) ($data['package_id'] ?? 0);
-
-                $package = TermCalendarPackage::query()
-
-                    ->where('term_id', $term->id)
-
-                    ->where('state', TermCalendarPackage::StateDraft)
-
-                    ->find($packageId);
-
-                if (! $package) {
-
+                if ($this->isTermClosed($selectedTerm)) {
                     throw ValidationException::withMessages([
-                        'package_id' => 'The selected calendar package is not an activatable draft for this Term.',
-
+                        $schema->getStatePath().'.windows' => 'This term is closed and read-only.',
                     ]);
-
                 }
 
                 try {
+                    DB::transaction(function () use ($data, $actor, $schema, $selectedTerm): void {
+                        $term = Term::query()->whereKey($selectedTerm->id)->lockForUpdate()->firstOrFail();
+                        $source = TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)->first();
 
-                    app(ActivateTermCalendarPackage::class)->execute($package, $actor, (string) ($data['concurrency_token'] ?? ''));
+                        if ((int) ($source?->id ?? 0) !== (int) ($data['source_package_id'] ?? 0)
+                            || ($source && ! hash_equals($source->concurrencyToken(), (string) ($data['source_token'] ?? '')))) {
+                            Notification::make()->title('Calendar source changed')->body('Reopen this form to review the current active calendar before saving.')->danger()->persistent()->send();
 
-                    Notification::make('calendar_package_activation_feedback')
+                            throw ValidationException::withMessages([$schema->getStatePath().'.windows' => 'The active calendar changed. Reopen this form to review the current version.']);
+                        }
 
-                        ->title('Teaching calendar activated')
+                        abort_unless($source instanceof TermCalendarPackage, 422);
 
-                        ->body("The teaching calendar is now active for {$term->label}.")
+                        $merged = [...$this->calendarPackageFormData($source), ...collect($data)->only(['windows'])->all()];
+                        $version = ((int) TermCalendarPackage::query()->where('term_id', $term->id)->max('version')) + 1;
 
-                        ->success()
+                        $package = TermCalendarPackage::query()->create([
+                            ...collect($merged)->except(['source_package_id', 'source_token', 'windows', 'teaching_grid_rows', 'dated_exceptions'])->all(),
+                            'term_id' => $term->id,
+                            'version' => $version,
+                            'state' => TermCalendarPackage::StateDraft,
+                            'recorded_by' => $actor->id,
+                        ]);
 
-                        ->send();
+                        foreach ($merged['windows'] ?? [] as $window) {
+                            $package->windows()->create($window);
+                        }
 
+                        foreach ($merged['teaching_grid_rows'] as $row) {
+                            $package->teachingGridRows()->create($row);
+                        }
+
+                        foreach ($merged['dated_exceptions'] ?? [] as $exception) {
+                            $package->datedExceptions()->create([
+                                ...$exception,
+                                'authority_reference' => filled($exception['authority_reference'] ?? null)
+                                    ? trim((string) $exception['authority_reference'])
+                                    : null,
+                                'blocks_teaching' => (bool) ($exception['blocks_teaching'] ?? true),
+                            ]);
+                        }
+
+                        $freshPackage = $package->fresh(['windows', 'teachingGridRows', 'datedExceptions']);
+                        app(ActivateTermCalendarPackage::class)->execute($freshPackage, $actor, $freshPackage->concurrencyToken());
+                    }, 3);
                 } catch (ValidationException $exception) {
-
-                    $errors = collect($exception->errors())->flatten()->unique()->values()->all();
-
-                    Notification::make('calendar_package_activation_feedback')
-
-                        ->title('Cannot activate Calendar Package')
-
-                        ->body(implode(' ', $errors))
-
-                        ->danger()
-
-                        ->duration(6000)
-
-                        ->send();
+                    if (! array_key_exists($schema->getStatePath().'.windows', $exception->errors())) {
+                        Notification::make()
+                            ->title('Cannot save activity dates')
+                            ->body(collect($exception->errors())->flatten()->unique()->implode(' '))
+                            ->danger()
+                            ->persistent()
+                            ->send();
+                    }
 
                     throw $exception;
-                } catch (Throwable $e) {
-
-                    report($e);
-
-                    Notification::make('calendar_package_activation_feedback')
-
-                        ->title('Activation failed unexpectedly')
-
-                        ->body('An unexpected error occurred while activating the Calendar Package. Please review the term state and try again.')
-
-                        ->danger()
-
-                        ->duration(8000)
-
-                        ->send();
-
-                    $action->halt();
-
                 }
 
+                Notification::make()
+                    ->title('Activity dates updated')
+                    ->body("The updated activity dates are now active for {$selectedTerm->label}.")
+                    ->success()
+                    ->send();
             });
-
     }
 
     /** @return list<Component> */
     private function operationalDateFields(): array
     {
-
         return [
-
-            TextInput::make('authority_reference')->label('Approval note or memo (optional)')->maxLength(255),
-
-            DatePicker::make('authority_date')->label('Approval date (optional)'),
-
-            Repeater::make('windows')->label('Approved activity dates')->defaultItems(0)->addActionLabel('Add an activity')
-
+            Repeater::make('windows')
+                ->label('Approved activity dates')
+                ->defaultItems(0)
+                ->addActionLabel('Add an activity')
                 ->itemLabel(fn (array $state): string => TermCalendarWindow::typeOptions()[$state['window_type'] ?? ''] ?? 'Activity')
-
                 ->schema([
-
                     Select::make('window_type')->label('Activity')->options(TermCalendarWindow::typeOptions())->required()->distinct(),
-
                     DatePicker::make('opens_on')->label('Opens on')->required(),
-
                     DatePicker::make('closes_on')->label('Closes on')->required()->afterOrEqual('opens_on'),
+                    TimePicker::make('cutoff_at')->label('Close time (Asia/Manila)')->timezone('UTC')->seconds(false),
+                ])
+                ->columns(2)
+                ->reorderable(false)
+                ->helperText('Leave the closing time empty to include the entire closing day. Missing dates block only their related action.'),
+        ];
+    }
 
-                    TimePicker::make('cutoff_at')->label('Closing time, if approved (Asia/Manila)')->timezone('UTC')->seconds(false),
-
-                ])->columns(2)->reorderable(false)->helperText('Leave the closing time empty to include the entire closing day. Missing dates block only their related action.'),
-
+    /** @return array<string, string> */
+    protected function datedExceptionTypeOptions(?string $current = null): array
+    {
+        $options = [
+            'Holiday' => 'Holiday',
+            'School Event' => 'School Event',
+            'Class Suspension' => 'Class Suspension / No-Class Day',
+            'Make-up Class Day' => 'Make-up Class Day',
+            'Other' => 'Other',
         ];
 
-    }
+        if (filled($current) && ! array_key_exists($current, $options)) {
+            $legacyLabels = [
+                'NoClasses' => 'No Classes (legacy)',
+                'MakeUpAllowed' => 'Make-up Allowed (legacy)',
+                'InformationOnly' => 'Information Only (legacy)',
+            ];
 
-    /** @return list<Step> */
-    private function calendarSteps(): array
-    {
-        $steps = [];
-        foreach ($this->calendarPackageFields() as $index => $section) {
-            $heading = (string) $section->getHeading();
-            $steps[] = Step::make($heading)->schema([
-                ...($index === 0 ? [Hidden::make('source_package_id'), Hidden::make('source_token')] : []),
-                $section->heading(null)->collapsible(false),
-            ]);
+            $options[$current] = $legacyLabels[$current] ?? $current;
         }
 
-        return $steps;
+        return $options;
     }
 
-    /** @return list<SchemaSection> */
-    private function calendarPackageFields(bool $addingDates = false): array
+    protected function defaultBlocksTeachingForExceptionType(?string $type): ?bool
     {
-
-        $approval = SchemaSection::make('Teaching dates')->description('Record the approved dates. TALA records who saves and activates the calendar, and when.')
-
-            ->collapsible()->collapsed($addingDates)
-
-            ->schema([
-
-                TextInput::make('authority_reference')->label('Approval note or memo (optional)')->maxLength(255),
-
-                DatePicker::make('authority_date')->label('Approval date (optional)'),
-
-                DatePicker::make('administrative_starts_on')->label('Term start')->required(),
-
-                DatePicker::make('administrative_ends_on')->label('Term end')->required()->afterOrEqual('administrative_starts_on'),
-
-                DatePicker::make('classes_start_on')->label('Classes start')->required(),
-
-                DatePicker::make('classes_end_on')->label('Classes end')->required()->afterOrEqual('classes_start_on'),
-
-                TextInput::make('special_term_schedule_basis')->label('Special Term class-day and class-hour basis')->maxLength(255)
-
-                    ->visible(fn (): bool => $this->selectedTerm()->type === Term::TypeSpecialTerm)->columnSpanFull(),
-
-            ])->columns(2);
-
-        $grid = SchemaSection::make('Teaching hours')->description('Record each approved weekday and its own hours in Asia/Manila. Scheduling uses fixed 30-minute slots; days, hours and breaks come from the approved source.')
-
-            ->collapsible()->collapsed($addingDates)
-
-            ->schema([
-
-                Repeater::make('teaching_grid_rows')->label('Approved teaching days')->schema([
-
-                    Select::make('day_of_week')->options(SectionMeeting::dayOptions())->required()->distinct(),
-
-                    TimePicker::make('starts_at')->timezone('UTC')->seconds(false)->required(),
-
-                    TimePicker::make('ends_at')->timezone('UTC')->seconds(false)->required()->after('starts_at'),
-
-                    Repeater::make('breaks')->label('Recurring institutional breaks')->defaultItems(0)->schema([
-
-                        TimePicker::make('starts_at')->timezone('UTC')->seconds(false)->required(),
-
-                        TimePicker::make('ends_at')->timezone('UTC')->seconds(false)->required()->after('starts_at'),
-
-                    ])->columns(2)->columnSpanFull(),
-
-                ])->minItems(1)->required()->reorderable(false)->columns(3),
-
-            ]);
-
-        $dates = SchemaSection::make('Activity dates')->description('Add only approved dates. Missing dates block their related action; the core calendar can activate without them.')
-
-            ->collapsible()->collapsed(! $addingDates)->schema([
-
-                Repeater::make('windows')->label('Approved activity dates')->defaultItems(0)->schema([
-
-                    Select::make('window_type')->options(TermCalendarWindow::typeOptions())->required()->distinct(),
-
-                    DatePicker::make('opens_on')->required(),
-
-                    DatePicker::make('closes_on')->required()->afterOrEqual('opens_on'),
-
-                    TimePicker::make('cutoff_at')->label('Approved close cutoff (Asia/Manila)')->timezone('UTC')->seconds(),
-
-                ])->columns(2)->helperText('Record each activity for this Term. Leave the closing time empty to include the entire closing day.'),
-
-            ]);
-
-        $exceptions = SchemaSection::make('Calendar exceptions')->description('Record approved no-class periods, make-up dates or informational exceptions, with their instructional effect and authority.')
-
-            ->collapsible()->collapsed()->schema([
-
-                Repeater::make('dated_exceptions')->hiddenLabel()->defaultItems(0)->schema([
-
-                    DatePicker::make('starts_on')->required(),
-
-                    DatePicker::make('ends_on')->required()->afterOrEqual('starts_on'),
-
-                    TextInput::make('exception_type')->required()->maxLength(64),
-
-                    TextInput::make('label')->required()->maxLength(255),
-
-                    TextInput::make('authority_reference')
-                        ->label('Approval memo or reference')
-                        ->placeholder('e.g., Memo 2026-014 or approving office')
-                        ->helperText('Required to activate the calendar with this exception.')
-                        ->required()
-                        ->maxLength(255),
-
-                    Toggle::make('blocks_teaching')->label('No classes')->default(true),
-
-                ])->columns(2),
-
-            ]);
-
-        return $addingDates ? [$dates, $approval, $grid, $exceptions] : [$approval, $grid, $dates, $exceptions];
-
+        return match ($type) {
+            'Holiday', 'Class Suspension', 'NoClasses' => true,
+            'Make-up Class Day', 'MakeUpAllowed', 'InformationOnly' => false,
+            default => null,
+        };
     }
 
     public function sendAvailabilityReminderAction(): Action
@@ -1276,7 +1430,10 @@ class TermPlanningWorkbench extends Page
             ->stickyModalHeader()
             ->stickyModalFooter()
             ->modalSubmitActionLabel('Save & send')
-            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null)
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                && $this->termId !== null
+                && ! $this->isTermClosed()
+                && ! $this->hasPublishedTimetable())
             ->disabled(fn (): bool => ! $this->activeCalendarPackage() instanceof TermCalendarPackage)
             ->tooltip(fn (): ?string => $this->activeCalendarPackage() instanceof TermCalendarPackage ? null : 'Activate the teaching calendar first.')
             ->fillForm(function (): array {
@@ -1298,7 +1455,6 @@ class TermPlanningWorkbench extends Page
                     'original_due_at_utc' => $prior?->due_at?->copy()->timezone((string) config('app.timezone'))->format('Y-m-d H:i'),
                     'original_due_at_display' => $prior?->due_at?->copy()->timezone('Asia/Manila')->format('Y-m-d H:i'),
                     'due_at' => $prior?->due_at?->copy()->timezone((string) config('app.timezone'))->format('Y-m-d H:i:s'),
-                    'authority_reference' => $prior?->authority_reference,
                     'faculty_user_ids' => $noResponseIds,
                 ];
             })
@@ -1328,16 +1484,12 @@ class TermPlanningWorkbench extends Page
                     ->multiple()
                     ->searchable(),
                 DateTimePicker::make('due_at')
-                    ->label('Reply by (Asia/Manila, optional)')
+                    ->label('Reply by (Asia/Manila)')
                     ->timezone('Asia/Manila')
                     ->seconds(false)
                     ->live()
-                    ->helperText('Shown to faculty as a due date. Faculty can still answer anytime while the teaching calendar is active.')
+                    ->helperText('Required when sending first-time reminders; optional otherwise. Shown to faculty as a due date, though they can still answer anytime while the teaching calendar is active.')
                     ->required(fn (Get $get): bool => filled($get('faculty_user_ids')) && (int) $get('expected_deadline_id') === 0),
-                TextInput::make('authority_reference')
-                    ->label('Approval note or memo (optional)')
-                    ->helperText('Add a note or memo if one was provided. TALA records who set this due date and when.')
-                    ->maxLength(255),
                 Textarea::make('correction_reason')
                     ->label('Reason for changing due date')
                     ->helperText('Required when changing an existing due date.')
@@ -1349,6 +1501,12 @@ class TermPlanningWorkbench extends Page
                 abort_unless($actor instanceof User, 403);
 
                 $term = $this->selectedTerm();
+                if ($this->isTermClosed($term) || $this->hasPublishedTimetable($term)) {
+                    throw ValidationException::withMessages([
+                        'faculty_user_ids' => 'Availability reminders cannot be sent for closed or published terms.',
+                    ]);
+                }
+
                 $package = TermCalendarPackage::query()->where('term_id', $term->id)->find($data['package_id'] ?? null);
                 abort_unless($package instanceof TermCalendarPackage, 409);
 
@@ -1501,26 +1659,102 @@ class TermPlanningWorkbench extends Page
         return Action::make('confirmClassOffering')
 
             ->label('Confirm class')
-            ->modalHeading('Confirm class and student sections')
+            ->modalHeading('Confirm students & class')
             ->modalWidth(Width::ThreeExtraLarge)
             ->stickyModalHeader()
             ->stickyModalFooter()
             ->modalDescription('Link the confirmed student sections to this class. Shared and mixed-year sections remain separate; their total must fit the approved class capacity.')
-            ->modalSubmitActionLabel('Confirm class')
+            ->modalSubmitActionLabel('Confirm students')
             ->fillForm(fn (array $arguments, ?Section $record = null): array => ['section_id' => $record?->id ?? $arguments['sectionId'] ?? null])
-            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null)
-            ->schema(fn (array $arguments, ?Section $record = null): array => [
-                Select::make('section_id')->label('Class')->disabled($record !== null || isset($arguments['sectionId']))->dehydrated()
-                    ->options(Section::query()->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $this->selectedTerm()->id))->whereNull('confirmed_at')->orderBy('code')->pluck('code', 'id'))->required()->searchable(),
-                Repeater::make('cohorts')->label('Student sections')->schema([
-                    Select::make('term_cohort_id')->label('Student section')->options(TermCohort::query()->where('term_id', $this->selectedTerm()->id)->orderBy('reference')->pluck('reference', 'id'))->required()->searchable()->distinct(),
-                    TextInput::make('expected_count')->label('Learners in this class')->numeric()->integer()->minValue(1)->required(),
-                ])->minItems(1)->required()->columns(2),
-                TextInput::make('additional_authority_reference')->label('Additional class approval, when applicable')->maxLength(255),
-            ])
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                && $this->termId !== null
+                && ! $this->isTermClosed()
+                && ! $this->hasPublishedTimetable())
+            ->schema(function (array $arguments, ?Section $record = null): array {
+                $term = $this->selectedTerm();
+                $cohorts = TermCohort::query()
+                    ->where('term_id', $term->id)
+                    ->orderBy('reference')
+                    ->get();
+                $cohortOptions = $cohorts
+                    ->mapWithKeys(fn (TermCohort $cohort): array => [
+                        $cohort->id => "{$cohort->reference} · {$cohort->confirmed_count} students",
+                    ])
+                    ->all();
+                $cohortCountsById = $cohorts
+                    ->mapWithKeys(fn (TermCohort $cohort): array => [$cohort->id => (int) $cohort->confirmed_count])
+                    ->all();
+
+                return [
+                    Select::make('section_id')->label('Class')->disabled($record !== null || isset($arguments['sectionId']))->dehydrated()
+                        ->options(Section::query()->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $term->id))->whereNull('confirmed_at')->orderBy('code')->pluck('code', 'id'))->required()->searchable()->live(),
+                    Repeater::make('cohorts')->label('Student sections')
+                        ->schema([
+                            Select::make('term_cohort_id')
+                                ->label('Student section')
+                                ->options($cohortOptions)
+                                ->required()
+                                ->searchable()
+                                ->distinct()
+                                ->live()
+                                ->afterStateUpdated(function (mixed $state, Set $set, Get $get) use ($cohortCountsById): void {
+                                    $cohortCount = $cohortCountsById[(int) $state] ?? null;
+                                    if ($cohortCount !== null && $cohortCount > 0) {
+                                        $set('expected_count', $cohortCount);
+                                    }
+
+                                    $rows = collect($get('../../cohorts') ?? []);
+                                    $total = $rows->sum(fn (array $row): int => max(0, (int) ($row['expected_count'] ?? 0)));
+                                    if ($total > 0 && $get('../../capacity') !== null) {
+                                        $set('../../capacity', $total);
+                                    }
+                                }),
+                            TextInput::make('expected_count')->label('Students in this class')->numeric()->integer()->minValue(1)->required(),
+                        ])
+                        ->minItems(1)
+                        ->required()
+                        ->reorderable(false)
+                        ->extraAttributes(['class' => 'tala-cohort-repeater'])
+                        ->columns(2),
+                    TextInput::make('additional_authority_reference')
+                        ->label('Additional class approval reference')
+                        ->helperText('Required for an externally approved Additional class.')
+                        ->maxLength(255)
+                        ->visible(function (Get $get) use ($record): bool {
+                            $sectionId = (int) ($get('section_id') ?? $record?->id ?? 0);
+                            if ($sectionId <= 0) {
+                                return false;
+                            }
+
+                            if ($record instanceof Section && (int) $record->id === $sectionId) {
+                                return $record->source === Section::SourceAdditional;
+                            }
+
+                            return Section::query()->whereKey($sectionId)->value('source') === Section::SourceAdditional;
+                        })
+                        ->required(function (Get $get) use ($record): bool {
+                            $sectionId = (int) ($get('section_id') ?? $record?->id ?? 0);
+                            if ($sectionId <= 0) {
+                                return false;
+                            }
+
+                            if ($record instanceof Section && (int) $record->id === $sectionId) {
+                                return $record->source === Section::SourceAdditional;
+                            }
+
+                            return Section::query()->whereKey($sectionId)->value('source') === Section::SourceAdditional;
+                        }),
+                ];
+            })
             ->action(function (array $data): void {
                 $actor = auth()->user();
                 abort_unless($actor instanceof User, 403);
+                $term = $this->selectedTerm();
+                if ($this->isTermClosed($term) || $this->hasPublishedTimetable($term)) {
+                    throw ValidationException::withMessages([
+                        'section_id' => 'Classes cannot be confirmed after the official timetable is published or the term is closed.',
+                    ]);
+                }
                 $counts = collect($data['cohorts'])->mapWithKeys(fn (array $row): array => [(int) $row['term_cohort_id'] => (int) $row['expected_count']])->all();
                 app(ConfirmClassOffering::class)->execute(
                     Section::query()->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $this->termId))->findOrFail((int) $data['section_id']),
@@ -1538,7 +1772,7 @@ class TermPlanningWorkbench extends Page
         if (! $term) {
             return [
                 'ready' => false,
-                'reason' => 'Choose a Term first.',
+                'reason' => 'Choose a term first.',
                 'blockers' => [],
             ];
         }
@@ -1565,14 +1799,14 @@ class TermPlanningWorkbench extends Page
             $blockers[] = [
                 'code' => $blocker['code'],
                 'reason' => match ($blocker['code']) {
-                    'calendar_not_active' => 'Activate the teaching calendar for this Term before preparing a timetable.',
-                    'classes_not_confirmed' => 'Prepare and confirm classes for this Term before generating a timetable.',
+                    'calendar_not_active' => 'Activate the term calendar before generating a timetable.',
+                    'classes_not_confirmed' => 'Add and confirm classes for this term before generating a timetable.',
                     default => $blocker['reason'],
                 },
                 'label' => match ($tab) {
-                    'overview' => 'Term Calendar',
-                    'classes' => 'Classes',
-                    default => 'Resources',
+                    'overview' => 'Term calendar',
+                    'classes' => 'Classes & sections',
+                    default => 'Faculty & rooms',
                 },
                 'url' => $url,
                 '_tab' => $tab,
@@ -1588,16 +1822,22 @@ class TermPlanningWorkbench extends Page
             'fixed_room_not_suitable',
         ];
 
+        $hasClassesNotConfirmed = collect($blockers)->contains(
+            fn (array $blocker): bool => $blocker['code'] === 'classes_not_confirmed',
+        );
+
         if (! (clone $demands)->exists()) {
-            $blockers[] = [
-                'code' => 'scheduling_demands_missing',
-                'reason' => $isAcademicHead
-                    ? 'No weekly meeting requirements are recorded for this Term’s classes.'
-                    : 'Prepare weekly meeting requirements for this Term’s classes.',
-                'label' => 'Classes',
-                'url' => TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'classes']),
-                '_tab' => 'classes',
-            ];
+            if (! $hasClassesNotConfirmed) {
+                $blockers[] = [
+                    'code' => 'scheduling_demands_missing',
+                    'reason' => $isAcademicHead
+                        ? 'No weekly meeting requirements are recorded for this term’s classes.'
+                        : 'Add and confirm classes to prepare weekly meeting requirements for this term.',
+                    'label' => 'Classes & sections',
+                    'url' => TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'classes']),
+                    '_tab' => 'classes',
+                ];
+            }
         } elseif ((clone $demands)->where('validation_state', '!=', SchedulingDemand::ValidationReadyForReview)->exists()) {
             $unvalidatedDemands = (clone $demands)
                 ->where('validation_state', '!=', SchedulingDemand::ValidationReadyForReview)
@@ -1620,9 +1860,9 @@ class TermPlanningWorkbench extends Page
                     'reason' => $isAcademicHead
                         ? 'Recorded weekly meeting requirements have unresolved validation.'
                         : ($onlyResourceFindings
-                            ? 'Update teaching resources and refresh weekly meeting requirements before generating.'
+                            ? 'Update faculty and rooms before generating a timetable.'
                             : 'Resolve the recorded weekly meeting requirements before generating.'),
-                    'label' => $onlyResourceFindings ? 'Resources' : 'Classes',
+                    'label' => $onlyResourceFindings ? 'Faculty & rooms' : 'Classes & sections',
                     'url' => $onlyResourceFindings
                         ? TermResources::getUrl(array_filter(['termId' => $term->id, 'resourceView' => $isRoomOnly ? 'rooms' : null], fn (mixed $value): bool => $value !== null))
                         : TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => $targetTab]),
@@ -1634,7 +1874,7 @@ class TermPlanningWorkbench extends Page
         if (ScheduleGenerationRun::query()->where('term_id', $term->id)->whereIn('status', [ScheduleGenerationRun::StatusQueued, ScheduleGenerationRun::StatusDispatching])->exists()) {
             $blockers[] = [
                 'code' => 'generation_in_progress',
-                'reason' => 'A timetable is already being generated for this Term.',
+                'reason' => 'A timetable is already being generated for this term.',
                 'label' => 'Timetable',
                 'url' => TermPlanningWorkbench::getUrl(['termId' => $term->id, 'viewTab' => 'generate']),
                 '_tab' => 'generate',
@@ -1665,60 +1905,14 @@ class TermPlanningWorkbench extends Page
         ];
     }
 
-    public function syncSchedulingDemandsAction(): Action
-    {
-        return Action::make('syncSchedulingDemands')
-            ->label('Refresh meeting requirements')
-            ->icon(Heroicon::OutlinedArrowPath)
-            ->color('gray')
-            ->visible(function (): bool {
-                $actor = auth()->user();
-                if (! $actor instanceof User || ! $actor->can('create', SchedulingDemand::class) || $this->termId === null) {
-                    return false;
-                }
-
-                $confirmedExist = Section::query()
-                    ->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $this->termId)->where('state', TermCalendarPackage::StateActive))
-                    ->whereNotNull('confirmed_at')
-                    ->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])
-                    ->exists();
-
-                if (! $confirmedExist) {
-                    return false;
-                }
-
-                $demands = SchedulingDemand::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $this->termId));
-
-                return ! (clone $demands)->exists()
-                    || (clone $demands)->where('validation_state', '!=', SchedulingDemand::ValidationReadyForReview)->exists();
-            })
-            ->action(function (): void {
-                $actor = auth()->user();
-                abort_unless($actor instanceof User, 403);
-                $term = Term::query()->findOrFail($this->termId);
-                $summary = app(GenerateSchedulingDemand::class)->forTerm($actor, $term);
-                Notification::make()
-                    ->title('Weekly meeting requirements refreshed')
-                    ->body("Ready: {$summary['ready']} · Needs attention: {$summary['action_required']}")
-                    ->success()
-                    ->send();
-            });
-    }
-
     public function generateTimetableAction(): Action
     {
-
         return Action::make('generateTimetable')
-
-            ->label('Generate whole-Term timetable')
-
-            ->icon(Heroicon::OutlinedPaperAirplane)
-
+            ->label('Generate timetable')
+            ->icon(Heroicon::OutlinedSparkles)
             ->color('primary')
-
             ->requiresConfirmation()
-
-            ->modalHeading('Generate whole-Term timetable')
+            ->modalHeading('Generate timetable')
 
             ->modalWidth('5xl')
             ->stickyModalHeader()
@@ -1726,9 +1920,11 @@ class TermPlanningWorkbench extends Page
 
             ->modalDescription(function (): string {
 
-                $term = $this->termId ? Term::query()->find($this->termId) : null;
+                $term = $this->termId ? Term::query()->with('academicYear')->find($this->termId) : null;
 
-                $label = $term ? "{$term->label}" : 'the selected term';
+                $label = $term
+                    ? trim($term->typeLabel().($term->academicYear ? ' · '.$term->academicYear->label : ''))
+                    : 'the selected term';
 
                 return "Create a draft for all recorded classes in {$label}. Review and publication follow separately.";
 
@@ -1742,7 +1938,12 @@ class TermPlanningWorkbench extends Page
 
             ->modalSubmitActionLabel('Generate draft timetable')
 
-            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->termId !== null && $this->retainedCandidateNextStep() === null && ! $this->canRecoverActiveRun())
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                && $this->termId !== null
+                && ! $this->isTermClosed()
+                && ! ($this->hasPublishedTimetable() && $this->hasOfficialStudentEnrollments())
+                && $this->retainedCandidateNextStep() === null
+                && ! $this->canRecoverActiveRun())
 
             ->action(function (): void {
 
@@ -1753,6 +1954,18 @@ class TermPlanningWorkbench extends Page
                 try {
 
                     $term = Term::query()->findOrFail($this->termId);
+
+                    if ($this->isTermClosed($term)) {
+                        throw ValidationException::withMessages([
+                            'term' => 'This term is closed and cannot generate a new timetable.',
+                        ]);
+                    }
+
+                    if ($this->hasPublishedTimetable($term) && $this->hasOfficialStudentEnrollments($term)) {
+                        throw ValidationException::withMessages([
+                            'term' => 'Full timetable regeneration is blocked because active official student enrollments exist. Use Revise official schedule instead.',
+                        ]);
+                    }
 
                     $run = app(ScheduleGenerationService::class)->generate($term, $actor);
 
@@ -1861,13 +2074,9 @@ class TermPlanningWorkbench extends Page
                 app(ReviewTimetableCandidate::class)->accept($run, $actor, (string) $data['candidate_review_reason']);
 
                 Notification::make()
-
-                    ->title('Candidate Accepted')
-
-                    ->body('The candidate has been marked Accepted. It remains non-official until separately published.')
-
+                    ->title('Draft timetable accepted')
+                    ->body('Ready to publish when you are. Students and faculty cannot see it yet.')
                     ->success()
-
                     ->send();
 
             });
@@ -1876,65 +2085,39 @@ class TermPlanningWorkbench extends Page
 
     public function rejectCandidateAction(): Action
     {
-
         return Action::make('rejectCandidate')
-
-            ->label('Reject result')
-
+            ->label('Discard draft')
             ->icon(Heroicon::OutlinedXMark)
-
             ->color('danger')
-
             ->requiresConfirmation()
-
-            ->modalHeading('Reject result')
+            ->modalHeading('Discard this draft timetable?')
             ->modalWidth(Width::Large)
             ->stickyModalHeader()
             ->stickyModalFooter()
-
-            ->modalSubmitActionLabel('Reject result')
+            ->modalSubmitActionLabel('Discard draft')
             ->modalIcon(Heroicon::OutlinedXMark)
-
-            ->modalDescription(fn (): string => $this->selectedTerm()->label.' · Attempt #'.$this->activeScheduleRun()?->id.'. Record why this result is rejected. A rejected result cannot be published.')
-
+            ->modalDescription(fn (): string => $this->selectedTerm()->label.' · Attempt #'.$this->activeScheduleRun()?->id.'. Discarding this draft timetable unlocks generating a fresh timetable attempt. This attempt stays in history and cannot be published.')
             ->schema([
-
                 Textarea::make('candidate_review_reason')
-
-                    ->label('Rejection reason')
-
+                    ->label('Reason for discarding')
                     ->required()
-
                     ->maxLength(2000),
-
             ])
-
             ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->canReviewActiveRun())
-
             ->action(function (array $data): void {
-
                 $actor = auth()->user();
-
                 abort_unless($actor instanceof User, 403);
-
                 $run = $this->activeScheduleRun();
-
                 abort_unless($run instanceof ScheduleGenerationRun, 404);
 
                 app(ReviewTimetableCandidate::class)->reject($run, $actor, (string) $data['candidate_review_reason']);
 
                 Notification::make()
-
-                    ->title('Candidate Rejected')
-
-                    ->body('The candidate has been marked Rejected and cannot be published.')
-
-                    ->danger()
-
+                    ->title('Draft timetable discarded')
+                    ->body("Attempt #{$run->id} was discarded. You can now adjust inputs or generate a fresh timetable attempt.")
+                    ->info()
                     ->send();
-
             });
-
     }
 
     public function retrySolverRunAction(): Action
@@ -2028,7 +2211,7 @@ class TermPlanningWorkbench extends Page
 
             ->icon(Heroicon::OutlinedCheckCircle)
 
-            ->color('success')
+            ->color('primary')
 
             ->requiresConfirmation()
 
@@ -2042,27 +2225,12 @@ class TermPlanningWorkbench extends Page
             ->modalSubmitActionLabel('Publish official timetable')
 
             ->schema([
-
-                TextInput::make('authority_reference')
-
-                    ->label('Approval note or memo (optional)')
-
-                    ->maxLength(255)
-
-                    ->helperText('TALA records the publishing Registrar and time automatically.'),
-
                 Textarea::make('publication_note')
-
                     ->label('Publication reason / note')
-
                     ->maxLength(2000)
-
                     ->required(fn (): bool => $this->publicationReasonRequirement() !== null)
-
                     ->helperText(fn (): string => $this->publicationReasonRequirement()
-
-                        ?? 'Optional for optimal candidate without quality warnings.'),
-
+                        ?? 'Optional for optimal candidate without quality warnings. TALA records the publishing Registrar and time automatically.'),
             ])
 
             ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->canPublishActiveRun())
@@ -2081,7 +2249,10 @@ class TermPlanningWorkbench extends Page
 
                     $pinCommitments = SchedulingCommitment::query()
                         ->where('term_id', $run->term_id)
-                        ->where('authority_reference', 'REGISTRAR-PIN')
+                        ->where(function ($query): void {
+                            $query->where('authority_reference', 'REGISTRAR-PIN')
+                                ->orWhere('authority_reference', 'like', 'REGISTRAR-PIN:%');
+                        })
                         ->get()
                         ->map(fn (SchedulingCommitment $c): array => $c->only([
                             'term_id', 'section_id', 'faculty_user_id', 'room_id', 'day_of_week',
@@ -2092,7 +2263,10 @@ class TermPlanningWorkbench extends Page
                     if ($pinCommitments !== []) {
                         SchedulingCommitment::query()
                             ->where('term_id', $run->term_id)
-                            ->where('authority_reference', 'REGISTRAR-PIN')
+                            ->where(function ($query): void {
+                                $query->where('authority_reference', 'REGISTRAR-PIN')
+                                    ->orWhere('authority_reference', 'like', 'REGISTRAR-PIN:%');
+                            })
                             ->delete();
                     }
 
@@ -2101,22 +2275,15 @@ class TermPlanningWorkbench extends Page
                             && $run->candidate_state !== 'Accepted') {
                             $acceptReason = filled($data['publication_note'] ?? null)
                                 ? (string) $data['publication_note']
-                                : (filled($data['authority_reference'] ?? null)
-                                    ? 'Approved under '.$data['authority_reference']
-                                    : 'Approved for official timetable publication.');
+                                : 'Approved for official timetable publication.';
                             $run = app(ReviewTimetableCandidate::class)->accept($run, $actor, $acceptReason);
                         }
 
                         app(SchedulePublishService::class)->publish(
-
                             $run,
-
                             $actor,
-
                             $data['publication_note'] ?? null,
-
-                            authorityReference: $data['authority_reference'] ?? null,
-
+                            authorityReference: null,
                         );
                     } finally {
                         foreach ($pinCommitments as $commitmentPayload) {
@@ -2133,13 +2300,9 @@ class TermPlanningWorkbench extends Page
                     }
 
                     Notification::make()
-
-                        ->title('Official Timetable Published')
-
-                        ->body('The timetable is now authoritative. Switched to Published Timetable view.')
-
+                        ->title('Official timetable published')
+                        ->body("The official timetable is now active for {$this->selectedTerm()->label}.")
                         ->success()
-
                         ->send();
 
                 } catch (ValidationException $exception) {
@@ -2203,21 +2366,16 @@ class TermPlanningWorkbench extends Page
 
     public function canReviewActiveRun(): bool
     {
-
         $actor = auth()->user();
 
         $run = $this->activeScheduleRun();
 
         return $actor instanceof User
-
+            && ! $this->isTermClosed()
             && $run instanceof ScheduleGenerationRun
-
             && $run->status === ScheduleGenerationRun::StatusUnderReview
-
             && ! in_array($run->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)
-
             && Gate::forUser($actor)->allows('reviewCandidates', $run);
-
     }
 
     public function retainedCandidateNextStep(): ?string
@@ -2261,6 +2419,9 @@ class TermPlanningWorkbench extends Page
 
     public function canPublishActiveRun(): bool
     {
+        if ($this->isTermClosed()) {
+            return false;
+        }
 
         $actor = auth()->user();
 
@@ -2388,88 +2549,26 @@ class TermPlanningWorkbench extends Page
 
     }
 
-    public function termSelection(Schema $schema): Schema
+    public function selectTerm(int|string|null $termId): void
     {
-
-        if ($this->academicYearId === null && $this->termId !== null) {
-            $this->academicYearId = $this->selectedTerm()->academic_year_id;
+        if (! filled($termId)) {
+            return;
         }
 
-        return $schema->components([
+        $resolvedId = (int) $termId;
+        abort_unless(Term::query()->whereKey($resolvedId)->exists(), 404);
 
-            Select::make('academicYearId')
-
-                ->label('Academic year')
-
-                ->extraInputAttributes(['aria-label' => 'Academic year'])
-
-                ->placeholder('Choose an academic year')
-
-                ->selectablePlaceholder(false)
-
-                ->options(fn (): array => AcademicYear::query()->latest('starts_on')->pluck('label', 'id')->all())
-
-                ->searchable()
-                ->live()
-                ->afterStateUpdated(function (): void {
-                    $this->termId = null;
-                }),
-
-            Select::make('termId')
-
-                ->label('Term')
-
-                ->hint(fn (): ?string => $this->termId !== null && ($term = $this->selectedTerm()) ? (Term::stateOptions()[$term->state] ?? $term->state).(auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? ' · Read-only · Registrar owns these records' : '') : null)
-
-                ->extraInputAttributes(['aria-label' => 'Term'])
-
-                ->placeholder($this->academicYearId === null ? 'Choose an academic year first' : 'Choose a Term')
-
-                ->selectablePlaceholder(false)
-
-                ->disabled($this->academicYearId === null)
-
-                ->options(fn (): array => $this->academicYearId === null ? [] : Term::query()
-                    ->where('academic_year_id', $this->academicYearId)
-                    ->latest('starts_on')->get()
-
-                    ->mapWithKeys(fn (Term $term): array => [$term->id => implode(' · ', array_unique(array_filter([
-                        Term::typeOptions()[$term->type] ?? $term->type,
-                        $term->label,
-                    ])))])->all())
-
-                ->searchable()
-                ->live()
-                ->afterStateUpdated(fn ($state) => filled($state) ? $this->selectTerm((int) $state) : null),
-
-        ]);
-
-    }
-
-    public function selectTerm(int $termId): void
-    {
-
-        abort_unless(Term::query()->whereKey($termId)->exists(), 404);
-
-        $this->termId = $termId;
-
-        $this->chooseTerm = false;
+        $this->termId = $resolvedId;
         $this->termAutoSelected = false;
-
+        $this->termAutoSelectBasis = null;
         $this->viewTab = static::$planningTab;
-
         $this->selectedRunId = null;
-
         $this->selectedVersionId = null;
-
         $this->resetCandidateFilters();
 
         if (static::class !== self::class) {
-
-            $this->redirect(static::getUrl(['termId' => $termId]));
-
+            $this->redirect(static::getUrl(['termId' => $resolvedId]));
         }
-
     }
 
     public function showTab(string $tab): void
@@ -2794,7 +2893,19 @@ class TermPlanningWorkbench extends Page
 
             ->with(['courseComponent.courseSpecification.course', 'sectionDeliveryGroup.section'])->get() : collect();
 
-        $courseIds = $offerings->map(fn (TermOffering $offering) => $offering->course()?->id)->filter()->unique();
+        $isLiveTerm = $term instanceof Term && $this->hasPublishedTimetable($term);
+        $isClosedTerm = $term instanceof Term && $this->isTermClosed($term);
+        $confirmedOfferings = $isLiveTerm
+            ? $offerings->filter(fn (TermOffering $offering): bool => $offering->sections
+                ->whereNotIn('state', [Section::StateCancelled, Section::StateClosed])
+                ->whereNotNull('confirmed_at')
+                ->isNotEmpty())
+            : $offerings;
+        $qualificationScopeOfferings = $isLiveTerm && $confirmedOfferings->isNotEmpty()
+            ? $confirmedOfferings
+            : $offerings;
+
+        $courseIds = $qualificationScopeOfferings->map(fn (TermOffering $offering) => $offering->course()?->id)->filter()->unique();
 
         $courseTitles = $offerings->groupBy(fn (TermOffering $offering): ?int => $offering->course()?->id)
             ->map(fn (Collection $courseOfferings): string => $courseOfferings->pluck('curriculumEntry.courseSpecification.title')->filter()->unique()->implode(' / '));
@@ -2818,33 +2929,25 @@ class TermPlanningWorkbench extends Page
         $rooms = Room::query()->where('is_active', true)->orderBy('code')->get();
 
         $needsAttention = [];
-
-        if (! $activePackage || $draftPackages->isNotEmpty()) {
-
-            $needsAttention[] = ['tab' => 'overview', 'title' => $draftPackages->isNotEmpty() ? 'Review the pending calendar' : 'Record the approved teaching calendar', 'detail' => 'Instruction dates and teaching hours establish the source for class planning.'];
-
-        }
-
-        if ($offerings->isEmpty() || $sourceClasses->isEmpty() || $contextClasses->whereNotNull('confirmed_at')->count() < $sourceClasses->count()) {
-
-            $needsAttention[] = ['tab' => 'classes', 'title' => $sourceClasses->isEmpty() ? 'Choose courses and create classes' : 'Complete class preparation', 'detail' => 'Each class needs its approved course facts and confirmed learners.'];
-
-        }
-
         $missingQualifications = $courseIds->diff($qualifications->pluck('course_id')->unique())->count();
-
         $missingDeclarations = $availabilityProjection['no_response_count'] ?? 0;
 
-        if ($missingQualifications > 0 || ($sourceClasses->contains(fn (Section $class): bool => $class->termOffering->modality === TermOffering::ModalityFaceToFace) && $rooms->isEmpty())) {
+        if (! $isLiveTerm && ! $isClosedTerm) {
+            if (! $activePackage || $draftPackages->isNotEmpty()) {
+                $needsAttention[] = ['tab' => 'overview', 'title' => $draftPackages->isNotEmpty() ? 'Review the pending calendar' : 'Set the term calendar', 'detail' => 'Instruction dates and teaching hours establish the source for class planning.'];
+            }
 
-            $needsAttention[] = ['tab' => 'resources', 'title' => 'Review teaching resources', 'detail' => $missingQualifications.' course(s) without an eligible Faculty record.'];
+            if ($offerings->isEmpty() || $sourceClasses->isEmpty() || $contextClasses->whereNotNull('confirmed_at')->count() < $sourceClasses->count()) {
+                $needsAttention[] = ['tab' => 'classes', 'title' => $sourceClasses->isEmpty() ? 'Choose subjects and add classes' : 'Complete class preparation', 'detail' => 'Each class needs its approved subject details and confirmed students.'];
+            }
 
-        }
+            if ($missingQualifications > 0 || ($sourceClasses->contains(fn (Section $class): bool => $class->termOffering->modality === TermOffering::ModalityFaceToFace) && $rooms->isEmpty())) {
+                $needsAttention[] = ['tab' => 'resources', 'title' => 'Review faculty and rooms', 'detail' => $missingQualifications.' subject(s) without an eligible faculty record.'];
+            }
 
-        if ($demands->isEmpty() && $sourceClasses->isNotEmpty()) {
-
-            $needsAttention[] = ['tab' => 'classes', 'title' => 'Prepare the meeting requirements', 'detail' => 'Requirements connect each class to the meetings that generation must place.'];
-
+            if ($demands->isEmpty() && $sourceClasses->isNotEmpty()) {
+                $needsAttention[] = ['tab' => 'classes', 'title' => 'Prepare the meeting requirements', 'detail' => 'Requirements connect each class to the meetings that generation must place.'];
+            }
         }
 
         $nextTask = $needsAttention[0] ?? ['tab' => $activeRun ? 'generate' : 'generate', 'title' => $activeRun ? 'Review the latest timetable result' : 'Generate a timetable candidate', 'detail' => 'Generation validates the captured inputs. Review and publication are separate decisions.'];

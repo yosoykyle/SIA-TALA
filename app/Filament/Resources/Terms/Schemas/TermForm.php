@@ -10,11 +10,14 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rules\Unique;
 
 class TermForm
 {
@@ -39,12 +42,27 @@ class TermForm
                             ->all())
                         ->searchable()
                         ->preload()
+                        ->live()
                         ->default(fn (): ?int => Term::query()->find(request()->integer('termId'))?->academic_year_id)
                         ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
                         ->createOptionForm([
                             TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label'),
-                            DatePicker::make('starts_on')->label('School year start')->required(),
-                            DatePicker::make('ends_on')->label('School year end')->required()->after('starts_on'),
+                            Grid::make(['default' => 1, 'sm' => 2])
+                                ->schema([
+                                    DatePicker::make('starts_on')
+                                        ->label('Academic year start')
+                                        ->native(false)
+                                        ->displayFormat('M j, Y')
+                                        ->suffixIcon(Heroicon::OutlinedCalendar)
+                                        ->required(),
+                                    DatePicker::make('ends_on')
+                                        ->label('Academic year end')
+                                        ->native(false)
+                                        ->displayFormat('M j, Y')
+                                        ->suffixIcon(Heroicon::OutlinedCalendar)
+                                        ->required()
+                                        ->after('starts_on'),
+                                ]),
                         ])
                         ->createOptionUsing(function (array $data): int {
                             Gate::authorize('create', AcademicYear::class);
@@ -56,51 +74,100 @@ class TermForm
                         ->label('Term')
                         ->options(Term::typeOptions())
                         ->required()
+                        ->unique(
+                            table: Term::class,
+                            column: 'type',
+                            ignoreRecord: true,
+                            modifyRuleUsing: fn (Unique $rule, Get $get): Unique => $rule->where('academic_year_id', $get('academic_year_id')),
+                        )
+                        ->validationMessages([
+                            'unique' => 'This academic year already has that Term. Open the existing Term or choose a different one.',
+                        ])
                         ->disabled(fn (?Term $record): bool => $record?->hasActivatedCalendar() ?? false)
                         ->validatedWhenNotDehydrated(false),
-                    DatePicker::make('starts_on')
-                        ->label('Start date')
-                        ->disabled(fn (?Term $record): bool => $record?->hasActivatedCalendar() ?? false)
-                        ->validatedWhenNotDehydrated(false)
-                        ->required()
-                        ->rules([self::academicYearBoundRule('start')]),
-                    DatePicker::make('ends_on')
-                        ->label('End date')
-                        ->disabled(fn (?Term $record): bool => $record?->hasActivatedCalendar() ?? false)
-                        ->validatedWhenNotDehydrated(false)
-                        ->required()
-                        ->after('starts_on')
-                        ->rules([self::academicYearBoundRule('end')]),
+                    Grid::make(['default' => 1, 'sm' => 2])
+                        ->columnSpanFull()
+                        ->schema([
+                            DatePicker::make('starts_on')
+                                ->label('Start date')
+                                ->native(false)
+                                ->displayFormat('M j, Y')
+                                ->suffixIcon(Heroicon::OutlinedCalendar)
+                                ->minDate(fn (Get $get): ?string => self::academicYearDateBound($get('academic_year_id'), 'start'))
+                                ->maxDate(fn (Get $get): ?string => self::academicYearDateBound($get('academic_year_id'), 'end'))
+                                ->helperText(fn (Get $get): ?string => self::academicYearBoundsHelperText($get('academic_year_id')))
+                                ->disabled(fn (?Term $record): bool => $record?->hasActivatedCalendar() ?? false)
+                                ->validatedWhenNotDehydrated(false)
+                                ->required()
+                                ->rules([self::academicYearBoundRule('start')]),
+                            DatePicker::make('ends_on')
+                                ->label('End date')
+                                ->native(false)
+                                ->displayFormat('M j, Y')
+                                ->suffixIcon(Heroicon::OutlinedCalendar)
+                                ->minDate(fn (Get $get): ?string => self::academicYearDateBound($get('academic_year_id'), 'start'))
+                                ->maxDate(fn (Get $get): ?string => self::academicYearDateBound($get('academic_year_id'), 'end'))
+                                ->helperText('Must be on or after the term start date.')
+                                ->disabled(fn (?Term $record): bool => $record?->hasActivatedCalendar() ?? false)
+                                ->validatedWhenNotDehydrated(false)
+                                ->required()
+                                ->after('starts_on')
+                                ->rules([self::academicYearBoundRule('end')]),
+                        ]),
                 ])
                 ->columns(2)
                 ->columnSpanFull(),
-            Section::make(fn (?Term $record): string => ($record?->hasActivatedCalendar() ?? false) ? 'Faculty teaching-load default' : 'Teaching-load & name settings')
-                ->collapsible(fn (?Term $record): bool => ! ($record?->hasActivatedCalendar() ?? false))
-                ->collapsed(false)
-                ->description(fn (?Term $record): string => ($record?->hasActivatedCalendar() ?? false)
-                    ? 'Recorded maximum teaching units for Faculty in this Term. An active Faculty load exception takes precedence; generation needs a default for eligible Faculty without an exception.'
-                    : 'Faculty teaching-load default (24 units by default) and optional custom Term name.')
-
+            Section::make('Faculty teaching-load default')
+                ->visible(fn (?Term $record): bool => $record !== null)
+                ->description('Recorded maximum teaching units for faculty in this Term (24 units by default per CHED CMO 40 s. 2008). An active faculty load exception takes precedence.')
                 ->schema([
-                    TextInput::make('label')
-                        ->label('Custom Term name (optional)')
-                        ->helperText('Leave blank to use the selected Term.')
-                        ->maxLength(255)
-                        ->hidden(fn (?Term $record): bool => $record?->hasActivatedCalendar() ?? false)
-                        ->disabled(fn (?Term $record): bool => $record?->hasActivatedCalendar() ?? false)
-                        ->validatedWhenNotDehydrated(false),
                     TextInput::make('default_max_units')
-                        ->label('Maximum teaching units per Faculty member')
+                        ->label('Maximum teaching units per faculty member')
                         ->numeric()
                         ->default(24)
                         ->minValue(0)
                         ->suffix('units')
                         ->step(0.25)
-                        ->helperText('Defaults to 24 units. Used when a Faculty member has no active load exception.'),
+                        ->helperText('Defaults to 24 units. Used when a faculty member has no active load exception.'),
                 ])
-                ->columns(2)
+                ->columns(1)
                 ->columnSpanFull(),
         ]);
+    }
+
+    private static function academicYearDateBound(mixed $academicYearId, string $boundary): ?string
+    {
+        if (blank($academicYearId)) {
+            return null;
+        }
+
+        $academicYear = AcademicYear::query()->find($academicYearId);
+        if (! $academicYear instanceof AcademicYear) {
+            return null;
+        }
+
+        return $boundary === 'start'
+            ? $academicYear->starts_on?->toDateString()
+            : $academicYear->ends_on?->toDateString();
+    }
+
+    private static function academicYearBoundsHelperText(mixed $academicYearId): ?string
+    {
+        if (blank($academicYearId)) {
+            return 'Select an academic year first to constrain valid term dates.';
+        }
+
+        $academicYear = AcademicYear::query()->find($academicYearId);
+        if (! $academicYear instanceof AcademicYear || ! $academicYear->starts_on || ! $academicYear->ends_on) {
+            return null;
+        }
+
+        return sprintf(
+            'Within AY %s (%s – %s).',
+            $academicYear->displayLabel(),
+            $academicYear->starts_on->format('M j, Y'),
+            $academicYear->ends_on->format('M j, Y'),
+        );
     }
 
     private static function academicYearBoundRule(string $boundary): Closure

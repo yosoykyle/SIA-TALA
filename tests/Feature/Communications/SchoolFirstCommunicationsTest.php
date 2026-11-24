@@ -325,6 +325,14 @@ class SchoolFirstCommunicationsTest extends TestCase
             availabilityUrl: 'https://example.com/availability',
         );
         $this->assertSame("{$institution} — Action required: submit your teaching availability", $facultyMail->envelope()->subject);
+        $renderedFacultyMail = $facultyMail->render();
+        $this->assertStringContainsString('Specific weekly times', $renderedFacultyMail);
+        $this->assertStringContainsString('Any school teaching time', $renderedFacultyMail);
+        $this->assertStringContainsString('Unavailable this term', $renderedFacultyMail);
+        $this->assertStringContainsString('Save availability', $renderedFacultyMail);
+        $this->assertStringContainsString('Open My Availability', $renderedFacultyMail);
+        $this->assertStringNotContainsString('times you cannot teach', $renderedFacultyMail);
+        $this->assertStringNotContainsString('Submit my availability', $renderedFacultyMail);
 
         $officialEnrollmentMail = new OfficialEnrollmentMail(
             operationalEventId: 2,
@@ -345,11 +353,16 @@ class SchoolFirstCommunicationsTest extends TestCase
 
         $scheduleReleasedMail = new ScheduleReleasedMail(
             operationalEventId: 4,
-            recipientName: 'Student Maria',
+            recipientName: 'Prof. Juan',
             termLabel: 'First Semester',
-            scheduleUrl: 'https://example.com/schedule',
+            scheduleUrl: 'https://example.com/admin/faculty-schedule?termId=1',
         );
-        $this->assertSame("{$institution} — Your class schedule is available", $scheduleReleasedMail->envelope()->subject);
+        $this->assertSame("{$institution} — Your teaching schedule for First Semester is ready", $scheduleReleasedMail->envelope()->subject);
+        $renderedScheduleReleased = $scheduleReleasedMail->render();
+        $this->assertStringContainsString('Open My Schedule', $renderedScheduleReleased);
+        $this->assertStringContainsString('Staff Workspace', $renderedScheduleReleased);
+        $this->assertStringNotContainsString('Student Hub', $renderedScheduleReleased);
+        $this->assertStringNotContainsString('faculty before attending', $renderedScheduleReleased);
 
         $scheduleRevisionMail = new ScheduleRevisionMail(
             operationalEventId: 5,

@@ -89,8 +89,18 @@ final class Issue93S03S08RuntimeVerificationTest extends TestCase
             ->assertSee('Active teaching calendar')
             ->assertSee($calendar->authority_reference);
 
+        foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead] as $role) {
+            $actor = $role === User::StaffRoleRegistrar ? $registrar : $academicHead;
+            $this->asStaff($actor, $role)
+                ->get(TermOverview::getUrl())
+                ->assertOk();
+
+            $this->asStaff($actor, $role)
+                ->get(TermOverview::getUrl(['termId' => $termWithCalendar->id]))
+                ->assertRedirect(TermCalendar::getUrl(['termId' => $termWithCalendar->id]));
+        }
+
         $pages = [
-            TermOverview::class,
             TermCalendar::class,
             TermResources::class,
             TermTimetable::class,

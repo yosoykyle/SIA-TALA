@@ -38,9 +38,9 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
     }
 
     #[Test]
-    public function student_hub_keeps_priority_notices_without_exposing_a_second_notification_center(): void
+    public function student_hub_enables_database_notifications_bell_alongside_priority_notices(): void
     {
-        $this->assertFalse(Filament::getPanel('student')->hasDatabaseNotifications());
+        $this->assertTrue(Filament::getPanel('student')->hasDatabaseNotifications());
     }
 
     #[Test]
@@ -96,14 +96,14 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
 
         $released = (new ScheduleReleasedMail(
             operationalEventId: 1,
-            recipientName: 'Test Student',
+            recipientName: 'Prof. Elena',
             termLabel: 'First Semester 2026-2027',
-            scheduleUrl: 'https://example.test/student/schedule-view',
+            scheduleUrl: 'https://example.test/admin/faculty-schedule?termId=1',
         ))->render();
         $revised = (new ScheduleRevisionMail(
             operationalEventId: 2,
             recipientName: 'Test Student',
-            revisionPayload: ['changes' => []],
+            revisionPayload: ['recipient_role' => 'student', 'changes' => []],
         ))->render();
         $payment = (new PaymentPostedMail(
             operationalEventId: 3,
@@ -115,8 +115,12 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
 
         foreach ([$released, $revised] as $scheduleMail) {
             $this->assertStringContainsString('Registrar Office', $scheduleMail);
-            $this->assertStringContainsString('current published schedule', $scheduleMail);
         }
+        $this->assertStringContainsString('official timetable', $released);
+        $this->assertStringContainsString('Open My Schedule', $released);
+        $this->assertStringNotContainsString('Student Hub', $released);
+        $this->assertStringContainsString('published schedule', $revised);
+        $this->assertStringContainsString('Open Class Schedule', $revised);
 
         $this->assertStringContainsString('Accounting Office', $payment);
         $this->assertStringContainsString('official receipt', $payment);

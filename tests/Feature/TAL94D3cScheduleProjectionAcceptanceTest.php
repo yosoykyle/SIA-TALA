@@ -265,10 +265,10 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
         $cor = app(BuildCorOutput::class)->forStudent($fixture['student']);
 
         $this->assertTrue($cor['available']);
-        $this->assertSame('Monday', $cor['subjects'][0]['day']);
-        $this->assertSame('08:00 - 11:00', $cor['subjects'][0]['time']);
-        $this->assertSame($fixture['room']->code, $cor['subjects'][0]['room']);
-        $this->assertSame($fixture['faculty']->name, $cor['subjects'][0]['instructor']);
+        $this->assertSame('Tuesday', $cor['subjects'][0]['day']);
+        $this->assertSame('09:00 - 12:00', $cor['subjects'][0]['time']);
+        $this->assertSame($replacementRoom->name, $cor['subjects'][0]['room']);
+        $this->assertSame($replacementFaculty->name, $cor['subjects'][0]['instructor']);
     }
 
     #[Test]

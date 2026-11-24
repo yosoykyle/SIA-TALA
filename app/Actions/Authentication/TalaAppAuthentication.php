@@ -114,7 +114,6 @@ class TalaAppAuthentication extends AppAuthentication
                 ->validationAttribute(__('filament-panels::auth/multi-factor/app/provider.login_form.code.validation_attribute'))
                 ->visible(fn (Get $get): bool => (! $isRecoverable) || (! (bool) $get('useRecoveryCode')))
                 ->required(fn (Get $get): bool => (! $isRecoverable) || (! (bool) $get('useRecoveryCode')))
-                ->extraInputAttributes(['required' => false])
                 ->rule(function () use ($user): Closure {
                     return function (string $attribute, #[\SensitiveParameter] mixed $value, Closure $fail) use ($user): void {
                         if (blank($value)) {
@@ -145,7 +144,6 @@ class TalaAppAuthentication extends AppAuthentication
                     })
                     ->visible(fn (): bool => $isRecoverable && (bool) $get('useRecoveryCode')))
                 ->required(fn (Get $get): bool => $isRecoverable && (bool) $get('useRecoveryCode'))
-                ->extraInputAttributes(['required' => false])
                 ->rule(function () use ($user): Closure {
                     return function (string $attribute, #[\SensitiveParameter] mixed $value, Closure $fail) use ($user): void {
                         $normalized = is_string($value) ? trim($value) : '';

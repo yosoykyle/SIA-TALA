@@ -11,6 +11,8 @@ use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -19,6 +21,44 @@ use Throwable;
 
 class FacultyAvailabilityRequestService
 {
+    public static function notifyTeachingStatusChanged(
+        User $faculty,
+        Term $term,
+        bool $excluded,
+        ?string $reason = null,
+    ): void {
+        $termLabel = trim((string) $term->label) !== '' ? (string) $term->label : 'this term';
+        $availabilityUrl = MyAvailability::getUrl(['termId' => (int) $term->id]);
+
+        if ($excluded) {
+            $reasonSuffix = filled($reason) ? ' ('.trim((string) $reason).')' : '';
+
+            Notification::make()
+                ->title("Teaching status updated for {$termLabel}")
+                ->body("The Registrar marked you as not teaching for {$termLabel}{$reasonSuffix}. You will not be assigned classes. Contact the Registrar if this needs to be changed.")
+                ->warning()
+                ->actions([
+                    Action::make('openMyAvailability')
+                        ->label('Open My Availability')
+                        ->url($availabilityUrl),
+                ])
+                ->sendToDatabase($faculty);
+
+            return;
+        }
+
+        Notification::make()
+            ->title("Teaching status restored for {$termLabel}")
+            ->body("The Registrar restored your teaching eligibility for {$termLabel}. Review or submit your availability so you can be scheduled for classes.")
+            ->info()
+            ->actions([
+                Action::make('openMyAvailability')
+                    ->label('Open My Availability')
+                    ->url($availabilityUrl),
+            ])
+            ->sendToDatabase($faculty);
+    }
+
     /**
      * @param  list<int>  $facultyUserIds
      * @return EloquentCollection<int, OperationalEvent>
@@ -31,7 +71,7 @@ class FacultyAvailabilityRequestService
 
         if ($package->state !== TermCalendarPackage::StateActive || $package->facultyAvailabilityDueAt() === null) {
             throw ValidationException::withMessages([
-                'calendar_package' => 'Activate an exact-Term Calendar Package with a Faculty availability deadline before sending requests.',
+                'calendar_package' => 'Activate a term calendar with a faculty availability due date before sending reminders.',
             ]);
         }
 
@@ -80,18 +120,64 @@ class FacultyAvailabilityRequestService
                 throw ValidationException::withMessages(['calendar_package' => 'The calendar or deadline source changed. Reopen the request form and review the current facts.']);
             }
             $deadline = $locked->facultyAvailabilityDueAt();
+            $deadlineSourceId = FacultyAvailabilityDeadline::query()->where('term_id', $locked->term_id)->latest('id')->value('id');
             $compatiblePackageIds = $locked->compatibleCoreSourceIds();
 
             foreach ($faculty as $recipient) {
-                if (OperationalEvent::query()->where('related_record_type', TermCalendarPackage::class)
-                    ->whereIn('related_record_id', $compatiblePackageIds)->where('user_id', $recipient->id)
-                    ->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)->exists()) {
+                $existingActive = OperationalEvent::query()
+                    ->where('related_record_type', TermCalendarPackage::class)
+                    ->whereIn('related_record_id', $compatiblePackageIds)
+                    ->where('user_id', $recipient->id)
+                    ->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)
+                    ->where('status', '!=', OperationalEvent::StatusFailed)
+                    ->exists();
+
+                if ($existingActive) {
                     continue;
                 }
+
+                $externalId = "faculty-availability-request:term:{$locked->term_id}:generation:{$locked->version}:user:{$recipient->id}";
+                $existingFailed = OperationalEvent::query()
+                    ->where('related_record_type', TermCalendarPackage::class)
+                    ->whereIn('related_record_id', $compatiblePackageIds)
+                    ->where('user_id', $recipient->id)
+                    ->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)
+                    ->where('status', OperationalEvent::StatusFailed)
+                    ->latest('id')
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existingFailed instanceof OperationalEvent) {
+                    $existingFailed->forceFill([
+                        'related_record_id' => $locked->id,
+                        'recipient_snapshot' => [
+                            'user_id' => (int) $recipient->id,
+                            'email' => (string) $recipient->email,
+                        ],
+                        'status' => OperationalEvent::StatusPending,
+                        'occurred_at' => now(),
+                        'processed_at' => null,
+                        'sent_at' => null,
+                        'failed_at' => null,
+                        'diagnostics' => null,
+                        'payload' => [
+                            'term_id' => (int) $locked->term_id,
+                            'request_generation' => (int) $locked->version,
+                            'due_at' => $deadline->toIso8601String(),
+                            'deadline_source_id' => $deadlineSourceId,
+                            'availability_url' => MyAvailability::getUrl(['termId' => $locked->term_id]),
+                        ],
+                    ])->save();
+
+                    $created[] = ['event' => $existingFailed->fresh(), 'recipient' => $recipient];
+
+                    continue;
+                }
+
                 $event = OperationalEvent::query()->firstOrCreate(
                     [
                         'event_domain' => OperationalEvent::DomainNotifications,
-                        'external_id' => "faculty-availability-request:term:{$locked->term_id}:generation:{$locked->version}:user:{$recipient->id}",
+                        'external_id' => $externalId,
                     ],
                     [
                         'integration' => OperationalEvent::IntegrationMail,
@@ -112,7 +198,7 @@ class FacultyAvailabilityRequestService
                             'term_id' => (int) $locked->term_id,
                             'request_generation' => (int) $locked->version,
                             'due_at' => $deadline->toIso8601String(),
-                            'deadline_source_id' => FacultyAvailabilityDeadline::query()->where('term_id', $locked->term_id)->latest('id')->value('id'),
+                            'deadline_source_id' => $deadlineSourceId,
                             'availability_url' => MyAvailability::getUrl(['termId' => $locked->term_id]),
                         ],
                     ],
@@ -120,6 +206,28 @@ class FacultyAvailabilityRequestService
 
                 if ($event->wasRecentlyCreated) {
                     $created[] = ['event' => $event, 'recipient' => $recipient];
+                } elseif ($event->status === OperationalEvent::StatusFailed) {
+                    $event->forceFill([
+                        'recipient_snapshot' => [
+                            'user_id' => (int) $recipient->id,
+                            'email' => (string) $recipient->email,
+                        ],
+                        'status' => OperationalEvent::StatusPending,
+                        'occurred_at' => now(),
+                        'processed_at' => null,
+                        'sent_at' => null,
+                        'failed_at' => null,
+                        'diagnostics' => null,
+                        'payload' => [
+                            'term_id' => (int) $locked->term_id,
+                            'request_generation' => (int) $locked->version,
+                            'due_at' => $deadline->toIso8601String(),
+                            'deadline_source_id' => $deadlineSourceId,
+                            'availability_url' => MyAvailability::getUrl(['termId' => $locked->term_id]),
+                        ],
+                    ])->save();
+
+                    $created[] = ['event' => $event->fresh(), 'recipient' => $recipient];
                 }
             }
         }, 3);
@@ -156,8 +264,13 @@ class FacultyAvailabilityRequestService
             $recipient = User::query()->whereKey($locked->user_id)->firstOrFail();
             $package = TermCalendarPackage::query()->whereKey($locked->related_record_id)->firstOrFail();
             $locked->forceFill([
+                'recipient_snapshot' => [
+                    'user_id' => (int) $recipient->id,
+                    'email' => (string) $recipient->email,
+                ],
                 'status' => OperationalEvent::StatusPending,
                 'processed_at' => null,
+                'sent_at' => null,
                 'failed_at' => null,
                 'diagnostics' => null,
             ])->save();

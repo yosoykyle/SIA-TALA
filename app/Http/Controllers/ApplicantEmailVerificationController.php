@@ -47,7 +47,7 @@ class ApplicantEmailVerificationController extends Controller
                 ->success()
                 ->send();
 
-            return redirect()->to((string) Filament::getPanel('applicant')->getUrl());
+            return redirect()->intended((string) Filament::getPanel('applicant')->getUrl());
         }
 
         return redirect()->route('filament.applicant.auth.login')

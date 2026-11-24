@@ -116,7 +116,7 @@ class TalaPanelTheme
             ->brandLogo(fn (): View => self::brand($panel))
             ->brandLogoHeight('auto')
             ->favicon(asset('images/brand/servitech-crest-favicon.png'))
-            ->colors(['primary' => Color::generatePalette('#2F7D3B'), 'gray' => Color::Zinc, 'info' => Color::generatePalette('#0C53C1')])
+            ->colors(['primary' => Color::generatePalette('#2F7D3B'), 'gray' => Color::Zinc, 'info' => Color::Zinc])
             ->maxContentWidth(Width::Full)
             ->unsavedChangesAlerts()
             ->renderHook(PanelsRenderHook::SCRIPTS_AFTER, fn (): HtmlString => new HtmlString(

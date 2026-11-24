@@ -55,6 +55,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
 
         $this->assertSame([
             'Overview',
+            'Class schedule',
             'Enrollment',
             'Academics',
             'Fees and payments',
@@ -104,7 +105,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         $this->actingAs($academicHead)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAcademicHead]);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::test(AcademicApprovals::class)
-            ->assertSee('Catalog & Curricula', false)
+            ->assertSee('Programs & Curricula')
             ->assertSee('Class rosters')
             ->assertSee('Lifecycle Exceptions')
             ->assertSee('Completion & TOR')

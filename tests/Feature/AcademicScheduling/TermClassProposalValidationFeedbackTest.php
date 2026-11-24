@@ -2,11 +2,12 @@
 
 namespace Tests\Feature\AcademicScheduling;
 
-use App\Filament\Pages\TermClassProposal;
+use App\Filament\Pages\TermClasses;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
@@ -29,47 +30,72 @@ final class TermClassProposalValidationFeedbackTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Filament::setCurrentPanel(Filament::getPanel('staff'));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
     }
 
-    public function test_confirming_a_proposal_with_an_unfilled_required_field_reveals_the_item_and_explains_the_failure(): void
-    {
-        [$term, $entry, , $actor] = $this->source();
-
-        $page = Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id]);
-        $page->callAction('addCourses', ['program' => $entry->curriculumVersion->program->name, 'entries' => [$entry->id]])
-            ->assertHasNoActionErrors();
-        $rows = $page->get('proposal.classes');
-        $key = array_key_first($rows);
-        $page->set("proposal.classes.{$key}.capacity", null);
-
-        $this->assertFalse($page->get('revealProposalErrors'), 'The proposal should start with its class items collapsed.');
-
-        $page->callAction('confirmProposal');
-
-        $page->assertHasErrors(["proposal.classes.{$key}.capacity"]);
-        $this->assertTrue($page->get('revealProposalErrors'), 'A failed confirmation must reveal every class item so the invalid field is visible.');
-        Notification::assertNotified();
-        $this->assertSame(0, Section::query()->where('code', 'SYNTH-CP-FEEDBACK')->count());
-    }
-
-    public function test_confirming_a_complete_proposal_still_succeeds(): void
+    public function test_loading_from_curriculum_with_missing_required_fields_explains_the_failure_without_creating_classes(): void
     {
         [$term, $entry, $cohort, $actor] = $this->source();
 
-        $page = Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id]);
-        $page->callAction('addCourses', ['program' => $entry->curriculumVersion->program->name, 'entries' => [$entry->id]])
-            ->assertHasNoActionErrors();
-        $rows = $page->get('proposal.classes');
-        $key = array_key_first($rows);
-        $page->set("proposal.classes.{$key}.code", 'SYNTH-CP-FEEDBACK');
-        $page->set("proposal.classes.{$key}.capacity", 30);
-        $page->set("proposal.classes.{$key}.modality", TermOffering::ModalityOnline);
-        $page->set("proposal.classes.{$key}.cohorts", [['id' => $cohort->id, 'count' => 10]]);
+        Livewire::actingAs($actor)
+            ->withQueryParams(['termId' => $term->id])
+            ->test(TermClasses::class)
+            ->callAction('loadCurriculumSubjects', [
+                'term_cohort_id' => $cohort->id,
+                'year_level' => '1',
+                'default_capacity' => null,
+                'default_modality' => TermOffering::ModalityOnline,
+                'entry_ids' => [(string) $entry->id],
+            ])
+            ->assertHasActionErrors(['default_capacity']);
 
-        $page->callAction('confirmProposal')->assertHasNoFormErrors();
+        $this->assertSame(0, Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))->count());
+    }
 
-        $this->assertSame(1, Section::query()->where('code', 'SYNTH-CP-FEEDBACK')->count());
+    public function test_loading_from_curriculum_with_invalid_capacity_reports_service_validation_feedback(): void
+    {
+        [$term, $entry, $cohort, $actor] = $this->source();
+        $cohort->update(['confirmed_count' => 30]);
+
+        Livewire::actingAs($actor)
+            ->withQueryParams(['termId' => $term->id])
+            ->test(TermClasses::class)
+            ->callAction('loadCurriculumSubjects', [
+                'term_cohort_id' => $cohort->id,
+                'year_level' => '1',
+                'default_capacity' => 5,
+                'default_modality' => TermOffering::ModalityOnline,
+                'entry_ids' => [(string) $entry->id],
+            ])
+            ->assertHasActionErrors(['entry_ids']);
+
+        Notification::assertNotified('Cannot load classes from curriculum');
+        $this->assertSame(0, Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))->count());
+    }
+
+    public function test_loading_complete_curriculum_subjects_confirms_classes_and_syncs_demands(): void
+    {
+        [$term, $entry, $cohort, $actor] = $this->source();
+
+        Livewire::actingAs($actor)
+            ->withQueryParams(['termId' => $term->id])
+            ->test(TermClasses::class)
+            ->callAction('loadCurriculumSubjects', [
+                'term_cohort_id' => $cohort->id,
+                'year_level' => '1',
+                'default_capacity' => 30,
+                'default_modality' => TermOffering::ModalityOnline,
+                'entry_ids' => [(string) $entry->id],
+            ])
+            ->assertHasNoActionErrors()
+            ->assertNotified('1 class added and confirmed');
+
+        $section = Section::query()
+            ->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
+            ->sole();
+        $this->assertNotNull($section->confirmed_at);
+        $this->assertSame(30, $section->capacity);
+        $this->assertSame(1, SchedulingDemand::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))->count());
     }
 
     /** @return array{Term,CurriculumEntry,TermCohort,User} */
@@ -88,7 +114,14 @@ final class TermClassProposalValidationFeedbackTest extends TestCase
         $revision = CourseSpecification::factory()->create(['state' => CourseSpecification::StateActive, 'allowed_modalities' => [TermOffering::ModalityOnline]]);
         CourseComponent::factory()->for($revision, 'courseSpecification')->create();
         $entry = CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->create(['course_specification_id' => $revision->id, 'year_level' => '1', 'term_type' => $term->type]);
-        $cohort = TermCohort::factory()->create(['term_id' => $term->id, 'program_id' => $curriculum->program_id, 'curriculum_version_id' => $curriculum->id]);
+        $cohort = TermCohort::factory()->create([
+            'term_id' => $term->id,
+            'program_id' => $curriculum->program_id,
+            'curriculum_version_id' => $curriculum->id,
+            'confirmed_count' => 10,
+            'confirmed_at' => now(),
+            'confirmed_by' => $actor->id,
+        ]);
 
         return [$term, $entry, $cohort, $actor];
     }

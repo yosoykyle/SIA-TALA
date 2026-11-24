@@ -23,10 +23,10 @@ class SectionForm
                 FormSection::make(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): string => $livewire instanceof EditSection && $livewire->isSourceProtected() ? 'Class settings' : 'Class')
                     ->extraAttributes(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): array => $livewire instanceof EditSection && $livewire->isPublished() ? ['class' => 'tala-class-published-banner'] : [])
                     ->description(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): string => $livewire instanceof EditSection && $livewire->isPublished()
-                        ? 'This class is in the official timetable. The course, class code, capacity and state are protected; make changes through a validated timetable revision.'
+                        ? 'This class is in the official timetable. The subject, class code, capacity and state are protected; make changes through a validated timetable revision.'
                         : ($livewire instanceof EditSection && $livewire->isSourceProtected()
                             ? 'This confirmed class identity, capacity and state are protected.'
-                            : 'One course taught to one or more linked student sections.'))
+                            : 'One subject taught to one or more linked student sections.'))
                     ->icon(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): ?string => $livewire instanceof EditSection && $livewire->isPublished() ? 'heroicon-o-lock-closed' : null)
                     ->headerActions([
                         Action::make('openOfficialTimetable')
@@ -36,7 +36,7 @@ class SectionForm
                     ])
                     ->schema([
                         Select::make('term_offering_id')
-                            ->label('Offered course')
+                            ->label('Offered subject')
                             ->options(fn (CreateSection|EditSection|ListSections|TermClasses $livewire): array => self::termOfferingOptions(
                                 $livewire->termId,
                                 $livewire->termId !== null,
@@ -82,7 +82,7 @@ class SectionForm
             ->get()
             ->mapWithKeys(fn (TermOffering $offering): array => [
                 $offering->id => collect([
-                    $offering->curriculumEntry?->courseSpecification?->title ?: 'Course title unavailable',
+                    $offering->curriculumEntry?->courseSpecification?->title ?: 'Subject title unavailable',
                     $offering->curriculumEntry?->courseSpecification?->course?->code,
                     ...($omitTerm ? [] : [$offering->term?->label]),
                     str(strtolower((string) $offering->delivery_variant))->replace('_', ' ')->headline()->toString(),

@@ -7,6 +7,7 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
+use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\SchedulingCommitment;
 use App\Models\SchedulingDemand;
@@ -38,12 +39,12 @@ final class ReadyTermPlanningProjection
         $blockers = [];
         $advisories = [];
 
-        $availabilityStatus = ($this->availabilityProjection ?? app(FacultyAvailabilityStatusProjection::class))->forTerm($term);
+        $availabilityStatus = ($this->availabilityProjection ?? app(FacultyAvailabilityStatusProjection::class))->forTerm($term, includeOfficialAssignments: false);
         /** @var TermCalendarPackage|null $activePackage */
         $activePackage = $availabilityStatus['active_calendar_package'];
 
         if (! $activePackage instanceof TermCalendarPackage) {
-            $blockers[] = $this->blocker('calendar_not_active', 'Term Calendar Package', 'Registrar', 'No active package exists for this exact Term.', 'Activate a passing package.', 'Correct the Draft package and retry.');
+            $blockers[] = $this->blocker('calendar_not_active', 'Term calendar', 'Registrar', 'No active term calendar is set for this term.', 'Open Calendar and activate the term calendar.', 'Complete the draft term calendar and activate it.');
         }
 
         $classes = Section::query()
@@ -64,8 +65,20 @@ final class ReadyTermPlanningProjection
                 && $section->calendarPackage->isActivatedCoreSource()
                 && $section->calendarPackage->coreSignature() === $activePackage->coreSignature());
 
+        $hasPublishedTimetable = PublishedTimetableVersion::query()
+            ->where('term_id', $term->id)
+            ->where('state', PublishedTimetableVersion::StatePublished)
+            ->exists();
+
+        if ($hasPublishedTimetable) {
+            $confirmedClasses = $classes->whereNotNull('confirmed_at')->values();
+            if ($confirmedClasses->isNotEmpty()) {
+                $classes = $confirmedClasses;
+            }
+        }
+
         if ($classes->isEmpty() || $classes->contains(fn (Section $section): bool => $section->confirmed_at === null)) {
-            $blockers[] = $this->blocker('classes_not_confirmed', 'Cohorts and Class Offerings', 'Registrar', 'Every ready Class Offering must be confirmed.', 'Resolve class authority, cohorts, capacity, and meeting requirements.', 'Correct the affected Draft class and confirm it.');
+            $blockers[] = $this->blocker('classes_not_confirmed', 'Classes & sections', 'Registrar', 'All active classes must be confirmed before generating a timetable.', 'Review each draft class, check its student sections and capacity, and confirm it.', 'Finish setting up each draft class in Classes & sections and confirm it.');
         }
 
         $requiredCourses = [];
@@ -119,16 +132,22 @@ final class ReadyTermPlanningProjection
                 sort($missingCourseCodes);
                 $blockers[] = $this->blocker(
                     'faculty_qualifications_missing',
-                    'Teaching resources',
+                    'Faculty & rooms',
                     'Registrar',
-                    'Record at least one active qualified teacher for: '.implode(', ', $missingCourseCodes).'.',
-                    'Open Teaching resources to assign qualified teachers for each offered course.',
-                    'Add active Faculty Qualifications for the listed courses, then retry readiness.',
+                    'Assign at least one active qualified teacher for: '.implode(', ', $missingCourseCodes).'.',
+                    'Open Faculty & rooms to assign qualified teachers for each offered subject.',
+                    'Assign active qualified teachers for the listed subjects, then check readiness again.',
                 );
             }
         }
 
         $allFacultyRows = $availabilityStatus['all_faculty_rows'];
+        $zeroUnitOverrideFacultyIds = collect($allFacultyRows)
+            ->filter(fn (array $row): bool => (bool) ($row['registrar_not_teaching'] ?? false))
+            ->keys()
+            ->mapWithKeys(fn (mixed $id): array => [(int) $id => true])
+            ->all();
+
         $commitmentsBySection = SchedulingCommitment::query()
             ->where('term_id', $term->id)
             ->whereNotNull('section_id')
@@ -157,13 +176,42 @@ final class ReadyTermPlanningProjection
             }
 
             $sectionCommitments = $commitmentsBySection->get((int) $section->id, collect());
-            $sectionCommitment = $sectionCommitments->count() === 1 ? $sectionCommitments->first() : null;
+            $unscopedCommitments = $sectionCommitments
+                ->filter(function (SchedulingCommitment $commitment): bool {
+                    $scope = GenerateSchedulingDemand::parseCommitmentScope($commitment);
+
+                    return $scope['demand_id'] === null && $scope['component_id'] === null;
+                })
+                ->values();
+            $committedFacultyIds = $unscopedCommitments
+                ->pluck('faculty_user_id')
+                ->filter(fn (mixed $id): bool => $id !== null)
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->values();
+            $sectionFixedFacultyId = $committedFacultyIds->count() === 1 ? (int) $committedFacultyIds->first() : null;
             $qualifiedTeachers = $qualifiedFacultyByCourse[(int) $course->id] ?? [];
+
+            if ($committedFacultyIds->count() > 1) {
+                $blockerKey = "fixed-conflict:{$section->id}:{$course->id}";
+                if (! isset($seenFacultyBlockers[$blockerKey])) {
+                    $seenFacultyBlockers[$blockerKey] = true;
+                    $blockers[] = $this->blocker(
+                        'faculty_demand_uncovered',
+                        'Faculty & rooms',
+                        'Registrar',
+                        "Class {$section->code} ({$course->code}) has conflicting fixed teacher assignments.",
+                        "Keep only one fixed teacher assignment on {$section->code}.",
+                        "Resolve conflicting fixed teacher assignments on {$section->code} before generating.",
+                    );
+                }
+            }
 
             foreach ($groups as $group) {
                 $demandsByComponent = $group->schedulingDemands->keyBy('course_component_id');
                 $override = is_array($group->delivery_override) ? $group->delivery_override : [];
                 $overrideFacultyId = $this->nullableInt($override['fixed_faculty_user_id'] ?? $override['faculty_user_id'] ?? null);
+                $componentRequirements = [];
 
                 foreach ($specification->components as $component) {
                     /** @var SchedulingDemand|null $demand */
@@ -171,12 +219,58 @@ final class ReadyTermPlanningProjection
                     $durationMinutes = $demand instanceof SchedulingDemand
                         ? max(30, (int) $demand->required_duration_minutes)
                         : $this->componentDurationMinutes($component);
+                    $meetingPattern = CourseComponent::parseMeetingPattern($component->meeting_pattern);
+                    $meetingCount = $demand instanceof SchedulingDemand
+                        ? max(1, (int) $demand->meeting_count)
+                        : max(1, (int) ($meetingPattern['count'] ?? 1));
 
-                    $fixedFacultyId = $sectionCommitment instanceof SchedulingCommitment && $sectionCommitment->faculty_user_id !== null
-                        ? (int) $sectionCommitment->faculty_user_id
-                        : ($demand?->fixed_faculty_user_id !== null
+                    $componentCommitments = $sectionCommitments
+                        ->filter(fn (SchedulingCommitment $commitment): bool => GenerateSchedulingDemand::commitmentAppliesToDemand(
+                            $commitment,
+                            $demand?->id !== null ? (int) $demand->id : null,
+                            (int) $component->id,
+                        ))
+                        ->values();
+                    $componentCommittedFacultyIds = $componentCommitments
+                        ->pluck('faculty_user_id')
+                        ->filter(fn (mixed $id): bool => $id !== null)
+                        ->map(fn (mixed $id): int => (int) $id)
+                        ->unique()
+                        ->values();
+                    $componentFixedFacultyId = $componentCommittedFacultyIds->count() === 1
+                        ? (int) $componentCommittedFacultyIds->first()
+                        : null;
+
+                    $fixedFacultyId = $componentFixedFacultyId
+                        ?? $sectionFixedFacultyId
+                        ?? ($demand?->fixed_faculty_user_id !== null
                             ? (int) $demand->fixed_faculty_user_id
                             : $overrideFacultyId);
+                    $sameFacultyRequired = (bool) ($section->termOffering?->same_faculty_override
+                        ?? $specification->same_faculty_default
+                        ?? $component->same_faculty);
+
+                    if ($componentCommittedFacultyIds->count() > 1 && $sameFacultyRequired) {
+                        $blockerKey = "fixed-conflict:{$section->id}:{$course->id}:{$component->id}";
+                        if (! isset($seenFacultyBlockers[$blockerKey]) && ! isset($seenFacultyBlockers["fixed-conflict:{$section->id}:{$course->id}"])) {
+                            $seenFacultyBlockers[$blockerKey] = true;
+                            $blockers[] = $this->blocker(
+                                'faculty_demand_uncovered',
+                                'Faculty & rooms',
+                                'Registrar',
+                                "Class {$section->code} ({$course->code}) has conflicting fixed teacher assignments.",
+                                "Keep only one fixed teacher assignment on {$section->code}.",
+                                "Resolve conflicting fixed teacher assignments on {$section->code} before generating.",
+                            );
+                        }
+                    }
+
+                    $componentRequirements[] = [
+                        'duration_minutes' => $durationMinutes,
+                        'meeting_count' => $meetingCount,
+                        'fixed_faculty_id' => $fixedFacultyId,
+                        'same_faculty_required' => $sameFacultyRequired,
+                    ];
 
                     if ($fixedFacultyId !== null) {
                         $blockerKey = "fixed:{$section->id}:{$course->id}:{$fixedFacultyId}:{$durationMinutes}";
@@ -188,6 +282,7 @@ final class ReadyTermPlanningProjection
                                 durationMinutes: $durationMinutes,
                                 activePackage: $activePackage,
                                 allFacultyRows: $allFacultyRows,
+                                zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
                             );
                             if ($fixedBlocker !== null) {
                                 $seenFacultyBlockers[$blockerKey] = true;
@@ -208,6 +303,7 @@ final class ReadyTermPlanningProjection
                             durationMinutes: $durationMinutes,
                             activePackage: $activePackage,
                             allFacultyRows: $allFacultyRows,
+                            zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
                         ),
                     );
 
@@ -222,17 +318,60 @@ final class ReadyTermPlanningProjection
                                 durationMinutes: $durationMinutes,
                                 activePackage: $activePackage,
                                 allFacultyRows: $allFacultyRows,
+                                zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
                             );
                         }
                     }
                 }
+
+                $linkedRequirements = array_values(array_filter(
+                    $componentRequirements,
+                    fn (array $requirement): bool => $requirement['same_faculty_required'],
+                ));
+                $linkedMeetingTotal = array_sum(array_map(
+                    fn (array $requirement): int => (int) $requirement['meeting_count'],
+                    $linkedRequirements,
+                ));
+
+                if ($linkedMeetingTotal > 1) {
+                    $this->appendSameFacultyBlockers(
+                        section: $section,
+                        course: $course,
+                        linkedRequirements: $linkedRequirements,
+                        qualifiedTeachers: $qualifiedTeachers,
+                        activePackage: $activePackage,
+                        allFacultyRows: $allFacultyRows,
+                        zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
+                        seenFacultyBlockers: $seenFacultyBlockers,
+                        blockers: $blockers,
+                    );
+                }
+
+                $unlinkedMultiMeetingRequirements = array_values(array_filter(
+                    $componentRequirements,
+                    fn (array $requirement): bool => ! $requirement['same_faculty_required'] && $requirement['meeting_count'] > 1,
+                ));
+
+                foreach ($unlinkedMultiMeetingRequirements as $unlinkedRequirement) {
+                    $this->appendUnlinkedMultiMeetingBlockers(
+                        section: $section,
+                        course: $course,
+                        requirement: $unlinkedRequirement,
+                        qualifiedTeachers: $qualifiedTeachers,
+                        activePackage: $activePackage,
+                        allFacultyRows: $allFacultyRows,
+                        zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
+                        seenFacultyBlockers: $seenFacultyBlockers,
+                        blockers: $blockers,
+                    );
+                }
             }
         }
 
-        $activeRooms = Room::query()->where('is_active', true)->get(['id', 'room_type', 'capacity']);
+        $activeRooms = Room::query()->with('features')->where('is_active', true)->get(['id', 'room_type', 'capacity']);
 
         if ($activeRooms->isEmpty()) {
-            $blockers[] = $this->blocker('rooms_unavailable', 'Teaching resources', 'Registrar', 'No active room is available for on-campus planning.', 'Record current room capacity, type, features, and unavailability.', 'Correct the room authority and retry readiness.');
+            $blockers[] = $this->blocker('rooms_unavailable', 'Faculty & rooms', 'Registrar', 'No active room is available for on-campus classes.', 'Add or activate rooms with seat capacity and room type in Faculty & rooms.', 'Activate at least one room in Faculty & rooms and check readiness again.');
         } else {
             $unmatchedRoomNeeds = [];
             $roomTypeLabels = Room::typeOptions();
@@ -257,15 +396,34 @@ final class ReadyTermPlanningProjection
                     $expectedCount = max((int) $group->expected_count, 0);
 
                     foreach ($specification->components as $component) {
-                        $roomType = $section->termOffering?->room_type_override ?: $component->room_type_default;
+                        $roomType = GenerateSchedulingDemand::resolveRoomType($section->termOffering?->room_type_override, $component);
                         if (blank($roomType)) {
                             continue;
                         }
 
-                        $hasMatch = $activeRooms->contains(
-                            fn (Room $room): bool => $room->room_type === (string) $roomType
-                                && (int) $room->capacity >= $expectedCount,
-                        );
+                        $requiredFeatures = collect($component->required_room_feature_keys ?? [])
+                            ->map(fn (mixed $feature): string => mb_strtoupper(trim((string) $feature)))
+                            ->filter()
+                            ->unique()
+                            ->values();
+
+                        $hasMatch = $activeRooms->contains(function (Room $room) use ($roomType, $expectedCount, $requiredFeatures): bool {
+                            if ($room->room_type !== (string) $roomType || (int) $room->capacity < $expectedCount) {
+                                return false;
+                            }
+
+                            if ($requiredFeatures->isEmpty()) {
+                                return true;
+                            }
+
+                            $roomFeatures = $room->features
+                                ->pluck('feature_key')
+                                ->map(fn (mixed $key): string => mb_strtoupper(trim((string) $key)))
+                                ->filter()
+                                ->unique();
+
+                            return $requiredFeatures->diff($roomFeatures)->isEmpty();
+                        });
 
                         if (! $hasMatch) {
                             $label = $roomTypeLabels[(string) $roomType] ?? (string) $roomType;
@@ -281,11 +439,11 @@ final class ReadyTermPlanningProjection
                 $remainder = count($unmatchedRoomNeeds) - count($preview);
                 $blockers[] = $this->blocker(
                     'rooms_unsuitable',
-                    'Teaching resources',
+                    'Faculty & rooms',
                     'Registrar',
                     'No active room matches the required type and seat capacity for: '.implode('; ', $preview).($remainder > 0 ? ' (+'.$remainder.' more)' : '').'.',
-                    'Activate or update a matching room in Teaching resources.',
-                    'Ensure an active room matches each face-to-face class room type and expected count.',
+                    'Activate or update a matching room in Faculty & rooms.',
+                    'Ensure an active room matches each face-to-face class room type and expected seat count.',
                 );
             }
         }
@@ -299,11 +457,11 @@ final class ReadyTermPlanningProjection
 
             $advisories[] = $this->blocker(
                 'faculty_availability_grid_review_needed',
-                'Teaching resources',
+                'Faculty & rooms',
                 'Faculty',
-                'Chosen teaching windows for '.implode(', ', $reviewNames).' fall outside the updated teaching grid or overlap a break. Outside hours remain excluded.',
-                'Have the affected Faculty review and update their windows on My Availability if needed.',
-                'Update availability on My Availability if additional in-grid hours are needed.',
+                'Saved teaching times for '.implode(', ', $reviewNames).' fall outside the updated school teaching hours or overlap a break. Outside hours are excluded.',
+                'Ask the affected faculty to review and update their times on My Availability if needed.',
+                'Update teaching times on My Availability if more hours are needed.',
             );
         }
 
@@ -324,9 +482,9 @@ final class ReadyTermPlanningProjection
                 'faculty_late_availability_official_impact',
                 'Official timetable',
                 'Registrar',
-                'Late availability changes affect active official meetings for: '.$impactLabels.'. The current official timetable stays active until revised.',
-                'Open Timetable to review and publish a controlled official timetable revision.',
-                'Use the controlled official timetable revision workflow to reassign or reschedule affected meetings.',
+                'Updated faculty availability conflicts with published classes for: '.$impactLabels.'. The current official timetable stays active until revised.',
+                'Open Timetable to review and publish an official timetable revision.',
+                'Use Revise official schedule on Timetable to reassign or reschedule affected meetings.',
             );
         }
 
@@ -340,6 +498,7 @@ final class ReadyTermPlanningProjection
 
     /**
      * @param  array<int, array<string, mixed>>  $allFacultyRows
+     * @param  array<int, int>  $zeroUnitOverrideFacultyIds
      * @return array{code: string, source: string, owner: string, reason: string, next_action: string, recovery: string}|null
      */
     private function fixedFacultyBlocker(
@@ -349,6 +508,7 @@ final class ReadyTermPlanningProjection
         int $durationMinutes,
         ?TermCalendarPackage $activePackage,
         array $allFacultyRows,
+        array $zeroUnitOverrideFacultyIds = [],
     ): ?array {
         $row = $allFacultyRows[$fixedFacultyId] ?? null;
         $teacher = $row['faculty'] ?? User::query()->find($fixedFacultyId);
@@ -356,36 +516,47 @@ final class ReadyTermPlanningProjection
         /** @var FacultyAvailabilityDeclaration|null $declaration */
         $declaration = $row['declaration'] ?? null;
 
+        if ($this->isRegistrarNotTeaching($fixedFacultyId, $allFacultyRows, $zeroUnitOverrideFacultyIds)) {
+            return $this->blocker(
+                'fixed_faculty_cannot_teach',
+                'Faculty & rooms',
+                'Registrar',
+                "Class {$section->code} ({$course->code}) is assigned to {$teacherName}, who is marked Not teaching (0 units) for this term.",
+                "Reassign {$section->code} or restore {$teacherName} in Faculty & rooms.",
+                "Remove the fixed teacher assignment on {$section->code} or restore {$teacherName} in Faculty & rooms.",
+            );
+        }
+
         if (! $declaration instanceof FacultyAvailabilityDeclaration) {
             return $this->blocker(
                 'fixed_faculty_availability_missing',
-                'Teaching resources',
+                'Faculty & rooms',
                 'Faculty',
-                "Class {$section->code} ({$course->code}) requires {$teacherName}, who has No response for this Term.",
-                "Remind {$teacherName} to declare availability on My Availability, or change the fixed teacher assignment.",
-                "Have {$teacherName} submit availability on My Availability or remove the fixed teacher commitment for {$section->code}.",
+                "Class {$section->code} ({$course->code}) requires {$teacherName}, who has not responded yet for this term.",
+                "Remind {$teacherName} to submit availability on My Availability, or change the fixed teacher assignment.",
+                "Have {$teacherName} submit availability on My Availability or remove the fixed teacher assignment for {$section->code}.",
             );
         }
 
         if ($declaration->effectiveMode() === FacultyAvailabilityDeclaration::ModeCannotTeach) {
             return $this->blocker(
                 'fixed_faculty_cannot_teach',
-                'Teaching resources',
+                'Faculty & rooms',
                 'Registrar',
-                "Class {$section->code} ({$course->code}) is assigned to {$teacherName}, who declared Cannot teach this Term.",
-                "Reassign {$section->code} or have {$teacherName} update availability on My Availability.",
-                "Remove the fixed teacher commitment on {$section->code} or have {$teacherName} update their declaration.",
+                "Class {$section->code} ({$course->code}) is assigned to {$teacherName}, who declared Unavailable this term.",
+                "Reassign {$section->code} or ask {$teacherName} to update availability on My Availability.",
+                "Remove the fixed teacher assignment on {$section->code} or ask {$teacherName} to update their availability.",
             );
         }
 
         if ($activePackage instanceof TermCalendarPackage && ! $declaration->hasUsableTimeInGrid($activePackage, $durationMinutes)) {
             return $this->blocker(
                 'fixed_faculty_no_usable_time',
-                'Teaching resources',
+                'Faculty & rooms',
                 'Faculty',
-                "Class {$section->code} ({$course->code}) requires {$teacherName}, whose declared availability leaves no usable {$durationMinutes}-minute window inside the approved teaching grid.",
-                "Have {$teacherName} expand chosen windows on My Availability or adjust the fixed teacher assignment.",
-                "Update {$teacherName}'s availability on My Availability or change the fixed teacher commitment for {$section->code}.",
+                "Class {$section->code} ({$course->code}) requires {$teacherName}, whose availability leaves no usable {$durationMinutes}-minute window inside school teaching hours.",
+                "Ask {$teacherName} to expand available times on My Availability or adjust the fixed teacher assignment.",
+                "Update {$teacherName}'s availability on My Availability or change the fixed teacher assignment for {$section->code}.",
             );
         }
 
@@ -395,6 +566,7 @@ final class ReadyTermPlanningProjection
     /**
      * @param  list<User>  $qualifiedTeachers
      * @param  array<int, array<string, mixed>>  $allFacultyRows
+     * @param  array<int, int>  $zeroUnitOverrideFacultyIds
      * @return array{code: string, source: string, owner: string, reason: string, next_action: string, recovery: string}
      */
     private function uncoveredDemandBlocker(
@@ -404,12 +576,18 @@ final class ReadyTermPlanningProjection
         int $durationMinutes,
         ?TermCalendarPackage $activePackage,
         array $allFacultyRows,
+        array $zeroUnitOverrideFacultyIds = [],
     ): array {
         $teacherSummaries = collect($qualifiedTeachers)
-            ->map(function (User $teacher) use ($durationMinutes, $activePackage, $allFacultyRows): string {
-                $row = $allFacultyRows[(int) $teacher->id] ?? null;
+            ->map(function (User $teacher) use ($durationMinutes, $activePackage, $allFacultyRows, $zeroUnitOverrideFacultyIds): string {
+                $teacherId = (int) $teacher->id;
+                $row = $allFacultyRows[$teacherId] ?? null;
                 /** @var FacultyAvailabilityDeclaration|null $declaration */
                 $declaration = $row['declaration'] ?? null;
+
+                if ($this->isRegistrarNotTeaching($teacherId, $allFacultyRows, $zeroUnitOverrideFacultyIds)) {
+                    return $teacher->name.': Not teaching (Registrar)';
+                }
 
                 if (! $declaration instanceof FacultyAvailabilityDeclaration) {
                     return $teacher->name.': No response';
@@ -429,23 +607,29 @@ final class ReadyTermPlanningProjection
 
         return $this->blocker(
             'faculty_demand_uncovered',
-            'Teaching resources',
+            'Faculty & rooms',
             'Faculty',
-            "Class {$section->code} ({$course->code}) has no confirmed-eligible teacher available ({$teacherSummaries}).",
-            "Remind a qualified teacher for {$course->code} to submit usable availability on My Availability, or qualify another available teacher.",
-            "Ensure at least one qualified teacher for {$course->code} records usable availability on My Availability.",
+            "Class {$section->code} ({$course->code}) has no eligible teacher available ({$teacherSummaries}).",
+            "Remind a qualified teacher for {$course->code} to submit availability on My Availability, or assign another qualified teacher.",
+            "Ensure at least one qualified teacher for {$course->code} submits usable availability on My Availability.",
         );
     }
 
     /**
      * @param  array<int, array<string, mixed>>  $allFacultyRows
+     * @param  array<int, int>  $zeroUnitOverrideFacultyIds
      */
     private function teacherIsUsableForDuration(
         int $facultyId,
         int $durationMinutes,
         ?TermCalendarPackage $activePackage,
         array $allFacultyRows,
+        array $zeroUnitOverrideFacultyIds = [],
     ): bool {
+        if ($this->isRegistrarNotTeaching($facultyId, $allFacultyRows, $zeroUnitOverrideFacultyIds)) {
+            return false;
+        }
+
         $row = $allFacultyRows[$facultyId] ?? null;
         /** @var FacultyAvailabilityDeclaration|null $declaration */
         $declaration = $row['declaration'] ?? null;
@@ -463,6 +647,392 @@ final class ReadyTermPlanningProjection
         }
 
         return true;
+    }
+
+    /**
+     * @param  list<array{duration_minutes:int,meeting_count:int,fixed_faculty_id:int|null,same_faculty_required:bool}>  $linkedRequirements
+     * @param  list<User>  $qualifiedTeachers
+     * @param  array<int, array<string, mixed>>  $allFacultyRows
+     * @param  array<int, int>  $zeroUnitOverrideFacultyIds
+     * @param  array<string, bool>  $seenFacultyBlockers
+     * @param  list<array{code: string, source: string, owner: string, reason: string, next_action: string, recovery: string}>  $blockers
+     */
+    private function appendSameFacultyBlockers(
+        Section $section,
+        Course $course,
+        array $linkedRequirements,
+        array $qualifiedTeachers,
+        ?TermCalendarPackage $activePackage,
+        array $allFacultyRows,
+        array $zeroUnitOverrideFacultyIds,
+        array &$seenFacultyBlockers,
+        array &$blockers,
+    ): void {
+        $requiredDurations = [];
+        foreach ($linkedRequirements as $requirement) {
+            for ($i = 0; $i < $requirement['meeting_count']; $i++) {
+                $requiredDurations[] = $requirement['duration_minutes'];
+            }
+        }
+        rsort($requiredDurations);
+
+        $fixedFacultyIds = collect($linkedRequirements)
+            ->pluck('fixed_faculty_id')
+            ->filter(fn (mixed $id): bool => $id !== null)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($fixedFacultyIds->count() > 1) {
+            $blockerKey = "same-faculty-fixed-conflict:{$section->id}:{$course->id}";
+            if (! isset($seenFacultyBlockers[$blockerKey])) {
+                $seenFacultyBlockers[$blockerKey] = true;
+                $blockers[] = $this->blocker(
+                    'faculty_demand_uncovered',
+                    'Faculty & rooms',
+                    'Registrar',
+                    "Class {$section->code} ({$course->code}) requires the same teacher across linked components, but conflicting fixed teachers are assigned.",
+                    "Assign the same fixed teacher across linked components of {$section->code}, or clear the conflicting override.",
+                    "Resolve conflicting fixed teacher assignments for {$section->code}.",
+                );
+            }
+
+            return;
+        }
+
+        if ($fixedFacultyIds->count() === 1) {
+            $soleFixedId = (int) $fixedFacultyIds->first();
+
+            foreach (array_unique($requiredDurations) as $durationMinutes) {
+                $blockerKey = "fixed:{$section->id}:{$course->id}:{$soleFixedId}:{$durationMinutes}";
+                if (isset($seenFacultyBlockers[$blockerKey])) {
+                    return;
+                }
+
+                $fixedBlocker = $this->fixedFacultyBlocker(
+                    section: $section,
+                    course: $course,
+                    fixedFacultyId: $soleFixedId,
+                    durationMinutes: $durationMinutes,
+                    activePackage: $activePackage,
+                    allFacultyRows: $allFacultyRows,
+                    zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
+                );
+                if ($fixedBlocker !== null) {
+                    $seenFacultyBlockers[$blockerKey] = true;
+                    $blockers[] = $fixedBlocker;
+
+                    return;
+                }
+            }
+
+            if ($activePackage instanceof TermCalendarPackage && ! $this->teacherCanCoverLinkedMeetings(
+                facultyId: $soleFixedId,
+                requiredDurations: $requiredDurations,
+                activePackage: $activePackage,
+                allFacultyRows: $allFacultyRows,
+                zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
+            )) {
+                $row = $allFacultyRows[$soleFixedId] ?? null;
+                $teacher = $row['faculty'] ?? User::query()->find($soleFixedId);
+                $teacherName = $teacher instanceof User ? (string) $teacher->name : 'Faculty #'.$soleFixedId;
+                $blockerKey = "same-faculty-fixed-capacity:{$section->id}:{$course->id}:{$soleFixedId}";
+                if (! isset($seenFacultyBlockers[$blockerKey])) {
+                    $seenFacultyBlockers[$blockerKey] = true;
+                    $blockers[] = $this->blocker(
+                        'fixed_faculty_no_usable_time',
+                        'Faculty & rooms',
+                        'Faculty',
+                        "Class {$section->code} ({$course->code}) requires {$teacherName} across all linked components, whose availability cannot fit all required meetings in school teaching hours.",
+                        "Ask {$teacherName} to expand available times on My Availability or adjust the fixed teacher assignment.",
+                        "Update {$teacherName}'s availability on My Availability or remove the fixed teacher assignment for {$section->code}.",
+                    );
+                }
+            }
+
+            return;
+        }
+
+        if ($qualifiedTeachers === []) {
+            return;
+        }
+
+        $hasUnifiedTeacher = collect($qualifiedTeachers)->contains(
+            fn (User $teacher): bool => $this->teacherCanCoverLinkedMeetings(
+                facultyId: (int) $teacher->id,
+                requiredDurations: $requiredDurations,
+                activePackage: $activePackage,
+                allFacultyRows: $allFacultyRows,
+                zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
+            ),
+        );
+
+        if ($hasUnifiedTeacher) {
+            return;
+        }
+
+        $alreadyBlocked = collect($requiredDurations)
+            ->unique()
+            ->contains(fn (int $duration): bool => isset($seenFacultyBlockers["uncovered:{$section->id}:{$course->id}:{$duration}"]));
+
+        if ($alreadyBlocked) {
+            return;
+        }
+
+        $blockerKey = "same-faculty-uncovered:{$section->id}:{$course->id}";
+        if (! isset($seenFacultyBlockers[$blockerKey])) {
+            $seenFacultyBlockers[$blockerKey] = true;
+            $maxDuration = max($requiredDurations);
+            $blockers[] = $this->uncoveredDemandBlocker(
+                section: $section,
+                course: $course,
+                qualifiedTeachers: $qualifiedTeachers,
+                durationMinutes: $maxDuration,
+                activePackage: $activePackage,
+                allFacultyRows: $allFacultyRows,
+                zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
+            );
+        }
+    }
+
+    /**
+     * @param  array{duration_minutes:int,meeting_count:int,fixed_faculty_id:int|null,same_faculty_required:bool}  $requirement
+     * @param  list<User>  $qualifiedTeachers
+     * @param  array<int, array<string, mixed>>  $allFacultyRows
+     * @param  array<int, int>  $zeroUnitOverrideFacultyIds
+     * @param  array<string, bool>  $seenFacultyBlockers
+     * @param  list<array{code: string, source: string, owner: string, reason: string, next_action: string, recovery: string}>  $blockers
+     */
+    private function appendUnlinkedMultiMeetingBlockers(
+        Section $section,
+        Course $course,
+        array $requirement,
+        array $qualifiedTeachers,
+        ?TermCalendarPackage $activePackage,
+        array $allFacultyRows,
+        array $zeroUnitOverrideFacultyIds,
+        array &$seenFacultyBlockers,
+        array &$blockers,
+    ): void {
+        if (! $activePackage instanceof TermCalendarPackage) {
+            return;
+        }
+
+        $requiredDurations = array_fill(0, max(1, $requirement['meeting_count']), $requirement['duration_minutes']);
+        $fixedFacultyId = $requirement['fixed_faculty_id'];
+
+        if ($fixedFacultyId !== null) {
+            if (isset($seenFacultyBlockers["fixed:{$section->id}:{$course->id}:{$fixedFacultyId}:{$requirement['duration_minutes']}"])) {
+                return;
+            }
+
+            if (! $this->teacherCanCoverLinkedMeetings(
+                facultyId: $fixedFacultyId,
+                requiredDurations: $requiredDurations,
+                activePackage: $activePackage,
+                allFacultyRows: $allFacultyRows,
+                zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
+            )) {
+                $row = $allFacultyRows[$fixedFacultyId] ?? null;
+                $teacher = $row['faculty'] ?? User::query()->find($fixedFacultyId);
+                $teacherName = $teacher instanceof User ? (string) $teacher->name : 'Faculty #'.$fixedFacultyId;
+                $blockerKey = "multi-meeting-fixed-capacity:{$section->id}:{$course->id}:{$fixedFacultyId}";
+                if (! isset($seenFacultyBlockers[$blockerKey])) {
+                    $seenFacultyBlockers[$blockerKey] = true;
+                    $blockers[] = $this->blocker(
+                        'fixed_faculty_no_usable_time',
+                        'Faculty & rooms',
+                        'Faculty',
+                        "Class {$section->code} ({$course->code}) requires {$teacherName}, whose availability cannot fit all required meetings in school teaching hours.",
+                        "Ask {$teacherName} to expand available times on My Availability or adjust the fixed teacher assignment.",
+                        "Update {$teacherName}'s availability on My Availability or remove the fixed teacher assignment for {$section->code}.",
+                    );
+                }
+            }
+
+            return;
+        }
+
+        if ($qualifiedTeachers === [] || isset($seenFacultyBlockers["uncovered:{$section->id}:{$course->id}:{$requirement['duration_minutes']}"])) {
+            return;
+        }
+
+        $pooledIntervals = [];
+        foreach ($qualifiedTeachers as $teacher) {
+            $teacherId = (int) $teacher->id;
+            if (! $this->teacherIsUsableForDuration(
+                facultyId: $teacherId,
+                durationMinutes: $requirement['duration_minutes'],
+                activePackage: $activePackage,
+                allFacultyRows: $allFacultyRows,
+                zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
+            )) {
+                continue;
+            }
+
+            $declaration = $allFacultyRows[$teacherId]['declaration'] ?? null;
+            if ($declaration instanceof FacultyAvailabilityDeclaration) {
+                $pooledIntervals = [...$pooledIntervals, ...$this->usableIntervalLengths($declaration, $activePackage)];
+            }
+        }
+
+        rsort($pooledIntervals);
+
+        if (array_sum($pooledIntervals) >= array_sum($requiredDurations)
+            && $this->canPackDurationsIntoIntervals($pooledIntervals, $requiredDurations)) {
+            return;
+        }
+
+        $blockerKey = "multi-meeting-uncovered:{$section->id}:{$course->id}:{$requirement['duration_minutes']}";
+        if (! isset($seenFacultyBlockers[$blockerKey])) {
+            $seenFacultyBlockers[$blockerKey] = true;
+            $blockers[] = $this->uncoveredDemandBlocker(
+                section: $section,
+                course: $course,
+                qualifiedTeachers: $qualifiedTeachers,
+                durationMinutes: $requirement['duration_minutes'],
+                activePackage: $activePackage,
+                allFacultyRows: $allFacultyRows,
+                zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
+            );
+        }
+    }
+
+    /**
+     * @param  list<int>  $requiredDurations
+     * @param  array<int, array<string, mixed>>  $allFacultyRows
+     * @param  array<int, int>  $zeroUnitOverrideFacultyIds
+     */
+    private function teacherCanCoverLinkedMeetings(
+        int $facultyId,
+        array $requiredDurations,
+        ?TermCalendarPackage $activePackage,
+        array $allFacultyRows,
+        array $zeroUnitOverrideFacultyIds,
+    ): bool {
+        if ($this->isRegistrarNotTeaching($facultyId, $allFacultyRows, $zeroUnitOverrideFacultyIds)) {
+            return false;
+        }
+
+        $row = $allFacultyRows[$facultyId] ?? null;
+        /** @var FacultyAvailabilityDeclaration|null $declaration */
+        $declaration = $row['declaration'] ?? null;
+
+        if (! $declaration instanceof FacultyAvailabilityDeclaration
+            || $declaration->effectiveMode() === FacultyAvailabilityDeclaration::ModeCannotTeach) {
+            return false;
+        }
+
+        if (! $activePackage instanceof TermCalendarPackage) {
+            return true;
+        }
+
+        foreach (array_unique($requiredDurations) as $duration) {
+            if (! $declaration->hasUsableTimeInGrid($activePackage, $duration)) {
+                return false;
+            }
+        }
+
+        $usableLengths = $this->usableIntervalLengths($declaration, $activePackage);
+
+        return array_sum($usableLengths) >= array_sum($requiredDurations)
+            && $this->canPackDurationsIntoIntervals($usableLengths, $requiredDurations);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function usableIntervalLengths(
+        FacultyAvailabilityDeclaration $declaration,
+        TermCalendarPackage $calendar,
+    ): array {
+        $calendar->loadMissing('teachingGridRows');
+        $unavailableByDay = collect($declaration->compileUnavailableBlocks($calendar))->groupBy('day_of_week');
+        $lengths = [];
+
+        foreach ($calendar->teachingGridRows as $row) {
+            $day = (int) $row->day_of_week;
+            $gridStart = FacultyAvailabilityDeclaration::clockToMinutes((string) $row->starts_at);
+            $gridEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) $row->ends_at);
+
+            if ($gridStart === null || $gridEnd === null || $gridStart >= $gridEnd) {
+                continue;
+            }
+
+            $cuts = [];
+            foreach (is_array($row->breaks) ? $row->breaks : [] as $break) {
+                if (! is_array($break)) {
+                    continue;
+                }
+
+                $bStart = FacultyAvailabilityDeclaration::clockToMinutes((string) ($break['starts_at'] ?? ''));
+                $bEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) ($break['ends_at'] ?? ''));
+                if ($bStart !== null && $bEnd !== null && $bStart < $bEnd) {
+                    $cuts[] = ['start' => $bStart, 'end' => $bEnd];
+                }
+            }
+
+            foreach ($unavailableByDay->get($day, []) as $block) {
+                $uStart = FacultyAvailabilityDeclaration::clockToMinutes((string) ($block['starts_at'] ?? ''));
+                $uEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) ($block['ends_at'] ?? ''));
+                if ($uStart !== null && $uEnd !== null && $uStart < $uEnd) {
+                    $cuts[] = ['start' => $uStart, 'end' => $uEnd];
+                }
+            }
+
+            foreach (FacultyAvailabilityDeclaration::subtractIntervals([['start' => $gridStart, 'end' => $gridEnd]], $cuts) as $usable) {
+                $length = $usable['end'] - $usable['start'];
+                if ($length >= 30) {
+                    $lengths[] = $length;
+                }
+            }
+        }
+
+        rsort($lengths);
+
+        return $lengths;
+    }
+
+    /**
+     * @param  list<int>  $intervals
+     * @param  list<int>  $durations
+     */
+    private function canPackDurationsIntoIntervals(array $intervals, array $durations, int $index = 0): bool
+    {
+        if ($index >= count($durations)) {
+            return true;
+        }
+
+        $needed = $durations[$index];
+        $triedSizes = [];
+
+        foreach ($intervals as $slotIndex => $available) {
+            if ($available < $needed || isset($triedSizes[$available])) {
+                continue;
+            }
+
+            $triedSizes[$available] = true;
+            $nextIntervals = $intervals;
+            $nextIntervals[$slotIndex] = $available - $needed;
+
+            if ($this->canPackDurationsIntoIntervals($nextIntervals, $durations, $index + 1)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $allFacultyRows
+     * @param  array<int, int>  $zeroUnitOverrideFacultyIds
+     */
+    private function isRegistrarNotTeaching(int $facultyId, array $allFacultyRows, array $zeroUnitOverrideFacultyIds): bool
+    {
+        $row = $allFacultyRows[$facultyId] ?? null;
+
+        return (bool) ($row['registrar_not_teaching'] ?? false)
+            || isset($zeroUnitOverrideFacultyIds[$facultyId]);
     }
 
     private function componentDurationMinutes(CourseComponent $component): int

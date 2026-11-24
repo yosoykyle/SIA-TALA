@@ -49,11 +49,17 @@
 
     const getErrorMessage = (control) => {
         const validity = control.validity;
-        if (!validity || validity.valid) {
+        const isBlankRequiredText = control.required
+            && control.type !== 'checkbox'
+            && control.type !== 'radio'
+            && typeof control.value === 'string'
+            && control.value.trim() === '';
+
+        if (!isBlankRequiredText && (!validity || validity.valid)) {
             return null;
         }
         const label = getFieldLabel(control);
-        if (validity.valueMissing) {
+        if (isBlankRequiredText || validity.valueMissing) {
             if (control.type === 'checkbox') {
                 return 'Please confirm this requirement before continuing.';
             }
@@ -167,7 +173,7 @@
         if (!control.closest(AUTH_FORM_SELECTOR)) {
             return;
         }
-        if (control.dataset.talaClientInvalid === 'true' && control.validity?.valid) {
+        if (control.dataset.talaClientInvalid === 'true' && getErrorMessage(control) === null) {
             clearClientError(control);
         }
     };

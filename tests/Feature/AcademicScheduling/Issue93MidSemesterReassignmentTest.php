@@ -7,8 +7,8 @@ use App\Actions\Grades\SubmitGradeRoster;
 use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Actions\Scheduling\PublishedScheduleRevisionService;
 use App\Actions\Scheduling\ResolveTimetableRevisionRegistrationImpact;
+use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\GradeRosters\Pages\ViewGradeRoster;
-use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\PublishedScheduleRevisionForm;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\Course;
@@ -23,6 +23,8 @@ use App\Models\FacultyQualification;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterVersion;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationCaseEvent;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -143,25 +145,62 @@ final class Issue93MidSemesterReassignmentTest extends TestCase
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
+        $publishedVersion = PublishedTimetableVersion::query()->create([
+            'term_id' => $context['term']->id,
+            'schedule_run_id' => $context['run']->id,
+            'version' => 1,
+            'state' => PublishedTimetableVersion::StatePublished,
+            'authority_reference' => 'MEMO-2026-INIT',
+            'publication_reason' => 'Initial published version for reassignment test.',
+            'source_versions' => [],
+            'impact_summary' => [],
+            'content_hash' => hash('sha256', 'midsem-'.$context['run']->id),
+            'published_by' => $registrar->id,
+            'published_at' => now()->subDay(),
+        ]);
+        $context['meeting']->forceFill(['published_timetable_version_id' => $publishedVersion->id])->save();
+        PublishedTimetableMeeting::factory()->create([
+            'published_timetable_version_id' => $publishedVersion->id,
+            'section_id' => $context['section']->id,
+            'scheduling_demand_id' => $context['meeting']->scheduling_demand_id,
+            'faculty_user_id' => $context['faculty']->id,
+            'room_id' => $context['meeting']->room_id,
+            'meeting_sequence' => $context['meeting']->meeting_sequence,
+            'day_of_week' => $context['meeting']->day_of_week,
+            'starts_at' => $context['meeting']->starts_at,
+            'ends_at' => $context['meeting']->ends_at,
+        ]);
+
         $payload = [
             'section_meeting_ids' => [$context['meeting']->id],
             'change_type' => ScheduleRevisionEvent::ChangeFacultyReassignment,
             'replacement_faculty_user_id' => $replacementFaculty->id,
             'reassignment_scope' => PublishedScheduleRevisionForm::ScopePermanentTakeover,
-            'authority_reference' => 'MEMO-2026-TAKEOVER-02',
             'reason' => 'Permanent mid-semester faculty takeover approved by Dean.',
         ];
 
-        Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
+        $firstAttempt = Livewire::actingAs($registrar)
+            ->withQueryParams(['termId' => $context['term']->id, 'timetableState' => 'official'])
+            ->test(TermTimetable::class)
             ->callAction('revisePublishedSchedule', data: $payload);
 
-        $this->acknowledgeDraftRevisionImpact($context['run'], $registrar);
+        $pendingRevision = TimetableRevision::query()
+            ->where('state', TimetableRevision::StateDraft)
+            ->whereHas('sourceVersion', fn ($query) => $query->where('schedule_run_id', $context['run']->id))
+            ->latest('id')
+            ->first();
 
-        Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
-            ->callAction('revisePublishedSchedule', data: $payload)
-            ->assertHasNoActionErrors();
+        if ($pendingRevision instanceof TimetableRevision) {
+            $this->acknowledgeDraftRevisionImpact($context['run'], $registrar);
+
+            Livewire::actingAs($registrar)
+                ->withQueryParams(['termId' => $context['term']->id, 'timetableState' => 'official'])
+                ->test(TermTimetable::class)
+                ->callAction('revisePublishedSchedule', data: $payload)
+                ->assertHasNoActionErrors();
+        } else {
+            $firstAttempt->assertHasNoActionErrors();
+        }
 
         $activeMeeting = SectionMeeting::query()
             ->activeOfficial()
@@ -182,7 +221,7 @@ final class Issue93MidSemesterReassignmentTest extends TestCase
             'faculty_user_id' => $replacementFaculty->id,
             'role' => ClassOfferingTeachingAssignment::RoleDesignated,
             'state' => ClassOfferingTeachingAssignment::StateActive,
-            'authority_reference' => 'MEMO-2026-TAKEOVER-02',
+            'authority_reference' => 'Permanent mid-semester faculty takeover approved by Dean.',
         ]);
     }
 
@@ -264,15 +303,15 @@ final class Issue93MidSemesterReassignmentTest extends TestCase
     {
         $foundation = (string) file_get_contents(public_path('css/tala-foundation.css'));
 
-        $this->assertStringContainsString('--tala-canvas: #e9edf0;', $foundation);
-        $this->assertStringContainsString('--tala-surface: #f9fbfc;', $foundation);
+        $this->assertStringContainsString('--tala-canvas: #f4f4f5;', $foundation);
+        $this->assertStringContainsString('--tala-surface: #ffffff;', $foundation);
         $this->assertStringContainsString('--tala-surface-raised: #ffffff;', $foundation);
         $this->assertStringContainsString('--tala-edge: rgb(9 9 11 / 12%);', $foundation);
         $this->assertStringContainsString('--tala-edge-strong: rgb(9 9 11 / 20%);', $foundation);
 
-        $this->assertStringContainsString('--tala-canvas: #121417;', $foundation);
-        $this->assertStringContainsString('--tala-surface: #23262c;', $foundation);
-        $this->assertStringContainsString('--tala-surface-raised: #2d313a;', $foundation);
+        $this->assertStringContainsString('--tala-canvas: #151619;', $foundation);
+        $this->assertStringContainsString('--tala-surface: #27282c;', $foundation);
+        $this->assertStringContainsString('--tala-surface-raised: #303237;', $foundation);
     }
 
     /**

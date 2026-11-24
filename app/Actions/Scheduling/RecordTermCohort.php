@@ -29,15 +29,17 @@ final class RecordTermCohort
             $validated = Validator::make([
                 'curriculum_version_id' => $data['curriculum_version_id'] ?? null,
                 'reference' => trim((string) ($data['reference'] ?? '')),
+                'year_level' => filled($data['year_level'] ?? null) ? (int) $data['year_level'] : null,
                 'confirmed_count' => $data['confirmed_count'] ?? null,
             ], [
                 'curriculum_version_id' => ['required', 'integer', 'exists:curriculum_versions,id'],
                 'reference' => ['required', 'string', 'max:64', Rule::unique('term_cohorts')->where('term_id', $term->id)],
+                'year_level' => ['nullable', 'integer', 'min:1', 'max:8'],
                 'confirmed_count' => ['required', 'integer', 'min:1'],
             ])->validate();
             $curriculum = CurriculumVersion::query()->lockForUpdate()->findOrFail($validated['curriculum_version_id']);
-            if ($curriculum->state !== CurriculumVersion::StateActive) {
-                throw ValidationException::withMessages(['curriculum_version_id' => 'Choose an Active approved curriculum for this confirmed cohort.']);
+            if (! in_array($curriculum->state, [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded], true)) {
+                throw ValidationException::withMessages(['curriculum_version_id' => 'Choose a published (Active or Retired) curriculum for this confirmed cohort.']);
             }
 
             return TermCohort::query()->create([

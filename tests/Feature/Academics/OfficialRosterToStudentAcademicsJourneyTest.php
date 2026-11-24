@@ -1199,7 +1199,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         Livewire::actingAs($fixture['registrar'])->test(GradesAndCompletion::class, ['viewTab' => 'academic-progress'])
             ->assertDontSee('Examination');
         Livewire::actingAs($academicHead)->test(AcademicApprovals::class)
-            ->assertSee('Examination')
+            ->assertSee('Exam period')
             ->assertSee('May 10, 2027')
             ->assertSee('May 15, 2027')
             ->assertSee('BOARD-CALENDAR-2026-03')
@@ -1211,11 +1211,11 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
 
         Filament::setCurrentPanel(Filament::getPanel('student'));
         Livewire::actingAs($fixture['student']->user)->test(StudentAcademics::class)
-            ->assertSee('Exam dates')
-            ->assertSee('Calendar details')
+            ->assertSee('Exam period')
             ->assertSee('May 10, 2027')
             ->assertSee('May 15, 2027')
-            ->assertSee('BOARD-CALENDAR-2026-03')
+            ->assertDontSee('BOARD-CALENDAR-2026-03')
+            ->assertDontSee('Authority not recorded')
             ->assertSee('Class-level examination arrangements are not inferred.');
     }
 

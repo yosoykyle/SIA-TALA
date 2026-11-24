@@ -3,6 +3,7 @@
 namespace App\Actions\Enrollment;
 
 use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentException;
 use App\Models\RegistrationProposalVersion;
@@ -17,6 +18,8 @@ use Illuminate\Validation\ValidationException;
 class StudentUnitLoadService
 {
     public const SummerRetakeUnitCeiling = 9.0;
+
+    public function __construct(private readonly RegistrationAcademicEligibilityQuery $eligibility) {}
 
     /** @return array<string, string> */
     public function positionOptions(Enrollment $enrollment, ?int $selectedCurriculumVersionId = null): array
@@ -64,7 +67,7 @@ class StudentUnitLoadService
         Collection $sections,
         ?string $confirmedPosition = null,
     ): array {
-        $enrollment->loadMissing(['studentProfile', 'term']);
+        $enrollment->loadMissing(['studentProfile', 'admissionApplication', 'term']);
         $profile = $enrollment->studentProfile;
         $term = $enrollment->term;
 
@@ -73,34 +76,60 @@ class StudentUnitLoadService
         }
 
         $sections->each(fn (Section $section) => $section->loadMissing(
-            'termOffering.curriculumEntry.courseSpecification',
+            'termOffering.curriculumEntry.courseSpecification.requirements',
         ));
         $offerings = $sections
             ->map(fn (Section $section): ?TermOffering => $section->termOffering)
             ->filter(fn (mixed $offering): bool => $offering instanceof TermOffering)
             ->values();
 
-        $curriculumIds = $offerings
+        if ($offerings->count() !== $sections->count()
+            || $offerings->contains(fn (TermOffering $offering): bool => (int) $offering->term_id !== (int) $term->id
+                || $offering->curriculumEntry?->courseSpecification === null)) {
+            $this->unavailable('Every selected class must belong to the Student’s assigned Curriculum Version and exact Term.');
+        }
+
+        $offeringCurriculumIds = $offerings
             ->pluck('curriculumEntry.curriculum_version_id')
             ->filter()
             ->map(fn (mixed $id): int => (int) $id)
             ->unique()
             ->values();
-        $curriculumVersionId = $profile instanceof StudentProfile
-            ? $profile->curriculum_version_id
-            : $curriculumIds->first();
+        $fallbackCurriculumId = ! $profile instanceof StudentProfile && $offeringCurriculumIds->count() === 1
+            ? $offeringCurriculumIds->first()
+            : null;
+        $curriculum = $this->eligibility->resolveStudentCurriculum($enrollment, $fallbackCurriculumId);
 
-        if ($offerings->count() !== $sections->count()
-            || $curriculumIds->count() !== 1
-            || $curriculumVersionId === null
-            || ($profile instanceof StudentProfile && (int) $profile->curriculum_version_id !== (int) $curriculumVersionId)
-            || $offerings->contains(fn (TermOffering $offering): bool => (int) $offering->term_id !== (int) $term->id
-                || (int) $offering->curriculumEntry->curriculum_version_id !== (int) $curriculumVersionId
-                || $offering->curriculumEntry->courseSpecification === null)) {
+        if (! $curriculum instanceof CurriculumVersion
+            || ($profile instanceof StudentProfile && (int) $profile->curriculum_version_id !== (int) $curriculum->id)) {
             $this->unavailable('Every selected class must belong to the Student’s assigned Curriculum Version and exact Term.');
         }
 
-        $position = $this->resolvePosition($offerings, $confirmedPosition, $enrollment->selection_basis);
+        $curriculumVersionId = (int) $curriculum->id;
+        $curriculumEntries = CurriculumEntry::query()
+            ->with('courseSpecification.requirements')
+            ->where('curriculum_version_id', $curriculumVersionId)
+            ->orderBy('sequence')
+            ->orderBy('id')
+            ->get();
+        $matchedEntriesByOfferingId = $offerings->mapWithKeys(function (TermOffering $offering) use ($curriculumEntries): array {
+            $matched = $this->eligibility->resolveCurriculumEntryFromEntries($curriculumEntries, $offering);
+
+            return [(int) $offering->id => $matched];
+        });
+
+        if ($matchedEntriesByOfferingId->contains(fn (?CurriculumEntry $entry): bool => ! $entry instanceof CurriculumEntry
+            || $entry->courseSpecification === null)) {
+            $this->unavailable('Every selected class must belong to the Student’s assigned Curriculum Version and exact Term.');
+        }
+
+        $position = $this->resolvePosition(
+            $offerings,
+            $matchedEntriesByOfferingId,
+            $confirmedPosition,
+            $enrollment->selection_basis,
+            $term->type,
+        );
         $entries = CurriculumEntry::query()
             ->with('courseSpecification')
             ->where('curriculum_version_id', $curriculumVersionId)
@@ -113,8 +142,12 @@ class StudentUnitLoadService
         $normalTotal = (float) $entries->sum(
             fn (CurriculumEntry $entry): float => (float) $entry->courseSpecification?->credit_units,
         );
+        $hasExplicitSpecialTermEntries = $term->type === Term::TypeSpecialTerm
+            && $curriculumEntries->contains('term_type', Term::TypeSpecialTerm);
 
-        if ($entries->isEmpty() || $normalTotal <= 0) {
+        if ($term->type === Term::TypeSpecialTerm && ! $hasExplicitSpecialTermEntries) {
+            $normalTotal = self::SummerRetakeUnitCeiling;
+        } elseif ($entries->isEmpty() || $normalTotal <= 0) {
             if ($term->type === Term::TypeSpecialTerm && $position['term_type'] === Term::TypeSpecialTerm) {
                 $normalTotal = self::SummerRetakeUnitCeiling;
             } else {
@@ -332,25 +365,38 @@ class StudentUnitLoadService
 
     /**
      * @param  Collection<int, TermOffering>  $offerings
+     * @param  Collection<int, CurriculumEntry|null>  $matchedEntriesByOfferingId
      * @return array{year_level:string,term_label:string,term_type:string}
      */
-    private function resolvePosition(Collection $offerings, ?string $confirmedPosition, ?string $selectionBasis = null): array
-    {
+    private function resolvePosition(
+        Collection $offerings,
+        Collection $matchedEntriesByOfferingId,
+        ?string $confirmedPosition,
+        ?string $selectionBasis = null,
+        ?string $termType = null,
+    ): array {
         $regularPositions = $offerings
             ->filter(fn (TermOffering $offering): bool => $offering->category === TermOffering::CategoryRegular)
-            ->map(fn (TermOffering $offering): array => $this->entryPosition($offering->curriculumEntry))
+            ->map(fn (TermOffering $offering): array => $this->entryPosition($matchedEntriesByOfferingId->get((int) $offering->id)))
             ->unique(fn (array $position): string => $this->positionKey(...array_values($position)))
             ->values();
         $selectedPositions = $offerings
-            ->map(fn (TermOffering $offering): array => $this->entryPosition($offering->curriculumEntry))
+            ->map(fn (TermOffering $offering): array => $this->entryPosition($matchedEntriesByOfferingId->get((int) $offering->id)))
             ->unique(fn (array $position): string => $this->positionKey(...array_values($position)))
             ->values();
 
         if (filled($confirmedPosition)) {
             $position = $this->parsePositionKey($confirmedPosition);
+            $isSpecialTermRetakeCeiling = $termType === Term::TypeSpecialTerm
+                && $position === [
+                    'year_level' => 'Special Term',
+                    'term_label' => 'Special Term',
+                    'term_type' => Term::TypeSpecialTerm,
+                ];
             $allowsCrossYearRegularMix = $selectionBasis === Enrollment::SelectionIndividuallyAdvised
                 && ($regularPositions->count() > 1 || $selectedPositions->count() > 1);
             if (! $allowsCrossYearRegularMix
+                && ! $isSpecialTermRetakeCeiling
                 && $regularPositions->isNotEmpty()
                 && $regularPositions->contains(fn (array $regular): bool => $regular !== $position)) {
                 $this->unavailable('The confirmed curriculum position conflicts with an ordinary selected class.');

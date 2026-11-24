@@ -25,22 +25,79 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use WeakMap;
 
 class ProgramsTable
 {
+    /** @var WeakMap<Program, bool>|null */
+    private static ?WeakMap $unusedProgramCache = null;
+
     public static function configure(Table $table): Table
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                ->with('curriculumVersions')
-                ->withCount(['curriculumVersions', 'studentProfiles', 'admissionCycles']))
+                ->with(['curriculumVersions.academicYears'])
+                ->withCount(['curriculumVersions', 'studentProfiles', 'admissionCycles', 'admissionApplications', 'termCohorts']))
             ->searchPlaceholder('Program code or name')
             ->columns([
                 TextColumn::make('name')->label('Program')->weight('semibold')->wrap()->searchable(['name', 'code'])
-                    ->description(fn (Program $record): string => $record->code.($record->duration_years ? ' · '.$record->duration_years.' years' : '').(! $record->is_active ? ' · Inactive' : '')),
+                    ->extraHeaderAttributes(['class' => 'tala-programs-col-program'])
+                    ->extraCellAttributes(['class' => 'tala-programs-col-program'])
+                    ->description(fn (Program $record): string => $record->code.($record->duration_years ? ' · '.$record->duration_years.' '.Str::plural('year', (int) $record->duration_years) : '').(! $record->is_active ? ' · Inactive' : '')),
                 TextColumn::make('active_curriculum')->label('Active curriculum')
-                    ->state(fn (Program $record): string => $record->curriculumVersions->firstWhere('state', CurriculumVersion::StateActive)?->name ?? 'None yet')
-                    ->description(fn (Program $record): ?string => ($draft = $record->curriculumVersions->firstWhere('state', CurriculumVersion::StateDraft)) ? 'Draft in progress: '.$draft->name : null)
+                    ->extraHeaderAttributes(['class' => 'tala-programs-col-curriculum'])
+                    ->extraCellAttributes(['class' => 'tala-programs-col-curriculum'])
+                    ->state(function (Program $record): string {
+                        $active = $record->curriculumVersions
+                            ->where('state', CurriculumVersion::StateActive)
+                            ->values();
+
+                        if ($active->isEmpty()) {
+                            return 'None yet';
+                        }
+
+                        $firstLabel = $active->first()->batchLabel();
+
+                        if ($active->count() === 1) {
+                            return $firstLabel;
+                        }
+
+                        return $firstLabel.' (+'.($active->count() - 1).' more)';
+                    })
+                    ->description(fn (Program $record): ?string => ($draft = $record->curriculumVersions->firstWhere('state', CurriculumVersion::StateDraft)) ? 'Draft in progress: '.$draft->batchLabel() : null)
+                    ->wrap(),
+                TextColumn::make('admissions_availability')
+                    ->label('Admissions')
+                    ->badge()
+                    ->extraHeaderAttributes(['class' => 'tala-programs-col-admissions'])
+                    ->extraCellAttributes(['class' => 'tala-programs-col-admissions'])
+                    ->state(function (Program $record): string {
+                        $availability = $record->admissionsAvailability();
+
+                        if ($availability['available']) {
+                            return 'Available in Admissions';
+                        }
+
+                        return $record->is_active ? 'Not available' : 'Program is inactive';
+                    })
+                    ->color(function (Program $record): string {
+                        $availability = $record->admissionsAvailability();
+
+                        if ($availability['available']) {
+                            return 'success';
+                        }
+
+                        return $record->is_active ? 'warning' : 'gray';
+                    })
+                    ->description(function (Program $record): ?string {
+                        $availability = $record->admissionsAvailability();
+
+                        if ($availability['available']) {
+                            return $availability['batch_label'] ? 'Ready for '.$availability['batch_label'] : null;
+                        }
+
+                        return $record->is_active ? $availability['reason'] : null;
+                    })
                     ->wrap(),
             ])
             ->filters([
@@ -51,10 +108,11 @@ class ProgramsTable
                         '1' => 'Active',
                         '0' => 'Inactive',
                     ]),
-            ])
-            ->filtersLayout(FiltersLayout::Dropdown)
-            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filters')->color('gray'))
+            ], layout: FiltersLayout::Dropdown)
+            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filters')->size('sm'))
+            ->filtersResetAction(fn (Action $action, Table $table): Action => $action->visible(fn (): bool => $table->isFiltered()))
             ->deferFilters(false)
+            ->columnManager(false)
             ->extraAttributes(['class' => 'tala-data-table tala-programs-table'])
             ->striped()
             ->stackedOnMobile()
@@ -66,26 +124,25 @@ class ProgramsTable
                 Action::make('deactivateProgram')
                     ->label('Deactivate')
                     ->button()
+                    ->size('sm')
                     ->color('gray')
                     ->icon(Heroicon::OutlinedNoSymbol)
                     ->authorize(fn (Program $record): bool => (auth()->user()?->can('update', $record) ?? false) && $record->is_active && ! self::isUnusedProgram($record))
                     ->visible(fn (Program $record): bool => (auth()->user()?->can('update', $record) ?? false) && $record->is_active && ! self::isUnusedProgram($record))
                     ->requiresConfirmation()
-                    ->modalHeading('Deactivate this program?')
+                    ->modalHeading(fn (Program $record): string => "Deactivate {$record->code}?")
                     ->modalDescription(fn (Program $record): string => self::deactivationModalDescription($record))
                     ->modalSubmitActionLabel('Deactivate')
                     ->action(function (Program $record): void {
                         $actor = auth()->user();
                         abort_unless($actor instanceof User && $actor->can('update', $record), 403);
 
-                        $openCycles = self::openPublishedAdmissionCycles($record);
+                        $blockReason = self::deactivationBlockReason($record);
 
-                        if ($openCycles->isNotEmpty()) {
-                            $cycleNames = self::formatOpenAdmissionCycleNames($openCycles);
-
+                        if ($blockReason !== null) {
                             Notification::make()
                                 ->title('Program cannot be deactivated')
-                                ->body("Cannot deactivate this program while it is open in Admission Cycle {$cycleNames}. Close or remove it from the cycle first.")
+                                ->body($blockReason)
                                 ->danger()
                                 ->send();
 
@@ -112,13 +169,14 @@ class ProgramsTable
                 Action::make('reactivateProgram')
                     ->label('Reactivate')
                     ->button()
+                    ->size('sm')
                     ->color('success')
                     ->icon(Heroicon::OutlinedCheckCircle)
                     ->authorize(fn (Program $record): bool => (auth()->user()?->can('update', $record) ?? false) && ! $record->is_active)
                     ->visible(fn (Program $record): bool => (auth()->user()?->can('update', $record) ?? false) && ! $record->is_active)
                     ->requiresConfirmation()
-                    ->modalHeading('Reactivate this program?')
-                    ->modalDescription('This program will become active again for new admission cycles and draft curriculum placements.')
+                    ->modalHeading(fn (Program $record): string => "Reactivate {$record->code}?")
+                    ->modalDescription('This program will become active again for new admission cycles and curriculum batches.')
                     ->modalSubmitActionLabel('Reactivate')
                     ->action(function (Program $record): void {
                         $actor = auth()->user();
@@ -144,6 +202,7 @@ class ProgramsTable
                 Action::make('deleteProgram')
                     ->label('Delete program')
                     ->button()
+                    ->size('sm')
                     ->color('danger')
                     ->icon(Heroicon::OutlinedTrash)
                     ->authorize(fn (Program $record): bool => (auth()->user()?->can('update', $record) ?? false) && self::isUnusedProgram($record))
@@ -197,6 +256,7 @@ class ProgramsTable
                     }),
                 Action::make('openProgram')
                     ->button()
+                    ->size('sm')
                     ->color('gray')
                     ->label('Open')
                     ->icon('heroicon-m-arrow-right')
@@ -221,6 +281,118 @@ class ProgramsTable
             ])
             ->toolbarActions([])
             ->defaultSort('code');
+    }
+
+    /**
+     * Evaluate the refined deactivation guard:
+     * block if the program has unresolved applicants in an open cycle OR is the only active program in an open cycle.
+     */
+    public static function deactivationBlockReason(Program $program): ?string
+    {
+        $openApplicants = $program->openCycleApplicantsCount();
+        $isOnlyActive = $program->isOnlyActiveProgramInOpenCycle();
+
+        if ($openApplicants === 0 && ! $isOnlyActive) {
+            return null;
+        }
+
+        $openCycles = self::openPublishedAdmissionCycles($program);
+        $cycleNames = self::formatOpenAdmissionCycleNames($openCycles);
+        $cycleSuffix = $cycleNames !== '' ? " ({$cycleNames})" : '';
+
+        if ($openApplicants > 0 && $isOnlyActive) {
+            return sprintf(
+                'Cannot deactivate %s while %d active %s %s in an open admission cycle%s and it is the only active program in that cycle. Resolve those applications and keep at least one active program open, or close the cycle first.',
+                $program->code,
+                $openApplicants,
+                Str::plural('applicant', $openApplicants),
+                $openApplicants === 1 ? 'is' : 'are',
+                $cycleSuffix,
+            );
+        }
+
+        if ($openApplicants > 0) {
+            return sprintf(
+                'Cannot deactivate %s while %d active %s %s in an open admission cycle%s. Resolve or transfer those applications, or close the cycle first.',
+                $program->code,
+                $openApplicants,
+                Str::plural('applicant', $openApplicants),
+                $openApplicants === 1 ? 'is' : 'are',
+                $cycleSuffix,
+            );
+        }
+
+        return sprintf(
+            'Cannot deactivate %s because it is the only active program in an open admission cycle%s. Activate another program or close the cycle first.',
+            $program->code,
+            $cycleSuffix,
+        );
+    }
+
+    /**
+     * Count active continuing batches and active students in this program for teach-out messaging.
+     *
+     * @return array{batches: int, students: int}
+     */
+    public static function continuingBatchAndStudentCounts(Program $program): array
+    {
+        return self::continuingBatchAndStudentCountsByProgram([(int) $program->id])[(int) $program->id]
+            ?? ['batches' => 0, 'students' => 0];
+    }
+
+    /**
+     * Batch-count active continuing batches and active students across multiple programs.
+     *
+     * @param  list<int>  $programIds
+     * @return array<int, array{batches: int, students: int}>
+     */
+    public static function continuingBatchAndStudentCountsByProgram(array $programIds): array
+    {
+        if ($programIds === []) {
+            return [];
+        }
+
+        $result = [];
+
+        foreach ($programIds as $programId) {
+            $result[(int) $programId] = ['batches' => 0, 'students' => 0];
+        }
+
+        $profilesByProgram = StudentProfile::query()
+            ->whereIn('program_id', $programIds)
+            ->active()
+            ->where('lifecycle_status', StudentProfile::LifecycleActive)
+            ->with('entryTerm:id,academic_year_id')
+            ->get(['id', 'program_id', 'entry_term_id', 'curriculum_version_id'])
+            ->groupBy('program_id');
+
+        foreach ($profilesByProgram as $programId => $profiles) {
+            $studentCount = $profiles->count();
+
+            if ($studentCount === 0) {
+                continue;
+            }
+
+            $batchKeys = $profiles
+                ->map(function (StudentProfile $profile): string {
+                    $ayId = $profile->entryTerm?->academic_year_id;
+
+                    if ($ayId !== null) {
+                        return 'ay:'.$ayId;
+                    }
+
+                    return 'cv:'.($profile->curriculum_version_id ?? 0);
+                })
+                ->unique()
+                ->count();
+
+            $result[(int) $programId] = [
+                'batches' => max(1, $batchKeys),
+                'students' => $studentCount,
+            ];
+        }
+
+        return $result;
     }
 
     /**
@@ -261,12 +433,10 @@ class ProgramsTable
 
     public static function deactivationModalDescription(Program $program): string
     {
-        $openCycles = self::openPublishedAdmissionCycles($program);
+        $blockReason = self::deactivationBlockReason($program);
 
-        if ($openCycles->isNotEmpty()) {
-            $cycleNames = self::formatOpenAdmissionCycleNames($openCycles);
-
-            return "Cannot deactivate this program while it is open in Admission Cycle {$cycleNames}. Close or remove it from the cycle first.";
+        if ($blockReason !== null) {
+            return $blockReason;
         }
 
         $activeCurriculaCount = $program->curriculumVersions()
@@ -301,31 +471,39 @@ class ProgramsTable
 
     public static function isUnusedProgram(Program $program, bool $fresh = false): bool
     {
+        self::$unusedProgramCache ??= new WeakMap;
+
+        if (! $fresh && isset(self::$unusedProgramCache[$program])) {
+            return self::$unusedProgramCache[$program];
+        }
+
         if (! $fresh) {
-            if ((int) ($program->curriculum_versions_count ?? $program->curriculumVersions()->count()) > 0) {
-                return false;
-            }
-
-            if ((int) ($program->student_profiles_count ?? $program->studentProfiles()->count()) > 0) {
-                return false;
-            }
-
-            if ((int) ($program->admission_cycles_count ?? $program->admissionCycles()->count()) > 0) {
-                return false;
+            if ((int) ($program->curriculum_versions_count ?? $program->curriculumVersions()->count()) > 0
+                || (int) ($program->student_profiles_count ?? $program->studentProfiles()->count()) > 0
+                || (int) ($program->admission_cycles_count ?? $program->admissionCycles()->count()) > 0
+                || (int) ($program->admission_applications_count ?? AdmissionApplication::query()->where('program_id', $program->id)->count()) > 0
+                || (int) ($program->term_cohorts_count ?? TermCohort::query()->where('program_id', $program->id)->count()) > 0) {
+                return self::$unusedProgramCache[$program] = false;
             }
         } else {
             if ($program->curriculumVersions()->exists()
                 || $program->studentProfiles()->exists()
-                || $program->admissionCycles()->exists()) {
+                || $program->admissionCycles()->exists()
+                || AdmissionApplication::query()->where('program_id', $program->id)->exists()
+                || TermCohort::query()->where('program_id', $program->id)->exists()) {
                 return false;
             }
         }
 
-        return ! AdmissionApplication::query()->where('program_id', $program->id)->exists()
-            && ! TermCohort::query()->where('program_id', $program->id)->exists()
-            && ! FeePlan::query()->where('program_id', $program->id)->exists()
+        $isUnused = ! FeePlan::query()->where('program_id', $program->id)->exists()
             && ! FeeRule::query()->where('program_id', $program->id)->exists()
             && ! StudentLifecycleChange::query()->where('target_program_id', $program->id)->exists();
+
+        if (! $fresh) {
+            self::$unusedProgramCache[$program] = $isUnused;
+        }
+
+        return $isUnused;
     }
 
     private static function oversightTermId(Table $table): ?int

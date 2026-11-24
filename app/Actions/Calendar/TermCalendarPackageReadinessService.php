@@ -26,7 +26,7 @@ final class TermCalendarPackageReadinessService
             || $classesEndOn->lt($classesStartOn)
             || $classesStartOn->lt($administrativeStartsOn)
             || $classesEndOn->gt($administrativeEndsOn)) {
-            $blockers[] = $this->blocker('calendar_bounds_invalid', 'Term Calendar Package', 'Registrar', 'Administrative and class dates are contradictory.', 'Correct the inclusive date bounds.', 'Retain the Draft package until all date bounds are valid.');
+            $blockers[] = $this->blocker('calendar_bounds_invalid', 'Term calendar', 'Registrar', 'Term dates and class dates overlap or fall out of order.', 'Adjust the term start/end and class dates so classes stay within the term.', 'Save the corrected dates on the draft calendar before activating.');
         }
 
         foreach ($package->windows as $window) {
@@ -36,13 +36,13 @@ final class TermCalendarPackageReadinessService
             if (! array_key_exists($window->window_type, TermCalendarWindow::typeOptions())
                 || $closesOn->lt($opensOn)
                 || ($window->cutoff_at !== null && ! preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/', (string) $window->cutoff_at))) {
-                $blockers[] = $this->blocker('operational_window_invalid', 'Operational windows', 'Registrar', 'An entered operational window has an unsupported type, contradictory dates or invalid cutoff.', 'Correct the affected dates against this exact Term\'s approved consumer period and calendar authority.', 'Retain the Draft package until every entered window is valid.');
+                $blockers[] = $this->blocker('operational_window_invalid', 'Key dates', 'Registrar', 'A key date period has an unsupported type, invalid date range, or invalid cutoff time.', 'Fix the start date, end date, or cutoff time so it fits this term.', 'Update the draft calendar until every key date period is valid.');
                 break;
             }
         }
 
         if ($package->teachingGridRows->isEmpty()) {
-            $blockers[] = $this->blocker('teaching_grid_empty', 'Weekly teaching grid', 'Registrar', 'No approved teaching day is recorded.', 'Record each allowed teaching day and operating interval.', 'Correct the Draft package and retry activation.');
+            $blockers[] = $this->blocker('teaching_grid_empty', 'Weekly teaching hours', 'Registrar', 'No school teaching days are set.', 'Add at least one teaching day with start and end hours.', 'Update the draft calendar and try activating again.');
         }
 
         foreach ($package->teachingGridRows as $row) {
@@ -50,7 +50,7 @@ final class TermCalendarPackageReadinessService
             $ends = strtotime((string) $row->ends_at);
 
             if ($row->day_of_week < 1 || $row->day_of_week > 7 || $starts === false || $ends === false || $ends <= $starts || ($starts % 1800) !== 0 || ($ends % 1800) !== 0) {
-                $blockers[] = $this->blocker('teaching_grid_invalid', 'Weekly teaching grid', 'Registrar', 'A teaching-grid row is contradictory or not aligned to the fixed 30-minute grid.', 'Correct the affected teaching day.', 'Retain the Draft package until the grid is valid.');
+                $blockers[] = $this->blocker('teaching_grid_invalid', 'Weekly teaching hours', 'Registrar', 'A teaching day has invalid hours or times that are not on 30-minute intervals.', 'Fix the start and end times for the affected day.', 'Update the draft calendar until weekly teaching hours are valid.');
                 break;
             }
 
@@ -59,7 +59,7 @@ final class TermCalendarPackageReadinessService
 
             foreach ($breaks as $break) {
                 if (! is_array($break) || blank($break['starts_at'] ?? null) || blank($break['ends_at'] ?? null)) {
-                    $blockers[] = $this->blocker('teaching_grid_break_invalid', 'Recurring institutional breaks', 'Registrar', 'A recurring teaching-grid break is incomplete, contradictory, or not aligned to the fixed 30-minute grid.', 'Correct or remove the invalid break interval.', 'Retain the Draft package until all recurring breaks are valid.');
+                    $blockers[] = $this->blocker('teaching_grid_break_invalid', 'Scheduled breaks', 'Registrar', 'A scheduled break is incomplete, out of order, or not on 30-minute intervals.', 'Fix or remove the invalid break.', 'Update the draft calendar until all breaks are valid.');
                     break 2;
                 }
 
@@ -67,18 +67,18 @@ final class TermCalendarPackageReadinessService
                 $bEnds = strtotime((string) ($break['ends_at'] ?? ''));
 
                 if ($bStarts === false || $bEnds === false || $bEnds <= $bStarts || ($bStarts % 1800) !== 0 || ($bEnds % 1800) !== 0) {
-                    $blockers[] = $this->blocker('teaching_grid_break_invalid', 'Recurring institutional breaks', 'Registrar', 'A recurring teaching-grid break is incomplete, contradictory, or not aligned to the fixed 30-minute grid.', 'Correct the affected break interval.', 'Retain the Draft package until all recurring breaks are valid.');
+                    $blockers[] = $this->blocker('teaching_grid_break_invalid', 'Scheduled breaks', 'Registrar', 'A scheduled break is incomplete, out of order, or not on 30-minute intervals.', 'Fix the affected break times.', 'Update the draft calendar until all breaks are valid.');
                     break 2;
                 }
 
                 if ($bStarts < $starts || $bEnds > $ends) {
-                    $blockers[] = $this->blocker('teaching_grid_break_out_of_bounds', 'Recurring institutional breaks', 'Registrar', 'A recurring teaching-grid break falls outside the approved daily teaching interval.', 'Keep breaks within the daily teaching start and end times.', 'Retain the Draft package until all breaks fall within teaching hours.');
+                    $blockers[] = $this->blocker('teaching_grid_break_out_of_bounds', 'Scheduled breaks', 'Registrar', 'A scheduled break falls outside the daily teaching hours.', 'Keep breaks within the daily start and end times.', 'Update the draft calendar until all breaks fall within teaching hours.');
                     break 2;
                 }
 
                 foreach ($breakIntervals as $existing) {
                     if ($bStarts < $existing['ends'] && $bEnds > $existing['starts']) {
-                        $blockers[] = $this->blocker('teaching_grid_break_overlap', 'Recurring institutional breaks', 'Registrar', 'Recurring teaching-grid breaks on the same day overlap each other.', 'Resolve overlapping break intervals on the affected day.', 'Retain the Draft package until breaks do not overlap.');
+                        $blockers[] = $this->blocker('teaching_grid_break_overlap', 'Scheduled breaks', 'Registrar', 'Scheduled breaks on the same day overlap each other.', 'Adjust the overlapping breaks on the affected day.', 'Update the draft calendar until breaks do not overlap.');
                         break 3;
                     }
                 }
@@ -93,12 +93,7 @@ final class TermCalendarPackageReadinessService
             $exEnds = CarbonImmutable::parse((string) $exception->ends_on);
 
             if ($exEnds->lt($exStarts) || $exStarts->lt($administrativeStartsOn) || $exEnds->gt($administrativeEndsOn)) {
-                $blockers[] = $this->blocker('dated_exception_invalid', 'Dated exceptions', 'Registrar', 'A dated exception has contradictory dates or falls outside the exact-Term administrative bounds.', 'Correct the affected dated exception interval.', 'Retain the Draft package until all dated exceptions are valid.');
-                break;
-            }
-
-            if (blank($exception->authority_reference)) {
-                $blockers[] = $this->blocker('dated_exception_authority_missing', 'Dated exceptions', 'Registrar', 'A dated exception is missing its attributable authority reference.', 'Record the authority reference for each dated exception.', 'Retain the Draft package until all exceptions record authority.');
+                $blockers[] = $this->blocker('dated_exception_invalid', 'Holidays & special dates', 'Registrar', 'A holiday or special date has an invalid date range or falls outside the term dates.', 'Fix the start and end dates for the affected entry.', 'Update the draft calendar until all holidays and special dates are valid.');
                 break;
             }
 
@@ -108,7 +103,7 @@ final class TermCalendarPackageReadinessService
             if (($normalizedType === 'informationonly' && $blocksTeaching)
                 || ($normalizedType === 'noclasses' && ! $blocksTeaching)
                 || ($normalizedType === 'makeupallowed' && $blocksTeaching)) {
-                $blockers[] = $this->blocker('dated_exception_effect_invalid', 'Dated exceptions', 'Registrar', 'A dated exception contradicts its recorded instructional effect.', 'Correct the NoClasses, MakeUpAllowed or InformationOnly effect against the approved source.', 'Retain the Draft package until the exception is consistent.');
+                $blockers[] = $this->blocker('dated_exception_effect_invalid', 'Holidays & special dates', 'Registrar', 'A holiday or special date has a mismatched class-suspension setting.', 'Set no-class days to suspend classes, and keep make-up days or notices open for classes.', 'Update the draft calendar until each entry is consistent.');
                 break;
             }
 
@@ -136,7 +131,7 @@ final class TermCalendarPackageReadinessService
                     }
 
                     if ($isConflict) {
-                        $blockers[] = $this->blocker('dated_exception_conflict', 'Dated exceptions', 'Registrar', 'Dated exceptions have conflicting instructional effects or dates.', 'Resolve the conflicting dated exception intervals.', 'Retain the Draft package until dated exceptions do not conflict.');
+                        $blockers[] = $this->blocker('dated_exception_conflict', 'Holidays & special dates', 'Registrar', 'Two holidays or special dates overlap with conflicting class-day rules.', 'Adjust the overlapping dates so they do not conflict.', 'Update the draft calendar until holidays and special dates do not conflict.');
                         break 2;
                     }
                 }
@@ -151,7 +146,7 @@ final class TermCalendarPackageReadinessService
         }
 
         if ($package->term->type === Term::TypeSpecialTerm && blank($package->special_term_schedule_basis)) {
-            $blockers[] = $this->blocker('special_term_basis_missing', 'Special Term authority', 'Registrar', 'The approved particular schedule and class-hour/class-day basis are missing.', 'Record the attributable Special Term schedule basis.', 'Do not infer a Special Term default; correct the Draft package.');
+            $blockers[] = $this->blocker('special_term_basis_missing', 'Special term schedule', 'Registrar', 'The approved schedule basis for this special term is missing.', 'Enter the approved class-hour and class-day basis for this special term.', 'Add the special term schedule basis on the draft calendar before activating.');
         }
 
         return ['ready' => $blockers === [], 'blockers' => $blockers];

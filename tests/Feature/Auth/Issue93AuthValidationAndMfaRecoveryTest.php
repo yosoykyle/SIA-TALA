@@ -96,12 +96,13 @@ class Issue93AuthValidationAndMfaRecoveryTest extends TestCase
             ->call('authenticate')
             ->assertHasErrors(['data.multiFactor.app.code']);
 
-        // Switch to recovery code mode via the schema action and paste a recovery code with whitespace.
+        // Switch to recovery code mode via the schema action and verify native required constraint is present for instant client-side submit validation.
         $login
             ->callAction(TestAction::make('useRecoveryCode')->schemaComponent('app.code', 'multiFactorChallengeForm'))
             ->assertHasNoErrors()
             ->assertSet('data.multiFactor.app.useRecoveryCode', true)
             ->assertSet('data.multiFactor.app.code', null)
+            ->assertSeeHtml('required="required"')
             ->set('data.multiFactor.app.recoveryCode', " PREV-9301-AAAA\n")
             ->call('authenticate')
             ->assertHasNoErrors()
@@ -143,5 +144,46 @@ class Issue93AuthValidationAndMfaRecoveryTest extends TestCase
             ->call('authenticate')
             ->assertHasErrors(['data.multiFactor.app.recoveryCode'])
             ->assertHasNoErrors(['data.multiFactor.app.code']);
+    }
+
+    public function test_restarting_authentication_with_use_another_account_does_not_cache_blank_mfa_challenge_form(): void
+    {
+        Role::findOrCreate(User::StaffRoleFaculty, 'web');
+        $staff = User::factory()->create([
+            'email' => 'mfa-restart-blank-regression@example.test',
+            'password' => 'a secure password 2026',
+        ]);
+        $staff->assignRole(User::StaffRoleFaculty);
+
+        $provider = app(TalaAppAuthentication::class)->recoverable();
+        $provider->saveSecret($staff, $provider->generateSecret());
+        $provider->saveRecoveryCodes($staff, ['PREV-9302-AAAA']);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $login = Livewire::test(ContextualLogin::class)
+            ->call('enableSchemaStateUpdateHooksForTesting')
+            ->set('data.email', $staff->email)
+            ->set('data.password', 'a secure password 2026')
+            ->call('authenticate')
+            ->assertSeeHtml('id="multiFactorChallengeForm.app.code"')
+            ->call('useAnotherAccount');
+
+        // Reproduce real browser request where data.email/data.password updates run before authenticate() in the same roundtrip.
+        $login->update(
+            updates: [
+                'data.email' => $staff->email,
+                'data.password' => 'a secure password 2026',
+            ],
+            calls: [
+                ['method' => 'authenticate', 'params' => []],
+            ],
+        );
+
+        $login
+            ->assertHasNoErrors()
+            ->assertSeeHtml('id="multiFactorChallengeForm"')
+            ->assertSeeHtml('id="multiFactorChallengeForm.app.code"')
+            ->assertSee('Enter the 6-digit code from the authenticator app');
     }
 }

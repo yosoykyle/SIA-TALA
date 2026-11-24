@@ -22,7 +22,7 @@ class AdmissionCycleResource extends Resource
 {
     protected static ?string $model = AdmissionCycle::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDateRange;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserPlus;
 
     protected static ?string $navigationLabel = 'Admission cycles';
 

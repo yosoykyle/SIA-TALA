@@ -67,7 +67,7 @@ class WorkspaceNavigationSearchTest extends TestCase
 
         $this->assertSame([
             'Learner work' => ['Admissions', 'Students & Enrollment', 'Students Record'],
-            'Academic setup' => ['Programs & Curricula', 'Term Planning', 'Admission cycles'],
+            'Academic setup' => ['Programs & Curricula', 'School Resources', 'Term Planning', 'Admission cycles'],
         ], $groups);
         $this->assertSame('/admin/admissions', app(WorkspaceContextResolver::class)
             ->destinationFor($user, User::StaffRoleRegistrar));
@@ -99,12 +99,14 @@ class WorkspaceNavigationSearchTest extends TestCase
 
         foreach ([
             'Academic Years', 'Terms', 'Term Offerings', 'Classes', 'Rooms',
-            'Faculty Qualifications', 'Faculty Term Load Overrides', 'Programs', 'Subjects',
+            'Faculty Qualifications', 'Faculty Term Load Overrides', 'Programs', 'Subject catalog',
             'Curricula',
-            'Weekly unavailable times', 'Schedule Requirements', 'Generated Timetables', 'Published Timetable',
+            'Weekly unavailable times', 'Schedule Requirements', 'Generated Timetables',
         ] as $title) {
             $this->assertContains($title, $this->titles($title));
         }
+
+        $this->assertSame([], $this->titles('Published Timetable'));
 
         $this->assertSame([], $this->titles($user->email));
         $this->assertSame([], $this->titles('Users'));
@@ -160,7 +162,7 @@ class WorkspaceNavigationSearchTest extends TestCase
         $user->assignRole(Role::findOrCreate(User::StaffRoleAccounting, 'web'));
         $this->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAccounting]);
 
-        foreach (['queue', 'cycle', 'Rooms', 'Term Offerings', 'Qualifications', 'Subjects'] as $query) {
+        foreach (['queue', 'cycle', 'Rooms', 'Term Offerings', 'Qualifications', 'Subject catalog'] as $query) {
             $this->assertSame([], $this->titles($query));
         }
         $this->assertContains('Student accounts', $this->titles('Student accounts'));
@@ -403,31 +405,31 @@ class WorkspaceNavigationSearchTest extends TestCase
             'Resolve duplicate',
         ], Livewire::test(CreateDuplicateProfileResolution::class)->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             'Academic Years',
         ], Livewire::test(ListAcademicYears::class)->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             AcademicYearResource::getUrl('index') => 'Academic Years',
             'Academic Year 2030-2031',
         ], Livewire::test(ViewAcademicYear::class, ['record' => $year->getRouteKey()])->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             AcademicYearResource::getUrl('index') => 'Academic Years',
             'Add academic year',
         ], Livewire::test(CreateAcademicYear::class)->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             AcademicYearResource::getUrl('index') => 'Academic Years',
             AcademicYearResource::getUrl('view', ['record' => $year]) => 'Academic Year 2030-2031',
             'Edit',
         ], Livewire::test(EditAcademicYear::class, ['record' => $year->getRouteKey()])->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             'Academic Calendar Windows',
         ], Livewire::test(ListAcademicCalendarWindows::class)->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             AcademicCalendarWindowResource::getUrl('index') => 'Academic Calendar Windows',
             'Add calendar window',
         ], Livewire::test(CreateAcademicCalendarWindow::class)->instance()->getBreadcrumbs());

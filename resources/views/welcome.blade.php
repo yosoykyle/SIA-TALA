@@ -54,7 +54,6 @@
         <section class="hero-section school-masthead" id="top" data-navbar-contrast-surface="dark" data-hero-motion aria-labelledby="hero-title">
             <div class="hero-ambient" aria-hidden="true">
                 <span class="hero-ambient__light hero-ambient__light--green"></span>
-                <span class="hero-ambient__light hero-ambient__light--blue"></span>
                 <span class="hero-ambient__light hero-ambient__light--gold"></span>
                 <span class="hero-ambient__light hero-ambient__light--crimson"></span>
                 <span class="hero-ambient__arc"></span>
@@ -325,6 +324,9 @@
                         <li class="program-row">
                             <x-filament::icon icon="heroicon-o-academic-cap" class="program-mark" aria-hidden="true" />
                             <h3>{{ $program->name }}</h3>
+                            @if (filled($program->description))
+                                <p class="program-summary">{{ $program->description }}</p>
+                            @endif
                             <dl class="program-facts">
                                 <div class="program-fact">
                                     <dt class="visually-hidden">Length</dt>
@@ -455,7 +457,6 @@
 
                 {{-- Visitor guidelines: owner-supplied reference content (Oct 16), placeholder until the school confirms hours, rules and its appointment process. --}}
                 <section class="visit-guidelines" aria-labelledby="visit-guidelines-title">
-                    {{-- Placeholder for the campus photo the school will supply; replace with an <img> of the same frame. --}}
                     <div class="visit-guidelines__media">
                         <img src="{{ asset('images/visit-computer-room-800.webp') }}" srcset="{{ asset('images/visit-computer-room-800.webp') }} 800w, {{ asset('images/visit-computer-room-1152.webp') }} 1152w" sizes="(min-width: 992px) 45vw, 100vw" width="1152" height="768" alt="Servitech Institute Asia computer room with two desktop computers beside tall windows" loading="lazy" decoding="async">
                     </div>
@@ -557,6 +558,9 @@
                             <div class="program-fact"><dt>Program length:&nbsp;</dt><dd>{{ $program->duration_years }} {{ Str::plural('year', $program->duration_years) }}</dd></div>
                             <div class="program-fact"><dt>Admission:&nbsp;</dt><dd>{{ $isAccepting ? 'Applications open' : 'Ask Admissions about applying' }}</dd></div>
                         </dl>
+                        @if (filled($program->description))
+                            <p class="program-modal-description">{{ $program->description }}</p>
+                        @endif
                         <p>Contact Admissions for course and qualification details and the requirements for your Student type.</p>
                         <div class="modal-action-list">
                             @if ($isAccepting && $applicantEntryReady)

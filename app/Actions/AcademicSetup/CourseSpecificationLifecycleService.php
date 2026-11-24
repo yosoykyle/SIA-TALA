@@ -5,6 +5,9 @@ namespace App\Actions\AcademicSetup;
 use App\Models\CourseComponent;
 use App\Models\CourseRequirement;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
+use App\Models\Section;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -117,6 +120,84 @@ class CourseSpecificationLifecycleService
         });
     }
 
+    public function discardDraft(User $actor, CourseSpecification $courseSpecification): void
+    {
+        Gate::forUser($actor)->authorize('update', $courseSpecification);
+
+        DB::transaction(function () use ($actor, $courseSpecification): void {
+            $locked = CourseSpecification::query()
+                ->with('course')
+                ->lockForUpdate()
+                ->findOrFail($courseSpecification->id);
+
+            Gate::forUser($actor)->authorize('update', $locked);
+
+            if ($locked->state !== CourseSpecification::StateDraft) {
+                throw ValidationException::withMessages([
+                    'course_specification' => 'Only a Draft Course Specification can be discarded.',
+                ]);
+            }
+
+            $entries = $locked->curriculumEntries()
+                ->with('curriculumVersion.program')
+                ->get();
+
+            if ($entries->isNotEmpty()) {
+                $curriculumLabels = $entries
+                    ->map(function (CurriculumEntry $entry): ?string {
+                        $version = $entry->curriculumVersion;
+
+                        if (! $version instanceof CurriculumVersion) {
+                            return null;
+                        }
+
+                        $programCode = $version->program?->code;
+
+                        return filled($programCode)
+                            ? "{$programCode} · {$version->name}"
+                            : (string) $version->name;
+                    })
+                    ->filter()
+                    ->unique()
+                    ->values();
+
+                $message = $curriculumLabels->isNotEmpty()
+                    ? 'This draft is used in '.$curriculumLabels->implode(', ').'. Remove it from those curricula before discarding.'
+                    : 'This draft is currently used in a curriculum. Remove it from the curriculum before discarding.';
+
+                throw ValidationException::withMessages([
+                    'course_specification' => $message,
+                ]);
+            }
+
+            if (Section::query()->where('course_specification_id', $locked->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'course_specification' => 'This draft is referenced by a class offering and cannot be discarded.',
+                ]);
+            }
+
+            $course = $locked->course;
+            $specificationId = $locked->id;
+            $revisionCode = $locked->revision_code;
+            $title = $locked->title;
+
+            $locked->components()->delete();
+            $locked->requirements()->delete();
+            $locked->delete();
+
+            activity()
+                ->performedOn($course)
+                ->causedBy($actor)
+                ->event('course_specification_draft_discarded')
+                ->withProperties([
+                    'course_specification_id' => $specificationId,
+                    'revision_code' => $revisionCode,
+                    'title' => $title,
+                ])
+                ->log('Course Specification draft discarded');
+        });
+    }
+
     /**
      * @return list<string>
      */
@@ -133,7 +214,9 @@ class CourseSpecificationLifecycleService
             $errors[] = 'Subject name is missing. Open the subject and enter a title.';
         }
 
-        if ((float) $courseSpecification->credit_units <= 0) {
+        $isNonCredit = $courseSpecification->academic_classification === CourseSpecification::AcademicClassificationNonCredit;
+
+        if ($isNonCredit ? (float) $courseSpecification->credit_units < 0 : (float) $courseSpecification->credit_units <= 0) {
             $errors[] = 'Credit units must be greater than zero. Open the subject and set its unit value.';
         }
 

@@ -294,7 +294,7 @@
 /* Sync existing .tala-ambient--auth background washes, glows, and trinkets with the active rate-limit countdown. */
 .tala-ambient--auth[data-auth-state='rate-limited'][data-rate-limit-phase='warm'] {
     --ambient-green: #d97706;
-    --ambient-blue: #a16207;
+    --ambient-gold: #a16207;
     --ambient-glow-low: 0.28;
     --ambient-glow-mid: 0.38;
     --ambient-glow-high: 0.48;
@@ -302,14 +302,14 @@
 .dark .tala-ambient--auth[data-auth-state='rate-limited'][data-rate-limit-phase='warm'],
 [data-theme='dark'] .tala-ambient--auth[data-auth-state='rate-limited'][data-rate-limit-phase='warm'] {
     --ambient-green: #f4d598;
-    --ambient-blue: #f59e0b;
+    --ambient-gold: #f59e0b;
     --ambient-glow-low: 0.30;
     --ambient-glow-mid: 0.40;
     --ambient-glow-high: 0.50;
 }
 .tala-ambient--auth[data-auth-state='rate-limited'][data-rate-limit-phase='calm'] {
     --ambient-green: #2f7d3b;
-    --ambient-blue: #2563eb;
+    --ambient-gold: #c9972c;
     --ambient-glow-low: 0.26;
     --ambient-glow-mid: 0.35;
     --ambient-glow-high: 0.44;
@@ -317,7 +317,7 @@
 .dark .tala-ambient--auth[data-auth-state='rate-limited'][data-rate-limit-phase='calm'],
 [data-theme='dark'] .tala-ambient--auth[data-auth-state='rate-limited'][data-rate-limit-phase='calm'] {
     --ambient-green: #6acb7c;
-    --ambient-blue: #60a5fa;
+    --ambient-gold: #ebca90;
     --ambient-glow-low: 0.28;
     --ambient-glow-mid: 0.37;
     --ambient-glow-high: 0.46;

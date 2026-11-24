@@ -38,7 +38,7 @@ final class FacultyAvailabilityStatusProjection
      *     unresolved_late_impacts: list<array<string, mixed>>
      * }
      */
-    public function forTerm(Term $term): array
+    public function forTerm(Term $term, bool $includeOfficialAssignments = true): array
     {
         $activePackage = TermCalendarPackage::query()
             ->where('term_id', $term->id)
@@ -105,11 +105,13 @@ final class FacultyAvailabilityStatusProjection
                 ->unique('user_id')
                 ->keyBy('user_id');
 
-        $officialVersion = PublishedTimetableVersion::query()
-            ->where('term_id', $term->id)
-            ->where('state', PublishedTimetableVersion::StatePublished)
-            ->with('meetings.classOffering.courseRevision')
-            ->first();
+        $officialVersion = $includeOfficialAssignments
+            ? PublishedTimetableVersion::query()
+                ->where('term_id', $term->id)
+                ->where('state', PublishedTimetableVersion::StatePublished)
+                ->with('meetings.classOffering.courseRevision')
+                ->first()
+            : null;
 
         $officialAssignmentsByFaculty = $officialVersion?->meetings->groupBy('faculty_user_id') ?? collect();
 
@@ -256,9 +258,12 @@ final class FacultyAvailabilityStatusProjection
                 ->all();
 
             $effectiveMode = $declaration?->effectiveMode();
-            $statusLabel = $declaration instanceof FacultyAvailabilityDeclaration
-                ? $declaration->modeLabel()
-                : 'No response';
+            $registrarNotTeaching = $override instanceof FacultyTermLoadOverride && $override->allowedLoadUnits() <= 0.0;
+            $statusLabel = match (true) {
+                $registrarNotTeaching => 'Not teaching (Registrar)',
+                $declaration instanceof FacultyAvailabilityDeclaration => $declaration->modeLabel(),
+                default => 'No response',
+            };
 
             $allRows->put($facultyId, [
                 'kind' => 'Faculty',
@@ -266,7 +271,7 @@ final class FacultyAvailabilityStatusProjection
                 'faculty_id' => $facultyId,
                 'faculty' => $faculty,
                 'name' => (string) $faculty->name,
-                'in_term' => $inTerm,
+                'in_term' => $inTerm || $registrarNotTeaching,
                 'qualified_course_ids' => $qualifiedCourseIds,
                 'eligible_course_count' => count($qualifiedCourseIds),
                 'term_course_count' => $termCourseCount,
@@ -282,6 +287,9 @@ final class FacultyAvailabilityStatusProjection
                 'declaration_version' => $declaration?->version !== null ? (int) $declaration->version : null,
                 'declared_at' => $declaration?->declared_at,
                 'effective_mode' => $effectiveMode,
+                'registrar_not_teaching' => $registrarNotTeaching,
+                'registrar_not_teaching_reason' => $registrarNotTeaching ? $override->reason : null,
+                'load_override_id' => $override instanceof FacultyTermLoadOverride ? (int) $override->id : null,
                 'status_label' => $statusLabel,
                 'status' => $statusLabel,
                 'teaching_windows' => $declaration?->normalizedTeachingWindows() ?? [],
@@ -304,8 +312,8 @@ final class FacultyAvailabilityStatusProjection
             'active_calendar_package' => $activePackage,
             'total_faculty' => $inTermRows->count(),
             'replied_count' => $inTermRows->filter(fn (array $row): bool => $row['declaration'] !== null)->count(),
-            'no_response_count' => $inTermRows->filter(fn (array $row): bool => $row['declaration'] === null)->count(),
-            'cannot_teach_count' => $inTermRows->filter(fn (array $row): bool => $row['effective_mode'] === FacultyAvailabilityDeclaration::ModeCannotTeach)->count(),
+            'no_response_count' => $inTermRows->filter(fn (array $row): bool => $row['declaration'] === null && ! $row['registrar_not_teaching'])->count(),
+            'cannot_teach_count' => $inTermRows->filter(fn (array $row): bool => $row['registrar_not_teaching'] || $row['effective_mode'] === FacultyAvailabilityDeclaration::ModeCannotTeach)->count(),
             'needs_grid_review_count' => $inTermRows->filter(fn (array $row): bool => $row['needs_grid_review'])->count(),
             'late_impact_count' => count($unresolvedLateImpacts),
             'faculty_rows' => $inTermRows->all(),
@@ -325,6 +333,8 @@ final class FacultyAvailabilityStatusProjection
      *     has_declaration: bool,
      *     latest_declaration: FacultyAvailabilityDeclaration|null,
      *     effective_mode: string|null,
+     *     registrar_not_teaching: bool,
+     *     registrar_not_teaching_reason: string|null,
      *     status_label: string,
      *     teaching_windows: list<array{day_of_week:int,start_time:string,end_time:string}>,
      *     hard_unavailability: list<array{day_of_week:int,starts_at:string,ends_at:string}>,
@@ -394,6 +404,26 @@ final class FacultyAvailabilityStatusProjection
             )
             : [];
 
+        $fallbackOverride = $row === null
+            ? FacultyTermLoadOverride::query()
+                ->where('term_id', $term->id)
+                ->where('faculty_user_id', $facultyId)
+                ->where('is_active', true)
+                ->first()
+            : null;
+        $registrarNotTeaching = $row !== null
+            ? (bool) ($row['registrar_not_teaching'] ?? false)
+            : ($fallbackOverride instanceof FacultyTermLoadOverride && $fallbackOverride->allowedLoadUnits() <= 0.0);
+        $registrarNotTeachingReason = $row !== null
+            ? ($row['registrar_not_teaching_reason'] ?? null)
+            : ($registrarNotTeaching ? $fallbackOverride->reason : null);
+
+        $statusLabel = match (true) {
+            $registrarNotTeaching => 'Not teaching (Registrar)',
+            $latestDeclaration instanceof FacultyAvailabilityDeclaration => $latestDeclaration->modeLabel(),
+            default => 'No response',
+        };
+
         return [
             'term_id' => (int) $term->id,
             'faculty_user_id' => $facultyId,
@@ -402,9 +432,11 @@ final class FacultyAvailabilityStatusProjection
             'has_declaration' => $latestDeclaration instanceof FacultyAvailabilityDeclaration,
             'latest_declaration' => $latestDeclaration,
             'effective_mode' => $latestDeclaration?->effectiveMode(),
-            'status_label' => $latestDeclaration instanceof FacultyAvailabilityDeclaration
-                ? $latestDeclaration->modeLabel()
-                : 'No response',
+            'registrar_not_teaching' => $registrarNotTeaching,
+            'registrar_not_teaching_reason' => is_string($registrarNotTeachingReason) && trim($registrarNotTeachingReason) !== ''
+                ? trim($registrarNotTeachingReason)
+                : null,
+            'status_label' => $statusLabel,
             'teaching_windows' => $latestDeclaration?->normalizedTeachingWindows() ?? [],
             'hard_unavailability' => is_array($latestDeclaration?->hard_unavailability) ? $latestDeclaration->hard_unavailability : [],
             'needs_grid_review' => $outsideGridWindows !== [],

@@ -2,9 +2,12 @@
 
 namespace App\Actions\AcademicSetup;
 
+use App\Models\AcademicYear;
+use App\Models\AdmissionApplication;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\CurriculumVersionBatch;
 use App\Models\ExternalCompetencyRequirement;
 use App\Models\Program;
 use App\Models\ProgramShiftCreditEntry;
@@ -15,6 +18,7 @@ use App\Models\Term;
 use App\Models\TermCohort;
 use App\Models\TermOffering;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +30,98 @@ class CurriculumVersionLifecycleService
     ) {}
 
     /**
+     * Create a new blank Draft CurriculumVersion, optionally assigned to an initial starting batch.
+     */
+    public function createDraft(
+        User $actor,
+        Program $program,
+        string $versionCode,
+        ?string $name = null,
+        ?int $effectiveEntryTermId = null,
+        ?AcademicYear $startingBatch = null,
+        bool $activateProgramIfInactive = false,
+    ): CurriculumVersion {
+        Gate::forUser($actor)->authorize('create', CurriculumVersion::class);
+
+        $normalizedCode = trim($versionCode);
+
+        if ($normalizedCode === '') {
+            throw ValidationException::withMessages([
+                'version_code' => 'Enter a curriculum version code for the new Draft.',
+            ]);
+        }
+
+        $normalizedName = $name !== null ? trim($name) : '';
+
+        return DB::transaction(function () use (
+            $actor,
+            $program,
+            $normalizedCode,
+            $normalizedName,
+            $effectiveEntryTermId,
+            $startingBatch,
+            $activateProgramIfInactive,
+        ): CurriculumVersion {
+            $lockedProgram = Program::query()->lockForUpdate()->findOrFail($program->id);
+
+            $this->ensureProgramActiveForBatchCurriculum($actor, $lockedProgram, $startingBatch, $activateProgramIfInactive);
+
+            if (CurriculumVersion::query()
+                ->where('program_id', $lockedProgram->id)
+                ->where('version_code', $normalizedCode)
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'version_code' => 'That curriculum version code already exists for this program.',
+                ]);
+            }
+
+            if ($startingBatch instanceof AcademicYear) {
+                $this->ensureBatchUnassignedForProgram($lockedProgram, $startingBatch);
+            }
+
+            $resolvedName = $normalizedName !== ''
+                ? $normalizedName
+                : ($startingBatch instanceof AcademicYear
+                    ? 'Batch '.CurriculumVersion::formatBatchShort($startingBatch)
+                    : $normalizedCode);
+
+            $draft = CurriculumVersion::query()->create([
+                'program_id' => $lockedProgram->id,
+                'copied_from_curriculum_version_id' => null,
+                'version_code' => $normalizedCode,
+                'name' => $resolvedName,
+                'effective_entry_term_id' => $effectiveEntryTermId,
+                'state' => CurriculumVersion::StateDraft,
+                'content_hash' => null,
+                'approved_by' => null,
+                'approved_at' => null,
+            ]);
+
+            if ($startingBatch instanceof AcademicYear) {
+                CurriculumVersionBatch::query()->create([
+                    'program_id' => $lockedProgram->id,
+                    'curriculum_version_id' => $draft->id,
+                    'academic_year_id' => $startingBatch->id,
+                    'added_by' => $actor->id,
+                ]);
+            }
+
+            activity()
+                ->performedOn($draft)
+                ->causedBy($actor)
+                ->event('curriculum_version_draft_created')
+                ->withProperties([
+                    'program_id' => $lockedProgram->id,
+                    'version_code' => $draft->version_code,
+                    'starting_academic_year_id' => $startingBatch?->id,
+                ])
+                ->log('Curriculum Version draft created');
+
+            return $draft->fresh(['program', 'batches.academicYear', 'entries', 'externalCompetencyRequirements']);
+        });
+    }
+
+    /**
      * Copy an Active, Superseded, or Draft CurriculumVersion into a new independent Draft successor.
      */
     public function copyToDraft(
@@ -34,6 +130,8 @@ class CurriculumVersionLifecycleService
         string $versionCode,
         ?string $name = null,
         ?int $effectiveEntryTermId = null,
+        ?AcademicYear $startingBatch = null,
+        bool $activateProgramIfInactive = false,
     ): CurriculumVersion {
         Gate::forUser($actor)->authorize('copy', $source);
 
@@ -47,11 +145,22 @@ class CurriculumVersionLifecycleService
 
         $normalizedName = $name !== null ? trim($name) : '';
 
-        return DB::transaction(function () use ($actor, $source, $normalizedCode, $normalizedName, $effectiveEntryTermId): CurriculumVersion {
+        return DB::transaction(function () use (
+            $actor,
+            $source,
+            $normalizedCode,
+            $normalizedName,
+            $effectiveEntryTermId,
+            $startingBatch,
+            $activateProgramIfInactive,
+        ): CurriculumVersion {
             $lockedSource = CurriculumVersion::query()
                 ->with(['entries', 'externalCompetencyRequirements'])
                 ->lockForUpdate()
                 ->findOrFail($source->id);
+
+            $lockedProgram = Program::query()->lockForUpdate()->findOrFail($lockedSource->program_id);
+            $this->ensureProgramActiveForBatchCurriculum($actor, $lockedProgram, $startingBatch, $activateProgramIfInactive);
 
             if (CurriculumVersion::query()
                 ->where('program_id', $lockedSource->program_id)
@@ -62,16 +171,36 @@ class CurriculumVersionLifecycleService
                 ]);
             }
 
+            if ($startingBatch instanceof AcademicYear) {
+                $this->ensureBatchUnassignedForProgram($lockedProgram, $startingBatch);
+            }
+
+            $resolvedName = $normalizedName !== ''
+                ? $normalizedName
+                : ($startingBatch instanceof AcademicYear
+                    ? 'Batch '.CurriculumVersion::formatBatchShort($startingBatch)
+                    : "{$lockedSource->name} (Draft)");
+
             $draft = CurriculumVersion::query()->create([
                 'program_id' => $lockedSource->program_id,
+                'copied_from_curriculum_version_id' => $lockedSource->id,
                 'version_code' => $normalizedCode,
-                'name' => $normalizedName !== '' ? $normalizedName : "{$lockedSource->name} (Draft)",
+                'name' => $resolvedName,
                 'effective_entry_term_id' => $effectiveEntryTermId,
                 'state' => CurriculumVersion::StateDraft,
                 'content_hash' => null,
                 'approved_by' => null,
                 'approved_at' => null,
             ]);
+
+            if ($startingBatch instanceof AcademicYear) {
+                CurriculumVersionBatch::query()->create([
+                    'program_id' => $lockedProgram->id,
+                    'curriculum_version_id' => $draft->id,
+                    'academic_year_id' => $startingBatch->id,
+                    'added_by' => $actor->id,
+                ]);
+            }
 
             $entryMap = [];
 
@@ -111,11 +240,12 @@ class CurriculumVersionLifecycleService
                     'source_curriculum_version_id' => $lockedSource->id,
                     'source_version_code' => $lockedSource->version_code,
                     'new_version_code' => $draft->version_code,
+                    'starting_academic_year_id' => $startingBatch?->id,
                     'entries_copied' => count($entryMap),
                 ])
                 ->log('Curriculum Version copied to Draft');
 
-            return $draft->fresh(['program', 'entries', 'externalCompetencyRequirements']);
+            return $draft->fresh(['program', 'copiedFrom', 'batches.academicYear', 'entries', 'externalCompetencyRequirements']);
         });
     }
 
@@ -217,18 +347,23 @@ class CurriculumVersionLifecycleService
                 }
             }
 
-            $supersededIds = CurriculumVersion::query()
-                ->where('program_id', $locked->program_id)
-                ->where('state', CurriculumVersion::StateActive)
-                ->whereKeyNot($locked->id)
-                ->lockForUpdate()
-                ->pluck('id')
-                ->all();
+            $hasBatches = $locked->batches()->exists();
+            $supersededIds = [];
 
-            if ($supersededIds !== []) {
-                CurriculumVersion::query()
-                    ->whereKey($supersededIds)
-                    ->update(['state' => CurriculumVersion::StateSuperseded]);
+            if (! $hasBatches) {
+                $supersededIds = CurriculumVersion::query()
+                    ->where('program_id', $locked->program_id)
+                    ->where('state', CurriculumVersion::StateActive)
+                    ->whereKeyNot($locked->id)
+                    ->lockForUpdate()
+                    ->pluck('id')
+                    ->all();
+
+                if ($supersededIds !== []) {
+                    CurriculumVersion::query()
+                        ->whereKey($supersededIds)
+                        ->update(['state' => CurriculumVersion::StateSuperseded]);
+                }
             }
 
             $locked->externalCompetencyRequirements()->update(['state' => 'ACTIVE']);
@@ -246,6 +381,7 @@ class CurriculumVersionLifecycleService
                 ->event('curriculum_activated')
                 ->withProperties([
                     'program_id' => $locked->program_id,
+                    'has_batches' => $hasBatches,
                     'superseded_curriculum_version_ids' => $supersededIds,
                     'existing_student_locks_preserved' => StudentProfile::query()
                         ->where('program_id', $locked->program_id)
@@ -256,6 +392,223 @@ class CurriculumVersionLifecycleService
 
             return $locked->fresh();
         });
+    }
+
+    /**
+     * Retire an Active curriculum (ACTIVE -> SUPERSEDED) so no new batches can be added while existing batches continue.
+     */
+    public function retire(User $actor, CurriculumVersion $curriculum): CurriculumVersion
+    {
+        Gate::forUser($actor)->authorize('copy', $curriculum);
+
+        return DB::transaction(function () use ($actor, $curriculum): CurriculumVersion {
+            $locked = CurriculumVersion::query()
+                ->with('batches.academicYear')
+                ->lockForUpdate()
+                ->findOrFail($curriculum->id);
+
+            if ($locked->state !== CurriculumVersion::StateActive) {
+                throw ValidationException::withMessages([
+                    'curriculum_version' => 'Only an Active curriculum can be retired.',
+                ]);
+            }
+
+            $locked->update([
+                'state' => CurriculumVersion::StateSuperseded,
+            ]);
+
+            activity()
+                ->performedOn($locked)
+                ->causedBy($actor)
+                ->event('curriculum_version_retired')
+                ->withProperties([
+                    'program_id' => $locked->program_id,
+                    'version_code' => $locked->version_code,
+                    'batch_label' => $locked->batchLabel(),
+                ])
+                ->log('Curriculum Version retired');
+
+            return $locked->fresh(['program', 'batches.academicYear']);
+        });
+    }
+
+    /**
+     * Assign an additional Academic Year batch to an Active curriculum without duplicating subjects.
+     */
+    public function addBatch(
+        User $actor,
+        CurriculumVersion $curriculum,
+        AcademicYear $academicYear,
+        bool $activateProgramIfInactive = false,
+    ): CurriculumVersionBatch {
+        Gate::forUser($actor)->authorize('copy', $curriculum);
+
+        return DB::transaction(function () use ($actor, $curriculum, $academicYear, $activateProgramIfInactive): CurriculumVersionBatch {
+            $lockedProgram = Program::query()->lockForUpdate()->findOrFail($curriculum->program_id);
+            $locked = CurriculumVersion::query()
+                ->with('batches.academicYear')
+                ->lockForUpdate()
+                ->findOrFail($curriculum->id);
+
+            if ($locked->state !== CurriculumVersion::StateActive) {
+                throw ValidationException::withMessages([
+                    'curriculum_version' => 'Only an Active curriculum can accept new batches.',
+                ]);
+            }
+
+            $this->ensureProgramActiveForBatchCurriculum($actor, $lockedProgram, $academicYear, $activateProgramIfInactive);
+            $this->ensureBatchUnassignedForProgram($lockedProgram, $academicYear);
+
+            $batch = CurriculumVersionBatch::query()->create([
+                'program_id' => $lockedProgram->id,
+                'curriculum_version_id' => $locked->id,
+                'academic_year_id' => $academicYear->id,
+                'added_by' => $actor->id,
+            ]);
+
+            activity()
+                ->performedOn($locked)
+                ->causedBy($actor)
+                ->event('curriculum_version_batch_added')
+                ->withProperties([
+                    'program_id' => $lockedProgram->id,
+                    'academic_year_id' => $academicYear->id,
+                    'academic_year_label' => $academicYear->label,
+                    'batch_label' => 'Batch '.CurriculumVersion::formatBatchShort($academicYear),
+                ])
+                ->log('Batch assigned to Curriculum Version');
+
+            return $batch->fresh(['program', 'curriculumVersion', 'academicYear', 'addedBy']);
+        });
+    }
+
+    /**
+     * Remove an unused Academic Year batch assignment from a curriculum.
+     */
+    public function removeBatch(User $actor, CurriculumVersion $curriculum, AcademicYear $academicYear): void
+    {
+        Gate::forUser($actor)->authorize('copy', $curriculum);
+
+        DB::transaction(function () use ($actor, $curriculum, $academicYear): void {
+            $locked = CurriculumVersion::query()
+                ->lockForUpdate()
+                ->findOrFail($curriculum->id);
+
+            $batch = CurriculumVersionBatch::query()
+                ->where('curriculum_version_id', $locked->id)
+                ->where('academic_year_id', $academicYear->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $batch instanceof CurriculumVersionBatch) {
+                throw ValidationException::withMessages([
+                    'academic_year_id' => 'That batch is not assigned to this curriculum.',
+                ]);
+            }
+
+            $hasStudents = StudentProfile::query()
+                ->where('program_id', $locked->program_id)
+                ->whereNull('merged_into_id')
+                ->whereHas('entryTerm', fn ($query) => $query->where('academic_year_id', $academicYear->id))
+                ->exists();
+
+            $hasCohorts = TermCohort::query()
+                ->where('program_id', $locked->program_id)
+                ->where('curriculum_version_id', $locked->id)
+                ->whereHas('term', fn ($query) => $query->where('academic_year_id', $academicYear->id))
+                ->exists();
+
+            $hasUnresolvedApplicants = AdmissionApplication::query()
+                ->where('program_id', $locked->program_id)
+                ->whereNotIn('application_state', [
+                    AdmissionApplication::StateWithdrawn,
+                    AdmissionApplication::StateNotAdmitted,
+                ])
+                ->whereHas('term', fn ($query) => $query->where('academic_year_id', $academicYear->id))
+                ->exists();
+
+            if ($hasStudents || $hasCohorts || $hasUnresolvedApplicants) {
+                $short = CurriculumVersion::formatBatchShort($academicYear);
+
+                throw ValidationException::withMessages([
+                    'academic_year_id' => "Batch {$short} cannot be removed because students, student sections, or active applicants already use it.",
+                ]);
+            }
+
+            $batch->delete();
+
+            activity()
+                ->performedOn($locked)
+                ->causedBy($actor)
+                ->event('curriculum_version_batch_removed')
+                ->withProperties([
+                    'program_id' => $locked->program_id,
+                    'academic_year_id' => $academicYear->id,
+                    'academic_year_label' => $academicYear->label,
+                ])
+                ->log('Batch removed from Curriculum Version');
+        });
+    }
+
+    /**
+     * Return all non-archived AcademicYears not yet assigned to any curriculum of the given program.
+     *
+     * @return Collection<int, AcademicYear>
+     */
+    public function availableAcademicYearsForProgram(Program $program, ?CurriculumVersion $exceptDraft = null): Collection
+    {
+        $assignedIds = CurriculumVersionBatch::query()
+            ->where('program_id', $program->id)
+            ->when(
+                $exceptDraft instanceof CurriculumVersion && $exceptDraft->state === CurriculumVersion::StateDraft,
+                fn ($query) => $query->where('curriculum_version_id', '!=', $exceptDraft->id),
+            )
+            ->pluck('academic_year_id')
+            ->all();
+
+        return AcademicYear::query()
+            ->where('state', '!=', AcademicYear::StateArchived)
+            ->when($assignedIds !== [], fn ($query) => $query->whereNotIn('id', $assignedIds))
+            ->orderBy('starts_on')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * Suggest the next chronological unassigned AcademicYear for the given program.
+     */
+    public function suggestedNextAcademicYearForProgram(Program $program): ?AcademicYear
+    {
+        $available = $this->availableAcademicYearsForProgram($program);
+
+        if ($available->isEmpty()) {
+            return null;
+        }
+
+        $latestAssigned = AcademicYear::query()
+            ->whereIn(
+                'id',
+                CurriculumVersionBatch::query()
+                    ->where('program_id', $program->id)
+                    ->pluck('academic_year_id'),
+            )
+            ->orderByDesc('starts_on')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($latestAssigned instanceof AcademicYear && $latestAssigned->starts_on !== null) {
+            $nextChronological = $available->first(
+                fn (AcademicYear $year): bool => $year->starts_on !== null && $year->starts_on->gt($latestAssigned->starts_on),
+            );
+
+            if ($nextChronological instanceof AcademicYear) {
+                return $nextChronological;
+            }
+        }
+
+        return $available->first(
+            fn (AcademicYear $year): bool => in_array($year->state, [AcademicYear::StateActive, AcademicYear::StateDraft], true),
+        ) ?? $available->first();
     }
 
     public function canDiscardDraft(CurriculumVersion $curriculum): bool
@@ -418,5 +771,59 @@ class CurriculumVersionLifecycleService
         ];
 
         return hash('sha256', (string) json_encode($payload, JSON_THROW_ON_ERROR));
+    }
+
+    private function ensureProgramActiveForBatchCurriculum(
+        User $actor,
+        Program $program,
+        ?AcademicYear $startingBatch,
+        bool $activateProgramIfInactive,
+    ): void {
+        if ($program->is_active || ! $startingBatch instanceof AcademicYear) {
+            return;
+        }
+
+        if ($activateProgramIfInactive) {
+            Gate::forUser($actor)->authorize('update', $program);
+            $program->update(['is_active' => true]);
+
+            activity()
+                ->performedOn($program)
+                ->causedBy($actor)
+                ->event('program_activated_for_curriculum_batch')
+                ->withProperties([
+                    'academic_year_id' => $startingBatch->id,
+                    'academic_year_label' => $startingBatch->label,
+                ])
+                ->log('Program activated for curriculum batch assignment');
+
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'program_id' => "{$program->code} is inactive. Activate the program before assigning a batch curriculum.",
+        ]);
+    }
+
+    private function ensureBatchUnassignedForProgram(Program $program, AcademicYear $academicYear): void
+    {
+        $existing = CurriculumVersionBatch::query()
+            ->where('program_id', $program->id)
+            ->where('academic_year_id', $academicYear->id)
+            ->with('curriculumVersion')
+            ->first();
+
+        if (! $existing instanceof CurriculumVersionBatch) {
+            return;
+        }
+
+        $ownerLabel = $existing->curriculumVersion?->batchLabel()
+            ?: $existing->curriculumVersion?->name
+            ?: 'another curriculum';
+        $short = CurriculumVersion::formatBatchShort($academicYear);
+
+        throw ValidationException::withMessages([
+            'academic_year_id' => "Batch {$short} is already assigned to {$ownerLabel} for {$program->code}.",
+        ]);
     }
 }

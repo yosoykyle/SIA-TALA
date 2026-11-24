@@ -38,7 +38,15 @@ final class ReviewTimetableCandidate
         }
 
         return DB::transaction(function () use ($run, $actor, $decision, $reason): ScheduleGenerationRun {
-            Term::query()->whereKey($run->term_id)->lockForUpdate()->firstOrFail();
+            $lockedTerm = Term::query()->whereKey($run->term_id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedTerm->state === Term::StateClosed) {
+                throw ValidationException::withMessages([
+                    'term_id' => 'This term is closed and its timetable candidates cannot be reviewed.',
+                    'state' => 'This term is closed and its timetable candidates cannot be reviewed.',
+                ]);
+            }
+
             $locked = ScheduleGenerationRun::query()->whereKey($run->id)->lockForUpdate()->firstOrFail();
             Gate::forUser($actor)->authorize('reviewCandidates', $locked);
 

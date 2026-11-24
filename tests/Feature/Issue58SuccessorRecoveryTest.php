@@ -469,10 +469,11 @@ class Issue58SuccessorRecoveryTest extends TestCase
         $window = TermCalendarWindow::factory()->for($package, 'package')->create(['window_type' => TermCalendarWindow::TypeGradeEntry, 'cutoff_at' => '23:59:59']);
 
         Livewire::actingAs($registrar)->test(TermCalendar::class, ['termId' => $package->term_id])
-            ->mountAction('recordCalendarPackage')->callMountedAction()->assertHasNoActionErrors();
+            ->mountAction('saveAndActivateCalendar')->callMountedAction()->assertHasNoActionErrors();
 
-        $draft = TermCalendarPackage::query()->where('term_id', $package->term_id)->where('state', TermCalendarPackage::StateDraft)->sole();
-        $this->assertSame('23:59:59', $draft->windows()->sole()->cutoff_at);
+        $successor = TermCalendarPackage::query()->where('term_id', $package->term_id)->where('state', TermCalendarPackage::StateActive)->sole();
+        $this->assertNotSame($package->id, $successor->id);
+        $this->assertSame('23:59:59', $successor->windows()->sole()->cutoff_at);
         $this->assertSame('23:59:59', $window->fresh()->cutoff_at);
     }
 
@@ -519,7 +520,7 @@ class Issue58SuccessorRecoveryTest extends TestCase
     /** @param list<array{day_of_week:int,starts_at:string,ends_at:string,breaks:array}>|null $gridRows */
     private function recordAndActivateSuccessor(TermCalendarPackage $package, User $registrar, ?array $gridRows = null): TermCalendarPackage
     {
-        $component = Livewire::actingAs($registrar)->test(TermCalendar::class, ['termId' => $package->term_id])->mountAction('recordCalendarPackage');
+        $component = Livewire::actingAs($registrar)->test(TermCalendar::class, ['termId' => $package->term_id])->mountAction('saveAndActivateCalendar');
         $schema = $component->instance()->getSchema($component->instance()->getMountedActionSchemaName());
         $state = $schema->getState();
         $state['authority_reference'] = 'Approved operational dates successor';
@@ -528,10 +529,8 @@ class Issue58SuccessorRecoveryTest extends TestCase
             $state['teaching_grid_rows'] = $gridRows;
         }
         $component->setActionData($state)->callMountedAction()->assertHasNoActionErrors();
-        $draft = TermCalendarPackage::query()->where('term_id', $package->term_id)->where('state', TermCalendarPackage::StateDraft)->sole();
-        Livewire::actingAs($registrar)->test(TermCalendar::class, ['termId' => $package->term_id])
-            ->mountAction('activateCalendarPackage')->callMountedAction()->assertHasNoActionErrors();
+        $successor = TermCalendarPackage::query()->where('term_id', $package->term_id)->where('state', TermCalendarPackage::StateActive)->latest('version')->firstOrFail();
 
-        return $draft->fresh(['windows', 'teachingGridRows', 'datedExceptions']);
+        return $successor->fresh(['windows', 'teachingGridRows', 'datedExceptions']);
     }
 }

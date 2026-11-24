@@ -386,11 +386,11 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $emptyTerm = Term::factory()->create();
 
         Livewire::actingAs($faculty)->test(FacultySchedule::class)
-            ->assertSee('Choose a Term to view your schedule')
-            ->assertDontSee('No official meetings assigned in this Term')
+            ->assertSee('Choose a term to view your schedule')
+            ->assertDontSee('No official meetings assigned in this term')
             ->assertDontSee('Search courses, classes or rooms')
             ->call('selectTerm', $emptyTerm->id)
-            ->assertSee('No official meetings assigned in this Term')
+            ->assertSee('No official meetings assigned in this term')
             ->assertDontSee('Weekly meetings');
 
         $fixture = $this->scheduleFixture();
@@ -399,9 +399,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
 
         Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class, ['termId' => $fixture['term']->id])
             ->filterTable('day_of_week', 2)
-            ->assertSeeHtml('<dt>Classes</dt><dd>1</dd>')
-            ->assertSeeHtml('<dt>Weekly meetings</dt><dd>2</dd>')
-            ->assertSeeHtml('<dt>Teaching days</dt><dd>2</dd>')
+            ->assertSeeInOrder(['Classes', '1', 'Weekly meetings', '2', 'Teaching days', '2'])
             ->assertSee('Showing filtered classes:')
             ->assertSee('Tuesday');
     }

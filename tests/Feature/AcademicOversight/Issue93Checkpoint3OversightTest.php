@@ -249,7 +249,11 @@ class Issue93Checkpoint3OversightTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $page = Livewire::actingAs($head)->test(AcademicApprovals::class, ['termId' => $term->id])
             ->assertOk()
-            ->assertSeeHtml('oversight-board--attention-first')
+            ->assertSee('Calendar')
+            ->assertSee('Classes & sections')
+            ->assertSee('Faculty & rooms')
+            ->assertSee('Timetable')
+            ->assertSee('Programs & Curricula')
             ->assertSee('Lifecycle & Completion')
             ->assertSee('Completion & TOR')
             ->assertSee('Class rosters')
@@ -275,7 +279,7 @@ class Issue93Checkpoint3OversightTest extends TestCase
                     && $f['url'] === TermTimetable::getUrl(['termId' => $term->id]));
 
                 $hasLateAvailability = $collection->contains(fn (array $f): bool => $f['scope'] === 'Selected term'
-                    && str_contains($f['title'], 'Late availability revision impact')
+                    && str_contains($f['title'], 'Faculty availability conflict with published schedule')
                     && $f['owner'] === 'Registrar'
                     && $f['url'] === TermTimetable::getUrl([
                         'termId' => $term->id,
@@ -412,7 +416,7 @@ class Issue93Checkpoint3OversightTest extends TestCase
         session()->put(WorkspaceContextResolver::SessionKey, User::StaffRoleRegistrar);
         $dualAcademicYears = Livewire::actingAs($dualRole)
             ->test(ListAcademicYears::class, ['oversightTermId' => $term->id]);
-        $this->assertSame('Term planning', $dualAcademicYears->instance()->getBreadcrumbs()[TermOverview::getUrl(['chooseTerm' => true])] ?? null);
+        $this->assertSame('Term Planning', $dualAcademicYears->instance()->getBreadcrumbs()[TermOverview::getUrl()] ?? null);
         session()->forget(WorkspaceContextResolver::SessionKey);
 
         // 4. CompletionAndTor (preserves oversightTermId in breadcrumb + header action, stays read-only)
@@ -451,14 +455,18 @@ class Issue93Checkpoint3OversightTest extends TestCase
             ->assertSee('Read-only oversight of active and draft program study plans maintained by the Registrar.')
             ->assertDontSee('Prepare each program’s study plan and activate it for incoming students.')
             ->assertSet('activeTab', 'active')
-            ->assertSee($active->name)
+            ->assertSee($program->code)
+            ->assertSee('2 curricula')
+            ->assertSee('1 draft')
             ->assertActionVisible('returnToOversight')
             ->assertActionHasUrl('returnToOversight', AcademicApprovals::getUrl(['termId' => $term->id]))
             ->assertActionHidden('createProgram')
             ->call('switchTab', 'draft')
             ->assertSet('activeTab', 'draft')
-            ->assertSee($draft->name)
-            ->assertTableActionHidden('emptyCreateCurriculum');
+            ->call('setStatusFilter', 'has_drafts')
+            ->assertSet('statusFilter', 'has_drafts')
+            ->assertSee($program->code)
+            ->assertTableActionHidden('emptyCreateProgram');
 
         // Dual-role Registrar+Head in Registrar context retains full Registrar workbench
         session()->put(WorkspaceContextResolver::SessionKey, User::StaffRoleRegistrar);
@@ -467,7 +475,8 @@ class Issue93Checkpoint3OversightTest extends TestCase
             ->assertOk()
             ->assertSee('Prepare each program’s study plan and activate it for incoming students.')
             ->assertSet('activeTab', 'draft')
-            ->assertSee($draft->name)
+            ->assertSee($program->code)
+            ->assertSee('1 draft')
             ->assertActionHidden('returnToOversight');
 
         // Dual-role Registrar+Head switched to Academic Head context becomes strictly read-only

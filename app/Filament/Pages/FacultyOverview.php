@@ -7,16 +7,19 @@ use App\Actions\Grades\GradeWindowService;
 use App\Actions\Grades\IncDeadlineService;
 use App\Actions\Scheduling\FacultyAvailabilityStatusProjection;
 use App\Models\ClassOfferingTeachingAssignment;
+use App\Models\CourseSpecification;
 use App\Models\FacultyAvailabilityDeadline;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\IncCompletionSubmission;
 use App\Models\LateGradeAuthorization;
+use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
+use App\Models\TermOffering;
 use App\Models\User;
 use App\Support\HasSearchableTermSelection;
 use BackedEnum;
@@ -185,6 +188,10 @@ class FacultyOverview extends Page
 
         $availabilityStatus = app(FacultyAvailabilityStatusProjection::class)->forFaculty($term, $user);
         $hasActiveCoreCalendar = (bool) ($availabilityStatus['has_active_core_calendar'] ?? false);
+        $isTermClosed = $term->state === Term::StateClosed;
+        $registrarNotTeaching = (bool) ($availabilityStatus['registrar_not_teaching'] ?? false);
+        $registrarNotTeachingReason = $availabilityStatus['registrar_not_teaching_reason'] ?? null;
+        $canSubmitAvailability = $hasActiveCoreCalendar && ! $isTermClosed && ! $registrarNotTeaching;
         $hasDeclaration = (bool) ($availabilityStatus['has_declaration'] ?? false);
         $needsGridReview = (bool) ($availabilityStatus['needs_grid_review'] ?? false);
         $effectiveMode = $availabilityStatus['effective_mode'] ?? null;
@@ -219,6 +226,20 @@ class FacultyOverview extends Page
             ->unique()
             ->count();
 
+        $externallyArrangedCount = ClassOfferingTeachingAssignment::query()
+            ->where('faculty_user_id', $user->id)
+            ->where('state', ClassOfferingTeachingAssignment::StateActive)
+            ->whereHas('termOffering', fn ($query) => $query
+                ->where('term_id', $term->id)
+                ->where('state', '!=', TermOffering::StateCancelled)
+                ->whereHas('curriculumEntry.courseSpecification', fn ($specQuery) => $specQuery
+                    ->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged)))
+            ->where(function ($query): void {
+                $query->whereNull('section_id')
+                    ->orWhereHas('section', fn ($sectionQuery) => $sectionQuery->where('state', '!=', Section::StateCancelled));
+            })
+            ->count();
+
         /** @var TermCalendarWindow|null $examinationPeriod */
         $examinationPeriod = $activePackage?->windows->first(
             fn (TermCalendarWindow $window): bool => $window->window_type === TermCalendarWindow::TypeExaminationPeriod,
@@ -237,7 +258,7 @@ class FacultyOverview extends Page
             allRosters: $allRosters,
             openIncClasses: $openIncClasses,
             gradeWindow: $gradeWindow,
-            hasActiveCoreCalendar: $hasActiveCoreCalendar,
+            hasActiveCoreCalendar: $canSubmitAvailability,
             hasDeclaration: $hasDeclaration,
             needsGridReview: $needsGridReview,
             replyByFormatted: $replyByFormatted,
@@ -251,13 +272,14 @@ class FacultyOverview extends Page
 
         $priorityCard = match (true) {
             $hasReturnedOrOverdue => 'grades',
-            $hasActiveCoreCalendar && (! $hasDeclaration || $needsGridReview) => 'availability',
+            $canSubmitAvailability && (! $hasDeclaration || $needsGridReview) => 'availability',
             $affectedMeetingsCount > 0 => 'schedule',
             $actionableClassCount > 0 || $openIncClasses->isNotEmpty() => 'grades',
             default => null,
         };
 
         $availabilityStatusLabel = match (true) {
+            $registrarNotTeaching => 'Not teaching (Registrar)',
             ! $hasDeclaration => 'Not submitted yet',
             $effectiveMode === FacultyAvailabilityDeclaration::ModeWindows => 'Available on selected times',
             $effectiveMode === FacultyAvailabilityDeclaration::ModeAnyApproved => 'Available during all teaching hours',
@@ -266,7 +288,11 @@ class FacultyOverview extends Page
         };
 
         $availabilityDescription = match (true) {
-            ! $hasActiveCoreCalendar && ! $hasDeclaration => 'Teaching calendar is not active yet.',
+            $registrarNotTeaching => filled($registrarNotTeachingReason)
+                ? 'Marked not teaching (0 units): '.$registrarNotTeachingReason
+                : 'Marked not teaching (0 units) by the Registrar for this term.',
+            $isTermClosed => 'This term is closed. Availability is read-only.',
+            ! $hasActiveCoreCalendar && ! $hasDeclaration => 'Term calendar is not active yet.',
             ! $hasDeclaration => 'Share when you can teach so the Registrar can schedule your classes.',
             $needsGridReview => 'Teaching hours changed. Review and update your selected times.',
             $effectiveMode === FacultyAvailabilityDeclaration::ModeWindows => count($availabilityStatus['teaching_windows'] ?? []).' '.Str::plural('weekly window', count($availabilityStatus['teaching_windows'] ?? [])).' saved.',
@@ -280,8 +306,10 @@ class FacultyOverview extends Page
 
         $scopeMetaParts = [
             $term->starts_on->format('M j').' – '.$term->ends_on->format('M j, Y'),
-            $hasActiveCoreCalendar ? 'Teaching calendar active' : 'Teaching calendar not active',
+            $hasActiveCoreCalendar ? 'Term calendar active' : 'Term calendar not active',
         ];
+
+        $totalClassCount = $scheduleClassCount + $externallyArrangedCount;
 
         return [
             'terms' => $terms,
@@ -291,8 +319,10 @@ class FacultyOverview extends Page
             'actionItems' => $actionItems,
             'priorityCard' => $priorityCard,
             'scheduleCard' => [
+                'totalClassCount' => $totalClassCount,
                 'classCount' => $scheduleClassCount,
                 'meetingCount' => $scheduleMeetingCount,
+                'externallyArrangedCount' => $externallyArrangedCount,
                 'affectedCount' => $affectedMeetingsCount,
                 'examPeriodLabel' => $examinationPeriod
                     ? $examinationPeriod->opens_on->format('M j').'–'.$examinationPeriod->closes_on->format('M j, Y')
@@ -302,11 +332,13 @@ class FacultyOverview extends Page
             'availabilityCard' => [
                 'statusLabel' => $availabilityStatusLabel,
                 'description' => $availabilityDescription,
-                'replyBy' => $replyByFormatted,
+                'replyBy' => $canSubmitAvailability ? $replyByFormatted : null,
                 'hasDeclaration' => $hasDeclaration,
-                'needsReview' => $hasActiveCoreCalendar && $needsGridReview,
+                'needsReview' => $canSubmitAvailability && $needsGridReview,
                 'url' => MyAvailability::getUrl(['termId' => $term->id]),
-                'ctaLabel' => $hasDeclaration ? 'Update availability' : 'Submit availability',
+                'ctaLabel' => ($isTermClosed || $registrarNotTeaching)
+                    ? 'View availability'
+                    : ($hasDeclaration ? 'Update availability' : 'Submit availability'),
             ],
             'gradesCard' => [
                 'actionableCount' => $actionableClassCount,

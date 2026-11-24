@@ -326,6 +326,8 @@ class TimetablePresentation
 
             'meetingSequence' => $record->getAttribute('meeting_sequence') !== null ? (int) $record->getAttribute('meeting_sequence') : 1,
 
+            'meetingCount' => max(1, (int) ($demand?->meeting_count ?? 1)),
+
             'sectionId' => $section?->getKey() !== null ? (int) $section->getKey() : ($record->getAttribute('section_id') !== null ? (int) $record->getAttribute('section_id') : (isset($source['section_id']) ? (int) $source['section_id'] : null)),
 
             'courseId' => $course?->getKey() !== null ? (int) $course->getKey() : (isset($source['course_id']) ? (int) $source['course_id'] : null),

@@ -3,12 +3,18 @@
 namespace App\Filament\Pages;
 
 use App\Actions\Scheduling\FacultyAvailabilityStatusProjection;
+use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CourseComponent;
+use App\Models\CourseEnrollment;
+use App\Models\CourseSpecification;
 use App\Models\PublishedTimetableVersion;
+use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
+use App\Models\TermDatedException;
+use App\Models\TermOffering;
 use App\Models\User;
 use App\Support\FacultyScheduleFilters;
 use App\Support\HasSearchableTermSelection;
@@ -84,6 +90,19 @@ class FacultySchedule extends Page implements HasTable
             ->get()
             ->pluck('schedulingDemand.termOffering.term_id')
             ->filter()
+            ->merge(
+                ClassOfferingTeachingAssignment::query()
+                    ->where('faculty_user_id', $facultyId)
+                    ->where('state', ClassOfferingTeachingAssignment::StateActive)
+                    ->whereHas('termOffering', fn ($query) => $query
+                        ->where('state', '!=', TermOffering::StateCancelled)
+                        ->whereHas('curriculumEntry.courseSpecification', fn ($specQuery) => $specQuery
+                            ->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged)))
+                    ->with('termOffering:id,term_id')
+                    ->get()
+                    ->pluck('termOffering.term_id')
+                    ->filter(),
+            )
             ->unique()
             ->values();
 
@@ -116,12 +135,6 @@ class FacultySchedule extends Page implements HasTable
         return [
             $this->printFilteredScheduleAction(),
             $this->printScheduleAction(),
-            Action::make('openAvailability')
-                ->label('My availability')
-                ->icon(Heroicon::OutlinedClock)
-                ->color('gray')
-                ->visible(fn (): bool => $this->termId !== null)
-                ->url(fn (): string => MyAvailability::getUrl(['termId' => $this->termId])),
         ];
     }
 
@@ -131,8 +144,27 @@ class FacultySchedule extends Page implements HasTable
             ->label(fn (): string => $this->scheduleCriteria() !== [] ? 'Print all' : 'Print schedule')
             ->icon(Heroicon::OutlinedPrinter)
             ->color('gray')
-            ->visible(fn (): bool => $this->currentVersion() instanceof PublishedTimetableVersion)
-            ->url(fn (): ?string => ($version = $this->currentVersion()) ? route('faculty.schedule.print', ['timetable_version' => $version->id, 'view' => $this->scheduleView, 'return_filters' => $this->scheduleCriteria()]) : null)
+            ->visible(fn (): bool => $this->currentVersion() instanceof PublishedTimetableVersion || $this->externallyArrangedClasses() !== [])
+            ->url(function (): ?string {
+                $version = $this->currentVersion();
+
+                if ($version instanceof PublishedTimetableVersion) {
+                    return route('faculty.schedule.print', [
+                        'timetable_version' => $version->id,
+                        'view' => $this->scheduleView,
+                        'return_filters' => $this->scheduleCriteria(),
+                    ]);
+                }
+
+                if ($this->termId !== null && $this->externallyArrangedClasses() !== []) {
+                    return route('faculty.schedule.print', [
+                        'term_id' => $this->termId,
+                        'view' => $this->scheduleView,
+                    ]);
+                }
+
+                return null;
+            })
             ->openUrlInNewTab();
     }
 
@@ -206,11 +238,11 @@ class FacultySchedule extends Page implements HasTable
             })
             ->toolbarActions([])
             ->searchUsing(fn (Builder $query, string $search): Builder => FacultyScheduleFilters::search($query, $search))
-            ->searchPlaceholder('Search courses, classes, or rooms')
+            ->searchPlaceholder('Search subjects, classes, or rooms')
             ->recordActions([$this->viewMeetingAction()])
             ->columns([
                 TextColumn::make('schedulingDemand.termOffering.curriculumEntry.courseSpecification.title')
-                    ->label('Course')
+                    ->label('Subject')
                     ->description(function (SectionMeeting $record): ?string {
                         $code = $record->schedulingDemand?->termOffering?->curriculumEntry?->courseSpecification?->course?->code;
                         $componentType = $record->schedulingDemand?->courseComponent?->component_type;
@@ -301,10 +333,10 @@ class FacultySchedule extends Page implements HasTable
         $package = $this->termId === null ? null : TermCalendarPackage::query()
             ->where('term_id', $this->termId)
             ->where('state', TermCalendarPackage::StateActive)
-            ->with('windows')
+            ->with(['windows', 'datedExceptions'])
             ->first();
         $examinationPeriod = $package?->windows->first(
-            fn (TermCalendarWindow $window): bool => $window->window_type === 'ExaminationPeriod',
+            fn (TermCalendarWindow $window): bool => $window->window_type === TermCalendarWindow::TypeExaminationPeriod,
         );
 
         $term = $terms->firstWhere('id', $this->termId);
@@ -318,21 +350,143 @@ class FacultySchedule extends Page implements HasTable
             ->all();
         $hasLateAvailabilityImpact = collect($affectedMeetings)
             ->contains(fn (array $item): bool => $item['source'] === 'late_availability_impact');
+        $externallyArrangedClasses = $this->externallyArrangedClasses();
+        $scheduledClassCount = $assignedMeetings->pluck('schedulingDemand.sectionDeliveryGroup.section.id')->filter()->unique()->count();
+        $totalClassCount = $scheduledClassCount + count($externallyArrangedClasses);
+
+        $today = CarbonImmutable::now((string) config('app.display_timezone', 'Asia/Manila'))->startOfDay();
+        $upcomingHolidays = $package instanceof TermCalendarPackage
+            ? $package->datedExceptions
+                ->filter(fn (TermDatedException $exception): bool => $exception->blocks_teaching
+                    && $exception->ends_on !== null
+                    && CarbonImmutable::parse($exception->ends_on->toDateString(), (string) config('app.display_timezone', 'Asia/Manila'))->gte($today))
+                ->sortBy('starts_on')
+                ->take(5)
+                ->map(fn (TermDatedException $exception): array => [
+                    'label' => $exception->label ?: 'No-class day',
+                    'date_label' => $exception->starts_on !== null && $exception->ends_on !== null && ! $exception->starts_on->isSameDay($exception->ends_on)
+                        ? $exception->starts_on->format('M j').'–'.$exception->ends_on->format('M j')
+                        : ($exception->starts_on?->format('M j') ?? ''),
+                ])
+                ->values()
+                ->all()
+            : [];
+
+        $termTeachingRange = match (true) {
+            $package?->classes_start_on !== null && $package?->classes_end_on !== null => $package->classes_start_on->format('M j').'–'.$package->classes_end_on->format('M j, Y'),
+            $term instanceof Term && $term->starts_on !== null && $term->ends_on !== null => $term->starts_on->format('M j').'–'.$term->ends_on->format('M j, Y'),
+            default => null,
+        };
+
+        $scopeMeta = $term instanceof Term
+            ? implode(' · ', [
+                $term->starts_on->format('M j').' – '.$term->ends_on->format('M j, Y'),
+                $package instanceof TermCalendarPackage ? 'Term calendar active' : 'Term calendar not active',
+            ])
+            : null;
 
         return [
             'terms' => $terms,
             'term' => $term,
+            'scopeMeta' => $scopeMeta,
+            'termTeachingRange' => $termTeachingRange,
+            'upcomingHolidays' => $upcomingHolidays,
             'version' => $version,
             'presentation' => $version ? TimetablePresentation::forPublished($version, $meetings) : null,
             'assignmentCount' => $assignedMeetings->count(),
-            'classCount' => $assignedMeetings->pluck('schedulingDemand.sectionDeliveryGroup.section.id')->filter()->unique()->count(),
+            'classCount' => $scheduledClassCount,
+            'totalClassCount' => $totalClassCount,
             'teachingDayCount' => $assignedMeetings->pluck('day_of_week')->filter()->unique()->count(),
             'meetingsByDay' => $meetings->groupBy('day_of_week'),
+            'externallyArrangedClasses' => $externallyArrangedClasses,
             'availabilityStatus' => $availabilityStatus,
             'affectedMeetings' => $affectedMeetings,
             'hasLateAvailabilityImpact' => $hasLateAvailabilityImpact,
             'examinationPeriod' => $examinationPeriod,
         ];
+    }
+
+    /**
+     * @return list<array{course_code:string,course_title:string,section_code:string,role:string,units:string,enrolled_count:int,note:string}>
+     */
+    private function externallyArrangedClasses(): array
+    {
+        $facultyId = auth()->id();
+
+        if ($this->termId === null || $facultyId === null) {
+            return [];
+        }
+
+        $assignments = ClassOfferingTeachingAssignment::query()
+            ->with([
+                'termOffering.curriculumEntry.courseSpecification.course',
+                'section',
+            ])
+            ->where('faculty_user_id', $facultyId)
+            ->where('state', ClassOfferingTeachingAssignment::StateActive)
+            ->whereHas('termOffering', fn (Builder $query): Builder => $query
+                ->where('term_id', $this->termId)
+                ->where('state', '!=', TermOffering::StateCancelled)
+                ->whereHas('curriculumEntry.courseSpecification', fn (Builder $specQuery): Builder => $specQuery
+                    ->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged)))
+            ->where(function (Builder $query): void {
+                $query->whereNull('section_id')
+                    ->orWhereHas('section', fn (Builder $sectionQuery): Builder => $sectionQuery->where('state', '!=', Section::StateCancelled));
+            })
+            ->orderBy('id')
+            ->get();
+
+        if ($assignments->isEmpty()) {
+            return [];
+        }
+
+        $sectionIds = $assignments->pluck('section_id')->filter()->unique()->values()->all();
+        $offeringIds = $assignments->pluck('term_offering_id')->filter()->unique()->values()->all();
+
+        $enrolledBySection = $sectionIds === []
+            ? collect()
+            : CourseEnrollment::query()
+                ->whereIn('section_id', $sectionIds)
+                ->where('status', CourseEnrollment::StatusActive)
+                ->where('is_current', true)
+                ->selectRaw('section_id, COUNT(*) as total')
+                ->groupBy('section_id')
+                ->pluck('total', 'section_id');
+
+        $enrolledByOffering = $offeringIds === []
+            ? collect()
+            : CourseEnrollment::query()
+                ->whereIn('term_offering_id', $offeringIds)
+                ->where('status', CourseEnrollment::StatusActive)
+                ->where('is_current', true)
+                ->selectRaw('term_offering_id, COUNT(*) as total')
+                ->groupBy('term_offering_id')
+                ->pluck('total', 'term_offering_id');
+
+        return $assignments
+            ->map(function (ClassOfferingTeachingAssignment $assignment) use ($enrolledBySection, $enrolledByOffering): array {
+                $spec = $assignment->termOffering?->curriculumEntry?->courseSpecification;
+                $course = $spec?->course;
+                $enrolledCount = $assignment->section_id !== null
+                    ? (int) ($enrolledBySection->get($assignment->section_id) ?? 0)
+                    : (int) ($enrolledByOffering->get($assignment->term_offering_id) ?? 0);
+
+                return [
+                    'course_code' => (string) ($course?->code ?? 'Subject'),
+                    'course_title' => (string) ($spec?->title ?? $course?->code ?? 'Externally arranged subject'),
+                    'section_code' => (string) ($assignment->section?->code ?: 'Term offering'),
+                    'role' => $assignment->role === ClassOfferingTeachingAssignment::RoleDesignated ? 'Designated instructor' : 'Co-faculty',
+                    'units' => $spec?->credit_units !== null
+                        ? rtrim(rtrim(number_format((float) $spec->credit_units, 2, '.', ''), '0'), '.').' units'
+                        : '—',
+                    'enrolled_count' => $enrolledCount,
+                    'note' => 'Externally arranged · No fixed weekly room or time slot',
+                ];
+            })
+            ->unique(fn (array $row): string => $row['course_code'].'|'.$row['section_code'].'|'.$row['role'])
+            ->sortBy(['course_code', 'section_code'])
+            ->values()
+            ->all();
     }
 
     /**

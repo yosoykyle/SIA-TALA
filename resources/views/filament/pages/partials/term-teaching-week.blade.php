@@ -14,7 +14,7 @@
             <h4>{{ $dayLabel }}</h4>
             <div class="tala-calendar-hours-chart" role="img" aria-label="{{ $dayLabel }} teaching hours: {{ $day['summary'] }}">
                 @foreach ($day['segments'] as $segment)
-                    <span class="tala-calendar-hours-band {{ $segment['type'] === 'break' ? 'is-break' : '' }}" style="left: {{ $segment['left'] }}%; width: {{ $segment['width'] }}%;" title="{{ $segment['label'] }}: {{ $segment['time'] }}"></span>
+                    <span class="tala-calendar-hours-band {{ $segment['type'] === 'break' ? 'is-break' : '' }}" style="inset-inline-start: {{ $segment['left'] }}%; width: {{ $segment['width'] }}%;" title="{{ $segment['label'] }}: {{ $segment['time'] }}"></span>
                 @endforeach
             </div>
             <dl class="tala-calendar-hours-key">

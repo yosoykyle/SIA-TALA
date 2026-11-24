@@ -5,8 +5,10 @@ namespace App\Actions\Grades;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterVersion;
 use App\Models\GradeRosterVersionRow;
+use App\Models\Term;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class SubmitGradeRoster
@@ -20,8 +22,14 @@ class SubmitGradeRoster
     public function execute(GradeRoster $roster, User $actor, ?int $expectedVersion = null): GradeRoster
     {
         return DB::transaction(function () use ($roster, $actor, $expectedVersion): GradeRoster {
-            $locked = GradeRoster::query()->with(['rows' => fn ($query) => $query->where('is_current_membership', true), 'teachingAssignment'])
+            $locked = GradeRoster::query()->with(['rows' => fn ($query) => $query->where('is_current_membership', true), 'teachingAssignment', 'termOffering.term'])
                 ->lockForUpdate()->findOrFail($roster->id);
+
+            if ($locked->termOffering?->term?->state === Term::StateClosed) {
+                throw ValidationException::withMessages([
+                    'term' => 'This term is closed and grade rosters can no longer be submitted.',
+                ]);
+            }
 
             $this->sources->assertExpectedVersion($locked, $expectedVersion);
             $this->sources->assertCurrent($locked, $actor, submitting: true);

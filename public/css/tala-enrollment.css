@@ -638,7 +638,7 @@
 .oversight-welcome-records{display:grid;justify-items:center;gap:1rem;}
 .oversight-welcome-records h3{font-size:.875rem;line-height:1.5;font-weight:var(--tala-weight-emphasis);}
 .oversight-welcome-records nav{display:flex;justify-content:center;flex-wrap:wrap;gap:.75rem;}
-.oversight-board{--oversight-official:var(--tala-brand-foreground);--oversight-in-progress:#b9e8d4;--oversight-pending:#cbd5e1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(17rem,.75fr);grid-template-areas:"calendar calendar attention" "enrollment grades attention" "authority authority authority" "lifecycle lifecycle lifecycle";gap:1rem;color:var(--tala-text);}
+.oversight-board{--oversight-official:var(--tala-brand-foreground);--oversight-in-progress:#b9e8d4;--oversight-pending:var(--tala-border, #d4d4d8);display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(17rem,.75fr);grid-template-areas:"calendar calendar attention" "enrollment grades attention" "authority authority authority" "lifecycle lifecycle lifecycle";gap:1rem;color:var(--tala-text);}
 .oversight-panel{min-inline-size:0;border:1px solid var(--tala-edge);border-radius:.75rem;padding:1.5rem;background:var(--tala-surface);}
 .oversight-panel h2{font-size:1.1875rem;line-height:1.3;font-weight:var(--tala-weight-emphasis);letter-spacing:-.015em;margin:0;}
 .oversight-panel-heading{display:flex;justify-content:space-between;align-items:start;gap:1rem;flex-wrap:wrap;}
@@ -662,9 +662,9 @@
 .oversight-date-bar{position:absolute;inset-block-start:.7rem;block-size:.875rem;min-inline-size:2px;border:1px solid #4d7d65;border-radius:1rem;background:#b9e8d4;}
 .oversight-date-bar::before,.oversight-date-bar::after{content:"";position:absolute;inset-block-start:-2px;inline-size:.875rem;block-size:.875rem;border-radius:50%;border:2px solid var(--tala-surface);background:#168252;}
 .oversight-date-bar::before{inset-inline-start:-.25rem;}.oversight-date-bar::after{inset-inline-end:-.25rem;}
-.oversight-date-bar-teaching{background:#c7dcf4;border-color:#376d9d;}.oversight-date-bar-teaching::before,.oversight-date-bar-teaching::after{background:#376d9d;}
+.oversight-date-bar-teaching{background:#e4e4e7;border-color:#52525c;}.oversight-date-bar-teaching::before,.oversight-date-bar-teaching::after{background:#52525c;}
 .oversight-date-bar-exams{background:#e9d8ad;border-color:#805f18;}.oversight-date-bar-exams::before,.oversight-date-bar-exams::after{background:#805f18;}
-.oversight-date-missing{position:absolute;inset-inline:0;inset-block-start:1.1rem;border-block-start:1px dashed #64748b;}
+.oversight-date-missing{position:absolute;inset-inline:0;inset-block-start:1.1rem;border-block-start:1px dashed var(--tala-control-border, #71717b);}
 .oversight-date-label{position:relative;display:block;padding-block-start:2rem;font-size:.75rem;color:var(--tala-muted);line-height:1.5;font-variant-numeric:tabular-nums;}
 .oversight-source-details{border-block-start:1px solid var(--tala-edge);padding-block-start:.625rem;font-size:.8125rem;line-height:1.6;}
 .oversight-planning-entry{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;border-block-start:1px solid var(--tala-edge);padding-block:1.25rem;}
@@ -685,7 +685,7 @@
 .oversight-attention ul{list-style:none;margin:1rem 0 0;padding:0;}
 .oversight-attention li{padding-block:1rem;border-block-start:1px solid var(--tala-edge);}
 .oversight-attention li:first-child{padding-block-start:.5rem;border:0;}
-.oversight-scope{display:inline-block;justify-self:start;padding:.2rem .45rem;border-radius:.3125rem;background:#edf3f8;color:#354b63;font-size:.6875rem;line-height:1.5;}
+.oversight-scope{display:inline-block;justify-self:start;padding:.2rem .45rem;border-radius:.3125rem;background:var(--tala-surface-sunken, #f4f4f5);color:var(--tala-muted, #52525c);font-size:.6875rem;line-height:1.5;}
 .oversight-scope-institution{background:#fff3d9;color:#704808;}
 .oversight-attention h3{font-size:.9375rem;font-weight:var(--tala-weight-emphasis);line-height:1.4;margin-block:.5rem .375rem;overflow-wrap:anywhere;}
 .oversight-attention h3>a{display:flex;align-items:center;justify-content:space-between;gap:.75rem;min-block-size:2.75rem;}
@@ -705,8 +705,8 @@
 .oversight-segment-official,.oversight-grade-released{background:var(--oversight-official);}
 .oversight-segment-in_progress{background:var(--oversight-in-progress);}
 .oversight-segment-closed,.oversight-grade-in_progress{background:var(--oversight-pending);}
-.oversight-segment-unknown,.oversight-grade-unknown{background:repeating-linear-gradient(135deg,#e5e7eb 0 4px,#64748b 4px 6px);}
-.oversight-grade-submitted{background:#89b4dd;}
+.oversight-segment-unknown,.oversight-grade-unknown{background:repeating-linear-gradient(135deg,#e4e4e7 0 4px,#71717b 4px 6px);}
+.oversight-grade-submitted{background:#c9972c;}
 .oversight-legend{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem 1rem;margin-block:1rem 1.25rem;font-size:.8125rem;line-height:1.5;}
 .oversight-legend>div{display:flex;align-items:center;gap:.375rem;}.oversight-legend dt{display:flex;align-items:center;gap:.375rem;}.oversight-legend dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;}
 .oversight-legend i{display:inline-block;inline-size:.625rem;block-size:.625rem;border-radius:50%;border:1px solid #60746a;flex-shrink:0;}
@@ -870,7 +870,7 @@
 .head-enrollment-subject-table thead{background:var(--tala-surface-sunken);font-size:.75rem;color:var(--tala-muted);}.head-enrollment-subject-table tbody th{font-weight:600;}.head-enrollment-subject-table small{display:block;font-size:.75rem;font-weight:400;color:var(--tala-muted);margin-block-start:.25rem;}
 .head-enrollment-record dl{display:grid;margin-block-start:1rem;}.head-enrollment-record dl>div{padding-block:.875rem;border-block-start:1px solid var(--tala-edge);}.head-enrollment-record dt,.head-enrollment-source-grid dt{font-size:.8125rem;color:var(--tala-muted);line-height:1.5;}.head-enrollment-record dd,.head-enrollment-source-grid dd{margin:.375rem 0 0;font-size:.875rem;line-height:1.6;overflow-wrap:anywhere;}.head-enrollment-record small{display:block;font-size:.75rem;color:var(--tala-muted);margin-block-start:.375rem;}
 .head-enrollment-note{font-size:.8125rem;line-height:1.6;color:var(--tala-muted);margin-block-start:.75rem;max-inline-size:75ch;}
-.head-enrollment-meetings{list-style:none;padding:0;margin:1rem 0 0;display:grid;gap:.75rem;}.head-enrollment-meetings li{display:grid;grid-template-columns:12rem minmax(0,1fr);gap:1rem;padding:1rem;border:1px solid var(--tala-edge);border-inline-start:1px solid #376d9d;border-radius:.5rem;background:var(--tala-surface-sunken);}.head-enrollment-meeting-time{display:grid;align-content:start;gap:.25rem;}.head-enrollment-meetings h3,.head-enrollment-meeting-time strong{font-size:.9375rem;line-height:1.5;font-weight:600;}.head-enrollment-meetings p,.head-enrollment-meeting-time span{font-size:.8125rem;line-height:1.6;color:var(--tala-muted);}.head-enrollment-meetings p{margin-block-start:.25rem;}
+.head-enrollment-meetings{list-style:none;padding:0;margin:1rem 0 0;display:grid;gap:.75rem;}.head-enrollment-meetings li{display:grid;grid-template-columns:12rem minmax(0,1fr);gap:1rem;padding:1rem;border:1px solid var(--tala-edge);border-inline-start:1px solid var(--tala-brand, #2f7d3b);border-radius:.5rem;background:var(--tala-surface-sunken);}.head-enrollment-meeting-time{display:grid;align-content:start;gap:.25rem;}.head-enrollment-meetings h3,.head-enrollment-meeting-time strong{font-size:.9375rem;line-height:1.5;font-weight:600;}.head-enrollment-meetings p,.head-enrollment-meeting-time span{font-size:.8125rem;line-height:1.6;color:var(--tala-muted);}.head-enrollment-meetings p{margin-block-start:.25rem;}
 .head-enrollment-evidence{padding:1.25rem 1.5rem;border:1px solid var(--tala-edge);border-radius:.75rem;background:var(--tala-surface);}.head-enrollment-evidence summary{font-weight:600;min-block-size:2.75rem;cursor:pointer;padding-block:.625rem;line-height:1.5;}.head-enrollment-source-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.5rem;margin-block:1.5rem 2rem;}.head-enrollment-evidence h3{font-size:1rem;font-weight:600;line-height:1.5;}.head-enrollment-history{list-style:none;margin:1rem 0 0;padding:0;}.head-enrollment-history li{display:flex;justify-content:space-between;gap:1.5rem;padding-block:1rem;border-block-start:1px solid var(--tala-edge);font-size:.8125rem;line-height:1.6;}.head-enrollment-history li>p{color:var(--tala-muted);}.head-enrollment-history span{display:block;}.head-enrollment-pending{font-size:.875rem;line-height:1.6;margin-block:1rem 2rem;}
 :is(.head-enrollment-detail,.academic-enrollment-row) :is(a,summary):focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px;border-radius:.25rem;}
 @media(max-width:75rem){.academic-enrollment-row{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr);gap:1rem;}.academic-enrollment-open{grid-column:1/-1;justify-content:flex-end;}.head-enrollment-board{grid-template-columns:minmax(0,1.5fr) minmax(15rem,1fr);}}

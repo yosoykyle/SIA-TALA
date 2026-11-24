@@ -14,7 +14,6 @@ use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\ScheduleGenerationRunInfolist;
 use App\Filament\Resources\Sections\Pages\ListSections;
-use App\Filament\Resources\Sections\SectionResource;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\AcademicYear;
 use App\Models\CandidateScheduleRow;
@@ -167,7 +166,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->test(TermClasses::class, ['termId' => $term->id])
             ->mountTableAction('viewClass', $section)
             ->assertMountedActionModalSee($section->code);
-        $this->assertSame(SectionResource::getUrl('view', ['record' => $section, 'termId' => $term->id]), $classes->instance()->getMountedAction()->getExtraModalFooterActions()['manageClass']->getUrl());
+        $this->assertArrayNotHasKey('manageClass', $classes->instance()->getMountedAction()->getExtraModalFooterActions());
         $classes->call('unmountAction')->assertSet('termId', $term->id);
 
         Livewire::actingAs($registrar)
@@ -266,7 +265,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'candidate_review_reason' => 'Curricular hours and room capacities validated.',
             ])
             ->assertHasNoActionErrors()
-            ->assertNotified('Candidate Accepted');
+            ->assertNotified('Draft timetable accepted');
 
         $this->assertSame('Accepted', $run->fresh()->candidate_state);
         $this->assertSame($registrar->id, $run->fresh()->candidate_reviewed_by);
@@ -313,7 +312,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         $diagnostics = Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $run->id])
             ->assertSee('Review the failure in Technical diagnostics.')
-            ->assertSee('Classes & student sections')
+            ->assertSee('Classes & sections')
             ->assertSee('Faculty & rooms');
         $sourceUrls = array_map(fn ($item): string => $item->getUrl(), $diagnostics->instance()->getWorkspaceNavigation());
         $this->assertContains(TermClasses::getUrl(['termId' => $term->id]), $sourceUrls);
@@ -327,7 +326,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->assertViewHas('solverOutcome', fn (array $outcome): bool => $outcome['status'] === 'TECHNICAL_FAILURE')
             ->assertSee('The solver connection timed out without a trusted result.')
             ->assertViewHas('solverOutcome', fn (array $outcome): bool => data_get($outcome, 'conflicts.0.description') === 'Room capacity exceeded by section demand.')
-            ->assertSee('Inspect generation diagnostics and validation findings')
+            ->assertSee('Open audit record')
             ->assertActionVisible('retrySolverRun')
             ->callAction('retrySolverRun')
             ->assertHasNoActionErrors()
@@ -394,7 +393,8 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->withArgs(function ($r, $actor, $note, $authorityReference) use ($run, $registrar) {
                 return $r->id === $run->id
                     && $actor->id === $registrar->id
-                    && $authorityReference === 'REG-AUTH-2026-TEST-01';
+                    && $note === 'Approved by Registrar sign-off.'
+                    && $authorityReference === null;
             })
             ->andReturnUsing(function () use ($run, $term) {
                 PublishedTimetableVersion::factory()->create([
@@ -402,7 +402,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                     'schedule_run_id' => $run->id,
                     'version' => 1,
                     'state' => PublishedTimetableVersion::StatePublished,
-                    'authority_reference' => 'REG-AUTH-2026-TEST-01',
+                    'authority_reference' => null,
                     'published_at' => now(),
                 ]);
                 $run->update(['status' => ScheduleGenerationRun::StatusPublished]);
@@ -417,21 +417,19 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ])
             ->assertActionVisible('publishOfficialTimetable')
             ->callAction('publishOfficialTimetable', [
-                'authority_reference' => 'REG-AUTH-2026-TEST-01',
                 'publication_note' => 'Approved by Registrar sign-off.',
             ])
             ->assertHasNoActionErrors()
-            ->assertNotified('Official Timetable Published')
+            ->assertNotified('Official timetable published')
             ->assertSet('viewTab', 'published')
-            ->assertSee('Official timetable · v1')
-            ->assertSee('v1')
-            ->assertSee('REG-AUTH-2026-TEST-01')
-            ->assertSee('Print whole Term');
+            ->assertSee('Official timetable · Locked')
+            ->assertSee('Official timetable (Current)')
+            ->assertSee('Print whole term');
 
         $this->assertDatabaseHas('published_timetable_versions', [
             'term_id' => $term->id,
             'schedule_run_id' => $run->id,
-            'authority_reference' => 'REG-AUTH-2026-TEST-01',
+            'authority_reference' => null,
             'state' => PublishedTimetableVersion::StatePublished,
             'version' => 1,
         ]);
@@ -496,9 +494,9 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
                 'selectedVersionId' => 999999,
             ])
             ->assertSet('selectedVersionId', null)
-            ->assertSee('Official timetable · v1')
+            ->assertSee('Official timetable · Locked')
+            ->assertSee('Official timetable (Current)')
             ->assertSee('REG-TEST-FALLBACK-01')
-            ->assertSee('v1')
             ->call('selectPublishedVersion', 888888)
             ->assertSet('selectedVersionId', null)
             ->assertSee('REG-TEST-FALLBACK-01');

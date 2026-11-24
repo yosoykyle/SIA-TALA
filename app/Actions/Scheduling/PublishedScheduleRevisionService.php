@@ -9,6 +9,7 @@ use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\GradeRoster;
+use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
@@ -48,6 +49,7 @@ final class PublishedScheduleRevisionService
         bool $addCoFaculty = false,
     ): EloquentCollection {
         Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
+        $this->assertTermOpen($run);
         $reason = $this->reason($reason);
         [$sanitizedChanges, $resolvedScope, $resolvedAddCoFaculty] = $this->extractReassignmentOptions(
             $changeType,
@@ -58,7 +60,8 @@ final class PublishedScheduleRevisionService
         $preview = $this->impactService->preview($run, $changeType, $sanitizedChanges);
         $this->assertPasses($preview);
         $currentVersion = $this->canonicalVersionForRun($run, $actor, CarbonImmutable::now(config('app.timezone')));
-        $canonicalChanges = $this->canonicalChanges($currentVersion, $preview);
+        $reassignmentMetadata = $this->reassignmentMetadata($changeType, $resolvedScope, $resolvedAddCoFaculty);
+        $canonicalChanges = $this->canonicalChanges($currentVersion, $preview, $reassignmentMetadata);
         $authority = $this->authorityReference($authorityReference);
         $preparedRevision = $this->impactGuard->prepare($currentVersion, $actor, $canonicalChanges, $authority, $reason);
         DB::transaction(fn (): TimetableRevision => $this->impactGuard->assertReady($preparedRevision, $currentVersion, $canonicalChanges));
@@ -74,13 +77,14 @@ final class PublishedScheduleRevisionService
             $preparedRevision,
             $resolvedScope,
             $resolvedAddCoFaculty,
+            $reassignmentMetadata,
         ): EloquentCollection {
             $lockedRun = $this->lockedPublishedRun($run);
             Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
             $impact = $this->impactService->lockForRevision($lockedRun, $changeType, $sanitizedChanges);
             $this->assertPasses($impact);
             $timestamp = CarbonImmutable::now(config('app.timezone'));
-            $events = $this->applyMeetingChanges($lockedRun, $actor, $reason, $timestamp, $impact, $authorityReference, $preparedRevision);
+            $events = $this->applyMeetingChanges($lockedRun, $actor, $reason, $timestamp, $impact, $authorityReference, $preparedRevision, $reassignmentMetadata);
 
             if ($changeType === ScheduleRevisionEvent::ChangeFacultyReassignment) {
                 $this->applyFacultyReassignmentScope(
@@ -119,6 +123,7 @@ final class PublishedScheduleRevisionService
         ?string $authorityReference = null,
     ): EloquentCollection {
         Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
+        $this->assertTermOpen($run);
         $reason = $this->reason($reason);
         $preview = $this->impactService->previewCancellation($run, $section);
         $this->assertHardRulesPass($preview);
@@ -172,12 +177,342 @@ final class PublishedScheduleRevisionService
         }, attempts: 5);
     }
 
+    /** @return EloquentCollection<int, ScheduleRevisionEvent> */
+    public function publishDraftRevision(
+        ScheduleGenerationRun $run,
+        TimetableRevision $revision,
+        User $actor,
+    ): EloquentCollection {
+        Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
+        $this->assertTermOpen($run);
+        $revision->loadMissing('sourceVersion.meetings');
+        $sourceVersion = $revision->sourceVersion;
+
+        if ($revision->state !== TimetableRevision::StateDraft
+            || ! $sourceVersion instanceof PublishedTimetableVersion
+            || (int) $sourceVersion->schedule_run_id !== (int) $run->id) {
+            throw ValidationException::withMessages([
+                'revision' => 'Select a pending Draft timetable revision belonging to this published schedule run.',
+            ]);
+        }
+
+        $changesSnapshot = is_array($revision->changes_snapshot) ? $revision->changes_snapshot : [];
+        if ($changesSnapshot === []) {
+            throw ValidationException::withMessages([
+                'revision' => 'The pending Draft timetable revision contains no meeting changes.',
+            ]);
+        }
+
+        [$draftReassignmentScope, $draftAddCoFaculty] = $this->draftReassignmentOptions($changesSnapshot);
+        $changesSnapshot = $this->withoutReassignmentMetadata($changesSnapshot);
+
+        if ($revision->change_type === 'SectionCancellation') {
+            $sectionId = $sourceVersion->meetings
+                ->whereIn('id', array_keys($changesSnapshot))
+                ->pluck('section_id')
+                ->filter()
+                ->first();
+
+            if ($sectionId === null) {
+                throw ValidationException::withMessages([
+                    'revision' => 'The pending Draft cancellation is missing its target class section.',
+                ]);
+            }
+
+            return $this->cancelSection(
+                $run,
+                Section::query()->findOrFail((int) $sectionId),
+                $actor,
+                (string) $revision->reason,
+                $revision->authority_reference,
+            );
+        }
+
+        $sectionMeetings = SectionMeeting::query()
+            ->where('schedule_run_id', $run->id)
+            ->where('state', SectionMeeting::StateActive)
+            ->get()
+            ->keyBy(fn (SectionMeeting $meeting): string => ((int) $meeting->scheduling_demand_id).':'.((int) $meeting->meeting_sequence));
+
+        $detectedTypes = [];
+        $changes = [];
+
+        foreach ($changesSnapshot as $publishedMeetingId => $change) {
+            $canonical = $sourceVersion->meetings->firstWhere('id', (int) $publishedMeetingId);
+            if (! $canonical instanceof PublishedTimetableMeeting || ! is_array($change)) {
+                throw ValidationException::withMessages([
+                    'revision' => 'The pending Draft timetable revision does not match the current published meetings.',
+                ]);
+            }
+
+            $sectionMeeting = $sectionMeetings->get(((int) $canonical->scheduling_demand_id).':'.((int) $canonical->meeting_sequence));
+            if (! $sectionMeeting instanceof SectionMeeting) {
+                throw ValidationException::withMessages([
+                    'revision' => 'The pending Draft timetable revision references a meeting outside this published run.',
+                ]);
+            }
+
+            $facultyChanged = array_key_exists('faculty_user_id', $change) && (int) $change['faculty_user_id'] !== (int) $canonical->faculty_user_id;
+            $modalityChanged = array_key_exists('modality', $change) && (string) $change['modality'] !== (string) $canonical->modality;
+            $timeChanged = (array_key_exists('day_of_week', $change) && (int) $change['day_of_week'] !== (int) $canonical->day_of_week)
+                || (array_key_exists('starts_at', $change) && (string) $change['starts_at'] !== (string) $canonical->starts_at)
+                || (array_key_exists('ends_at', $change) && (string) $change['ends_at'] !== (string) $canonical->ends_at);
+            $roomChanged = array_key_exists('room_id', $change)
+                && ($change['room_id'] === null ? null : (int) $change['room_id']) !== ($canonical->room_id === null ? null : (int) $canonical->room_id);
+
+            $rowType = match (true) {
+                $facultyChanged && ! $modalityChanged && ! $timeChanged && ! $roomChanged => ScheduleRevisionEvent::ChangeFacultyReassignment,
+                $modalityChanged && ! $facultyChanged && ! $timeChanged => ScheduleRevisionEvent::ChangeDeliveryModality,
+                $timeChanged && ! $facultyChanged && ! $modalityChanged && ! $roomChanged => ScheduleRevisionEvent::ChangeTime,
+                $roomChanged && ! $facultyChanged && ! $modalityChanged && ! $timeChanged => ScheduleRevisionEvent::ChangeRoom,
+                default => null,
+            };
+
+            if ($rowType === null) {
+                $detectedTypes[] = 'mixed';
+                break;
+            }
+
+            $detectedTypes[] = $rowType;
+            $changes[] = match ($rowType) {
+                ScheduleRevisionEvent::ChangeFacultyReassignment => [
+                    'section_meeting_id' => $sectionMeeting->id,
+                    'faculty_user_id' => (int) $change['faculty_user_id'],
+                ],
+                ScheduleRevisionEvent::ChangeDeliveryModality => [
+                    'section_meeting_id' => $sectionMeeting->id,
+                    'modality' => (string) $change['modality'],
+                    'room_id' => $change['room_id'] === null ? null : (int) $change['room_id'],
+                ],
+                ScheduleRevisionEvent::ChangeTime => [
+                    'section_meeting_id' => $sectionMeeting->id,
+                    'day_of_week' => (int) ($change['day_of_week'] ?? $canonical->day_of_week),
+                    'starts_at' => (string) ($change['starts_at'] ?? $canonical->starts_at),
+                    'ends_at' => (string) ($change['ends_at'] ?? $canonical->ends_at),
+                ],
+                ScheduleRevisionEvent::ChangeRoom => [
+                    'section_meeting_id' => $sectionMeeting->id,
+                    'room_id' => $change['room_id'] === null ? null : (int) $change['room_id'],
+                ],
+            };
+        }
+
+        $uniqueTypes = array_values(array_unique($detectedTypes));
+        if (count($uniqueTypes) === 1 && $uniqueTypes[0] !== 'mixed') {
+            return $this->revise(
+                $run,
+                $actor,
+                $uniqueTypes[0],
+                $changes,
+                (string) $revision->reason,
+                $revision->authority_reference,
+                $draftReassignmentScope,
+                $draftAddCoFaculty,
+            );
+        }
+
+        return DB::transaction(function () use ($run, $revision, $actor, $draftReassignmentScope, $draftAddCoFaculty): EloquentCollection {
+            $lockedRun = $this->lockedPublishedRun($run);
+            Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
+            $timestamp = CarbonImmutable::now(config('app.timezone'));
+            $currentVersion = $this->canonicalVersionForRun($lockedRun, $actor, $timestamp);
+            $lockedRevision = TimetableRevision::query()->whereKey($revision->id)->lockForUpdate()->firstOrFail();
+            $lockedChanges = (array) $lockedRevision->changes_snapshot;
+
+            $successor = $this->reviseTimetable->execute(
+                $currentVersion,
+                $actor,
+                $lockedChanges,
+                $lockedRevision->authority_reference,
+                (string) $lockedRevision->reason,
+                false,
+                $lockedRevision,
+            );
+            $lockedChanges = $this->withoutReassignmentMetadata($lockedChanges);
+
+            $events = [];
+            $facultyMeetingChanges = [];
+            foreach ($lockedChanges as $publishedMeetingId => $change) {
+                $oldCanonical = $currentVersion->meetings->firstWhere('id', (int) $publishedMeetingId);
+                if (! $oldCanonical instanceof PublishedTimetableMeeting) {
+                    continue;
+                }
+                $newMeeting = SectionMeeting::query()
+                    ->where('schedule_run_id', $successor->schedule_run_id)
+                    ->where('scheduling_demand_id', $oldCanonical->scheduling_demand_id)
+                    ->where('meeting_sequence', $oldCanonical->meeting_sequence)
+                    ->firstOrFail();
+                $oldSnapshot = [
+                    'faculty_user_id' => (int) $oldCanonical->faculty_user_id,
+                    'room_id' => $oldCanonical->room_id,
+                    'day_of_week' => (int) $oldCanonical->day_of_week,
+                    'starts_at' => (string) $oldCanonical->starts_at,
+                    'ends_at' => (string) $oldCanonical->ends_at,
+                    'modality' => (string) $oldCanonical->modality,
+                    'state' => SectionMeeting::StateActive,
+                ];
+                $newSnapshot = [
+                    'faculty_user_id' => (int) $newMeeting->faculty_user_id,
+                    'room_id' => $newMeeting->room_id,
+                    'day_of_week' => (int) $newMeeting->day_of_week,
+                    'starts_at' => (string) $newMeeting->starts_at,
+                    'ends_at' => (string) $newMeeting->ends_at,
+                    'modality' => (string) $newMeeting->modality,
+                    'state' => (string) $newMeeting->state,
+                ];
+                $event = new ScheduleRevisionEvent;
+                $event->forceFill([
+                    'term_id' => $lockedRun->term_id,
+                    'section_meeting_id' => $newMeeting->id,
+                    'change_type' => ScheduleRevisionEvent::ChangeTime,
+                    'reason' => (string) $lockedRevision->reason,
+                    'effective_date' => $timestamp->toDateString(),
+                    'changed_by' => $actor->id,
+                    'old_snapshot_json' => $oldSnapshot,
+                    'new_snapshot_json' => $newSnapshot,
+                    'affected_student_count' => (int) ($lockedRevision->impact_snapshot['affected_count'] ?? 0),
+                    'affected_faculty_count' => 1,
+                    'created_at' => $timestamp,
+                ])->save();
+                $events[] = $event;
+
+                if ((int) $oldSnapshot['faculty_user_id'] !== (int) $newSnapshot['faculty_user_id']) {
+                    $facultyMeetingChanges[] = [
+                        'section_meeting_id' => (int) $newMeeting->id,
+                        'old' => $oldSnapshot,
+                        'new' => $newSnapshot,
+                    ];
+                }
+            }
+
+            $collection = new EloquentCollection($events);
+
+            $resolvedScope = null;
+            $resolvedAddCoFaculty = false;
+            if ($facultyMeetingChanges !== []) {
+                $resolvedScope = PublishedScheduleRevisionForm::reassignmentScope([
+                    'reassignment_scope' => $draftReassignmentScope,
+                ]);
+                $resolvedAddCoFaculty = $resolvedScope === PublishedScheduleRevisionForm::ScopeTemporarySubstitute
+                    && $draftAddCoFaculty;
+            }
+
+            $impact = new ScheduleRevisionImpact(
+                changeType: (string) ($lockedRevision->change_type ?: ScheduleRevisionEvent::ChangeTime),
+                meetingChanges: collect($events)
+                    ->map(fn (ScheduleRevisionEvent $event): array => [
+                        'section_meeting_id' => (int) $event->section_meeting_id,
+                        'old' => $event->old_snapshot_json,
+                        'new' => $event->new_snapshot_json,
+                    ])
+                    ->values()
+                    ->all(),
+                affectedStudents: (int) ($lockedRevision->impact_snapshot['affected_count'] ?? 0),
+                affectedFaculty: 1,
+                findings: [],
+            );
+
+            if ($facultyMeetingChanges !== []) {
+                $this->applyFacultyReassignmentScope(
+                    actor: $actor,
+                    impact: new ScheduleRevisionImpact(
+                        changeType: ScheduleRevisionEvent::ChangeFacultyReassignment,
+                        meetingChanges: $facultyMeetingChanges,
+                        affectedStudents: (int) ($lockedRevision->impact_snapshot['affected_count'] ?? 0),
+                        affectedFaculty: 1,
+                        findings: [],
+                    ),
+                    scope: $resolvedScope ?? PublishedScheduleRevisionForm::ScopeTemporarySubstitute,
+                    addCoFaculty: $resolvedAddCoFaculty,
+                    teachingAuthority: $lockedRevision->authority_reference ?: (string) $lockedRevision->reason,
+                );
+            }
+
+            $this->recordActivity(
+                run: $lockedRun,
+                actor: $actor,
+                reason: (string) $lockedRevision->reason,
+                timestamp: $timestamp,
+                impact: $impact,
+                events: $collection,
+                event: 'published_schedule_revised',
+                description: 'Published timetable successor created from pending Draft revision.',
+                reassignmentScope: $resolvedScope,
+                addCoFaculty: $resolvedAddCoFaculty,
+            );
+            DB::afterCommit(fn () => $this->notificationService->recordAndQueue($collection));
+
+            return $collection;
+        }, attempts: 5);
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $changesSnapshot
+     * @return array{0: string|null, 1: bool}
+     */
+    private function draftReassignmentOptions(array $changesSnapshot): array
+    {
+        $scope = null;
+        $addCoFaculty = false;
+
+        foreach ($changesSnapshot as $change) {
+            if (! is_array($change)) {
+                continue;
+            }
+
+            if ($scope === null && filled($change['reassignment_scope'] ?? null)) {
+                $scope = (string) $change['reassignment_scope'];
+            }
+
+            if (($change['add_co_faculty'] ?? false) === true) {
+                $addCoFaculty = true;
+            }
+        }
+
+        return [$scope, $addCoFaculty];
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $changesSnapshot
+     * @return array<int|string, mixed>
+     */
+    private function withoutReassignmentMetadata(array $changesSnapshot): array
+    {
+        return array_map(function (mixed $change): mixed {
+            if (is_array($change)) {
+                unset($change['reassignment_scope'], $change['add_co_faculty']);
+            }
+
+            return $change;
+        }, $changesSnapshot);
+    }
+
+    private function assertTermOpen(ScheduleGenerationRun $run): void
+    {
+        $termState = Term::query()->whereKey($run->term_id)->value('state');
+
+        if ($termState === Term::StateClosed) {
+            throw ValidationException::withMessages([
+                'term_id' => 'This term is closed and its published timetable cannot be revised.',
+                'state' => 'This term is closed and its published timetable cannot be revised.',
+            ]);
+        }
+    }
+
     private function lockedPublishedRun(ScheduleGenerationRun $run): ScheduleGenerationRun
     {
-        Term::query()
+        $lockedTerm = Term::query()
             ->whereKey($run->term_id)
             ->lockForUpdate()
             ->firstOrFail();
+
+        if ($lockedTerm->state === Term::StateClosed) {
+            throw ValidationException::withMessages([
+                'term_id' => 'This term is closed and its published timetable cannot be revised.',
+                'state' => 'This term is closed and its published timetable cannot be revised.',
+            ]);
+        }
+
         $termRuns = ScheduleGenerationRun::query()
             ->where('term_id', $run->term_id)
             ->orderBy('id')
@@ -238,9 +573,10 @@ final class PublishedScheduleRevisionService
         ScheduleRevisionImpact $impact,
         ?string $authorityReference = null,
         ?TimetableRevision $preparedRevision = null,
+        array $reassignmentMetadata = [],
     ): EloquentCollection {
         $currentVersion = $this->canonicalVersionForRun($run, $actor, $timestamp);
-        $canonicalChanges = $this->canonicalChanges($currentVersion, $impact);
+        $canonicalChanges = $this->canonicalChanges($currentVersion, $impact, $reassignmentMetadata);
         $authority = $this->authorityReference($authorityReference);
 
         $successor = $this->reviseTimetable->execute(
@@ -284,8 +620,33 @@ final class PublishedScheduleRevisionService
         return new EloquentCollection($events);
     }
 
-    /** @return array<int, array<string, mixed>> */
-    private function canonicalChanges(PublishedTimetableVersion $currentVersion, ScheduleRevisionImpact $impact): array
+    /**
+     * Only non-default reassignment choices are persisted on the Draft revision so
+     * default (temporary substitute) revisions keep their existing content hash.
+     *
+     * @return array<string, mixed>
+     */
+    private function reassignmentMetadata(string $changeType, ?string $scope, bool $addCoFaculty): array
+    {
+        if ($changeType !== ScheduleRevisionEvent::ChangeFacultyReassignment) {
+            return [];
+        }
+
+        if ($scope !== PublishedScheduleRevisionForm::ScopePermanentTakeover && ! $addCoFaculty) {
+            return [];
+        }
+
+        return [
+            'reassignment_scope' => $scope ?? PublishedScheduleRevisionForm::ScopeTemporarySubstitute,
+            'add_co_faculty' => $addCoFaculty,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $reassignmentMetadata
+     * @return array<int, array<string, mixed>>
+     */
+    private function canonicalChanges(PublishedTimetableVersion $currentVersion, ScheduleRevisionImpact $impact, array $reassignmentMetadata = []): array
     {
         $canonicalChanges = [];
 
@@ -305,6 +666,7 @@ final class PublishedScheduleRevisionService
                 'modality' => $new['modality'],
                 'location_label' => $new['modality'] === 'ONLINE' ? 'Online' : (string) ($new['room_id'] ?? 'Assigned room'),
                 'remove' => $new['state'] === SectionMeeting::StateCancelled,
+                ...$reassignmentMetadata,
             ];
         }
 

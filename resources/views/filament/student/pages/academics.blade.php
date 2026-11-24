@@ -104,8 +104,13 @@
                 @if ($examinationPeriod['status'] === 'Available')
                     <section class="student-academic-calendar">
                         <x-filament::icon icon="heroicon-o-calendar-days" />
-                        <div><h2>Exam dates</h2><p>{{ $examinationPeriod['opens_on']->format('M j, Y') }}–{{ $examinationPeriod['closes_on']->format('M j, Y') }}</p>
-                        <x-supporting-details summary="Calendar details" inset><p>{{ $examinationPeriod['authority_reference'] ?: 'Authority not recorded' }} · {{ $examinationPeriod['owner'] }}</p><p>{{ $examinationPeriod['message'] }}</p></x-supporting-details></div>
+                        <div>
+                            <h2>Exam period</h2>
+                            <p>{{ $examinationPeriod['opens_on']->format('M j, Y') }}–{{ $examinationPeriod['closes_on']->format('M j, Y') }}</p>
+                            @if (filled($examinationPeriod['message'] ?? null))
+                                <p class="student-academic-secondary">{{ $examinationPeriod['message'] }}</p>
+                            @endif
+                        </div>
                     </section>
                 @endif
             @elseif ($academicView === 'plan')

@@ -25,13 +25,13 @@ use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
-use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\Pages\EditSection;
 use App\Filament\Resources\Sections\Pages\ListSections;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\TermOfferings\Pages\ListTermOfferings;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Terms\TermResource;
+use App\Models\AcademicYear;
 use App\Models\CandidateScheduleRow;
 use App\Models\Course;
 use App\Models\CourseComponent;
@@ -53,6 +53,7 @@ use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCohort;
 use App\Models\TermOffering;
+use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use App\Support\TimetablePresentation;
 use Database\Seeders\Issue58MultiProgramExplorationSeeder;
@@ -88,10 +89,18 @@ final class TermPlanningRedesignTest extends TestCase
     public function test_native_workspace_pages_render_exact_term_and_accessible_task_navigation(): void
     {
         $this->staff();
-        $term = Term::factory()->create(['label' => 'Redesign exact Term']);
-        foreach ([TermOverview::class => 'Term planning', TermCalendar::class => 'Set the teaching week', TermClasses::class => 'Classes', TermResources::class => 'Faculty & rooms', TermTimetable::class => 'Timetable'] as $page => $heading) {
+        $year = AcademicYear::factory()->create(['label' => 'AY 2031-2032']);
+        $term = Term::factory()->for($year)->create(['type' => Term::TypeFirstSemester]);
+        $directory = Livewire::test(TermOverview::class)->assertSuccessful()
+            ->assertSee('AY 2031-2032')->assertSee('Term Planning');
+        $this->assertSame(1, substr_count($directory->html(), 'wire:partial="action-modals"'));
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
+            ->assertRedirect(TermCalendar::getUrl(['termId' => $term->id]));
+
+        foreach ([TermCalendar::class => 'Term calendar', TermClasses::class => 'Classes & sections', TermResources::class => 'Faculty & rooms', TermTimetable::class => 'Timetable'] as $page => $heading) {
             $component = Livewire::withQueryParams(['termId' => $term->id])->test($page)->assertSuccessful()
-                ->assertSee('Redesign exact Term')->assertSee($heading);
+                ->assertSee('AY 2031-2032')->assertSee($heading);
             $this->assertSame(1, substr_count($component->html(), 'wire:partial="action-modals"'));
         }
         Mail::assertNothingOutgoing();
@@ -122,8 +131,8 @@ final class TermPlanningRedesignTest extends TestCase
         $this->assertSame(9, $projection['summary']['class_count']);
         $this->assertSame(9, $projection['summary']['section_count']);
         $this->assertSame(18, $projection['summary']['meeting_count']);
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
-            ->assertSee('HR')->assertSee('Education')->assertSee('Math');
+        Livewire::test(TermOverview::class)
+            ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $term->id])).'"');
     }
 
     public function test_classes_program_and_year_presets_do_not_show_other_terms_or_other_years(): void
@@ -143,11 +152,19 @@ final class TermPlanningRedesignTest extends TestCase
     public function test_year_builder_presets_open_review_rows_and_class_creation_use_centered_dialogs(): void
     {
         $this->staff();
-        $term = Term::factory()->create();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
+        TermTeachingGridRow::factory()->for($package, 'package')->create(['day_of_week' => 1]);
         $curriculum = CurriculumVersion::factory()->create(['state' => CurriculumVersion::StateActive]);
         $revision = CourseSpecification::factory()->create(['state' => CourseSpecification::StateActive]);
         CourseComponent::factory()->for($revision, 'courseSpecification')->create();
         CurriculumEntry::factory()->for($curriculum)->for($revision, 'courseSpecification')->create(['year_level' => 'Third Year', 'term_type' => $term->type]);
+        TermCohort::factory()->for($term)->for($curriculum)->create([
+            'program_id' => $curriculum->program_id,
+            'confirmed_count' => 25,
+            'confirmed_at' => now(),
+            'confirmed_by' => auth()->id(),
+        ]);
         $builder = Livewire::withQueryParams(['termId' => $term->id, 'programId' => $curriculum->program_id, 'curriculumVersionId' => $curriculum->id, 'yearLevel' => 'Third Year', 'action' => 'buildRegularOfferings'])
             ->test(ListTermOfferings::class)->assertSet('defaultAction', 'buildRegularOfferings')->assertSet('yearLevel', 'Third Year')
             ->mountAction('buildRegularOfferings')->assertActionMounted('buildRegularOfferings')
@@ -335,7 +352,6 @@ final class TermPlanningRedesignTest extends TestCase
             'faculty-term-load-overrides' => FacultyTermLoadOverrideResource::class,
             'calendar-events' => CalendarEventResource::class,
             'schedule-generation-runs' => ScheduleGenerationRunResource::class,
-            'section-meetings' => SectionMeetingResource::class,
         ] as $slug => $resource) {
             $this->get('/admin/'.$slug.'?termId='.$term->id)->assertRedirect($resource::getUrl('index', ['termId' => $term->id]));
         }
@@ -346,26 +362,30 @@ final class TermPlanningRedesignTest extends TestCase
         foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead] as $role) {
             $this->staff($role);
             $term = Term::factory()->create();
-            $areas = [
-                'Term overview' => TermOverview::class,
-                'Teaching calendar' => TermCalendar::class,
+            $stageAreas = [
+                'Calendar' => TermCalendar::class,
                 'Classes & sections' => TermClasses::class,
                 'Faculty & rooms' => TermResources::class,
                 'Timetable' => TermTimetable::class,
             ];
             $expectedUrls = [
-                TermOverview::getUrl(['termId' => $term->id]),
                 TermCalendar::getUrl(['termId' => $term->id]),
                 TermClasses::getUrl(['termId' => $term->id]),
                 TermResources::getUrl(['termId' => $term->id]),
                 TermTimetable::getUrl(['termId' => $term->id]),
             ];
 
-            foreach ($areas as $currentArea => $page) {
+            Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
+                ->assertRedirect(TermCalendar::getUrl(['termId' => $term->id]));
+
+            Livewire::withQueryParams([])->test(TermOverview::class)->assertSuccessful()
+                ->assertSee('Term Planning');
+
+            foreach ($stageAreas as $currentArea => $page) {
                 $component = Livewire::withQueryParams(['termId' => $term->id])->test($page)->assertSuccessful();
                 $navigation = collect($component->instance()->getWorkspaceNavigation());
 
-                $this->assertSame(array_keys($areas), $navigation->map(fn ($item): string => $item->getLabel())->all());
+                $this->assertSame(array_keys($stageAreas), $navigation->map(fn ($item): string => $item->getLabel())->all());
                 $this->assertSame($expectedUrls, $navigation->map(fn ($item): ?string => $item->getUrl())->all());
                 $this->assertSame([$currentArea], $navigation->filter(fn ($item): bool => $item->isActive())->map(fn ($item): string => $item->getLabel())->values()->all());
             }
@@ -440,14 +460,14 @@ final class TermPlanningRedesignTest extends TestCase
             ->assertCanSeeTableRecords([$class])->assertCanNotSeeTableRecords([$otherClass])
             ->assertTableActionHidden('prepareClassOffering', $class)
             ->assertTableActionHidden('confirmClassOffering', $class)
+            ->assertTableActionHidden('editClass', $class)
             ->mountTableAction('viewClass', $class)
             ->assertMountedActionModalSee('HEAD-READ-CLASS')
             ->assertMountedActionModalSee($term->typeLabel())
             ->assertMountedActionModalSee('Shared lecture group')
             ->assertMountedActionModalSee('2 × 60 minutes');
 
-        $manage = $page->instance()->getMountedAction()->getExtraModalFooterActions()['manageClass'];
-        $this->assertFalse($manage->isVisible());
+        $this->assertArrayNotHasKey('manageClass', $page->instance()->getMountedAction()->getExtraModalFooterActions());
 
         $this->assertFalse($head->can('manage-schedules'));
         $this->assertFalse($head->can('update', $class));
@@ -654,11 +674,11 @@ final class TermPlanningRedesignTest extends TestCase
         $term = Term::factory()->create();
         $class = Section::factory()->for(TermOffering::factory()->for($term), 'termOffering')->create(['code' => 'REG-CLASS-DETAIL']);
         $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
-            ->mountTableAction('viewClass', $class)->assertMountedActionModalSee('REG-CLASS-DETAIL');
+            ->assertTableActionVisible('editClass', $class)
+            ->mountTableAction('viewClass', $class)
+            ->assertMountedActionModalSee('REG-CLASS-DETAIL');
 
-        $manage = $page->instance()->getMountedAction()->getExtraModalFooterActions()['manageClass'];
-        $this->assertTrue($manage->isVisible());
-        $this->assertSame(SectionResource::getUrl('view', ['record' => $class, 'termId' => $term->id]), $manage->getUrl());
+        $this->assertArrayNotHasKey('manageClass', $page->instance()->getMountedAction()->getExtraModalFooterActions());
     }
 
     public function test_class_row_preparation_actions_follow_current_source_confirmation_and_lifecycle(): void
@@ -697,15 +717,15 @@ final class TermPlanningRedesignTest extends TestCase
         $this->assertFalse($readiness['ready']);
         $this->assertContains('calendar_not_active', $codes);
         $this->assertContains('classes_not_confirmed', $codes);
-        $this->assertContains('scheduling_demands_missing', $codes);
+        $this->assertNotContains('scheduling_demands_missing', $codes);
 
         Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
             ->assertSuccessful()
-            ->assertSee('Activate the teaching calendar for this Term before preparing a timetable.')
-            ->assertSee('Prepare and confirm classes for this Term before generating a timetable.')
-            ->assertSee('Prepare weekly meeting requirements for this Term’s classes.')
-            ->assertSee('Term Calendar')
-            ->assertSee('Classes');
+            ->assertSee('Activate the term calendar before generating a timetable.')
+            ->assertSee('Add and confirm classes for this term before generating a timetable.')
+            ->assertDontSee('Add and confirm classes to prepare weekly meeting requirements for this term.')
+            ->assertSee('Term calendar')
+            ->assertSee('Classes & sections');
     }
 
     public function test_confirming_class_auto_syncs_scheduling_demands_and_surfaces_resource_readiness_blockers(): void
@@ -793,7 +813,7 @@ final class TermPlanningRedesignTest extends TestCase
 
         Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
             ->assertSuccessful()
-            ->assertSee('Generate whole-Term timetable');
+            ->assertSee('Generate timetable');
 
         $this->assertSame(SchedulingDemand::ValidationReadyForReview, $demand->fresh()->validation_state);
         $this->assertTrue(app(ReadyTermPlanningProjection::class)->forTerm($term)['ready']);

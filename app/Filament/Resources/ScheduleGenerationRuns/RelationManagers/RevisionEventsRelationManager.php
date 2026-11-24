@@ -13,11 +13,16 @@ use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
+use Filament\Support\Facades\FilamentView;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Filament\Tables\View\TablesRenderHook;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\HtmlString;
+use Livewire\Mechanisms\ExtendBlade\ExtendBlade;
 
 class RevisionEventsRelationManager extends RelationManager
 {
@@ -26,6 +31,13 @@ class RevisionEventsRelationManager extends RelationManager
     protected static string $relationship = 'revisionEvents';
 
     protected static ?string $title = 'Term revision history';
+
+    private static ?int $registeredViewManagerId = null;
+
+    public function booted(): void
+    {
+        $this->registerToolbarHeadingHook();
+    }
 
     public function mount(): void
     {
@@ -92,15 +104,51 @@ class RevisionEventsRelationManager extends RelationManager
             ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->defaultSort('created_at', 'desc')
             ->heading(null)
-            ->extraAttributes(['class' => 'tala-term-revision-history'])
+            ->description(null)
+            ->columnManager(false)
+            ->extraAttributes(['class' => 'tala-term-revision-history tala-solver-rm-table'])
             ->recordActions([
                 ViewAction::make()
-                    ->label('View details')->button()->color('gray'),
+                    ->label('View details')->button()->size('sm')->color('gray'),
             ])
             ->toolbarActions([])
             ->emptyStateHeading('No official meeting changes recorded')
             ->emptyStateDescription('This is normal until a published timetable meeting is revised. Candidate edits are not recorded in Term revision history.')
             ->stackedOnMobile();
+    }
+
+    public function toolbarHeadingHtml(): Htmlable
+    {
+        return new HtmlString(
+            '<div class="tala-rm-toolbar-heading" style="flex: 1 1 18rem; min-inline-size: 0; display: grid; gap: 0.125rem; align-content: center;">'
+            .'<h2 class="fi-ta-header-heading" style="margin: 0; font-size: 0.9375rem; font-weight: 600; line-height: 1.35; color: var(--tala-text);">Term revision history</h2>'
+            .'<p class="fi-ta-header-description" style="margin: 0; font-size: 0.8125rem; line-height: 1.45; color: var(--tala-muted);">Chronological log of official meeting changes across this term.</p>'
+            .'</div>'
+        );
+    }
+
+    private function registerToolbarHeadingHook(): void
+    {
+        $manager = FilamentView::getFacadeRoot();
+        $managerId = is_object($manager) ? spl_object_id($manager) : null;
+
+        if ($managerId !== null && self::$registeredViewManagerId === $managerId) {
+            return;
+        }
+
+        self::$registeredViewManagerId = $managerId;
+
+        FilamentView::registerRenderHook(
+            TablesRenderHook::TOOLBAR_START,
+            function (): Htmlable {
+                $current = ExtendBlade::currentRendering();
+
+                return $current instanceof self
+                    ? $current->toolbarHeadingHtml()
+                    : new HtmlString('');
+            },
+            scopes: static::class,
+        );
     }
 
     private static function meeting(ScheduleRevisionEvent $record): ?SectionMeeting

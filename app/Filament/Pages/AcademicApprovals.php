@@ -76,6 +76,15 @@ class AcademicApprovals extends Page
         $calendarReadiness = $calendar ? app(TermCalendarPackageReadinessService::class)->for($calendar) : null;
         $timetable = $term ? PublishedTimetableVersion::query()->where('term_id', $term->id)
             ->where('state', PublishedTimetableVersion::StatePublished)->withCount('meetings')->latest('version')->first() : null;
+        $hasDraftTimetable = $term !== null && $timetable === null
+            && ScheduleGenerationRun::query()
+                ->where('term_id', $term->id)
+                ->whereIn('status', [
+                    ScheduleGenerationRun::StatusQueued,
+                    ScheduleGenerationRun::StatusDispatching,
+                    ScheduleGenerationRun::StatusUnderReview,
+                ])
+                ->exists();
         $readiness = app(AcademicReadinessService::class);
         $programs = Program::query()->with([
             'curriculumVersions.entries.courseSpecification.components',
@@ -102,15 +111,19 @@ class AcademicApprovals extends Page
         });
         $attention = [];
         $calendarUrl = TermCalendar::getUrl(['termId' => $this->termId]);
+        $timetableUrl = TermTimetable::getUrl([
+            'termId' => $this->termId,
+            ...($timetable ? ['timetableState' => 'official', 'selectedVersionId' => $timetable->id] : []),
+        ]);
         if ($term && ! $calendar) {
-            $attention[] = ['title' => 'Active calendar unavailable', 'detail' => 'No active Calendar Package is recorded for this Term.', 'owner' => 'Registrar', 'url' => $calendarUrl, 'scope' => 'Selected term'];
+            $attention[] = ['title' => 'Active term calendar unavailable', 'detail' => 'No active term calendar is recorded for this term.', 'owner' => 'Registrar', 'url' => $calendarUrl, 'scope' => 'Selected term'];
         }
         foreach ($calendarReadiness['blockers'] ?? [] as $blocker) {
             $attention[] = ['title' => $blocker['source'], 'detail' => $blocker['reason'], 'owner' => $blocker['owner'], 'url' => $calendarUrl, 'scope' => 'Selected term'];
         }
         $examination = $this->examinationPeriod();
         if ($term && $examination['status'] === 'Unavailable') {
-            $attention[] = ['title' => 'Examination Period unavailable', 'detail' => $examination['message'], 'owner' => $examination['owner'], 'url' => $calendarUrl, 'scope' => 'Selected term'];
+            $attention[] = ['title' => 'Exam period unavailable', 'detail' => $examination['message'], 'owner' => $examination['owner'], 'url' => $calendarUrl, 'scope' => 'Selected term'];
         }
         if ($term instanceof Term) {
             array_push($attention, ...$this->selectedTermOperationalFindings($term, $timetable));
@@ -135,7 +148,32 @@ class AcademicApprovals extends Page
             }
         }
 
-        return compact('term', 'calendar', 'calendarReadiness', 'timetable', 'authorityRows', 'attention', 'examination') + [
+        $termLinks = $term instanceof Term ? [
+            [
+                'label' => 'Calendar',
+                'icon' => 'heroicon-o-calendar',
+                'url' => $calendarUrl,
+            ],
+            [
+                'label' => 'Classes & sections',
+                'icon' => 'heroicon-o-rectangle-group',
+                'url' => TermClasses::getUrl(['termId' => $term->id]),
+            ],
+            [
+                'label' => 'Faculty & rooms',
+                'icon' => 'heroicon-o-users',
+                'url' => TermResources::getUrl(['termId' => $term->id]),
+            ],
+            [
+                'label' => $timetable
+                    ? 'Timetable ('.$timetable->meetings_count.' published)'
+                    : ($hasDraftTimetable ? 'Timetable (Draft)' : 'Timetable (Unpublished)'),
+                'icon' => 'heroicon-o-table-cells',
+                'url' => $timetableUrl,
+            ],
+        ] : [];
+
+        return compact('term', 'calendar', 'calendarReadiness', 'timetable', 'hasDraftTimetable', 'timetableUrl', 'termLinks', 'authorityRows', 'attention', 'examination') + [
             'terms' => Term::query()->with('academicYear')->latest('starts_on')->get(),
             'checkedAt' => now('Asia/Manila'),
             'enrollmentSummary' => $this->enrollmentSummary($term),
@@ -227,10 +265,10 @@ class AcademicApprovals extends Page
             foreach ($availability['unresolved_late_impacts'] ?? [] as $impact) {
                 $meetingCount = count($impact['affected_meetings'] ?? []);
                 $findings[] = [
-                    'title' => 'Late availability revision impact · '.$impact['faculty_name'],
+                    'title' => 'Faculty availability conflict with published schedule · '.$impact['faculty_name'],
                     'detail' => $meetingCount.' official '.str('meeting')->plural($meetingCount)
                         .' '.($meetingCount === 1 ? 'conflicts' : 'conflict')
-                        .' with updated availability ('.$impact['mode_label'].'). Controlled official timetable revision is pending.',
+                        .' with updated availability ('.$impact['mode_label'].'). Official timetable revision is pending.',
                     'owner' => 'Registrar',
                     'url' => $officialRevisionUrl,
                     'scope' => 'Selected term',

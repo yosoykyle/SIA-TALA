@@ -58,13 +58,10 @@ class CourseSpecificationForm
                         ->maxValue(30)
                         ->step(0.25)
                         ->required(),
-                    Select::make('academic_classification')
-                        ->label('Subject type')
-                        ->options(self::subjectTypeOptions())
-                        ->default(CourseSpecification::AcademicClassificationOrdinary)
-                        ->required(),
+                    self::subjectTypeField(),
                     Textarea::make('description')
                         ->label('Subject description (optional)')
+                        ->placeholder('Brief overview of topics, competencies, or outcomes covered in this subject.')
                         ->maxLength(2000)
                         ->rows(2)
                         ->columnSpanFull(),
@@ -90,7 +87,7 @@ class CourseSpecificationForm
                 ->columns(['default' => 1, 'md' => 2])
                 ->columnSpanFull(),
             Section::make('Prerequisites & equivalents (optional)')
-                ->description('Optional subject requirements recorded from the approved curriculum.')
+                ->description('Optional rules from the approved curriculum. Use approved equivalents for older or bridging subject codes that count in place of this subject.')
                 ->schema([
                     Repeater::make('requirements')
                         ->label('Subject requirements')
@@ -125,7 +122,15 @@ class CourseSpecificationForm
     {
         $requirements = [];
         foreach (['prerequisite_ids' => 'Prerequisites', 'corequisite_ids' => 'Corequisites', 'equivalent_ids' => 'Approved equivalent subjects'] as $key => $label) {
-            $requirements[] = Select::make($key)->label($label)->multiple()->searchable()->preload()->default([])->options(fn (): array => self::courseOptions());
+            $field = Select::make($key)->label($label)->multiple()->searchable()->preload()->default([])->options(fn (): array => self::courseOptions());
+
+            if ($key === 'equivalent_ids') {
+                $field
+                    ->helperText('Older or alternate subject codes (such as bridging or previous-curriculum subjects) accepted in place of this subject and its prerequisites.')
+                    ->columnSpanFull();
+            }
+
+            $requirements[] = $field;
         }
 
         $sections = [
@@ -133,12 +138,7 @@ class CourseSpecificationForm
                 ->description('Enter the subject code, name, units, and subject type.')
                 ->schema([
                     TextInput::make('code')->label('Subject code')->required()->maxLength(64),
-                    ...self::definitionFields(),
-                    Select::make('academic_classification')
-                        ->label('Subject type')
-                        ->options(self::subjectTypeOptions())
-                        ->default(CourseSpecification::AcademicClassificationOrdinary)
-                        ->required(),
+                    ...self::definitionFields(includeSubjectType: true),
                 ])
                 ->columns($columns === 2 ? ['default' => 1, 'md' => 2] : $columns)
                 ->columnSpanFull(),
@@ -293,11 +293,7 @@ class CourseSpecificationForm
      */
     public static function subjectTypeOptions(): array
     {
-        return [
-            CourseSpecification::AcademicClassificationOrdinary => 'Regular subject',
-            CourseSpecification::AcademicClassificationPe => 'Physical Education (excluded from GWA)',
-            CourseSpecification::AcademicClassificationNstp => 'NSTP / CWTS / LTS / ROTC (excluded from GWA)',
-        ];
+        return CourseSpecification::academicClassificationOptions();
     }
 
     /**
@@ -318,9 +314,23 @@ class CourseSpecificationForm
         ];
     }
 
-    private static function definitionFields(): array
+    private static function subjectTypeField(): Select
     {
-        return [
+        return Select::make('academic_classification')
+            ->label('Subject type')
+            ->options(self::subjectTypeOptions())
+            ->default(CourseSpecification::AcademicClassificationOrdinary)
+            ->live()
+            ->helperText('Controls GWA inclusion and marks TESDA competency courses. Link external TESDA NC assessments on the curriculum Review step.')
+            ->required();
+    }
+
+    /**
+     * @return array<int, Component>
+     */
+    private static function definitionFields(bool $includeSubjectType = false): array
+    {
+        $fields = [
             TextInput::make('title')
                 ->label('Subject name')
                 ->required()
@@ -328,13 +338,31 @@ class CourseSpecificationForm
             TextInput::make('credit_units')
                 ->label('Units')
                 ->numeric()
-                ->minValue(0.25)
+                ->minValue(0)
                 ->maxValue(30)
                 ->step(0.25)
+                ->rules([
+                    fn (Get $get): string => $get('academic_classification') === CourseSpecification::AcademicClassificationNonCredit
+                        ? 'gte:0'
+                        : 'gt:0',
+                ])
                 ->required(),
-            Hidden::make('grading_profile_key')->default(CourseSpecification::GradingProfileServitechV1),
-            Hidden::make('grading_profile_version')->default(1),
         ];
+
+        if ($includeSubjectType) {
+            $fields[] = self::subjectTypeField();
+        }
+
+        $fields[] = Textarea::make('description')
+            ->label('Subject description (optional)')
+            ->placeholder('Brief overview of topics, competencies, or outcomes covered in this subject.')
+            ->maxLength(2000)
+            ->rows(2)
+            ->columnSpanFull();
+        $fields[] = Hidden::make('grading_profile_key')->default(CourseSpecification::GradingProfileServitechV1);
+        $fields[] = Hidden::make('grading_profile_version')->default(1);
+
+        return $fields;
     }
 
     private static function teachingFields(int $columns = 2, bool $defaultFaceToFace = false): array
@@ -375,7 +403,7 @@ class CourseSpecificationForm
             ->columns(['default' => 1, 'sm' => 2])
             ->gridDirection(GridDirection::Row)
             ->extraAttributes([
-                'class' => 'tala-choice-options',
+                'class' => 'tala-choice-options tala-choice-options--cards',
                 'style' => 'grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));',
             ])
             ->live()
@@ -448,6 +476,13 @@ class CourseSpecificationForm
                 RoomEquipment::select('required_room_feature_keys')
                     ->multiple()
                     ->label('Room equipment (optional)')
+                    ->columnSpan(function (Get $get): array|string {
+                        $modalities = (array) ($get('../../allowed_modalities') ?? []);
+                        $showsModalityRestriction = in_array(CourseSpecification::ModalityFaceToFace, $modalities, true)
+                            && in_array(CourseSpecification::ModalityOnline, $modalities, true);
+
+                        return $showsModalityRestriction ? ['default' => 1, 'md' => 1] : 'full';
+                    })
                     ->visible(function (Get $get): bool {
                         $modalities = (array) ($get('../../allowed_modalities') ?? []);
 

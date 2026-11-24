@@ -122,7 +122,7 @@
                     @foreach ($termGroups as $termLabel => $rows)
                         <div class="tala-data-table-scroll tala-profile-table-wrap" role="region" aria-label="{{ $yearLabel }} · {{ $termLabel }} required subjects" tabindex="0">
                             <table class="tala-data-table tala-profile-table">
-                                <caption style="text-align: left; font-size: .8125rem; font-weight: 600; color: var(--tala-muted, #475569); padding: .5rem .75rem;">{{ $termLabel }}</caption>
+                                <caption style="text-align: left; font-size: .8125rem; font-weight: 600; color: var(--tala-muted, #52525b); padding: .5rem .75rem;">{{ $termLabel }}</caption>
                                 <thead>
                                     <tr>
                                         <th scope="col">Required subject</th>

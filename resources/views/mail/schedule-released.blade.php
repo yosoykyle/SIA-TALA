@@ -1,15 +1,15 @@
 <x-mail::message>
-# Your class schedule is ready
+# Your teaching schedule is ready
 
 Hello {{ $recipientName }},
 
-The Registrar Office has released your current published schedule for **{{ $termLabel }}**.
+The Registrar published the official timetable for **{{ $termLabel }}**.
 
 <x-mail::button :url="$scheduleUrl">
-View Schedule
+Open My Schedule
 </x-mail::button>
 
-Review the day, time, room, modality, and faculty for every class before attending. If an assignment appears incorrect, contact the Registrar Office and refer to the schedule shown in your Student Hub.
+Review your assigned days, times, rooms, and delivery modes before classes begin. If an assignment appears incorrect, contact the Registrar Office and refer to **My Schedule** in your Staff Workspace.
 
 Regards,<br>
 {{ config('institution.name') }} via {{ config('app.name') }}

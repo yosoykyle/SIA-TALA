@@ -19,7 +19,6 @@ use App\Filament\Resources\Programs\ProgramResource;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
-use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Terms\TermResource;
@@ -123,7 +122,6 @@ class WorkspaceNavigationSearchProvider implements GlobalSearchProvider
             CalendarEventResource::class,
             SchedulingDemandResource::class,
             ScheduleGenerationRunResource::class,
-            SectionMeetingResource::class,
             ProgramResource::class,
             CourseResource::class,
             CurriculumVersionResource::class,

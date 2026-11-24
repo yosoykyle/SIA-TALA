@@ -151,7 +151,9 @@ class Issue58ClassPreparationTest extends TestCase
         $page->setActionData($data)->callMountedAction();
         if ($case === 'calendar') {
             $page->call('unmountAction')->assertTableActionHidden('prepareClassOffering', $section)
-                ->assertSee('Preparing and confirming classes requires an active teaching calendar.');
+                ->assertSee('Loading and confirming classes requires an active teaching calendar.');
+        } elseif ($case === 'term') {
+            $page->call('unmountAction')->assertActionHidden('recordCohort');
         } else {
             $page->assertHasActionErrors([$error])->assertNotified($notification);
         }
@@ -162,7 +164,7 @@ class Issue58ClassPreparationTest extends TestCase
     /** @return array<string, array{string, string, string}> */
     public static function externalSourceErrors(): array
     {
-        return [['calendar', 'calendar_package', 'Cannot prepare class'], ['course', 'course_revision', 'Cannot prepare class'], ['term', 'term_id', 'Cannot record cohort']];
+        return [['calendar', 'calendar_package', 'Cannot prepare class'], ['course', 'course_revision', 'Cannot prepare class'], ['term', 'term_id', 'Cannot add student section']];
     }
 
     #[DataProvider('invalidCohorts')]

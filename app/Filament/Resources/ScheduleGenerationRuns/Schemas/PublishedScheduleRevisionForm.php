@@ -15,17 +15,22 @@ use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section as FormSection;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Support\Enums\GridDirection;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\HtmlString;
@@ -61,20 +66,24 @@ final class PublishedScheduleRevisionForm
                     ? 'Cancellation affects the whole class and every active official meeting. Review affected registrations before publication.'
                     : 'Choose one or more official meetings, then select what needs to change.')
                 ->schema([
-                    Select::make('section_meeting_ids')
+                    CheckboxList::make('section_meeting_ids')
                         ->label('Selected meetings')
-                        ->helperText('Search by course, class or meeting time. You can include more than one meeting.')
+                        ->helperText('Search by subject, section, day, room, or teacher. Check one or more official meetings to revise.')
                         ->options(self::meetingOptions($run))
-                        ->multiple()
+                        ->descriptions(self::meetingDescriptions($run))
                         ->searchable()
-                        ->preload()
+                        ->searchPrompt('Search by subject, section, day, room, or teacher...')
+                        ->bulkToggleable()
+                        ->columns(['default' => 1, 'md' => 2])
+                        ->gridDirection(GridDirection::Row)
                         ->required(! $cancelClass)
                         ->visible(! $cancelClass)
                         ->live()
+                        ->extraAttributes(['class' => 'tala-card-picker tala-revision-meeting-checklist'])
                         ->columnSpanFull(),
                     $cancelClass
                         ? Hidden::make('change_type')->default(ScheduleRevisionEvent::ChangeSectionCancellation)
-                        : Select::make('change_type')
+                        : ToggleButtons::make('change_type')
                             ->label('What do you need to change?')
                             ->options([
                                 ScheduleRevisionEvent::ChangeRoom => 'Room',
@@ -82,6 +91,14 @@ final class PublishedScheduleRevisionForm
                                 ScheduleRevisionEvent::ChangeTime => 'Day and time',
                                 ScheduleRevisionEvent::ChangeDeliveryModality => 'Delivery mode',
                             ])
+                            ->icons([
+                                ScheduleRevisionEvent::ChangeRoom => Heroicon::OutlinedBuildingOffice2,
+                                ScheduleRevisionEvent::ChangeFacultyReassignment => Heroicon::OutlinedUser,
+                                ScheduleRevisionEvent::ChangeTime => Heroicon::OutlinedClock,
+                                ScheduleRevisionEvent::ChangeDeliveryModality => Heroicon::OutlinedArrowsRightLeft,
+                            ])
+                            ->inline()
+                            ->grouped()
                             ->required()
                             ->visible(fn (Get $get): bool => filled($get('section_meeting_ids')))
                             ->live()
@@ -89,7 +106,8 @@ final class PublishedScheduleRevisionForm
                                 if ($state === ScheduleRevisionEvent::ChangeFacultyReassignment && blank($get('reassignment_scope'))) {
                                     $set('reassignment_scope', self::ScopeTemporarySubstitute);
                                 }
-                            }),
+                            })
+                            ->columnSpanFull(),
                     Select::make('section_id')
                         ->label('Selected class')
                         ->helperText('All delivery groups and active official meetings of this class are included.')
@@ -142,7 +160,7 @@ final class PublishedScheduleRevisionForm
                         ->columnSpanFull(),
                     Checkbox::make('add_co_faculty')
                         ->label('Also add replacement faculty as co-faculty for class list access')
-                        ->helperText('Adds the substitute as CO_FACULTY while keeping the original designated grading faculty intact.')
+                        ->helperText('Adds the substitute as co-faculty so they can view the class list while keeping the original grading teacher intact.')
                         ->default(false)
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment
                             && ($get('reassignment_scope') ?: self::ScopeTemporarySubstitute) === self::ScopeTemporarySubstitute)
@@ -172,7 +190,7 @@ final class PublishedScheduleRevisionForm
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
                         ->live(),
                     Placeholder::make('authoritative_modality')
-                        ->label('Recorded modality')
+                        ->label('Delivery mode')
                         ->content(fn (Get $get): string => self::authoritativeModalitySummary(
                             $run,
                             $get('section_meeting_ids'),
@@ -190,16 +208,11 @@ final class PublishedScheduleRevisionForm
                         ->columnSpanFull(),
                 ]),
             FormSection::make('Record the approved change')
-                ->description('Effective immediately when published. TALA records the date and publishing actor.')
-                ->columns(['default' => 1, 'md' => 2])
+                ->description('Effective immediately when published. TALA records the date and publishing actor automatically.')
+                ->columns(1)
                 ->visible(fn (Get $get): bool => filled($get('change_type'))
                     && filled($get($cancelClass ? 'section_id' : 'section_meeting_ids')))
                 ->schema([
-                    Textarea::make('authority_reference')
-                        ->label('Approval note or memo (optional)')
-                        ->helperText('Add a note or memo if one was provided. TALA records the publishing actor and time.')
-                        ->rows(2)
-                        ->maxLength(255),
                     Textarea::make('reason')
                         ->label('Approved reason')
                         ->helperText('Record the institutionally approved operational reason for this revision.')
@@ -366,11 +379,17 @@ final class PublishedScheduleRevisionForm
             ? 'text-success-700 dark:text-success-400'
             : 'text-danger-700 dark:text-danger-400';
         $status = $impact->passes() ? 'Meeting checks passed — publication rechecks the complete change' : 'Change blocked';
+        $meetingCount = count($impact->meetingChanges());
+        $studentCount = $impact->affectedStudents();
+        $facultyCount = $impact->affectedFaculty();
         $summary = sprintf(
-            '%d meeting(s), %d affected student(s), and %d affected faculty member(s).',
-            count($impact->meetingChanges()),
-            $impact->affectedStudents(),
-            $impact->affectedFaculty(),
+            '%d %s, %d affected %s, and %d affected %s.',
+            $meetingCount,
+            $meetingCount === 1 ? 'meeting' : 'meetings',
+            $studentCount,
+            $studentCount === 1 ? 'student' : 'students',
+            $facultyCount,
+            $facultyCount === 1 ? 'faculty member' : 'faculty members',
         );
         $scopeNote = '';
 
@@ -486,7 +505,7 @@ final class PublishedScheduleRevisionForm
 
                 if ($modality === null) {
                     throw ValidationException::withMessages([
-                        'section_meeting_ids' => 'Every selected meeting must have an authoritative delivery modality.',
+                        'section_meeting_ids' => 'Every selected meeting must have a recorded delivery mode.',
                     ]);
                 }
 
@@ -518,12 +537,20 @@ final class PublishedScheduleRevisionForm
     }
 
     /** @return array<int, string> */
+    private static function meetingDescriptions(ScheduleGenerationRun $run): array
+    {
+        return self::meetingsForRun($run)
+            ->mapWithKeys(fn (SectionMeeting $meeting): array => [(int) $meeting->id => self::meetingDescription($meeting)])
+            ->all();
+    }
+
+    /** @return array<int, string> */
     private static function sectionOptions(ScheduleGenerationRun $run): array
     {
         return self::sectionsForRun($run)
             ->mapWithKeys(function (Section $section): array {
                 $course = $section->termOffering?->course();
-                $courseCode = $course instanceof Course ? $course->code : 'Course';
+                $courseCode = $course instanceof Course ? $course->code : 'Subject';
 
                 return [(int) $section->id => ($section->termOffering?->courseSpecification()?->title ?? $courseCode).' · '.$section->code];
             })
@@ -634,7 +661,7 @@ final class PublishedScheduleRevisionForm
                 'room',
                 'schedulingDemand.courseComponent.courseSpecification.course',
                 'schedulingDemand.sectionDeliveryGroup.section.termOffering.curriculumEntry.courseSpecification.course',
-                'schedulingDemand.termOffering',
+                'schedulingDemand.termOffering.curriculumEntry.courseSpecification.course',
             ])
             ->orderBy('id')
             ->get();
@@ -659,16 +686,47 @@ final class PublishedScheduleRevisionForm
     private static function meetingLabel(SectionMeeting $meeting): string
     {
         $section = $meeting->schedulingDemand?->sectionDeliveryGroup?->section;
-        $course = $meeting->schedulingDemand?->termOffering?->course();
-        $day = SectionMeeting::dayOptions()[(int) $meeting->day_of_week] ?? 'Day '.(int) $meeting->day_of_week;
+        $spec = $meeting->schedulingDemand?->courseComponent?->courseSpecification
+            ?? $meeting->schedulingDemand?->termOffering?->courseSpecification();
+        $course = $spec?->course ?? $meeting->schedulingDemand?->termOffering?->course();
+        $courseCode = $course instanceof Course ? $course->code : 'Subject';
+        $courseTitle = trim((string) ($spec?->title ?? ''));
+        $sectionCode = $section instanceof Section ? $section->code : 'Class';
 
-        return collect([
-            $meeting->schedulingDemand?->courseComponent?->courseSpecification?->title
-                ?? ($course instanceof Course ? $course->code : 'Course'),
-            $day.' '.self::shortTime($meeting->starts_at).'-'.self::shortTime($meeting->ends_at),
-            $section instanceof Section ? $section->code : 'Class',
-            'Meeting '.$meeting->meeting_sequence,
-        ])->implode(' · ');
+        $subject = ($courseTitle !== '' && $courseTitle !== $courseCode)
+            ? "{$courseCode} — {$courseTitle}"
+            : $courseCode;
+
+        return "{$subject} ({$sectionCode})";
+    }
+
+    private static function meetingDescription(SectionMeeting $meeting): string
+    {
+        $day = SectionMeeting::dayOptions()[(int) $meeting->day_of_week] ?? 'Day '.(int) $meeting->day_of_week;
+        $window = self::formatTimeWindow($meeting->starts_at, $meeting->ends_at);
+        $roomCode = $meeting->room instanceof Room ? $meeting->room->code : 'Online / No room';
+        $facultyName = $meeting->faculty instanceof User ? $meeting->faculty->name : 'Unassigned teacher';
+        $sequence = 'Meeting '.max(1, (int) $meeting->meeting_sequence);
+
+        return collect([$day, $window, $roomCode, $facultyName, $sequence])->implode(' · ');
+    }
+
+    private static function formatTimeWindow(mixed $startsAt, mixed $endsAt): string
+    {
+        if (! filled($startsAt) || ! filled($endsAt)) {
+            return self::shortTime($startsAt).'–'.self::shortTime($endsAt);
+        }
+
+        try {
+            $start = CarbonImmutable::parse((string) $startsAt);
+            $end = CarbonImmutable::parse((string) $endsAt);
+
+            return $start->format('A') === $end->format('A')
+                ? $start->format('g:i').'–'.$end->format('g:i A')
+                : $start->format('g:i A').'–'.$end->format('g:i A');
+        } catch (\Throwable) {
+            return self::shortTime($startsAt).'–'.self::shortTime($endsAt);
+        }
     }
 
     /** @return list<int> */

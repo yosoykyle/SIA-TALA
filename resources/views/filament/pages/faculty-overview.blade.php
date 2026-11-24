@@ -23,27 +23,27 @@
             </x-record-scope-bar>
 
             @if ($actionItems !== [])
-                <section class="tala-task-surface" style="overflow: hidden;" aria-labelledby="faculty-needs-action-heading">
-                    <header style="padding: var(--tala-card-pad); border-block-end: 1px solid var(--tala-edge); display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem;">
+                <section class="tala-task-surface overflow-hidden" aria-labelledby="faculty-needs-action-heading">
+                    <header class="p-5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
                         <div>
-                            <h2 id="faculty-needs-action-heading" style="display: flex; align-items: center; gap: 0.5rem; font-size: var(--tala-type-section); font-weight: var(--tala-weight-heading);">
+                            <h2 id="faculty-needs-action-heading" class="flex items-center gap-2 text-base font-semibold">
                                 Needs your action
                                 <x-filament::badge color="gray">{{ count($actionItems) }}</x-filament::badge>
                             </h2>
-                            <p style="color: var(--tala-muted); font-size: var(--tala-type-caption);">Each item names the affected class or task and opens the direct place to handle it.</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Each item names the affected class or task and opens the direct place to handle it.</p>
                         </div>
                     </header>
-                    <ul style="list-style: none; margin: 0; padding: 0;">
+                    <ul class="list-none m-0 p-0 divide-y divide-gray-200 dark:divide-gray-800">
                         @foreach ($actionItems as $item)
-                            <li style="padding: var(--tala-card-pad); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.25rem; @if (! $loop->first) border-block-start: 1px solid var(--tala-edge); @endif">
-                                <div style="flex: 1 1 24rem; min-inline-size: 0; display: grid; gap: 0.375rem;">
+                            <li class="p-5 flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
+                                <div class="flex-1 basis-96 min-w-0 grid gap-1.5">
                                     <div>
                                         <x-filament::badge :color="$item['severity']">{{ $item['badge'] }}</x-filament::badge>
                                     </div>
-                                    <h3 style="font-size: 1rem; font-weight: 600;">{{ $item['title'] }}</h3>
-                                    <p style="color: var(--tala-muted); font-size: 0.875rem;">{{ $item['summary'] }}</p>
+                                    <h3 class="text-base font-semibold">{{ $item['title'] }}</h3>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ $item['summary'] }}</p>
                                 </div>
-                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+                                <div class="flex flex-wrap gap-2 items-center">
                                     <x-filament::button
                                         tag="a"
                                         :color="$item['action_color']"
@@ -65,16 +65,23 @@
                 <li @class(['tala-workflow-step', 'tala-workflow-step--priority' => $priorityCard === 'schedule'])>
                     <div class="tala-workflow-step__body">
                         <div class="tala-workflow-step__head">
-                            <span class="tala-workspace-card__icon" style="inline-size: 2rem; block-size: 2rem;" aria-hidden="true">
-                                <x-filament::icon icon="heroicon-o-calendar-days" style="inline-size: 1.125rem; block-size: 1.125rem;" />
+                            <span class="tala-workspace-card__icon size-8" aria-hidden="true">
+                                <x-filament::icon icon="heroicon-o-calendar-days" class="h-5 w-5" />
                             </span>
                         </div>
                         <h2 class="tala-workflow-step__title">My schedule</h2>
-                        @if ($scheduleCard['meetingCount'] > 0)
+                        @if (($scheduleCard['totalClassCount'] ?? 0) > 0)
                             <div class="tala-workflow-step__figure">
-                                <x-workspace-figure :value="$scheduleCard['classCount']" :label="\Illuminate\Support\Str::plural('class', $scheduleCard['classCount'])" />
+                                <x-workspace-figure :value="$scheduleCard['totalClassCount']" :label="\Illuminate\Support\Str::plural('class', $scheduleCard['totalClassCount'])" />
                             </div>
-                            <p class="tala-workflow-step__desc">{{ $scheduleCard['classCount'] }} {{ \Illuminate\Support\Str::plural('class', $scheduleCard['classCount']) }} · {{ $scheduleCard['meetingCount'] }} weekly {{ \Illuminate\Support\Str::plural('meeting', $scheduleCard['meetingCount']) }}</p>
+                            @if ($scheduleCard['meetingCount'] > 0)
+                                <p class="tala-workflow-step__desc">
+                                    {{ $scheduleCard['meetingCount'] }} weekly {{ \Illuminate\Support\Str::plural('meeting', $scheduleCard['meetingCount']) }}@if (($scheduleCard['externallyArrangedCount'] ?? 0) > 0) · {{ $scheduleCard['externallyArrangedCount'] }} externally arranged @endif
+                                </p>
+                            @else
+                                <p class="tala-workflow-step__desc">{{ $scheduleCard['externallyArrangedCount'] }} externally arranged {{ \Illuminate\Support\Str::plural('class', $scheduleCard['externallyArrangedCount']) }}</p>
+                                <p class="tala-workflow-step__meta">OJT, practicum, or externally arranged subjects with no fixed weekly room slot.</p>
+                            @endif
                         @else
                             <p class="tala-workflow-step__desc">Not published yet</p>
                             <p class="tala-workflow-step__meta">Your weekly teaching meetings appear here once the timetable is published.</p>
@@ -102,12 +109,12 @@
                 <li @class(['tala-workflow-step', 'tala-workflow-step--priority' => $priorityCard === 'availability'])>
                     <div class="tala-workflow-step__body">
                         <div class="tala-workflow-step__head">
-                            <span class="tala-workspace-card__icon" style="inline-size: 2rem; block-size: 2rem;" aria-hidden="true">
-                                <x-filament::icon icon="heroicon-o-clock" style="inline-size: 1.125rem; block-size: 1.125rem;" />
+                            <span class="tala-workspace-card__icon size-8" aria-hidden="true">
+                                <x-filament::icon icon="heroicon-o-clock" class="h-5 w-5" />
                             </span>
                         </div>
                         <h2 class="tala-workflow-step__title">My availability</h2>
-                        <p class="tala-workflow-step__desc" style="color: var(--tala-text); font-weight: 600;">{{ $availabilityCard['statusLabel'] }}</p>
+                        <p class="tala-workflow-step__desc font-semibold text-gray-950 dark:text-white">{{ $availabilityCard['statusLabel'] }}</p>
                         <p class="tala-workflow-step__meta">{{ $availabilityCard['description'] }}</p>
                         @if ($availabilityCard['replyBy'] !== null)
                             <p class="tala-workflow-step__meta">Reply by {{ $availabilityCard['replyBy'] }}</p>
@@ -129,8 +136,8 @@
                 <li @class(['tala-workflow-step', 'tala-workflow-step--priority' => $priorityCard === 'grades'])>
                     <div class="tala-workflow-step__body">
                         <div class="tala-workflow-step__head">
-                            <span class="tala-workspace-card__icon" style="inline-size: 2rem; block-size: 2rem;" aria-hidden="true">
-                                <x-filament::icon icon="heroicon-o-academic-cap" style="inline-size: 1.125rem; block-size: 1.125rem;" />
+                            <span class="tala-workspace-card__icon size-8" aria-hidden="true">
+                                <x-filament::icon icon="heroicon-o-academic-cap" class="h-5 w-5" />
                             </span>
                         </div>
                         <h2 class="tala-workflow-step__title">Class grades</h2>

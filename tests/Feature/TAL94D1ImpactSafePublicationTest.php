@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Scheduling\CandidateScheduleRowReviewService;
 use App\Actions\Scheduling\SchedulePublicationImpactService;
 use App\Actions\Scheduling\SchedulePublishService;
+use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Models\CandidateScheduleRow;
 use App\Models\CourseComponent;
@@ -23,6 +24,7 @@ use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
+use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -52,6 +54,7 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         foreach ([
             User::StaffRoleRegistrar,
@@ -246,11 +249,21 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $newRun->getRouteKey()])
-            ->assertActionVisible('publishSchedule')
-            ->mountAction('publishSchedule')
-            ->assertMountedActionModalSee('1 changed assignment')
-            ->assertMountedActionModalSee('1 active student official registration')
-            ->assertMountedActionModalSee('Full replacement is blocked');
+            ->assertOk()
+            ->assertActionDoesNotExist('publishSchedule');
+
+        Livewire::actingAs($registrar)
+            ->withQueryParams([
+                'termId' => $term->id,
+                'selectedRunId' => $newRun->id,
+                'timetableState' => 'draft',
+            ])
+            ->test(TermTimetable::class)
+            ->assertActionVisible('publishOfficialTimetable')
+            ->mountAction('publishOfficialTimetable')
+            ->assertMountedActionModalSee('1 candidate assignments, 0 warnings, and 0 conflicts.')
+            ->assertMountedActionModalSee('0 new, 1 changed, 0 removed, and 0 unchanged; 1 affected faculty.')
+            ->assertMountedActionModalSee('Full replacement is blocked because active official student registrations exist.');
     }
 
     private function assertPublicationNoteRequired(

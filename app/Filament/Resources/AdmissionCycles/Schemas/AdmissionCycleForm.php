@@ -11,6 +11,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 
 class AdmissionCycleForm
 {
@@ -62,8 +63,20 @@ class AdmissionCycleForm
                         ->options(AdmissionCycle::studentTypeOptions())
                         ->default([AdmissionCycle::PathFirstYear, AdmissionCycle::PathTransferee])->dehydrated(false),
                     Select::make('programs')->label('Accepting programs')->placeholder('Choose programs accepting applicants')
-                        ->relationship('programs', 'name')->multiple()->searchable()->preload()->default([])
-                        ->helperText('Each program needs published requirements before this cycle can be published.')
+                        ->relationship(
+                            name: 'programs',
+                            titleAttribute: 'name',
+                            modifyQueryUsing: fn (Builder $query, ?AdmissionCycle $record): Builder => $query
+                                ->where(function (Builder $programs) use ($record): void {
+                                    $programs->where('programs.is_active', true);
+
+                                    if ($record instanceof AdmissionCycle) {
+                                        $programs->orWhereHas('admissionCycles', fn (Builder $cycles): Builder => $cycles->where('admission_cycles.id', $record->id));
+                                    }
+                                })
+                                ->orderBy('programs.name'),
+                        )->multiple()->searchable()->preload()->default([])
+                        ->helperText('Only active programs can be selected. Each program needs published requirements and an assigned curriculum for the target school year’s batch before applicants can apply.')
                         ->saveRelationshipsUsing(function (AdmissionCycle $record, array $state, Get $get): void {
                             $paths = (array) $get('accepted_paths');
                             $record->programs()->sync(collect($state)->mapWithKeys(fn (int|string $programId): array => [

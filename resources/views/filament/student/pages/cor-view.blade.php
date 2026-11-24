@@ -69,7 +69,10 @@
                     @foreach (($output['fees'] ?? []) as $fee)<div wire:key="cor-fee-{{ $loop->index }}"><dt>{{ $fee['label'] }}</dt><dd>PHP {{ number_format((float) $fee['amount'], 2) }}</dd></div>@endforeach
                     <div class="student-money-total"><dt>Assessed total</dt><dd>{{ data_get($output, 'summary.assessment_total') === null ? 'Unavailable' : 'PHP '.number_format((float) data_get($output, 'summary.assessment_total'), 2) }}</dd></div>
                 </dl>
-                <div class="student-tile-actions"><x-filament::button tag="a" color="gray" icon="heroicon-o-banknotes" :href="\App\Filament\Student\Pages\Finance::getUrl(panel: 'student')">View fees and payments</x-filament::button></div>
+                <div class="student-tile-actions">
+                    <x-filament::button tag="a" color="gray" icon="heroicon-o-calendar-days" :href="\App\Filament\Student\Pages\ScheduleView::getUrl(panel: 'student')">Class schedule</x-filament::button>
+                    <x-filament::button tag="a" color="gray" icon="heroicon-o-banknotes" :href="\App\Filament\Student\Pages\Finance::getUrl(panel: 'student')">View fees and payments</x-filament::button>
+                </div>
             </section>
         @endif
     </div>

@@ -57,9 +57,9 @@ class Issue76FocusedTermNavigationTest extends TestCase
 
         $this->assertSame(['Learner work', 'Academic setup'], array_map(fn ($group): ?string => $group->getLabel(), $groups));
         $this->assertSame(['Admissions', 'Students & Enrollment', 'Students Record'], array_map(fn ($item): string => $item->getLabel(), $groups[0]->getItems()));
-        $this->assertSame(['Programs & Curricula', 'Term Planning', 'Admission cycles'], array_map(fn ($item): string => $item->getLabel(), $groups[1]->getItems()));
+        $this->assertSame(['Programs & Curricula', 'School Resources', 'Term Planning', 'Admission cycles'], array_map(fn ($item): string => $item->getLabel(), $groups[1]->getItems()));
         $items = $this->planningChildren();
-        $this->assertSame(['Term overview', 'Teaching calendar', 'Classes & sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $items));
+        $this->assertSame(['Calendar', 'Classes & sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $items));
         foreach ($items as $item) {
             $this->assertNotNull($item->getIcon());
         }
@@ -68,27 +68,45 @@ class Issue76FocusedTermNavigationTest extends TestCase
             $this->assertStringContainsString('termId='.$termId, $item->getUrl());
         }
 
-        $this->assertStringContainsString(TermOverview::getUrl(['termId' => $termId]), $items[0]->getUrl());
-        $this->assertStringContainsString(TermCalendar::getUrl(['termId' => $termId]), $items[1]->getUrl());
-        $this->assertStringContainsString(TermClasses::getUrl(['termId' => $termId]), $items[2]->getUrl());
-        $this->assertStringContainsString(TermResources::getUrl(['termId' => $termId]), $items[3]->getUrl());
-        $this->assertStringContainsString(TermTimetable::getUrl(['termId' => $termId]), $items[4]->getUrl());
+        $this->assertStringContainsString(TermCalendar::getUrl(['termId' => $termId]), $items[0]->getUrl());
+        $this->assertStringContainsString(TermClasses::getUrl(['termId' => $termId]), $items[1]->getUrl());
+        $this->assertStringContainsString(TermResources::getUrl(['termId' => $termId]), $items[2]->getUrl());
+        $this->assertStringContainsString(TermTimetable::getUrl(['termId' => $termId]), $items[3]->getUrl());
     }
 
-    public function test_term_chooser_selects_the_module_without_term_specific_children(): void
+    public function test_term_chooser_selects_the_module_and_expands_chooser_and_latest_term_children(): void
     {
         $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create();
 
-        foreach ([[], ['chooseTerm' => true], ['chooseTerm' => true, 'termId' => $term->id]] as $query) {
-            $this->resolveCurrentPage(TermOverview::class, $query);
-            $groups = $this->staffNavigation()->getNavigation();
-            $parent = $groups[1]->getItems()[1];
+        // Terms Directory (TermOverview without termId) highlights Term Planning and expands the 4 steps for the default term, matching Programs & Curricula.
+        $this->resolveCurrentPage(TermOverview::class, []);
+        $groups = $this->staffNavigation()->getNavigation();
+        $parent = $groups[1]->getItems()[2];
+        $this->assertSame('Term Planning', $parent->getLabel());
+        $this->assertTrue($parent->isActive());
+        $this->assertSame([
+            'Calendar',
+            'Classes & sections',
+            'Faculty & rooms',
+            'Timetable',
+        ], array_map(fn ($item): string => $item->getLabel(), $parent->getChildItems()));
+        $this->assertFalse($parent->getChildItems()[0]->isActive());
 
-            $this->assertSame('Term Planning', $parent->getLabel());
-            $this->assertTrue($parent->isActive());
-            $this->assertSame([], $parent->getChildItems());
-        }
+        // Opening a Term (Calendar or any stage) expands the four linear workflow steps with that termId.
+        $this->resolveCurrentPage(TermCalendar::class, ['termId' => $term->id]);
+        $groups = $this->staffNavigation()->getNavigation();
+        $parent = $groups[1]->getItems()[2];
+        $this->assertSame('Term Planning', $parent->getLabel());
+        $this->assertTrue($parent->isActive());
+        $childLabels = array_map(fn ($item): string => $item->getLabel(), $parent->getChildItems());
+        $this->assertSame([
+            'Calendar',
+            'Classes & sections',
+            'Faculty & rooms',
+            'Timetable',
+        ], $childLabels);
+        $this->assertTrue($parent->getChildItems()[0]->isActive());
     }
 
     public function test_invalid_term_context_does_not_expose_term_specific_navigation(): void
@@ -113,8 +131,8 @@ class Issue76FocusedTermNavigationTest extends TestCase
         $this->assertCount(1, $groups);
         $this->assertSame(['Academic Oversight'], array_map(fn ($item): string => $item->getLabel(), $groups[0]->getItems()));
         $planningItems = $this->planningChildren();
-        $this->assertSame(['Term overview', 'Teaching calendar', 'Classes & sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $planningItems));
-        $this->assertTrue($planningItems[2]->isActive());
+        $this->assertSame(['Calendar', 'Classes & sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $planningItems));
+        $this->assertTrue($planningItems[1]->isActive());
         foreach ($planningItems as $item) {
             $this->assertNotNull($item->getIcon());
         }
@@ -134,9 +152,9 @@ class Issue76FocusedTermNavigationTest extends TestCase
         $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create();
         $sources = [
-            [ListFacultyQualifications::class, [], 3],
-            [ListCalendarEvents::class, ['resourceView' => 'rooms'], 3],
-            [ViewScheduleGenerationRun::class, [], 4],
+            [ListFacultyQualifications::class, [], 2],
+            [ListCalendarEvents::class, ['resourceView' => 'rooms'], 2],
+            [ViewScheduleGenerationRun::class, [], 3],
         ];
 
         foreach ($sources as [$page, $query, $activeIndex]) {
@@ -161,7 +179,7 @@ class Issue76FocusedTermNavigationTest extends TestCase
         $this->resolveCurrentPage(TermOverview::class, ['termId' => $term->id]);
 
         $this->assertSame($before, $this->navigationOutline());
-        $this->assertCount(5, $this->planningChildren());
+        $this->assertCount(4, $this->planningChildren());
     }
 
     /** @return array<string, list<string>> */

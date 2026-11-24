@@ -113,15 +113,15 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'FacultyQualificationResource', 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'GradesAndCompletion',
                 'ProgramResource', 'RoomResource', 'ScheduleGenerationRunResource',
-                'SchedulingDemandResource', 'SectionMeetingResource', 'SectionResource',
-                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermPlanningCluster', 'TermOverview', 'TermCalendar', 'TermClasses', 'TermClassProposal', 'TermResources', 'TermTimetable', 'TermResource', 'TranscriptRequestResource',
+                'SchedulingDemandResource', 'SchoolResources', 'SectionResource',
+                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermPlanningCluster', 'TermOverview', 'TermCalendar', 'TermClasses', 'TermResources', 'TermTimetable', 'TermResource', 'TranscriptRequestResource',
             ]],
             'accounting' => ['role' => User::StaffRoleAccounting, 'allowed' => [
                 'StaffEntry', 'EnrollmentResource', 'FeePlanResource', 'PaymentChannels',
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TranscriptRequestResource',
             ]],
             'faculty' => ['role' => User::StaffRoleFaculty, 'allowed' => [
-                'CalendarEventResource', 'StaffEntry', 'FacultyGradeRoster', 'FacultyQualificationResource',
+                'CalendarEventResource', 'StaffEntry', 'FacultyOverview', 'FacultyGradeRoster', 'FacultyQualificationResource',
                 'FacultySchedule', 'GradeRosterResource', 'MyAvailability',
             ]],
             'academic head' => ['role' => User::StaffRoleAcademicHead, 'allowed' => [
@@ -130,7 +130,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'CurriculumVersionResource', 'StaffEntry', 'EnrollmentResource', 'FacultyQualificationResource',
                 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'ProgramResource', 'RoomResource',
-                'ScheduleGenerationRunResource', 'SchedulingDemandResource', 'SectionMeetingResource',
+                'ScheduleGenerationRunResource', 'SchedulingDemandResource', 'SchoolResources',
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermPlanningCluster', 'TermOverview', 'TermCalendar', 'TermClasses', 'TermResources', 'TermTimetable', 'TermResource',
             ]],
             'system super admin' => ['role' => User::StaffRoleSystemSuperAdmin, 'allowed' => [
@@ -150,7 +150,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         $manifest = self::roleAccessManifest();
         $manifest['faculty']['allowed'] = array_values(array_diff(
             $manifest['faculty']['allowed'],
-            ['CalendarEventResource', 'GradeRosterResource', 'FacultyQualificationResource', 'MyAvailability'],
+            ['CalendarEventResource', 'FacultyOverview', 'GradeRosterResource', 'FacultyQualificationResource', 'MyAvailability'],
         ));
         $manifest['registrar']['allowed'] = array_values(array_diff(
             $manifest['registrar']['allowed'],
@@ -208,7 +208,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'CalendarEventResource', 'RoomResource', 'FacultyQualificationResource',
             'FacultyTermLoadOverrideResource', 'TermOfferingResource', 'SectionResource', 'GradeRosterResource',
             'TranscriptRequestResource', 'SchedulingDemandResource', 'ScheduleGenerationRunResource',
-            'SectionMeetingResource', 'StudentProfileResource', 'StudentLifecycleChangeResource',
+            'StudentProfileResource', 'StudentLifecycleChangeResource',
             'DuplicateProfileResolutionResource',
         ];
     }
@@ -220,14 +220,15 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'StaffEntry',
             'AssistedAdmissionApplication',
             'CatalogCurriculaWorkbench',
+            'SchoolResources',
             'TermPlanningWorkbench',
             'TermOverview',
             'TermCalendar',
             'TermClasses',
-            'TermClassProposal',
             'TermResources',
             'TermTimetable',
             'AcademicApprovals',
+            'FacultyOverview',
             'FacultyGradeRoster',
             'MyAvailability',
             'FacultySchedule',

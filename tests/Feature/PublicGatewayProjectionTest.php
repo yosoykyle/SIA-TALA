@@ -49,6 +49,46 @@ class PublicGatewayProjectionTest extends TestCase
             ->assertSee('Ask Admissions about applying');
     }
 
+    public function test_active_programs_render_live_description_and_fallback_guidance_without_exposing_program_code(): void
+    {
+        $described = Program::factory()
+            ->withDescription('Prepares learners for applied software engineering and IT systems operations.')
+            ->create([
+                'code' => 'BSIT-DESC-HIDDEN',
+                'name' => 'Diploma in Applied Information Technology',
+                'is_active' => true,
+            ]);
+        $blank = Program::factory()->create([
+            'code' => 'BSBA-BLANK-HIDDEN',
+            'name' => 'Diploma in Business Operations',
+            'description' => null,
+            'is_active' => true,
+        ]);
+
+        $response = $this->get('/')->assertOk();
+
+        $response->assertSee($described->name)
+            ->assertSee($blank->name)
+            ->assertSee('Prepares learners for applied software engineering and IT systems operations.')
+            ->assertSee('Contact Admissions for course and qualification details and the requirements for your Student type.')
+            ->assertDontSee($described->code)
+            ->assertDontSee($blank->code);
+
+        $html = $response->getContent();
+        $this->assertMatchesRegularExpression(
+            '/<p class="program-summary">\s*Prepares learners for applied software engineering and IT systems operations\.\s*<\/p>/s',
+            $html,
+        );
+        $this->assertMatchesRegularExpression(
+            '/id="programDetailModal-'.$described->id.'".*?<p class="program-modal-description">\s*Prepares learners for applied software engineering and IT systems operations\.\s*<\/p>/s',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="programDetailModal-'.$blank->id.'"(?:(?!data-program-detail-modal=|id="supportModal").)*?class="program-modal-description"/s',
+            $html,
+        );
+    }
+
     public function test_gateway_leads_with_school_discovery_and_keeps_shared_sign_in(): void
     {
         $page = $this->get('/')->assertOk()

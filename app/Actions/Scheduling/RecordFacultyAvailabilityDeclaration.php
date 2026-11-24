@@ -10,7 +10,10 @@ use App\Models\TermCalendarPackage;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 
 final class RecordFacultyAvailabilityDeclaration
@@ -35,6 +38,12 @@ final class RecordFacultyAvailabilityDeclaration
             abort(403);
         }
 
+        if ($term->state === Term::StateClosed) {
+            throw ValidationException::withMessages([
+                'term' => 'Availability cannot be updated because this Term is closed.',
+            ]);
+        }
+
         $resolved = $this->resolvePayload(
             $term,
             $declaration,
@@ -43,7 +52,9 @@ final class RecordFacultyAvailabilityDeclaration
             $teachingWindows,
         );
 
-        return DB::transaction(function () use ($term, $faculty, $actor, $resolved, $correctionReason): FacultyAvailabilityDeclaration {
+        $conflictCount = 0;
+
+        $record = DB::transaction(function () use ($term, $faculty, $actor, $resolved, $correctionReason, &$conflictCount): FacultyAvailabilityDeclaration {
             Term::query()->whereKey($term)->lockForUpdate()->firstOrFail();
             $prior = FacultyAvailabilityDeclaration::query()
                 ->where('term_id', $term->id)
@@ -81,10 +92,16 @@ final class RecordFacultyAvailabilityDeclaration
                 ])
                 ->update(['candidate_state' => 'Stale', 'updated_at' => now()]);
 
-            $this->recordPublishedImpact($term, $faculty, $actor, $record);
+            $conflictCount = $this->recordPublishedImpact($term, $faculty, $actor, $record);
 
             return $record;
         }, attempts: 5);
+
+        if ($conflictCount > 0) {
+            $this->notifyRegistrarsOfPublishedConflict($term, $faculty, $conflictCount);
+        }
+
+        return $record;
     }
 
     /**
@@ -331,7 +348,7 @@ final class RecordFacultyAvailabilityDeclaration
         User $faculty,
         User $actor,
         FacultyAvailabilityDeclaration $declaration,
-    ): void {
+    ): int {
         $affectedMeetings = SectionMeeting::query()
             ->activeOfficial()
             ->where('faculty_user_id', $faculty->id)
@@ -351,7 +368,7 @@ final class RecordFacultyAvailabilityDeclaration
             ->values();
 
         if ($affectedMeetings->isEmpty()) {
-            return;
+            return 0;
         }
 
         $affectedMeetingIds = $affectedMeetings
@@ -404,5 +421,42 @@ final class RecordFacultyAvailabilityDeclaration
             'created_at' => $timestamp,
             'updated_at' => $timestamp,
         ]);
+
+        return $affectedMeetings->count();
+    }
+
+    private function notifyRegistrarsOfPublishedConflict(Term $term, User $faculty, int $conflictCount): void
+    {
+        $registrars = User::query()
+            ->where('status', User::StatusActive)
+            ->whereHas('roles', fn ($query) => $query->where('name', User::StaffRoleRegistrar))
+            ->orderBy('id')
+            ->get();
+
+        if ($registrars->isEmpty()) {
+            return;
+        }
+
+        $termLabel = trim((string) $term->label) !== '' ? (string) $term->label : 'this term';
+        $meetingPhrase = $conflictCount === 1 ? '1 official meeting' : "{$conflictCount} official meetings";
+        $verb = $conflictCount === 1 ? 'conflicts' : 'conflict';
+        $timetableUrl = Route::has('filament.admin.term-planning.pages.timetable')
+            ? route('filament.admin.term-planning.pages.timetable', ['termId' => (int) $term->id])
+            : null;
+
+        $notification = Notification::make()
+            ->title("{$faculty->name} changed availability after publication")
+            ->body("{$meetingPhrase} in {$termLabel} {$verb} with their updated hours. Review and publish an official revision when ready.")
+            ->warning();
+
+        if ($timetableUrl !== null) {
+            $notification->actions([
+                Action::make('reviewOfficialTimetable')
+                    ->label('Review official timetable')
+                    ->url($timetableUrl),
+            ]);
+        }
+
+        $notification->sendToDatabase($registrars);
     }
 }

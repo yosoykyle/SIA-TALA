@@ -11,10 +11,6 @@
     <link rel="stylesheet" href="{{ asset('css/tala-foundation.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-error.css') }}">
 </head>
-@php
-    $admissionRecovery = request()->is('applicant*', 'admin/admission*', 'admissions/evidence/*', 'outputs/applications/*')
-        || ($statusCode === 403 && auth()->user() instanceof \App\Models\User && (auth()->user()->hasRole('applicant') || auth()->user()->hasRole(\App\Models\User::StaffRoleRegistrar)));
-@endphp
 <body class="admission-recovery" data-recovery-code="{{ $statusCode }}">
     <a class="tala-skip-link" href="#error-content">Skip to main content</a>
     @php
@@ -69,7 +65,7 @@
             </div>
             <div class="error-copy">
             <p class="error-mood">{{ $mood }}</p>
-            @unless ($admissionRecovery)<p class="status-code">Error {{ $statusCode }}</p>@endunless
+            <p class="status-code sr-only">Error {{ $statusCode }}</p>
             <h1 id="error-title">{{ $pageTitle }}</h1>
             <p class="summary">{{ $summary }}</p>
 

@@ -15,12 +15,20 @@ class AcademicReadinessService
         private readonly CourseSpecificationLifecycleService $courseSpecifications,
     ) {}
 
-    public function currentCurriculum(Program $program): ?CurriculumVersion
+    public function currentCurriculum(Program $program, ?int $academicYearId = null): ?CurriculumVersion
     {
         $program->loadMissing([
             'curriculumVersions.entries.courseSpecification.components',
             'curriculumVersions.entries.courseSpecification.course',
         ]);
+
+        if ($academicYearId !== null || $program->curriculumVersionBatches()->exists()) {
+            $batchCurriculum = $program->curriculumForAcademicYear($academicYearId);
+
+            if ($batchCurriculum instanceof CurriculumVersion) {
+                return $program->curriculumVersions->firstWhere('id', $batchCurriculum->id) ?? $batchCurriculum;
+            }
+        }
 
         return $program->curriculumVersions
             ->sort(function (CurriculumVersion $left, CurriculumVersion $right): int {

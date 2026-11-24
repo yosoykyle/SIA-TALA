@@ -12,6 +12,7 @@ use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\CurriculumVersions\Pages\ListCurriculumVersions;
 use App\Filament\Resources\CurriculumVersions\Pages\ReviewCurriculumVersion;
 use App\Filament\Resources\Programs\Pages\ViewProgram;
+use App\Filament\Resources\Programs\ProgramResource;
 use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\CourseComponent;
@@ -239,17 +240,17 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
             ->assertSee('BSIT Curriculum — Batch 2022')
             ->assertSee('BSIT Curriculum — Batch 2025')
             ->assertSee('BSIT Curriculum — Batch 2026 Draft')
-            ->assertSee('3 students')
-            ->assertSee('2 students')
-            ->assertSee('0 students')
+            ->assertTableColumnFormattedStateSet('student_profiles_count', '3', $oldCurriculum)
+            ->assertTableColumnFormattedStateSet('student_profiles_count', '2', $activeCurriculum)
+            ->assertTableColumnFormattedStateSet('student_profiles_count', '0', $draftCurriculum)
             ->assertSee('Active')
             ->assertSee('Draft')
-            ->assertSee('Inactive')
+            ->assertSee('Retired')
             ->assertDontSee($supersededUlid)
             ->assertDontSee($activeUlid)
             ->assertTableActionVisible('duplicate', $activeCurriculum)
             ->mountAction('create')
-            ->assertMountedActionModalSeeHtml('placeholder="e.g. BSIT Curriculum — Batch 2026"');
+            ->assertMountedActionModalSee('Start blank');
 
         $duplicateCall = Livewire::test(ListCurriculumVersions::class)
             ->callTableAction('duplicate', $activeCurriculum, data: [
@@ -275,7 +276,7 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
         );
 
         Livewire::test(ReviewCurriculumVersion::class, ['record' => $activeCurriculum->getRouteKey()])
-            ->assertSee('Duplicate curriculum');
+            ->assertSee('Copy to new curriculum');
 
         // Read-only Academic Head cannot duplicate curricula.
         $this->staff(User::StaffRoleAcademicHead);
@@ -330,7 +331,7 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
             'term_type' => Term::TypeFirstSemester,
         ]);
 
-        // Existing subject can also be assigned across multiple programs with custom year/term via table action.
+        // Existing subject can also be assigned across multiple draft curricula via multi-select table bulk action.
         $peCourse = Course::factory()->create(['code' => 'PE1']);
         $peSpec = CourseSpecification::factory()->for($peCourse)->create([
             'title' => 'Physical Education 1',
@@ -339,23 +340,14 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
         ]);
 
         Livewire::test(ListCourses::class)
-            ->callTableAction('assignToCurricula', $peCourse, data: [
-                'apply_to' => 'custom',
-                'placements' => [
-                    [
-                        'program_id' => $bsit->id,
-                        'year_level' => 1,
-                        'term_type' => Term::TypeFirstSemester,
-                    ],
-                    [
-                        'program_id' => $dbm->id,
-                        'year_level' => 1,
-                        'term_type' => Term::TypeSecondSemester,
-                    ],
-                ],
+            ->callTableBulkAction('assignSelectedToCurricula', [$peCourse], data: [
+                'curriculum_version_ids' => [$bsitDraft->id, $dbmDraft->id],
+                'year_level' => 1,
+                'term_type' => Term::TypeFirstSemester,
+                'requirement_group' => CurriculumEntry::RequirementGroupRequired,
             ])
-            ->assertHasNoTableActionErrors()
-            ->assertNotified('Subject added to 2 curricula');
+            ->assertHasNoTableBulkActionErrors()
+            ->assertNotified('Assigned 1 subject to 2 draft curricula.');
 
         $this->assertDatabaseHas('curriculum_entries', [
             'curriculum_version_id' => $bsitDraft->id,
@@ -367,7 +359,7 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
             'curriculum_version_id' => $dbmDraft->id,
             'course_specification_id' => $peSpec->id,
             'year_level' => '1',
-            'term_type' => Term::TypeSecondSemester,
+            'term_type' => Term::TypeFirstSemester,
         ]);
     }
 
@@ -424,31 +416,22 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
             'sequence' => 1,
         ]);
 
-        // ViewProgram renders instant Alpine year tabs (without redundant '6u'/'0u' badges) and open semester prospectus tables with Total units footer rows.
+        // ViewProgram renders the 2-tab Program Details view (Curricula + Year levels & sections) with subject/unit summary.
         Livewire::test(ViewProgram::class, ['record' => $program->id])
-            ->assertSee('All years')
-            ->assertSee('1st Year')
-            ->assertSee('2nd Year')
-            ->assertSee('3rd Year')
-            ->assertSee('4th Year')
-            ->assertDontSee('6u')
-            ->assertDontSee('0u')
+            ->assertSee('Curricula')
+            ->assertSee('Year levels & sections')
+            ->assertSee('BSIT Prospectus 2026')
+            ->assertSee('Subjects & units')
+            ->assertSee('Active');
+
+        // ReviewCurriculumVersion renders the year stepper and open semester cards with Total units footer.
+        Livewire::test(ReviewCurriculumVersion::class, ['record' => $curriculum->getRouteKey()])
+            ->assertSee('Year 1')
             ->assertSee('First Semester')
             ->assertSee('Second Semester')
-            ->assertSee('Subject code')
-            ->assertSee('Prerequisites')
             ->assertSee('IT 101')
             ->assertSee('GE 101')
             ->assertSee('IT 102')
-            ->assertSee('Total')
-            ->assertSee('6 units')
-            ->assertSee('4 units')
-            ->assertSeeHtml('x-data="{ activeYearTab:');
-
-        // ReviewCurriculumVersion also renders the bold Total units footer inside open semester cards.
-        Livewire::test(ReviewCurriculumVersion::class, ['record' => $curriculum->getRouteKey()])
-            ->assertSee('First Semester')
-            ->assertSee('Second Semester')
             ->assertSee('Total')
             ->assertSee('6 units')
             ->assertSee('4 units');
@@ -507,13 +490,13 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
         $this->assertDatabaseMissing('curriculum_versions', ['id' => $unusedDraft->id]);
         $this->assertDatabaseMissing('curriculum_entries', ['id' => $unusedEntry->id]);
 
-        // Discard draft also works from ReviewCurriculumVersion and redirects to Curricula index.
+        // Discard draft also works from ReviewCurriculumVersion and redirects to program Curricula tab.
         Livewire::test(ReviewCurriculumVersion::class, ['record' => $draftWithIntake->getRouteKey()])
             ->assertActionVisible('discardDraft')
             ->callAction('discardDraft')
             ->assertHasNoActionErrors()
             ->assertNotified('Draft curriculum discarded')
-            ->assertRedirect(CurriculumVersionResource::getUrl('index'));
+            ->assertRedirect(ProgramResource::getUrl('view', ['record' => $program->id, 'tab' => 'curricula']));
 
         $this->assertDatabaseMissing('curriculum_versions', ['id' => $draftWithIntake->id]);
 
@@ -621,7 +604,9 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
             ->assertMountedActionModalSee('Prerequisites & equivalents (optional)')
             ->assertMountedActionModalSee('Add to curricula (optional)')
             ->assertMountedActionModalSee('Subject type')
-            ->assertMountedActionModalSee('Regular subject')
+            ->assertMountedActionModalSee('Regular academic subject (included in GWA)')
+            ->assertMountedActionModalSee('TESDA / TVET Competency (included in GWA)')
+            ->assertMountedActionModalSee('Non-credit / Bridging (excluded from GWA)')
             ->assertMountedActionModalSee('Schedule type')
             ->assertMountedActionModalSee('Weekly scheduled class')
             ->assertMountedActionModalSee('Arranged / flexible schedule')
@@ -659,12 +644,13 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
             ->assertMountedActionModalSee('Keep one teacher assigned to both the Lecture and Lab meetings of a section')
             ->assertMountedActionModalSee('Meeting delivery mode');
 
-        // Assign to curricula modal also renders selectable option cards (.tala-choice-options).
+        // Assign selected subjects to draft curricula bulk modal renders draft curricula checklist and placement fields.
         Livewire::test(ListCourses::class)
-            ->mountTableAction('assignToCurricula', $course)
-            ->assertMountedActionModalSeeHtml('tala-choice-options')
-            ->assertMountedActionModalSee('All active programs (same year & term)')
-            ->assertMountedActionModalSee('Custom per program');
+            ->mountTableBulkAction('assignSelectedToCurricula', [$course])
+            ->assertMountedActionModalSee('Assign selected subjects to draft curricula')
+            ->assertMountedActionModalSee('Draft curricula')
+            ->assertMountedActionModalSee('Year level')
+            ->assertMountedActionModalSee('Semester');
     }
 
     public function test_view_course_updates_code_and_status_clarifies_actions_and_renders_structured_detail_view(): void
@@ -714,7 +700,8 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
         // Active subject view shows clear header actions, 4-cell summary strip, prerequisite title, and structured placement table.
         $view = Livewire::test(ViewCourse::class, ['record' => $course->id])
             ->assertSee('Edit teaching details')
-            ->assertSee('Update code & status')
+            ->assertSee('Edit code')
+            ->assertSee('Retire')
             ->assertDontSee('Prepare update')
             ->assertDontSee('Edit code and status')
             ->assertSee('Subject overview')
@@ -728,29 +715,34 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
             ->assertSee('1st Year · First Semester')
             ->assertSee('Open curriculum');
 
-        // Rejects duplicate code when updating code & status.
+        // Rejects duplicate code when editing code.
         $view->callAction('editCourseDetails', data: [
             'code' => 'IT 999',
-            'state' => Course::StateActive,
         ])->assertHasActionErrors(['code']);
         $this->assertSame('IT 201', $course->fresh()->code);
 
-        // Updates code & status cleanly and shows toast.
+        // Updates code cleanly and shows toast, then retires cleanly via Retire action.
         $view->fillForm([
             'code' => 'it 201a',
-            'state' => Course::StateRetired,
         ])
             ->callMountedAction()
             ->assertHasNoActionErrors()
-            ->assertNotified('Subject code & status updated');
+            ->assertNotified('Subject code updated');
 
         $this->assertSame('IT 201A', $course->fresh()->code);
+
+        $view->callAction('retireCourse')
+            ->assertHasNoActionErrors();
+
         $this->assertSame(Course::StateRetired, $course->fresh()->state);
 
-        // Creating a draft switches header button label to "Edit subject".
+        // Creating a draft opens the Edit draft modal directly and exposes the draft footer actions.
         $view->callAction('reviseSubject')
             ->assertHasNoActionErrors()
-            ->assertSee('Edit subject');
+            ->assertActionMounted('editRevision')
+            ->assertSee('Edit draft')
+            ->assertSee('Activate changes')
+            ->assertSee('Discard draft');
     }
 
     public function test_review_curriculum_version_inspector_fixes_year_zero_and_exposes_draft_edit_move_replace_remove(): void
@@ -817,7 +809,9 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
             ->assertSeeHtml('tala-curriculum-heading')
             ->assertDontSee('First intake not set')
             ->call('selectCurriculumSubject', $draftEntry1->id)
-            ->assertSee('Edit teaching details')
+            ->assertSet('subjectMode', 'edit')
+            ->assertDontSee('Edit subject & schedule')
+            ->assertSee('Draft-only changes')
             ->assertSee('Open subject')
             ->assertSee('Replace subject')
             ->assertSee('Remove from plan')

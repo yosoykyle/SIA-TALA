@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\CandidateScheduleRowReviewService;
+use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\CandidateRowsRelationManager;
@@ -14,6 +15,7 @@ use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\FacultyQualification;
+use App\Models\OperationalEvent;
 use App\Models\Program;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -24,7 +26,6 @@ use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
-use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -95,8 +96,20 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
             ->assertDontSee('role="tablist"', escape: false)
-            ->assertSee('Meetings to review')
-            ->assertSee('Term revision history')
+            ->assertSee('Solver report')
+            ->assertSee('Recorded meetings')
+            ->assertSee('Revision history')
+            ->assertActionVisible('backToTimetable')
+            ->assertActionHasUrl('backToTimetable', TermTimetable::getUrl([
+                'termId' => $context['term']->id,
+                'selectedRunId' => $context['run']->id,
+            ]))
+            ->assertActionDoesNotExist('acceptCandidate')
+            ->assertActionDoesNotExist('publishSchedule')
+            ->assertActionDoesNotExist('rejectCandidate')
+            ->assertActionDoesNotExist('revisePublishedSchedule')
+            ->assertActionDoesNotExist('cancelPublishedClass')
+            ->assertActionDoesNotExist('publishPendingRevision')
             ->assertActionDoesNotExist('manualScheduleOverride');
 
         Livewire::actingAs($registrar)
@@ -105,10 +118,14 @@ final class TAL94CCandidateReviewUxTest extends TestCase
                 'pageClass' => ViewScheduleGenerationRun::class,
             ])
             ->assertCanSeeTableRecords([$candidate])
+            ->assertSee('Recorded meetings')
             ->assertSee($context['demands'][0]->sectionDeliveryGroup->section->code)
             ->assertSee('Lecture')->assertSee('Face-to-Face')
             ->assertSee('Monday')->assertSee('8:00 AM - 11:00 AM')
-            ->assertTableActionVisible('correctAssignment', $candidate)
+            ->assertTableActionVisible('view', $candidate)
+            ->assertTableActionHasLabel('view', 'Details', $candidate)
+            ->assertTableActionDoesNotExist('correctAssignment')
+            ->assertTableActionDoesNotExist('findValidRepair')
             ->searchTable($candidate->schedulingDemand->courseComponent->courseSpecification->title)
             ->assertCanSeeTableRecords([$candidate])
             ->searchTable($candidate->schedulingDemand->courseComponent->courseSpecification->course->code)
@@ -126,8 +143,10 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
             ->assertDontSee('role="tablist"', escape: false)
-            ->assertSee('Meetings to review')
-            ->assertSee('Term revision history')
+            ->assertSee('Solver report')
+            ->assertSee('Recorded meetings')
+            ->assertSee('Revision history')
+            ->assertActionVisible('backToTimetable')
             ->assertActionDoesNotExist('manualScheduleOverride');
 
         Livewire::actingAs($academicHead)
@@ -136,7 +155,10 @@ final class TAL94CCandidateReviewUxTest extends TestCase
                 'pageClass' => ViewScheduleGenerationRun::class,
             ])
             ->assertCanSeeTableRecords([$candidate])
-            ->assertTableActionHidden('correctAssignment', $candidate);
+            ->assertTableActionVisible('view', $candidate)
+            ->assertTableActionHasLabel('view', 'Details', $candidate)
+            ->assertTableActionDoesNotExist('correctAssignment')
+            ->assertTableActionDoesNotExist('findValidRepair');
 
         $this->assertFalse(Gate::forUser($superAdmin)->allows('reviewCandidates', $context['run']));
         $this->assertFalse(Gate::forUser($academicHead)->allows('reviewCandidates', $context['run']));
@@ -220,8 +242,10 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->assertSee('Requested changes: 1 · Other changes: 1 · Unchanged meetings: 1.')
             ->assertCanSeeTableRecords([$rows[0], $rows[1]])
             ->assertCanNotSeeTableRecords([$rows[2]])
-            ->assertTableActionHidden('correctAssignment', $rows[0])
-            ->assertTableActionHidden('findValidRepair', $rows[0])
+            ->assertTableActionVisible('view', $rows[0])
+            ->assertTableActionHasLabel('view', 'Details', $rows[0])
+            ->assertTableActionDoesNotExist('correctAssignment')
+            ->assertTableActionDoesNotExist('findValidRepair')
             ->mountTableAction('view', $rows[0])
             ->assertMountedActionModalSee('Assignment comparison')
             ->assertMountedActionModalSee('Requested repair')
@@ -257,47 +281,40 @@ final class TAL94CCandidateReviewUxTest extends TestCase
                 ->test(CandidateRowsRelationManager::class, ['ownerRecord' => $context['run']->fresh(), 'pageClass' => ViewScheduleGenerationRun::class])
                 ->mountTableAction('view', $candidate)
                 ->assertMountedActionModalSee('Source assignment unavailable')
-                ->assertMountedActionModalSee('Previous assignment unavailable. Inspect the source evidence before accepting this update.')
+                ->assertMountedActionModalSee('Previous assignment unavailable in the recorded source.')
                 ->assertMountedActionModalSee('Tuesday · 8:00 AM - 11:00 AM · Asia/Manila')
                 ->assertMountedActionModalDontSee('Monday · 8:00 AM - 11:00 AM · Asia/Manila');
         }
     }
 
-    public function test_registrar_can_submit_a_valid_candidate_correction_through_the_relation_action(): void
+    public function test_candidate_correction_service_creates_validated_successor_while_audit_table_remains_read_only(): void
     {
         $context = $this->context();
         $candidate = $this->candidate($context);
         $registrar = $this->staff(User::StaffRoleRegistrar);
 
-        $component = Livewire::actingAs($registrar)
+        Livewire::actingAs($registrar)
             ->test(CandidateRowsRelationManager::class, [
                 'ownerRecord' => $context['run'],
                 'pageClass' => ViewScheduleGenerationRun::class,
             ])
-            ->callAction(TestAction::make('correctAssignment')->table($candidate), data: [
-                'faculty_user_id' => $context['faculty']->id,
-                'room_id' => $context['room']->id,
-                'day_of_week' => 1,
-                'starts_at' => '09:00',
-                'ends_at' => '12:00',
-                'override_authority' => 'Registrar scheduling memorandum',
-                'override_reason' => 'Corrected the start time after faculty confirmation.',
-            ])
-            ->assertHasNoActionErrors()
-            ->assertNotified('Candidate assignment corrected');
+            ->assertTableActionVisible('view', $candidate)
+            ->assertTableActionHasLabel('view', 'Details', $candidate)
+            ->assertTableActionDoesNotExist('correctAssignment')
+            ->assertTableActionDoesNotExist('findValidRepair');
 
-        $successor = ScheduleGenerationRun::query()
-            ->where('term_id', $context['term']->id)
-            ->whereKeyNot($context['run']->id)
-            ->latest('id')
-            ->firstOrFail();
+        $successor = app(CandidateScheduleRowReviewService::class)->revise($candidate, [
+            'faculty_user_id' => $context['faculty']->id,
+            'room_id' => $context['room']->id,
+            'day_of_week' => 1,
+            'starts_at' => '09:00',
+            'ends_at' => '12:00',
+            'override_authority' => 'Registrar scheduling memorandum',
+            'override_reason' => 'Corrected the start time after faculty confirmation.',
+        ], $registrar);
+
         $corrected = $successor->candidateRows()->sole();
         $diagnostics = $successor->diagnostics;
-
-        $component->assertRedirect(ScheduleGenerationRunResource::getUrl('view', [
-            'record' => $successor,
-            'termId' => $context['term']->id,
-        ]));
 
         $this->assertSame('09:00:00', $corrected->starts_at);
         $this->assertSame('Registrar scheduling memorandum', $corrected->override_authority);
@@ -316,7 +333,7 @@ final class TAL94CCandidateReviewUxTest extends TestCase
         ]);
     }
 
-    public function test_invalid_candidate_correction_is_reported_and_preserves_the_original_row(): void
+    public function test_invalid_candidate_correction_is_rejected_by_service_and_preserves_the_original_row(): void
     {
         $context = $this->context();
         $candidate = $this->candidate($context);
@@ -328,7 +345,10 @@ final class TAL94CCandidateReviewUxTest extends TestCase
                 'ownerRecord' => $context['run'],
                 'pageClass' => ViewScheduleGenerationRun::class,
             ])
-            ->callTableAction('correctAssignment', $candidate, data: [
+            ->assertTableActionDoesNotExist('correctAssignment');
+
+        try {
+            app(CandidateScheduleRowReviewService::class)->revise($candidate, [
                 'faculty_user_id' => $context['faculty']->id,
                 'room_id' => $context['room']->id,
                 'day_of_week' => 1,
@@ -336,8 +356,11 @@ final class TAL94CCandidateReviewUxTest extends TestCase
                 'ends_at' => '12:00:00',
                 'override_authority' => 'Registrar scheduling memorandum',
                 'override_reason' => 'This invalid proposal must remain atomic.',
-            ])
-            ->assertNotified('Candidate correction blocked');
+            ], $registrar);
+
+            $this->fail('Expected invalid candidate correction to fail validation.');
+        } catch (ValidationException) {
+        }
 
         $preserved = $context['run']->candidateRows()->sole();
         $this->assertSame($candidate->id, $preserved->id);
@@ -347,6 +370,62 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             'subject_id' => $context['run']->id,
             'event' => 'candidate_correction',
         ]);
+    }
+
+    public function test_audit_record_exposes_retry_and_resend_only_when_applicable_and_hides_them_when_term_is_closed(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $academicHead = $this->staff(User::StaffRoleAcademicHead);
+        $failedContext = $this->context(runStatus: ScheduleGenerationRun::StatusFailed);
+        $failedContext['run']->update([
+            'diagnostics' => [
+                'solver_dispatch' => [
+                    'status' => 'failed',
+                    'failure' => [
+                        'code' => 'SOLVER_TIMEOUT',
+                        'message' => 'Timed out while dispatching.',
+                        'retryable' => true,
+                        'final' => true,
+                    ],
+                ],
+            ],
+        ]);
+        OperationalEvent::factory()->failed()->create([
+            'event_type' => OperationalEvent::TypeScheduleReleasedEmail,
+            'related_record_type' => ScheduleGenerationRun::class,
+            'related_record_id' => $failedContext['run']->id,
+        ]);
+
+        Livewire::actingAs($registrar)
+            ->test(ViewScheduleGenerationRun::class, ['record' => $failedContext['run']->getRouteKey()])
+            ->assertOk()
+            ->assertSee('Solver report')
+            ->assertActionVisible('backToTimetable')
+            ->assertActionVisible('retrySolverRun')
+            ->assertActionHasLabel('retrySolverRun', 'Retry solver')
+            ->assertActionVisible('resendFailedEmails')
+            ->assertActionDoesNotExist('acceptCandidate')
+            ->assertActionDoesNotExist('publishSchedule')
+            ->assertActionDoesNotExist('rejectCandidate')
+            ->assertActionDoesNotExist('revisePublishedSchedule')
+            ->assertActionDoesNotExist('cancelPublishedClass')
+            ->assertActionDoesNotExist('publishPendingRevision');
+
+        Livewire::actingAs($academicHead)
+            ->test(ViewScheduleGenerationRun::class, ['record' => $failedContext['run']->getRouteKey()])
+            ->assertOk()
+            ->assertActionVisible('backToTimetable')
+            ->assertActionHidden('retrySolverRun')
+            ->assertActionHidden('resendFailedEmails');
+
+        $failedContext['term']->update(['state' => Term::StateClosed]);
+
+        Livewire::actingAs($registrar)
+            ->test(ViewScheduleGenerationRun::class, ['record' => $failedContext['run']->getRouteKey()])
+            ->assertOk()
+            ->assertActionVisible('backToTimetable')
+            ->assertActionHidden('retrySolverRun')
+            ->assertActionHidden('resendFailedEmails');
     }
 
     public function test_generic_manual_override_action_is_retired_without_mutating_blocked_or_failed_runs(): void
@@ -440,12 +519,10 @@ final class TAL94CCandidateReviewUxTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
-            ->assertSee('Current validation')
-            ->assertSee('Original Solver Score')
-            ->assertSee('Original solver result')
+            ->assertSee('Summary & checks')
+            ->assertSee('Publication & verification')
+            ->assertSee('Solver report')
             ->assertSee('Timetable')
-            ->assertSee('Source Contract')
-            ->assertSee('Historical compatibility: tal94-demand-v2 / balanced_v1.')
             ->assertSee('Current room capacity no longer satisfies the demand.')
             ->assertSee($roomUrl, escape: false)
             ->assertDontSee('Old solver finding is not the latest validation truth.')

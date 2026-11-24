@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Courses;
 
 use App\Actions\AcademicSetup\CurriculumWorkbenchService;
+use App\Filament\Resources\Courses\Pages\ImportCatalogSubjects;
 use App\Filament\Resources\Courses\Pages\ListCourses;
 use App\Filament\Resources\Courses\Pages\ViewCourse;
 use App\Filament\Resources\Courses\Schemas\CourseForm;
@@ -44,7 +45,7 @@ class CourseResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Registrar';
 
-    protected static ?string $navigationLabel = 'Subjects';
+    protected static ?string $navigationLabel = 'Subject catalog';
 
     protected static ?string $modelLabel = 'subject';
 
@@ -150,9 +151,9 @@ class CourseResource extends Resource
             ->color('danger')
             ->icon(Heroicon::OutlinedTrash)
             ->requiresConfirmation()
-            ->modalHeading(fn (Course $record): string => "Delete {$record->code}?")
-            ->modalDescription('This unused subject and its draft teaching details will be permanently removed. Subjects used in curricula, classes, or student records cannot be deleted.')
-            ->modalSubmitActionLabel('Delete subject')
+            ->modalHeading(fn (Course $record): string => "Delete draft {$record->code}?")
+            ->modalDescription('Only unused, unpublished draft subjects can be permanently deleted. Published (Active), retired, or referenced subjects cannot be deleted.')
+            ->modalSubmitActionLabel('Delete draft subject')
             ->authorize(fn (Course $record): bool => (auth()->user()?->can('create', Course::class) ?? false)
                 && self::canDeleteUnusedSubject($record))
             ->visible(fn (Course $record): bool => (auth()->user()?->can('create', Course::class) ?? false)
@@ -182,6 +183,17 @@ class CourseResource extends Resource
 
     public static function canDeleteUnusedSubject(Course $course): bool
     {
+        if ($course->state === Course::StateRetired) {
+            return false;
+        }
+
+        if (CourseSpecification::query()
+            ->where('course_id', $course->id)
+            ->whereIn('state', [CourseSpecification::StateActive, CourseSpecification::StateRetired])
+            ->exists()) {
+            return false;
+        }
+
         return CurriculumEntry::query()
             ->whereHas('courseSpecification', fn ($query) => $query->where('course_id', $course->id))
             ->doesntExist()
@@ -220,7 +232,7 @@ class CourseResource extends Resource
 
             if (! self::canDeleteUnusedSubject($lockedCourse)) {
                 throw ValidationException::withMessages([
-                    'course' => 'This subject is referenced in curricula, classes, grades, or requirements and cannot be deleted.',
+                    'course' => 'Only unused, unpublished draft subjects can be deleted. Published (Active), retired, or referenced subjects cannot be deleted.',
                 ]);
             }
 
@@ -295,6 +307,7 @@ class CourseResource extends Resource
     {
         return [
             'index' => ListCourses::route('/'),
+            'import' => ImportCatalogSubjects::route('/import'),
             'view' => ViewCourse::route('/{record}'),
         ];
     }

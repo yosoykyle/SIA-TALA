@@ -9,12 +9,13 @@ use App\Actions\Scheduling\PrepareClassOffering;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
 use App\Actions\Scheduling\RecordTermCohort;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
-use App\Filament\Pages\TermClasses;
+use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermResources;
 use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\FacultyQualifications\Pages\ListFacultyQualifications;
 use App\Filament\Resources\Terms\Pages\ViewTerm;
+use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
@@ -145,21 +146,24 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
             'selectedVersionId' => $officialVersion->id,
         ]);
 
-        $overview = Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class);
-        $overview->assertSee('Needs your action')
-            ->assertSee('Maria Santos changed availability after publication')
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
+            ->assertRedirect(TermCalendar::getUrl(['termId' => $term->id]));
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
+            ->assertSee('Maria Santos')
             ->assertSee('Graduate school classes on Tuesday afternoons')
             ->assertSee('IT 312')
             ->assertSee('Start timetable revision')
             ->assertSeeHtml('href="'.e($officialRevisionUrl).'"')
-            ->assertSee('Class IT314-B (IT 314) requires Jose Reyes, who has No response for this Term.')
-            ->assertSee('Teaching times outside updated hours for Ana Dela Cruz')
+            ->assertSee('Review needed: 2 teachers chose times outside the updated teaching hours.')
             ->assertSee('2 of 4')
-            ->assertSee('faculty replied')
-            ->assertSeeHtml('href="'.e(TermResources::getUrl(['termId' => $term->id])).'"')
-            ->assertSeeHtml('href="'.e(TermClasses::getUrl(['termId' => $term->id])).'"');
+            ->assertSee('faculty replied');
 
-        // Resolve blockers so only non-essential teacher remains No response -> calm reassurance appears.
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
+            ->assertSee('Class IT314-B (IT 314) requires Jose Reyes, who has not responded yet for this term.')
+            ->assertSeeHtml('href="'.e(TermResources::getUrl(['termId' => $term->id])).'"');
+
+        // Resolve blockers so only non-essential teacher remains No response -> readiness blockers clear.
         app(RecordFacultyAvailabilityDeclaration::class)->execute(
             term: $term,
             faculty: $missingTeacher,
@@ -184,10 +188,72 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
         );
         SectionMeeting::query()->where('faculty_user_id', $lateTeacher->id)->update(['state' => SectionMeeting::StateCancelled]);
 
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
-            ->assertSee('No blockers in classes or faculty replies')
-            ->assertSee('Teachers with no response will not be scheduled for new assignments until they reply.')
-            ->assertDontSee('Needs your action');
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
+            ->assertDontSee('Graduate school classes on Tuesday afternoons')
+            ->assertDontSee('Review needed:');
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
+            ->assertDontSee('requires Jose Reyes')
+            ->assertDontSee('Availability must be recorded before generating a timetable.');
+    }
+
+    public function test_terms_directory_and_term_settings_modal_work_for_draft_and_active_terms(): void
+    {
+        $this->staff(User::StaffRoleRegistrar);
+        $year = AcademicYear::factory()->create([
+            'starts_on' => '2032-06-01',
+            'ends_on' => '2033-05-31',
+        ]);
+        $draftTerm = Term::factory()->for($year)->create([
+            'type' => Term::TypeFirstSemester,
+            'state' => Term::StateDraft,
+            'label' => 'First Semester Draft 2032',
+            'starts_on' => '2032-08-01',
+            'ends_on' => '2032-12-15',
+        ]);
+        $activeTerm = Term::factory()->for($year)->create([
+            'type' => Term::TypeSecondSemester,
+            'state' => Term::StateActive,
+            'label' => 'Second Semester Active 2032',
+            'starts_on' => '2033-01-10',
+            'ends_on' => '2033-05-20',
+            'default_max_units' => 24,
+        ]);
+
+        Livewire::test(TermOverview::class)
+            ->assertOk()
+            ->assertSee('First Semester Draft 2032')
+            ->assertSee('Second Semester Active 2032')
+            ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $draftTerm->id])).'"');
+
+        Livewire::withQueryParams(['termId' => $draftTerm->id])->test(TermOverview::class)
+            ->assertRedirect(TermCalendar::getUrl(['termId' => $draftTerm->id]));
+
+        Livewire::withQueryParams(['termId' => 999999])->test(TermOverview::class)
+            ->assertNotFound();
+
+        Livewire::withQueryParams(['termId' => $draftTerm->id])->test(TermCalendar::class)
+            ->callAction('termSettings', [
+                'academic_year_id' => $draftTerm->academic_year_id,
+                'type' => Term::TypeFirstSemester,
+                'starts_on' => '2032-08-15',
+                'ends_on' => '2032-12-20',
+                'default_max_units' => 21,
+            ])
+            ->assertHasNoActionErrors();
+
+        $this->assertSame('First Semester', $draftTerm->fresh()->label);
+        $this->assertSame('2032-08-15', $draftTerm->fresh()->starts_on->toDateString());
+        $this->assertSame('2032-12-20', $draftTerm->fresh()->ends_on->toDateString());
+        $this->assertSame('21.00', (string) $draftTerm->fresh()->default_max_units);
+
+        Livewire::withQueryParams(['termId' => $activeTerm->id])->test(TermCalendar::class)
+            ->callAction('termSettings', [
+                'default_max_units' => 18,
+            ])
+            ->assertHasNoActionErrors();
+
+        $this->assertSame('18.00', (string) $activeTerm->fresh()->default_max_units);
     }
 
     public function test_faculty_and_rooms_shows_unified_strip_collapsed_no_response_modes_cues_and_merged_reminder(): void
@@ -252,7 +318,9 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
         $page->assertSee('3 of 6')
             ->assertSee('faculty replied')
             ->assertSee('3 replied · 3 no response · 1 cannot teach · 1 review needed')
-            ->assertSee('Faculty can already answer anytime while the teaching calendar is active.')
+            ->assertSee('Reply by:')
+            ->assertSee('No due date set')
+            ->assertSee('Load limit:')
             ->assertSee('Choose teaching times')
             ->assertSee('Mon 8:00 AM–12:00 PM')
             ->assertSee('Any approved teaching time')
@@ -281,7 +349,6 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
             ->setActionData([
                 'faculty_user_ids' => [$notSentNoReply->id],
                 'due_at' => now()->addDays(5)->format('Y-m-d H:i:s'),
-                'authority_reference' => 'CP1 merged reminder test',
             ])
             ->callMountedAction()
             ->assertHasNoActionErrors()
@@ -289,7 +356,7 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
 
         $this->assertDatabaseHas('faculty_availability_deadlines', [
             'term_id' => $term->id,
-            'authority_reference' => 'CP1 merged reminder test',
+            'authority_reference' => null,
         ]);
         $this->assertDatabaseHas('operational_events', [
             'event_type' => OperationalEvent::TypeFacultyAvailabilityRequestedEmail,

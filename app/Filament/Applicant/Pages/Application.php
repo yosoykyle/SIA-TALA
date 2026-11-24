@@ -15,6 +15,8 @@ use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationCorrectionItem;
 use App\Models\ApplicationCorrectionRequest;
+use App\Models\CurriculumVersion;
+use App\Models\CurriculumVersionBatch;
 use App\Models\DocumentEvidence;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\Program;
@@ -1264,24 +1266,63 @@ class Application extends Page
      */
     protected function officialProgramOptions(int $cycleId, string $path): array
     {
+        $schoolUsesBatches = CurriculumVersionBatch::query()->exists();
+
         if ($cycleId < 1) {
             $flag = $path === AdmissionApplication::PathTransferee ? 'accepts_transferee' : 'accepts_first_year';
-
-            return Program::query()->where('is_active', true)->whereHas('admissionCycles', fn (Builder $query): Builder => $query
-                ->where('state', AdmissionCycle::StatePublished)->where('opens_at', '<=', now())->where('closes_at', '>', now())
+            $openAcademicYearIds = AdmissionCycle::query()
+                ->where('state', AdmissionCycle::StatePublished)
+                ->where('opens_at', '<=', now())
+                ->where('closes_at', '>', now())
                 ->whereHas('term', fn (Builder $term): Builder => $term->where('state', Term::StateActive))
-                ->when(in_array($path, [AdmissionApplication::PathFirstYear, AdmissionApplication::PathTransferee], true), fn (Builder $cycle): Builder => $cycle->where('admission_cycle_program.'.$flag, true)))
-                ->orderBy('name')->pluck('name', 'id')->all();
+                ->with('term:id,academic_year_id')
+                ->get()
+                ->pluck('term.academic_year_id')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            return Program::query()
+                ->where('is_active', true)
+                ->whereHas('admissionCycles', fn (Builder $query): Builder => $query
+                    ->where('state', AdmissionCycle::StatePublished)
+                    ->where('opens_at', '<=', now())
+                    ->where('closes_at', '>', now())
+                    ->whereHas('term', fn (Builder $term): Builder => $term->where('state', Term::StateActive))
+                    ->when(in_array($path, [AdmissionApplication::PathFirstYear, AdmissionApplication::PathTransferee], true), fn (Builder $cycle): Builder => $cycle->where('admission_cycle_program.'.$flag, true)))
+                ->when(
+                    $schoolUsesBatches && $openAcademicYearIds !== [],
+                    fn (Builder $query): Builder => $query->whereHas('curriculumVersionBatches', fn (Builder $batches): Builder => $batches
+                        ->whereIn('academic_year_id', $openAcademicYearIds)
+                        ->whereHas('curriculumVersion', fn (Builder $versions): Builder => $versions
+                            ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded]))),
+                )
+                ->orderBy('name')
+                ->pluck('name', 'id')
+                ->all();
         }
 
         $pivotColumn = $path === AdmissionApplication::PathTransferee
             ? 'accepts_transferee'
             : 'accepts_first_year';
+        $cycleAcademicYearId = AdmissionCycle::query()
+            ->whereKey($cycleId)
+            ->with('term:id,academic_year_id')
+            ->first()?->term?->academic_year_id;
 
         return Program::query()
+            ->where('is_active', true)
             ->whereHas('admissionCycles', fn ($query) => $query
                 ->where('admission_cycles.id', $cycleId)
                 ->where("admission_cycle_program.{$pivotColumn}", true))
+            ->when(
+                $schoolUsesBatches && $cycleAcademicYearId !== null,
+                fn (Builder $query): Builder => $query->whereHas('curriculumVersionBatches', fn (Builder $batches): Builder => $batches
+                    ->where('academic_year_id', $cycleAcademicYearId)
+                    ->whereHas('curriculumVersion', fn (Builder $versions): Builder => $versions
+                        ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded]))),
+            )
             ->orderBy('name')
             ->pluck('name', 'id')
             ->all();

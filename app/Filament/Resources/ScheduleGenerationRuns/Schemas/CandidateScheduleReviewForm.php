@@ -20,7 +20,6 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Grid;
@@ -41,7 +40,7 @@ final class CandidateScheduleReviewForm
                 ->description('Choose the teacher, room and time for this meeting. TALA checks the complete candidate before recording an updated draft.')
                 ->schema(self::assignmentFields($run))
                 ->columns(['default' => 1, 'md' => 2]),
-            Section::make('Reason and authority')
+            Section::make('Reason')
                 ->schema(self::evidenceFields())
                 ->columns(1),
         ];
@@ -186,15 +185,9 @@ final class CandidateScheduleReviewForm
     private static function evidenceFields(): array
     {
         return [
-            TextInput::make('override_authority')
-                ->label('Approval memo or reference')
-                ->placeholder('e.g., Memo 2026-014 or approving office')
-                ->helperText('Record the approving person, office, or memo reference.')
-                ->maxLength(255)
-                ->required(),
             Textarea::make('override_reason')
                 ->label('Reason')
-                ->helperText('Explain why this candidate adjustment is needed. The complete candidate must pass validation before acceptance or publication.')
+                ->helperText('Explain why this candidate adjustment is needed. The complete candidate must pass validation before acceptance or publication. TALA records the actor and timestamp automatically.')
                 ->rows(3)
                 ->maxLength(2000)
                 ->required()

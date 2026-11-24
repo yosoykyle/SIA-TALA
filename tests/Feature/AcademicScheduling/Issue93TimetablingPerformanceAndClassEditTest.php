@@ -16,7 +16,6 @@ use App\Actions\Scheduling\ScheduleCloudResultIngestor;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermClasses;
-use App\Filament\Pages\TermClassProposal;
 use App\Filament\Pages\TermResources;
 use App\Models\CandidateScheduleRow;
 use App\Models\Course;
@@ -416,35 +415,39 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
         app(GenerateSchedulingDemand::class)->forTerm($registrar, $term);
 
         $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class);
-        // Preserves #80's Schedule requirements button + surfaces inline findings + shows Edit on confirmed unpublished class.
-        $page->assertSee('Schedule requirements')
+        // Surfaces Load from curriculum + inline findings + shows Edit on confirmed unpublished class.
+        $page->assertSee('Load from curriculum')
             ->assertSee('Room type needed')
             ->assertSee('Face-to-Face demand needs a room type')
             ->assertTableActionVisible('editClass', $section);
 
         // Validation error sends danger toast and makes no write when learners exceed capacity.
-        $page->callTableAction('editClass', $section, [
-            'capacity' => 20,
-            'delivery_mode' => TermOffering::ModalityFaceToFace,
-            'lecture_room_type' => CourseComponent::RoomTypeLectureRoom,
-            'laboratory_room_type' => CourseComponent::RoomTypeComputerLaboratory,
-            'sync_latest_curriculum' => true,
-            'cohorts' => [['term_cohort_id' => $cohort->id, 'expected_count' => 30]],
-        ])
+        $page->mountTableAction('editClass', $section)
+            ->setTableActionData([
+                'delivery_mode' => TermOffering::ModalityFaceToFace,
+                'lecture_room_type' => CourseComponent::RoomTypeLectureRoom,
+                'laboratory_room_type' => CourseComponent::RoomTypeComputerLaboratory,
+                'sync_latest_curriculum' => true,
+                'cohorts' => [['term_cohort_id' => $cohort->id, 'expected_count' => 30]],
+            ])
+            ->setTableActionData(['capacity' => 20])
+            ->callMountedTableAction()
             ->assertHasTableActionErrors(['capacity'])
             ->assertNotified('Cannot save class changes')
             ->call('unmountAction');
         $this->assertSame(30, $section->fresh()->capacity);
 
-        // Valid Edit updates capacity, cohort count, per-component Lecture & Lab room overrides, and syncs active curriculum!
-        $page->callTableAction('editClass', $section, [
-            'capacity' => 40,
-            'delivery_mode' => TermOffering::ModalityFaceToFace,
-            'lecture_room_type' => CourseComponent::RoomTypeLectureRoom,
-            'laboratory_room_type' => CourseComponent::RoomTypeComputerLaboratory,
-            'sync_latest_curriculum' => true,
-            'cohorts' => [['term_cohort_id' => $cohort->id, 'expected_count' => 32]],
-        ])
+        // Valid Edit updates capacity, cohort count, per-component Lecture & Lab room overrides, and syncs active subject revision without overwriting cohort curriculum batch!
+        $page->mountTableAction('editClass', $section)
+            ->setTableActionData([
+                'delivery_mode' => TermOffering::ModalityFaceToFace,
+                'lecture_room_type' => CourseComponent::RoomTypeLectureRoom,
+                'laboratory_room_type' => CourseComponent::RoomTypeComputerLaboratory,
+                'sync_latest_curriculum' => true,
+                'cohorts' => [['term_cohort_id' => $cohort->id, 'expected_count' => 32]],
+            ])
+            ->setTableActionData(['capacity' => 40])
+            ->callMountedTableAction()
             ->assertHasNoTableActionErrors()
             ->assertNotified('Class and room requirements updated');
 
@@ -453,7 +456,7 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
 
         $this->assertSame(40, $section->capacity);
         $this->assertSame(32, (int) $section->cohorts()->firstOrFail()->pivot->expected_count);
-        $this->assertSame($newEntry->id, $offering->curriculum_entry_id);
+        $this->assertSame($oldCurriculum->id, $cohort->fresh()->curriculum_version_id);
         $this->assertSame($newSpec->id, $section->course_specification_id);
 
         $demands = SchedulingDemand::query()->where('term_offering_id', $offering->id)->get()->keyBy('course_component_id');
@@ -560,22 +563,13 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
             ->assertMountedActionModalSee('BSIT Curriculum 2026')
             ->assertMountedActionModalDontSee($ulidCode);
 
-        // 2. TermClassProposal hides manual Class reference input, hides raw ULID version_code, and preserves incomplete proposal feedback (#80).
-        $proposalPage = Livewire::withQueryParams(['termId' => $term->id])->test(TermClassProposal::class)
-            ->callAction('addCourses', [
-                'program' => $program->name,
-                'entries' => [$entry->id],
-            ])
-            ->assertHasNoActionErrors()
-            ->assertSee('BSIT Curriculum 2026')
-            ->assertDontSee($ulidCode)
-            ->assertDontSee('Class reference');
-
-        // Confirm incomplete proposal (capacity & cohorts empty): catches error, reveals errors, sends danger notification, no crash.
-        $proposalPage->callAction('confirmProposal')
-            ->assertSet('revealProposalErrors', true)
-            ->assertNotified('Complete the highlighted class details before confirming');
-        $this->assertSame(0, Section::query()->whereHas('termOffering', fn ($q) => $q->where('term_id', $term->id))->count());
+        // 2. TermClasses loadCurriculumSubjects modal hides manual Class reference input and raw ULID version_code.
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+            ->mountAction('loadCurriculumSubjects')
+            ->setActionData(['term_cohort_id' => $cohort->id])
+            ->assertMountedActionModalSee('BSIT Curriculum 2026')
+            ->assertMountedActionModalDontSee($ulidCode)
+            ->assertMountedActionModalDontSee('Class reference');
 
         // 3. Backend auto-generates deterministic unique class references (IT101-BSIT1A and IT101-BSIT1A-2 on collision) when code is omitted.
         $proposalService = app(PrepareTermClassProposal::class);
@@ -638,21 +632,22 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
             'authority_date' => '2026-06-15',
         ]);
 
-        // 1. TermCalendar: removes both supporting-details dropdowns, shows inline daily hours + source metadata + calm activity footnote.
+        // 1. TermCalendar: removes both supporting-details dropdowns, shows visual weekly hours + 3-fact summary + calm activity footnote (and omits routine approval note).
         $calendarPage = Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
-            ->assertSee('Mon')
-            ->assertSee('8:00 AM–5:00 PM')
-            ->assertSee('Break 12:00 PM–1:00 PM')
-            ->assertSee('30-minute scheduling slots')
-            ->assertSee('Approval note: MEMO-2026-09')
+            ->assertSee('Monday')
+            ->assertSee('8:00 AM–12:00 PM')
+            ->assertSee('12:00 PM–1:00 PM')
+            ->assertSee('1:00 PM–5:00 PM')
+            ->assertSee('30-minute slots')
+            ->assertDontSee('Approval note: MEMO-2026-09')
             ->assertSee('Times use Asia/Manila. Activity dates do not block class planning.')
             ->assertDontSee('Teaching hours and source details')
             ->assertDontSee('What these dates control');
 
         $this->assertStringNotContainsString('tala-supporting-details--inset', $calendarPage->html());
 
-        // 2. TermClasses: unconfirmed class shows "Needs confirmation" badge (not duplicate "Confirm learners" badge), keeps Confirm learners button,
-        // keeps #80's Schedule requirements button, wraps cohort code with whitespace-nowrap, and uses compact tala-navigation tabs.
+        // 2. TermClasses: unconfirmed class shows "Needs confirmation" badge (not duplicate "Confirm students" badge), keeps Confirm students button,
+        // keeps Load from curriculum button, wraps cohort code with whitespace-nowrap, and uses compact tala-navigation tabs.
         $course = Course::factory()->create(['code' => 'IT 105']);
         $spec = CourseSpecification::factory()->for($course)->create([
             'title' => 'Systems Fundamentals',
@@ -688,27 +683,27 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
         $unconfirmedSection->cohorts()->attach($cohort->id, ['expected_count' => 28]);
 
         $classesPage = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
-            ->assertSee('Schedule requirements')
+            ->assertSee('Load from curriculum')
             ->assertSee('Needs confirmation')
-            ->assertSee('Confirm learners')
+            ->assertSee('Confirm students')
             ->assertSeeHtml('<span class="inline-block whitespace-nowrap">BSIT-2026-COHORT 1</span>')
-            ->assertSee('28 learners')
+            ->assertSee('28 students')
             ->assertSeeHtml('tala-navigation tala-navigation-compact')
             ->assertDontSee('Review the classes that will run and the meetings they need.');
 
-        // Exactly one occurrence of "Confirm learners" (the row action button, never duplicated in the Status badge).
-        $this->assertSame(1, substr_count($classesPage->html(), 'Confirm learners'));
+        // Exactly one occurrence of "Confirm students" (the row action button, never duplicated in the Status badge).
+        $this->assertSame(1, substr_count($classesPage->html(), 'Confirm students'));
 
         // 3. TermResources: uses compact tala-navigation tabs, keeps key actions, and removes static inline card styling.
         $resourcesPage = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
             ->assertSeeHtml('tala-navigation tala-navigation-compact')
-            ->assertSee('Manage teaching qualifications')
-            ->assertSee('Add room')
-            ->assertSee('24 units per teacher')
+            ->assertSee('Assign subjects')
+            ->assertSee('Manage in School Resources')
+            ->assertSee('24 units/teacher')
             ->assertDontSeeHtml('style="padding: var(--tala-card-pad);"');
 
         $roomsHtml = $resourcesPage->call('chooseResourceView', 'rooms')->html(true);
-        $this->assertSame(1, substr_count($roomsHtml, 'aria-label="Add room"'));
+        $this->assertSame(1, substr_count($roomsHtml, 'Manage room catalog'));
     }
 
     private function registrar(): User

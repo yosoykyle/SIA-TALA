@@ -278,9 +278,8 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             ->assertOk()
             ->assertSee('PUBLISHED TIMETABLE')
             ->assertSee('TALA-TT-'.$publishedVersion->id.'-V1')
-            ->assertSee('Approval reference')
-            ->assertSee('Not recorded')
-            ->assertSee('Initial publication')
+            ->assertDontSee('Approval reference')
+            ->assertSee('Timetable v1 (Published)')
             ->assertSee('margin: 12mm', escape: false)
             ->assertDontSee('fi-sidebar');
 
@@ -345,7 +344,7 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             $this->fail('Special Term without its approved schedule basis was activated.');
         } catch (ValidationException $exception) {
             $this->assertStringContainsString(
-                'approved particular schedule',
+                'approved schedule basis',
                 implode(' ', $exception->errors()['readiness']),
             );
         }
@@ -503,25 +502,29 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(CatalogCurriculaWorkbench::class)
             ->assertNoRedirect()
-            ->assertSee('Active curricula')
-            ->assertSee(ProgramResource::getUrl('index'));
+            ->assertSee('Workbench Program')
+            ->assertSee(ProgramResource::getUrl('view', ['record' => $program]));
 
         $termPlanning = Livewire::actingAs($registrar)
             ->test(TermTimetable::class, ['termId' => $term->id])
             ->assertSet('termId', $term->id)
             ->assertSee('Timetable')
-            ->assertSeeHtml(e(TermOverview::getUrl(['termId' => $term->id])));
+            ->assertSeeHtml(e(TermCalendar::getUrl(['termId' => $term->id])));
 
-        $overview = Livewire::actingAs($registrar)
-            ->test(TermOverview::class, ['termId' => $term->id]);
+        Livewire::actingAs($registrar)
+            ->test(TermOverview::class, ['termId' => $term->id])
+            ->assertRedirect(TermCalendar::getUrl(['termId' => $term->id]));
+
+        $calendar = Livewire::actingAs($registrar)
+            ->test(TermCalendar::class, ['termId' => $term->id]);
         foreach ([TermCalendar::class, TermClasses::class, TermResources::class, TermTimetable::class] as $destination) {
-            $overview->assertSeeHtml(e($destination::getUrl(['termId' => $term->id])));
+            $calendar->assertSeeHtml(e($destination::getUrl(['termId' => $term->id])));
         }
         Livewire::actingAs($registrar)
             ->test(TermClasses::class, ['termId' => $term->id])
             ->assertSeeHtml(e(TermClasses::getUrl(['termId' => $term->id, 'classesView' => 'cohorts'])));
 
-        foreach ([TermOverview::class, TermCalendar::class, TermClasses::class, TermResources::class, TermTimetable::class] as $destination) {
+        foreach ([TermCalendar::class, TermClasses::class, TermResources::class, TermTimetable::class] as $destination) {
             Livewire::actingAs($academicHead)
                 ->test($destination, ['termId' => $term->id])
                 ->assertSet('termId', $term->id)
@@ -529,8 +532,9 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         }
         Livewire::actingAs($academicHead)
             ->test(TermCalendar::class, ['termId' => $term->id])
-            ->assertActionHidden('recordCalendarPackage')
-            ->assertActionHidden('activateCalendarPackage');
+            ->assertActionHidden('saveAndActivateCalendar')
+            ->assertActionDoesNotExist('recordCalendarPackage')
+            ->assertActionDoesNotExist('activateCalendarPackage');
 
         $this->assertSame(
             ['class' => 'tala-term-planning-page'],
@@ -642,10 +646,14 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $this->assertSame(1, $case->registrationEvents()->where('event_type', 'TimetableRevisionImpactReviewResolved')->count());
     }
 
-    public function test_term_planning_defaults_only_to_one_unambiguous_active_package(): void
+    public function test_term_planning_resolves_default_term_directly_and_rejects_invalid_term_id(): void
     {
         $registrar = $this->registrar();
-        $first = Term::factory()->create(['label' => 'First Term']);
+        $first = Term::factory()->create([
+            'label' => 'First Term',
+            'state' => Term::StateActive,
+            'starts_on' => '2026-08-01',
+        ]);
         TermCalendarPackage::factory()->create([
             'term_id' => $first->id,
             'state' => TermCalendarPackage::StateActive,
@@ -653,9 +661,17 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(TermOverview::class)
+            ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $first->id])).'"');
+
+        Livewire::actingAs($registrar)
+            ->test(TermCalendar::class)
             ->assertSet('termId', $first->id);
 
-        $second = Term::factory()->create(['label' => 'Second Term']);
+        $second = Term::factory()->create([
+            'label' => 'Second Term',
+            'state' => Term::StateActive,
+            'starts_on' => '2027-01-10',
+        ]);
         TermCalendarPackage::factory()->create([
             'term_id' => $second->id,
             'state' => TermCalendarPackage::StateActive,
@@ -663,8 +679,11 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(TermOverview::class)
-            ->assertSet('termId', null)
-            ->assertSee('Choose a Term');
+            ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $second->id])).'"');
+
+        Livewire::actingAs($registrar)
+            ->test(TermCalendar::class)
+            ->assertSet('termId', $second->id);
 
         Livewire::withQueryParams(['termId' => 999999])
             ->actingAs($registrar)
@@ -801,6 +820,12 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             'term_id' => $term->id,
             'state' => TermCalendarPackage::StateActive,
         ]);
+        TermTeachingGridRow::factory()->for($package, 'package')->create([
+            'day_of_week' => 3,
+            'starts_at' => '07:00:00',
+            'ends_at' => '19:00:00',
+            'breaks' => [],
+        ]);
         $faculty = User::factory()->create(['status' => User::StatusActive]);
         $faculty->assignRole(User::StaffRoleFaculty);
         $registrar = $this->registrar();
@@ -821,20 +846,15 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         Livewire::actingAs($faculty)
             ->test(MyAvailability::class, ['termId' => $term->id])
             ->assertSet('termId', $term->id)
-            ->assertActionVisible('declareAvailability')
-            ->callAction('declareAvailability', data: [
-                'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
-                'has_weekly_unavailability' => 'yes',
-                'hard_unavailability' => [[
-                    'day_of_week' => 3,
-                    'starts_at' => '13:00',
-                    'ends_at' => '15:00',
-                ]],
-                'correction_reason' => null,
-            ])
-            ->assertHasNoActionErrors()
-            ->assertNotified()
-            ->assertSee('Wednesday, 1:00 PM–3:00 PM');
+            ->set('availabilityMode', FacultyAvailabilityDeclaration::ModeWindows)
+            ->call('toggleDay', 3)
+            ->set('dayWindows.3.0.start_time', '13:00')
+            ->set('dayWindows.3.0.end_time', '15:00')
+            ->call('saveAvailability')
+            ->assertHasNoErrors()
+            ->assertNotified('Availability response saved')
+            ->assertSee('Wednesday')
+            ->assertSee('1:00 PM–3:00 PM');
 
         $this->assertDatabaseHas('faculty_availability_declarations', [
             'term_id' => $term->id,

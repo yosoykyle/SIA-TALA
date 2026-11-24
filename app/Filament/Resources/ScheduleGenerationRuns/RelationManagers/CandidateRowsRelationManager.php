@@ -2,34 +2,30 @@
 
 namespace App\Filament\Resources\ScheduleGenerationRuns\RelationManagers;
 
-use App\Actions\Scheduling\CandidateScheduleRowReviewService;
-use App\Actions\Scheduling\RequestTimetableRepair;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
-use App\Filament\Resources\ScheduleGenerationRuns\Schemas\CandidateScheduleReviewForm;
 use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
-use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Filament\Support\Enums\Width;
-use Filament\Support\Icons\Heroicon;
+use Filament\Support\Facades\FilamentView;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Filament\Tables\View\TablesRenderHook;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\On;
+use Livewire\Mechanisms\ExtendBlade\ExtendBlade;
 
 class CandidateRowsRelationManager extends RelationManager
 {
@@ -37,36 +33,49 @@ class CandidateRowsRelationManager extends RelationManager
 
     protected static string $relationship = 'candidateRows';
 
-    protected static ?string $title = 'Candidate assignments';
+    protected static ?string $title = 'Recorded meetings';
+
+    private static ?int $registeredViewManagerId = null;
+
+    public function booted(): void
+    {
+        $this->registerToolbarHeadingHook();
+    }
 
     public function infolist(Schema $schema): Schema
     {
         return $schema
             ->components([
                 Section::make('Assignment comparison')
-                    ->visible(fn (CandidateScheduleRow $record): bool => filled($record->supersedes_candidate_row_id) || in_array($record->change_type, ['RequestedRepair', 'RepairImpact', 'LocalAdjustment', 'Unchanged'], true))
-                    ->description('Compare this updated candidate with its recorded source. Review every changed meeting before accepting the whole candidate.')
+                    ->visible(fn (CandidateScheduleRow $record): bool => filled($record->supersedes_candidate_row_id) || in_array($record->change_type, ['RequestedRepair', 'RepairImpact', 'LocalAdjustment', 'Reverted', 'Unchanged'], true))
+                    ->description('Compare this updated meeting with its recorded source attempt.')
                     ->schema([
-                        TextEntry::make('comparison_change')->label('Change')
+                        TextEntry::make('comparison_change')
+                            ->label('Change')
                             ->state(fn (CandidateScheduleRow $record): string => match ($record->change_type) {
                                 'RequestedRepair' => 'Requested repair',
                                 'RepairImpact' => 'Other meeting changed by repair',
                                 'Unchanged' => 'Unchanged meeting',
                                 'LocalAdjustment' => 'Local adjustment',
+                                'Reverted' => 'Reverted',
                                 default => 'Recorded update',
                             }),
-                        TextEntry::make('comparison_source')->label('Source attempt')
+                        TextEntry::make('comparison_source')
+                            ->label('Source attempt')
                             ->state(fn (CandidateScheduleRow $record): ?string => ($previous = self::previousAssignment($record)) ? 'Attempt #'.$previous->schedule_run_id : null)
                             ->placeholder('Source assignment unavailable')
                             ->url(fn (CandidateScheduleRow $record): ?string => ($previous = self::previousAssignment($record)) ? ScheduleGenerationRunResource::getUrl('view', ['record' => $previous->schedule_run_id, 'termId' => $record->scheduleRun->term_id]) : null),
-                        TextEntry::make('comparison_before')->label('Before')
-                            ->state(fn (CandidateScheduleRow $record): array => ($previous = self::previousAssignment($record)) ? self::assignmentFacts($previous) : ['Previous assignment unavailable. Inspect the source evidence before accepting this update.'])
+                        TextEntry::make('comparison_before')
+                            ->label('Before')
+                            ->state(fn (CandidateScheduleRow $record): array => ($previous = self::previousAssignment($record)) ? self::assignmentFacts($previous) : ['Previous assignment unavailable in the recorded source.'])
                             ->listWithLineBreaks(),
-                        TextEntry::make('comparison_after')->label('After')
+                        TextEntry::make('comparison_after')
+                            ->label('After')
                             ->state(fn (CandidateScheduleRow $record): array => self::assignmentFacts($record))
                             ->listWithLineBreaks(),
-                    ])->columns(['default' => 1, 'md' => 2]),
-                Section::make('Candidate meeting')
+                    ])
+                    ->columns(['default' => 1, 'md' => 2]),
+                Section::make('Recorded meeting')
                     ->schema([
                         Group::make([
                             TextEntry::make('status')
@@ -117,33 +126,31 @@ class CandidateRowsRelationManager extends RelationManager
                     ])
                     ->compact(),
                 Section::make('Source and validation details')
-                    ->collapsible()
-                    ->collapsed(fn (CandidateScheduleRow $record): bool => self::payloadCount($record->warnings) === 0 && self::payloadCount($record->violations) === 0)
                     ->schema([
                         TextEntry::make('schedulingDemand.demand_key')
                             ->label('Scheduling demand reference')
-                            ->placeholder('Not recorded'),
+                            ->placeholder('—'),
                         TextEntry::make('time_block_key')
                             ->label('Time block reference')
-                            ->placeholder('Not recorded'),
+                            ->placeholder('—'),
                         TextEntry::make('score_summary')
                             ->label('Recorded solver scores')
                             ->state(fn (CandidateScheduleRow $record): array => self::scoreItems($record->scores))
                             ->listWithLineBreaks()
                             ->bulleted()
-                            ->placeholder('Not recorded'),
+                            ->placeholder('—'),
                         TextEntry::make('warning_summary')
                             ->label('Warnings')
                             ->state(fn (CandidateScheduleRow $record): array => self::payloadMessages($record->warnings))
                             ->listWithLineBreaks()
                             ->bulleted()
-                            ->placeholder(fn (CandidateScheduleRow $record): string => is_array($record->warnings) && ($record->warnings === [] || ($record->warnings['items'] ?? null) === []) ? 'None recorded' : 'Not recorded'),
+                            ->placeholder(fn (CandidateScheduleRow $record): string => is_array($record->warnings) && ($record->warnings === [] || ($record->warnings['items'] ?? null) === []) ? 'None recorded' : '—'),
                         TextEntry::make('violation_summary')
                             ->label('Violations')
                             ->state(fn (CandidateScheduleRow $record): array => self::payloadMessages($record->violations))
                             ->listWithLineBreaks()
                             ->bulleted()
-                            ->placeholder(fn (CandidateScheduleRow $record): string => is_array($record->violations) && ($record->violations === [] || ($record->violations['items'] ?? null) === []) ? 'None recorded' : 'Not recorded'),
+                            ->placeholder(fn (CandidateScheduleRow $record): string => is_array($record->violations) && ($record->violations === [] || ($record->violations['items'] ?? null) === []) ? 'None recorded' : '—'),
                     ])
                     ->columns([
                         'default' => 1,
@@ -156,19 +163,9 @@ class CandidateRowsRelationManager extends RelationManager
     {
         return $table
             ->heading(null)
-            ->description(function (): ?string {
-                if (data_get($this->ownerRun()->input_snapshot, 'operation.kind') !== 'repair') {
-                    return null;
-                }
-
-                $counts = $this->ownerRun()->candidateRows()->pluck('change_type')->countBy();
-
-                if ($counts->isEmpty()) {
-                    return null;
-                }
-
-                return 'Requested changes: '.$counts->get('RequestedRepair', 0).' · Other changes: '.$counts->get('RepairImpact', 0).' · Unchanged meetings: '.$counts->get('Unchanged', 0).'. Counts cover the whole candidate.';
-            })
+            ->description(null)
+            ->searchPlaceholder('Search class, teacher, or room...')
+            ->extraAttributes(['class' => 'tala-solver-rm-table'])
             ->recordTitleAttribute('id')
             ->modifyQueryUsing(fn ($query) => $query->with([
                 'faculty',
@@ -194,15 +191,18 @@ class CandidateRowsRelationManager extends RelationManager
                             ->where('title', 'like', "%{$search}%")
                             ->orWhereHas('course', fn (Builder $courses): Builder => $courses->where('code', 'like', "%{$search}%")))
                         ->orWhereHas('schedulingDemand.sectionDeliveryGroup.section', fn (Builder $classes): Builder => $classes->where('code', 'like', "%{$search}%"))))
-                    ->wrap()->weight('semibold')->placeholder('Course title not recorded'),
+                    ->wrap()
+                    ->weight('semibold')
+                    ->placeholder('Course title not recorded'),
                 TextColumn::make('day_of_week')
                     ->label('Day & time')
                     ->formatStateUsing(fn (?int $state): string => $state === null ? '-' : (SectionMeeting::dayOptions()[$state] ?? '-'))
                     ->description(fn (CandidateScheduleRow $record): string => self::timeRange($record))
-                    ->sortable()->wrap(),
+                    ->sortable()
+                    ->wrap(),
                 TextColumn::make('faculty.name')
                     ->label('Teacher & room')
-                    ->description(fn (CandidateScheduleRow $record): string => filled($record->room?->code) ? 'Room '.$record->room->code : 'Room not recorded')
+                    ->description(fn (CandidateScheduleRow $record): string => filled($record->room?->code) ? 'Room '.$record->room->code : 'Online / no room')
                     ->wrap()
                     ->placeholder('Teacher not recorded')
                     ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $assignments): Builder => $assignments
@@ -218,11 +218,13 @@ class CandidateRowsRelationManager extends RelationManager
                         self::payloadCount($record->violations).' violations',
                         self::payloadCount($record->warnings).' warnings',
                     ]))
+                    ->wrap()
                     ->sortable(),
             ])
             ->filters([
-                Filter::make('changed_meetings')->label('Changed meetings only')
-                    ->query(fn (Builder $query): Builder => $query->whereIn('change_type', ['RequestedRepair', 'RepairImpact', 'LocalAdjustment'])),
+                Filter::make('changed_meetings')
+                    ->label('Changed meetings only')
+                    ->query(fn (Builder $query): Builder => $query->whereIn('change_type', ['RequestedRepair', 'RepairImpact', 'LocalAdjustment', 'Reverted'])),
                 SelectFilter::make('status')
                     ->options(self::statusOptions()),
                 SelectFilter::make('day_of_week')
@@ -241,18 +243,77 @@ class CandidateRowsRelationManager extends RelationManager
             ])
             ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
             ->defaultSort('day_of_week')
+            ->columnManager(false)
             ->recordActions([
                 ViewAction::make()
-                    ->label('Meeting details')->button()->color('gray')
-                    ->modalHeading('Candidate meeting details'),
-                $this->correctAssignmentAction()->button()->color('gray'),
-                $this->findValidRepairAction()->button(),
+                    ->label('Details')
+                    ->button()
+                    ->size('sm')
+                    ->color('gray')
+                    ->modalHeading('Recorded meeting details'),
             ])
             ->toolbarActions([])
             ->stackedOnMobile()
-            ->emptyStateHeading(fn (): string => $this->ownerRun()->candidateRows()->exists() ? 'No meetings match this view' : 'No candidate assignments are available')
-            ->emptyStateDescription(fn (): string => $this->ownerRun()->candidateRows()->exists() ? 'Clear the search or filters to see all candidate meetings.' : 'The timetable request has not returned any assignments to review.')
+            ->emptyStateHeading(fn (): string => $this->ownerRun()->candidateRows()->exists() ? 'No meetings match this view' : 'No recorded meetings are available')
+            ->emptyStateDescription(fn (): string => $this->ownerRun()->candidateRows()->exists() ? 'Clear the search or filters to see all recorded meetings.' : 'No meeting assignments were recorded for this attempt.')
             ->emptyState(view('filament.partials.collection-empty-state'));
+    }
+
+    public function toolbarHeadingHtml(): Htmlable
+    {
+        $run = $this->ownerRun();
+        $subtitle = $this->toolbarSubtitle($run);
+
+        return new HtmlString(
+            '<div class="tala-rm-toolbar-heading" style="flex: 1 1 10rem; min-inline-size: 0; display: grid; gap: 0.125rem; align-content: center;">'
+            .'<h2 class="fi-ta-header-heading" style="margin: 0; font-size: 0.9375rem; font-weight: 600; line-height: 1.35; color: var(--tala-text); white-space: nowrap;">Recorded meetings</h2>'
+            .'<p class="fi-ta-header-description" style="margin: 0; font-size: 0.78rem; line-height: 1.35; color: var(--tala-muted);">'.e($subtitle).'</p>'
+            .'</div>'
+        );
+    }
+
+    private function registerToolbarHeadingHook(): void
+    {
+        $manager = FilamentView::getFacadeRoot();
+        $managerId = is_object($manager) ? spl_object_id($manager) : null;
+
+        if ($managerId !== null && self::$registeredViewManagerId === $managerId) {
+            return;
+        }
+
+        self::$registeredViewManagerId = $managerId;
+
+        FilamentView::registerRenderHook(
+            TablesRenderHook::TOOLBAR_START,
+            function (): Htmlable {
+                $current = ExtendBlade::currentRendering();
+
+                return $current instanceof self
+                    ? $current->toolbarHeadingHtml()
+                    : new HtmlString('');
+            },
+            scopes: static::class,
+        );
+    }
+
+    private function toolbarSubtitle(ScheduleGenerationRun $run): string
+    {
+        if (data_get($run->input_snapshot, 'operation.kind') === 'repair') {
+            $counts = $run->candidateRows()->pluck('change_type')->countBy();
+
+            if ($counts->isNotEmpty()) {
+                return 'Requested changes: '.$counts->get('RequestedRepair', 0)
+                    .' · Other changes: '.$counts->get('RepairImpact', 0)
+                    .' · Unchanged meetings: '.$counts->get('Unchanged', 0)
+                    .'. Counts cover the whole candidate.';
+            }
+        }
+
+        $published = $run->isPublished() || $run->published_at !== null;
+
+        return $published
+            ? 'Read-only placement snapshot for this attempt. Manage or revise active classes in Timetable.'
+            : 'Read-only placement snapshot for this attempt. Adjust or publish in Timetable.';
     }
 
     private static function previousAssignment(CandidateScheduleRow $record): ?CandidateScheduleRow
@@ -276,153 +337,10 @@ class CandidateRowsRelationManager extends RelationManager
         ];
     }
 
-    private function correctAssignmentAction(): Action
-    {
-        return Action::make('correctAssignment')
-            ->label('Correct assignment')
-            ->icon(Heroicon::OutlinedPencilSquare)
-            ->modalHeading('Correct candidate assignment')
-
-            ->modalDescription(fn (CandidateScheduleRow $record): string => implode(' · ', [
-                $record->schedulingDemand?->courseComponent?->courseSpecification?->title ?? 'Course not recorded',
-                filled($record->schedulingDemand?->sectionDeliveryGroup?->section?->code)
-                    ? 'Class '.$record->schedulingDemand->sectionDeliveryGroup->section->code
-                    : 'Class not recorded',
-                $record->day_of_week === null ? 'Day not recorded' : (SectionMeeting::dayOptions()[$record->day_of_week] ?? 'Day not recorded'),
-                filled($record->starts_at) && filled($record->ends_at) ? self::timeRange($record) : 'Time not recorded',
-            ]).'. TALA revalidates the complete candidate schedule before saving this correction.')
-            ->modalSubmitActionLabel('Validate and save')
-            ->modalWidth(Width::FiveExtraLarge)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
-            ->fillForm(fn (CandidateScheduleRow $record): array => [
-                'scheduling_demand_id' => $record->scheduling_demand_id,
-                'faculty_user_id' => $record->faculty_user_id,
-                'room_id' => $record->room_id,
-                'day_of_week' => $record->day_of_week,
-                'starts_at' => $record->starts_at,
-                'ends_at' => $record->ends_at,
-                'override_authority' => $record->override_authority,
-                'override_reason' => $record->override_reason,
-            ])
-            ->schema(fn (): array => CandidateScheduleReviewForm::correctionSchema($this->ownerRun()))
-            ->visible(fn (CandidateScheduleRow $record): bool => $this->canCorrect($record))
-            ->action(function (array $data, CandidateScheduleRow $record): void {
-                $actor = auth()->user();
-
-                if (! $actor instanceof User) {
-                    abort(403);
-                }
-
-                try {
-                    $successor = app(CandidateScheduleRowReviewService::class)->revise($record, $data, $actor);
-
-                    Notification::make()
-                        ->title('Candidate assignment corrected')
-                        ->body('The complete candidate schedule passed current hard-constraint validation.')
-                        ->success()
-                        ->send();
-
-                    $this->redirect(ScheduleGenerationRunResource::getUrl('view', [
-                        'record' => $successor,
-                        'termId' => $successor->term_id,
-                    ]));
-                } catch (ValidationException $exception) {
-                    Notification::make()
-                        ->title('Candidate correction blocked')
-                        ->body(self::validationMessage($exception))
-                        ->danger()
-                        ->persistent()
-                        ->send();
-
-                    throw $exception;
-                } finally {
-                    $this->dispatch('schedule-run-updated');
-                }
-            });
-    }
-
-    private function findValidRepairAction(): Action
-    {
-        return Action::make('findValidRepair')
-            ->label('Find valid repair')
-            ->icon(Heroicon::OutlinedArrowPath)
-            ->color('warning')
-            ->modalHeading('Find a whole-Term repair')
-
-            ->modalDescription(fn (CandidateScheduleRow $record): string => implode(' · ', [
-                $record->schedulingDemand?->courseComponent?->courseSpecification?->title ?? 'Course not recorded',
-                filled($record->schedulingDemand?->sectionDeliveryGroup?->section?->code)
-                    ? 'Class '.$record->schedulingDemand->sectionDeliveryGroup->section->code
-                    : 'Class not recorded',
-                $record->day_of_week === null ? 'Day not recorded' : (SectionMeeting::dayOptions()[$record->day_of_week] ?? 'Day not recorded'),
-                filled($record->starts_at) && filled($record->ends_at) ? self::timeRange($record) : 'Time not recorded',
-            ]).'. The requested meeting is fixed as a hard requirement. Other meetings may move only in a previewable immutable candidate; nothing official changes until the whole repair is accepted and published.')
-            ->modalSubmitActionLabel('Queue repair preview')
-            ->modalWidth(Width::FiveExtraLarge)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
-            ->fillForm(fn (CandidateScheduleRow $record): array => [
-                'scheduling_demand_id' => $record->scheduling_demand_id,
-                'faculty_user_id' => $record->faculty_user_id,
-                'room_id' => $record->room_id,
-                'day_of_week' => $record->day_of_week,
-                'starts_at' => $record->starts_at,
-                'ends_at' => $record->ends_at,
-                'override_authority' => null,
-                'override_reason' => null,
-            ])
-            ->schema(fn (): array => CandidateScheduleReviewForm::correctionSchema($this->ownerRun()))
-            ->visible(fn (CandidateScheduleRow $record): bool => $this->canCorrect($record))
-            ->action(function (array $data, CandidateScheduleRow $record): void {
-                $actor = auth()->user();
-
-                if (! $actor instanceof User) {
-                    abort(403);
-                }
-
-                $repairRun = app(RequestTimetableRepair::class)->execute(
-                    requestedRow: $record,
-                    actor: $actor,
-                    assignment: [
-                        'faculty_user_id' => (int) $data['faculty_user_id'],
-                        'room_id' => filled($data['room_id'] ?? null) ? (int) $data['room_id'] : null,
-                        'day_of_week' => (int) $data['day_of_week'],
-                        'starts_at' => (string) $data['starts_at'],
-                        'ends_at' => (string) $data['ends_at'],
-                    ],
-                    reason: (string) $data['override_reason'],
-                    authority: (string) $data['override_authority'],
-                );
-
-                Notification::make()
-                    ->title('Repair preview queued')
-                    ->body('The source candidate remains unchanged. Review every reported impact before accepting the updated candidate.')
-                    ->success()
-                    ->send();
-                $this->dispatch('schedule-run-updated');
-                $this->redirect(ScheduleGenerationRunResource::getUrl('view', [
-                    'record' => $repairRun,
-                    'termId' => $repairRun->term_id,
-                ]));
-            });
-    }
-
     #[On('schedule-run-updated')]
     public function refreshCandidateRows(): void
     {
         $this->resetTable();
-    }
-
-    private function canCorrect(CandidateScheduleRow $record): bool
-    {
-        $actor = auth()->user();
-        $run = $record->scheduleRun;
-
-        return $actor instanceof User
-            && $run instanceof ScheduleGenerationRun
-            && $run->status === ScheduleGenerationRun::StatusUnderReview
-            && Gate::forUser($actor)->allows('reviewCandidates', $run);
     }
 
     private function ownerRun(): ScheduleGenerationRun
@@ -461,13 +379,6 @@ class CandidateRowsRelationManager extends RelationManager
     private static function payloadCount(mixed $payload): int
     {
         return count(self::payloadItems($payload));
-    }
-
-    private static function validationMessage(ValidationException $exception): string
-    {
-        $message = collect($exception->errors())->flatten()->first();
-
-        return is_string($message) ? $message : 'The complete candidate schedule failed current hard-constraint validation.';
     }
 
     private static function timeRange(CandidateScheduleRow $record): string

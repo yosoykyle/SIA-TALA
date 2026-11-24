@@ -109,14 +109,14 @@ Rules:
 - Cumulative GWA is calculated from all included attempt grade points and units; it is never the arithmetic mean of displayed term averages.
 - Every released numeric attempt counts. A later passing retake may satisfy the curriculum but never erases the earlier failed attempt.
 - There is no independent maximum retake counter; continuation depends on the confirmed academic-enrollment effect.
-- PE and NSTP courses—including CWTS, LTS, and ROTC equivalents—are excluded under the client-confirmed Servitech rule.
+- `ORDINARY` and `TESDA_COMPETENCY` subjects are included in GWA. `PE`, `NSTP` (including CWTS, LTS, and ROTC equivalents), and `NON_CREDIT` / Bridging courses are excluded under the client-confirmed Servitech GWA inclusion/exclusion rule.
 - Excluded courses remain curriculum and TOR requirements.
 - `INC`, Course Drop/full-withdrawal results, and nonnumeric approved credit are excluded.
 - TALA calculates at full precision and rounds once for display to two decimals using decimal half-up; no intermediate value is rounded.
 - A correction replaces the superseded value in effective calculations while preserving event history.
 - Academic averages appear in Student Academics and Registrar academic-record views, not in the standard TOR.
 
-`CourseAcademicClassification` identifies which effective course revisions are PE, NSTP/CWTS/LTS/ROTC, or ordinary academic courses. The formula, confirmed exclusions and display labels are fixed product rules. Registrar maintains effective course classifications; the projections use **Term weighted average** and **Cumulative GWA** directly. Existing terminology records remain historical evidence.
+`CourseAcademicClassification` classifies each effective course revision into one of the five Philippine CHED/TESDA-aligned categories: `ORDINARY` and `TESDA_COMPETENCY` (included in GWA), or `PE`, `NSTP` (CWTS/LTS/ROTC), and `NON_CREDIT` / Bridging (excluded from GWA). The formula, confirmed inclusions/exclusions, and display labels are fixed product rules. Registrar maintains effective course classifications; the projections use **Term weighted average** and **Cumulative GWA** directly. Existing terminology records remain historical evidence.
 
 One shared `AcademicAverageReadiness` projection has exactly four states:
 
@@ -127,7 +127,7 @@ One shared `AcademicAverageReadiness` projection has exactly four states:
 | `Available` | Every official registration has a released resolved outcome and the term has at least one included numeric unit | Publish the term weighted average and cumulative GWA |
 | `NotApplicable` | The term is grade-complete but has no included numeric units | Show **Not applicable — no included academic units**; never display zero |
 
-Course Drop, full-withdrawal, approved-credit, and PE/NSTP-equivalent outcomes may satisfy grade completeness only when their owning authoritative outcome is released. They still contribute no grade points or units. While the selected term is `GradesNotComplete` or `IncompleteResultPending`, the last complete cumulative value remains visible as **Through [term]**; when none exists, cumulative GWA is unavailable. TALA never calculates from the released subset of a partially released term.
+Course Drop, full-withdrawal, approved-credit, and GWA-excluded (`PE`, `NSTP`, `NON_CREDIT` / Bridging) outcomes may satisfy grade completeness only when their owning authoritative outcome is released. They still contribute no grade points or units. While the selected term is `GradesNotComplete` or `IncompleteResultPending`, the last complete cumulative value remains visible as **Through [term]**; when none exists, cumulative GWA is unavailable. TALA never calculates from the released subset of a partially released term.
 
 Resolution recalculates the original term and every later cumulative projection. An unextended `CompletionOverdue` attempt, or an `INC` whose requirement is satisfied by a separate released retake or approved credit, is settled as a nonnumeric no-credit attempt for average readiness. It contributes neither grade points nor units and remains `INC` in history and TOR. Show that exclusion beside the calculation. Deadline extension re-evaluates readiness from the current facts; every view includes its as-of time. This is TALA's projection rule: it prevents a historical no-credit attempt from indefinitely withholding averages while preserving the original mark.
 
@@ -604,7 +604,7 @@ Registrar issues the applicable versioned TALA Standard TOR after the exact sour
 
 - TALA targets a normally recognized and authorized Philippine college.
 - The final-grade vocabulary comes from the supplied Servitech workbook.
-- PE/NSTP/CWTS/LTS/ROTC exclusion from both academic-average projections is client-confirmed Servitech policy.
+- `PE`/`NSTP` (CWTS/LTS/ROTC) and `NON_CREDIT` / Bridging exclusion—alongside `ORDINARY` and `TESDA_COMPETENCY` inclusion—in both academic-average projections is client-confirmed Servitech policy.
 - The supplied Servitech evidence does not establish an INC deadline or automatic lapse rule. TALA therefore adopts the bounded one-year deadline and the official PUP Graduate School's retake-or-no-credit consequence as a qualified project default, while rejecting PUP-specific automatic conversion or enrollment sanctions.
 - No other institution's academic-progress thresholds, sanctions, terminology, or load rules govern Servitech. TALA records factual curriculum effects and only an actual authorized institutional decision may block enrollment.
 - External institutional decisions are recorded rather than recreated as multi-step approval systems.
