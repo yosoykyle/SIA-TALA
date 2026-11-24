@@ -18,6 +18,7 @@ final class RevisePublishedTimetable
     public function __construct(
         private readonly ScheduleAssignmentRevalidationService $revalidator,
         private readonly TimetableRevisionImpactGuard $impactGuard,
+        private readonly SyncTeachingAssignmentsFromTimetable $teachingAssignments,
     ) {}
 
     /**
@@ -200,6 +201,7 @@ final class RevisePublishedTimetable
             $locked->forceFill(['state' => PublishedTimetableVersion::StateSuperseded])->save();
             $sourceRun->forceFill(['status' => ScheduleGenerationRun::StatusSuperseded])->save();
             $this->impactGuard->markPublished($preparedRevision, $successor, $actor);
+            $this->teachingAssignments->apply($successor, $actor);
 
             return $successor->fresh('meetings');
         }, attempts: 5);

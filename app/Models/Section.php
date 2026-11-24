@@ -123,6 +123,12 @@ class Section extends Model
         return $this->hasMany(SectionDeliveryGroup::class);
     }
 
+    /** @return HasMany<ClassOfferingTeachingAssignment, $this> */
+    public function teachingAssignments(): HasMany
+    {
+        return $this->hasMany(ClassOfferingTeachingAssignment::class);
+    }
+
     /** @return HasMany<GradeRoster, $this> */
     public function gradeRosters(): HasMany
     {

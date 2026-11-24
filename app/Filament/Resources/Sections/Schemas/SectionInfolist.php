@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Sections\Schemas;
 
 use App\Filament\Resources\Sections\Pages\ViewSection;
+use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Support\DisplayDateTime;
@@ -43,6 +44,17 @@ class SectionInfolist
                         TextEntry::make('state')->label('Class status')
                             ->badge()->color('gray')
                             ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Section::stateOptions()[$state] ?? str($state)->headline()->toString())),
+                        TextEntry::make('teaching_faculty')->label('Teaching Faculty')
+                            ->state(fn (Section $record): array => $record->teachingAssignments()
+                                ->with('faculty')
+                                ->where('state', ClassOfferingTeachingAssignment::StateActive)
+                                ->orderByRaw('role = ? desc', [ClassOfferingTeachingAssignment::RoleDesignated])
+                                ->get()
+                                ->map(fn (ClassOfferingTeachingAssignment $assignment): string => ($assignment->faculty?->name ?? 'Unknown Faculty').' · '
+                                    .($assignment->role === ClassOfferingTeachingAssignment::RoleDesignated ? 'Designated' : 'Co-Faculty')
+                                    .($assignment->isFromPublishedTimetable() ? ' (from the published timetable)' : ''))
+                                ->all())
+                            ->listWithLineBreaks()->placeholder('No teaching Faculty assigned')->columnSpanFull(),
                         TextEntry::make('cohorts.reference')->label('Student sections served')->listWithLineBreaks()->placeholder('No student sections linked')
                             ->helperText(fn (Section $record): string => $record->cohorts->sum(fn ($cohort): int => (int) $cohort->pivot->expected_count).' learners linked to this class')->columnSpanFull(),
                         TextEntry::make('confirmed_at')->label('Class confirmed (Asia/Manila)')->state(fn (Section $record): string => DisplayDateTime::format($record->confirmed_at, fallback: 'Not confirmed')),

@@ -106,7 +106,9 @@ class SynchronizeOfficialGradeRoster
                 'lock_version' => $changed ? $roster->lock_version + 1 : $roster->lock_version,
             ]);
 
-            $this->notifications->recordSubmissionRequiredAfterCommit($roster->fresh('teachingAssignment'));
+            if ($membershipIds->isNotEmpty()) {
+                $this->notifications->recordSubmissionRequiredAfterCommit($roster->fresh('teachingAssignment'));
+            }
 
             return $roster->fresh(['rows.courseEnrollment', 'teachingAssignment']);
         }, attempts: 3);
