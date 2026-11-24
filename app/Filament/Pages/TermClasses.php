@@ -370,6 +370,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                                 ->minItems(1)
                                 ->required()
                                 ->reorderable(false)
+                                ->addActionLabel('Link a student section')
                                 ->columns(2)
                                 ->extraAttributes(['class' => 'tala-cohort-repeater'])
                                 ->schema([
@@ -544,6 +545,25 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ];
                 })->all();
 
+                $availableYearLevels = function (Get $get) use ($cohorts, $preview, $termType): array {
+                    $cohort = $cohorts->firstWhere('id', (int) $get('term_cohort_id'));
+                    if (! $cohort instanceof TermCohort) {
+                        return [];
+                    }
+
+                    $lockedEntryIds = $this->lockedCurriculumEntryIdsForTerm();
+
+                    return collect($preview['catalog'])
+                        ->where('curriculum_id', $cohort->curriculum_version_id)
+                        ->where('term_type', $termType)
+                        ->reject(fn (array $course): bool => isset($lockedEntryIds[(int) $course['id']]))
+                        ->groupBy('year_level')
+                        ->mapWithKeys(fn ($items, string $year): array => [
+                            $year => (is_numeric($year) ? 'Year '.$year : $year).' ('.$items->count().' '.Str::plural('subject', $items->count()).')',
+                        ])
+                        ->all();
+                };
+
                 return [
                     Select::make('term_cohort_id')
                         ->label('Student section')
@@ -574,24 +594,8 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             ->required()
                             ->live()
                             ->disabled(fn (Get $get): bool => blank($get('term_cohort_id')))
-                            ->options(function (Get $get) use ($cohorts, $preview, $termType): array {
-                                $cohort = $cohorts->firstWhere('id', (int) $get('term_cohort_id'));
-                                if (! $cohort instanceof TermCohort) {
-                                    return [];
-                                }
-
-                                $lockedEntryIds = $this->lockedCurriculumEntryIdsForTerm();
-
-                                return collect($preview['catalog'])
-                                    ->where('curriculum_id', $cohort->curriculum_version_id)
-                                    ->where('term_type', $termType)
-                                    ->reject(fn (array $course): bool => isset($lockedEntryIds[(int) $course['id']]))
-                                    ->groupBy('year_level')
-                                    ->mapWithKeys(fn ($items, string $year): array => [
-                                        $year => (is_numeric($year) ? 'Year '.$year : $year).' ('.$items->count().' '.Str::plural('subject', $items->count()).')',
-                                    ])
-                                    ->all();
-                            })
+                            ->visible(fn (Get $get): bool => blank($get('term_cohort_id')) || $availableYearLevels($get) !== [])
+                            ->options($availableYearLevels)
                             ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($cohorts, $preview): void {
                                 $cohort = $cohorts->firstWhere('id', (int) $get('term_cohort_id'));
                                 if (! $cohort instanceof TermCohort || blank($state)) {
@@ -603,6 +607,10 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                                 $set('entry_ids', $this->defaultSelectedEntryIdsForCohort($cohort, (string) $state, $preview));
                             })
                             ->helperText('Only subjects scheduled for this term period in the section’s active curriculum are listed.'),
+                        Placeholder::make('no_available_year_levels')
+                            ->label('Curriculum year level')
+                            ->visible(fn (Get $get): bool => filled($get('term_cohort_id')) && $availableYearLevels($get) === [])
+                            ->content('All curriculum subjects for this student section’s program and term period have already been loaded.'),
                         TextInput::make('default_capacity')
                             ->label('Approved capacity per class')
                             ->integer()
@@ -669,7 +677,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         ->helperText('Uncheck any subject you do not want to offer for this student section right now.'),
                     Placeholder::make('curriculum_prompt')
                         ->hiddenLabel()
-                        ->visible(fn (Get $get): bool => blank($get('term_cohort_id')) || blank($get('year_level')))
+                        ->visible(fn (Get $get): bool => blank($get('term_cohort_id')) || ($availableYearLevels($get) !== [] && blank($get('year_level'))))
                         ->content('Choose a student section and curriculum year level above to select subjects.'),
                 ];
             })
@@ -1117,6 +1125,8 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             ->required(),
                     ])
                     ->reorderable(false)
+                    ->minItems(fn (): int => $record->confirmed_at !== null ? 1 : 0)
+                    ->required(fn (): bool => $record->confirmed_at !== null)
                     ->extraAttributes(['class' => 'tala-cohort-repeater'])
                     ->columns(2)
                     ->addActionLabel('Link a student section')

@@ -526,8 +526,9 @@
             const duration = Number(meeting.durationMinutes || ((meeting.end || 0) - (meeting.start || 0)) || 60);
             const slotEnd = Number(slotStart) + duration;
             const day = Number(dayNumber);
+            const isOnlineMeeting = meeting.modality === 'Online' || (meeting.roomId === null && meeting.room === 'Online');
             const targetFacultyId = overrideFacultyId !== null && overrideFacultyId !== '' ? Number(overrideFacultyId) : Number(meeting.facultyId || 0);
-            const targetRoomId = overrideRoomId !== null && overrideRoomId !== '' ? Number(overrideRoomId) : Number(meeting.roomId || 0);
+            const targetRoomId = isOnlineMeeting ? 0 : (overrideRoomId !== null && overrideRoomId !== '' ? Number(overrideRoomId) : Number(meeting.roomId || 0));
 
             if (targetRoomId > 0) {
                 const roomObj = (this.rooms || []).find(r => Number(r.id) === targetRoomId);
@@ -737,7 +738,8 @@
             const rowId = Number(this.selectedMeeting.rowId || this.selectedMeeting.id);
             const day = Number(this.editForm.day || this.selectedMeeting.day || 1);
             const startsAt = String(this.editForm.startsAt || this.selectedMeeting.startsAt || '08:00');
-            const roomId = this.editForm.roomId ? Number(this.editForm.roomId) : null;
+            const isOnlineMeeting = this.selectedMeeting.modality === 'Online' || (this.selectedMeeting.roomId === null && this.selectedMeeting.room === 'Online');
+            const roomId = isOnlineMeeting ? null : (this.editForm.roomId ? Number(this.editForm.roomId) : null);
             const facultyId = this.editForm.facultyId ? Number(this.editForm.facultyId) : null;
             this.persistSelectedMeeting(this.selectedMeeting);
             if (rowId > 0 && this.$wire && typeof this.$wire.updateCandidateMeeting === 'function') {
@@ -921,7 +923,7 @@
                                     </x-filament::input.wrapper>
                                 </label>
 
-                                <label class="tala-inspector-field">
+                                <label class="tala-inspector-field" x-show="selectedMeeting && selectedMeeting.modality !== 'Online' && !(selectedMeeting.roomId === null && selectedMeeting.room === 'Online')">
                                     <span>Room (<span x-text="(selectedMeeting?.componentBadge || 'LEC') === 'LAB' ? 'Laboratory compatible' : 'Lecture compatible'"></span>)</span>
                                     <x-filament::input.wrapper>
                                         <x-filament::input.select x-model="editForm.roomId">
@@ -1466,6 +1468,12 @@
                         </p>
                     </section>
 
+                    @php
+                        $inspectorIsTermClosed = (bool) ($scheduleContext['isTermClosed'] ?? false);
+                        $inspectorIsSuperseded = (bool) ($scheduleContext['isSupersededVersion'] ?? false);
+                        $inspectorHasEnrollmentLock = (bool) ($scheduleContext['hasOfficialEnrollmentsBlockingRegen'] ?? false);
+                        $inspectorActiveDraftId = $scheduleContext['activeDraftId'] ?? null;
+                    @endphp
                     <section x-ref="railInspector" class="tala-rail-section tala-rail-inspector" aria-label="Selected class inspector">
                         <div class="tala-rail-empty" x-show="!selectedMeeting">
                             <div class="tala-rail-empty__icon" aria-hidden="true">
@@ -1473,7 +1481,7 @@
                             </div>
                             @if ($editable)
                                 <p class="tala-rail-empty__copy">Select any class on the timetable to inspect details, lock, move, or edit.</p>
-                            @elseif ($isOfficial)
+                            @elseif ($isOfficial && ! $inspectorIsTermClosed && ! $inspectorIsSuperseded && ! empty($scheduleContext['canReviseOfficial']))
                                 <p class="tala-rail-empty__copy">Select any class to inspect or start a revision.</p>
                             @else
                                 <p class="tala-rail-empty__copy">Select any class on the timetable to inspect its recorded details.</p>
@@ -1596,7 +1604,7 @@
                                             </x-filament::input.wrapper>
                                         </label>
 
-                                        <label class="tala-inspector-field">
+                                        <label class="tala-inspector-field" x-show="selectedMeeting && selectedMeeting.modality !== 'Online' && !(selectedMeeting.roomId === null && selectedMeeting.room === 'Online')">
                                             <span>Room (<span x-text="(selectedMeeting?.componentBadge || 'LEC') === 'LAB' ? 'Lab' : 'Lecture'"></span>)</span>
                                             <x-filament::input.wrapper>
                                                 <x-filament::input.select x-model="editForm.roomId">
@@ -1633,13 +1641,35 @@
                                         </x-filament::button>
                                     </div>
                                 </section>
+                            @elseif ($inspectorIsTermClosed)
+                                <div class="tala-rail-locked-box">
+                                    <span class="tala-inspector-state-pill is-archived">
+                                        <x-filament::icon icon="heroicon-m-archive-box" />
+                                        <span>{{ $isOfficial ? 'Official · Archived' : 'Term closed · Read-only' }}</span>
+                                    </span>
+                                    <p>Term is closed. Read-only historical record.</p>
+                                </div>
+                            @elseif ($isOfficial && $inspectorIsSuperseded)
+                                <div class="tala-rail-locked-box">
+                                    <span class="tala-inspector-state-pill is-archived">
+                                        <x-filament::icon icon="heroicon-m-clock" />
+                                        <span>Historical · Read-only</span>
+                                    </span>
+                                    <p>This earlier official version has been superseded and cannot be edited.</p>
+                                </div>
                             @elseif ($isOfficial)
                                 <div class="tala-rail-locked-box">
                                     <span class="tala-inspector-state-pill is-official">
                                         <x-filament::icon icon="heroicon-m-lock-closed" />
-                                        <span>Official · Locked</span>
+                                        <span>Official · Live</span>
                                     </span>
-                                    <p>Published classes stay locked to protect student enrollments.</p>
+                                    @if ($inspectorHasEnrollmentLock)
+                                        <p>Whole-term regeneration is locked because students are officially enrolled. Use <strong>Revise schedule</strong> for approved changes.</p>
+                                    @elseif ($inspectorActiveDraftId !== null)
+                                        <p>Official schedule is locked against direct edits. Use <strong>Revise schedule</strong> for a targeted change, or <strong>Open draft</strong> above to continue editing the unpublished draft.</p>
+                                    @else
+                                        <p>Official schedule is locked against direct edits. Use <strong>Revise schedule</strong> for a targeted change, or <strong>New draft</strong> above to regenerate before enrollment starts.</p>
+                                    @endif
                                     @if (! empty($scheduleContext['canReviseOfficial']) || ! empty($scheduleContext['reviseOfficialUrl']))
                                         <x-filament::button
                                             type="button"
@@ -1652,6 +1682,14 @@
                                             Revise this class
                                         </x-filament::button>
                                     @endif
+                                </div>
+                            @else
+                                <div class="tala-rail-locked-box">
+                                    <span class="tala-inspector-state-pill is-archived">
+                                        <x-filament::icon icon="heroicon-m-clock" />
+                                        <span>Past attempt · Read-only</span>
+                                    </span>
+                                    <p>This past attempt is read-only and cannot be edited or published.</p>
                                 </div>
                             @endif
                         </div>

@@ -226,8 +226,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     default => $rawStatus !== '' ? $rawStatus : 'Advisory',
                 };
                 $pillClass = $isPrepared
-                    ? 'inline-flex items-center rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-medium text-success-700 ring-1 ring-inset ring-success-600/20 dark:bg-success-500/10 dark:text-success-400 dark:ring-success-500/20'
-                    : 'inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20';
+                    ? 'tala-scope-pill is-prepared'
+                    : 'tala-scope-pill is-advisory';
 
                 $emptyNote = $classCount === 0
                     ? '<span class="ml-1.5 text-xs text-gray-500 dark:text-gray-400">No classes</span>'
@@ -296,7 +296,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     public function publishOfficialTimetableAction(): Action
     {
         return parent::publishOfficialTimetableAction()
-            ->hidden(fn (): bool => $this->isTermClosed());
+            ->label('Publish official')
+            ->hidden(fn (): bool => $this->isTermClosed() || ($this->hasPublishedTimetable() && $this->hasOfficialStudentEnrollments()));
     }
 
     public function cancelActiveRunAction(): Action
@@ -582,8 +583,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'attemptSelectorOptions' => $attemptSelectorOptions,
             'activeDraftOptions' => $activeDraftOptions,
             'pastAttemptOptions' => $visiblePastAttempts,
-            'canStartNewDraftAttempt' => $this->canStartNewDraftAttempt($term, $activeRun),
-            'hasOfficialEnrollmentsBlockingRegen' => $this->hasPublishedTimetable($term) && $this->hasOfficialStudentEnrollments($term),
+            'canStartNewDraftAttempt' => $this->canStartNewDraftAttempt($term, $activeRun, $activeDraftOptions !== []),
+            'hasOfficialEnrollmentsBlockingRegen' => $this->hasOfficialStudentEnrollments($term),
             'activeManualEditCount' => $activeRun instanceof ScheduleGenerationRun
                 ? RevertCandidateRun::manualEditCount($activeRun)
                 : 0,
@@ -1007,7 +1008,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     public function regenerateTimetableAction(): Action
     {
         return Action::make('regenerateTimetable')
-            ->label('Regenerate')
+            ->label('Regenerate draft')
             ->icon(Heroicon::OutlinedArrowPath)
             ->color('gray')
             ->size('sm')
@@ -1299,12 +1300,12 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         if ($this->timetableState === 'official' || ! $this->canEditActiveCandidate()) {
             Notification::make()
                 ->title('Official timetable is locked')
-                ->body('Published timetables are locked. Use Revise official schedule for authorized mid-semester changes.')
+                ->body('Published timetables are locked. Use Revise schedule for authorized mid-semester changes.')
                 ->danger()
                 ->send();
 
             throw ValidationException::withMessages([
-                'timetable' => 'Official timetable is locked. Use Revise official schedule for authorized mid-semester changes.',
+                'timetable' => 'Official timetable is locked. Use Revise schedule for authorized mid-semester changes.',
             ]);
         }
 
@@ -1426,12 +1427,12 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         if ($this->timetableState === 'official' || ! $this->canEditActiveCandidate()) {
             Notification::make()
                 ->title('Official timetable is locked')
-                ->body('Published timetables are locked. Use Revise official schedule for authorized mid-semester changes.')
+                ->body('Published timetables are locked. Use Revise schedule for authorized mid-semester changes.')
                 ->danger()
                 ->send();
 
             throw ValidationException::withMessages([
-                'timetable' => 'Official timetable is locked. Use Revise official schedule for authorized mid-semester changes.',
+                'timetable' => 'Official timetable is locked. Use Revise schedule for authorized mid-semester changes.',
             ]);
         }
 
@@ -1796,14 +1797,27 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             }
         }
 
+        $isTermClosed = $this->isTermClosed($term instanceof Term ? $term : null);
+        $isSupersededVersion = $official
+            && $selectedVersion instanceof PublishedTimetableVersion
+            && $selectedVersion->state !== PublishedTimetableVersion::StatePublished;
+        $activeDraftOptions = is_array($data['activeDraftOptions'] ?? null) ? $data['activeDraftOptions'] : [];
+        $activeDraftFirst = $activeDraftOptions[0] ?? null;
+
         return [
             'editable' => $editable,
             'isOfficial' => $official,
             'readOnly' => $readOnly,
+            'isTermClosed' => $isTermClosed,
+            'isSupersededVersion' => $isSupersededVersion,
+            'hasOfficialEnrollmentsBlockingRegen' => (bool) ($data['hasOfficialEnrollmentsBlockingRegen'] ?? false),
+            'canStartNewDraftAttempt' => (bool) ($data['canStartNewDraftAttempt'] ?? false),
+            'activeDraftId' => is_array($activeDraftFirst) && isset($activeDraftFirst['id']) ? (int) $activeDraftFirst['id'] : null,
+            'activeDraftLabel' => is_array($activeDraftFirst) && isset($activeDraftFirst['label']) ? (string) $activeDraftFirst['label'] : null,
             'statusPillLabel' => $official
-                ? 'Official timetable · Locked'
-                : ($editable ? 'Draft candidate · Editable' : null),
-            'statusPillTone' => $official ? 'official' : ($editable ? 'draft' : 'neutral'),
+                ? ($isTermClosed ? 'Official · Archived' : ($isSupersededVersion ? 'Historical · Read-only' : 'Official · Live'))
+                : ($editable ? 'Draft · Editable' : null),
+            'statusPillTone' => $official ? ($isTermClosed || $isSupersededVersion ? 'neutral' : 'official') : ($editable ? 'draft' : 'neutral'),
             'canReviseOfficial' => $canReviseOfficial,
             'reviseOfficialUrl' => $reviseOfficialUrl,
             'teachingGrid' => $teachingGrid,
@@ -1851,7 +1865,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         return ScheduleGenerationRun::statusOptions()[$run->status] ?? $run->status;
     }
 
-    private function canStartNewDraftAttempt(Term $term, ?ScheduleGenerationRun $activeRun): bool
+    private function canStartNewDraftAttempt(Term $term, ?ScheduleGenerationRun $activeRun, bool $hasActiveDraft = false): bool
     {
         $actor = auth()->user();
 
@@ -1864,6 +1878,10 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         }
 
         if ($this->hasPublishedTimetable($term) && $this->hasOfficialStudentEnrollments($term)) {
+            return false;
+        }
+
+        if ($hasActiveDraft) {
             return false;
         }
 
@@ -2012,7 +2030,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
         return [
             Action::make('changeThisMeeting')
-                ->label('Change this meeting')
+                ->label('Revise this class')
                 ->icon(Heroicon::OutlinedPencilSquare)
                 ->action(fn () => $this->replaceMountedAction('revisePublishedSchedule', ['meeting' => $meetingId])),
             Action::make('cancelThisClass')
@@ -2097,7 +2115,9 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
                     Notification::make()
                         ->title('Official timetable updated')
-                        ->body($events->count().' immutable revision '.str('event')->plural($events->count()).' published.')
+                        ->body($latestVersion instanceof PublishedTimetableVersion
+                            ? "Official timetable updated (Rev {$latestVersion->version}). Affected teachers and students will be notified."
+                            : 'Official timetable updated. Affected teachers and students will be notified.')
                         ->success()
                         ->send();
                 } catch (ValidationException $exception) {
@@ -2131,7 +2151,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
     private function publishedRevisionAction(bool $cancelClass): Action
     {
-        return Action::make($cancelClass ? 'cancelPublishedClass' : 'revisePublishedSchedule')
+        $action = Action::make($cancelClass ? 'cancelPublishedClass' : 'revisePublishedSchedule')
             ->label($cancelClass ? 'Cancel class' : 'Revise schedule')
             ->icon($cancelClass ? Heroicon::OutlinedXCircle : Heroicon::OutlinedPencilSquare)
             ->color($cancelClass ? 'danger' : 'primary')
@@ -2139,16 +2159,9 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             ->modalDescription($cancelClass
                 ? 'Cancels the whole class and all its official meetings. Affected student registrations must be resolved before publication; earlier versions stay in history.'
                 : 'Update a live class without regenerating the whole term. TALA checks conflicts and notifies affected teachers and students.')
-            ->modalSubmitActionLabel($cancelClass ? 'Validate and cancel class' : 'Validate and publish revision')
-            ->modalSubmitAction(fn (Action $action): Action => $action
-                ->color($cancelClass ? 'danger' : 'primary')
-                ->disabled(function () use ($cancelClass): bool {
-                    $data = $this->getMountedAction()?->getRawData() ?? [];
-
-                    return blank($data['change_type'] ?? null)
-                        || blank($data[$cancelClass ? 'section_id' : 'section_meeting_ids'] ?? null);
-                }))
-            ->modalWidth(Width::SevenExtraLarge)
+            ->modalSubmitActionLabel($cancelClass ? 'Cancel class' : 'Publish revision')
+            ->modalSubmitAction(fn (Action $action): Action => $action->color($cancelClass ? 'danger' : 'primary'))
+            ->modalWidth($cancelClass ? Width::TwoExtraLarge : Width::FourExtraLarge)
             ->stickyModalHeader()
             ->stickyModalFooter()
             ->fillForm(fn (array $arguments): array => [
@@ -2162,13 +2175,6 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 'reason' => null,
                 'authority_reference' => null,
             ])
-            ->schema(function () use ($cancelClass): array {
-                $run = $this->officialPublishedRun();
-
-                return $run instanceof ScheduleGenerationRun
-                    ? PublishedScheduleRevisionForm::schema($run, $cancelClass)
-                    : [];
-            })
             ->visible(fn (): bool => $this->canReviseOfficialSchedule())
             ->action(function (array $data) use ($cancelClass): void {
                 $actor = auth()->user();
@@ -2219,7 +2225,9 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
                     Notification::make()
                         ->title('Official timetable updated')
-                        ->body($events->count().' immutable revision '.str('event')->plural($events->count()).' published.')
+                        ->body($latestVersion instanceof PublishedTimetableVersion
+                            ? "Official timetable updated (Rev {$latestVersion->version}). Affected teachers and students will be notified."
+                            : 'Official timetable updated. Affected teachers and students will be notified.')
                         ->success()
                         ->send();
                 } catch (ValidationException $exception) {
@@ -2239,6 +2247,26 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
                     throw $exception;
                 }
+            });
+
+        if ($cancelClass) {
+            return $action->schema(function (): array {
+                $run = $this->officialPublishedRun();
+
+                return $run instanceof ScheduleGenerationRun
+                    ? PublishedScheduleRevisionForm::schema($run, true)
+                    : [];
+            });
+        }
+
+        return $action
+            ->startOnStep(fn (array $arguments): int => filled($arguments['section_meeting_id'] ?? $arguments['meeting'] ?? $this->meetingId ?? null) ? 2 : 1)
+            ->steps(function (): array {
+                $run = $this->officialPublishedRun();
+
+                return $run instanceof ScheduleGenerationRun
+                    ? PublishedScheduleRevisionForm::wizardSteps($run)
+                    : [];
             });
     }
 

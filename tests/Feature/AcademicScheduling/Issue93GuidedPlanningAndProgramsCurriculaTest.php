@@ -35,6 +35,7 @@ use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
@@ -155,7 +156,7 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
         ]);
 
         $component = Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
-            ->assertSee('Save & activate calendar')
+            ->assertSee('Activate calendar')
             ->assertDontSee('Draft calendar package')
             ->mountAction('saveAndActivateCalendar')
             ->assertSchemaStateSet([
@@ -186,6 +187,67 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
             ->assertActionHidden('saveAndActivateCalendar');
     }
 
+    public function test_term_calendar_preserves_key_dates_on_edit_and_prepopulates_empty_set_dates_repeater(): void
+    {
+        $this->staff(User::StaffRoleRegistrar);
+        $year = AcademicYear::factory()->create([
+            'starts_on' => '2027-08-01',
+            'ends_on' => '2027-12-20',
+        ]);
+        $term = Term::factory()->for($year)->create([
+            'state' => Term::StateActive,
+            'starts_on' => '2027-08-10',
+            'ends_on' => '2027-12-15',
+        ]);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'administrative_starts_on' => '2027-08-10',
+            'administrative_ends_on' => '2027-12-15',
+            'classes_start_on' => '2027-08-10',
+            'classes_end_on' => '2027-12-15',
+            'activated_at' => now(),
+        ]);
+        TermTeachingGridRow::factory()->for($package, 'package')->create([
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '17:00:00',
+            'breaks' => [],
+        ]);
+
+        // Opening Set dates with zero saved key term dates pre-populates 1 ready-to-fill row.
+        $emptyDates = Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
+            ->mountAction('addOperationalDates')
+            ->assertMountedActionModalSee('Key term dates');
+        $prefilledRows = array_values($emptyDates->instance()->getSchema($emptyDates->instance()->getMountedActionSchemaName())->getRawState()['windows'] ?? []);
+        $this->assertCount(1, $prefilledRows);
+        $emptyDates->unmountAction();
+
+        // Saving a key term date and later editing the active calendar preserves existing key term dates.
+        $package->windows()->create([
+            'window_type' => TermCalendarWindow::TypeEnrollment,
+            'opens_on' => '2027-08-01',
+            'closes_on' => '2027-08-09',
+            'cutoff_at' => '17:00:00',
+        ]);
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
+            ->mountAction('saveAndActivateCalendar')
+            ->assertMountedActionModalSee('Edit term calendar')
+            ->callMountedAction()
+            ->assertHasNoActionErrors();
+
+        $activeAfterEdit = TermCalendarPackage::query()
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('term_calendar_windows', [
+            'term_calendar_package_id' => $activeAfterEdit->id,
+            'window_type' => TermCalendarWindow::TypeEnrollment,
+        ]);
+    }
+
     public function test_term_resources_exposes_add_room_and_manage_teaching_qualifications_directly(): void
     {
         $this->staff(User::StaffRoleRegistrar);
@@ -197,8 +259,8 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
             ->assertSee('Assign subjects');
 
         Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'rooms'])->test(TermResources::class)
-            ->assertActionVisible(TestAction::make('manageRoomCatalog')->table())
-            ->assertSee('Manage room catalog');
+            ->assertActionDoesNotExist(TestAction::make('manageRoomCatalog')->table())
+            ->assertSee('Edit room catalog in School Resources');
 
         Livewire::withQueryParams(['tab' => 'rooms'])->test(SchoolResources::class)
             ->assertActionVisible(TestAction::make('addRoom')->table())

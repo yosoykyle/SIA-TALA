@@ -19,6 +19,7 @@ use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -40,6 +41,7 @@ trait HasClassPreparationActions
         return Action::make('recordCohort')
             ->label('Add student section')
             ->icon(Heroicon::OutlinedPlus)
+            ->color('primary')
             ->modalHeading('Add student section')
             ->modalSubmitActionLabel('Add student section')
             ->modalCancelActionLabel('Cancel')
@@ -132,10 +134,8 @@ trait HasClassPreparationActions
                         ->label('Automatically create & confirm curriculum classes for this section')
                         ->default($activePackage !== null)
                         ->dehydrated()
-                        ->disabled(function (Get $get) use ($term, $activePackage): bool {
-                            if ($activePackage === null) {
-                                return true;
-                            }
+                        ->visible($activePackage !== null)
+                        ->disabled(function (Get $get) use ($term): bool {
                             $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
                             $yearLevel = (int) ($get('year_level') ?? 1);
                             if ($curriculumId <= 0 || $yearLevel <= 0) {
@@ -144,10 +144,7 @@ trait HasClassPreparationActions
 
                             return $this->confirmableEntriesForCohort($term, $curriculumId, $yearLevel)->isEmpty();
                         })
-                        ->helperText(function (Get $get) use ($term, $activePackage): string {
-                            if ($activePackage === null) {
-                                return 'Activate the teaching calendar first to automatically create classes.';
-                            }
+                        ->helperText(function (Get $get) use ($term): string {
                             $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
                             $yearLevel = (int) ($get('year_level') ?? 1);
                             if ($curriculumId <= 0) {
@@ -160,6 +157,10 @@ trait HasClassPreparationActions
 
                             return "Creates and confirms {$count} matching curriculum ".Str::plural('class', $count).' for this student section in one step.';
                         }),
+                    Placeholder::make('auto_create_classes_notice')
+                        ->hiddenLabel()
+                        ->content('Activate the term calendar in Step 1 to auto-create classes from curriculum.')
+                        ->visible($activePackage === null),
                 ];
             })
             ->action(function (array $data, Schema $schema): void {

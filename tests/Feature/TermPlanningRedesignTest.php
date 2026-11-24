@@ -250,7 +250,11 @@ final class TermPlanningRedesignTest extends TestCase
         $this->assertSame(1, substr_count($page->html(), 'wire:partial="action-modals"'));
         $page->mountAction('expandTimetable')->assertMountedActionModalSee($mathCohort->reference)
             ->assertMountedActionModalDontSee($prefix.'-HR-2A')->unmountAction();
-        $page->call('showTimetableView', 'list')->set('tableRecordsPerPage', 10)->assertCanSeeTableRecords($expected);
+        $page->call('showTimetableView', 'list')
+            ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $expected);
+        foreach ($expected as $meetingId) {
+            $page->assertSeeHtml("wire:key=\"list-meeting-{$meetingId}\"");
+        }
         $page->assertSet('timetableView', 'whole')->assertSet('timetableFormat', 'list');
         $this->assertSame(1, substr_count($page->html(), 'wire:partial="action-modals"'));
         $page->call('showTimetableView', 'section')->set('viewFilter', (string) $mathCohort->id)
@@ -258,7 +262,11 @@ final class TermPlanningRedesignTest extends TestCase
         $page->call('showTimetableFormat', 'week')->call('showTimetableFormat', 'list')
             ->assertSet('timetableView', 'section')->assertSet('viewFilter', (string) $mathCohort->id)
             ->assertSet('programFilter', $mathCohort->program->name)->assertSet('yearFilter', 'Third Year')
-            ->assertSet('selectedRunId', $run->id)->assertCanSeeTableRecords($sharedIds)->assertCanNotSeeTableRecords($thirdIds);
+            ->assertSet('selectedRunId', $run->id)
+            ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $sharedIds);
+        foreach ($sharedIds as $meetingId) {
+            $page->assertSeeHtml("wire:key=\"list-meeting-{$meetingId}\"");
+        }
         $page->call('showTimetableFormat', 'week')
             ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $sharedIds);
         $this->assertSame(1, substr_count($page->html(), 'wire:partial="action-modals"'));
@@ -272,8 +280,11 @@ final class TermPlanningRedesignTest extends TestCase
                 ->assertViewHas('scopeMeetingCount', $allMeetings->count())
                 ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $matchingIds)
                 ->call('showTimetableFormat', 'list')->assertSet('tableSearch', $search)
-                ->assertCanSeeTableRecords($matchingIds)->assertCanNotSeeTableRecords($allMeetings->whereNotIn('id', $matchingIds)->pluck('id')->all())
-                ->set('tableSearch', 'NO-MEETING-MATCH')->assertSee('No meetings match this view.')
+                ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $matchingIds);
+            foreach ($matchingIds as $meetingId) {
+                $focused->assertSeeHtml("wire:key=\"list-meeting-{$meetingId}\"");
+            }
+            $focused->set('tableSearch', 'NO-MEETING-MATCH')->assertSee('No meetings match this view.')
                 ->call('clearViewFilters')->assertSet('tableSearch', '');
             foreach (['section', 'faculty', 'room'] as $blankCriterion) {
                 $focused->call('showTimetableView', $blankCriterion)->call('showTimetableFormat', 'list')
@@ -289,8 +300,11 @@ final class TermPlanningRedesignTest extends TestCase
                 $ids = $allMeetings->where($criterion, $value)->pluck('id')->sort()->values()->all();
                 $focused->call('showTimetableView', $criterion)->set('viewFilter', $value)
                     ->call('showTimetableFormat', 'list')->assertSet('timetableView', $criterion)->assertSet('viewFilter', $value)
-                    ->assertViewHas('scopeMeetingCount', $allMeetings->count())->assertCanSeeTableRecords($ids)
-                    ->assertCanNotSeeTableRecords($allMeetings->where($criterion, '!=', $value)->pluck('id')->all());
+                    ->assertViewHas('scopeMeetingCount', $allMeetings->count())
+                    ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $ids);
+                foreach ($ids as $meetingId) {
+                    $focused->assertSeeHtml("wire:key=\"list-meeting-{$meetingId}\"");
+                }
                 foreach ($source as $property => $id) {
                     $focused->assertSet($property, $id);
                 }
@@ -299,9 +313,13 @@ final class TermPlanningRedesignTest extends TestCase
             }
         }
 
-        Livewire::withQueryParams(['termId' => $fixture['term_id'], 'selectedRunId' => $run->id, 'timetableView' => 'list', 'programFilter' => $mathCohort->program->name, 'yearFilter' => 'Third Year'])
+        $queryList = Livewire::withQueryParams(['termId' => $fixture['term_id'], 'selectedRunId' => $run->id, 'timetableView' => 'list', 'programFilter' => $mathCohort->program->name, 'yearFilter' => 'Third Year'])
             ->test(TermTimetable::class)->assertSet('timetableView', 'whole')->assertSet('timetableFormat', 'list')
-            ->assertSet('programFilter', $mathCohort->program->name)->assertSet('yearFilter', 'Third Year')->assertCanSeeTableRecords($expected);
+            ->assertSet('programFilter', $mathCohort->program->name)->assertSet('yearFilter', 'Third Year')
+            ->assertViewHas('timetablePresentation', fn (array $presentation): bool => collect(array_column($presentation['meetings'], 'id'))->sort()->values()->all() === $expected);
+        foreach ($expected as $meetingId) {
+            $queryList->assertSeeHtml("wire:key=\"list-meeting-{$meetingId}\"");
+        }
         $page->call('showTimetableFormat', 'invalid')->assertNotFound();
     }
 

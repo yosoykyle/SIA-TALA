@@ -5,314 +5,10 @@
         : $this->getRecord();
     $contextTermId = property_exists($this, 'termId') ? $this->termId : $record->term_id;
     $report = \App\Filament\Resources\ScheduleGenerationRuns\Schemas\ScheduleGenerationRunInfolist::reportData($record, $contextTermId);
+    $publishedVersionBadgeColor = ($record->isPublished() && $record->term?->state !== \App\Models\Term::StateClosed)
+        ? 'success'
+        : 'gray';
 @endphp
-
-@once
-    <style>
-        .tala-solver-report {
-            display: grid;
-            gap: var(--tala-section-gap, 1rem);
-            min-inline-size: 0;
-        }
-        .tala-solver-metrics {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 0;
-            margin: 0;
-            overflow: hidden;
-            background: var(--tala-surface);
-        }
-        .tala-solver-metric {
-            display: grid;
-            align-content: start;
-            gap: 0.25rem;
-            min-inline-size: 0;
-            padding: 0.9375rem var(--tala-card-pad, 1rem);
-        }
-        .tala-solver-metric + .tala-solver-metric {
-            border-inline-start: 1px solid var(--tala-edge);
-        }
-        .tala-solver-metric.is-success {
-            background: color-mix(in srgb, var(--tala-brand-tint) 34%, var(--tala-surface));
-        }
-        .tala-solver-metric.is-danger {
-            background: color-mix(in srgb, var(--tala-status-danger-bg) 42%, var(--tala-surface));
-        }
-        .tala-solver-metric.is-warning {
-            background: color-mix(in srgb, var(--tala-status-warning-bg) 38%, var(--tala-surface));
-        }
-        .tala-solver-metric__label {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            margin: 0;
-            font-size: 0.75rem;
-            font-weight: 600;
-            line-height: 1.35;
-            color: var(--tala-muted);
-        }
-        .tala-solver-metric__label .fi-icon {
-            inline-size: 0.95rem;
-            block-size: 0.95rem;
-            flex: none;
-            color: var(--tala-control-icon);
-        }
-        .tala-solver-metric.is-success .tala-solver-metric__label .fi-icon {
-            color: var(--tala-status-success-fg);
-        }
-        .tala-solver-metric.is-danger .tala-solver-metric__label .fi-icon {
-            color: var(--tala-status-danger-fg);
-        }
-        .tala-solver-metric__value {
-            margin: 0;
-            font-size: 1.375rem;
-            font-weight: 700;
-            line-height: 1.2;
-            letter-spacing: -0.02em;
-            color: var(--tala-text);
-            font-variant-numeric: tabular-nums;
-            overflow-wrap: break-word;
-        }
-        .tala-solver-metric.is-success .tala-solver-metric__value {
-            color: var(--tala-on-brand-tint);
-        }
-        .tala-solver-metric.is-danger .tala-solver-metric__value {
-            color: var(--tala-status-danger-fg);
-        }
-        .tala-solver-metric__sub {
-            margin: 0;
-            font-size: 0.75rem;
-            font-weight: 500;
-            line-height: 1.4;
-            color: var(--tala-muted);
-        }
-        .tala-solver-card {
-            overflow: hidden;
-        }
-        .tala-solver-card__header {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: baseline;
-            justify-content: space-between;
-            gap: 0.25rem 1rem;
-            padding: 0.75rem var(--tala-card-pad, 1rem);
-            border-block-end: 1px solid var(--tala-edge);
-            background: var(--tala-surface-sunken);
-        }
-        .tala-solver-card__header h2 {
-            margin: 0;
-            font-size: 0.9375rem;
-            font-weight: 600;
-            line-height: 1.35;
-            color: var(--tala-text);
-        }
-        .tala-solver-card__caption {
-            margin: 0;
-            font-size: 0.8125rem;
-            line-height: 1.45;
-            color: var(--tala-muted);
-            max-inline-size: 80ch;
-        }
-        .tala-solver-card__body {
-            padding: var(--tala-card-pad, 1rem);
-        }
-        .tala-solver-kv-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 1rem 1.5rem;
-            margin: 0;
-        }
-        .tala-solver-kv-item {
-            display: grid;
-            align-content: start;
-            gap: 0.25rem;
-            min-inline-size: 0;
-        }
-        .tala-solver-kv-item--full {
-            grid-column: 1 / -1;
-            padding-block-start: 0.75rem;
-            border-block-start: 1px solid var(--tala-edge);
-        }
-        .tala-solver-kv-item dt {
-            font-size: 0.75rem;
-            font-weight: 600;
-            line-height: 1.35;
-            color: var(--tala-muted);
-        }
-        .tala-solver-kv-item dd {
-            margin: 0;
-            display: grid;
-            gap: 0.25rem;
-            font-size: 0.875rem;
-            line-height: 1.5;
-            color: var(--tala-text);
-            overflow-wrap: anywhere;
-        }
-        .tala-solver-kv-inline {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.45rem;
-        }
-        .tala-solver-kv-primary {
-            font-weight: 600;
-            color: var(--tala-text);
-        }
-        .tala-solver-kv-secondary {
-            font-size: 0.8125rem;
-            color: var(--tala-muted);
-            line-height: 1.45;
-        }
-        .tala-solver-table-wrap {
-            overflow-x: auto;
-            min-inline-size: 0;
-        }
-        .tala-solver-table {
-            inline-size: 100%;
-            border-collapse: collapse;
-            font-size: 0.875rem;
-            text-align: start;
-            font-variant-numeric: tabular-nums;
-        }
-        .tala-solver-table thead th {
-            padding: 0.625rem var(--tala-card-pad, 1rem);
-            border-block-end: 1px solid var(--tala-edge);
-            background: color-mix(in srgb, var(--tala-surface-sunken) 55%, var(--tala-surface));
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--tala-muted);
-            white-space: nowrap;
-        }
-        .tala-solver-table tbody td {
-            padding: 0.6875rem var(--tala-card-pad, 1rem);
-            border-block-end: 1px solid var(--tala-edge);
-            vertical-align: middle;
-            line-height: 1.45;
-            color: var(--tala-text);
-        }
-        .tala-solver-table tbody tr:last-child td {
-            border-block-end: 0;
-        }
-        .tala-solver-table__rule {
-            font-weight: 600;
-            color: var(--tala-text);
-        }
-        .tala-solver-table__notes {
-            color: var(--tala-muted);
-            font-size: 0.8125rem;
-        }
-        .tala-solver-table__value {
-            text-align: end;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-        .tala-solver-priority-pill {
-            display: inline-grid;
-            place-items: center;
-            inline-size: 1.35rem;
-            block-size: 1.35rem;
-            margin-inline-end: 0.45rem;
-            border-radius: 999px;
-            border: 1px solid var(--tala-edge-strong);
-            background: var(--tala-surface-sunken);
-            font-size: 0.72rem;
-            font-weight: 600;
-            color: var(--tala-muted);
-            font-variant-numeric: tabular-nums;
-        }
-        .tala-solver-ref-footer {
-            display: grid;
-            gap: 0.625rem;
-            padding: 0.75rem var(--tala-card-pad, 1rem);
-            border: 1px solid var(--tala-edge);
-            border-radius: var(--tala-card-radius);
-            background: var(--tala-surface-sunken);
-        }
-        .tala-solver-ref-row {
-            display: grid;
-            grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
-            gap: 0.625rem 1.25rem;
-            margin: 0;
-            align-items: center;
-        }
-        .tala-solver-ref-item {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: baseline;
-            gap: 0.25rem 0.45rem;
-            min-inline-size: 0;
-            font-size: 0.8125rem;
-            line-height: 1.4;
-        }
-        .tala-solver-ref-item dt {
-            color: var(--tala-muted);
-            font-weight: 500;
-        }
-        .tala-solver-ref-item dd {
-            margin: 0;
-            color: var(--tala-text);
-            font-weight: 600;
-            font-variant-numeric: tabular-nums;
-            overflow-wrap: anywhere;
-        }
-        .tala-solver-ref-admin {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.375rem 1.25rem;
-            padding-block-start: 0.5rem;
-            border-block-start: 1px solid var(--tala-edge);
-            font-size: 0.75rem;
-            color: var(--tala-muted);
-            font-variant-numeric: tabular-nums;
-        }
-        .tala-solver-rm-table .fi-ta-header-toolbar > div:last-child {
-            margin-inline-start: auto;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        @media (max-width: 56rem) {
-            .tala-solver-metrics {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-            .tala-solver-metric:nth-child(3) {
-                border-inline-start: 0;
-            }
-            .tala-solver-metric:nth-child(n + 3) {
-                border-block-start: 1px solid var(--tala-edge);
-            }
-            .tala-solver-ref-row {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-        }
-        @media (max-width: 38rem) {
-            .tala-solver-metrics,
-            .tala-solver-kv-grid,
-            .tala-solver-ref-row {
-                grid-template-columns: minmax(0, 1fr);
-            }
-            .tala-solver-metric + .tala-solver-metric {
-                border-inline-start: 0;
-                border-block-start: 1px solid var(--tala-edge);
-            }
-            .tala-solver-table__value {
-                text-align: start;
-                white-space: normal;
-            }
-        }
-        @media (forced-colors: active) {
-            .tala-solver-metrics,
-            .tala-solver-metric,
-            .tala-solver-card__header,
-            .tala-solver-ref-footer {
-                background: Canvas;
-                color: CanvasText;
-                border-color: CanvasText;
-            }
-        }
-    </style>
-@endonce
 
 <div class="tala-solver-report" aria-label="Solver report summary and checks"
     @if ($report['isActiveRun']) wire:poll.5s.visible="refreshScheduleRun" @endif>
@@ -327,7 +23,7 @@
                 </header>
                 <div class="tala-solver-card__body">
                     <dl class="tala-solver-kv-grid">
-                        <div class="tala-solver-kv-item tala-solver-kv-item--full" style="border-block-start: 0; padding-block-start: 0;">
+                        <div class="tala-solver-kv-item tala-solver-kv-item--full tala-solver-kv-item--flush">
                             <dt>Source attempt</dt>
                             <dd>
                                 <div class="tala-solver-kv-inline">
@@ -449,7 +145,7 @@
                                 <div class="tala-solver-kv-inline">
                                     <span class="tala-solver-kv-primary">{{ $report['publisherName'] }}</span>
                                     @if ($report['publishedVersionNumber'])
-                                        <x-filament::badge color="primary" size="sm">Version {{ $report['publishedVersionNumber'] }}</x-filament::badge>
+                                        <x-filament::badge :color="$publishedVersionBadgeColor" size="sm">Version {{ $report['publishedVersionNumber'] }}</x-filament::badge>
                                     @endif
                                 </div>
                             </dd>
@@ -604,7 +300,7 @@
                 <header class="tala-solver-card__header">
                     <h2 id="solver-quality-heading">Schedule quality</h2>
                     <p class="tala-solver-card__caption">
-                        Measured optimization-quality measures ranked in priority order — not predictive accuracy or an accuracy score. Lower values are preferred at each step after earlier priorities tie (higher for Stability preference).
+                        Optimization priorities ranked in order. Lower values are better (except stability preference, where higher is better).
                     </p>
                 </header>
                 @if ($report['qualityRows'] !== [])
@@ -613,7 +309,7 @@
                             <thead>
                                 <tr>
                                     <th scope="col">Measure</th>
-                                    <th scope="col" style="text-align: end;">Recorded value</th>
+                                    <th scope="col" class="tala-solver-table__value-head">Recorded value</th>
                                 </tr>
                             </thead>
                             <tbody>

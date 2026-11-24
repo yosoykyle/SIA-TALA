@@ -86,13 +86,16 @@
                                 @endif
                                 · Load limit: <strong>{{ $formattedDefaultMaxUnits }}</strong>
                             </p>
+                            <p class="tala-resource-readiness-bar__meta">
+                                Step 3 tracks this term's availability, load overrides, and room closures. School Resources manages school-wide rooms and qualified subjects across all terms.
+                            </p>
                         </div>
                         <div class="tala-resource-readiness-bar__actions">
                             @if (! $readOnly && ! $this->isTermClosed() && ! $this->hasPublishedTimetable())
                                 {{ $this->sendAvailabilityReminderAction }}
                             @endif
                             <x-filament::button tag="a" color="gray" size="sm" icon="heroicon-o-academic-cap" :href="$schoolFacultyUrl">
-                                Manage in School Resources
+                                Edit qualified subjects in School Resources
                             </x-filament::button>
                         </div>
                     </div>
@@ -182,7 +185,7 @@
                         </div>
                         <div class="tala-resource-readiness-bar__actions">
                             <x-filament::button tag="a" color="gray" size="sm" icon="heroicon-o-building-office-2" :href="$schoolRoomsUrl">
-                                Manage in School Resources
+                                Edit room catalog in School Resources
                             </x-filament::button>
                         </div>
                     </div>

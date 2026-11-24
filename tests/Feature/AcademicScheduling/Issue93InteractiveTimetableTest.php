@@ -59,8 +59,8 @@ class Issue93InteractiveTimetableTest extends TestCase
             ->test(TermTimetable::class, ['termId' => $fixture['term']->id]);
 
         $component
-            ->assertSee('Draft candidate · Editable')
-            ->assertSee('Publish official timetable')
+            ->assertSee('Draft · Editable')
+            ->assertSee('Publish official')
             ->assertSee('All (Whole Term)')
             ->assertSee('By section')
             ->assertSee('By teacher')
@@ -90,7 +90,7 @@ class Issue93InteractiveTimetableTest extends TestCase
 
         $this->assertTrue($interactiveContext['editable']);
         $this->assertFalse($interactiveContext['isOfficial']);
-        $this->assertSame('Draft candidate · Editable', $interactiveContext['statusPillLabel']);
+        $this->assertSame('Draft · Editable', $interactiveContext['statusPillLabel']);
         $this->assertArrayHasKey(1, $interactiveContext['teachingGrid']);
         $this->assertArrayHasKey($fixture['facultyOne']->id, $interactiveContext['teacherAvailability']);
         $this->assertArrayHasKey('IT 101', $interactiveContext['qualifiedTeachersByCourse']);
@@ -232,12 +232,12 @@ class Issue93InteractiveTimetableTest extends TestCase
 
         $this->assertSame($run->id, (int) $publishedVersion->schedule_run_id);
 
-        // Reloading the official timetable shows the Locked status pill, disables draggable tiles, and blocks draft mutations.
+        // Reloading the official timetable shows the Live status pill, disables draggable tiles, and blocks draft mutations.
         $officialComponent = Livewire::actingAs($fixture['registrar'])
             ->test(TermTimetable::class, ['termId' => $fixture['term']->id])
-            ->assertSee('Official · Locked')
+            ->assertSee('Official · Live')
             ->assertSee('Revise schedule')
-            ->assertDontSee('Draft candidate · Editable')
+            ->assertDontSee('Draft · Editable')
             ->assertDontSee('draggable="true"', false);
 
         $officialComponent

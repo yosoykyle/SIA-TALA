@@ -10,10 +10,12 @@ use App\Filament\Resources\Rooms\Schemas\RoomInfolist;
 use App\Models\CalendarEvent;
 use App\Models\Course;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumVersion;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\OperationalEvent;
+use App\Models\Program;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
@@ -26,6 +28,7 @@ use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -85,7 +88,16 @@ class TermResources extends TermPlanningWorkbench implements HasTable
 
     private ?array $resourceViewData = null;
 
-    /** @var array{options: array<int, string>, descriptions: array<int, string>}|null */
+    /**
+     * @var array{
+     *     options: array<int, string>,
+     *     descriptions: array<int, string>,
+     *     needed_ids: list<int>,
+     *     shared_ids: list<int>,
+     *     program_course_ids: array<int, list<int>>,
+     *     programs: array<int, string>
+     * }|null
+     */
     private ?array $catalogSubjectsCache = null;
 
     protected static ?string $cluster = TermPlanningCluster::class;
@@ -174,7 +186,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             ->color('gray')
             ->size('sm')
             ->modalHeading('Assign qualified subjects')
-            ->modalDescription('Shared across all terms · Choose a teacher and check the catalog subjects they are approved to teach.')
+            ->modalDescription('School-wide qualification shared across all terms · Choose a teacher and check the catalog subjects they are approved to teach.')
             ->modalWidth(Width::ThreeExtraLarge)
             ->stickyModalHeader()
             ->stickyModalFooter()
@@ -184,6 +196,8 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                 && ! ($this->getViewData()['readOnly'] ?? false)
                 && ! $this->isTermClosed())
             ->schema([
+                Hidden::make('retained_course_ids')
+                    ->default([]),
                 Select::make('faculty_user_id')
                     ->label('Faculty member')
                     ->placeholder('Choose a teacher')
@@ -196,9 +210,10 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     ->searchable()
                     ->required()
                     ->live()
-                    ->afterStateUpdated(function (Set $set, mixed $state): void {
+                    ->afterStateUpdated(function (Get $get, Set $set, mixed $state): void {
                         if (blank($state)) {
                             $set('course_ids', []);
+                            $set('retained_course_ids', []);
 
                             return;
                         }
@@ -211,12 +226,30 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                             ->values()
                             ->all();
 
-                        $set('course_ids', $activeIds);
+                        [$visibleSelected, $retainedSelected] = $this->partitionSelectedCourseIds(
+                            $activeIds,
+                            (string) ($get('program_filter') ?? 'all'),
+                        );
+
+                        $set('course_ids', $visibleSelected);
+                        $set('retained_course_ids', $retainedSelected);
+                    }),
+                Select::make('program_filter')
+                    ->label('Filter subjects by program')
+                    ->options(fn (): array => $this->programFilterOptions())
+                    ->default('all')
+                    ->selectablePlaceholder(false)
+                    ->native(false)
+                    ->dehydrated(false)
+                    ->live()
+                    ->visible(fn (Get $get): bool => filled($get('faculty_user_id')))
+                    ->afterStateUpdated(function (Get $get, Set $set, ?string $state): void {
+                        $this->repartitionSelectedCourseIdsForFilter($get, $set, $state);
                     }),
                 CheckboxList::make('course_ids')
                     ->label('Qualified subjects')
-                    ->options(fn (): array => $this->catalogSubjectOptions())
-                    ->descriptions(fn (): array => $this->catalogSubjectDescriptions())
+                    ->options(fn (Get $get): array => $this->filteredCatalogSubjectOptions($get('program_filter')))
+                    ->descriptions(fn (Get $get): array => $this->filteredCatalogSubjectDescriptions($get('program_filter')))
                     ->searchable()
                     ->searchPrompt('Search by subject code or title...')
                     ->bulkToggleable()
@@ -224,7 +257,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     ->gridDirection(GridDirection::Row)
                     ->extraAttributes(['class' => 'tala-card-picker'])
                     ->visible(fn (Get $get): bool => filled($get('faculty_user_id')))
-                    ->helperText('Shared across all terms. Check every subject this teacher can be scheduled to teach.'),
+                    ->helperText(fn (Get $get): string => $this->subjectSelectionHelperText($get('retained_course_ids'))),
                 Textarea::make('notes')
                     ->label('Notes (optional)')
                     ->rows(2)
@@ -243,12 +276,10 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     ->whereHas('roles', fn (Builder $query): Builder => $query->where('name', User::StaffRoleFaculty))
                     ->firstOrFail();
 
-                $selectedCourseIds = collect($data['course_ids'] ?? [])
-                    ->map(fn (mixed $id): int => (int) $id)
-                    ->filter(fn (int $id): bool => $id > 0)
-                    ->unique()
-                    ->values()
-                    ->all();
+                $selectedCourseIds = $this->mergeSelectedCourseIds(
+                    $data['course_ids'] ?? [],
+                    $data['retained_course_ids'] ?? [],
+                );
 
                 try {
                     $this->syncFacultySubjects($faculty, $selectedCourseIds, $actor, $data['notes'] ?? null);
@@ -502,29 +533,49 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     ->color('gray')
                     ->extraAttributes(['class' => 'whitespace-nowrap'])
                     ->modalHeading(fn (array $record): string => 'Subjects for '.$record['name'])
-                    ->modalDescription('Shared across all terms · Check every catalog subject this teacher is approved to teach.')
+                    ->modalDescription('School-wide qualification shared across all terms · Check every catalog subject this teacher is approved to teach.')
                     ->modalWidth(Width::ThreeExtraLarge)
                     ->stickyModalHeader()
                     ->stickyModalFooter()
                     ->modalSubmitActionLabel('Save subjects')
                     ->modalCancelActionLabel('Cancel')
                     ->visible(fn (): bool => ! ($this->getViewData()['readOnly'] ?? false) && ! $this->isTermClosed())
-                    ->fillForm(fn (array $record): array => [
-                        'course_ids' => array_map(fn (int $id): string => (string) $id, $record['qualified_course_ids'] ?? []),
-                        'notes' => null,
-                    ])
+                    ->fillForm(function (array $record): array {
+                        $activeIds = array_map(fn (int $id): string => (string) $id, $record['qualified_course_ids'] ?? []);
+                        [$visibleSelected, $retainedSelected] = $this->partitionSelectedCourseIds($activeIds, 'all');
+
+                        return [
+                            'program_filter' => 'all',
+                            'retained_course_ids' => $retainedSelected,
+                            'course_ids' => $visibleSelected,
+                            'notes' => null,
+                        ];
+                    })
                     ->schema([
+                        Hidden::make('retained_course_ids')
+                            ->default([]),
+                        Select::make('program_filter')
+                            ->label('Filter subjects by program')
+                            ->options(fn (): array => $this->programFilterOptions())
+                            ->default('all')
+                            ->selectablePlaceholder(false)
+                            ->native(false)
+                            ->dehydrated(false)
+                            ->live()
+                            ->afterStateUpdated(function (Get $get, Set $set, ?string $state): void {
+                                $this->repartitionSelectedCourseIdsForFilter($get, $set, $state);
+                            }),
                         CheckboxList::make('course_ids')
                             ->label('Qualified subjects')
-                            ->options(fn (): array => $this->catalogSubjectOptions())
-                            ->descriptions(fn (): array => $this->catalogSubjectDescriptions())
+                            ->options(fn (Get $get): array => $this->filteredCatalogSubjectOptions($get('program_filter')))
+                            ->descriptions(fn (Get $get): array => $this->filteredCatalogSubjectDescriptions($get('program_filter')))
                             ->searchable()
                             ->searchPrompt('Search by subject code or title...')
                             ->bulkToggleable()
                             ->columns(['default' => 1, 'md' => 2])
                             ->gridDirection(GridDirection::Row)
                             ->extraAttributes(['class' => 'tala-card-picker'])
-                            ->helperText('Shared across all terms.'),
+                            ->helperText(fn (Get $get): string => $this->subjectSelectionHelperText($get('retained_course_ids'))),
                         Textarea::make('notes')
                             ->label('Notes (optional)')
                             ->rows(2)
@@ -536,12 +587,10 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                         abort_if($this->isTermClosed(), 403);
 
                         $faculty = User::query()->findOrFail((int) $record['faculty_user_id']);
-                        $selectedCourseIds = collect($data['course_ids'] ?? [])
-                            ->map(fn (mixed $id): int => (int) $id)
-                            ->filter(fn (int $id): bool => $id > 0)
-                            ->unique()
-                            ->values()
-                            ->all();
+                        $selectedCourseIds = $this->mergeSelectedCourseIds(
+                            $data['course_ids'] ?? [],
+                            $data['retained_course_ids'] ?? [],
+                        );
 
                         try {
                             $this->syncFacultySubjects($faculty, $selectedCourseIds, $actor, $data['notes'] ?? null);
@@ -644,13 +693,15 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                                     ->content("{$formattedDefault} units per teacher"),
                                 Grid::make(['default' => 1, 'md' => 2])->schema([
                                     TextInput::make('default_max_units_snapshot')
-                                        ->label('Base limit snapshot (units)')
+                                        ->label('Term base limit (units)')
+                                        ->helperText('Override only if this teacher has a custom or reduced base load; use Approved additional units for overload.')
                                         ->numeric()
                                         ->minValue(0)
                                         ->step(0.25)
                                         ->required(),
                                     TextInput::make('approved_overload_units')
                                         ->label('Approved additional units')
+                                        ->helperText('Extra units approved above the term base limit.')
                                         ->numeric()
                                         ->minValue(0)
                                         ->step(0.25)
@@ -761,7 +812,10 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                         ->modalHeading(fn (array $record): string => 'Mark '.$record['name'].' as not teaching this term')
                         ->modalDescription('Sets this teacher’s teaching load to 0 units for the selected term so automatic scheduling will not assign them classes. Their own availability history stays preserved.')
                         ->modalWidth(Width::Large)
+                        ->stickyModalHeader()
+                        ->stickyModalFooter()
                         ->modalSubmitActionLabel('Exclude for this term')
+                        ->modalCancelActionLabel('Cancel')
                         ->schema([
                             Textarea::make('reason')
                                 ->label('Reason')
@@ -965,18 +1019,6 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     ->options(Room::typeOptions()),
             ])
             ->filtersTriggerAction(fn (Action $action): Action => $action->label('Filter rooms')->button()->color('gray')->size('sm'))
-            ->toolbarActions([
-                Action::make('manageRoomCatalog')
-                    ->label('Manage room catalog')
-                    ->icon(Heroicon::OutlinedBuildingOffice2)
-                    ->color('gray')
-                    ->size('sm')
-                    ->visible(fn (): bool => Room::query()->where('is_active', true)->exists())
-                    ->url(fn (): string => SchoolResources::getUrl([
-                        'tab' => 'rooms',
-                        ...($this->termId !== null ? ['termId' => $this->termId] : []),
-                    ])),
-            ])
             ->recordActions([
                 Action::make('roomClosures')
                     ->label('Room closures')
@@ -1039,7 +1081,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                                 return "{$day} · {$start}–{$end} ({$status})";
                             })
                             ->schema([
-                                Grid::make(['default' => 1, 'md' => 4])->schema([
+                                Grid::make(['default' => 1, 'sm' => 2, 'lg' => 4])->schema([
                                     Select::make('day_of_week')
                                         ->label('Day')
                                         ->options(CalendarEvent::dayOptions())
@@ -1185,7 +1227,181 @@ class TermResources extends TermPlanningWorkbench implements HasTable
     }
 
     /**
-     * @return array{options: array<int, string>, descriptions: array<int, string>}
+     * @return array<string, string>
+     */
+    private function programFilterOptions(): array
+    {
+        $payload = $this->catalogSubjectsPayload();
+
+        $options = [
+            'all' => 'All catalog subjects',
+        ];
+
+        if ($payload['needed_ids'] !== []) {
+            $options['needed'] = 'Needed in this term';
+        }
+
+        $options['shared'] = 'General Education / Shared across programs';
+
+        foreach ($payload['programs'] as $programId => $label) {
+            $options['program:'.$programId] = $label;
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function filteredCatalogSubjectOptions(?string $filter): array
+    {
+        $payload = $this->catalogSubjectsPayload();
+        $allowedIds = $this->filteredCourseIdsForFilter($filter, $payload);
+
+        if ($allowedIds === null) {
+            return $payload['options'];
+        }
+
+        return array_intersect_key($payload['options'], array_flip($allowedIds));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function filteredCatalogSubjectDescriptions(?string $filter): array
+    {
+        $payload = $this->catalogSubjectsPayload();
+        $allowedIds = $this->filteredCourseIdsForFilter($filter, $payload);
+
+        if ($allowedIds === null) {
+            return $payload['descriptions'];
+        }
+
+        return array_intersect_key($payload['descriptions'], array_flip($allowedIds));
+    }
+
+    /**
+     * @param  array{
+     *     options: array<int, string>,
+     *     descriptions: array<int, string>,
+     *     needed_ids: list<int>,
+     *     shared_ids: list<int>,
+     *     program_course_ids: array<int, list<int>>,
+     *     programs: array<int, string>
+     * }  $payload
+     * @return list<int>|null
+     */
+    private function filteredCourseIdsForFilter(?string $filter, array $payload): ?array
+    {
+        $normalized = filled($filter) ? (string) $filter : 'all';
+
+        if ($normalized === 'all') {
+            return null;
+        }
+
+        if ($normalized === 'needed') {
+            return $payload['needed_ids'];
+        }
+
+        if ($normalized === 'shared') {
+            return $payload['shared_ids'];
+        }
+
+        if (str_starts_with($normalized, 'program:')) {
+            $programId = (int) substr($normalized, strlen('program:'));
+
+            return $payload['program_course_ids'][$programId] ?? [];
+        }
+
+        return null;
+    }
+
+    /**
+     * Split a complete list of selected course IDs into [visibleIds, retainedHiddenIds] for the active filter.
+     *
+     * @param  list<mixed>  $allSelected
+     * @return array{0: list<string>, 1: list<string>}
+     */
+    private function partitionSelectedCourseIds(array $allSelected, ?string $filter): array
+    {
+        $normalizedSelected = collect($allSelected)
+            ->map(fn (mixed $id): string => (string) (int) $id)
+            ->filter(fn (string $id): bool => (int) $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $visibleKeys = array_map(
+            'strval',
+            array_keys($this->filteredCatalogSubjectOptions($filter)),
+        );
+        $visibleLookup = array_flip($visibleKeys);
+
+        $visible = [];
+        $retained = [];
+
+        foreach ($normalizedSelected as $id) {
+            if (isset($visibleLookup[$id])) {
+                $visible[] = $id;
+            } else {
+                $retained[] = $id;
+            }
+        }
+
+        return [$visible, $retained];
+    }
+
+    private function repartitionSelectedCourseIdsForFilter(Get $get, Set $set, ?string $filter): void
+    {
+        $allSelected = array_merge(
+            is_array($get('course_ids')) ? $get('course_ids') : [],
+            is_array($get('retained_course_ids')) ? $get('retained_course_ids') : [],
+        );
+
+        [$visible, $retained] = $this->partitionSelectedCourseIds($allSelected, $filter);
+
+        $set('course_ids', $visible);
+        $set('retained_course_ids', $retained);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function mergeSelectedCourseIds(mixed $visibleIds, mixed $retainedIds): array
+    {
+        return collect(is_array($visibleIds) ? $visibleIds : [])
+            ->merge(is_array($retainedIds) ? $retainedIds : [])
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function subjectSelectionHelperText(mixed $retainedIds): string
+    {
+        $retainedCount = collect(is_array($retainedIds) ? $retainedIds : [])
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->count();
+
+        if ($retainedCount > 0) {
+            return $retainedCount.' additional selected '.str('subject')->plural($retainedCount).' outside this filter will be kept when you save. Qualifications apply school-wide across all terms.';
+        }
+
+        return 'School-wide qualification shared across all terms. Check every subject this teacher can be scheduled to teach.';
+    }
+
+    /**
+     * @return array{
+     *     options: array<int, string>,
+     *     descriptions: array<int, string>,
+     *     needed_ids: list<int>,
+     *     shared_ids: list<int>,
+     *     program_course_ids: array<int, list<int>>,
+     *     programs: array<int, string>
+     * }
      */
     private function catalogSubjectsPayload(): array
     {
@@ -1206,6 +1422,46 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                 ->all()
             : [];
 
+        $activePrograms = Program::query()
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get(['id', 'code', 'name']);
+
+        $programById = $activePrograms->keyBy('id');
+        $programs = [];
+        $programCourseIds = [];
+
+        foreach ($activePrograms as $program) {
+            $programs[(int) $program->id] = "{$program->code} — {$program->name}";
+            $programCourseIds[(int) $program->id] = [];
+        }
+
+        $courseProgramIds = [];
+        if ($activePrograms->isNotEmpty()) {
+            $courseProgramRows = DB::table('curriculum_entries')
+                ->join('curriculum_versions', 'curriculum_versions.id', '=', 'curriculum_entries.curriculum_version_id')
+                ->join('course_specifications', 'course_specifications.id', '=', 'curriculum_entries.course_specification_id')
+                ->whereIn('curriculum_versions.state', [
+                    CurriculumVersion::StateActive,
+                    CurriculumVersion::StateDraft,
+                ])
+                ->whereIn('curriculum_versions.program_id', $activePrograms->pluck('id'))
+                ->select('course_specifications.course_id', 'curriculum_versions.program_id')
+                ->distinct()
+                ->get();
+
+            foreach ($courseProgramRows as $row) {
+                $courseId = (int) $row->course_id;
+                $programId = (int) $row->program_id;
+                $courseProgramIds[$courseId][$programId] = $programId;
+                $programCourseIds[$programId][$courseId] = $courseId;
+            }
+        }
+
+        foreach ($programCourseIds as $programId => $ids) {
+            $programCourseIds[$programId] = array_values($ids);
+        }
+
         $courses = Course::query()
             ->where('state', Course::StateActive)
             ->with([
@@ -1220,25 +1476,48 @@ class TermResources extends TermPlanningWorkbench implements HasTable
 
         $options = [];
         $descriptions = [];
+        $neededIds = [];
+        $sharedIds = [];
 
         foreach ($courses as $course) {
+            $courseId = (int) $course->id;
             $spec = $course->specifications->first();
             $title = trim((string) ($spec?->title ?? ''));
-            $options[$course->id] = $title !== '' ? "{$course->code} — {$title}" : $course->code;
+            $options[$courseId] = $title !== '' ? "{$course->code} — {$title}" : $course->code;
 
+            $linkedProgramIds = array_values($courseProgramIds[$courseId] ?? []);
+            if (count($linkedProgramIds) === 1) {
+                $programTag = (string) ($programById[$linkedProgramIds[0]]?->code ?? 'Shared / GE');
+            } else {
+                $programTag = 'Shared / GE';
+                $sharedIds[] = $courseId;
+            }
+
+            $isNeeded = isset($offeredCourseIds[$courseId]);
+            if ($isNeeded) {
+                $neededIds[] = $courseId;
+            }
+
+            $parts = [];
             if ($spec instanceof CourseSpecification) {
                 $units = rtrim(rtrim(number_format((float) $spec->credit_units, 2, '.', ''), '0'), '.');
-                $unitLabel = "{$units} ".((float) $spec->credit_units === 1.0 ? 'unit' : 'units');
-                $demandTag = isset($offeredCourseIds[$course->id]) ? ' · Needed this term' : '';
-                $descriptions[$course->id] = $unitLabel.$demandTag;
-            } elseif (isset($offeredCourseIds[$course->id])) {
-                $descriptions[$course->id] = 'Needed this term';
+                $parts[] = "{$units} ".((float) $spec->credit_units === 1.0 ? 'unit' : 'units');
             }
+            $parts[] = $programTag;
+            if ($isNeeded) {
+                $parts[] = 'Needed this term';
+            }
+
+            $descriptions[$courseId] = implode(' · ', $parts);
         }
 
         return $this->catalogSubjectsCache = [
             'options' => $options,
             'descriptions' => $descriptions,
+            'needed_ids' => $neededIds,
+            'shared_ids' => $sharedIds,
+            'program_course_ids' => $programCourseIds,
+            'programs' => $programs,
         ];
     }
 

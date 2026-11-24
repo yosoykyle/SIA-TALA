@@ -1075,7 +1075,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $component->assertNotified(
             Notification::make()
                 ->title('Timetable generation requested')
-                ->body("Request #{$run->id} captured the current ready requirements. Its status refreshes automatically.")
+                ->body("Attempt #{$run->id} captured the current ready requirements. Its status refreshes automatically.")
                 ->success(),
         );
     }

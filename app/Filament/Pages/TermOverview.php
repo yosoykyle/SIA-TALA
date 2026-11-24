@@ -167,6 +167,9 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
             ->extraAttributes(['class' => 'tala-data-table'])
             ->stackedOnMobile()
             ->recordUrl(fn (Term $record): string => TermCalendar::getUrl(['termId' => $record->id]))
+            ->toolbarActions([
+                $this->createTermAction()->size('sm'),
+            ])
             ->recordActions([
                 Action::make('open')
                     ->label('Open')
@@ -249,7 +252,7 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         AcademicYear::stateOptions()[AcademicYear::StateActive] ?? 'Active' => 'success',
-                        AcademicYear::stateOptions()[AcademicYear::StateDraft] ?? 'Draft' => 'warning',
+                        AcademicYear::stateOptions()[AcademicYear::StateDraft] ?? 'Draft' => 'gray',
                         default => 'gray',
                     }),
             ])

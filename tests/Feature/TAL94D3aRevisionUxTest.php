@@ -148,7 +148,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
             ->test(TermTimetable::class)
             ->mountAction('revisePublishedSchedule', ['meeting' => $meeting->id])
             ->assertActionDataSet(['section_meeting_ids' => [$meeting->id]])
-            ->assertMountedActionModalSee('What do you need to change?')
+            ->assertMountedActionModalSee('Choose change')
             ->assertMountedActionModalDontSee('Check the impact')
             ->setActionData([
                 'change_type' => ScheduleRevisionEvent::ChangeRoom,
@@ -157,7 +157,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
             ])
             ->assertMountedActionModalSee('Current')
             ->assertMountedActionModalSee('Proposed')
-            ->assertMountedActionModalSee('Check the impact');
+            ->assertMountedActionModalSee('Review & publish');
 
         $component->unmountAction()->assertActionNotMounted();
         $this->assertDatabaseCount('schedule_revision_events', 0);
@@ -317,7 +317,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
                 ->assertMountedActionModalSee('Tuesday')
                 ->assertMountedActionModalSee('10:00 AM–11:00 AM')
                 ->assertMountedActionModalDontSee('Review or change assignments')
-                ->assertMountedActionModalDontSee('Change this meeting');
+                ->assertMountedActionModalDontSee('Revise this class');
 
             $issuedMeetingLoads = collect(DB::getQueryLog())->filter(
                 fn (array $query): bool => str_contains($query['query'], 'from `published_timetable_meetings`'),
@@ -417,20 +417,20 @@ final class TAL94D3aRevisionUxTest extends TestCase
 
         Livewire::actingAs($registrar)->withQueryParams($parameters)->test(TermTimetable::class)
             ->mountTableAction('viewMeeting', (string) $issued->id)
-            ->assertMountedActionModalSee('Change this meeting')
+            ->assertMountedActionModalSee('Revise this class')
             ->assertMountedActionModalSee('Cancel this class')
             ->assertMountedActionModalDontSee('actionArguments');
 
         Livewire::actingAs($this->staff(User::StaffRoleAcademicHead))
             ->withQueryParams($parameters)->test(TermTimetable::class)
             ->mountTableAction('viewMeeting', (string) $issued->id)
-            ->assertMountedActionModalDontSee('Change this meeting')
+            ->assertMountedActionModalDontSee('Revise this class')
             ->assertMountedActionModalDontSee('Cancel this class');
 
         $version->update(['state' => PublishedTimetableVersion::StateSuperseded]);
         Livewire::actingAs($registrar)->withQueryParams($parameters)->test(TermTimetable::class)
             ->mountTableAction('viewMeeting', (string) $issued->id)
-            ->assertMountedActionModalDontSee('Change this meeting')
+            ->assertMountedActionModalDontSee('Revise this class')
             ->assertMountedActionModalDontSee('Cancel this class');
     }
 

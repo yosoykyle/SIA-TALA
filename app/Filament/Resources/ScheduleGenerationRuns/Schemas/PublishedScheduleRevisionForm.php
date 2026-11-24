@@ -6,6 +6,8 @@ use App\Actions\Calendar\TermTeachingGrid;
 use App\Actions\Scheduling\ScheduleRevisionImpact;
 use App\Actions\Scheduling\ScheduleRevisionImpactService;
 use App\Models\Course;
+use App\Models\CourseComponent;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -29,6 +31,7 @@ use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section as FormSection;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard\Step;
 use Filament\Support\Enums\GridDirection;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
@@ -52,8 +55,8 @@ final class PublishedScheduleRevisionForm
         ];
     }
 
-    /** @return list<Component> */
-    public static function schema(ScheduleGenerationRun $run, bool $cancelClass = false): array
+    /** @return list<Step> */
+    public static function wizardSteps(ScheduleGenerationRun $run): array
     {
         $term = $run->term;
         $slotMinutes = $term instanceof Term
@@ -61,91 +64,100 @@ final class PublishedScheduleRevisionForm
             : 30;
 
         return [
-            FormSection::make($cancelClass ? 'Class to cancel' : 'Meetings to change')
-                ->description($cancelClass
-                    ? 'Cancellation affects the whole class and every active official meeting. Review affected registrations before publication.'
-                    : 'Choose one or more official meetings, then select what needs to change.')
+            Step::make('Select meetings')
+                ->icon(Heroicon::OutlinedCalendarDays)
+                ->columns(1)
                 ->schema([
+                    Placeholder::make('selected_meetings_count')
+                        ->hiddenLabel()
+                        ->content(fn (Get $get): HtmlString => self::selectionCountBanner($get('section_meeting_ids')))
+                        ->columnSpanFull(),
                     CheckboxList::make('section_meeting_ids')
-                        ->label('Selected meetings')
-                        ->helperText('Search by subject, section, day, room, or teacher. Check one or more official meetings to revise.')
+                        ->label('Official meetings')
+                        ->helperText('Search by subject, class, day, room, or teacher. Check one or more official meetings to revise.')
                         ->options(self::meetingOptions($run))
                         ->descriptions(self::meetingDescriptions($run))
                         ->searchable()
-                        ->searchPrompt('Search by subject, section, day, room, or teacher...')
+                        ->searchPrompt('Search by subject, class, day, room, or teacher…')
                         ->bulkToggleable()
                         ->columns(['default' => 1, 'md' => 2])
                         ->gridDirection(GridDirection::Row)
-                        ->required(! $cancelClass)
-                        ->visible(! $cancelClass)
+                        ->required()
+                        ->rules(['array', 'min:1'])
                         ->live()
                         ->extraAttributes(['class' => 'tala-card-picker tala-revision-meeting-checklist'])
                         ->columnSpanFull(),
-                    $cancelClass
-                        ? Hidden::make('change_type')->default(ScheduleRevisionEvent::ChangeSectionCancellation)
-                        : ToggleButtons::make('change_type')
-                            ->label('What do you need to change?')
-                            ->options([
-                                ScheduleRevisionEvent::ChangeRoom => 'Room',
-                                ScheduleRevisionEvent::ChangeFacultyReassignment => 'Teacher',
-                                ScheduleRevisionEvent::ChangeTime => 'Day and time',
-                                ScheduleRevisionEvent::ChangeDeliveryModality => 'Delivery mode',
-                            ])
-                            ->icons([
-                                ScheduleRevisionEvent::ChangeRoom => Heroicon::OutlinedBuildingOffice2,
-                                ScheduleRevisionEvent::ChangeFacultyReassignment => Heroicon::OutlinedUser,
-                                ScheduleRevisionEvent::ChangeTime => Heroicon::OutlinedClock,
-                                ScheduleRevisionEvent::ChangeDeliveryModality => Heroicon::OutlinedArrowsRightLeft,
-                            ])
-                            ->inline()
-                            ->grouped()
-                            ->required()
-                            ->visible(fn (Get $get): bool => filled($get('section_meeting_ids')))
-                            ->live()
-                            ->afterStateUpdated(function (Set $set, ?string $state, Get $get): void {
-                                if ($state === ScheduleRevisionEvent::ChangeFacultyReassignment && blank($get('reassignment_scope'))) {
-                                    $set('reassignment_scope', self::ScopeTemporarySubstitute);
-                                }
-                            })
-                            ->columnSpanFull(),
-                    Select::make('section_id')
-                        ->label('Selected class')
-                        ->helperText('All delivery groups and active official meetings of this class are included.')
-                        ->options(self::sectionOptions($run))
-                        ->searchable()
-                        ->preload()
-                        ->required($cancelClass)
-                        ->visible($cancelClass)
+                ]),
+            Step::make('Choose change')
+                ->icon(Heroicon::OutlinedAdjustmentsHorizontal)
+                ->columns(['default' => 1, 'md' => 2])
+                ->schema([
+                    Placeholder::make('selected_meetings_summary')
+                        ->hiddenLabel()
+                        ->content(fn (Get $get): HtmlString => self::selectedMeetingsInset($run, $get('section_meeting_ids')))
+                        ->columnSpanFull(),
+                    ToggleButtons::make('change_type')
+                        ->label('What do you need to change?')
+                        ->options([
+                            ScheduleRevisionEvent::ChangeRoom => 'Room',
+                            ScheduleRevisionEvent::ChangeFacultyReassignment => 'Teacher',
+                            ScheduleRevisionEvent::ChangeTime => 'Day and time',
+                            ScheduleRevisionEvent::ChangeDeliveryModality => 'Delivery mode',
+                        ])
+                        ->icons([
+                            ScheduleRevisionEvent::ChangeRoom => Heroicon::OutlinedBuildingOffice2,
+                            ScheduleRevisionEvent::ChangeFacultyReassignment => Heroicon::OutlinedUser,
+                            ScheduleRevisionEvent::ChangeTime => Heroicon::OutlinedClock,
+                            ScheduleRevisionEvent::ChangeDeliveryModality => Heroicon::OutlinedArrowsRightLeft,
+                        ])
+                        ->inline()
+                        ->grouped()
+                        ->required()
                         ->live()
+                        ->afterStateUpdated(function (Set $set, ?string $state, Get $get) use ($run): void {
+                            if ($state === ScheduleRevisionEvent::ChangeFacultyReassignment && blank($get('reassignment_scope'))) {
+                                $set('reassignment_scope', self::ScopeTemporarySubstitute);
+                            }
+
+                            if ($state === ScheduleRevisionEvent::ChangeTime && filled($get('starts_at')) && blank($get('ends_at'))) {
+                                $computedEnd = self::computedEndTime($run, $get('section_meeting_ids'), (string) $get('starts_at'));
+                                if ($computedEnd !== null) {
+                                    $set('ends_at', $computedEnd);
+                                }
+                            }
+                        })
                         ->columnSpanFull(),
                     Select::make('replacement_room_id')
                         ->label('Replacement room')
-                        ->options(self::roomOptions())
+                        ->helperText(fn (Get $get): ?string => self::roomRequirementHelper($run, $get('section_meeting_ids')))
+                        ->options(fn (Get $get): array => self::roomOptions($run, $get('section_meeting_ids')))
                         ->searchable()
                         ->preload()
                         ->placeholder('Select a replacement room')
                         ->required(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeRoom
                             || ($get('change_type') === ScheduleRevisionEvent::ChangeDeliveryModality
                                 && self::selectedRequiresRoom($run, $get('section_meeting_ids'))))
-                        ->visible(fn (Get $get): bool => in_array($get('change_type'), [
-                            ScheduleRevisionEvent::ChangeRoom,
-                            ScheduleRevisionEvent::ChangeDeliveryModality,
-                        ], true))
+                        ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeRoom
+                            || ($get('change_type') === ScheduleRevisionEvent::ChangeDeliveryModality
+                                && self::selectedRequiresRoom($run, $get('section_meeting_ids'))))
+                        ->columnSpan(fn (Get $get): int => $get('change_type') === ScheduleRevisionEvent::ChangeRoom ? 2 : 1)
                         ->live(),
                     Select::make('replacement_faculty_user_id')
-                        ->label('Replacement Faculty')
+                        ->label('Replacement teacher')
                         ->options(fn (Get $get): array => self::facultyOptions($run, $get('section_meeting_ids')))
                         ->searchable()
                         ->preload()
+                        ->placeholder('Select a qualified teacher')
                         ->required(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment)
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment)
+                        ->columnSpanFull()
                         ->live(),
                     Radio::make('reassignment_scope')
                         ->label('Reassignment scope')
                         ->options(self::reassignmentScopeOptions())
                         ->descriptions([
-                            self::ScopeTemporarySubstitute => 'Updates timetable meetings and notifies affected faculty and students while keeping the original designated grading faculty intact.',
-                            self::ScopePermanentTakeover => 'Updates timetable meetings and designates the replacement faculty as the class grades owner.',
+                            self::ScopeTemporarySubstitute => 'Updates timetable meetings and notifies affected teachers and students while keeping the original grading teacher intact.',
+                            self::ScopePermanentTakeover => 'Updates timetable meetings and transfers designated class grades ownership to the replacement teacher.',
                         ])
                         ->default(self::ScopeTemporarySubstitute)
                         ->afterStateHydrated(function (Radio $component, mixed $state): void {
@@ -159,7 +171,7 @@ final class PublishedScheduleRevisionForm
                         ->live()
                         ->columnSpanFull(),
                     Checkbox::make('add_co_faculty')
-                        ->label('Also add replacement faculty as co-faculty for class list access')
+                        ->label('Also add replacement teacher as co-faculty for class list access')
                         ->helperText('Adds the substitute as co-faculty so they can view the class list while keeping the original grading teacher intact.')
                         ->default(false)
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment
@@ -171,6 +183,7 @@ final class PublishedScheduleRevisionForm
                         ->options(self::dayOptions($run))
                         ->required(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
+                        ->columnSpanFull()
                         ->live(),
                     TimePicker::make('starts_at')
                         ->label('Replacement start time')
@@ -179,9 +192,16 @@ final class PublishedScheduleRevisionForm
                         ->minutesStep($slotMinutes)
                         ->required(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
-                        ->live(),
+                        ->live()
+                        ->afterStateUpdated(function (Set $set, ?string $state, Get $get) use ($run): void {
+                            $computedEnd = self::computedEndTime($run, $get('section_meeting_ids'), $state);
+                            if ($computedEnd !== null) {
+                                $set('ends_at', $computedEnd);
+                            }
+                        }),
                     TimePicker::make('ends_at')
                         ->label('Replacement end time')
+                        ->helperText('Auto-filled from the selected meeting duration. Adjust if needed.')
                         ->timezone((string) config('app.timezone'))
                         ->seconds(false)
                         ->minutesStep($slotMinutes)
@@ -196,26 +216,66 @@ final class PublishedScheduleRevisionForm
                             $get('section_meeting_ids'),
                         ))
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeDeliveryModality),
-                ])->columns(['default' => 1, 'md' => 2]),
-            FormSection::make('Check the impact')
-                ->description('Review the proposed meeting changes and affected people before publishing.')
-                ->visible(fn (Get $get): bool => filled($get('change_type'))
-                    && filled($get($cancelClass ? 'section_id' : 'section_meeting_ids')))
+                ]),
+            Step::make('Review & publish')
+                ->icon(Heroicon::OutlinedShieldCheck)
+                ->columns(1)
+                ->schema([
+                    Placeholder::make('impact_preview')
+                        ->hiddenLabel()
+                        ->content(fn (Get $get): HtmlString => self::previewContent($run, $get))
+                        ->columnSpanFull(),
+                    Textarea::make('reason')
+                        ->label('Approved reason')
+                        ->helperText('Effective immediately when published. TALA records the date and publishing actor automatically.')
+                        ->placeholder('Enter the approved operational reason for this revision…')
+                        ->rows(3)
+                        ->maxLength(2000)
+                        ->required()
+                        ->columnSpanFull(),
+                ]),
+        ];
+    }
+
+    /** @return list<Component> */
+    public static function schema(ScheduleGenerationRun $run, bool $cancelClass = false): array
+    {
+        if (! $cancelClass) {
+            return self::wizardSteps($run);
+        }
+
+        return [
+            FormSection::make('Class to cancel')
+                ->description('Cancellation affects the whole class and every active official meeting. Review affected registrations before publication.')
+                ->schema([
+                    Hidden::make('change_type')->default(ScheduleRevisionEvent::ChangeSectionCancellation),
+                    Select::make('section_id')
+                        ->label('Selected class')
+                        ->helperText('All delivery groups and active official meetings of this class are included.')
+                        ->options(self::sectionOptions($run))
+                        ->searchable()
+                        ->preload()
+                        ->required()
+                        ->live()
+                        ->columnSpanFull(),
+                ])->columns(1),
+            FormSection::make('Review impact')
+                ->description('Review the meetings and people affected before cancelling this class.')
+                ->visible(fn (Get $get): bool => filled($get('section_id')))
                 ->schema([
                     Placeholder::make('impact_preview')
                         ->hiddenLabel()
                         ->content(fn (Get $get): HtmlString => self::previewContent($run, $get))
                         ->columnSpanFull(),
                 ]),
-            FormSection::make('Record the approved change')
+            FormSection::make('Record the approved cancellation')
                 ->description('Effective immediately when published. TALA records the date and publishing actor automatically.')
                 ->columns(1)
-                ->visible(fn (Get $get): bool => filled($get('change_type'))
-                    && filled($get($cancelClass ? 'section_id' : 'section_meeting_ids')))
+                ->visible(fn (Get $get): bool => filled($get('section_id')))
                 ->schema([
                     Textarea::make('reason')
                         ->label('Approved reason')
-                        ->helperText('Record the institutionally approved operational reason for this revision.')
+                        ->helperText('Record the institutionally approved operational reason for cancelling this class.')
                         ->rows(3)
                         ->maxLength(2000)
                         ->required(),
@@ -265,7 +325,7 @@ final class PublishedScheduleRevisionForm
             ScheduleRevisionEvent::ChangeFacultyReassignment => collect($meetingIds)
                 ->map(fn (int $meetingId): array => [
                     'section_meeting_id' => $meetingId,
-                    'faculty_user_id' => self::requiredId($data, 'replacement_faculty_user_id', 'Select a replacement faculty member.'),
+                    'faculty_user_id' => self::requiredId($data, 'replacement_faculty_user_id', 'Select a replacement teacher.'),
                     ...self::facultyReassignmentMetadata($data),
                 ])
                 ->all(),
@@ -336,16 +396,63 @@ final class PublishedScheduleRevisionForm
     /** @param array<string, mixed> $data */
     public static function section(ScheduleGenerationRun $run, array $data): Section
     {
-        $sectionId = self::requiredId($data, 'section_id', 'Select the Section to cancel.');
+        $sectionId = self::requiredId($data, 'section_id', 'Select the class to cancel.');
         $section = self::sectionsForRun($run)->firstWhere('id', $sectionId);
 
         if (! $section instanceof Section) {
             throw ValidationException::withMessages([
-                'section_id' => 'Select a Section with active official meetings in this published run.',
+                'section_id' => 'Select a class with active official meetings in this published run.',
             ]);
         }
 
         return $section;
+    }
+
+    private static function selectionCountBanner(mixed $selectedMeetingIds): HtmlString
+    {
+        $count = count(self::selectedMeetingIds($selectedMeetingIds));
+        $label = $count === 0
+            ? '0 selected — choose one or more official meetings to continue.'
+            : sprintf('%d %s selected', $count, Str::plural('meeting', $count));
+        $tone = $count > 0 ? 'is-active' : 'is-empty';
+
+        return new HtmlString(
+            '<div class="tala-revision-selection-bar '.$tone.'" role="status" aria-live="polite">'
+            .'<span>'.e($label).'</span>'
+            .'</div>',
+        );
+    }
+
+    private static function selectedMeetingsInset(ScheduleGenerationRun $run, mixed $selectedMeetingIds): HtmlString
+    {
+        $meetingIds = self::selectedMeetingIds($selectedMeetingIds);
+
+        if ($meetingIds === []) {
+            return new HtmlString(
+                '<div class="tala-context-inset"><p class="tala-work-footnote">No meetings selected yet. Return to Step 1 to pick one or more official meetings.</p></div>',
+            );
+        }
+
+        $selected = self::meetingsForRun($run)
+            ->whereIn('id', $meetingIds)
+            ->values();
+        $count = $selected->count();
+        $first = $selected->first();
+        $summary = $first instanceof SectionMeeting
+            ? self::meetingLabel($first).' · '.self::meetingDescription($first)
+            : sprintf('%d %s selected', $count, Str::plural('meeting', $count));
+        $extra = $count > 1 ? sprintf(' (+%d more)', $count - 1) : '';
+        $heading = sprintf('Revising %d %s', $count, Str::plural('meeting', $count));
+
+        return new HtmlString(
+            '<div class="tala-context-inset tala-revision-selected-inset">'
+            .'<div class="tala-revision-selected-inset__body">'
+            .'<strong>'.e($heading).'</strong>'
+            .'<span>'.e($summary.$extra).'</span>'
+            .'</div>'
+            .'<span class="tala-revision-selected-inset__hint">Click Step 1 to adjust</span>'
+            .'</div>',
+        );
     }
 
     private static function previewContent(ScheduleGenerationRun $run, Get $get): HtmlString
@@ -371,36 +478,27 @@ final class PublishedScheduleRevisionForm
             $impact = self::preview($run, $data);
         } catch (ValidationException $exception) {
             return new HtmlString(
-                '<p class="text-sm text-gray-600 dark:text-gray-300">'.e(self::validationMessage($exception)).'</p>',
+                '<div class="tala-revision-status is-blocked" role="status"><strong>Incomplete change details</strong><span>'.e(self::validationMessage($exception)).'</span></div>',
             );
         }
 
-        $statusClass = $impact->passes()
-            ? 'text-success-700 dark:text-success-400'
-            : 'text-danger-700 dark:text-danger-400';
-        $status = $impact->passes() ? 'Meeting checks passed — publication rechecks the complete change' : 'Change blocked';
+        $statusClass = $impact->passes() ? 'is-pass' : 'is-blocked';
+        $status = $impact->passes()
+            ? 'Meeting checks passed — publication rechecks the complete change'
+            : 'Change blocked';
         $meetingCount = count($impact->meetingChanges());
         $studentCount = $impact->affectedStudents();
         $facultyCount = $impact->affectedFaculty();
-        $summary = sprintf(
-            '%d %s, %d affected %s, and %d affected %s.',
-            $meetingCount,
-            $meetingCount === 1 ? 'meeting' : 'meetings',
-            $studentCount,
-            $studentCount === 1 ? 'student' : 'students',
-            $facultyCount,
-            $facultyCount === 1 ? 'faculty member' : 'faculty members',
-        );
         $scopeNote = '';
 
         if ($get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment) {
             $scope = self::reassignmentScope($data);
             $scopeSummary = $scope === self::ScopePermanentTakeover
-                ? 'Permanent takeover — also transfers designated class grades ownership to the replacement faculty.'
+                ? 'Permanent takeover — also transfers designated class grades ownership to the replacement teacher.'
                 : ((bool) ($data['add_co_faculty'] ?? false)
-                    ? 'Temporary substitute / relief coverage — adds replacement faculty as co-faculty while keeping the original designated grading faculty intact.'
-                    : 'Temporary substitute / relief coverage — updates timetable meetings while keeping the original designated grading faculty intact.');
-            $scopeNote = '<p class="font-medium">'.e($scopeSummary).'</p>';
+                    ? 'Temporary substitute / relief coverage — adds replacement teacher as co-faculty while keeping the original grading teacher intact.'
+                    : 'Temporary substitute / relief coverage — updates timetable meetings while keeping the original grading teacher intact.');
+            $scopeNote = '<div class="tala-context-inset"><p class="tala-revision-scope-note">'.e($scopeSummary).'</p></div>';
         }
 
         $meetingRows = collect($impact->meetingChanges())
@@ -415,14 +513,20 @@ final class PublishedScheduleRevisionForm
         }
 
         return new HtmlString(<<<HTML
-            <div class="space-y-3 text-sm">
-                <p class="font-semibold {$statusClass}">{$status}</p>
-                <p>{$summary}</p>
+            <div class="tala-revision-preview">
+                <div class="tala-revision-status {$statusClass}" role="status">
+                    <strong>{$status}</strong>
+                </div>
+                <dl class="tala-revision-metrics" aria-label="Revision impact summary">
+                    <div><dt>Meetings</dt><dd>{$meetingCount}</dd></div>
+                    <div><dt>Affected students</dt><dd>{$studentCount}</dd></div>
+                    <div><dt>Affected teachers</dt><dd>{$facultyCount}</dd></div>
+                </dl>
                 {$scopeNote}
-                <div class="space-y-2">{$meetingRows}</div>
-                <div>
-                    <p class="font-medium">Validation findings</p>
-                    <ul class="list-disc space-y-1 ps-5">{$findingRows}</ul>
+                <div class="tala-revision-changes">{$meetingRows}</div>
+                <div class="tala-revision-findings">
+                    <p class="tala-revision-findings__heading">Validation findings</p>
+                    <ul class="tala-revision-findings__list">{$findingRows}</ul>
                 </div>
             </div>
             HTML);
@@ -453,10 +557,10 @@ final class PublishedScheduleRevisionForm
         $message = (string) ($finding['message'] ?? 'Unspecified validation finding.');
         $source = ScheduleGenerationRunInfolist::sourcePresentation($finding);
         $sourceHtml = filled($source['url'])
-            ? '<a class="text-primary-600 underline" href="'.e((string) $source['url']).'">'.e($source['label']).'</a>'
+            ? '<a class="fi-link" href="'.e((string) $source['url']).'">'.e($source['label']).'</a>'
             : e($source['label']);
 
-        return '<li>'.e($message).' <span class="text-gray-500">Source: '.$sourceHtml.'</span></li>';
+        return '<li>'.e($message).' <span class="tala-revision-finding-source">Source: '.$sourceHtml.'</span></li>';
     }
 
     /** @param array<string, mixed> $snapshot */
@@ -467,15 +571,14 @@ final class PublishedScheduleRevisionForm
         $faculty = $facultyId !== null ? User::query()->find($facultyId) : null;
         $room = $roomId !== null ? Room::query()->find($roomId) : null;
         $day = SectionMeeting::dayOptions()[(int) ($snapshot['day_of_week'] ?? 0)] ?? 'No day';
-        $start = self::shortTime($snapshot['starts_at'] ?? null);
-        $end = self::shortTime($snapshot['ends_at'] ?? null);
+        $timeWindow = self::formatTimeWindow($snapshot['starts_at'] ?? null, $snapshot['ends_at'] ?? null);
         $modality = TermOffering::modalityOptions()[(string) ($snapshot['modality'] ?? '')]
             ?? Str::headline((string) ($snapshot['modality'] ?? '-'));
 
-        return (($snapshot['state'] ?? null) === SectionMeeting::StateCancelled ? 'Cancelled · ' : '').implode(' | ', [
-            $day.' '.$start.'-'.$end,
-            $faculty instanceof User ? $faculty->name : ($facultyId === null ? 'No faculty' : 'User #'.$facultyId),
-            $room instanceof Room ? $room->code : ($roomId === null ? 'No physical room' : 'Room #'.$roomId),
+        return (($snapshot['state'] ?? null) === SectionMeeting::StateCancelled ? 'Cancelled · ' : '').implode(' · ', [
+            $day.' '.$timeWindow,
+            $faculty instanceof User ? $faculty->name : ($facultyId === null ? 'Unassigned teacher' : 'User #'.$facultyId),
+            $room instanceof Room ? $room->code : ($roomId === null ? 'Online / No room' : 'Room #'.$roomId),
             $modality,
         ]);
     }
@@ -597,14 +700,172 @@ final class PublishedScheduleRevisionForm
     }
 
     /** @return array<int, string> */
-    private static function roomOptions(): array
+    private static function roomOptions(?ScheduleGenerationRun $run = null, mixed $selectedMeetingIds = null): array
     {
-        return Room::query()
+        $rooms = Room::query()
             ->where('is_active', true)
             ->orderBy('code')
-            ->get()
-            ->mapWithKeys(fn (Room $room): array => [(int) $room->id => $room->displayLabel()])
+            ->get();
+
+        $requirements = $run instanceof ScheduleGenerationRun
+            ? self::selectedRoomRequirements($run, $selectedMeetingIds)
+            : ['requires_lab' => null, 'required_capacity' => 0];
+
+        $requiresLab = $requirements['requires_lab'];
+        $requiredCapacity = $requirements['required_capacity'];
+
+        return $rooms
+            ->map(function (Room $room) use ($requiresLab, $requiredCapacity): array {
+                $roomTypeUpper = strtoupper((string) $room->room_type);
+                $isOnlineRoom = $room->room_type === Room::TypeOnlineNoPhysicalRoom;
+                $isLabRoom = str_contains($roomTypeUpper, 'LAB');
+                $typeMatches = ! $isOnlineRoom && ($requiresLab === null || ($requiresLab ? $isLabRoom : ! $isLabRoom));
+                $capacityMatches = $requiredCapacity <= 0 || $room->capacity >= $requiredCapacity;
+                $compatible = $typeMatches && $capacityMatches;
+
+                $base = collect([
+                    $room->code,
+                    $room->name,
+                    Room::typeOptions()[$room->room_type] ?? $room->room_type,
+                    "{$room->capacity} seats",
+                ])->filter()->implode(' · ');
+
+                if ($requiresLab === null && $requiredCapacity <= 0) {
+                    return [
+                        'id' => (int) $room->id,
+                        'priority' => $isOnlineRoom ? 1 : 0,
+                        'code' => (string) $room->code,
+                        'label' => $base,
+                    ];
+                }
+
+                if ($compatible) {
+                    return [
+                        'id' => (int) $room->id,
+                        'priority' => 0,
+                        'code' => (string) $room->code,
+                        'label' => "{$base} · Compatible",
+                    ];
+                }
+
+                $notes = [];
+                if ($isOnlineRoom) {
+                    $notes[] = 'Non-physical';
+                } elseif (! $typeMatches) {
+                    $notes[] = $requiresLab ? 'Not a lab' : 'Lab room';
+                }
+                if (! $capacityMatches) {
+                    $notes[] = "Needs {$requiredCapacity} seats";
+                }
+
+                return [
+                    'id' => (int) $room->id,
+                    'priority' => 1,
+                    'code' => (string) $room->code,
+                    'label' => $base.' · '.implode(', ', $notes),
+                ];
+            })
+            ->sortBy([
+                ['priority', 'asc'],
+                ['code', 'asc'],
+            ])
+            ->mapWithKeys(fn (array $entry): array => [$entry['id'] => $entry['label']])
             ->all();
+    }
+
+    private static function roomRequirementHelper(ScheduleGenerationRun $run, mixed $selectedMeetingIds): ?string
+    {
+        $requirements = self::selectedRoomRequirements($run, $selectedMeetingIds);
+        $parts = [];
+
+        if ($requirements['requires_lab'] === true) {
+            $parts[] = 'Laboratory';
+        } elseif ($requirements['requires_lab'] === false) {
+            $parts[] = 'Lecture';
+        }
+
+        if ($requirements['required_capacity'] > 0) {
+            $parts[] = "at least {$requirements['required_capacity']} seats";
+        }
+
+        if ($parts === []) {
+            return null;
+        }
+
+        return 'Compatible rooms ('.implode(' · ', $parts).') are listed first.';
+    }
+
+    /** @return array{requires_lab: bool|null, required_capacity: int} */
+    private static function selectedRoomRequirements(ScheduleGenerationRun $run, mixed $selectedMeetingIds): array
+    {
+        $meetingIds = self::selectedMeetingIds($selectedMeetingIds);
+        if ($meetingIds === []) {
+            return ['requires_lab' => null, 'required_capacity' => 0];
+        }
+
+        $meetings = self::meetingsForRun($run)
+            ->whereIn('id', $meetingIds)
+            ->values();
+
+        if ($meetings->isEmpty()) {
+            return ['requires_lab' => null, 'required_capacity' => 0];
+        }
+
+        $labFlags = $meetings
+            ->map(function (SectionMeeting $meeting): bool {
+                $component = $meeting->schedulingDemand?->courseComponent;
+                $roomTypeDefault = strtoupper((string) ($component?->room_type_default ?? ''));
+
+                return $component?->component_type === CourseComponent::TypeLaboratory
+                    || str_contains($roomTypeDefault, 'LAB');
+            })
+            ->unique()
+            ->values();
+
+        $requiresLab = $labFlags->count() === 1 ? (bool) $labFlags->first() : null;
+        $requiredCapacity = (int) $meetings
+            ->map(fn (SectionMeeting $meeting): int => (int) (
+                $meeting->schedulingDemand?->sectionDeliveryGroup?->expected_count
+                ?? data_get($meeting->schedulingDemand?->source_snapshot, 'expected_count')
+                ?? $meeting->schedulingDemand?->sectionDeliveryGroup?->section?->capacity
+                ?? 0
+            ))
+            ->max();
+
+        return [
+            'requires_lab' => $requiresLab,
+            'required_capacity' => max(0, $requiredCapacity),
+        ];
+    }
+
+    private static function computedEndTime(ScheduleGenerationRun $run, mixed $selectedMeetingIds, ?string $startsAt): ?string
+    {
+        if (! filled($startsAt)) {
+            return null;
+        }
+
+        $startMinutes = FacultyAvailabilityDeclaration::clockToMinutes((string) $startsAt);
+        if ($startMinutes === null) {
+            return null;
+        }
+
+        $meetingIds = self::selectedMeetingIds($selectedMeetingIds);
+        $meeting = $meetingIds !== []
+            ? self::meetingsForRun($run)->firstWhere('id', $meetingIds[0])
+            : null;
+
+        $durationMinutes = 60;
+        if ($meeting instanceof SectionMeeting) {
+            $currentStart = FacultyAvailabilityDeclaration::clockToMinutes((string) $meeting->starts_at);
+            $currentEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) $meeting->ends_at);
+            $durationMinutes = ($currentStart !== null && $currentEnd !== null && $currentEnd > $currentStart)
+                ? ($currentEnd - $currentStart)
+                : max(30, (int) ($meeting->schedulingDemand?->required_duration_minutes ?? 60));
+        }
+
+        $endMinutes = min((23 * 60) + 59, $startMinutes + $durationMinutes);
+
+        return sprintf('%02d:%02d', intdiv($endMinutes, 60), $endMinutes % 60);
     }
 
     /** @return array<int, string> */

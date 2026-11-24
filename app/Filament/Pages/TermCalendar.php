@@ -28,7 +28,9 @@ use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section as SchemaSection;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -204,7 +206,7 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                 'classes_run_note' => 'Pre-filled from term dates (not yet activated)',
                 'teaching_hours' => 'Mon–Sat · 7:00 AM–7:00 PM',
                 'teaching_hours_note' => 'Default 6-day teaching schedule',
-                'grid_slots' => '30-minute slots',
+                'grid_slots' => '30-minute intervals',
                 'grid_slots_note' => 'Asia/Manila',
             ];
         }
@@ -227,7 +229,7 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
             $adminRange = $adminStart->year === $adminEnd->year
                 ? $adminStart->format('M j').' – '.$adminEnd->format('M j, Y')
                 : $adminStart->format('M j, Y').' – '.$adminEnd->format('M j, Y');
-            $classesRunNote = 'Term window: '.$adminRange;
+            $classesRunNote = 'Term dates: '.$adminRange;
         }
 
         $rows = $package->teachingGridRows->sortBy('day_of_week')->values();
@@ -261,7 +263,7 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
             'classes_run_note' => $classesRunNote,
             'teaching_hours' => $teachingHours,
             'teaching_hours_note' => $teachingHoursNote,
-            'grid_slots' => '30-minute slots',
+            'grid_slots' => '30-minute intervals',
             'grid_slots_note' => 'Asia/Manila',
         ];
     }
@@ -309,15 +311,21 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
         return Action::make('saveAndActivateCalendar')
             ->label(fn (): string => $this->activeCalendarPackage() && ! $this->latestDraftCalendarPackage()
                 ? 'Edit calendar'
-                : 'Save & activate calendar')
+                : 'Activate calendar')
             ->icon(fn (): string => $this->activeCalendarPackage() && ! $this->latestDraftCalendarPackage()
                 ? 'heroicon-o-pencil-square'
                 : 'heroicon-o-check-circle')
             ->color(fn (): string => $this->activeCalendarPackage() && ! $this->latestDraftCalendarPackage() ? 'gray' : 'primary')
             ->size('sm')
-            ->modalHeading('Save & activate term calendar')
-            ->modalDescription('Review the pre-filled term dates and weekly teaching hours, adjust if needed, and activate immediately.')
-            ->modalSubmitActionLabel('Save & activate calendar')
+            ->modalHeading(fn (): string => $this->activeCalendarPackage() && ! $this->latestDraftCalendarPackage()
+                ? 'Edit term calendar'
+                : 'Set up term calendar')
+            ->modalDescription(fn (): string => $this->activeCalendarPackage() && ! $this->latestDraftCalendarPackage()
+                ? 'Update teaching dates, weekly teaching hours, or school events. Saving updates the active term calendar immediately.'
+                : 'Pre-filled with term dates and default Mon–Sat hours. Review and activate to start planning.')
+            ->modalSubmitActionLabel(fn (): string => $this->activeCalendarPackage() && ! $this->latestDraftCalendarPackage()
+                ? 'Save changes'
+                : 'Activate calendar')
             ->modalWidth('5xl')
             ->stickyModalHeader()
             ->stickyModalFooter()
@@ -397,22 +405,24 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                         TextInput::make('special_term_schedule_basis')
                             ->label('Special Term class-day and class-hour basis')
                             ->maxLength(255)
-                            ->visible(fn (): bool => $this->selectedTerm()->type === Term::TypeSpecialTerm)
+                            ->visible(fn (): bool => $this->selectedTerm()?->type === Term::TypeSpecialTerm)
+                            ->required(fn (): bool => $this->selectedTerm()?->type === Term::TypeSpecialTerm)
                             ->columnSpanFull(),
                     ])
                     ->columns(2),
                 SchemaSection::make('Teaching hours')
-                    ->description('Standard Mon–Sat 7:00 AM–7:00 PM schedule is pre-filled. Scheduling uses 30-minute slots in Asia/Manila.')
+                    ->description('Standard Mon–Sat 7:00 AM–7:00 PM schedule is pre-filled. Scheduling uses 30-minute intervals in Asia/Manila.')
                     ->schema([
                         Repeater::make('teaching_grid_rows')
-                            ->label('Approved teaching days')
+                            ->label('Teaching days & hours')
                             ->schema([
-                                Select::make('day_of_week')->options(SectionMeeting::dayOptions())->required()->distinct(),
+                                Select::make('day_of_week')->label('Day')->options(SectionMeeting::dayOptions())->required()->distinct(),
                                 TimePicker::make('starts_at')->label('Start time')->timezone('UTC')->seconds(false)->required(),
                                 TimePicker::make('ends_at')->label('End time')->timezone('UTC')->seconds(false)->required()->after('starts_at'),
                                 Repeater::make('breaks')
-                                    ->label('Recurring institutional breaks')
+                                    ->label('Daily breaks (optional)')
                                     ->defaultItems(0)
+                                    ->addActionLabel('Add break')
                                     ->schema([
                                         TimePicker::make('starts_at')->label('Start time')->timezone('UTC')->seconds(false)->required(),
                                         TimePicker::make('ends_at')->label('End time')->timezone('UTC')->seconds(false)->required()->after('starts_at'),
@@ -425,26 +435,10 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                             ->reorderable(false)
                             ->columns(3),
                     ]),
-                SchemaSection::make('Enrollment, exam & grading windows')
-                    ->description('Optional while building the timetable · Set Enrollment and Grade Entry before opening student enrollment or faculty grading.')
-                    ->collapsible()
-                    ->collapsed()
-                    ->schema([
-                        Repeater::make('windows')
-                            ->label('Operational windows')
-                            ->defaultItems(0)
-                            ->schema([
-                                Select::make('window_type')->label('Activity')->options(TermCalendarWindow::typeOptions())->required()->distinct(),
-                                DatePicker::make('opens_on')->required(),
-                                DatePicker::make('closes_on')->required()->afterOrEqual('opens_on'),
-                                TimePicker::make('cutoff_at')->label('Close time (Asia/Manila)')->timezone('UTC')->seconds(),
-                            ])
-                            ->columns(2),
-                    ]),
                 SchemaSection::make('School events & no-class days (optional)')
                     ->description('Holidays, school events, class suspensions, or make-up class days.')
                     ->collapsible()
-                    ->collapsed()
+                    ->collapsed(fn (Get $get): bool => blank($get('dated_exceptions')))
                     ->schema([
                         Repeater::make('dated_exceptions')
                             ->hiddenLabel()
@@ -454,8 +448,17 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                                 ? (string) $state['label']
                                 : (filled($state['exception_type'] ?? null) ? ($this->datedExceptionTypeOptions((string) $state['exception_type'])[(string) $state['exception_type']] ?? (string) $state['exception_type']) : null))
                             ->schema([
-                                DatePicker::make('starts_on')->required(),
-                                DatePicker::make('ends_on')->required()->afterOrEqual('starts_on'),
+                                DatePicker::make('starts_on')
+                                    ->native(false)
+                                    ->displayFormat('M j, Y')
+                                    ->suffixIcon(Heroicon::OutlinedCalendar)
+                                    ->required(),
+                                DatePicker::make('ends_on')
+                                    ->native(false)
+                                    ->displayFormat('M j, Y')
+                                    ->suffixIcon(Heroicon::OutlinedCalendar)
+                                    ->required()
+                                    ->afterOrEqual('starts_on'),
                                 Select::make('exception_type')
                                     ->label('Event type')
                                     ->options(fn (?string $state): array => $this->datedExceptionTypeOptions($state))
@@ -469,7 +472,7 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                                         }
                                     }),
                                 TextInput::make('label')->label('Event name')->required()->maxLength(255),
-                                Toggle::make('blocks_teaching')->label('No classes')->default(true),
+                                Toggle::make('blocks_teaching')->label('Suspend classes on these dates')->default(true),
                             ])
                             ->columns(2),
                     ]),
@@ -516,7 +519,15 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                 DB::transaction(function () use ($data, $actor, $term): void {
                     $lockedTerm = Term::query()->whereKey($term->id)->lockForUpdate()->firstOrFail();
 
+                    $activeSourcePackage = TermCalendarPackage::query()
+                        ->where('term_id', $lockedTerm->id)
+                        ->where('state', TermCalendarPackage::StateActive)
+                        ->with('windows')
+                        ->latest('version')
+                        ->first();
+
                     $package = null;
+                    $reusedDraft = false;
                     $draftId = filter_var($data['draft_package_id'] ?? null, FILTER_VALIDATE_INT);
 
                     if ($draftId !== false && $draftId > 0) {
@@ -539,9 +550,10 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                                 ...collect($data)->except(['draft_package_id', 'draft_token', 'windows', 'teaching_grid_rows', 'dated_exceptions'])->all(),
                                 'recorded_by' => $actor->id,
                             ]);
-                            $package->windows()->delete();
+                            // Key term dates are edited exclusively via Card 2 (Set dates); preserve any saved windows.
                             $package->teachingGridRows()->delete();
                             $package->datedExceptions()->delete();
+                            $reusedDraft = true;
                         }
                     }
 
@@ -556,8 +568,15 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                         ]);
                     }
 
-                    foreach ($data['windows'] ?? [] as $window) {
-                        $package->windows()->create($window);
+                    if (! $reusedDraft && $activeSourcePackage instanceof TermCalendarPackage) {
+                        foreach ($activeSourcePackage->windows as $window) {
+                            $package->windows()->create([
+                                'window_type' => $window->window_type,
+                                'opens_on' => $window->opens_on?->toDateString(),
+                                'closes_on' => $window->closes_on?->toDateString(),
+                                'cutoff_at' => $window->cutoff_at,
+                            ]);
+                        }
                     }
 
                     foreach ($data['teaching_grid_rows'] ?? [] as $row) {

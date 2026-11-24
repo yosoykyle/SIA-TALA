@@ -30,13 +30,9 @@
         </div>
 
         @if ($overviewTab === 'academic-years')
-            <div class="tala-resource-readiness-bar" role="note" aria-label="Academic years overview">
-                <div class="tala-resource-readiness-bar__notice" style="background: var(--tala-surface-sunken);">
-                    <div class="tala-resource-readiness-bar__notice-copy">
-                        <x-filament::icon icon="heroicon-o-information-circle" class="tala-resource-readiness-bar__notice-icon" aria-hidden="true" />
-                        <p>Academic years group semesters and anchor incoming curriculum batches. A draft year activates automatically when its first term activates.</p>
-                    </div>
-                </div>
+            <div class="tala-overview-note" role="note" aria-label="Academic years overview">
+                <x-filament::icon icon="heroicon-o-information-circle" class="tala-overview-note__icon" aria-hidden="true" />
+                <p>Academic years group semesters and anchor incoming curriculum batches. A draft year activates automatically when its first term activates.</p>
             </div>
         @endif
 

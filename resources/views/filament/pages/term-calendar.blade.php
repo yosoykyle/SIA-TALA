@@ -25,9 +25,7 @@
                     <header class="tala-calendar-sheet-heading">
                         <div class="tala-calendar-sheet-heading__title">
                             <h2 id="teaching-calendar-heading"><x-filament::icon icon="heroicon-o-calendar" aria-hidden="true" /><span>Teaching schedule &amp; dates</span></h2>
-                            @if ($overviewPackage->state !== \App\Models\TermCalendarPackage::StateActive)
-                                <x-filament::badge :color="$packageStateColor" size="sm">{{ $packageStateLabel }}</x-filament::badge>
-                            @endif
+                            <x-filament::badge :color="$packageStateColor" size="sm">{{ $packageStateLabel }}</x-filament::badge>
                             @if ($overviewPackage->updated_at)
                                 <span class="tala-calendar-sheet-heading__meta tabular-nums">Updated {{ $overviewPackage->updated_at->timezone(config('app.display_timezone'))->format('M j, Y') }}</span>
                             @endif
@@ -62,7 +60,7 @@
                             <dd class="tala-calendar-facts__note">{{ $scheduleSummary['teaching_hours_note'] }}</dd>
                         </div>
                         <div class="tala-calendar-facts__item">
-                            <dt>Grid slots</dt>
+                            <dt>Schedule increments</dt>
                             <dd class="tabular-nums">{{ $scheduleSummary['grid_slots'] }}</dd>
                             <dd class="tala-calendar-facts__note">{{ $scheduleSummary['grid_slots_note'] }}</dd>
                         </div>
@@ -142,33 +140,33 @@
                             <dd class="tala-calendar-facts__note">{{ $scheduleSummary['teaching_hours_note'] }}</dd>
                         </div>
                         <div class="tala-calendar-facts__item">
-                            <dt>Grid slots</dt>
+                            <dt>Schedule increments</dt>
                             <dd class="tabular-nums">{{ $scheduleSummary['grid_slots'] }}</dd>
                             <dd class="tala-calendar-facts__note">{{ $scheduleSummary['grid_slots_note'] }}</dd>
                         </div>
                     </dl>
 
-                    <p class="tala-work-footnote">Pre-filled from your term dates and default school hours. Save &amp; activate in one step.</p>
+                    <p class="tala-work-footnote">Pre-filled with term dates and default Mon–Sat hours. Review and activate to start planning.</p>
                 @endif
             </section>
 
             <section class="tala-task-surface tala-calendar-activities" aria-labelledby="activity-dates-heading">
                 <header class="tala-calendar-sheet-heading">
                     <div class="tala-calendar-sheet-heading__title">
-                        <h2 id="activity-dates-heading"><x-filament::icon icon="heroicon-o-calendar" aria-hidden="true" /><span>Enrollment, exam &amp; grading windows</span></h2>
+                        <h2 id="activity-dates-heading"><x-filament::icon icon="heroicon-o-calendar" aria-hidden="true" /><span>Key term dates</span></h2>
                     </div>
                     @if (! $readOnly && ! $this->isTermClosed($term) && ! $keyDatesLocked)
                         <div class="tala-calendar-sheet-heading__action">
-                            {{ $this->addOperationalDatesAction->label($hasAnyKeyDate ? 'Update dates' : 'Set dates')->color('gray')->icon('heroicon-o-pencil-square')->size('sm') }}
+                            {{ $this->addOperationalDatesAction->label($hasAnyKeyDate ? 'Edit dates' : 'Set dates')->color('gray')->icon('heroicon-o-pencil-square')->size('sm') }}
                         </div>
                     @endif
                 </header>
-                <p class="tala-work-footnote" style="margin-block-start: 0.375rem;">Optional while building the timetable · Set Enrollment and Grade Entry before opening student enrollment or faculty grading.</p>
+                <p class="tala-work-footnote">Optional for timetable generation. Required before opening student enrollment or faculty grading.</p>
 
                 @if ($keyDatesLocked)
                     <p class="tala-calendar-lock-note" role="status">
                         <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
-                        <span>Activate the teaching calendar above first to set Enrollment, Drop, Exam, and Grade Entry dates.</span>
+                        <span>Activate the teaching schedule above before setting key term dates.</span>
                     </p>
                 @endif
 

@@ -449,11 +449,26 @@
     color:var(--tala-status-warning-fg);
     border:1px solid var(--tala-status-warning-border);
 }
-.tala-timetable-status-pill.is-official,
-.tala-timetable-status-pill.is-verified {
+.tala-timetable-status-pill.is-official {
     background:var(--tala-brand-tint);
     color:var(--tala-on-brand-tint);
     border:1px solid var(--tala-selected-edge);
+}
+.tala-timetable-status-pill.is-archived {
+    background:var(--tala-surface-sunken);
+    color:var(--tala-muted);
+    border:1px solid var(--tala-edge-strong);
+}
+.tala-timetable-status-pill.is-check {
+    background:var(--tala-surface);
+    color:var(--tala-text);
+    border:1px solid var(--tala-edge-strong);
+}
+.tala-timetable-status-pill.is-check.is-pass > .fi-icon {
+    color:var(--tala-status-success-fg);
+}
+.tala-timetable-status-pill.is-check.is-warn > .fi-icon {
+    color:var(--tala-status-warning-fg);
 }
 .tala-timetable-status-pill.is-interactive {
     appearance:none;
@@ -462,6 +477,10 @@
 }
 @media (hover: hover) {
     .tala-timetable-status-pill.is-interactive:hover {
+        background:var(--tala-surface-sunken);
+        border-color:var(--tala-edge-strong);
+    }
+    .tala-timetable-status-pill.is-official.is-interactive:hover {
         background:color-mix(in srgb, var(--tala-brand) 16%, var(--tala-brand-tint));
         border-color:var(--tala-brand);
     }
@@ -668,14 +687,19 @@
     block-size:.75rem;
 }
 .tala-inspector-state-pill.is-draft {
-    background:var(--tala-surface-sunken);
-    color:var(--tala-text);
-    border:1px solid var(--tala-edge-strong);
+    background:var(--tala-status-warning-bg);
+    color:var(--tala-status-warning-fg);
+    border:1px solid var(--tala-status-warning-border);
 }
 .tala-inspector-state-pill.is-official {
     background:var(--tala-brand-tint);
     color:var(--tala-on-brand-tint);
     border:1px solid var(--tala-selected-edge);
+}
+.tala-inspector-state-pill.is-archived {
+    background:var(--tala-surface-sunken);
+    color:var(--tala-muted);
+    border:1px solid var(--tala-edge-strong);
 }
 .tala-inspector-body {
     display:grid;
@@ -893,7 +917,20 @@
     .tala-timetable-controls { inline-size: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .tala-timetable *, .tala-timetable *::before, .tala-timetable *::after { scroll-behavior: auto; }
+    .tala-timetable *,
+    .tala-timetable *::before,
+    .tala-timetable *::after,
+    .tala-timetable-studio *,
+    .tala-timetable-studio *::before,
+    .tala-timetable-studio *::after,
+    .tala-solver-report *,
+    .tala-solver-report *::before,
+    .tala-solver-report *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
 }
 
 .tala-timetable-axis { grid-column: 1; grid-row: 1; position:sticky; inset-inline-start:0; z-index:16; background:var(--tala-surface); }
@@ -926,8 +963,8 @@
     flex: 1 1 20rem;
 }
 .fi-body .tala-timetable-studio .tala-studio-breadcrumbs .fi-breadcrumbs {
-    font-size: .72rem;
-    line-height: 1.2;
+    font-size: .75rem;
+    line-height: 1.25;
 }
 .fi-body :is(.tala-planning-source-detail, .tala-studio-breadcrumbs) .fi-breadcrumbs-list {
     flex-wrap: nowrap;
@@ -957,8 +994,8 @@
     margin: 0;
 }
 .fi-body .tala-timetable-studio .tala-timetable-status-pill {
-    padding: .15rem .55rem;
-    font-size: .72rem;
+    padding: .2rem .6rem;
+    font-size: .75rem;
 }
 .fi-body .tala-timetable-studio .tala-studio-meta-pill {
     display: inline-flex;
@@ -968,7 +1005,7 @@
     border: 1px solid var(--tala-edge);
     background: var(--tala-surface-sunken);
     color: var(--tala-muted);
-    font-size: .72rem;
+    font-size: .75rem;
     font-weight: 500;
     line-height: 1.35;
 }
@@ -1019,8 +1056,24 @@
     block-size: var(--tala-studio-control-height);
 }
 .fi-body .tala-timetable-studio .tala-studio-source {
-    inline-size: min(17.5rem, 100%);
-    flex: 0 1 17.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    inline-size: min(21rem, 100%);
+    flex: 0 1 21rem;
+    min-inline-size: 0;
+}
+.fi-body .tala-timetable-studio .tala-studio-source__label {
+    flex: none;
+    margin: 0;
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--tala-muted);
+    white-space: nowrap;
+}
+.fi-body .tala-timetable-studio .tala-studio-source .fi-input-wrp {
+    flex: 1 1 auto;
+    min-inline-size: 0;
 }
 .fi-body .tala-timetable-studio :is(.tala-studio-viewing, .tala-studio-source) .fi-input-wrp {
     display: flex;
@@ -1048,7 +1101,12 @@
     }
     .fi-body .tala-timetable-studio :is(.tala-studio-viewing, .tala-studio-source) select.fi-select-input,
     .fi-body #timetable-source {
-        padding-block: 0.6875rem;
+        font-size: 1rem;
+        padding-block: 0.5625rem;
+    }
+    .tala-timetable-day-pill {
+        min-block-size: 2.75rem;
+        padding-inline: 0.875rem;
     }
 }
 @media (max-width: 63.999rem) {
@@ -1090,6 +1148,41 @@
 }
 .fi-body .tala-timetable-studio .tala-studio-stepper.is-compact .tala-planning-stepper__summary {
     display: none;
+}
+.fi-body .tala-timetable-studio .tala-studio-context-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem 1rem;
+    padding: .5rem 1.25rem;
+    border-block-end: 1px solid var(--tala-edge);
+    font-size: .8125rem;
+    line-height: 1.4;
+}
+.fi-body .tala-timetable-studio .tala-studio-context-strip.is-neutral {
+    background: var(--tala-surface-sunken);
+    color: var(--tala-muted);
+}
+.fi-body .tala-timetable-studio .tala-studio-context-strip.is-neutral strong {
+    color: var(--tala-text);
+    font-weight: 600;
+}
+.fi-body .tala-timetable-studio .tala-studio-context-strip.is-warning {
+    background: var(--tala-status-warning-bg);
+    color: var(--tala-status-warning-fg);
+    border-block-end-color: var(--tala-status-warning-border);
+}
+.fi-body .tala-timetable-studio .tala-studio-context-strip__body {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    min-inline-size: 0;
+}
+.fi-body .tala-timetable-studio .tala-studio-context-strip__body > .fi-icon {
+    flex: none;
+    inline-size: 1rem;
+    block-size: 1rem;
 }
 .fi-body .tala-timetable-studio .tala-studio-pending-revision {
     display: flex;
@@ -1334,7 +1427,7 @@
 }
 .tala-rail-controls .tala-interactive-view-tabs .fi-tabs-item {
     padding-inline: .325rem;
-    font-size: .72rem;
+    font-size: .75rem;
 }
 .tala-rail-controls .tala-interactive-format-tabs {
     display: grid;
@@ -1381,7 +1474,7 @@
     padding-block: 0.3125rem;
     padding-inline: 0.75rem;
     border: 1px solid transparent;
-    border-radius: calc(var(--tala-card-radius, 0.625rem) - 0.175rem);
+    border-radius: 0.325rem;
     background: transparent;
     background-image: none;
     color: var(--tala-text);
@@ -1405,14 +1498,6 @@
     .fi-body .tala-studio-draft-dock__actions .fi-btn:hover .fi-icon {
         color: var(--tala-text);
     }
-}
-.fi-body .tala-studio-draft-dock__actions .fi-btn:is([wire\:click*="regenerateTimetable"], :last-child):is(:hover, :focus-visible) {
-    background: var(--tala-brand-tint);
-    border-color: var(--tala-selected-edge);
-    color: var(--tala-on-brand-tint);
-}
-.fi-body .tala-studio-draft-dock__actions .fi-btn:is([wire\:click*="regenerateTimetable"], :last-child):is(:hover, :focus-visible) .fi-icon {
-    color: var(--tala-on-brand-tint);
 }
 .tala-studio-draft-dock.is-move-mode {
     background: color-mix(in srgb, var(--tala-brand-tint) 94%, var(--tala-surface));
@@ -1489,7 +1574,7 @@
 }
 .tala-rail-scope-line {
     margin: 0;
-    font-size: .72rem;
+    font-size: .75rem;
     color: var(--tala-muted);
     font-variant-numeric: tabular-nums;
 }
@@ -1535,7 +1620,7 @@
     padding-block-start: .5rem;
     border-block-start: 1px solid var(--tala-edge);
     inline-size: 100%;
-    font-size: .72rem;
+    font-size: .75rem;
     color: var(--tala-muted);
 }
 .tala-rail-legend__item {
@@ -1738,8 +1823,173 @@
 }
 /* Revision checklist delegates card-grid/selection/focus tokens to shared .tala-card-picker in tala-filament.css */
 .fi-body :is(.tala-revision-meeting-checklist.fi-fo-checkbox-list-options, .tala-revision-meeting-checklist .fi-fo-checkbox-list-options) {
-    max-block-size: min(22rem, 46dvh);
+    max-block-size: min(26rem, 52dvh);
 }
+.tala-revision-selection-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .5rem .75rem;
+    border-radius: .5rem;
+    border: 1px solid var(--tala-edge);
+    background: var(--tala-surface-sunken);
+    font-size: .8125rem;
+    font-weight: 600;
+    color: var(--tala-muted);
+    font-variant-numeric: tabular-nums;
+}
+.tala-revision-selection-bar.is-active {
+    background: var(--tala-brand-tint);
+    border-color: var(--tala-selected-edge);
+    color: var(--tala-on-brand-tint);
+}
+.tala-revision-selected-inset {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem 1rem;
+}
+.tala-revision-selected-inset__body {
+    display: grid;
+    gap: .15rem;
+    min-inline-size: 0;
+    font-size: .8125rem;
+}
+.tala-revision-selected-inset__body strong {
+    color: var(--tala-text);
+    font-weight: 600;
+}
+.tala-revision-selected-inset__body span {
+    color: var(--tala-muted);
+    overflow-wrap: anywhere;
+}
+.tala-revision-selected-inset__hint {
+    font-size: .75rem;
+    font-weight: 500;
+    color: var(--tala-muted);
+    white-space: nowrap;
+}
+.tala-revision-preview {
+    display: grid;
+    gap: 1rem;
+    font-size: .875rem;
+}
+.tala-revision-status {
+    display: grid;
+    gap: .25rem;
+    padding: .625rem .875rem;
+    border-radius: .5rem;
+    border: 1px solid var(--tala-edge);
+    font-size: .875rem;
+    line-height: 1.45;
+}
+.tala-revision-status.is-pass {
+    background: var(--tala-brand-tint);
+    border-color: var(--tala-selected-edge);
+    color: var(--tala-on-brand-tint);
+}
+.tala-revision-status.is-blocked {
+    background: var(--tala-status-danger-bg);
+    border-color: var(--tala-status-danger-border);
+    color: var(--tala-status-danger-fg);
+}
+.tala-revision-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0;
+    border: 1px solid var(--tala-edge);
+    border-radius: .625rem;
+    background: var(--tala-surface-sunken);
+    overflow: hidden;
+    font-variant-numeric: tabular-nums;
+}
+.tala-revision-metrics > div {
+    display: grid;
+    gap: .15rem;
+    padding: .625rem .875rem;
+}
+.tala-revision-metrics > div + div {
+    border-inline-start: 1px solid var(--tala-edge);
+}
+.tala-revision-metrics dt {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--tala-muted);
+}
+.tala-revision-metrics dd {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--tala-text);
+}
+.tala-revision-scope-note {
+    margin: 0;
+    font-size: .8125rem;
+    font-weight: 500;
+    color: var(--tala-text);
+}
+.tala-revision-changes {
+    display: grid;
+    gap: .75rem;
+}
+.tala-revision-changes .tala-revision-change {
+    margin-block-start: 0;
+}
+.tala-revision-findings {
+    display: grid;
+    gap: .375rem;
+}
+.tala-revision-findings__heading {
+    margin: 0;
+    font-size: .8125rem;
+    font-weight: 600;
+    color: var(--tala-text);
+}
+.tala-revision-findings__list {
+    margin: 0;
+    padding-inline-start: 1.25rem;
+    display: grid;
+    gap: .35rem;
+    list-style: disc;
+    color: var(--tala-text);
+}
+.tala-revision-finding-source {
+    color: var(--tala-muted);
+    font-size: .8125rem;
+}
+@media (max-width: 36rem) {
+    .tala-revision-metrics {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .tala-revision-metrics > div + div {
+        border-inline-start: 0;
+        border-block-start: 1px solid var(--tala-edge);
+    }
+}
+
+.tala-scope-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: .15rem .625rem;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+.tala-scope-pill.is-prepared {
+    background: var(--tala-brand-tint);
+    color: var(--tala-on-brand-tint);
+    border: 1px solid var(--tala-selected-edge);
+}
+.tala-scope-pill.is-advisory {
+    background: var(--tala-status-warning-bg);
+    color: var(--tala-status-warning-fg);
+    border: 1px solid var(--tala-status-warning-border);
+}
+
 .tala-technical-details {
     display: grid;
     gap: .25rem;
@@ -1749,7 +1999,7 @@
     background: var(--tala-surface-sunken);
 }
 .tala-technical-details__label {
-    font-size: .72rem;
+    font-size: .75rem;
     font-weight: 600;
     color: var(--tala-muted);
 }
@@ -1990,5 +2240,317 @@ button.tala-timetable-master-meeting:focus-visible {
     :is(.tala-timetable-mobile-meeting, button.tala-timetable-master-meeting,
         .tala-timetable-master-meeting > summary) {
         background:ButtonFace; color:ButtonText; border:1px solid ButtonText; box-shadow:none;
+    }
+}
+
+/* Solver Report (ViewScheduleGenerationRun / timetable-run-summary.blade.php) */
+.tala-solver-report {
+    display: grid;
+    gap: var(--tala-section-gap, 1rem);
+    min-inline-size: 0;
+}
+.tala-solver-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    margin: 0;
+    overflow: hidden;
+    background: var(--tala-surface);
+}
+.tala-solver-metric {
+    display: grid;
+    align-content: start;
+    gap: 0.25rem;
+    min-inline-size: 0;
+    padding: 0.9375rem var(--tala-card-pad, 1rem);
+}
+.tala-solver-metric + .tala-solver-metric {
+    border-inline-start: 1px solid var(--tala-edge);
+}
+.tala-solver-metric.is-success {
+    background: color-mix(in srgb, var(--tala-brand-tint) 34%, var(--tala-surface));
+}
+.tala-solver-metric.is-danger {
+    background: color-mix(in srgb, var(--tala-status-danger-bg) 42%, var(--tala-surface));
+}
+.tala-solver-metric.is-warning {
+    background: color-mix(in srgb, var(--tala-status-warning-bg) 38%, var(--tala-surface));
+}
+.tala-solver-metric__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tala-muted);
+}
+.tala-solver-metric__label .fi-icon {
+    inline-size: 0.95rem;
+    block-size: 0.95rem;
+    flex: none;
+    color: var(--tala-control-icon);
+}
+.tala-solver-metric.is-success .tala-solver-metric__label .fi-icon {
+    color: var(--tala-status-success-fg);
+}
+.tala-solver-metric.is-danger .tala-solver-metric__label .fi-icon {
+    color: var(--tala-status-danger-fg);
+}
+.tala-solver-metric__value {
+    margin: 0;
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--tala-text);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: break-word;
+}
+.tala-solver-metric.is-success .tala-solver-metric__value {
+    color: var(--tala-on-brand-tint);
+}
+.tala-solver-metric.is-danger .tala-solver-metric__value {
+    color: var(--tala-status-danger-fg);
+}
+.tala-solver-metric__sub {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--tala-muted);
+}
+.tala-solver-card {
+    overflow: hidden;
+}
+.tala-solver-card__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+    padding: 0.75rem var(--tala-card-pad, 1rem);
+    border-block-end: 1px solid var(--tala-edge);
+    background: var(--tala-surface-sunken);
+}
+.tala-solver-card__header h2 {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+.tala-solver-card__caption {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--tala-muted);
+    max-inline-size: 80ch;
+}
+.tala-solver-card__body {
+    padding: var(--tala-card-pad, 1rem);
+}
+.tala-solver-kv-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 1.5rem;
+    margin: 0;
+}
+.tala-solver-kv-item {
+    display: grid;
+    align-content: start;
+    gap: 0.25rem;
+    min-inline-size: 0;
+}
+.tala-solver-kv-item--full {
+    grid-column: 1 / -1;
+    padding-block-start: 0.75rem;
+    border-block-start: 1px solid var(--tala-edge);
+}
+.tala-solver-kv-item--flush {
+    padding-block-start: 0;
+    border-block-start: 0;
+}
+.tala-solver-kv-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tala-muted);
+}
+.tala-solver-kv-item dd {
+    margin: 0;
+    display: grid;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--tala-text);
+    overflow-wrap: anywhere;
+}
+.tala-solver-kv-inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+}
+.tala-solver-kv-primary {
+    font-weight: 600;
+    color: var(--tala-text);
+}
+.tala-solver-kv-secondary {
+    font-size: 0.8125rem;
+    color: var(--tala-muted);
+    line-height: 1.45;
+}
+.tala-solver-table-wrap {
+    overflow-x: auto;
+    min-inline-size: 0;
+}
+.tala-solver-table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    text-align: start;
+    font-variant-numeric: tabular-nums;
+}
+.tala-solver-table thead th {
+    padding: 0.625rem var(--tala-card-pad, 1rem);
+    border-block-end: 1px solid var(--tala-edge);
+    background: color-mix(in srgb, var(--tala-surface-sunken) 55%, var(--tala-surface));
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--tala-muted);
+    white-space: nowrap;
+}
+.tala-solver-table thead th.tala-solver-table__value-head {
+    text-align: end;
+}
+.tala-solver-table tbody td {
+    padding: 0.6875rem var(--tala-card-pad, 1rem);
+    border-block-end: 1px solid var(--tala-edge);
+    vertical-align: middle;
+    line-height: 1.45;
+    color: var(--tala-text);
+}
+.tala-solver-table tbody tr:last-child td {
+    border-block-end: 0;
+}
+.tala-solver-table__rule {
+    font-weight: 600;
+    color: var(--tala-text);
+}
+.tala-solver-table__notes {
+    color: var(--tala-muted);
+    font-size: 0.8125rem;
+}
+.tala-solver-table__value {
+    text-align: end;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.tala-solver-priority-pill {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 1.4rem;
+    block-size: 1.4rem;
+    margin-inline-end: 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--tala-edge-strong);
+    background: var(--tala-surface-sunken);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--tala-muted);
+    font-variant-numeric: tabular-nums;
+}
+.tala-solver-ref-footer {
+    display: grid;
+    gap: 0.625rem;
+    padding: 0.75rem var(--tala-card-pad, 1rem);
+    border: 1px solid var(--tala-edge);
+    border-radius: var(--tala-card-radius);
+    background: var(--tala-surface-sunken);
+}
+.tala-solver-ref-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
+    gap: 0.625rem 1.25rem;
+    margin: 0;
+    align-items: center;
+}
+.tala-solver-ref-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.45rem;
+    min-inline-size: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+.tala-solver-ref-item dt {
+    color: var(--tala-muted);
+    font-weight: 500;
+}
+.tala-solver-ref-item dd {
+    margin: 0;
+    color: var(--tala-text);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+.tala-solver-ref-admin {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem 1.25rem;
+    padding-block-start: 0.5rem;
+    border-block-start: 1px solid var(--tala-edge);
+    font-size: 0.75rem;
+    color: var(--tala-muted);
+    font-variant-numeric: tabular-nums;
+}
+.tala-solver-rm-table .fi-ta-header-toolbar > div:last-child {
+    margin-inline-start: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+@media (max-width: 56rem) {
+    .tala-solver-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .tala-solver-metric:nth-child(3) {
+        border-inline-start: 0;
+    }
+    .tala-solver-metric:nth-child(n + 3) {
+        border-block-start: 1px solid var(--tala-edge);
+    }
+    .tala-solver-ref-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 38rem) {
+    .tala-solver-metrics,
+    .tala-solver-kv-grid,
+    .tala-solver-ref-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .tala-solver-metric + .tala-solver-metric {
+        border-inline-start: 0;
+        border-block-start: 1px solid var(--tala-edge);
+    }
+    .tala-solver-table__value,
+    .tala-solver-table thead th.tala-solver-table__value-head {
+        text-align: start;
+        white-space: normal;
+    }
+}
+@media (forced-colors: active) {
+    .tala-solver-metrics,
+    .tala-solver-metric,
+    .tala-solver-card__header,
+    .tala-solver-ref-footer {
+        background: Canvas;
+        color: CanvasText;
+        border-color: CanvasText;
     }
 }
